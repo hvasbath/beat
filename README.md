@@ -1,3 +1,3 @@
 # beat
 
-Bayesian Earthquake Analysis Tool, bayes on pyrocko,, theano and pymc3
+Bayesian Earthquake Analysis Tool, based on pyrocko, theano and pymc3
