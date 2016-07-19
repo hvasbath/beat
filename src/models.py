@@ -99,30 +99,30 @@ class GeometryOptimizer(Project):
                             superdir=config.store_superdir,
                             crust_ind=0,    # always use reference model
                             sources=g_sources)
-        self.cut_seis_traces = theanof.SeisDataChopper(
+        self.chop_traces = theanof.SeisDataChopper(
                             sample_rate=config.sample_rate,
                             traces=data_traces,
                             arrival_taper=config.arrival_taper,
-                            filter_char=config.filter_char)
+                            filterer=config.filterer)
         self.get_seis_synths = theanof.SeisSynthesizer(
                             engine=self.engine,
                             sources=s_sources,
                             targets=config.stargets,
                             event=config.event,
                             arrival_taper=config.arrival_taper,
-                            filter_char=config.filter_char)
+                            filterer=config.filterer)
 
     def built_model(self):
         with pm.Model() as self.model:
             # instanciate random vars
-            input_rvs = {}
-            for param in self.config.bounds.iterkeys():
-                input_rvs[param] = pm.Uniform(param.name,
-                                       shape=len(self.config.bounds[param].dimension)),
-                                       lower=self.config.bounds[param].lower,
-                                       upper=self.config.bounds[param].upper,
-                                       testval=self.config.bounds[param].testvalue,
-                                       transform=None)
+            input_rvs = []
+            for param in self.config.bounds:
+                input_rvs.append(pm.Uniform(param.name,
+                                       shape=len(param.dimension),
+                                       lower=param.lower,
+                                       upper=param.upper,
+                                       testval=param.testvalue,
+                                       transform=None))
 
             geo_input_rvs = copy.deepcopy(input_rvs)
             if 'time' in input_rvs:
@@ -133,16 +133,16 @@ class GeometryOptimizer(Project):
                 seis_input_rvs.pop('opening')
 
             # calc residuals
-            disp = self.get_geo_synths(self.lons, self.lats, **geo_input_rvs)
+            disp = self.get_geo_synths(self.lons, self.lats, *geo_input_rvs)
             los = (disp[:,0]*lv[:,0] + \
                    disp[:,1]*lv[:, 1] + \
                    disp[:,2]*lv[:,2]) * self.odws
                    
             geo_res = self.Bij.srmap((self.wdata - los))
 
-            out = self.get_seis_synths(**seis_input_rvs)
-            data_trcs = self.cut_seis_traces(out[1])
-            seis_res = (data_trcs - out[0])
+            synths, tmins = self.get_seis_synths(*seis_input_rvs)
+            data_trcs = self.chop_traces(tmins)
+            seis_res = data_trcs - synths
 
             # calc likelihoods
             logpts_g = tt.zeros((ng_t), tconfig.floatX)
@@ -158,9 +158,14 @@ class GeometryOptimizer(Project):
                         (-0.5) * geo_res[l, :].dot(
                               shared(self.gweights[l])).dot(geo_res[l, :].T))
 
+            # adding dataset missfits to traces
+            seis_llk = pm.Deterministic('seis_like', logpts_s)
+            geo_llk = pm.Deterministic('geo_like', logpts_g)
+                           
             # sum up geodetic and seismic likelihood
-            like = pm.Deterministic('like', (logpts_s.sum() / ns_t) + \
-                                            (logpts_g.sum() / ng_t))
+            like = pm.Deterministic('like',
+                    seis_llk.T.dot(seis_mf_cov).dot(seis_llk) + \
+                    geo_llk.T.dot(geo_mf_cov).dot(geo_llk))
             llk = pm.Potential('llk', like)
 
         def update_weights(self, point):

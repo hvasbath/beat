@@ -2,7 +2,7 @@ import psgrn
 import pscmp
 import numpy as num
 
-from pyrocko.guts import Object, List, String, Float, Tuple, Timestamp
+from pyrocko.guts import Object, List, Dict, String, Float, Int, Tuple, Timestamp
 from pyrocko.guts_array import Array
 
 from pyrocko import crust2x2, gf, cake, orthodrome, trace, model
@@ -15,6 +15,7 @@ from pyrocko.fomosto import qssp
 import utility
 import seismosizer_ext as smse
 
+import time
 import logging
 import shutil
 import copy
@@ -196,8 +197,8 @@ class Parameter(Object):
         for i in range(self.lower.size):
             if self.testvalue[i] > self.upper[i] or \
                self.testvalue[i] < self.lower[i]:
-                Exception('the testvalue has to be within the upper
-                           and lower bounds')
+                Exception('the testvalue has to be within the upper'
+                          'and lower bounds')
 
     @property
     def dimension(self):
@@ -274,7 +275,7 @@ class BEATconfig(Object):
     main_source = RectangularSource.T()
     sub_sources = List.T(default=RectangularSource.T(), optional=True)
     
-    bounds = Dict.T(default=ParameterBound.T())
+    bounds = List.T(default=Parameter.T())
 
     geodetic_data_dir = String.T(default='./')
     gtargets = List.T(optional=True, default=Diff_IFG.T())
@@ -282,12 +283,12 @@ class BEATconfig(Object):
     seismic_data_dir = String.T(default='./')
     stargets = List.T(optional=True, default=TeleseismicTarget.T())
     stations = List.T(default=model.Station.T())
-    channels = List.T(default=[String.T(default='Z'), String.T(default='T'))
+    channels = List.T(default=[String.T(default='Z'), String.T(default='T')])
     
     sample_rate = Float.T(default=1.0,
                           help='Sample rate of GFs to be calculated')
     arrival_taper = trace.Taper.T(default=ArrivalTaper.D())
-    filter_char = Filter.T()
+    filterer = Filter.T()
 
 
 def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0, crust_inds=[0],
@@ -296,7 +297,7 @@ def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0, crust_inds=[0],
     Initiate a list of target objects given a list of indexes to the
     respective GF store velocity model variation index (crust_inds).
     '''
-    targets = [TeleseisTarget(
+    targets = [TeleseismicTarget(
         quantity='displacement',
         codes=(stations[sta_num].network,
                  stations[sta_num].station,
@@ -751,11 +752,11 @@ def get_phase_taperer(engine, source, target, arrival_taper):
     return taperer
 
 
-def seis_synthetics(engine, sources, targets, arrival_taper, filter_char,
+def seis_synthetics(engine, sources, targets, arrival_taper, filterer,
                     reference_taperer=None, plot=False):
     '''
     Calculate synthetic seismograms of combination of targets and sources,
-    filtering and tapering afterwards (filter_char)
+    filtering and tapering afterwards (filterer)
     tapering according to arrival_taper around P -or S wave.
     If reference_taper the given taper is always used.
     Returns: Array with data each row-one target
@@ -765,13 +766,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper, filter_char,
     response = engine.process(sources = sources,
                               targets = targets)
 
-    for i in xrange(len(source_params)):
-        sensitivity_param_list.append([0] * len(request.targets))
-        sensitivity_param_trcs.append([0] * len(request.targets))
-        
-    for source, target, tr in response.iter_results():   # check many sources output!
-        ### continue!!!
-        
+    synt_trcs = []
+    for source, target, tr in response.iter_results():
         # extract interpolated travel times of phases which have been defined
         # in the store's config file and cut data/synth traces
         
@@ -784,38 +780,55 @@ def seis_synthetics(engine, sources, targets, arrival_taper, filter_char,
         tr.taper(taperer, inplace=True, chop=True)
 
         # filter traces
-        tr.bandpass(corner_hp = filter_char.lower_corner,
-                                  corner_lp = filter_char.upper_corner,
-                                  order=filter_char.order)
+        tr.bandpass(corner_hp = filterer.lower_corner,
+                                  corner_lp = filterer.upper_corner,
+                                  order=filterer.order)
+        tr.location = str(source.magnitude)
 
-        count += 1
+        synt_trcs.append(tr)
 
     if plot:
         trace.snuffle(synt_trcs)
 
+    nt = len(targets)
+    ns = len(sources)
     synths = num.vstack([synt_trcs[i].ydata for i in range(len(synt_trcs))])
-    tmins = num.vstack([synt_trcs[i].tmin for i in range(len(synt_trcs))])
+    tmins = num.vstack([synt_trcs[i].tmin for i in range(nt)]).flatten()
+
+    # stack traces for all sources
+    if ns > 1 :
+        for k in range(ns):
+            outstack = num.zeros([nt, synths.shape[1]])
+            outstack += synths[(k*nt):(k+1)*nt, :]
+
+        synths = outstack
+
+    print tmins.shape
     return synths, tmins
 
     
-def taper_filter_traces(traces, arrival_taper, filter_char, tmin):
-
-    count = 0
-
-    for t in targets:
+def taper_filter_traces(traces, arrival_taper, filterer, tmins, plot=False):
+    cut_traces = []
+    nt = len(traces)
+    print tmins, tmins.shape
+    for i in range(nt):
+        print tmins[i], tmins[i].shape
         taperer = trace.CosTaper(
-            tmin[count],
-            tmin[count] + arrival_taper.b,
-            tmin[count] + arrival_taper.a + arrival_taper.c,
-            tmin[count] + arrival_taper.a + arrival_taper.d)
+            float(tmins[i]),
+            float(tmins[i] + arrival_taper.b),
+            float(tmins[i] + arrival_taper.a + arrival_taper.c),
+            float(tmins[i] + arrival_taper.a + arrival_taper.d))
+        cut_trace = traces[i].copy()
         # cut traces
-        traces[count].taper(taperer, inplace=True, chop=True)
+        cut_trace.taper(taperer, inplace=True, chop=True)
 
         # filter traces
-        traces[count].bandpass(corner_hp = filter_char.lower_corner,
-                               corner_lp = filter_char.upper_corner,
-                               order=filter_char.order)
+        cut_trace.bandpass(corner_hp = filterer.lower_corner,
+                           corner_lp = filterer.upper_corner,
+                           order=filterer.order)
+        cut_traces.append(cut_trace)
 
-        count += 1
-
-    return num.vstack([traces[i].ydata for i in range(len(traces))])
+        if plot:
+            trace.snuffle(cut_traces)
+        
+    return num.vstack([cut_traces[i].ydata for i in range(nt)])
