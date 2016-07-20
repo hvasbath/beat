@@ -14,32 +14,34 @@ import numpy as num
 
 class GeoLayerSynthesizer(theano.Op):
 
-    __props__ = ('superdir', 'crust_ind')
+    __props__ = ('store_superdir', 'crust_ind', 'sources')
 
     itypes = [tt.dvector, tt.dvector, tt.dvector, tt.dvector, tt.dvector,
               tt.dvector, tt.dvector, tt.dvector,
               tt.dvector, tt.dvector, tt.dvector, tt.dvector]
     otypes = [tt.dmatrix]
 
-    def __init__(self, superdir, crust_ind):
-        self.superdir = superdir
+    def __init__(self, store_superdir, crust_ind, sources):
+        self.store_superdir = store_superdir
         self.crust_ind = crust_ind
+        self.sources = tuple(sources)
 
     def perform(self, node, inputs, output):
-        ### update use syntax from covariance calculation?
-        lons, lats, o_lons, o_lats, ds, st, di, ra, ls, ws, sl, op = inputs
+
+        lons, lats, o_lons, o_lats, ds, sts, dis, ras, ls, ws, sls, ops = inputs
         z = output[0]
-                
+
         for o_lon, o_lat, d, st, di, ra, l, w, sl, op, source in \
             zip(o_lons, o_lats, ds, sts, dis, ras, ls, ws, sls, ops, self.sources):
             source.update(lon=o_lon, lat=o_lat, depth=d,
                           strike=st, dip=di, rake=ra,
                           length=l, width=w, slip=sl,
-                          time=(self.event.time + t))
+                          opening=op)
 
         displ = heart.geo_layer_synthetics(
             self.store_superdir,
-            self.crust_ind, lons, lats, sources)
+            self.crust_ind, lons, lats, self.sources)
+
         z[0] = displ[0]
 
     def infer_shape(self, node, input_shapes):
@@ -66,11 +68,10 @@ class SeisSynthesizer(theano.Op):
         self.filterer = filterer
 
     def perform(self, node, inputs, output):
-        ### update use syntax from covariance calculation?
+
         lons, lats, ds, sts, dis, ras, ls, ws, sls, ts = inputs
         synths = output[0]
         tmins = output[1]
-        
 
         for lon, lat, d, st, di, ra, l, w, sl, t, source in \
             zip(lons, lats, ds, sts, dis, ras, ls, ws, sls, ts, self.sources):
@@ -89,7 +90,7 @@ class SeisSynthesizer(theano.Op):
         store = self.engine.get_store(self.targets[0].store_id)
         ncol = int(num.ceil(store.config.sample_rate * \
                 (self.arrival_taper.d + self.arrival_taper.a)))
-        return [(nrow, ncol),(nrow,)]
+        return [(nrow, ncol), (nrow,)]
 
 
 class SeisDataChopper(theano.Op):

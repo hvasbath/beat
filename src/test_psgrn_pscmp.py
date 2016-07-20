@@ -7,21 +7,27 @@ from matplotlib import pylab
 import numpy as num
 from theano.compile import ProfileStats
 from theano import shared, function
+import pscmp
 
 profile = ProfileStats()
 
 km = 1000.
 
-homedir = '/Users/vasyurhm/Aqaba1995'
-datadir = homedir + '/data/'
-storehomedir = [homedir + '/GF/']
-geo_datadir = '/Users/vasyurhm/SAR_data/Aqaba/'
+#homedir = '/Users/vasyurhm/Aqaba1995'
+#datadir = homedir + '/data/'
+#storehomedir = [homedir + '/GF/']
+#geo_datadir = '/Users/vasyurhm/SAR_data/Aqaba/'
+
+homedir = '/data3TB/Teleseism'
+datadir = homedir + '/autokiwi/events/Aqaba1995/kiwi/data/'
+storehomedir = [homedir + '/Greensfunctions/Aqaba1995GFS/']
+geo_datadir = '/data/SAR_data/Aqaba1995/subsampled/'
 
 event = model.load_one_event(datadir + 'event.txt')
 
 # load geodetic data
 tracks = ['A_T114do', 'A_T114up', 'A_T343co', 'A_T343up', 'D_T254co', 'D_T350co']
-DiffIFGs = inputf.load_SAR_data(geo_datadir,tracks)
+DiffIFGs = inputf.load_SAR_data(geo_datadir, tracks)
 image = 2
 utmx = []
 utmy = []
@@ -45,14 +51,15 @@ def plot(lons, lats, disp):
 class Test_Pscmp(object):
     crust_ind = 0
     event = event
-    superdir = storehomedir
+    store_superdir = storehomedir[0]
     lengths = 25.
     widths = 15.
     slips = 5.
     openings = 0.
+    sources = [pscmp.PsCmpRectangularSource()]
 
     def calc_gf(self):
-        heart.construct_geo_gf(self.event, self.superdir,
+        heart.geo_construct_gf(self.event, self.superdir,
                      source_distance_min=0., source_distance_max=100.,
                      source_depth_min=0., source_depth_max=50.,
                      source_spacing=0.5, earth_model='ak135-f-average.m',
@@ -60,26 +67,27 @@ class Test_Pscmp(object):
 
     def standard_pscmp(self):
         # source params
-        o_lons = [self.event.lon]
-        o_lats = [self.event.lat]
-        depths = [self.event.depth / km]
-        strikes = [event.moment_tensor.strike2]
-        dips = [self.event.moment_tensor.dip2]
-        rakes = [self.event.moment_tensor.rake2]
-        lengths = [self.lengths]
-        widths = [self.widths]
-        slips = [self.slips]
-        openings = [self.openings]
+        o_lons = self.event.lon
+        o_lats = self.event.lat
+        depths = self.event.depth / km
+        strikes = event.moment_tensor.strike2
+        dips = self.event.moment_tensor.dip2
+        rakes = self.event.moment_tensor.rake2
+        lengths = self.lengths
+        widths = self.widths
+        slips = self.slips
+        openings = self.openings
 
-        sources = [heart.RectangularSource()]
-        sources[0].update(lon=lons, lat=lats, depth=depths,
+        self.sources[0].update(lon=o_lons, lat=o_lats, depth=depths,
                           strike=strikes, dip=dips, rake=rakes,
-                          length=lenghts, width=widths, slip=slips,
+                          length=lengths, width=widths, slip=slips,
                           opening=openings)
 
-        displ = heart.geo_layer_synthetics(store_superdir, self.crust_ind, self.lons, self.lats, sources)
+        displ = heart.geo_layer_synthetics(
+                    self.store_superdir,
+                    self.crust_ind,
+                    lons, lats, self.sources)
         return displ[0]
-
 
     def sym_pscmp_op(self):
         LONS = shared(lons)
@@ -101,10 +109,11 @@ class Test_Pscmp(object):
         slips = shared(num.array([self.slips], dtype=num.float64))
         opns = shared(num.array([self.openings], dtype=num.float64))
 
-        var_list = [LONS, LATS, o_lons, o_lats, ds, strikes, dips, rakes, ls, ws, slips, opns]
+        var_list = [LONS, LATS, o_lons, o_lats, ds, strikes, dips, rakes, ls,
+                    ws, slips, opns]
         get_displacements = theanof.GeoLayerSynthesizer(
-                                    self.superdir, self.crust_ind)
+                            self.store_superdir, self.crust_ind, self.sources)
         displ = get_displacements(*var_list)
-        sym_forward_op = function([],[displ], profile=profile)
+        sym_forward_op = function([], [displ], profile=profile)
         return sym_forward_op
 
