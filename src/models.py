@@ -125,11 +125,11 @@ class GeometryOptimizer(Project):
                                        transform=None))
 
             geo_input_rvs = copy.deepcopy(input_rvs)
-            if 'time' in input_rvs:
-                geo_input_rvs.pop('time')
+            if 'time' in geo_input_rvs:
+                geo_input_rvs.pop([])
 
             seis_input_rvs = copy.deepcopy(input_rvs)
-            if 'opening' in input_rvs:
+            if 'opening' in seis_input_rvs:
                 seis_input_rvs.pop('opening')
 
             # calc residuals

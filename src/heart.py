@@ -2,7 +2,7 @@ import psgrn
 import pscmp
 import numpy as num
 
-from pyrocko.guts import Object, List, String, Float, Int, Tuple, Timestamp
+from pyrocko.guts import Object, List, Dict, String, Float, Int, Tuple, Timestamp
 from pyrocko.guts_array import Array
 
 from pyrocko import crust2x2, gf, cake, orthodrome, trace, model
@@ -11,7 +11,9 @@ from pyrocko.fomosto import qseis
 from pyrocko.fomosto import qssp
 #from pyrocko.fomosto import qseis2d
 
+#from pymc_models import nonlin
 import utility
+import seismosizer_ext as smse
 
 import time
 import logging
@@ -33,7 +35,7 @@ lambda_sensors = {
                 }
 
 
-class RectangularSource(Object, gf.seismosizer.Cloneable):
+class RectangularSource(Object):
     '''
     Source for rectangular fault that unifies the necessary different source
     objects for teleseismic and geodetic computations.
@@ -56,9 +58,9 @@ class RectangularSource(Object, gf.seismosizer.Cloneable):
                     default=2.)
     length = Float.T(help='length of the fault [km]',
                     default=2.)
-    slip = Float.T(help='slip of the fault [m]',
+    slip = Float.T(help='width of the fault [m]',
                     default=2.)
-    opening = Float.T(help='opening of the fault [m]',
+    opening = Float.T(help='width of the fault [m]',
                     default=2.)
     stf = gf.STF.T(optional=True)
 
@@ -81,27 +83,6 @@ class RectangularSource(Object, gf.seismosizer.Cloneable):
     def center(self):
         return self.depth + 0.5 * self.width * self.dipvec
 
-    def update(self, **kwargs):
-        '''Change some of the source models parameters.
-
-        Example::
-
-          >>> from pyrocko import gf
-          >>> s = gf.DCSource()
-          >>> s.update(strike=66., dip=33.)
-          >>> print s
-          --- !pf.DCSource
-          depth: 0.0
-          time: 1970-01-01 00:00:00
-          magnitude: 6.0
-          strike: 66.0
-          dip: 33.0
-          rake: 0.0
-
-        '''
-        for (k, v) in kwargs.iteritems():
-            self[k] = v
-
     def patches(self, n, m, datatype):
         '''
         Cut source into n by m sub-faults and return n times m SourceObjects.
@@ -109,6 +90,13 @@ class RectangularSource(Object, gf.seismosizer.Cloneable):
         datatype - 'geo' or 'seis' determines the :py:class to be returned.
         '''
 
+        if datatype == 'seis':
+            f = 1000.
+            RectFault = smse.RectangularSlipSource
+        else:
+            f = 1.
+            RectFault = pscmp.PsCmpRectangularSource
+               
         length = self.length / float(n)
         width = self.width / float(m)
         patches = []
@@ -122,23 +110,21 @@ class RectangularSource(Object, gf.seismosizer.Cloneable):
                     self.lat, self.lon, sub_center[1] * km, sub_center[0] * km))
 
                 if datatype == 'seis':
-                    patch = gf.RectangularSource(
+                    patch = smse.RectangularSlipSource(
                         lat=float(effective_latlon[0]),
                         lon=float(effective_latlon[1]),
                         depth=float(sub_center[2]*km),
                         strike=self.strike, dip=self.dip, rake=self.rake,
-                        length=length*km, width=width*km, stf=self.stf,
-                        time=self.time, slip=self.slip)
-                elif datatype == 'geo':
+                        length=length*km, width=width*km, stf=self.stf, time=self.time,
+                        slip=self.slip)
+                else:
                     patch = pscmp.PsCmpRectangularSource(
                         lat=float(effective_latlon[0]),
                         lon=float(effective_latlon[1]),
                         depth=float(sub_center[2]),
                         strike=self.strike, dip=self.dip, rake=self.rake,
-                        length=length, width=width, slip=self.slip,
-                        opening=self.opening)
-                else:
-                    raise Exception("Datatype not supported either: 'seis/geo'")
+                        length=length, width=width, slip=self.slip)
+                    
                 patches.append(patch)
 
         return patches
@@ -211,7 +197,7 @@ class Parameter(Object):
         for i in range(self.lower.size):
             if self.testvalue[i] > self.upper[i] or \
                self.testvalue[i] < self.lower[i]:
-               raise Exception('the testvalue has to be within the upper'
+                Exception('the testvalue has to be within the upper'
                           'and lower bounds')
 
     @property
@@ -285,24 +271,24 @@ class BEATconfig(Object):
     '''
     store_superdirs = List.T(String.T(default='./'))
 
-    event = model.Event.T()
-    main_source = RectangularSource.T()
-    sub_sources = List.T(default=RectangularSource.T(), optional=True)
+    event = model.Event.T(optional=True)
     
-    bounds = List.T(default=Parameter.T())
+    bounds = List.T(default=Parameter.T(optional=True))
 
-    geodetic_data_dir = String.T(default='./')
+    geodetic_datadir = String.T(default='./')
     gtargets = List.T(optional=True, default=Diff_IFG.T())
 
-    seismic_data_dir = String.T(default='./')
-    stargets = List.T(optional=True, default=TeleseismicTarget.T())
-    stations = List.T(default=model.Station.T())
+    seismic_datadir = String.T(default='./')
+    data_traces = List.T(optional=True)
+    stargets = List.T(optional=True, default=TeleseismicTarget.D())
+    stations = List.T(default=model.Station.D())
     channels = List.T(default=[String.T(default='Z'), String.T(default='T')])
     
     sample_rate = Float.T(default=1.0,
                           help='Sample rate of GFs to be calculated')
-    arrival_taper = trace.Taper.T(default=ArrivalTaper.D())
-    filterer = Filter.T()
+    arrival_taper = trace.Taper.T(default=ArrivalTaper.D()
+                                  help='Taper a,b/c,d time [s] before/after wave arrival')
+    filterer = Filter.D()
 
 
 def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0, crust_inds=[0],
@@ -846,3 +832,75 @@ def taper_filter_traces(traces, arrival_taper, filterer, tmins, plot=False):
             trace.snuffle(cut_traces)
         
     return num.vstack([cut_traces[i].ydata for i in range(nt)])
+
+
+def init_nonlin(name, year, project_dir='./', store_superdir='', geo_datadir='', seismic_datadir=''):
+    '''
+    Initialise BEATconfig File
+    Have to fill it with data.
+    '''
+    event_name = seismic_datadir + '/event.txt'
+    event = model.load_one_event(event_name)
+    [stations, targets, event, data_traces] = inputf.load_seism_data(seismic_datadir)
+    config = BEATconfig(name=name, year=year, event=event, stations=stations,
+                        data_traces=data_traces)
+    tracks = ['A_T114do', 'A_T114up', 'A_T343co', 'A_T343up', 'D_T254co', 'D_T350co']
+    DiffIFGs = inputf.load_SAR_data(geo_datadir, tracks)
+    config.gtargets = DiffIfgs
+    config.bounds = [
+        Parameter(
+            name='east_shift',
+            lower=num.array([-10., -10.],dtype=num.float)
+            upper=num.array([10., 10.],dtype=num.float)
+            testvalue=num.array([7., 5.],dtype=num.float)),
+        Parameter(
+            name='north_shift',
+            lower=num.array([-20., -40. ],dtype=num.float)
+            upper=num.array([20., -10.],dtype=num.float)
+            testvalue=num.array([-13., -25.],dtype=num.float)),
+        Parameter(
+            name='depth',
+            lower=num.array([0., 0.],dtype=num.float)
+            upper=num.array([],dtype=num.float)
+            testvalue=num.array([],dtype=num.float)),
+        Parameter(
+            name='strike',
+            lower=num.array([180., 0.],dtype=num.float)
+            upper=num.array([210., 360.],dtype=num.float)
+            testvalue=num.array([190., 90.],dtype=num.float)),
+        Parameter(
+            name='dip',
+            lower=num.array([50., 0.],dtype=num.float)
+            upper=num.array([90., 90.],dtype=num.float)
+            testvalue=num.array([80., 45.],dtype=num.float)),
+        Parameter(
+            name='rake',
+            lower=num.array([-90., -180.],dtype=num.float)
+            upper=num.array([90., 180.],dtype=num.float)
+            testvalue=num.array([0., 0.],dtype=num.float)),
+        Parameter(
+            name='length',
+            lower=num.array([20., 1.],dtype=num.float)
+            upper=num.array([70., 10.],dtype=num.float)
+            testvalue=num.array([40., 5.],dtype=num.float)),
+        Parameter(
+            name='width',
+            lower=num.array([10., 1.],dtype=num.float)
+            upper=num.array([30., 10.],dtype=num.float)
+            testvalue=num.array([20., 5.],dtype=num.float)),
+        Parameter(
+            name='slip',
+            lower=num.array([0., 0.],dtype=num.float)
+            upper=num.array([8., 5.],dtype=num.float)
+            testvalue=num.array([2., 1.],dtype=num.float)),
+        Parameter(
+            name='opening',
+            lower=num.array([0., 0.],dtype=num.float)
+            upper=num.array([0., 0.],dtype=num.float)
+            testvalue=num.array([0., 0.],dtype=num.float)),
+        Parameter(
+            name='time',
+            lower=num.array([-5., -15.],dtype=num.float)
+            upper=num.array([10., -6.],dtype=num.float)
+            testvalue=num.array([0., 0.],dtype=num.float)).
+            ]
