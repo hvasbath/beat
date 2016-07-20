@@ -58,9 +58,9 @@ class RectangularSource(Object):
                     default=2.)
     length = Float.T(help='length of the fault [km]',
                     default=2.)
-    slip = Float.T(help='width of the fault [m]',
+    slip = Float.T(help='slip of the fault [m]',
                     default=2.)
-    opening = Float.T(help='width of the fault [m]',
+    opening = Float.T(help='opening of the fault [m]',
                     default=2.)
     stf = gf.STF.T(optional=True)
 

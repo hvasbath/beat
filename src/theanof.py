@@ -29,6 +29,14 @@ class GeoLayerSynthesizer(theano.Op):
         ### update use syntax from covariance calculation?
         lons, lats, o_lons, o_lats, ds, st, di, ra, ls, ws, sl, op = inputs
         z = output[0]
+                
+        for o_lon, o_lat, d, st, di, ra, l, w, sl, op, source in \
+            zip(o_lons, o_lats, ds, sts, dis, ras, ls, ws, sls, ops, self.sources):
+            source.update(lon=o_lon, lat=o_lat, depth=d,
+                          strike=st, dip=di, rake=ra,
+                          length=l, width=w, slip=sl,
+                          time=(self.event.time + t))
+
         displ = heart.geo_layer_synthetics(
             self.store_superdir,
             self.crust_ind, lons, lats, sources)
