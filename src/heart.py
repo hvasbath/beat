@@ -2,7 +2,7 @@ import psgrn
 import pscmp
 import numpy as num
 
-from pyrocko.guts import Object, List, Dict, String, Float, Int, Tuple, Timestamp
+from pyrocko.guts import Object, List, String, Float, Int, Tuple, Timestamp
 from pyrocko.guts_array import Array
 
 from pyrocko import crust2x2, gf, cake, orthodrome, trace, model
@@ -11,9 +11,7 @@ from pyrocko.fomosto import qseis
 from pyrocko.fomosto import qssp
 #from pyrocko.fomosto import qseis2d
 
-#from pymc_models import nonlin
 import utility
-import seismosizer_ext as smse
 
 import time
 import logging
@@ -35,7 +33,7 @@ lambda_sensors = {
                 }
 
 
-class RectangularSource(Object):
+class RectangularSource(Object, gf.seismosizer.Cloneable):
     '''
     Source for rectangular fault that unifies the necessary different source
     objects for teleseismic and geodetic computations.
@@ -58,9 +56,9 @@ class RectangularSource(Object):
                     default=2.)
     length = Float.T(help='length of the fault [km]',
                     default=2.)
-    slip = Float.T(help='width of the fault [m]',
+    slip = Float.T(help='slip of the fault [m]',
                     default=2.)
-    opening = Float.T(help='width of the fault [m]',
+    opening = Float.T(help='opening of the fault [m]',
                     default=2.)
     stf = gf.STF.T(optional=True)
 
@@ -83,19 +81,34 @@ class RectangularSource(Object):
     def center(self):
         return self.depth + 0.5 * self.width * self.dipvec
 
+    def update(self, **kwargs):
+        '''Change some of the source models parameters.
+
+        Example::
+
+          >>> from pyrocko import gf
+          >>> s = gf.DCSource()
+          >>> s.update(strike=66., dip=33.)
+          >>> print s
+          --- !pf.DCSource
+          depth: 0.0
+          time: 1970-01-01 00:00:00
+          magnitude: 6.0
+          strike: 66.0
+          dip: 33.0
+          rake: 0.0
+
+        '''
+        for (k, v) in kwargs.iteritems():
+            self[k] = v
+    
+
     def patches(self, n, m, datatype):
         '''
         Cut source into n by m sub-faults and return n times m SourceObjects.
         Discretization starts at shallow depth going row-wise deeper.
         datatype - 'geo' or 'seis' determines the :py:class to be returned.
         '''
-
-        if datatype == 'seis':
-            f = 1000.
-            RectFault = smse.RectangularSlipSource
-        else:
-            f = 1.
-            RectFault = pscmp.PsCmpRectangularSource
                
         length = self.length / float(n)
         width = self.width / float(m)
@@ -110,21 +123,24 @@ class RectangularSource(Object):
                     self.lat, self.lon, sub_center[1] * km, sub_center[0] * km))
 
                 if datatype == 'seis':
-                    patch = smse.RectangularSlipSource(
+                    patch = gf.RectangularSource(
                         lat=float(effective_latlon[0]),
                         lon=float(effective_latlon[1]),
                         depth=float(sub_center[2]*km),
                         strike=self.strike, dip=self.dip, rake=self.rake,
-                        length=length*km, width=width*km, stf=self.stf, time=self.time,
-                        slip=self.slip)
-                else:
+                        length=length*km, width=width*km, stf=self.stf,
+                        time=self.time, slip=self.slip)
+                elif datatype == 'geo':
                     patch = pscmp.PsCmpRectangularSource(
                         lat=float(effective_latlon[0]),
                         lon=float(effective_latlon[1]),
                         depth=float(sub_center[2]),
                         strike=self.strike, dip=self.dip, rake=self.rake,
-                        length=length, width=width, slip=self.slip)
-                    
+                        length=length, width=width, slip=self.slip,
+                        opening=self.opening)
+-               else:
+-                   raise Exception("Datatype not supported either: 'seis/geo'")
+
                 patches.append(patch)
 
         return patches
