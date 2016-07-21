@@ -1,0 +1,169 @@
+#!/usr/bin/env python
+
+import sys, re, os, logging, copy
+from optparse import OptionParser
+
+import heart
+from pyrocko import model, util
+
+
+def d2u(d):
+    return dict((k.replace('-','_'), v) for (k, v) in d.iteritems())
+
+subcommand_descriptions = {
+        'init':           'create a new EQ model project',
+        'build_geo_gf':   'build geodetic GF stores',
+        'solve_geometry': 'sample non-linear pdf for source geometry',
+        'build_cov_p_g':  'build model prediction uncertainty cov matrix (geo)',
+    }
+
+#        'sample_slip_s':    'sample static pdf',
+#        'roll_slip_k':    'sample kinematic pdf',
+#        'plot':           'plot output of any previous step',
+#    }
+
+subcommand_usages = {
+        'init':          ['init <type> <store-dir> [options]',
+                         'init redeploy <source> <destination> [options]'],
+        'build_geo_gf':  'build [store-dir] [options]',
+        'solve_geometry':'',
+        'build_cov_p_g' :''
+    }
+
+subcommands = subcommand_descriptions.keys()
+
+program_name = 'BEAT'
+
+usage = program_name + ''' <subcommand> <arguments> ... [options]
+
+Subcommands:
+
+    init            %(init)s
+    build_geo_gf    %(build_geo_gf)s
+    solve_geometry  %(solve_geometry)s
+    build_cov_p_g   %(build_cov_p_g)s
+
+
+To get further help and a list of available options for any subcommand run:
+
+    BEAT <subcommand> --help
+
+''' % d2u(subcommand_descriptions)
+
+
+name = 'Aqaba'
+year = 1995
+
+project_dir = '/data3TB/' + name + str(year)
+store_superdir = '/data3TB/Teleseism/Greensfunctions/Aqaba1995GFS/'
+seismic_datadir = '/data3TB/Teleseism/autokiwi/events/Aqaba1995/kiwi/data/'
+
+geodetic_datadir = '/data/SAR_data/Aqaba1995/subsampled/'
+tracks = ['A_T114do', 'A_T114up', 'A_T343co',
+          'A_T343up', 'D_T254co', 'D_T350co']
+
+n_variations = 20
+sample_rate = 1.0
+channels = ['Z', 'T']
+
+
+def add_common_options(parser):
+    parser.add_option('--loglevel', 
+        action = 'store', 
+        dest = 'loglevel', 
+        type = 'choice',
+        choices = ('critical', 'error', 'warning', 'info', 'debug'), 
+        default = 'info',
+        help ='set logger level to '
+              '"critical", "error", "warning", "info", or "debug". '
+              'Default is "%default".')
+
+def process_common_options(options):
+    util.setup_logging(program_name, options.loglevel)
+
+
+def die(message, err=''):
+    sys.exit('%s: error: %s \n %s' % (program_name, message, err))
+
+
+def cl_parse(command, args, setup=None, details=None):
+    usage = subcommand_usages[command]
+    descr = subcommand_descriptions[command]
+
+    if isinstance(usage, basestring):
+        usage = [usage]
+
+    susage = '%s %s' % (program_name, usage[0])
+    for s in usage[1:]:
+        susage += '\n%s%s %s' % (' '*7, program_name, s)
+
+    description = descr[0].upper() + descr[1:] + '.'
+
+    if details:
+        description = description + ' %s' % details
+
+    parser = OptionParser(usage=susage, description=description)
+
+    if setup:
+        setup(parser)
+
+    add_common_options(parser)
+    (options, args) = parser.parse_args(args)
+    process_common_options(options)
+    return parser, options, args
+
+
+def command_init():
+
+    config = heart.init_nonlin(name, year,
+                project_dir=project_dir,
+                store_superdir=store_superdir,
+                sample_rate=sample_rate,
+                n_variations=n_variations,
+                channels=channels,
+                geodetic_datadir=geodetic_datadir,
+                seismic_datadir=seismic_datadir,
+                tracks=tracks)
+    return config
+
+
+def command_build_geo_gfs(config):
+
+    config_fn = os.path.join(project_dir, 'config')
+    config = model.load(filename=config_fn)
+
+    eventname = os.path.join(config.seismic_datadir, 'event.txt')
+    event = model.load_one_event(eventname)
+
+    for crust_ind in config.crust_inds:
+        heart.geo_construct_gf(event, store_superdir,
+                     source_distance_min=0., source_distance_max=100.,
+                     source_depth_min=0., source_depth_max=50.,
+                     source_spacing=0.5, earth_model='ak135-f-average.m',
+                     crust_ind=crust_ind, execute=True)
+
+
+if __name__ == '__main__':
+
+    usage_sub = 'BEAT %s [options]'
+    if len(sys.argv) < 2:
+        sys.exit('Usage: %s' % usage)
+
+    args = list(sys.argv)
+    args.pop(0)
+    command = args.pop(0)
+
+    if command in subcommands:
+        globals()['command_'+ command](args)
+
+    elif command in ('--help', '-h', 'help'):
+        if command == 'help' and args:
+            acommand = args[0]
+            if acommand in subcommands:
+                globals()['command_'+ acommand]([ '--help' ] )
+
+        sys.exit('Usage: %s' % usage)
+
+    else:
+        sys.exit('BEAT: error: no such subcommand: %s' % command)
+

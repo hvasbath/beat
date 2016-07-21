@@ -220,11 +220,11 @@ class Parameter(Object):
 
     def __call__(self):
         if self.lower is not None:
-            for i in range(len(self.lower)):
+            for i in range(self.dimension):
                 if self.testvalue[i] > self.upper[i] or \
                     self.testvalue[i] < self.lower[i]:
-                    raise Exception('the testvalue has to be within the upper'
-                          ' and lower bounds')
+                    raise Exception('the testvalue of parameter "%s" has to be'
+                        'within the upper and lower bounds' % self.name )
 
     @property
     def dimension(self):
@@ -308,6 +308,10 @@ class BEATconfig(Object):
     for seismic data and geodetic data being used. Define directory structure
     here for Greens functions geodetic and seismic.
     '''
+
+    name = String.T()
+    year = Int.T()
+
     store_superdir = String.T(default='./')
 
     event = model.Event.T(optional=True)
@@ -325,11 +329,20 @@ class BEATconfig(Object):
 
     sample_rate = Float.T(default=1.0,
                           help='Sample rate of GFs to be calculated')
-    crust_ind = Int.T(default=0)
+    crust_inds = List.T(Int.T(default=0))
     arrival_taper = trace.Taper.T(
                 default=ArrivalTaper.D(),
                 help='Taper a,b/c,d time [s] before/after wave arrival')
     filterer = Filter.T(default=Filter.D())
+
+    def validate_bounds(self):
+        '''
+        Check if bounds and their test values do not contradict!
+        '''
+        for param in self.bounds:
+            param()
+
+        print('All parameter-bounds ok!')
 
 
 def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0,
@@ -412,13 +425,13 @@ def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
                 if float(l_depth) * km < layer.ztop:
                     err_velocities = vel_unc
                     print err_velocities
-                    
+
             deltavp = float(num.random.normal(
                         0, layer.mtop.vp * err_velocities / 3., 1))
 
             if layer.ztop == 0:
                 layer.mtop.vp += deltavp
-            
+
             # ensure increasing velocity with depth
             if last_l:
                 # gradient layer without interface
@@ -804,17 +817,20 @@ def seis_synthetics(engine, sources, targets, arrival_taper, filterer,
     Returns: Array with data each row-one target
     plot - flag for looking at traces
     '''
-    
-    response = engine.process(sources = sources,
-                              targets = targets)
+
+    response = engine.process(sources=sources,
+                              targets=targets)
 
     synt_trcs = []
     for source, target, tr in response.iter_results():
         # extract interpolated travel times of phases which have been defined
         # in the store's config file and cut data/synth traces
-        
+
         if reference_taperer is None:
-            taperer = get_phase_taperer(engine, sources[0], target, arrival_taper)
+            taperer = get_phase_taperer(engine,
+                                        sources[0],
+                                        target,
+                                        arrival_taper)
         else:
             taperer = reference_taperer
 
@@ -822,10 +838,9 @@ def seis_synthetics(engine, sources, targets, arrival_taper, filterer,
         tr.taper(taperer, inplace=True, chop=True)
 
         # filter traces
-        tr.bandpass(corner_hp = filterer.lower_corner,
-                                  corner_lp = filterer.upper_corner,
-                                  order=filterer.order)
-        tr.location = str(source.magnitude)
+        tr.bandpass(corner_hp=filterer.lower_corner,
+                    corner_lp=filterer.upper_corner,
+                    order=filterer.order)
 
         synt_trcs.append(tr)
 
@@ -838,17 +853,17 @@ def seis_synthetics(engine, sources, targets, arrival_taper, filterer,
     tmins = num.vstack([synt_trcs[i].tmin for i in range(nt)]).flatten()
 
     # stack traces for all sources
-    if ns > 1 :
+    if ns > 1:
         for k in range(ns):
             outstack = num.zeros([nt, synths.shape[1]])
-            outstack += synths[(k*nt):(k+1)*nt, :]
+            outstack += synths[(k * nt):(k + 1) * nt, :]
 
         synths = outstack
 
     print tmins.shape
     return synths, tmins
 
-    
+
 def taper_filter_traces(traces, arrival_taper, filterer, tmins, plot=False):
     cut_traces = []
     nt = len(traces)
@@ -865,35 +880,34 @@ def taper_filter_traces(traces, arrival_taper, filterer, tmins, plot=False):
         cut_trace.taper(taperer, inplace=True, chop=True)
 
         # filter traces
-        cut_trace.bandpass(corner_hp = filterer.lower_corner,
-                           corner_lp = filterer.upper_corner,
+        cut_trace.bandpass(corner_hp=filterer.lower_corner,
+                           corner_lp=filterer.upper_corner,
                            order=filterer.order)
         cut_traces.append(cut_trace)
 
         if plot:
             trace.snuffle(cut_traces)
-        
+
     return num.vstack([cut_traces[i].ydata for i in range(nt)])
 
 
 def init_nonlin(name, year, project_dir='./', store_superdir='',
                 sample_rate=1.0, n_variations=0, channels=['Z', 'T'],
-                geo_datadir='',
-                seismic_datadir='', tracks=['A_T343co'],):
+                geodetic_datadir='', seismic_datadir='', tracks=['A_T343co']):
     '''
     Initialise BEATconfig File
     Have to fill it with data.
     '''
 
-    # fill config
     config = BEATconfig(name=name, year=year, channels=channels)
 
-    config.store_superdir=store_superdir
+    config.project_dir = project_dir
+    config.store_superdir = store_superdir
     config.sample_rate = sample_rate
     config.crust_ind = range(1 + n_variations)
 
     config.seismic_datadir = seismic_datadir
-    config.geo_datadir = geo_datadir
+    config.geodetic_datadir = geodetic_datadir
 
     config.bounds = [
         Parameter(
@@ -903,14 +917,14 @@ def init_nonlin(name, year, project_dir='./', store_superdir='',
             testvalue=num.array([7., 5.], dtype=num.float)),
         Parameter(
             name='north_shift',
-            lower=num.array([-20., -40. ], dtype=num.float),
+            lower=num.array([-20., -40.], dtype=num.float),
             upper=num.array([20., -10.], dtype=num.float),
             testvalue=num.array([-13., -25.], dtype=num.float)),
         Parameter(
             name='depth',
             lower=num.array([0., 0.], dtype=num.float),
-            upper=num.array([], dtype=num.float),
-            testvalue=num.array([], dtype=num.float)),
+            upper=num.array([5., 20.], dtype=num.float),
+            testvalue=num.array([1., 10.], dtype=num.float)),
         Parameter(
             name='strike',
             lower=num.array([180., 0.], dtype=num.float),
@@ -934,7 +948,7 @@ def init_nonlin(name, year, project_dir='./', store_superdir='',
         Parameter(
             name='width',
             lower=num.array([10., 1.], dtype=num.float),
-            upper=num.array([30., 10.], dtype=num.float),
+            upper=num.array([28., 10.], dtype=num.float),
             testvalue=num.array([20., 5.], dtype=num.float)),
         Parameter(
             name='slip',
@@ -950,9 +964,15 @@ def init_nonlin(name, year, project_dir='./', store_superdir='',
             name='time',
             lower=num.array([-5., -15.], dtype=num.float),
             upper=num.array([10., -6.], dtype=num.float),
-            testvalue=num.array([0., 0.], dtype=num.float))
+            testvalue=num.array([0., -8.], dtype=num.float))
             ]
 
-    util.ensuredir(project_dir)
-    conf_out = os.path.join(project_dir, 'config')
+    config.validate()
+    config.validate_bounds()
+
+    print('Project_directory: %s \n') % config.project_dir
+    util.ensuredir(config.project_dir)
+
+    conf_out = os.path.join(config.project_dir, 'config')
     gf.meta.dump(config, filename=conf_out)
+    return config

@@ -1,4 +1,5 @@
 import copy
+import os
 
 import pymc3 as pm
 import atmcmc
@@ -49,8 +50,8 @@ class Project(Object):
         seis_target_cov = num.cov(seis_likelihoods, bias=True, rowvar=0)
         geo_target_cov = num.cov(geo_likelihoods, bias=True, rowvar=0)
 
-        self.seis_mf_icov.set_value(num.linalg.inv(seis_target_cov))
-        self.geo_mf_icov.set_value(num.linalg.inv(geo_target_cov))
+        self.seis_misfit_icov.set_value(num.linalg.inv(seis_target_cov))
+        self.geo_misfit_icov.set_value(num.linalg.inv(geo_target_cov))
 
     def init_atmip(self, n_chains=100, tune_interval=10):
         '''
@@ -107,7 +108,7 @@ class GeometryOptimizer(Project):
     def __init__(self, config):
 
         self.config = config
-        self.geometry_outfolder = config.project_dir
+        self.geometry_outfolder = os.path.join(config.project_dir, 'geometry')
         util.ensuredir(self.geometry_outfolder)
 
         self.engine = gf.LocalEngine(store_superdirs=[config.store_superdir])
@@ -115,12 +116,13 @@ class GeometryOptimizer(Project):
         # load data still not general enopugh
         [self.stations, _, self.event, self.data_traces] = inputf.load_seism_data(
             config.seismic_datadir)
-        self.gtargets = inputf.load_SAR_data(config.geo_datadir, config.tracks)
+        self.gtargets = inputf.load_SAR_data(
+                config.geodetic_datadir, config.tracks)
 
         self.stargets = heart.init_targets(self.stations,
                                       channels=config.channels,
                                       sample_rate=config.sample_rate,
-                                      crust_inds=config.crust_ind,
+                                      crust_inds=0,  # always reference model
                                       interpolation='multilinear')
 
         # sources
@@ -152,8 +154,8 @@ class GeometryOptimizer(Project):
             config.stargets[i].covariance.icov) for i in range(self.ns_t)]
 
         # Target weights, initially identity matrix = equal weights
-        self.seis_mf_icov = shared(num.eye(self.ns_t))
-        self.geo_mf_icov = shared(num.eye(self.ng_t))
+        self.seis_misfit_icov = shared(num.eye(self.ns_t))
+        self.geo_misfit_icov = shared(num.eye(self.ng_t))
 
         self.lv = num.vstack(
                 [config.gtargets[i].look_vector() for i in range(self.ng_t)])
@@ -168,7 +170,7 @@ class GeometryOptimizer(Project):
         # syntetics generation
         self.get_geo_synths = theanof.GeoLayerSynthesizer(
                             superdir=config.store_superdir,
-                            crust_ind=0,    # always use reference model
+                            crust_ind=0,    # always reference model
                             sources=g_sources)
 
         self.get_seis_synths = theanof.SeisSynthesizer(
@@ -236,9 +238,9 @@ class GeometryOptimizer(Project):
             geo_llk = pm.Deterministic(self._geo_like_name, logpts_g)
 
             # sum up geodetic and seismic likelihood
-            like = pm.Deterministic(self._like,
-                    seis_llk.T.dot(self.seis_mf_icov).dot(seis_llk) + \
-                    geo_llk.T.dot(self.geo_mf_icov).dot(geo_llk))
+            like = pm.Deterministic(self._like_name,
+                    seis_llk.T.dot(self.seis_misfit_icov).dot(seis_llk) + \
+                    geo_llk.T.dot(self.geo_misfit_icov).dot(geo_llk))
             llk = pm.Potential(self._like_name, like)
 
         def update_weights(self, point):
