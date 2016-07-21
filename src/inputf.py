@@ -29,7 +29,9 @@ def load_SAR_data(datadir,tracks):
         Lv = data['lvQT']
         covariance = heart.Covariance(data=covs['Cov'], icov=covs['InvCov'])
 
-        DIFFGs.append(heart.Diff_IFG(displacement=data['sqval'],
+        DIFFGs.append(heart.DiffIFG(
+                 track=k,
+                 displacement=data['sqval'],
                  utme=utmx,
                  utmn=utmy,
                  lons=lons,

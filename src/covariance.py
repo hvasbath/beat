@@ -1,6 +1,7 @@
 from pyrocko import gf, trace
 import numpy as num
 import heart
+import copy
 
 
 def calculate_model_prediction_sensitivity(engine, *args, **kwargs):
@@ -126,8 +127,8 @@ def calculate_model_prediction_sensitivity(engine, *args, **kwargs):
     return sensitivity_param_trcs
 
 
-def calc_seis_cov_velocity_models(engine, sources, crust_inds, targets,
-                                  arrival_taper, corner_fs):
+def calc_seis_cov_velocity_models(engine, sources, targets,
+                                  arrival_taper, filterer):
     '''
     Calculate model prediction uncertainty matrix with respect to uncertainties
     in the velocity model for station and channel.
@@ -138,15 +139,15 @@ def calc_seis_cov_velocity_models(engine, sources, crust_inds, targets,
     '''
 
     ref_target = copy.deepcopy(targets[0])
-    
-    reference_taperer = get_phase_taperer(engine,
+
+    reference_taperer = heart.get_phase_taperer(engine,
                                           sources[0],
                                           ref_target,
                                           arrival_taper)
-    
-    synths = seis_synthetics(engine, sources, targets,
+
+    synths = heart.seis_synthetics(engine, sources, targets,
                              arrival_taper,
-                             corner_fs,
+                             filterer,
                              reference_taperer=reference_taperer)
     return num.cov(synths, rowvar=0)
 
@@ -161,12 +162,12 @@ def calc_geo_cov_velocity_models(store_superdir, crust_inds, dataset, sources):
     dataset - :py:class:`IFG`/`DiffIFG`
     sources - List of :py:class:`PsCmpRectangularSource`
     '''
-                       
+
     synths = num.zeros(len(crust_inds), dataset.lons.size)
     for ind in crust_inds:
-        synths[:, ind] = geo_layer_synthetics(store_superdirs, ind,
+        synths[:, ind] = heart.geo_layer_synthetics(store_superdir, ind,
                                         lons=dataset.lons,
                                         lats=dataset.lats,
                                         sources=sources)
-    
+
     return num.cov(synths, rowvar=0)

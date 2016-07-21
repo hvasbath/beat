@@ -1,22 +1,22 @@
 import psgrn
 import pscmp
 import numpy as num
+import os
 
 from pyrocko.guts import Object, List, String, Float, Int, Tuple, Timestamp
 from pyrocko.guts_array import Array
 
-from pyrocko import crust2x2, gf, cake, orthodrome, trace, model
+from pyrocko import crust2x2, gf, cake, orthodrome, trace, model, util
 from pyrocko.cake import GradientLayer
 from pyrocko.fomosto import qseis
 from pyrocko.fomosto import qssp
 #from pyrocko.fomosto import qseis2d
 
-import utility
-
-import time
 import logging
 import shutil
 import copy
+
+logger = logging.getLogger('BEAT')
 
 c = 299792458.  # [m/s]
 km = 1000.
@@ -101,7 +101,6 @@ class RectangularSource(Object, gf.seismosizer.Cloneable):
         '''
         for (k, v) in kwargs.iteritems():
             self[k] = v
-    
 
     def patches(self, n, m, datatype):
         '''
@@ -109,7 +108,7 @@ class RectangularSource(Object, gf.seismosizer.Cloneable):
         Discretization starts at shallow depth going row-wise deeper.
         datatype - 'geo' or 'seis' determines the :py:class to be returned.
         '''
-               
+
         length = self.length / float(n)
         width = self.width / float(m)
         patches = []
@@ -126,9 +125,9 @@ class RectangularSource(Object, gf.seismosizer.Cloneable):
                     patch = gf.RectangularSource(
                         lat=float(effective_latlon[0]),
                         lon=float(effective_latlon[1]),
-                        depth=float(sub_center[2]*km),
+                        depth=float(sub_center[2] * km),
                         strike=self.strike, dip=self.dip, rake=self.rake,
-                        length=length*km, width=width*km, stf=self.stf,
+                        length=length * km, width=width * km, stf=self.stf,
                         time=self.time, slip=self.slip)
                 elif datatype == 'geo':
                     patch = pscmp.PsCmpRectangularSource(
@@ -138,17 +137,18 @@ class RectangularSource(Object, gf.seismosizer.Cloneable):
                         strike=self.strike, dip=self.dip, rake=self.rake,
                         length=length, width=width, slip=self.slip,
                         opening=self.opening)
--               else:
--                   raise Exception("Datatype not supported either: 'seis/geo'")
+                else:
+                    raise Exception(
+                        "Datatype not supported either: 'seis/geo'")
 
                 patches.append(patch)
 
         return patches
 
-    
+
 class Covariance(Object):
     '''
-    Covariance of an observation. 
+    Covariance of an observation.
     '''
     data = Array.T(shape=(None, None),
                     dtype=num.float,
@@ -170,18 +170,18 @@ class Covariance(Object):
 
     def inverse(self):
         '''
-        Add and invert different covariance Matrices. 
+        Add and invert different covariance Matrices.
         '''
         return num.linalg.inv(self.data + self.pred_g + self.pred_v)
 
     
 class TeleseismicTarget(gf.Target):
-    
+
     covariance = Covariance.T(optional=True,
                               help=':py:class:`Covariance` that holds data'
                                    'and model prediction covariance matrixes')
 
-    
+
 class ArrivalTaper(trace.Taper):
     ''' Cosine arrival Taper.
 
@@ -201,43 +201,66 @@ class Filter(Object):
     lower_corner = Float.T(default=0.001)
     upper_corner = Float.T(default=0.1)
     order = Int.T(default=4)
-    
+
 
 class Parameter(Object):
-    name = String.T(default='lons')
-    lower = Array.T(shape=(None,), dtype=num.float,)
-    upper = Array.T(shape=(None,), dtype=num.float)
-    testvalue = Array.T(shape=(None,), dtype=num.float)
+    name = String.T(default='lon')
+    lower = Array.T(shape=(None,),
+                    dtype=num.float,
+                    serialize_as='list',
+                    default=num.array([0., 0.]))
+    upper = Array.T(shape=(None,),
+                    dtype=num.float,
+                    serialize_as='list',
+                    default=num.array([1., 1.]))
+    testvalue = Array.T(shape=(None,),
+                        dtype=num.float,
+                        serialize_as='list',
+                        default=num.array([0.5, 0.5]))
 
-    def __init__(self):
-        for i in range(self.lower.size):
-            if self.testvalue[i] > self.upper[i] or \
-               self.testvalue[i] < self.lower[i]:
-                Exception('the testvalue has to be within the upper'
-                          'and lower bounds')
+    def __call__(self):
+        if self.lower is not None:
+            for i in range(len(self.lower)):
+                if self.testvalue[i] > self.upper[i] or \
+                    self.testvalue[i] < self.lower[i]:
+                    raise Exception('the testvalue has to be within the upper'
+                          ' and lower bounds')
 
     @property
     def dimension(self):
         return self.lower.size
-                
+
     def bound_to_array(self):
-        return num.array([lower, testval, upper], dtype=num.float)
-    
-    
+        return num.array([self.lower, self.testval, self.upper],
+                         dtype=num.float)
+
+
 class IFG(Object):
     '''
     Interferogram class as a dataset in the inversion.
     '''
+    track = String.T(default='A')
+    master = String.T(optional=True,
+                      help='Acquisition time of master image YYYY-MM-DD')
+    slave = String.T(optional=True,
+                      help='Acquisition time of slave image YYYY-MM-DD')
     amplitude = Array.T(shape=(None,), dtype=num.float, optional=True)
     wrapped_phase = Array.T(shape=(None,), dtype=num.float, optional=True)
     incidence = Array.T(shape=(None,), dtype=num.float, optional=True)
     heading = Array.T(shape=(None,), dtype=num.float, optional=True)
-    los_vec = Array.T(shape=(None,3), dtype=num.float, optional=True)
+    los_vec = Array.T(shape=(None, 3), dtype=num.float, optional=True)
     utmn = Array.T(shape=(None,), dtype=num.float, optional=True)
     utme = Array.T(shape=(None,), dtype=num.float, optional=True)
     lats = Array.T(shape=(None,), dtype=num.float, optional=True)
     lons = Array.T(shape=(None,), dtype=num.float, optional=True)
     satellite = String.T(default='Envisat')
+
+    def __str__(self):
+        s = 'IFG Acquisition Track: %s\n' % self.track
+        s += '  timerange: %s - %s\n' % (self.master, self.slave)
+        if self.lats is not None:
+            s += '  number of pixels: %i\n' % self.lats.size
+        return s
 
     @property
     def wavelength(self):
@@ -249,8 +272,8 @@ class IFG(Object):
         '''
         if self.incidence and self.heading is None:
             Exception('Incidence and Heading need to be provided!')
-             
-        Su = num.cos(num.deg2rad(self.incidence));
+
+        Su = num.cos(num.deg2rad(self.incidence))
         Sn = - num.sin(num.deg2rad(self.incidence)) * \
              num.cos(num.deg2rad(self.heading - 270))
         Se = - num.sin(num.deg2rad(self.incidence)) * \
@@ -258,7 +281,7 @@ class IFG(Object):
         return num.array([Se, Sn, Su], dtype=num.float).T
 
 
-class Diff_IFG(IFG):
+class DiffIFG(IFG):
     '''
     Differential Interferogram class as geodetic target for the calculation
     of synthetics.
@@ -285,30 +308,32 @@ class BEATconfig(Object):
     for seismic data and geodetic data being used. Define directory structure
     here for Greens functions geodetic and seismic.
     '''
-    store_superdirs = List.T(String.T(default='./'))
+    store_superdir = String.T(default='./')
 
     event = model.Event.T(optional=True)
-    
-    bounds = List.T(default=Parameter.T(optional=True))
+
+    bounds = List.T(Parameter.T())
 
     geodetic_datadir = String.T(default='./')
-    gtargets = List.T(optional=True, default=Diff_IFG.T())
+    gtargets = List.T(optional=True)
 
     seismic_datadir = String.T(default='./')
     data_traces = List.T(optional=True)
-    stargets = List.T(optional=True, default=TeleseismicTarget.D())
-    stations = List.T(default=model.Station.D())
-    channels = List.T(default=[String.T(default='Z'), String.T(default='T')])
-    
+    stargets = List.T(TeleseismicTarget.T(), optional=True)
+    stations = List.T(model.Station.T())
+    channels = List.T(String.T(), default=['Z', 'T'])
+
     sample_rate = Float.T(default=1.0,
                           help='Sample rate of GFs to be calculated')
-    arrival_taper = trace.Taper.T(default=ArrivalTaper.D()
-                                  help='Taper a,b/c,d time [s] before/after wave arrival')
-    filterer = Filter.D()
+    crust_ind = Int.T(default=0)
+    arrival_taper = trace.Taper.T(
+                default=ArrivalTaper.D(),
+                help='Taper a,b/c,d time [s] before/after wave arrival')
+    filterer = Filter.T(default=Filter.D())
 
 
-def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0, crust_inds=[0],
-                 interpolation='multilinear'):
+def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0,
+                 crust_inds=[0], interpolation='multilinear'):
     '''
     Initiate a list of target objects given a list of indexes to the
     respective GF store velocity model variation index (crust_inds).
@@ -317,7 +342,7 @@ def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0, crust_inds=[0],
         quantity='displacement',
         codes=(stations[sta_num].network,
                  stations[sta_num].station,
-                 '%i' % crust_ind, channel), #network, statio, location, channel
+                 '%i' % crust_ind, channel),  # n, s, l, c
         lat=stations[sta_num].lat,
         lon=stations[sta_num].lon,
         azimuth=stations[sta_num].get_channel(channel).azimuth,
@@ -325,13 +350,14 @@ def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0, crust_inds=[0],
         interpolation=interpolation,
         store_id='%s_ak135_%.3fHz_%s' % (stations[sta_num].station,
                                                 sample_rate, crust_ind))
-        for sta_num in range(len(stations))
+
+        for channel in channels
             for crust_ind in crust_inds
-                for channel in channels]
+                for sta_num in range(len(stations))]
 
     return targets
 
-    
+
 def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
                depth_limit=600 * km):
     '''
@@ -360,7 +386,7 @@ def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
     # uncertainties in velocity for upper and lower mantle from Woodward 1991
     mantle_vel_unc = {'200': 0.02,     # above 200
                       '400': 0.01}     # above 400
-    
+
     for layer in layers:
         # stop if depth_limit is reached
         if depth_limit:
@@ -850,73 +876,83 @@ def taper_filter_traces(traces, arrival_taper, filterer, tmins, plot=False):
     return num.vstack([cut_traces[i].ydata for i in range(nt)])
 
 
-def init_nonlin(name, year, project_dir='./', store_superdir='', geo_datadir='', seismic_datadir=''):
+def init_nonlin(name, year, project_dir='./', store_superdir='',
+                sample_rate=1.0, n_variations=0, channels=['Z', 'T'],
+                geo_datadir='',
+                seismic_datadir='', tracks=['A_T343co'],):
     '''
     Initialise BEATconfig File
     Have to fill it with data.
     '''
-    event_name = seismic_datadir + '/event.txt'
-    event = model.load_one_event(event_name)
-    [stations, targets, event, data_traces] = inputf.load_seism_data(seismic_datadir)
-    config = BEATconfig(name=name, year=year, event=event, stations=stations,
-                        data_traces=data_traces)
-    tracks = ['A_T114do', 'A_T114up', 'A_T343co', 'A_T343up', 'D_T254co', 'D_T350co']
-    DiffIFGs = inputf.load_SAR_data(geo_datadir, tracks)
-    config.gtargets = DiffIfgs
+
+    # fill config
+    config = BEATconfig(name=name, year=year, channels=channels)
+
+    config.store_superdir=store_superdir
+    config.sample_rate = sample_rate
+    config.crust_ind = range(1 + n_variations)
+
+    config.seismic_datadir = seismic_datadir
+    config.geo_datadir = geo_datadir
+
     config.bounds = [
         Parameter(
             name='east_shift',
-            lower=num.array([-10., -10.],dtype=num.float)
-            upper=num.array([10., 10.],dtype=num.float)
-            testvalue=num.array([7., 5.],dtype=num.float)),
+            lower=num.array([-10., -10.], dtype=num.float),
+            upper=num.array([10., 10.], dtype=num.float),
+            testvalue=num.array([7., 5.], dtype=num.float)),
         Parameter(
             name='north_shift',
-            lower=num.array([-20., -40. ],dtype=num.float)
-            upper=num.array([20., -10.],dtype=num.float)
-            testvalue=num.array([-13., -25.],dtype=num.float)),
+            lower=num.array([-20., -40. ], dtype=num.float),
+            upper=num.array([20., -10.], dtype=num.float),
+            testvalue=num.array([-13., -25.], dtype=num.float)),
         Parameter(
             name='depth',
-            lower=num.array([0., 0.],dtype=num.float)
-            upper=num.array([],dtype=num.float)
-            testvalue=num.array([],dtype=num.float)),
+            lower=num.array([0., 0.], dtype=num.float),
+            upper=num.array([], dtype=num.float),
+            testvalue=num.array([], dtype=num.float)),
         Parameter(
             name='strike',
-            lower=num.array([180., 0.],dtype=num.float)
-            upper=num.array([210., 360.],dtype=num.float)
-            testvalue=num.array([190., 90.],dtype=num.float)),
+            lower=num.array([180., 0.], dtype=num.float),
+            upper=num.array([210., 360.], dtype=num.float),
+            testvalue=num.array([190., 90.], dtype=num.float)),
         Parameter(
             name='dip',
-            lower=num.array([50., 0.],dtype=num.float)
-            upper=num.array([90., 90.],dtype=num.float)
-            testvalue=num.array([80., 45.],dtype=num.float)),
+            lower=num.array([50., 0.], dtype=num.float),
+            upper=num.array([90., 90.], dtype=num.float),
+            testvalue=num.array([80., 45.], dtype=num.float)),
         Parameter(
             name='rake',
-            lower=num.array([-90., -180.],dtype=num.float)
-            upper=num.array([90., 180.],dtype=num.float)
-            testvalue=num.array([0., 0.],dtype=num.float)),
+            lower=num.array([-90., -180.], dtype=num.float),
+            upper=num.array([90., 180.], dtype=num.float),
+            testvalue=num.array([0., 0.], dtype=num.float)),
         Parameter(
             name='length',
-            lower=num.array([20., 1.],dtype=num.float)
-            upper=num.array([70., 10.],dtype=num.float)
-            testvalue=num.array([40., 5.],dtype=num.float)),
+            lower=num.array([20., 1.], dtype=num.float),
+            upper=num.array([70., 10.], dtype=num.float),
+            testvalue=num.array([40., 5.], dtype=num.float)),
         Parameter(
             name='width',
-            lower=num.array([10., 1.],dtype=num.float)
-            upper=num.array([30., 10.],dtype=num.float)
-            testvalue=num.array([20., 5.],dtype=num.float)),
+            lower=num.array([10., 1.], dtype=num.float),
+            upper=num.array([30., 10.], dtype=num.float),
+            testvalue=num.array([20., 5.], dtype=num.float)),
         Parameter(
             name='slip',
-            lower=num.array([0., 0.],dtype=num.float)
-            upper=num.array([8., 5.],dtype=num.float)
-            testvalue=num.array([2., 1.],dtype=num.float)),
+            lower=num.array([0., 0.], dtype=num.float),
+            upper=num.array([8., 5.], dtype=num.float),
+            testvalue=num.array([2., 1.], dtype=num.float)),
         Parameter(
             name='opening',
-            lower=num.array([0., 0.],dtype=num.float)
-            upper=num.array([0., 0.],dtype=num.float)
-            testvalue=num.array([0., 0.],dtype=num.float)),
+            lower=num.array([0., 0.], dtype=num.float),
+            upper=num.array([0., 0.], dtype=num.float),
+            testvalue=num.array([0., 0.], dtype=num.float)),
         Parameter(
             name='time',
-            lower=num.array([-5., -15.],dtype=num.float)
-            upper=num.array([10., -6.],dtype=num.float)
-            testvalue=num.array([0., 0.],dtype=num.float)).
+            lower=num.array([-5., -15.], dtype=num.float),
+            upper=num.array([10., -6.], dtype=num.float),
+            testvalue=num.array([0., 0.], dtype=num.float))
             ]
+
+    util.ensuredir(project_dir)
+    conf_out = os.path.join(project_dir, 'config')
+    gf.meta.dump(config, filename=conf_out)
