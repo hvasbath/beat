@@ -3,7 +3,7 @@ import copy
 import pymc3 as pm
 import atmcmc
 
-from pyrocko import gf
+from pyrocko import gf, util
 from pyrocko.guts import Object
 
 import numpy as num
@@ -21,32 +21,78 @@ import inputf
 
 class Project(Object):
 
-    def sample(self, n_chains, n_steps, njobs, tune_interval):
+    step = None
+    model = None
+    _seis_like_name = 'seis_like'
+    _geo_like_name = 'geo_like'
+    _like_name = 'like'
+
+    def update_target_weights(self, mtrace, stage, n_steps):
         '''
-        Sample solution space with the (C)ATMIP algorithm, where required input
-        parameters are:
+        Update target weights based on distribution of misfits per target.
+        Input: MultiTrace Object.
+        '''
+        if stage > 0:
+            # get target likelihoods
+            seis_likelihoods = mtrace.get_values(varname=self._seis_like_name,
+                                            burn=n_steps - 1,
+                                            combine=True)
+            geo_likelihoods = mtrace.get_values(varname=self._geo_like_name,
+                                            burn=n_steps - 1,
+                                            combine=True)
+        else:
+            # for initial stage only one trace that contains all points for
+            # each chain
+            seis_likelihoods = mtrace.get_values(self._seis_like_name)
+            geo_likelihoods = mtrace.get_values(self._geo_like_name)
+
+        seis_target_cov = num.cov(seis_likelihoods, bias=True, rowvar=0)
+        geo_target_cov = num.cov(geo_likelihoods, bias=True, rowvar=0)
+
+        self.seis_mf_icov.set_value(num.linalg.inv(seis_target_cov))
+        self.geo_mf_icov.set_value(num.linalg.inv(geo_target_cov))
+
+    def init_atmip(self, n_chains=100, tune_interval=10):
+        '''
+        Initialise the (C)ATMIP algorithm.
+
         n_chains - number of independent Metropolis chains
-        n_steps - number of samples within each chain
-        n_jobs - number of parallel chains
         tune_interval - number of samples after which Metropolis is being
                         scaled according to the acceptance ratio.
         '''
         with self.model:
-            print 'Initiate Adaptive Transitional Metropolis ... '
+            print('Initiate Adaptive Transitional Metropolis ... '
+                  'with n_chains=%i, tune_interval=%i') % (n_chains,
+                                                           tune_interval)
             t1 = time.time()
-            step = atmcmc.ATMCMC(
+            self.step = atmcmc.ATMCMC(
                     n_chains=n_chains,
                     tune_interval=tune_interval,
-                    likelihood_name=self.model.deterministics[0].name)
+                    likelihood_name=self._like_name)
             t2 = time.time()
             print 'Compilation time:', t2 - t1
 
+    def sample(self, n_steps=100, njobs=1):
+        '''
+        Sample solution space with the (C)ATMIP algorithm.
+
+        Inputs:
+        n_steps - number of samples within each chain
+        n_jobs - number of parallel chains
+        '''
+
+        if not self.step:
+            raise Exception('Sampler needs to be initialised first!'
+                            'with: "init_atmip" ')
+
         print 'Starting ATMIP ...'
-        trace = atmcmc.ATMIP_sample(self, n_steps,
-                    step=step,
+        trace = atmcmc.ATMIP_sample(
+                    n_steps,
+                    step=self.step,
                     progressbar=True,
                     njobs=njobs,
-                    trace=self.config.geometry_outfolder)
+                    update=self,
+                    trace=self.geometry_outfolder)
         return trace
 
 
@@ -61,6 +107,9 @@ class GeometryOptimizer(Project):
     def __init__(self, config):
 
         self.config = config
+        self.geometry_outfolder = config.project_dir
+        util.ensuredir(self.geometry_outfolder)
+
         self.engine = gf.LocalEngine(store_superdirs=[config.store_superdir])
 
         # load data still not general enopugh
@@ -88,10 +137,6 @@ class GeometryOptimizer(Project):
         self.ns_t = len(self.stargets)
         self.ng_t = len(self.gtargets)
 
-        # target weights, initially identity matrix = equal weights
-        self.seis_mf_icov = shared(num.eye(self.ns_t))
-        self.geo_mf_icov = shared(num.eye(self.ng_t))
-
         # geodetic data
         ordering = utility.ArrayOrdering(config.gtargets)
 
@@ -100,10 +145,15 @@ class GeometryOptimizer(Project):
         lats_list = [config.gtargets[i].lats for i in range(self.ng_t)]
         odws_list = [config.gtargets[i].odw for i in range(self.ng_t)]
 
+        # Data and model covariances
         self.gweights = [shared(
             config.gtargets[i].covariance.icov) for i in range(self.ng_t)]
         self.sweights = [shared(
             config.stargets[i].covariance.icov) for i in range(self.ns_t)]
+
+        # Target weights, initially identity matrix = equal weights
+        self.seis_mf_icov = shared(num.eye(self.ns_t))
+        self.geo_mf_icov = shared(num.eye(self.ng_t))
 
         self.lv = num.vstack(
                 [config.gtargets[i].look_vector() for i in range(self.ng_t)])
@@ -182,14 +232,14 @@ class GeometryOptimizer(Project):
                               shared(self.gweights[l])).dot(geo_res[l, :].T))
 
             # adding dataset missfits to traces
-            seis_llk = pm.Deterministic('seis_like', logpts_s)
-            geo_llk = pm.Deterministic('geo_like', logpts_g)
+            seis_llk = pm.Deterministic(self._seis_like_name, logpts_s)
+            geo_llk = pm.Deterministic(self._geo_like_name, logpts_g)
 
             # sum up geodetic and seismic likelihood
-            like = pm.Deterministic('like',
-                    seis_llk.T.dot(shared(self.seis_mf_icov)).dot(seis_llk) + \
-                    geo_llk.T.dot(shared(self.geo_mf_icov)).dot(geo_llk))
-            llk = pm.Potential('llk', like)
+            like = pm.Deterministic(self._like,
+                    seis_llk.T.dot(self.seis_mf_icov).dot(seis_llk) + \
+                    geo_llk.T.dot(self.geo_mf_icov).dot(geo_llk))
+            llk = pm.Potential(self._like_name, like)
 
         def update_weights(self, point):
             '''
@@ -239,6 +289,3 @@ class GeometryOptimizer(Project):
                          sources=g_sources)
 
                 self.gweights[i].set_value(gtarget.covariance.inverse())
-
-#        def update_target_weights(self, ):
-

@@ -207,7 +207,10 @@ class ATMCMC(pm.arraystep.ArrayStepShared):
         -------
         Ndarray of weighted covariances (NumPy > 1.10. required)
         """
-        return np.cov(self.array_population, aweights=self.weights, rowvar=0)
+        return np.cov(self.array_population,
+                      aweights=self.weights,
+                      bias=True,
+                      rowvar=0)
 
     def select_end_points(self, mtrace):
         """
@@ -439,12 +442,13 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                     step.beta, step.old_beta, step.weights = step.calc_beta()
                     step.covariance = step.calc_covariance()
                     step.res_indx = step.resample()
-                    
+
                     if update is not None:
                         print('Updating Covariances ...')
-                        mean_pt = self.mean_end_points()
+                        mean_pt = step.mean_end_points()
                         update.update_weights(mean_pt)
-                        
+                        update.update_target_weights(mtrace, step.stage, n_steps)
+
                     step.stage += 1
                     del(strace, mtrace, trace)
                 else:
@@ -460,16 +464,19 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                             'stage_path': stage_path,
                             'progressbar': progressbar,
                             'model': model}
+
                     mtrace = _iter_parallel_chains(parallel, **sample_args)
 
                     step.population, step.array_population, step.likelihoods = \
                                             step.select_end_points(mtrace)
                     step.beta, step.old_beta, step.weights = step.calc_beta()
-                    
+
                     if update is not None:
                         print('Updating Covariances ...')
-                        update.update_weights()
-                        
+                        mean_pt = step.mean_end_points()
+                        update.update_weights(mean_pt)
+                        update.update_target_weights(mtrace, step.stage, n_steps)
+
                     step.stage += 1
 
                     if step.beta > 1.:
