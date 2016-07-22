@@ -168,11 +168,17 @@ class Covariance(Object):
                          'in the inversion.',
                     optional=True)
 
-    def inverse(self):
+    def set_inverse(self):
         '''
         Add and invert different covariance Matrices.
         '''
-        return num.linalg.inv(self.data + self.pred_g + self.pred_v)
+        if self.pred_g is None:
+            self.pred_g = num.zeros_like(self.data)
+
+        if self.pred_v is None:
+            self.pred_v = num.zeros_like(self.data)
+            
+        self.icov = num.linalg.inv(self.data + self.pred_g + self.pred_v)
 
     
 class TeleseismicTarget(gf.Target):
@@ -785,21 +791,31 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources):
     return runner.get_results(component='displ', flip_z=True)
 
 
-def get_phase_taperer(engine, source, target, arrival_taper):
+def get_phase_arrival_time(engine, source, target):
     '''
     Get arrival time from store for respective :py:class:`target`
-    and :py:class:`source` pair and taper return :py:class:`CosTaper`
-    according to defined arrival_taper times.
+    and :py:class:`source/event` pair. The channel of target determines
+    if S or P wave.
     '''
     store = engine.get_store(target.store_id)
     dist = target.distance_to(source)
     depth = source.depth
     if target.codes[3] == 'T':
         wave = 'any_S'
-    else:
+    elif target.codes[3] == 'Z':
         wave = 'any_P'
+    else:
+        raise Exception('Channel not supported! Either: "T" or "Z"')
 
-    arrival_time = store.t(wave, (depth, dist)) + source.time
+    return store.t(wave, (depth, dist)) + source.time
+
+
+def get_phase_taperer(engine, location, target, arrival_taper):
+    '''
+    and taper return :py:class:`CosTaper`
+    according to defined arrival_taper times.
+    '''
+    arrival_time = get_phase_arrival_time(engine, location, target)
     taperer = trace.CosTaper(arrival_time - arrival_taper.a,
                              arrival_time - arrival_taper.b,
                              arrival_time + arrival_taper.c,

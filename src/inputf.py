@@ -42,7 +42,7 @@ def load_SAR_data(datadir,tracks):
 
     return DIFFGs
 
-def load_seism_data(datadir):
+def load_seism_data(datadir, channels):
     '''Load stations and event files in datadir and read traces from autokiwi autput.'''
     trc_name_divider = '-'
     data_format = 'mseed'
@@ -55,12 +55,20 @@ def load_seism_data(datadir):
         print(' remove stations from list: ' + popped_sta.station)
 
     nrstat = len(stations)
-
+    ref_channels = []
+    for cha in channels:
+        if cha == 'Z':
+            ref_channels.append('u')
+        elif cha == 'T':
+            ref_channels.append('r')
+        else:
+            raise Exception('No data for this channel!')
+    
     # load recorded data 
     data_trcs = []
     drop_stat = []
-    for sta_num in range(len(stations)):
-        for ref_channel in ['r','u']:       #(r)ight transverse, (a)way radial, vertical (u)p
+    for ref_channel in ref_channels: #(r)ight transverse, (a)way radial, vertical (u)p
+        for sta_num in range(len(stations)):
             trace_name = trc_name_divider.join(('reference', stations[sta_num].network, stations[sta_num].station, ref_channel))
             tracepath = datadir + trace_name + '.' + data_format
             try:

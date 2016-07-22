@@ -35,20 +35,22 @@ class Project(Object):
         '''
         if stage > 0:
             # get target likelihoods
-            seis_likelihoods = mtrace.get_values(varname=self._seis_like_name,
-                                            burn=n_steps - 1,
-                                            combine=True)
-            geo_likelihoods = mtrace.get_values(varname=self._geo_like_name,
-                                            burn=n_steps - 1,
-                                            combine=True)
+            seis_likelihoods = mtrace.get_values(
+                varname=self._seis_like_name,
+                burn=n_steps - 1,
+                combine=True)
+            geo_likelihoods = mtrace.get_values(
+                varname=self._geo_like_name,
+                burn=n_steps - 1,
+                combine=True)
         else:
             # for initial stage only one trace that contains all points for
             # each chain
             seis_likelihoods = mtrace.get_values(self._seis_like_name)
             geo_likelihoods = mtrace.get_values(self._geo_like_name)
 
-        seis_target_cov = num.cov(seis_likelihoods, bias=True, rowvar=0)
-        geo_target_cov = num.cov(geo_likelihoods, bias=True, rowvar=0)
+        seis_target_cov = num.cov(seis_likelihoods, bias=False, rowvar=0)
+        geo_target_cov = num.cov(geo_likelihoods, bias=False, rowvar=0)
 
         self.seis_misfit_icov.set_value(num.linalg.inv(seis_target_cov))
         self.geo_misfit_icov.set_value(num.linalg.inv(geo_target_cov))
@@ -67,9 +69,9 @@ class Project(Object):
                                                            tune_interval)
             t1 = time.time()
             self.step = atmcmc.ATMCMC(
-                    n_chains=n_chains,
-                    tune_interval=tune_interval,
-                    likelihood_name=self._like_name)
+                n_chains=n_chains,
+                tune_interval=tune_interval,
+                likelihood_name=self._like_name)
             t2 = time.time()
             print 'Compilation time:', t2 - t1
 
@@ -88,12 +90,12 @@ class Project(Object):
 
         print 'Starting ATMIP ...'
         trace = atmcmc.ATMIP_sample(
-                    n_steps,
-                    step=self.step,
-                    progressbar=True,
-                    njobs=njobs,
-                    update=self,
-                    trace=self.geometry_outfolder)
+            n_steps,
+            step=self.step,
+            progressbar=True,
+            njobs=njobs,
+            update=self,
+            trace=self.geometry_outfolder)
         return trace
 
 
@@ -103,7 +105,6 @@ class GeometryOptimizer(Project):
     returns the model object.
 
     Input: :py:class: 'BEATconfig'
-    Output: :py:class: 'Model'
     '''
     def __init__(self, config):
 
@@ -115,15 +116,17 @@ class GeometryOptimizer(Project):
 
         # load data still not general enopugh
         [self.stations, _, self.event, self.data_traces] = inputf.load_seism_data(
-            config.seismic_datadir)
+            config.seismic_datadir, config.channels)
+
+        self.stargets = heart.init_targets(
+            self.stations,
+            channels=config.channels,
+            sample_rate=config.sample_rate,
+            crust_inds=0,  # always reference model
+            interpolation='multilinear')
+
         self.gtargets = inputf.load_SAR_data(
                 config.geodetic_datadir, config.tracks)
-
-        self.stargets = heart.init_targets(self.stations,
-                                      channels=config.channels,
-                                      sample_rate=config.sample_rate,
-                                      crust_inds=0,  # always reference model
-                                      interpolation='multilinear')
 
         # sources
         self.sources = []
@@ -146,26 +149,41 @@ class GeometryOptimizer(Project):
         lons_list = [config.gtargets[i].lons for i in range(self.ng_t)]
         lats_list = [config.gtargets[i].lats for i in range(self.ng_t)]
         odws_list = [config.gtargets[i].odw for i in range(self.ng_t)]
+        lv_list = [config.gtargets[i].look_vector() for i in range(self.ng_t)]
+        
+        ## Data and model covariances
+        cov_ds_seismic = get_seismic_data_covariances(
+            data_traces=self.data_traces,
+            config=config,
+            engine=self.engine,
+            event=self.event,
+            targets=self.stargets)
 
-        # Data and model covariances
-        self.gweights = [shared(
-            config.gtargets[i].covariance.icov) for i in range(self.ng_t)]
-        self.sweights = [shared(
-            config.stargets[i].covariance.icov) for i in range(self.ns_t)]
+        self.gweights = []
+        for ig in range(self.ng_t):
+            self.gtargets[ig].covariance.set_inverse()
+            self.gweights.append(shared(self.gtargets[ig].covariance.icov))
+
+        self.sweights = []
+        for is in range(self.ns_t):
+            self.stargets[is].covariance.data = cov_ds_seismic[is]
+            self.stargets[is].covariance.set_inverse()
+            self.sweights.append(shared(config.stargets[i].covariance.icov))
 
         # Target weights, initially identity matrix = equal weights
         self.seis_misfit_icov = shared(num.eye(self.ns_t))
         self.geo_misfit_icov = shared(num.eye(self.ng_t))
 
-        self.lv = num.vstack(
-                [config.gtargets[i].look_vector() for i in range(self.ng_t)])
+        # merge geodetic data to call pscmp only once each forward model
+
 
         self.Bij = utility.ListToArrayBijection(ordering, disp_list)
 
-        self.odws = self.Bij.fmap(odws_list)
-        self.wdata = self.Bij.fmap(disp_list) * self.odws
-        self.lons = self.Bij.fmap(lons_list)
-        self.lats = self.Bij.fmap(lats_list)
+        self.odws = shared(self.Bij.fmap(odws_list))
+        self.wdata = shared(self.Bij.fmap(disp_list) * self.odws)
+        self.lons = shared(self.Bij.fmap(lons_list))
+        self.lats = shared(self.Bij.fmap(lats_list))
+        self.lv = shared(self.Bij.fmap(lv_list))
 
         # syntetics generation
         self.get_geo_synths = theanof.GeoLayerSynthesizer(
@@ -212,7 +230,6 @@ class GeometryOptimizer(Project):
             los = (disp[:, 0] * self.lv[:, 0] + \
                    disp[:, 1] * self.lv[:, 1] + \
                    disp[:, 2] * self.lv[:, 2]) * self.odws
-
             geo_res = self.Bij.srmap((self.wdata - los))
 
             synths, tmins = self.get_seis_synths(*seis_input_rvs)
@@ -226,21 +243,22 @@ class GeometryOptimizer(Project):
             for k in range(self.ns_t):
                 logpts_s = tt.set_subtensor(logpts_s[k:k + 1],
                         (-0.5) * seis_res[k, :].dot(
-                              shared(self.sweights[k])).dot(seis_res[k, :].T))
+                              self.sweights[k]).dot(seis_res[k, :].T))
 
             for l in range(self.ng_t):
                 logpts_g = tt.set_subtensor(logpts_g[l:l + 1],
                         (-0.5) * geo_res[l, :].dot(
-                              shared(self.gweights[l])).dot(geo_res[l, :].T))
+                              self.gweights[l]).dot(geo_res[l, :].T))
 
             # adding dataset missfits to traces
             seis_llk = pm.Deterministic(self._seis_like_name, logpts_s)
             geo_llk = pm.Deterministic(self._geo_like_name, logpts_g)
 
             # sum up geodetic and seismic likelihood
-            like = pm.Deterministic(self._like_name,
-                    seis_llk.T.dot(self.seis_misfit_icov).dot(seis_llk) + \
-                    geo_llk.T.dot(self.geo_misfit_icov).dot(geo_llk))
+            like = pm.Deterministic(
+                self._like_name,
+                seis_llk.T.dot(self.seis_misfit_icov).dot(seis_llk) + \
+                geo_llk.T.dot(self.geo_misfit_icov).dot(geo_llk))
             llk = pm.Potential(self._like_name, like)
 
         def update_weights(self, point):
@@ -270,7 +288,7 @@ class GeometryOptimizer(Project):
                                   crust_inds=self.config.crust_inds)
 
                     self.stargets[i].covariance.pred_v = \
-                        cov.calc_seis_cov_velocity_models(
+                        cov.get_seis_cov_velocity_models(
                                  engine=self.engine,
                                  sources=s_sources,
                                  crust_inds=self.config.crust_inds,
@@ -284,7 +302,7 @@ class GeometryOptimizer(Project):
 
             # geodetic
             for i, gtarget in enumerate(self.config.gtargets):
-                gtarget.covariance.pred_v = cov.calc_geo_cov_velocity_models(
+                gtarget.covariance.pred_v = cov.get_geo_cov_velocity_models(
                          store_superdir=self.config.store_superdir,
                          crust_inds=self.config.crust_inds,
                          dataset=gtarget,

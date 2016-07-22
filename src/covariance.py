@@ -4,7 +4,57 @@ import heart
 import copy
 
 
-def calculate_model_prediction_sensitivity(engine, *args, **kwargs):
+def sub_data_covariance(n, dt, tzero):
+    '''
+    Calculate sub-covariance matrix without variance.
+    :param: n - length of trace/ samples of quadratic Covariance matrix
+    :param: dt - time step of samples 
+    :param: tzero - shortest period of waves in trace
+    '''
+    return num.exp( - num.abs(num.arange(n)[:,num.newaxis] - \
+                            num.arange(n)[num.newaxis,:]) * dt / tzero)
+
+                            
+def get_seismic_data_covariances(data_traces, config, engine,
+                                 event, targets):
+    '''
+    Calculate SubCovariance Matrix of trace object following
+    Duputel et al. 2012 GJI
+    "Uncertainty estimations for seismic source inversions" p. 5
+
+    Cd(i,j) = (Variance of trace)*exp(-abs(ti-tj)/
+                                     (shortest period T0 of waves))
+    
+       i,j are samples of the seismic trace
+    '''
+
+    tzero = 1. / config.filterer.upper_corner
+    dt = 1. / config.sample_rate
+    ataper = config.arrival_taper
+    n = int(num.ceil((ataper.a + ataper.d) / dt))
+        
+    csub = sub_data_covariance(n, dt, tzero)
+
+    cov_ds = []
+    for i, trace in enumerate(data_traces):
+        # assure getting P-wave arrival time
+        tmp_target = copy.deepcopy(targets[i])
+        tmp_target.channel[3] = 'Z'
+        
+        arrival_time = heart.get_phase_arrival_time(
+            engine=engine, source=event, target=tmp_target)
+        
+        ctrace = trace.chop(
+            tmin=trace.tmin,
+            tmax=arrival_time - ataper.b,
+            inplace=False)
+        
+        cov_ds.append(num.var(ctrace.ydata, ddof=1) * csub)
+
+    return cov_ds
+            
+
+def get_model_prediction_sensitivity(engine, *args, **kwargs):
     '''
     Calculate the model prediction Covariance Sensitivity Kernel.
     (numerical derivation with respect to the input source parameter(s))
@@ -127,7 +177,7 @@ def calculate_model_prediction_sensitivity(engine, *args, **kwargs):
     return sensitivity_param_trcs
 
 
-def calc_seis_cov_velocity_models(engine, sources, targets,
+def get_seis_cov_velocity_models(engine, sources, targets,
                                   arrival_taper, filterer):
     '''
     Calculate model prediction uncertainty matrix with respect to uncertainties
@@ -152,7 +202,7 @@ def calc_seis_cov_velocity_models(engine, sources, targets,
     return num.cov(synths, rowvar=0)
 
 
-def calc_geo_cov_velocity_models(store_superdir, crust_inds, dataset, sources):
+def get_geo_cov_velocity_models(store_superdir, crust_inds, dataset, sources):
     '''
     Calculate model prediction uncertainty matrix with respect to uncertainties
     in the velocity model for geodetic dateset.

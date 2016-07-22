@@ -209,7 +209,7 @@ class ATMCMC(pm.arraystep.ArrayStepShared):
         """
         return np.cov(self.array_population,
                       aweights=self.weights,
-                      bias=True,
+                      bias=False,
                       rowvar=0)
 
     def select_end_points(self, mtrace):
