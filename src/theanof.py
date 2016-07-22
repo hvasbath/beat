@@ -13,6 +13,7 @@ import numpy as num
 
 km = 1000.
 
+
 class GeoLayerSynthesizer(theano.Op):
 
     __props__ = ('store_superdir', 'crust_ind', 'sources')
@@ -56,7 +57,7 @@ class SeisSynthesizer(theano.Op):
                  'arrival_taper', 'filterer')
 
     itypes = [tt.dvector, tt.dvector, tt.dvector,
-              tt.dvector, tt.dvector, tt.dvector,
+              tt.dvector, tt.dvector, tt.dvector, tt.dvector,
               tt.dvector, tt.dvector, tt.dvector, tt.dvector]
     otypes = [tt.dmatrix, tt.dvector]
 
@@ -71,16 +72,17 @@ class SeisSynthesizer(theano.Op):
 
     def perform(self, node, inputs, output):
 
-        ess, nss, ds, sts, dis, ras, ls, ws, sls, ts = inputs
+        ess, nss, ds, sts, dis, ras, ls, ws, sls, ts, rts = inputs
         synths = output[0]
         tmins = output[1]
 
-        for es, ns, d, st, di, ra, l, w, sl, t, source in \
-            zip(ess, nss, ds, sts, dis, ras, ls, ws, sls, ts, self.sources):
-            source.update(east_shift=es * km, north_shift=ns * km, depth=d,
+        for es, ns, d, st, di, ra, l, w, sl, t, rt, source in \
+            zip(ess, nss, ds, sts, dis, ras, ls, ws, sls, ts, rts, self.sources):
+            source.update(east_shift=es * km, north_shift=ns * km, depth=d * km,
                           strike=st, dip=di, rake=ra,
-                          length=l, width=w, slip=sl,
+                          length=l * km, width=w * km, slip=sl,
                           time=(self.event.time + t))
+            source.stf.duration = rt
 
         synths[0], tmins[0] = heart.seis_synthetics(self.engine, self.sources,
                                               self.targets,
@@ -109,7 +111,6 @@ class SeisDataChopper(theano.Op):
         self.filterer = filterer
 
     def perform(self, node, inputs, output):
-        ### update use syntax from covariance calculation?
         tmins = inputs[0]
         z = output[0]
 
