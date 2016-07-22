@@ -1,7 +1,7 @@
 import scipy.io
 import heart
 import utility
-from pyrocko import gf, model, io
+from pyrocko import model, io
 import numpy as num
 
 km = 1000.
@@ -54,7 +54,6 @@ def load_seism_data(datadir, channels):
         popped_sta = stations.pop(sta)
         print(' remove stations from list: ' + popped_sta.station)
 
-    nrstat = len(stations)
     ref_channels = []
     for cha in channels:
         if cha == 'Z':
@@ -87,23 +86,5 @@ def load_seism_data(datadir, channels):
         popped_sta = stations.pop(sta)
         print(' remove stations from list: ' + popped_sta.station)
 
-    nrstat = len(stations)
-    print 'Number of stations', str(nrstat)
-    targets = [
-        # have to put stations here
-        gf.Target(
-            quantity='displacement',
-            codes=(stations[sta_num].network,
-                   stations[sta_num].station,
-                   stations[sta_num].location, channel), #network, statio, location, channel
-            lat=stations[sta_num].lat,
-            lon=stations[sta_num].lon,
-            azimuth=stations[sta_num].get_channel(channel).azimuth,
-            dip=stations[sta_num].get_channel(channel).dip,
-            store_id='crust2_%s' % stations[sta_num].station)
-        # include several channel
-        for sta_num in range(0,nrstat)
-            for channel in ['T','Z']]       # T for SH waves, Z for P waves
-
-    return stations, targets, event, data_trcs
+    return stations, event, data_trcs
 

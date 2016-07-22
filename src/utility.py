@@ -78,6 +78,32 @@ class ListToArrayBijection(object):
         return a_list
 
 
+def weed_input_rvs(input_rvs, mode):
+    '''
+    Throw out random variables from input list that are not needed by the
+    respective synthetics generating functions.
+    mode = seis/geo
+    '''
+    name_order = [param.name for param in input_rvs]
+    weeded_input_rvs = copy.deepcopy(input_rvs)
+
+    if mode == 'geo':
+        tobeweeded = ['time', 'duration']
+    elif mode == 'seis':
+        tobeweeded = ['opening']
+
+    indexes = []
+    for burian in tobeweeded:
+        indexes.append(name_order.index(burian))
+
+    indexes.sort(reverse=True)
+
+    for ind in indexes:
+        _ = weeded_input_rvs.pop(ind)
+
+    return weeded_input_rvs
+
+
 def utm_to_loc(utmx, utmy, zone, event):
     '''
     Convert UTM[m] to local coordinates with reference to the :py:class:`Event`

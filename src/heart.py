@@ -3,7 +3,7 @@ import pscmp
 import numpy as num
 import os
 
-from pyrocko.guts import Object, List, String, Float, Int, Tuple, Timestamp
+from pyrocko.guts import Object, List, String, Float, Int, Tuple
 from pyrocko.guts_array import Array
 
 from pyrocko import crust2x2, gf, cake, orthodrome, trace, model, util
@@ -942,7 +942,12 @@ def init_nonlin(name, year, project_dir='./', store_superdir='',
             name='time',
             lower=num.array([-5., -15.], dtype=num.float),
             upper=num.array([10., -6.], dtype=num.float),
-            testvalue=num.array([0., -8.], dtype=num.float))
+            testvalue=num.array([0., -8.], dtype=num.float)),
+        Parameter(
+            name='duration',
+            lower=num.array([5., 0.], dtype=num.float),
+            upper=num.array([20., 6.], dtype=num.float),
+            testvalue=num.array([10., 3.], dtype=num.float))
             ]
 
     config.validate()

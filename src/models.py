@@ -1,4 +1,3 @@
-import copy
 import os
 
 import pymc3 as pm
@@ -205,7 +204,7 @@ class GeometryOptimizer(Project):
 
     def built_model(self):
         with pm.Model() as self.model:
-            # instanciate random vars
+            ## instanciate random vars
             input_rvs = []
             for param in self.config.bounds:
                 input_rvs.append(pm.Uniform(param.name,
@@ -215,26 +214,23 @@ class GeometryOptimizer(Project):
                                        testval=param.testvalue,
                                        transform=None))
 
-            geo_input_rvs = copy.deepcopy(input_rvs)
-            if 'time' in geo_input_rvs:
-                geo_input_rvs.pop([])
+            geo_input_rvs = utility.weed_input_rvs(input_rvs, mode='geo')
+            seis_input_rvs = utility.weed_input_rvs(input_rvs, mode='seis')
 
-            seis_input_rvs = copy.deepcopy(input_rvs)
-            if 'opening' in seis_input_rvs:
-                seis_input_rvs.pop('opening')
-
-            # calc residuals
+            ## calc residuals
+            # geo
             disp = self.get_geo_synths(self.lons, self.lats, *geo_input_rvs)
             los = (disp[:, 0] * self.lv[:, 0] + \
                    disp[:, 1] * self.lv[:, 1] + \
                    disp[:, 2] * self.lv[:, 2]) * self.odws
-            geo_res = self.Bij.srmap((self.wdata - los))
+            geo_res = self.Bij.srmap(self.wdata - los)
 
+            # seis
             synths, tmins = self.get_seis_synths(*seis_input_rvs)
             data_trcs = self.chop_traces(tmins)
             seis_res = data_trcs - synths
 
-            # calc likelihoods
+            ## calc likelihoods
             logpts_g = tt.zeros((self.ng_t), tconfig.floatX)
             logpts_s = tt.zeros((self.ns_t), tconfig.floatX)
 
