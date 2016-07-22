@@ -70,6 +70,8 @@ class Test_Pscmp(object):
         o_lons = self.event.lon
         o_lats = self.event.lat
         depths = self.event.depth / km
+        east_shift = 50. * km
+        north_shift = 40. * km
         strikes = event.moment_tensor.strike2
         dips = self.event.moment_tensor.dip2
         rakes = self.event.moment_tensor.rake2
@@ -78,7 +80,8 @@ class Test_Pscmp(object):
         slips = self.slips
         openings = self.openings
 
-        self.sources[0].update(lon=o_lons, lat=o_lats, depth=depths,
+        self.sources[0].update(lon=o_lons, lat=o_lats, east_shift=east_shift,
+                          north_shift=north_shift, depth=depths,
                           strike=strikes, dip=dips, rake=rakes,
                           length=lengths, width=widths, slip=slips,
                           opening=openings)
@@ -87,6 +90,7 @@ class Test_Pscmp(object):
                     self.store_superdir,
                     self.crust_ind,
                     lons, lats, self.sources)
+        print self.sources[0].__dict__
         return displ[0]
 
     def sym_pscmp_op(self):
@@ -95,8 +99,8 @@ class Test_Pscmp(object):
 
         # source params
         crust_ind = shared(num.int32(self.crust_ind))
-        o_lons = shared(num.array([self.event.lon], dtype=num.float64))
-        o_lats = shared(num.array([self.event.lat], dtype=num.float64))
+        ess = shared(num.array([50.], dtype=num.float64))
+        nss = shared(num.array([40.], dtype=num.float64))
         ds = shared(num.array([self.event.depth / km], dtype=num.float64))
         strikes = shared(num.array([self.event.moment_tensor.strike2],
                                     dtype=num.float64))
@@ -109,11 +113,13 @@ class Test_Pscmp(object):
         slips = shared(num.array([self.slips], dtype=num.float64))
         opns = shared(num.array([self.openings], dtype=num.float64))
 
-        var_list = [LONS, LATS, o_lons, o_lats, ds, strikes, dips, rakes, ls,
+        var_list = [LONS, LATS, ess, nss, ds, strikes, dips, rakes, ls,
                     ws, slips, opns]
         get_displacements = theanof.GeoLayerSynthesizer(
                             self.store_superdir, self.crust_ind, self.sources)
         displ = get_displacements(*var_list)
         sym_forward_op = function([], [displ], profile=profile)
-        return sym_forward_op
+        dsym = sym_forward_op()
+        print self.sources[0].__dict__
+        return dsym
 

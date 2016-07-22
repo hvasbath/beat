@@ -11,6 +11,7 @@ import theano
 import heart
 import numpy as num
 
+km = 1000.
 
 class GeoLayerSynthesizer(theano.Op):
 
@@ -28,12 +29,13 @@ class GeoLayerSynthesizer(theano.Op):
 
     def perform(self, node, inputs, output):
 
-        lons, lats, o_lons, o_lats, ds, sts, dis, ras, ls, ws, sls, ops = inputs
+        lons, lats, ess, nss, ds, sts, dis, ras, ls, ws, sls, ops = inputs
         z = output[0]
 
-        for o_lon, o_lat, d, st, di, ra, l, w, sl, op, source in \
-            zip(o_lons, o_lats, ds, sts, dis, ras, ls, ws, sls, ops, self.sources):
-            source.update(lon=o_lon, lat=o_lat, depth=d,
+        for es, ns, d, st, di, ra, l, w, sl, op, source in \
+            zip(ess, nss, ds, sts, dis, ras, ls, ws, sls, ops, self.sources):
+            source.update(east_shift=es * km,
+                          north_shift=ns * km, depth=d,
                           strike=st, dip=di, rake=ra,
                           length=l, width=w, slip=sl,
                           opening=op)
@@ -69,13 +71,13 @@ class SeisSynthesizer(theano.Op):
 
     def perform(self, node, inputs, output):
 
-        lons, lats, ds, sts, dis, ras, ls, ws, sls, ts = inputs
+        ess, nss, ds, sts, dis, ras, ls, ws, sls, ts = inputs
         synths = output[0]
         tmins = output[1]
 
-        for lon, lat, d, st, di, ra, l, w, sl, t, source in \
-            zip(lons, lats, ds, sts, dis, ras, ls, ws, sls, ts, self.sources):
-            source.update(lon=lon, lat=lat, depth=d,
+        for es, ns, d, st, di, ra, l, w, sl, t, source in \
+            zip(ess, nss, ds, sts, dis, ras, ls, ws, sls, ts, self.sources):
+            source.update(east_shift=es * km, north_shift=ns * km, depth=d,
                           strike=st, dip=di, rake=ra,
                           length=l, width=w, slip=sl,
                           time=(self.event.time + t))

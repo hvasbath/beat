@@ -133,7 +133,7 @@ class GeometryOptimizer(Project):
         s_sources = []
         g_sources = []
         for i in range(self.bounds.dimension):
-            source = heart.RectangularSource()
+            source = heart.RectangularSource.from_pyrocko_event(self.event)
             self.sources.append(source)
             s_sources.append(source.patches(1, 1, 'seis'))
             g_sources.append(source.patches(1, 1, 'geo'))
@@ -150,9 +150,9 @@ class GeometryOptimizer(Project):
         lats_list = [config.gtargets[i].lats for i in range(self.ng_t)]
         odws_list = [config.gtargets[i].odw for i in range(self.ng_t)]
         lv_list = [config.gtargets[i].look_vector() for i in range(self.ng_t)]
-        
+
         ## Data and model covariances
-        cov_ds_seismic = get_seismic_data_covariances(
+        cov_ds_seismic = cov.get_seismic_data_covariances(
             data_traces=self.data_traces,
             config=config,
             engine=self.engine,
@@ -160,14 +160,14 @@ class GeometryOptimizer(Project):
             targets=self.stargets)
 
         self.gweights = []
-        for ig in range(self.ng_t):
-            self.gtargets[ig].covariance.set_inverse()
-            self.gweights.append(shared(self.gtargets[ig].covariance.icov))
+        for g_t in range(self.ng_t):
+            self.gtargets[g_t].covariance.set_inverse()
+            self.gweights.append(shared(self.gtargets[g_t].covariance.icov))
 
         self.sweights = []
-        for is in range(self.ns_t):
-            self.stargets[is].covariance.data = cov_ds_seismic[is]
-            self.stargets[is].covariance.set_inverse()
+        for s_t in range(self.ns_t):
+            self.stargets[s_t].covariance.data = cov_ds_seismic[s_t]
+            self.stargets[s_t].covariance.set_inverse()
             self.sweights.append(shared(config.stargets[i].covariance.icov))
 
         # Target weights, initially identity matrix = equal weights
@@ -175,8 +175,6 @@ class GeometryOptimizer(Project):
         self.geo_misfit_icov = shared(num.eye(self.ng_t))
 
         # merge geodetic data to call pscmp only once each forward model
-
-
         self.Bij = utility.ListToArrayBijection(ordering, disp_list)
 
         self.odws = shared(self.Bij.fmap(odws_list))

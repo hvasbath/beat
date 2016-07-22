@@ -33,25 +33,11 @@ lambda_sensors = {
                 }
 
 
-class RectangularSource(Object, gf.seismosizer.Cloneable):
+class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
     '''
     Source for rectangular fault that unifies the necessary different source
     objects for teleseismic and geodetic computations.
     '''
-    lon = Float.T(help='origin longitude [deg] of central upper edge',
-                    default=10.0)
-    lat = Float.T(help='origin latitude [deg] of central upper edge',
-                    default=13.5)
-    depth = Float.T(help='depth [km] of central, upper edge',
-                    default=0.5)
-    strike = Float.T(help='strike angle [deg] with respect to North',
-                     default=90.)
-    dip = Float.T(help='dip angle [deg], 0 - horizontal, 90 - vertical',
-                  default=45.)
-    rake = Float.T(help='rake angle [deg] 0-left lateral movement;'
-                        '-90 - normal faulting; 90 - reverse faulting;'
-                        '180 - right lateral movement',
-                   default=0.)
     width = Float.T(help='width of the fault [km]',
                     default=2.)
     length = Float.T(help='length of the fault [km]',
@@ -60,9 +46,6 @@ class RectangularSource(Object, gf.seismosizer.Cloneable):
                     default=2.)
     opening = Float.T(help='opening of the fault [m]',
                     default=2.)
-    stf = gf.STF.T(optional=True)
-
-    time = Timestamp.T(help='source origin time', default=0., )
 
     @property
     def dipvec(self):
@@ -80,27 +63,6 @@ class RectangularSource(Object, gf.seismosizer.Cloneable):
     @property
     def center(self):
         return self.depth + 0.5 * self.width * self.dipvec
-
-    def update(self, **kwargs):
-        '''Change some of the source models parameters.
-
-        Example::
-
-          >>> from pyrocko import gf
-          >>> s = gf.DCSource()
-          >>> s.update(strike=66., dip=33.)
-          >>> print s
-          --- !pf.DCSource
-          depth: 0.0
-          time: 1970-01-01 00:00:00
-          magnitude: 6.0
-          strike: 66.0
-          dip: 33.0
-          rake: 0.0
-
-        '''
-        for (k, v) in kwargs.iteritems():
-            self[k] = v
 
     def patches(self, n, m, datatype):
         '''

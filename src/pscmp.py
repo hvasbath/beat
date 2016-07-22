@@ -3,7 +3,6 @@ import numpy as num
 import logging
 import os
 import shutil
-import math
 import signal
 
 from tempfile import mkdtemp
@@ -33,10 +32,6 @@ psgrn_tilt_names = ('tr', 'tt', 'rot')
 psgrn_gravity_names = ('gd', 'gr')
 
 
-def nextpow2(i):
-    return 2**int(math.ceil(math.log(i)/math.log(2.)))
-
-
 def str_float_vals(vals):
     return ' '.join('%e' % val for val in vals)
 
@@ -63,7 +58,7 @@ def distributed_fault_patches_to_config(patches):
     '''
     srows = []
     for i, patch in enumerate(patches):
-            srows.append('%i %s' % (i+1, patch.string_for_config()))
+            srows.append('%i %s' % (i + 1, patch.string_for_config()))
 
     return '\n'.join(srows), len(srows)
 
@@ -92,7 +87,8 @@ class PsCmpProfile(PsCmpObservation):
 
     def string_for_config(self):
         self.sw = 1
-        return ' %i' % (self.n_steps), ' ( %(start_distance)15f, %(end_distance)15f )' % self.__dict__
+        return ' %i' % (self.n_steps), \
+            ' ( %(start_distance)15f, %(end_distance)15f )' % self.__dict__
 
 
 class PsCmpArray(PsCmpObservation):
@@ -109,16 +105,13 @@ class PsCmpArray(PsCmpObservation):
                ' %(n_steps_y)i %(start_distance_y)15f %(end_distance_y)15f ' % self.__dict__
 
 
-class PsCmpRectangularSource(Object, gf.seismosizer.Cloneable):
+class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
     '''
     Input parameters have to be in [deg] for positions and angles, in [km]
     for fault dimensions and source depth [km]. The default shift of the
     origin (pos_s, pos_d) with respect to the reference coordinates
     (lat, lon) is zero.
     '''
-    lat = Float.T(default=0.0) 
-    lon = Float.T(default=0.0)
-    depth = Float.T(default=10.0)
     length = Float.T(default=6.0)
     width = Float.T(default=5.0)
     strike = Float.T(default=0.0)
@@ -132,7 +125,7 @@ class PsCmpRectangularSource(Object, gf.seismosizer.Cloneable):
     pos_s = Float.T(optional=True, default=None)
     pos_d = Float.T(optional=True, default=None)
     opening = Float.T(default=0.0)
-    
+
     def update(self, **kwargs):
         '''Change some of the source models parameters.
 
@@ -153,13 +146,16 @@ class PsCmpRectangularSource(Object, gf.seismosizer.Cloneable):
         '''
         for (k, v) in kwargs.iteritems():
             self[k] = v
-    
+
     def convert_slip(self):
         dip_slip = float(self.slip * dsin(self.rake) * (-1))
         strike_slip = float(self.slip * dcos(self.rake))
         return dip_slip, strike_slip
 
     def string_for_config(self):
+        self.__dict__['effective_lat'] = self.effective_lat
+        self.__dict__['effective_lon'] = self.effective_lon
+
         if self.strike_slip or self.dip_slip is None:
             self.dip_slip, self.strike_slip = self.convert_slip()
 
@@ -167,9 +163,10 @@ class PsCmpRectangularSource(Object, gf.seismosizer.Cloneable):
             self.pos_s = 0.
             self.pos_d = 0.
 
-        return '%(lat)15f %(lon)15f %(depth)15f %(length)15f %(width)15f %(strike)15f' \
-                '%(dip)15f 1 1 %(torigin)15f \n %(pos_s)15f %(pos_d)15f ' \
-                '%(strike_slip)15f %(dip_slip)15f %(opening)15f' % self.__dict__
+        return '%(effective_lat)15f %(effective_lon)15f %(depth)15f' \
+               '%(length)15f %(width)15f %(strike)15f' \
+               '%(dip)15f 1 1 %(torigin)15f \n %(pos_s)15f %(pos_d)15f ' \
+               '%(strike_slip)15f %(dip_slip)15f %(opening)15f' % self.__dict__
 
 
 class PsCmpCoulombStress(Object):
@@ -195,7 +192,8 @@ class PsCmpCoulombStressMasterFault(PsCmpCoulombStress):
 class PsCmpConfig(Object):
 
     pscmp_version = String.T(default='2008a')
-    observation = PsCmpObservation.T(default=PsCmpScatter.D())   # scatter, profile or array
+    # scatter, profile or array
+    observation = PsCmpObservation.T(default=PsCmpScatter.D())
 
     pscmp_outdir = String.T(default='./')
     psgrn_outdir = String.T(default='./psgrn_functions/')
@@ -211,8 +209,9 @@ class PsCmpConfigFull(PsCmpConfig):
 
     sw_los_displacement = Int.T(default=0)
     sw_coulomb_stress = Int.T(default=0)
-    coulomb_master_field = PsCmpCoulombStress.T(optional=True,
-                                        default=PsCmpCoulombStressMasterFault.D())
+    coulomb_master_field = PsCmpCoulombStress.T(
+        optional=True,
+        default=PsCmpCoulombStressMasterFault.D())
 
     displ_sw_output_types = Tuple.T(3, Int.T(), default=(1, 1, 1))
     stress_sw_output_types = Tuple.T(6, Int.T(), default=(0, 0, 0, 0, 0, 0))
@@ -233,12 +232,12 @@ class PsCmpConfigFull(PsCmpConfig):
         conf.pscmp_outdir = 'TEST_pscmp_output/'
         conf.rectangular_source_patches = [PsCmpRectangularSource(
                                 lat=10., lon=10., slip=2.,
-                                width=5., length = 10.,
+                                width=5., length=10.,
                                 strike = 45, dip=30, rake=-90)]
         conf.observation = PsCmpArray(
-                    start_distance_x=9.5, end_distance_x=10.5, n_steps_x=150,
-                    start_distance_y=9.5, end_distance_y=10.5, n_steps_y=150)
-        conf.times_snapshots =[0]
+                start_distance_x=9.5, end_distance_x=10.5, n_steps_x=150,
+                start_distance_y=9.5, end_distance_y=10.5, n_steps_y=150)
+        conf.times_snapshots = [0]
         return conf
 
     def get_output_filenames(self, rundir):
