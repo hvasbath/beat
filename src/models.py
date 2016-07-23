@@ -127,12 +127,13 @@ class GeometryOptimizer(Project):
         self.gtargets = inputf.load_SAR_data(
                 config.geodetic_datadir, config.tracks)
 
-        # sources
+        # Init sources
         self.sources = []
         s_sources = []
         g_sources = []
         for i in range(self.bounds.dimension):
             source = heart.RectangularSource.from_pyrocko_event(self.event)
+            source.stf.anchor = -1.  # hardcoded inversion for hypocentral time
             self.sources.append(source)
             s_sources.append(source.patches(1, 1, 'seis'))
             g_sources.append(source.patches(1, 1, 'geo'))
@@ -241,8 +242,8 @@ class GeometryOptimizer(Project):
 
             for l in range(self.ng_t):
                 logpts_g = tt.set_subtensor(logpts_g[l:l + 1],
-                        (-0.5) * geo_res[l, :].dot(
-                              self.gweights[l]).dot(geo_res[l, :].T))
+                        (-0.5) * geo_res[l].dot(
+                              self.gweights[l]).dot(geo_res[l, :]).T)
 
             # adding dataset missfits to traces
             seis_llk = pm.Deterministic(self._seis_like_name, logpts_s)
