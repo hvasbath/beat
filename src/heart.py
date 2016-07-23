@@ -3,7 +3,7 @@ import pscmp
 import numpy as num
 import os
 
-from pyrocko.guts import Object, List, String, Float, Int, Tuple
+from pyrocko.guts import Object, List, String, Float, Int, Tuple, dump
 from pyrocko.guts_array import Array
 
 from pyrocko import crust2x2, gf, cake, orthodrome, trace, model, util
@@ -16,7 +16,9 @@ import logging
 import shutil
 import copy
 
-logger = logging.getLogger('BEAT')
+guts_prefix = 'beat'
+
+logger = logging.getLogger('beat')
 
 c = 299792458.  # [m/s]
 km = 1000.
@@ -720,7 +722,7 @@ def geo_construct_gf(event, superdir,
                                            num_vary=1,
                                            err_depth=err_depth,
                                            err_velocities=err_velocities,
-                                           depth_limit=None)
+                                           depth_limit=None)[0]
 
     conf.earthmodel_1d = source_model
     conf.psgrn_outdir = superdir + 'psgrn_green_%i/' % (crust_ind)
@@ -887,7 +889,7 @@ def init_nonlin(name, year, project_dir='./', store_superdir='',
     config.project_dir = project_dir
     config.store_superdir = store_superdir
     config.sample_rate = sample_rate
-    config.crust_ind = range(1 + n_variations)
+    config.crust_inds = range(1 + n_variations)
 
     config.seismic_datadir = seismic_datadir
     config.geodetic_datadir = geodetic_datadir
@@ -961,6 +963,6 @@ def init_nonlin(name, year, project_dir='./', store_superdir='',
     print('Project_directory: %s \n') % config.project_dir
     util.ensuredir(config.project_dir)
 
-    conf_out = os.path.join(config.project_dir, 'config')
-    gf.meta.dump(config, filename=conf_out)
+    conf_out = os.path.join(config.project_dir, 'config.yaml')
+    dump(config, filename=conf_out)
     return config
