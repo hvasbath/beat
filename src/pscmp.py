@@ -19,7 +19,7 @@ guts_prefix = 'pf'
 
 Timing = gf.meta.Timing
 
-logger = logging.getLogger('PsCmp')
+logger = logging.getLogger('beat')
 
 # how to call the programs
 program_bins = {

@@ -1,13 +1,9 @@
 import os
-from beat import heart
+from beat import heart, utility
 from beat.models import GeometryOptimizer
 
 from pyrocko.guts import load
 from pyrocko import model
-
-import logging
-
-logger = logging.getLogger('BEAT')
 
 name = 'Aqaba'
 year = 1995
@@ -24,8 +20,16 @@ n_variations = 20
 sample_rate = 1.0
 channels = ['Z', 'T']
 
+logger = utility.setup_logging(project_dir)
+
 
 def init():
+    logger.info('Welcome to BEAT the Bayesian Earthqake Analysis Tool')
+    logger.info('Author: Hannes Vasyura-Bathke')
+    logger.info('Email: Hannes.Vasyura-Bathke@kaust.edu.sa')
+    logger.info('Version: ultra pre-alpha')
+    logger.info('\n')
+    logger.info('Creating config.yaml ...')
     config = heart.init_nonlin(name, year,
         project_dir=project_dir,
         store_superdir=store_superdir,

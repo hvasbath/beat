@@ -19,6 +19,7 @@ import copy
 guts_prefix = 'beat'
 
 logger = logging.getLogger('beat')
+logger.setLevel(logging.INFO)
 
 c = 299792458.  # [m/s]
 km = 1000.
@@ -699,8 +700,8 @@ def geo_construct_gf(event, superdir,
     thickness_lwater = source_profile.get_layer(crust2x2.LWATER)[0]
 
     if thickness_lwater > 0.0:
-        print 'Water layer', str(thickness_lwater), 'in CRUST model! \
-                remove and add to lower crust'
+        logger.info('Water layer', str(thickness_lwater), 'in CRUST model!'
+            'remove and add to lower crust')
         thickness_llowercrust = source_profile.get_layer(
                                         crust2x2.LLOWERCRUST)[0]
 
@@ -709,8 +710,8 @@ def geo_construct_gf(event, superdir,
                 thickness_llowercrust + \
                 thickness_lwater)
         source_profile._elevation = 0.0
-        print 'New Lower crust layer thickness', \
-                str(source_profile.get_layer(crust2x2.LLOWERCRUST)[0])
+        logger.info('New Lower crust layer thickness', \
+                str(source_profile.get_layer(crust2x2.LLOWERCRUST)[0]))
 
     source_model = cake.load_model(earth_model,
                                    crust2_profile=source_profile).extract(
@@ -728,7 +729,7 @@ def geo_construct_gf(event, superdir,
     conf.psgrn_outdir = superdir + 'psgrn_green_%i/' % (crust_ind)
     conf.validate()
 
-    print 'Creating Geo GFs in directory:', conf.psgrn_outdir
+    logger.info('Creating Geo GFs in directory: %s' % conf.psgrn_outdir)
 
     runner = psgrn.PsGrnRunner(outdir=conf.psgrn_outdir)
     if execute:
@@ -960,7 +961,7 @@ def init_nonlin(name, year, project_dir='./', store_superdir='',
     config.validate()
     config.validate_bounds()
 
-    print('Project_directory: %s \n') % config.project_dir
+    logger.info('Project_directory: %s \n' % config.project_dir )
     util.ensuredir(config.project_dir)
 
     conf_out = os.path.join(config.project_dir, 'config.yaml')

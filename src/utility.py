@@ -3,6 +3,9 @@ import numpy as num
 import collections
 import copy
 from pyrocko import util
+import logging
+import logging.config
+import os
 
 DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype')
 
@@ -143,3 +146,29 @@ def utm_to_lonlat(utmx, utmy, zone):
     p = Proj(proj='utm', zone=zone, ellps='WGS84')
     lon, lat = p(utmx, utmy, inverse=True)
     return lon, lat
+
+
+def setup_logging(project_dir):
+    '''
+    Setup function for handling logging. The logfiles are saved in the
+    'project_dir'.
+    '''
+
+    logger = logging.getLogger('beat')
+
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+
+    fl = logging.FileHandler(
+        filename=os.path.join(project_dir, 'log.txt'), mode='w')
+    fl.setLevel(logging.INFO)
+
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s %(message)s')
+
+    fl.setFormatter(formatter)
+
+    logger.addHandler(ch)
+    logger.addHandler(fl)
+
+    return logger
