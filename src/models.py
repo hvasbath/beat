@@ -117,6 +117,11 @@ class GeometryOptimizer(Project):
         [self.stations, _, self.event, self.data_traces] = inputf.load_seism_data(
             config.seismic_datadir, config.channels)
 
+        target_deltat = 1. / config.sample_rate
+
+        if self.data_traces[0].deltat != target_deltat:
+            utility.downsample_traces(self.data_traces, deltat=target_deltat)
+
         self.stargets = heart.init_targets(
             self.stations,
             channels=config.channels,

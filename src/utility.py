@@ -2,6 +2,7 @@ from pyproj import Proj
 import numpy as num
 import collections
 import copy
+from pyrocko import util
 
 DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype')
 
@@ -102,6 +103,20 @@ def weed_input_rvs(input_rvs, mode):
         _ = weeded_input_rvs.pop(ind)
 
     return weeded_input_rvs
+
+
+def downsample_traces(data_traces, deltat=None):
+    '''
+    Downsample data_traces to given sampling interval 'deltat'.
+    '''
+    for tr in data_traces:
+        if deltat is not None:
+            try:
+                tr.downsample_to(deltat, snap=True, allow_upsample_max=5)
+            except util.UnavailableDecimation, e:
+                print('Cannot downsample %s.%s.%s.%s: %s' % (
+                                                            tr.nslc_id + (e,)))
+                continue
 
 
 def utm_to_loc(utmx, utmy, zone, event):

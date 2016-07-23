@@ -842,18 +842,23 @@ def seis_synthetics(engine, sources, targets, arrival_taper, filterer,
     return synths, tmins
 
 
-def taper_filter_traces(traces, arrival_taper, filterer, tmins, plot=False):
+def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
+                        plot=False):
+    '''
+    Taper and filter data_traces according to given taper and filterers.
+    Tapering will start at the given tmin.
+    '''
     cut_traces = []
-    nt = len(traces)
-    print tmins, tmins.shape
-    for i in range(nt):
-        print tmins[i], tmins[i].shape
+
+    for i, tr in enumerate(data_traces):
+
         taperer = trace.CosTaper(
             float(tmins[i]),
             float(tmins[i] + arrival_taper.b),
             float(tmins[i] + arrival_taper.a + arrival_taper.c),
             float(tmins[i] + arrival_taper.a + arrival_taper.d))
-        cut_trace = traces[i].copy()
+
+        cut_trace = tr.copy()
         # cut traces
         cut_trace.taper(taperer, inplace=True, chop=True)
 
@@ -866,7 +871,7 @@ def taper_filter_traces(traces, arrival_taper, filterer, tmins, plot=False):
         if plot:
             trace.snuffle(cut_traces)
 
-    return num.vstack([cut_traces[i].ydata for i in range(nt)])
+    return num.vstack([cut_traces[i].ydata for i in range(len(data_traces))])
 
 
 def init_nonlin(name, year, project_dir='./', store_superdir='',
