@@ -1,29 +1,33 @@
 import scipy.io
 from beat import heart, utility
 from pyrocko import model, io
-import numpy as num
+
+import logging
+
+logger = logging.getLogger('beat')
 
 km = 1000.
-nm = 0.000000001
+m = 0.000000001
 
-def load_SAR_data(datadir,tracks):
+
+def load_SAR_data(datadir, tracks):
     '''
     Load SAR data in given directory and tracks.
     Returns Diff_IFG objects.
     '''
     DIFFGs = []
-    
+
     for k in tracks:
         # open matlab.mat files
         data = scipy.io.loadmat(datadir + 'quad_' + k + '.mat',
-                                squeeze_me = True,
+                                squeeze_me=True,
                                 struct_as_record=False)
         covs = scipy.io.loadmat(datadir + 'CovMatrix_' + k + '.mat',
-                                squeeze_me = True,
+                                squeeze_me=True,
                                 struct_as_record=False)
 
-        utmx=data['cfoc'][:,0]
-        utmy=data['cfoc'][:,1]
+        utmx = data['cfoc'][:, 0]
+        utmy = data['cfoc'][:, 1]
         lons, lats = utility.utm_to_lonlat(utmx, utmy, 36)
         Lv = data['lvQT']
         covariance = heart.Covariance(data=covs['Cov'], icov=covs['InvCov'])
@@ -41,17 +45,22 @@ def load_SAR_data(datadir,tracks):
 
     return DIFFGs
 
-def load_seism_data(datadir, channels):
-    '''Load stations and event files in datadir and read traces from autokiwi autput.'''
+
+def load_and_blacklist_stations(datadir, blacklist):
+    '''
+    Load stations from autokiwi output and apply blacklist
+    '''
+
+    stations = model.load_stations(datadir + 'stations.txt')
+    return utility.apply_station_blacklist(stations, blacklist)
+
+
+def load_data_traces(datadir, stations, channels):
+    '''
+    Load data traces for the given stations and channels.
+    '''
     trc_name_divider = '-'
     data_format = 'mseed'
-    # load stations and event
-    stations = model.load_stations(datadir + 'stations.txt')
-    event = model.load_one_event(datadir + 'event.txt')
-    blacklist = [28, 27]  # delete stations DRLN FRB (NIL and ARU) are in list will be discarded during data loading--> reverse order!!!
-    for sta in blacklist:
-        popped_sta = stations.pop(sta)
-        print(' remove stations from list: ' + popped_sta.station)
 
     ref_channels = []
     for cha in channels:
@@ -61,30 +70,25 @@ def load_seism_data(datadir, channels):
             ref_channels.append('r')
         else:
             raise Exception('No data for this channel!')
-    
-    # load recorded data 
+
+    # load recorded data
     data_trcs = []
-    drop_stat = []
-    print ref_channels
-    for ref_channel in ref_channels: #(r)ight transverse, (a)way radial, vertical (u)p
-        for sta_num in range(len(stations)):
-            trace_name = trc_name_divider.join(('reference', stations[sta_num].network, stations[sta_num].station, ref_channel))
-            print trace_name
+
+    # (r)ight transverse, (a)way radial, vertical (u)p
+    for ref_channel in ref_channels:
+        for station in stations:
+            trace_name = trc_name_divider.join(
+                ('reference', station.network, station.station, ref_channel))
+
             tracepath = datadir + trace_name + '.' + data_format
+
             try:
                 with open(tracepath) as file:
                     data_trace = io.load(tracepath, data_format)
-                    data_trace[0].set_ydata(data_trace[0].ydata*nm) #[nm] convert to m
+                    # [nm] convert to m
+                    data_trace[0].set_ydata(data_trace[0].ydata * m)
                     data_trcs.append(data_trace[0])
             except IOError as e:
-                print('Unable to open file: ' + trace_name) #Does not exist 
-                drop_stat.append(sta_num)
+                logger.warn('Unable to open file: ' + trace_name)
 
-    drop_stat = num.unique(drop_stat) # remove double station indexes
-    drop_stat = drop_stat[::-1]   # start with the highest (reverse matrix)
-    for sta in drop_stat:
-        popped_sta = stations.pop(sta)
-        print(' remove stations from list: ' + popped_sta.station)
-
-    return stations, event, data_trcs
-
+    return data_trcs

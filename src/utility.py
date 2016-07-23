@@ -1,10 +1,15 @@
-from pyproj import Proj
-import numpy as num
-import collections
-import copy
-from pyrocko import util
 import logging
 import os
+import collections
+import copy
+
+from pyrocko import util, orthodrome
+from pyrocko.cake import m2d
+
+import numpy as num
+
+from pyproj import Proj
+
 
 DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype')
 
@@ -102,9 +107,28 @@ def weed_input_rvs(input_rvs, mode):
     indexes.sort(reverse=True)
 
     for ind in indexes:
-        _ = weeded_input_rvs.pop(ind)
+        weeded_input_rvs.pop(ind)
 
     return weeded_input_rvs
+
+
+def apply_station_blacklist(stations, blacklist):
+    '''
+    Throw out stations listed in the blacklist.
+    '''
+
+    station_names = [station.station for station in stations]
+
+    indexes = []
+    for burian in blacklist:
+        indexes.append(station_names.index(burian))
+
+    indexes.sort(reverse=True)
+
+    for ind in indexes:
+        stations.pop(ind)
+
+    return stations
 
 
 def downsample_traces(data_traces, deltat=None):
@@ -119,6 +143,21 @@ def downsample_traces(data_traces, deltat=None):
                 print('Cannot downsample %s.%s.%s.%s: %s' % (
                                                             tr.nslc_id + (e,)))
                 continue
+
+
+def weed_stations(stations, event, distances=(30., 90.)):
+    '''
+    Throw out stations, that are not within the given distances(min,max) to
+    a reference event.
+    '''
+    weeded_stations = []
+    for station in stations:
+        distance = orthodrome.distance_accurate50m(event, station) * m2d
+
+        if distance >= distances[0] and distance <= distances[1]:
+            weeded_stations.append(station)
+
+    return weeded_stations
 
 
 def utm_to_loc(utmx, utmy, zone, event):

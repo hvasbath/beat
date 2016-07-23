@@ -17,6 +17,8 @@ geodetic_datadir = '/data/SAR_data/Aqaba1995/subsampled/'
 tracks = ['A_T114do', 'A_T114up', 'A_T343co',
           'A_T343up', 'D_T254co', 'D_T350co']
 
+blacklist = [28, 27, 11, 10]
+distances = (26.5, 91.0)
 n_variations = 20
 sample_rate = 1.0
 channels = ['Z', 'T']
@@ -37,9 +39,11 @@ def init():
         sample_rate=sample_rate,
         n_variations=n_variations,
         channels=channels,
+        distances=distances,
         geodetic_datadir=geodetic_datadir,
         seismic_datadir=seismic_datadir,
-        tracks=tracks)
+        tracks=tracks,
+        blacklist=blacklist)
     return config
 
 
@@ -67,7 +71,7 @@ def build_geo_gfs():
 
 
 def check_model_setup():
-    logger.info('Initialising Geometry Optimizer')
+    logger.info('... Initialising Geometry Optimizer ... \n')
     config_fn = os.path.join(project_dir, config_file_name)
     config = load(filename=config_fn)
 

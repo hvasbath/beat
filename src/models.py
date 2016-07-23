@@ -3,7 +3,7 @@ import time
 
 import pymc3 as pm
 
-from pyrocko import gf, util
+from pyrocko import gf, util, model
 from pyrocko.guts import Object
 
 import numpy as num
@@ -13,6 +13,10 @@ from theano import shared
 
 from beat import theanof, heart, utility, atmcmc, inputf
 from beat import covariance as cov
+
+import logging
+
+logger = logging.getLogger('beat')
 
 
 class Project(Object):
@@ -103,15 +107,26 @@ class GeometryOptimizer(Project):
     '''
     def __init__(self, config):
 
-        self.config = config
         self.geometry_outfolder = os.path.join(config.project_dir, 'geometry')
         util.ensuredir(self.geometry_outfolder)
 
         self.engine = gf.LocalEngine(store_superdirs=[config.store_superdir])
 
         # load data still not general enopugh
-        [self.stations, self.event, self.data_traces] = inputf.load_seism_data(
-            config.seismic_datadir, config.channels)
+        logger.info('Loading seismic waveforms ...\n')
+
+        self.event = model.load_one_event(config.seismic_datadir + 'event.txt')
+
+        stations = inputf.load_and_blacklist_stations(
+            config.seismic_datadir, blacklist=config.blacklist)
+
+        self.stations = utility.weed_stations(
+            stations, self.event, distances=config.distances)
+
+        self.data_traces = inputf.load_data_traces(
+            datadir=config.seismic_datadir,
+            stations=self.stations,
+            channels=config.channels)
 
         target_deltat = 1. / config.sample_rate
 
@@ -125,6 +140,7 @@ class GeometryOptimizer(Project):
             crust_inds=[0],  # always reference model
             interpolation='multilinear')
 
+        logger.info('Loading SAR data ...\n')
         self.gtargets = inputf.load_SAR_data(
                 config.geodetic_datadir, config.tracks)
 
@@ -132,7 +148,7 @@ class GeometryOptimizer(Project):
         self.sources = []
         s_sources = []
         g_sources = []
-        for i in range(self.bounds.dimension):
+        for i in range(config.bounds[0].dimension):
             source = heart.RectangularSource.from_pyrocko_event(self.event)
             source.stf.anchor = -1.  # hardcoded inversion for hypocentral time
             self.sources.append(source)
@@ -144,15 +160,16 @@ class GeometryOptimizer(Project):
         self.ng_t = len(self.gtargets)
 
         # geodetic data
-        ordering = utility.ArrayOrdering(config.gtargets)
+        ordering = utility.ArrayOrdering(self.gtargets)
 
-        disp_list = [config.gtargets[i].displacement for i in range(self.ng_t)]
-        lons_list = [config.gtargets[i].lons for i in range(self.ng_t)]
-        lats_list = [config.gtargets[i].lats for i in range(self.ng_t)]
-        odws_list = [config.gtargets[i].odw for i in range(self.ng_t)]
-        lv_list = [config.gtargets[i].look_vector() for i in range(self.ng_t)]
+        disp_list = [self.gtargets[i].displacement for i in range(self.ng_t)]
+        lons_list = [self.gtargets[i].lons for i in range(self.ng_t)]
+        lats_list = [self.gtargets[i].lats for i in range(self.ng_t)]
+        odws_list = [self.gtargets[i].odw for i in range(self.ng_t)]
+        lv_list = [self.gtargets[i].look_vector() for i in range(self.ng_t)]
 
         ## Data and model covariances
+        logger.info('Getting data-covariances ...\n')
         cov_ds_seismic = cov.get_seismic_data_covariances(
             data_traces=self.data_traces,
             config=config,
@@ -169,7 +186,7 @@ class GeometryOptimizer(Project):
         for s_t in range(self.ns_t):
             self.stargets[s_t].covariance.data = cov_ds_seismic[s_t]
             self.stargets[s_t].covariance.set_inverse()
-            self.sweights.append(shared(config.stargets[i].covariance.icov))
+            self.sweights.append(shared(self.stargets[i].covariance.icov))
 
         # Target weights, initially identity matrix = equal weights
         self.seis_misfit_icov = shared(num.eye(self.ns_t))
@@ -185,6 +202,7 @@ class GeometryOptimizer(Project):
         self.lv = shared(self.Bij.fmap(lv_list))
 
         # syntetics generation
+        logger.info('Initialising theano synthetics functions ... \n')
         self.get_geo_synths = theanof.GeoLayerSynthesizer(
                             superdir=config.store_superdir,
                             crust_ind=0,    # always reference model
@@ -193,7 +211,7 @@ class GeometryOptimizer(Project):
         self.get_seis_synths = theanof.SeisSynthesizer(
                             engine=self.engine,
                             sources=s_sources,
-                            targets=config.stargets,
+                            targets=self.stargets,
                             event=self.event,
                             arrival_taper=config.arrival_taper,
                             filterer=config.filterer)
@@ -203,6 +221,8 @@ class GeometryOptimizer(Project):
                             traces=self.data_traces,
                             arrival_taper=config.arrival_taper,
                             filterer=config.filterer)
+
+        self.config = config
 
     def built_model(self):
         with pm.Model() as self.model:
@@ -297,7 +317,7 @@ class GeometryOptimizer(Project):
                         self.stargets[i].covariance.inverse())
 
             # geodetic
-            for i, gtarget in enumerate(self.config.gtargets):
+            for i, gtarget in enumerate(self.gtargets):
                 gtarget.covariance.pred_v = cov.get_geo_cov_velocity_models(
                          store_superdir=self.config.store_superdir,
                          crust_inds=self.config.crust_inds,

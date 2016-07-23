@@ -142,7 +142,7 @@ class Covariance(Object):
 
         if self.pred_v is None:
             self.pred_v = num.zeros_like(self.data)
-            
+
         self.icov = num.linalg.inv(self.data + self.pred_g + self.pred_v)
 
 
@@ -241,7 +241,7 @@ class IFG(Object):
         '''
         Calculate LOS vector for given incidence and heading.
         '''
-        if self.incidence and self.heading is None:
+        if self.incidence.all() and self.heading.all() is None:
             Exception('Incidence and Heading need to be provided!')
 
         Su = num.cos(num.deg2rad(self.incidence))
@@ -282,21 +282,23 @@ class BEATconfig(Object):
 
     name = String.T()
     year = Int.T()
+    event = model.Event.T(optional=True)
 
     store_superdir = String.T(default='./')
     project_dir = String.T(default='event/')
-
-    event = model.Event.T(optional=True)
+    seismic_datadir = String.T(default='./')
+    geodetic_datadir = String.T(default='./')
+    tracks = List.T(String.T())
 
     bounds = List.T(Parameter.T())
 
-    geodetic_datadir = String.T(default='./')
     gtargets = List.T(optional=True)
-
-    seismic_datadir = String.T(default='./')
-    data_traces = List.T(optional=True)
     stargets = List.T(TeleseismicTarget.T(), optional=True)
     stations = List.T(model.Station.T())
+    blacklist = List.T(Int.T(),
+                       optional=True,
+                       help='Index for station from list to throw out')
+    distances = Tuple.T(2, Float.T(), default=(30., 90.))
     channels = List.T(String.T(), default=['Z', 'T'])
 
     sample_rate = Float.T(default=1.0,
@@ -880,7 +882,8 @@ def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
 
 def init_nonlin(name, year, project_dir='./', store_superdir='',
                 sample_rate=1.0, n_variations=0, channels=['Z', 'T'],
-                geodetic_datadir='', seismic_datadir='', tracks=['A_T343co']):
+                geodetic_datadir='', seismic_datadir='', tracks=['A_T343co'],
+                distances=(30., 90.)):
     '''
     Initialise BEATconfig File
     Have to fill it with data.
@@ -892,9 +895,12 @@ def init_nonlin(name, year, project_dir='./', store_superdir='',
     config.store_superdir = store_superdir
     config.sample_rate = sample_rate
     config.crust_inds = range(1 + n_variations)
+    config.distances = distances
+    config.blacklist = blacklist
 
     config.seismic_datadir = seismic_datadir
     config.geodetic_datadir = geodetic_datadir
+    config.tracks = tracks
 
     config.bounds = [
         Parameter(

@@ -41,11 +41,14 @@ def get_seismic_data_covariances(data_traces, config, engine,
     for i, trace in enumerate(data_traces):
         # assure getting P-wave arrival time
         tmp_target = copy.deepcopy(targets[i])
-        tmp_target.channel[3] = 'Z'
+        print tmp_target.codes
+        tmp_target.codes = (tmp_target.codes[:3] + ('Z',))
         
         arrival_time = heart.get_phase_arrival_time(
             engine=engine, source=event, target=tmp_target)
-        
+
+        print arrival_time, trace.tmin
+
         ctrace = trace.chop(
             tmin=trace.tmin,
             tmax=arrival_time - ataper.b,
