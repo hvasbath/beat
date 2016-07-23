@@ -5,10 +5,11 @@ Far future:
     include a 'def grad:' -method to each Op in order to enable the use of
     gradient based optimization algorithms
 '''
+from beat import heart
 
 import theano.tensor as tt
 import theano
-import heart
+
 import numpy as num
 
 km = 1000.

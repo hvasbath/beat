@@ -1,7 +1,9 @@
 from pyrocko import gf, trace
 import numpy as num
-import heart
+
 import copy
+
+from beat import heart
 
 
 def sub_data_covariance(n, dt, tzero):

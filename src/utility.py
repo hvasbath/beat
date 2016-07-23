@@ -4,7 +4,6 @@ import collections
 import copy
 from pyrocko import util
 import logging
-import logging.config
 import os
 
 DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype')

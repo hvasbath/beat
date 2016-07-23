@@ -1,7 +1,7 @@
 import os
+import time
 
 import pymc3 as pm
-import atmcmc
 
 from pyrocko import gf, util
 from pyrocko.guts import Object
@@ -11,12 +11,8 @@ import theano.tensor as tt
 from theano import config as tconfig
 from theano import shared
 
-import theanof
-import heart
-import utility
-import time
-import covariance as cov
-import inputf
+from beat import theanof, heart, utility, atmcmc, inputf
+from beat import covariance as cov
 
 
 class Project(Object):
@@ -114,7 +110,7 @@ class GeometryOptimizer(Project):
         self.engine = gf.LocalEngine(store_superdirs=[config.store_superdir])
 
         # load data still not general enopugh
-        [self.stations, _, self.event, self.data_traces] = inputf.load_seism_data(
+        [self.stations, self.event, self.data_traces] = inputf.load_seism_data(
             config.seismic_datadir, config.channels)
 
         target_deltat = 1. / config.sample_rate
@@ -126,7 +122,7 @@ class GeometryOptimizer(Project):
             self.stations,
             channels=config.channels,
             sample_rate=config.sample_rate,
-            crust_inds=0,  # always reference model
+            crust_inds=[0],  # always reference model
             interpolation='multilinear')
 
         self.gtargets = inputf.load_SAR_data(

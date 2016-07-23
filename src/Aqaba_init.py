@@ -8,6 +8,7 @@ from pyrocko import model
 name = 'Aqaba'
 year = 1995
 
+config_file_name = 'config.yaml'
 project_dir = '/data3TB/' + name + str(year)
 store_superdir = '/data3TB/Teleseism/Greensfunctions/Aqaba1995GFS/'
 seismic_datadir = '/data3TB/Teleseism/autokiwi/events/Aqaba1995/kiwi/data/'
@@ -44,7 +45,7 @@ def init():
 
 def build_geo_gfs():
 
-    config_fn = os.path.join(project_dir, 'config.yaml')
+    config_fn = os.path.join(project_dir, config_file_name)
     config = load(filename=config_fn)
 
     n_mods = len(config.crust_inds)
@@ -66,16 +67,19 @@ def build_geo_gfs():
 
 
 def check_model_setup():
-    config_fn = os.path.join(project_dir, 'config')
+    logger.info('Initialising Geometry Optimizer')
+    config_fn = os.path.join(project_dir, config_file_name)
     config = load(filename=config_fn)
 
     problem = GeometryOptimizer(config)
+
+    logger.info('Building model ...')
     problem.built_model()
     test_logp = problem.model.logp.eval()
-    print('The test probability is %f') % test_logp
+    logger.info('The test probability is %f' % test_logp)
     return problem
 
 if __name__ == '__main__':
     config = init()
-    build_geo_gfs()
-#    check_model_setup()
+#    build_geo_gfs()
+    check_model_setup()

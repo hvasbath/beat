@@ -1,6 +1,5 @@
 import scipy.io
-import heart
-import utility
+from beat import heart, utility
 from pyrocko import model, io
 import numpy as num
 
@@ -66,9 +65,11 @@ def load_seism_data(datadir, channels):
     # load recorded data 
     data_trcs = []
     drop_stat = []
+    print ref_channels
     for ref_channel in ref_channels: #(r)ight transverse, (a)way radial, vertical (u)p
         for sta_num in range(len(stations)):
             trace_name = trc_name_divider.join(('reference', stations[sta_num].network, stations[sta_num].station, ref_channel))
+            print trace_name
             tracepath = datadir + trace_name + '.' + data_format
             try:
                 with open(tracepath) as file:
@@ -78,7 +79,6 @@ def load_seism_data(datadir, channels):
             except IOError as e:
                 print('Unable to open file: ' + trace_name) #Does not exist 
                 drop_stat.append(sta_num)
-                break
 
     drop_stat = num.unique(drop_stat) # remove double station indexes
     drop_stat = drop_stat[::-1]   # start with the highest (reverse matrix)

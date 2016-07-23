@@ -1,5 +1,4 @@
-import psgrn
-import pscmp
+from beat import psgrn, pscmp
 import numpy as num
 import os
 
@@ -16,10 +15,11 @@ import logging
 import shutil
 import copy
 
-guts_prefix = 'beat'
-
 logger = logging.getLogger('beat')
 logger.setLevel(logging.INFO)
+
+guts_prefix = 'beat'
+config_file_name = 'config.yaml'
 
 c = 299792458.  # [m/s]
 km = 1000.
@@ -145,7 +145,7 @@ class Covariance(Object):
             
         self.icov = num.linalg.inv(self.data + self.pred_g + self.pred_v)
 
-    
+
 class TeleseismicTarget(gf.Target):
 
     covariance = Covariance.T(optional=True,
@@ -195,7 +195,7 @@ class Parameter(Object):
                 if self.testvalue[i] > self.upper[i] or \
                     self.testvalue[i] < self.lower[i]:
                     raise Exception('the testvalue of parameter "%s" has to be'
-                        'within the upper and lower bounds' % self.name )
+                        'within the upper and lower bounds' % self.name)
 
     @property
     def dimension(self):
@@ -284,6 +284,7 @@ class BEATconfig(Object):
     year = Int.T()
 
     store_superdir = String.T(default='./')
+    project_dir = String.T(default='event/')
 
     event = model.Event.T(optional=True)
 
@@ -961,9 +962,9 @@ def init_nonlin(name, year, project_dir='./', store_superdir='',
     config.validate()
     config.validate_bounds()
 
-    logger.info('Project_directory: %s \n' % config.project_dir )
+    logger.info('Project_directory: %s \n' % config.project_dir)
     util.ensuredir(config.project_dir)
 
-    conf_out = os.path.join(config.project_dir, 'config.yaml')
+    conf_out = os.path.join(config.project_dir, config_file_name)
     dump(config, filename=conf_out)
     return config
