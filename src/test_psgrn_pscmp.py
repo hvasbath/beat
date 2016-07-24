@@ -52,8 +52,8 @@ class Test_Pscmp(object):
     crust_ind = 0
     event = event
     store_superdir = storehomedir[0]
-    lengths = 25.
-    widths = 15.
+    lengths = 25000.
+    widths = 15000.
     slips = 5.
     openings = 0.
     sources = [pscmp.PsCmpRectangularSource()]
@@ -69,7 +69,7 @@ class Test_Pscmp(object):
         # source params
         o_lons = self.event.lon
         o_lats = self.event.lat
-        depths = self.event.depth / km
+        depths = self.event.depth
         east_shift = 50. * km
         north_shift = 40. * km
         strikes = event.moment_tensor.strike2
@@ -85,11 +85,12 @@ class Test_Pscmp(object):
                           strike=strikes, dip=dips, rake=rakes,
                           length=lengths, width=widths, slip=slips,
                           opening=openings)
+        print self.sources[0].__dict__
 
         displ = heart.geo_layer_synthetics(
                     self.store_superdir,
                     self.crust_ind,
-                    lons, lats, self.sources)
+                    lons, lats, self.sources, keep_tmp=True)
         print self.sources[0].__dict__
         return displ[0]
 

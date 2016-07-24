@@ -82,11 +82,17 @@ class PsCmpScatter(PsCmpObservation):
 
 class PsCmpProfile(PsCmpObservation):
     n_steps = Int.T(default=10)
-    start_distance = Float.T(default=0.)    # start sampling [km] from source
-    end_distance = Float.T(default=100.)    # end
+    start_distance = Float.T(
+        default=0.,
+        help='minimum distance from source [m]')
+    end_distance = Float.T(
+        default=100. * km,
+        help='minimum distance from source [m]')
 
     def string_for_config(self):
         self.sw = 1
+        self.start_distance /= km   # convert to km as pscmp takes [km]
+        self.end_distance /= km
         return ' %i' % (self.n_steps), \
             ' ( %(start_distance)15f, %(end_distance)15f )' % self.__dict__
 
@@ -94,26 +100,40 @@ class PsCmpProfile(PsCmpObservation):
 class PsCmpArray(PsCmpObservation):
     n_steps_x = Int.T(default=10)
     n_steps_y = Int.T(default=10)
-    start_distance_x = Float.T(default=0.)    # start sampling [km] from source
-    end_distance_x = Float.T(default=100.)    # end
-    start_distance_y = Float.T(default=0.)    # start sampling [km] from source
-    end_distance_y = Float.T(default=100.)    # end
-
+    start_distance_x = Float.T(
+        default=0.,
+        help='minimum distance in x-direction (E) from source [m]')
+    end_distance_x = Float.T(
+        default=100. * km,
+        help='maximum distance in x-direction (E) from source [m]')
+    start_distance_y = Float.T(
+        default=0.,
+        help='minimum distance in y-direction (N) from source [m]')
+    end_distance_y = Float.T(
+        default=100. * km,
+        help='minimum distance in y-direction (N) from source [m]')
     def string_for_config(self):
         self.sw = 2
+        self.start_distance_x /= km   # convert to km as pscmp takes [km]
+        self.end_distance_x /= km
+        self.start_distance_y /= km
+        self.end_distance_y /= km
+
         return ' %(n_steps_x)i %(start_distance_x)15f %(end_distance_x)15f ' % self.__dict__, \
                ' %(n_steps_y)i %(start_distance_y)15f %(end_distance_y)15f ' % self.__dict__
 
 
 class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
     '''
-    Input parameters have to be in [deg] for positions and angles, in [km]
-    for fault dimensions and source depth [km]. The default shift of the
+    Input parameters have to be in:
+    [deg] for reference point (lat, lon) and angles (rake, strike, dip)
+    [m] shifting with respect to reference position
+    [m] for fault dimensions and source depth. The default shift of the
     origin (pos_s, pos_d) with respect to the reference coordinates
     (lat, lon) is zero.
     '''
-    length = Float.T(default=6.0)
-    width = Float.T(default=5.0)
+    length = Float.T(default=6.0 * km)
+    width = Float.T(default=5.0 * km)
     strike = Float.T(default=0.0)
     dip = Float.T(default=90.0)
     rake = Float.T(default=0.0)
@@ -163,6 +183,8 @@ class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
             self.pos_s = 0.
             self.pos_d = 0.
 
+        self.length /= km
+        self.width /= km
         return '%(effective_lat)15f %(effective_lon)15f %(depth)15f' \
                '%(length)15f %(width)15f %(strike)15f' \
                '%(dip)15f 1 1 %(torigin)15f \n %(pos_s)15f %(pos_d)15f ' \

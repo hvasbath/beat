@@ -40,32 +40,33 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
     '''
     Source for rectangular fault that unifies the necessary different source
     objects for teleseismic and geodetic computations.
+    Reference point of depth is the top-center of the fault.
     '''
-    width = Float.T(help='width of the fault [km]',
-                    default=2.)
-    length = Float.T(help='length of the fault [km]',
-                    default=2.)
+    width = Float.T(help='width of the fault [m]',
+                    default=2. * km)
+    length = Float.T(help='length of the fault [m]',
+                    default=2. * km)
     slip = Float.T(help='slip of the fault [m]',
                     default=2.)
     opening = Float.T(help='opening of the fault [m]',
                     default=2.)
 
-    @property
-    def dipvec(self):
+    @staticmethod
+    def dipvector(dip, strike):
         return num.array(
-                [-num.cos(self.dip * d2r) * num.cos(self.strike * d2r),
-                  num.cos(self.dip * d2r) * num.sin(self.strike * d2r),
-                  num.sin(self.dip * d2r)])
+                [num.cos(dip * d2r) * num.cos(strike * d2r),
+                 -num.cos(dip * d2r) * num.sin(strike * d2r),
+                  num.sin(dip * d2r)])
 
-    @property
-    def strikevec(self):
-        return num.array([num.sin(self.strike * d2r),
-                          num.cos(self.strike * d2r),
+    @staticmethod
+    def strikevector(strike):
+        return num.array([num.sin(strike * d2r),
+                          num.cos(strike * d2r),
                           0.])
 
-    @property
-    def center(self):
-        return self.depth + 0.5 * self.width * self.dipvec
+    @staticmethod
+    def center(top_depth, width, dipvector):
+        return num.array([0., 0., top_depth]) + 0.5 * width * dipvector
 
     def patches(self, n, m, datatype):
         '''
@@ -78,26 +79,31 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
         width = self.width / float(m)
         patches = []
 
+        dip_vec = self.dipvector(self.dip, self.strike)
+        strike_vec = self.strikevec(self.strike)
+
         for j in range(m):
             for i in range(n):
-                sub_center = self.center + \
-                            self.strikevec * ((i + 0.5 - 0.5 * n) * length) + \
-                            self.dipvec * ((j + 0.5 - 0.5 * m) * width)
-                effective_latlon = map(float, orthodrome.ne_to_latlon(
-                    self.lat, self.lon, sub_center[1] * km, sub_center[0] * km))
+                sub_center = self.center(self.depth, width, dip_vec) + \
+                            strike_vec * ((i + 0.5 - 0.5 * n) * length) + \
+                            dip_vec * ((j + 0.5 - 0.5 * m) * width)
 
                 if datatype == 'seis':
                     patch = gf.RectangularSource(
-                        lat=float(effective_latlon[0]),
-                        lon=float(effective_latlon[1]),
-                        depth=float(sub_center[2] * km),
+                        lat=float(self.lat),
+                        lon=float(self.lon),
+                        east_shift=sub_center[0] + self.east_shift,
+                        north_shift=sub_center[1] + self.north_shift,
+                        depth=float(sub_center[2]),
                         strike=self.strike, dip=self.dip, rake=self.rake,
-                        length=length * km, width=width * km, stf=self.stf,
+                        length=length, width=width, stf=self.stf,
                         time=self.time, slip=self.slip)
                 elif datatype == 'geo':
                     patch = pscmp.PsCmpRectangularSource(
-                        lat=float(effective_latlon[0]),
-                        lon=float(effective_latlon[1]),
+                        lat=float(self.lat),
+                        lon=float(self.lon),
+                        east_shift=sub_center[0] + self.east_shift,
+                        north_shift=sub_center[1] + self.north_shift,
                         depth=float(sub_center[2]),
                         strike=self.strike, dip=self.dip, rake=self.rake,
                         length=length, width=width, slip=self.slip,
@@ -109,6 +115,23 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
                 patches.append(patch)
 
         return patches
+
+
+def update_center_coords(source, top_depth):
+    '''
+    Converts center_top depth of fault to center depth and east/north-shifts.
+    Takes RectangularSource(beat, pyrocko, pscmp)
+    Updates input source!
+    '''
+    RF = RectangularSource
+
+    dip_vec = RF.dipvector(dip=source.dip, strike=source.strike)
+
+    center = RF.center(depth=top_depth, width=source.width, dipvector=dip_vec)
+
+    source.update(east_shift=float(center[0] + source.east_shift),
+                  north_shift=float(center[1] + source.north_shift),
+                  depth=float(center[2]))
 
 
 class Covariance(Object):
@@ -741,7 +764,7 @@ def geo_construct_gf(event, superdir,
 
 
 def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
-                         keep_dir=False):
+                         keep_tmp=False):
     '''
     Input: Greensfunction store path, index of potentialy varied model store
            List of observation points Latitude and Longitude,
@@ -755,7 +778,7 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
     conf.times_snapshots = [0]
     conf.rectangular_source_patches = sources
 
-    runner = pscmp.PsCmpRunner(keep_tmp=keep_dir)
+    runner = pscmp.PsCmpRunner(keep_tmp=keep_tmp)
     runner.run(conf)
     # returns list of displacements for each snapshot
     return runner.get_results(component='displ', flip_z=True)
@@ -794,7 +817,7 @@ def get_phase_taperer(engine, location, target, arrival_taper):
 
 
 def seis_synthetics(engine, sources, targets, arrival_taper, filterer,
-                    reference_taperer=None, plot=False):
+                    reference_taperer=None, plot=False, nprocs=1):
     '''
     Calculate synthetic seismograms of combination of targets and sources,
     filtering and tapering afterwards (filterer)
@@ -805,7 +828,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper, filterer,
     '''
 
     response = engine.process(sources=sources,
-                              targets=targets)
+                              targets=targets, nprocs=nprocs)
 
     synt_trcs = []
     for source, target, tr in response.iter_results():

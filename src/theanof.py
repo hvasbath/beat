@@ -75,11 +75,13 @@ class GeoLayerSynthesizerStatic(theano.Op):
 
         for es, ns, d, st, di, ra, l, w, sl, op, source in \
             zip(ess, nss, ds, sts, dis, ras, ls, ws, sls, ops, self.sources):
-            source.update(east_shift=es * km,
-                          north_shift=ns * km, depth=d,
-                          strike=st, dip=di, rake=ra,
-                          length=l, width=w, slip=sl,
-                          opening=op)
+            source.update(east_shift=float(es * km),
+                          north_shift=float(ns * km),
+                          depth=float(d),
+                          strike=float(st), dip=float(di), rake=float(ra),
+                          length=float(l), width=float(w), slip=float(sl),
+                          opening=float(op))
+            print source
 
         displ = heart.geo_layer_synthetics(
             store_superdir=self.store_superdir,
@@ -121,11 +123,15 @@ class SeisSynthesizer(theano.Op):
 
         for es, ns, d, st, di, ra, l, w, sl, t, rt, source in \
             zip(ess, nss, ds, sts, dis, ras, ls, ws, sls, ts, rts, self.sources):
-            source.update(east_shift=es * km, north_shift=ns * km, depth=d * km,
-                          strike=st, dip=di, rake=ra,
-                          length=l * km, width=w * km, slip=sl,
-                          time=(self.event.time + t))
-            source.stf.duration = rt
+            source.update(east_shift=float(es * km),
+                          north_shift=float(ns * km),
+                          depth=float(d * km),
+                          strike=float(st), dip=float(di), rake=float(ra),
+                          length=float(l * km), width=float(w * km),
+                          slip=float(sl),
+                          time=float(self.event.time + t))
+            source.stf.duration = float(rt)
+            print source
 
         synths[0], tmins[0] = heart.seis_synthetics(self.engine, self.sources,
                                               self.targets,

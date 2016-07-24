@@ -151,6 +151,7 @@ class GeometryOptimizer(Project):
             source = heart.RectangularSource.from_pyrocko_event(self.event)
             source.stf.anchor = -1.  # hardcoded inversion for hypocentral time
             self.sources.append(source)
+            print source
 
         seismic_sources, geodetic_sources = utility.transform_sources(
                                                                 self.sources)
