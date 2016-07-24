@@ -152,7 +152,7 @@ class GeometryOptimizer(Project):
             source.stf.anchor = -1.  # hardcoded inversion for hypocentral time
             self.sources.append(source)
 
-        geodetic_sources, seismic_sources = utility.transform_sources(
+        seismic_sources, geodetic_sources = utility.transform_sources(
                                                                 self.sources)
 
         # targets
@@ -203,10 +203,6 @@ class GeometryOptimizer(Project):
         self.lv = shared(self.Bij.f3map(lv_list))
         self.odws = shared(odws)
 
-        print config.store_superdir
-        print geodetic_sources
-        print lons, lats
-
         # syntetics generation
         logger.info('Initialising theano synthetics functions ... \n')
         self.get_geo_synths = theanof.GeoLayerSynthesizerStatic(
@@ -234,6 +230,7 @@ class GeometryOptimizer(Project):
 
     def built_model(self):
         with pm.Model() as self.model:
+            logger.info('Optimization for %i sources', len(self.sources))
             ## instanciate random vars
             input_rvs = []
             for param in self.config.bounds:
@@ -249,14 +246,22 @@ class GeometryOptimizer(Project):
 
             ## calc residuals
             # geo
-            print geo_input_rvs
+            geo_names = [param.name for param in geo_input_rvs]
+            logger.info(
+            'Geodetic optimization on: \n %s' % ','.join(geo_names))
+
             disp = self.get_geo_synths(*geo_input_rvs)
             los = (disp[:, 0] * self.lv[:, 0] + \
                    disp[:, 1] * self.lv[:, 1] + \
                    disp[:, 2] * self.lv[:, 2]) * self.odws
-            geo_res = self.Bij.srmap(self.wdata - los)
+            geo_res = self.Bij.srmap(
+                tt.cast((self.wdata - los), tconfig.floatX))
 
             # seis
+            seis_names = [param.name for param in seis_input_rvs]
+            logger.info(
+            'Teleseismic optimization on: \n %s' % ', '.join(seis_names))
+
             synths, tmins = self.get_seis_synths(*seis_input_rvs)
             data_trcs = self.chop_traces(tmins)
             seis_res = data_trcs - synths
@@ -297,7 +302,7 @@ class GeometryOptimizer(Project):
                 for param, value in point.iteritems():
                     source.update(param=value[s])
 
-            geodetic_sources, seismic_sources = utility.transform_sources(
+            seismic_sources, geodetic_sources = utility.transform_sources(
                                                                 self.sources)
 
             # seismic

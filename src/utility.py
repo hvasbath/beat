@@ -31,6 +31,7 @@ class ArrayOrdering(object):
             count += 1
 
         self.dimensions = dim
+        print self.vmap
 
 
 class ListToArrayBijection(object):
@@ -94,7 +95,8 @@ class ListToArrayBijection(object):
         a_list = copy.copy(self.list_arrays)
 
         for list_ind, slc, shp, dtype in self.ordering.vmap:
-            a_list[list_ind] = tarray[slc].reshape(shp).astype(dtype)
+            print dtype
+            a_list[list_ind] = tarray[slc].reshape(shp).astype(dtype.name)
 
         return a_list
 

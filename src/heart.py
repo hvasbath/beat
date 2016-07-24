@@ -740,7 +740,8 @@ def geo_construct_gf(event, superdir,
         runner.run(conf)
 
 
-def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources):
+def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
+                         keep_dir=False):
     '''
     Input: Greensfunction store path, index of potentialy varied model store
            List of observation points Latitude and Longitude,
@@ -754,7 +755,7 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources):
     conf.times_snapshots = [0]
     conf.rectangular_source_patches = sources
 
-    runner = pscmp.PsCmpRunner(keep_tmp=True)
+    runner = pscmp.PsCmpRunner(keep_tmp=keep_dir)
     runner.run(conf)
     # returns list of displacements for each snapshot
     return runner.get_results(component='displ', flip_z=True)
