@@ -195,16 +195,17 @@ class GeometryOptimizer(Project):
         # merge geodetic data to call pscmp only once each forward model
         self.Bij = utility.ListToArrayBijection(ordering, disp_list)
 
-        self.odws = shared(self.Bij.fmap(odws_list))
-        self.wdata = shared(self.Bij.fmap(disp_list) * self.odws)
+        odws = self.Bij.fmap(odws_list)
+        self.wdata = shared(self.Bij.fmap(disp_list) * odws)
         self.lons = shared(self.Bij.fmap(lons_list))
         self.lats = shared(self.Bij.fmap(lats_list))
-        self.lv = shared(self.Bij.fmap(lv_list))
+        self.lv = shared(self.Bij.f3map(lv_list))
+        self.odws = shared(odws)
 
         # syntetics generation
         logger.info('Initialising theano synthetics functions ... \n')
         self.get_geo_synths = theanof.GeoLayerSynthesizer(
-                            superdir=config.store_superdir,
+                            store_superdir=config.store_superdir,
                             crust_ind=0,    # always reference model
                             sources=g_sources)
 
@@ -230,7 +231,7 @@ class GeometryOptimizer(Project):
             input_rvs = []
             for param in self.config.bounds:
                 input_rvs.append(pm.Uniform(param.name,
-                                       shape=len(param.dimension),
+                                       shape=param.dimension,
                                        lower=param.lower,
                                        upper=param.upper,
                                        testval=param.testvalue,

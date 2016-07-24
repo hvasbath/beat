@@ -17,7 +17,7 @@ geodetic_datadir = '/data/SAR_data/Aqaba1995/subsampled/'
 tracks = ['A_T114do', 'A_T114up', 'A_T343co',
           'A_T343up', 'D_T254co', 'D_T350co']
 
-blacklist = [28, 27, 11, 10]
+blacklist = ['DRLN', 'FRB', 'NIL', 'ARU']
 distances = (26.5, 91.0)
 n_variations = 20
 sample_rate = 1.0

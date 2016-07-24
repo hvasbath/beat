@@ -54,6 +54,20 @@ class ListToArrayBijection(object):
             a_list[slc] = list_arrays[list_ind].ravel()
         return a_list
 
+    def f3map(self, list_arrays):
+        """
+        Maps values from List space to array space with 3 columns
+
+        Parameters
+        ----------
+        list_arrays : list of numpy arrays
+        """
+        a_list = num.empty((self.ordering.dimensions, 3))
+        for list_ind, slc, _, _ in self.ordering.vmap:
+            a_list[slc,:] = list_arrays[list_ind]
+        return a_list
+
+
     def rmap(self, array):
         """
         Maps value from array space to List space

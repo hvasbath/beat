@@ -148,7 +148,8 @@ class Covariance(Object):
 
 class TeleseismicTarget(gf.Target):
 
-    covariance = Covariance.T(optional=True,
+    covariance = Covariance.T(default=Covariance.D(),
+                              optional=True,
                               help=':py:class:`Covariance` that holds data'
                                    'and model prediction covariance matrixes')
 
@@ -295,9 +296,9 @@ class BEATconfig(Object):
     gtargets = List.T(optional=True)
     stargets = List.T(TeleseismicTarget.T(), optional=True)
     stations = List.T(model.Station.T())
-    blacklist = List.T(Int.T(),
+    blacklist = List.T(String.T(),
                        optional=True,
-                       help='Index for station from list to throw out')
+                       help='Station name for station to be thrown out.')
     distances = Tuple.T(2, Float.T(), default=(30., 90.))
     channels = List.T(String.T(), default=['Z', 'T'])
 
@@ -883,7 +884,7 @@ def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
 def init_nonlin(name, year, project_dir='./', store_superdir='',
                 sample_rate=1.0, n_variations=0, channels=['Z', 'T'],
                 geodetic_datadir='', seismic_datadir='', tracks=['A_T343co'],
-                distances=(30., 90.)):
+                distances=(30., 90.), blacklist=[]):
     '''
     Initialise BEATconfig File
     Have to fill it with data.

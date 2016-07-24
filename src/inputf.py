@@ -41,7 +41,8 @@ def load_SAR_data(datadir, tracks):
                  lats=lats,
                  covariance=covariance,
                  incidence=Lv.inci,
-                 heading=Lv.head))
+                 heading=Lv.head,
+                 odw=data['ODW_sub']))
 
     return DIFFGs
 
