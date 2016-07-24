@@ -10,13 +10,13 @@ def sub_data_covariance(n, dt, tzero):
     '''
     Calculate sub-covariance matrix without variance.
     :param: n - length of trace/ samples of quadratic Covariance matrix
-    :param: dt - time step of samples 
+    :param: dt - time step of samples
     :param: tzero - shortest period of waves in trace
     '''
-    return num.exp( - num.abs(num.arange(n)[:,num.newaxis] - \
-                            num.arange(n)[num.newaxis,:]) * dt / tzero)
+    return num.exp(- num.abs(num.arange(n)[:, num.newaxis] - \
+                              num.arange(n)[num.newaxis, :]) * dt / tzero)
 
-                            
+
 def get_seismic_data_covariances(data_traces, config, engine,
                                  event, targets):
     '''
@@ -26,7 +26,7 @@ def get_seismic_data_covariances(data_traces, config, engine,
 
     Cd(i,j) = (Variance of trace)*exp(-abs(ti-tj)/
                                      (shortest period T0 of waves))
-    
+
        i,j are samples of the seismic trace
     '''
 
@@ -34,30 +34,28 @@ def get_seismic_data_covariances(data_traces, config, engine,
     dt = 1. / config.sample_rate
     ataper = config.arrival_taper
     n = int(num.ceil((ataper.a + ataper.d) / dt))
-        
+
     csub = sub_data_covariance(n, dt, tzero)
 
     cov_ds = []
-    for i, trace in enumerate(data_traces):
+    for i, tr in enumerate(data_traces):
         # assure getting P-wave arrival time
         tmp_target = copy.deepcopy(targets[i])
-        print tmp_target.codes
+
         tmp_target.codes = (tmp_target.codes[:3] + ('Z',))
-        
+
         arrival_time = heart.get_phase_arrival_time(
             engine=engine, source=event, target=tmp_target)
 
-        print arrival_time, trace.tmin
-
-        ctrace = trace.chop(
-            tmin=trace.tmin,
+        ctrace = tr.chop(
+            tmin=tr.tmin,
             tmax=arrival_time - ataper.b,
             inplace=False)
-        
+
         cov_ds.append(num.var(ctrace.ydata, ddof=1) * csub)
 
     return cov_ds
-            
+
 
 def get_model_prediction_sensitivity(engine, *args, **kwargs):
     '''
@@ -104,7 +102,7 @@ def get_model_prediction_sensitivity(engine, *args, **kwargs):
         request = gf.Request(**kwargs)
 
     if h is None:
-        h=num.ones(len(source_params)) * 1e-1
+        h = num.ones(len(source_params)) * 1e-1
 
     # create results list
     sensitivity_param_list = []
