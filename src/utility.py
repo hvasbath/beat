@@ -64,9 +64,8 @@ class ListToArrayBijection(object):
         """
         a_list = num.empty((self.ordering.dimensions, 3))
         for list_ind, slc, _, _ in self.ordering.vmap:
-            a_list[slc,:] = list_arrays[list_ind]
+            a_list[slc, :] = list_arrays[list_ind]
         return a_list
-
 
     def rmap(self, array):
         """
@@ -172,6 +171,26 @@ def weed_stations(stations, event, distances=(30., 90.)):
             weeded_stations.append(station)
 
     return weeded_stations
+
+
+def transform_sources(sources):
+    '''
+    Transforms a list of :py:class:`beat.RectangularSource` to lists of
+    :py:class:`pscmp.RectangularSource` and :py:class:`gf.RectangularSource`.
+    '''
+    sub_sources_seismic = []
+    sub_sources_geodetic = []
+
+    for source in sources:
+        sub_sources_seismic.append(source.patches(1, 1, 'seis'))
+        sub_sources_geodetic.append(source.patches(1, 1, 'geo'))
+
+    # concatenate list of lists to single list
+    seismic_sources = []
+    geodetic_sources = []
+    map(seismic_sources.extend, sub_sources_seismic)
+    map(geodetic_sources.extend, sub_sources_geodetic)
+    return seismic_sources, geodetic_sources
 
 
 def utm_to_loc(utmx, utmy, zone, event):

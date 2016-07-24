@@ -146,14 +146,14 @@ class GeometryOptimizer(Project):
 
         # Init sources
         self.sources = []
-        s_sources = []
-        g_sources = []
+
         for i in range(config.bounds[0].dimension):
             source = heart.RectangularSource.from_pyrocko_event(self.event)
             source.stf.anchor = -1.  # hardcoded inversion for hypocentral time
             self.sources.append(source)
-            s_sources.append(source.patches(1, 1, 'seis'))
-            g_sources.append(source.patches(1, 1, 'geo'))
+
+        geodetic_sources, seismic_sources = utility.transform_sources(
+                                                                self.sources)
 
         # targets
         self.ns_t = len(self.stargets)
@@ -204,6 +204,8 @@ class GeometryOptimizer(Project):
         self.odws = shared(odws)
 
         print config.store_superdir
+        print geodetic_sources
+        print lons, lats
 
         # syntetics generation
         logger.info('Initialising theano synthetics functions ... \n')
@@ -212,11 +214,11 @@ class GeometryOptimizer(Project):
                             lons=lons,
                             store_superdir=config.store_superdir,
                             crust_ind=0,    # always reference model
-                            sources=g_sources)
+                            sources=geodetic_sources)
 
         self.get_seis_synths = theanof.SeisSynthesizer(
                             engine=self.engine,
-                            sources=s_sources,
+                            sources=seismic_sources,
                             targets=self.stargets,
                             event=self.event,
                             arrival_taper=config.arrival_taper,
@@ -295,11 +297,8 @@ class GeometryOptimizer(Project):
                 for param, value in point.iteritems():
                     source.update(param=value[s])
 
-            s_sources = []
-            g_sources = []
-            for source in self.sources:
-                s_sources.append(source.patches(1, 1, 'seis'))
-                g_sources.append(source.patches(1, 1, 'geo'))
+            geodetic_sources, seismic_sources = utility.transform_sources(
+                                                                self.sources)
 
             # seismic
             for channel in self.config.channels:
@@ -313,7 +312,7 @@ class GeometryOptimizer(Project):
                     self.stargets[i].covariance.pred_v = \
                         cov.get_seis_cov_velocity_models(
                                  engine=self.engine,
-                                 sources=s_sources,
+                                 sources=seismic_sources,
                                  crust_inds=self.config.crust_inds,
                                  targets=crust_targets,
                                  sample_rate=self.config.sample_rate,
@@ -329,6 +328,6 @@ class GeometryOptimizer(Project):
                          store_superdir=self.config.store_superdir,
                          crust_inds=self.config.crust_inds,
                          dataset=gtarget,
-                         sources=g_sources)
+                         sources=geodetic_sources)
 
                 self.gweights[i].set_value(gtarget.covariance.inverse())
