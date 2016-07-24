@@ -203,6 +203,8 @@ class GeometryOptimizer(Project):
         self.lv = shared(self.Bij.f3map(lv_list))
         self.odws = shared(odws)
 
+        print config.store_superdir
+
         # syntetics generation
         logger.info('Initialising theano synthetics functions ... \n')
         self.get_geo_synths = theanof.GeoLayerSynthesizerStatic(

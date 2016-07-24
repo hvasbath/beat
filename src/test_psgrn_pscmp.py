@@ -98,7 +98,6 @@ class Test_Pscmp(object):
         LATS = shared(lats)
 
         # source params
-        crust_ind = shared(num.int32(self.crust_ind))
         ess = shared(num.array([50.], dtype=num.float64))
         nss = shared(num.array([40.], dtype=num.float64))
         ds = shared(num.array([self.event.depth / km], dtype=num.float64))
@@ -113,13 +112,22 @@ class Test_Pscmp(object):
         slips = shared(num.array([self.slips], dtype=num.float64))
         opns = shared(num.array([self.openings], dtype=num.float64))
 
-        var_list = [LONS, LATS, ess, nss, ds, strikes, dips, rakes, ls,
+        var_list_free = [LONS, LATS, ess, nss, ds, strikes, dips, rakes, ls,
                     ws, slips, opns]
-        get_displacements = theanof.GeoLayerSynthesizer(
-                            self.store_superdir, self.crust_ind, self.sources)
-        displ = get_displacements(*var_list)
-        sym_forward_op = function([], [displ], profile=profile)
-        dsym = sym_forward_op()
-        print self.sources[0].__dict__
-        return dsym
+        var_list_static = [ess, nss, ds, strikes, dips, rakes, ls,
+                    ws, slips, opns]
+
+        get_displacements_free = theanof.GeoLayerSynthesizerFree(
+             self.store_superdir, self.crust_ind, self.sources)
+        get_displacements_static = theanof.GeoLayerSynthesizerStatic(
+             lats=lats, lons=lons, store_superdir=self.store_superdir,
+             crust_ind=self.crust_ind, sources=self.sources)
+
+        displf = get_displacements_free(*var_list_free)
+        displs = get_displacements_static(*var_list_static)
+
+        sym_forward_op_f = function([], [displf], profile=profile)
+        sym_forward_op_s = function([], [displs], profile=profile)
+
+        return sym_forward_op_f, sym_forward_op_s
 
