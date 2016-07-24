@@ -32,7 +32,7 @@ def init():
     logger.info('Email: Hannes.Vasyura-Bathke@kaust.edu.sa')
     logger.info('Version: ultra pre-alpha')
     logger.info('\n')
-    logger.info('Creating config.yaml ...')
+    logger.info('... Creating config.yaml ...')
     config = heart.init_nonlin(name, year,
         project_dir=project_dir,
         store_superdir=store_superdir,
@@ -54,8 +54,8 @@ def build_geo_gfs():
 
     n_mods = len(config.crust_inds)
 
-    logger.info('Building geodetic Greens Functions for %i varied crustal'
-                'velocity models! \n'
+    logger.info('... Building geodetic Greens Functions ...\n')
+    logger.info(' %i varied crustal velocity models!'
                 'Building stores in: %s \n' % (n_mods, config.store_superdir))
 
     eventname = os.path.join(config.seismic_datadir, 'event.txt')
@@ -71,19 +71,17 @@ def build_geo_gfs():
 
 
 def check_model_setup():
-    logger.info('... Initialising Geometry Optimizer ... \n')
     config_fn = os.path.join(project_dir, config_file_name)
     config = load(filename=config_fn)
 
     problem = GeometryOptimizer(config)
 
-    logger.info('Building model ...')
     problem.built_model()
-    test_logp = problem.model.logp.eval()
-    logger.info('The test probability is %f' % test_logp)
+#    test_logp = problem.model
+#    logger.info('The test probability is %f' % test_logp)
     return problem
 
 if __name__ == '__main__':
-    config = init()
+#    config = init()
 #    build_geo_gfs()
     check_model_setup()

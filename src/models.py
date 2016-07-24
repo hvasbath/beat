@@ -63,16 +63,16 @@ class Project(Object):
                         scaled according to the acceptance ratio.
         '''
         with self.model:
-            print('Initiate Adaptive Transitional Metropolis ... '
-                  'with n_chains=%i, tune_interval=%i') % (n_chains,
-                                                           tune_interval)
+            logger.info('... Initiate Adaptive Transitional Metropolis ... '
+                  ' n_chains=%i, tune_interval=%i' % (n_chains,
+                                                           tune_interval))
             t1 = time.time()
             self.step = atmcmc.ATMCMC(
                 n_chains=n_chains,
                 tune_interval=tune_interval,
                 likelihood_name=self._like_name)
             t2 = time.time()
-            print 'Compilation time:', t2 - t1
+            logger.info('Compilation time: %f' % (t2 - t1))
 
     def sample(self, n_steps=100, njobs=1):
         '''
@@ -87,7 +87,7 @@ class Project(Object):
             raise Exception('Sampler needs to be initialised first!'
                             'with: "init_atmip" ')
 
-        print 'Starting ATMIP ...'
+        logger.info('... Starting ATMIP ...\n')
         trace = atmcmc.ATMIP_sample(
             n_steps,
             step=self.step,
@@ -106,6 +106,7 @@ class GeometryOptimizer(Project):
     Input: :py:class: 'BEATconfig'
     '''
     def __init__(self, config):
+        logger.info('... Initialising Geometry Optimizer ... \n')
 
         self.geometry_outfolder = os.path.join(config.project_dir, 'geometry')
         util.ensuredir(self.geometry_outfolder)
@@ -113,7 +114,7 @@ class GeometryOptimizer(Project):
         self.engine = gf.LocalEngine(store_superdirs=[config.store_superdir])
 
         # load data still not general enopugh
-        logger.info('Loading seismic waveforms ...\n')
+        logger.info('Loading waveforms ...\n')
 
         self.event = model.load_one_event(config.seismic_datadir + 'event.txt')
 
@@ -151,7 +152,6 @@ class GeometryOptimizer(Project):
             source = heart.RectangularSource.from_pyrocko_event(self.event)
             source.stf.anchor = -1.  # hardcoded inversion for hypocentral time
             self.sources.append(source)
-            print source
 
         seismic_sources, geodetic_sources = utility.transform_sources(
                                                                 self.sources)
@@ -187,7 +187,7 @@ class GeometryOptimizer(Project):
         for s_t in range(self.ns_t):
             self.stargets[s_t].covariance.data = cov_ds_seismic[s_t]
             self.stargets[s_t].covariance.set_inverse()
-            self.sweights.append(shared(self.stargets[i].covariance.icov))
+            self.sweights.append(shared(self.stargets[s_t].covariance.icov))
 
         # Target weights, initially identity matrix = equal weights
         self.seis_misfit_icov = shared(num.eye(self.ns_t))
@@ -230,6 +230,8 @@ class GeometryOptimizer(Project):
         self.config = config
 
     def built_model(self):
+        logger.info('... Building model ...\n')
+
         with pm.Model() as self.model:
             logger.info('Optimization for %i sources', len(self.sources))
             ## instanciate random vars
@@ -249,9 +251,13 @@ class GeometryOptimizer(Project):
             # geo
             geo_names = [param.name for param in geo_input_rvs]
             logger.info(
-            'Geodetic optimization on: \n %s' % ','.join(geo_names))
+            'Geodetic optimization on: \n \n %s' % ', '.join(geo_names))
 
+            t0 = time.time()
             disp = self.get_geo_synths(*geo_input_rvs)
+            t1 = time.time()
+            logger.info('Geodetic forward model takes: %f' % (t1 - t0))
+
             los = (disp[:, 0] * self.lv[:, 0] + \
                    disp[:, 1] * self.lv[:, 1] + \
                    disp[:, 2] * self.lv[:, 2]) * self.odws
@@ -261,10 +267,15 @@ class GeometryOptimizer(Project):
             # seis
             seis_names = [param.name for param in seis_input_rvs]
             logger.info(
-            'Teleseismic optimization on: \n %s' % ', '.join(seis_names))
+            'Teleseismic optimization on: \n \n %s' % ', '.join(seis_names))
 
+            t2 = time.time()
             synths, tmins = self.get_seis_synths(*seis_input_rvs)
+            t3 = time.time()
+            logger.info('Teleseismic forward model takes: %f' % (t3 - t2))
+
             data_trcs = self.chop_traces(tmins)
+
             seis_res = data_trcs - synths
 
             ## calc likelihoods
@@ -273,13 +284,13 @@ class GeometryOptimizer(Project):
 
             for k in range(self.ns_t):
                 logpts_s = tt.set_subtensor(logpts_s[k:k + 1],
-                        (-0.5) * seis_res[k, :].dot(
-                              self.sweights[k]).dot(seis_res[k, :].T))
+                    (-0.5) * seis_res[k, :].dot(
+                          self.sweights[k]).dot(seis_res[k, :].T))
 
             for l in range(self.ng_t):
                 logpts_g = tt.set_subtensor(logpts_g[l:l + 1],
-                        (-0.5) * geo_res[l].dot(
-                              self.gweights[l]).dot(geo_res[l, :]).T)
+                    (-0.5) * geo_res[l].dot(
+                          self.gweights[l]).dot(geo_res[l].T))
 
             # adding dataset missfits to traces
             seis_llk = pm.Deterministic(self._seis_like_name, logpts_s)
@@ -291,6 +302,7 @@ class GeometryOptimizer(Project):
                 seis_llk.T.dot(self.seis_misfit_icov).dot(seis_llk) + \
                 geo_llk.T.dot(self.geo_misfit_icov).dot(geo_llk))
             llk = pm.Potential(self._like_name, like)
+            logger.info('Model building was successful!')
 
         def update_weights(self, point):
             '''

@@ -80,7 +80,7 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
         patches = []
 
         dip_vec = self.dipvector(self.dip, self.strike)
-        strike_vec = self.strikevec(self.strike)
+        strike_vec = self.strikevector(self.strike)
 
         for j in range(m):
             for i in range(n):
@@ -127,7 +127,7 @@ def update_center_coords(source, top_depth):
 
     dip_vec = RF.dipvector(dip=source.dip, strike=source.strike)
 
-    center = RF.center(depth=top_depth, width=source.width, dipvector=dip_vec)
+    center = RF.center(top_depth=top_depth, width=source.width, dipvector=dip_vec)
 
     source.update(east_shift=float(center[0] + source.east_shift),
                   north_shift=float(center[1] + source.north_shift),
@@ -869,7 +869,6 @@ def seis_synthetics(engine, sources, targets, arrival_taper, filterer,
 
         synths = outstack
 
-    print tmins.shape
     return synths, tmins
 
 

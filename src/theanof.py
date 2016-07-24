@@ -16,6 +16,16 @@ km = 1000.
 
 
 class GeoLayerSynthesizerFree(theano.Op):
+    '''
+    Theano wrapper for a geodetic forward model for variable observation
+    points.
+
+    Inputs have to be in order!
+    Type Numpy arrays:
+    Observation|             Source parameters (RectangularSource)
+    lons, lats | east_shifts, north_shifts, top_depths, strikes, dips, rakes,
+                 lengths, widths, slips, openings
+    '''
 
     __props__ = ('store_superdir', 'crust_ind', 'sources')
 
@@ -31,16 +41,17 @@ class GeoLayerSynthesizerFree(theano.Op):
 
     def perform(self, node, inputs, output):
 
-        lons, lats, ess, nss, ds, sts, dis, ras, ls, ws, sls, ops = inputs
+        lons, lats, ess, nss, tds, sts, dis, ras, ls, ws, sls, ops = inputs
         z = output[0]
 
-        for es, ns, d, st, di, ra, l, w, sl, op, source in \
-            zip(ess, nss, ds, sts, dis, ras, ls, ws, sls, ops, self.sources):
+        for es, ns, td, st, di, ra, l, w, sl, op, source in \
+            zip(ess, nss, tds, sts, dis, ras, ls, ws, sls, ops, self.sources):
             source.update(east_shift=es * km,
-                          north_shift=ns * km, depth=d,
+                          north_shift=ns * km,
                           strike=st, dip=di, rake=ra,
                           length=l, width=w, slip=sl,
                           opening=op)
+            heart.update_center_coords(source, td * km)
 
         displ = heart.geo_layer_synthetics(
             self.store_superdir,
@@ -53,12 +64,21 @@ class GeoLayerSynthesizerFree(theano.Op):
 
 
 class GeoLayerSynthesizerStatic(theano.Op):
+    '''
+    Theano wrapper for a geodetic forward model for static observation
+    points.
 
+    Inputs have to be in order!
+    Type Numpy arrays:
+                    Source parameters (RectangularSource)
+    east_shifts, north_shifts, top_depths, strikes, dips, rakes,
+    lengths, widths, slips
+    '''
     __props__ = ('lats', 'lons', 'store_superdir', 'crust_ind', 'sources')
 
     itypes = [tt.dvector, tt.dvector, tt.dvector,
               tt.dvector, tt.dvector, tt.dvector,
-              tt.dvector, tt.dvector, tt.dvector, tt.dvector]
+              tt.dvector, tt.dvector, tt.dvector]
     otypes = [tt.dmatrix]
 
     def __init__(self, lats, lons, store_superdir, crust_ind, sources):
@@ -70,18 +90,17 @@ class GeoLayerSynthesizerStatic(theano.Op):
 
     def perform(self, node, inputs, output):
 
-        ess, nss, ds, sts, dis, ras, ls, ws, sls, ops = inputs
+        ess, nss, tds, sts, dis, ras, ls, ws, sls = inputs
         z = output[0]
 
-        for es, ns, d, st, di, ra, l, w, sl, op, source in \
-            zip(ess, nss, ds, sts, dis, ras, ls, ws, sls, ops, self.sources):
+        for es, ns, td, st, di, ra, l, w, sl, source in \
+            zip(ess, nss, tds, sts, dis, ras, ls, ws, sls, self.sources):
             source.update(east_shift=float(es * km),
                           north_shift=float(ns * km),
-                          depth=float(d),
                           strike=float(st), dip=float(di), rake=float(ra),
-                          length=float(l), width=float(w), slip=float(sl),
-                          opening=float(op))
-            print source
+                          length=float(l * km), width=float(w * km),
+                          slip=float(sl))
+            heart.update_center_coords(source, td * km)
 
         displ = heart.geo_layer_synthetics(
             store_superdir=self.store_superdir,
@@ -117,21 +136,20 @@ class SeisSynthesizer(theano.Op):
 
     def perform(self, node, inputs, output):
 
-        ess, nss, ds, sts, dis, ras, ls, ws, sls, ts, rts = inputs
+        ess, nss, tds, sts, dis, ras, ls, ws, sls, ts, rts = inputs
         synths = output[0]
         tmins = output[1]
 
-        for es, ns, d, st, di, ra, l, w, sl, t, rt, source in \
-            zip(ess, nss, ds, sts, dis, ras, ls, ws, sls, ts, rts, self.sources):
+        for es, ns, td, st, di, ra, l, w, sl, t, rt, source in \
+            zip(ess, nss, tds, sts, dis, ras, ls, ws, sls, ts, rts, self.sources):
             source.update(east_shift=float(es * km),
                           north_shift=float(ns * km),
-                          depth=float(d * km),
                           strike=float(st), dip=float(di), rake=float(ra),
                           length=float(l * km), width=float(w * km),
                           slip=float(sl),
                           time=float(self.event.time + t))
+            heart.update_center_coords(source, td * km)
             source.stf.duration = float(rt)
-            print source
 
         synths[0], tmins[0] = heart.seis_synthetics(self.engine, self.sources,
                                               self.targets,

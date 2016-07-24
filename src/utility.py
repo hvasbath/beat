@@ -31,7 +31,6 @@ class ArrayOrdering(object):
             count += 1
 
         self.dimensions = dim
-        print self.vmap
 
 
 class ListToArrayBijection(object):
@@ -95,7 +94,6 @@ class ListToArrayBijection(object):
         a_list = copy.copy(self.list_arrays)
 
         for list_ind, slc, shp, dtype in self.ordering.vmap:
-            print dtype
             a_list[list_ind] = tarray[slc].reshape(shp).astype(dtype.name)
 
         return a_list
@@ -117,7 +115,8 @@ def weed_input_rvs(input_rvs, mode):
 
     indexes = []
     for burian in tobeweeded:
-        indexes.append(name_order.index(burian))
+        if burian in name_order:
+            indexes.append(name_order.index(burian))
 
     indexes.sort(reverse=True)
 
