@@ -15,7 +15,7 @@ import numpy as num
 km = 1000.
 
 
-class GeoLayerSynthesizer(theano.Op):
+class GeoLayerSynthesizerFree(theano.Op):
 
     __props__ = ('store_superdir', 'crust_ind', 'sources')
 
@@ -50,6 +50,48 @@ class GeoLayerSynthesizer(theano.Op):
 
     def infer_shape(self, node, input_shapes):
         return [(input_shapes[0][0], 3)]
+
+
+class GeoLayerSynthesizerStatic(theano.Op):
+
+    __props__ = ('lats', 'lons', 'store_superdir', 'crust_ind', 'sources')
+
+    itypes = [tt.dvector, tt.dvector, tt.dvector,
+              tt.dvector, tt.dvector, tt.dvector,
+              tt.dvector, tt.dvector, tt.dvector, tt.dvector]
+    otypes = [tt.dmatrix]
+
+    def __init__(self, lats, lons, store_superdir, crust_ind, sources):
+        self.lats = tuple(lats)
+        self.lons = tuple(lons)
+        self.store_superdir = store_superdir
+        self.crust_ind = crust_ind
+        self.sources = tuple(sources)
+
+    def perform(self, node, inputs, output):
+
+        ess, nss, ds, sts, dis, ras, ls, ws, sls, ops = inputs
+        z = output[0]
+
+        for es, ns, d, st, di, ra, l, w, sl, op, source in \
+            zip(ess, nss, ds, sts, dis, ras, ls, ws, sls, ops, self.sources):
+            source.update(east_shift=es * km,
+                          north_shift=ns * km, depth=d,
+                          strike=st, dip=di, rake=ra,
+                          length=l, width=w, slip=sl,
+                          opening=op)
+
+        displ = heart.geo_layer_synthetics(
+            store_superdir=self.store_superdir,
+            crust_ind=self.crust_ind,
+            lons=self.lons,
+            lats=self.lats,
+            sources=self.sources)
+
+        z[0] = displ[0]
+
+    def infer_shape(self, node, input_shapes):
+        return [(len(self.lats), 3)]
 
 
 class SeisSynthesizer(theano.Op):

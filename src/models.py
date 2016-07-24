@@ -196,15 +196,18 @@ class GeometryOptimizer(Project):
         self.Bij = utility.ListToArrayBijection(ordering, disp_list)
 
         odws = self.Bij.fmap(odws_list)
+        lons = self.Bij.fmap(lons_list)
+        lats = self.Bij.fmap(lats_list)
+
         self.wdata = shared(self.Bij.fmap(disp_list) * odws)
-        self.lons = shared(self.Bij.fmap(lons_list))
-        self.lats = shared(self.Bij.fmap(lats_list))
         self.lv = shared(self.Bij.f3map(lv_list))
         self.odws = shared(odws)
 
         # syntetics generation
         logger.info('Initialising theano synthetics functions ... \n')
-        self.get_geo_synths = theanof.GeoLayerSynthesizer(
+        self.get_geo_synths = theanof.GeoLayerSynthesizerStatic(
+                            lats=lats,
+                            lons=lons,
                             store_superdir=config.store_superdir,
                             crust_ind=0,    # always reference model
                             sources=g_sources)
@@ -242,7 +245,8 @@ class GeometryOptimizer(Project):
 
             ## calc residuals
             # geo
-            disp = self.get_geo_synths(self.lons, self.lats, *geo_input_rvs)
+            print geo_input_rvs
+            disp = self.get_geo_synths(*geo_input_rvs)
             los = (disp[:, 0] * self.lv[:, 0] + \
                    disp[:, 1] * self.lv[:, 1] + \
                    disp[:, 2] * self.lv[:, 2]) * self.odws
