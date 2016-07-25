@@ -8,6 +8,7 @@ import numpy as num
 from theano.compile import ProfileStats
 from theano import shared, function
 import pscmp
+import copy
 
 profile = ProfileStats()
 
@@ -52,8 +53,8 @@ class Test_Pscmp(object):
     crust_ind = 0
     event = event
     store_superdir = storehomedir[0]
-    lengths = 25000.
-    widths = 15000.
+    lengths = 25.
+    widths = 15.
     slips = 5.
     openings = 0.
     sources = [pscmp.PsCmpRectangularSource()]
@@ -70,8 +71,8 @@ class Test_Pscmp(object):
         o_lons = self.event.lon
         o_lats = self.event.lat
         depths = self.event.depth
-        east_shift = 50. * km
-        north_shift = 40. * km
+        east_shift = 50.
+        north_shift = 40.
         strikes = event.moment_tensor.strike2
         dips = self.event.moment_tensor.dip2
         rakes = self.event.moment_tensor.rake2
@@ -116,15 +117,16 @@ class Test_Pscmp(object):
         var_list_free = [LONS, LATS, ess, nss, ds, strikes, dips, rakes, ls,
                     ws, slips, opns]
         var_list_static = [ess, nss, ds, strikes, dips, rakes, ls,
-                    ws, slips, opns]
+                    ws, slips]
 
+        new_varlist = copy.deepcopy(var_list_free)
         get_displacements_free = theanof.GeoLayerSynthesizerFree(
              self.store_superdir, self.crust_ind, self.sources)
         get_displacements_static = theanof.GeoLayerSynthesizerStatic(
              lats=lats, lons=lons, store_superdir=self.store_superdir,
              crust_ind=self.crust_ind, sources=self.sources)
 
-        displf = get_displacements_free(*var_list_free)
+        displf = get_displacements_free(*new_varlist)
         displs = get_displacements_static(*var_list_static)
 
         sym_forward_op_f = function([], [displf], profile=profile)

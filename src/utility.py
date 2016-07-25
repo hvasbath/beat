@@ -106,7 +106,7 @@ def weed_input_rvs(input_rvs, mode):
     mode = seis/geo
     '''
     name_order = [param.name for param in input_rvs]
-    weeded_input_rvs = copy.deepcopy(input_rvs)
+    weeded_input_rvs = copy.copy(input_rvs)
 
     if mode == 'geo':
         tobeweeded = ['time', 'duration']

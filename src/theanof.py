@@ -49,7 +49,7 @@ class GeoLayerSynthesizerFree(theano.Op):
             source.update(east_shift=es * km,
                           north_shift=ns * km,
                           strike=st, dip=di, rake=ra,
-                          length=l, width=w, slip=sl,
+                          length=l * km, width=w * km, slip=sl,
                           opening=op)
             heart.update_center_coords(source, td * km)
 

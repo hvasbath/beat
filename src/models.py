@@ -92,6 +92,7 @@ class Project(Object):
             n_steps,
             step=self.step,
             progressbar=True,
+            model=self.model,
             njobs=njobs,
             update=self,
             trace=self.geometry_outfolder)
@@ -244,17 +245,17 @@ class GeometryOptimizer(Project):
                                        testval=param.testvalue,
                                        transform=None))
 
-            geo_input_rvs = utility.weed_input_rvs(input_rvs, mode='geo')
-            seis_input_rvs = utility.weed_input_rvs(input_rvs, mode='seis')
+            self.geo_input_rvs = utility.weed_input_rvs(input_rvs, mode='geo')
+            self.seis_input_rvs = utility.weed_input_rvs(input_rvs, mode='seis')
 
             ## calc residuals
             # geo
-            geo_names = [param.name for param in geo_input_rvs]
+            geo_names = [param.name for param in self.geo_input_rvs]
             logger.info(
             'Geodetic optimization on: \n \n %s' % ', '.join(geo_names))
 
             t0 = time.time()
-            disp = self.get_geo_synths(*geo_input_rvs)
+            disp = self.get_geo_synths(*self.geo_input_rvs)
             t1 = time.time()
             logger.info('Geodetic forward model takes: %f' % (t1 - t0))
 
@@ -265,12 +266,12 @@ class GeometryOptimizer(Project):
                 tt.cast((self.wdata - los), tconfig.floatX))
 
             # seis
-            seis_names = [param.name for param in seis_input_rvs]
+            seis_names = [param.name for param in self.seis_input_rvs]
             logger.info(
             'Teleseismic optimization on: \n \n %s' % ', '.join(seis_names))
 
             t2 = time.time()
-            synths, tmins = self.get_seis_synths(*seis_input_rvs)
+            synths, tmins = self.get_seis_synths(*self.seis_input_rvs)
             t3 = time.time()
             logger.info('Teleseismic forward model takes: %f' % (t3 - t2))
 
