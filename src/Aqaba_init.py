@@ -22,7 +22,8 @@ distances = (26.5, 91.0)
 n_variations = 20
 sample_rate = 1.0
 channels = ['Z', 'T']
-
+filterer = heart.Filter()
+arrival_taper = heart.ArrivalTaper()
 logger = utility.setup_logging(project_dir)
 
 
@@ -43,7 +44,9 @@ def init():
         geodetic_datadir=geodetic_datadir,
         seismic_datadir=seismic_datadir,
         tracks=tracks,
-        blacklist=blacklist)
+        blacklist=blacklist,
+        arrival_taper=arrival_taper,
+        filterer=filterer)
     return config
 
 

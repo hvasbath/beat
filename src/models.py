@@ -63,8 +63,8 @@ class Project(Object):
                         scaled according to the acceptance ratio.
         '''
         with self.model:
-            logger.info('... Initiate Adaptive Transitional Metropolis ... '
-                  ' n_chains=%i, tune_interval=%i' % (n_chains,
+            logger.info('... Initiate Adaptive Transitional Metropolis ... \n'
+                  ' n_chains=%i, tune_interval=%i\n' % (n_chains,
                                                            tune_interval))
             t1 = time.time()
             self.step = atmcmc.ATMCMC(
@@ -300,8 +300,8 @@ class GeometryOptimizer(Project):
             # sum up geodetic and seismic likelihood
             like = pm.Deterministic(
                 self._like_name,
-                seis_llk.T.dot(self.seis_misfit_icov).dot(seis_llk) + \
-                geo_llk.T.dot(self.geo_misfit_icov).dot(geo_llk))
+                seis_llk.T.dot(self.seis_misfit_icov).sum() + \
+                geo_llk.T.dot(self.geo_misfit_icov).sum())
             llk = pm.Potential(self._like_name, like)
             logger.info('Model building was successful!')
 

@@ -43,13 +43,13 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
     Reference point of depth is the top-center of the fault.
     '''
     width = Float.T(help='width of the fault [m]',
-                    default=2. * km)
+                    default=1. * km)
     length = Float.T(help='length of the fault [m]',
-                    default=2. * km)
+                    default=1. * km)
     slip = Float.T(help='slip of the fault [m]',
-                    default=2.)
+                    default=1.)
     opening = Float.T(help='opening of the fault [m]',
-                    default=2.)
+                    default=0.)
 
     @staticmethod
     def dipvector(dip, strike):
@@ -803,12 +803,13 @@ def get_phase_arrival_time(engine, source, target):
     return store.t(wave, (depth, dist)) + source.time
 
 
-def get_phase_taperer(engine, location, target, arrival_taper):
+def get_phase_taperer(engine, source, target, arrival_taper):
     '''
     and taper return :py:class:`CosTaper`
     according to defined arrival_taper times.
     '''
-    arrival_time = get_phase_arrival_time(engine, location, target)
+    arrival_time = get_phase_arrival_time(engine, source, target)
+
     taperer = trace.CosTaper(arrival_time - arrival_taper.a,
                              arrival_time - arrival_taper.b,
                              arrival_time + arrival_taper.c,
@@ -816,8 +817,9 @@ def get_phase_taperer(engine, location, target, arrival_taper):
     return taperer
 
 
-def seis_synthetics(engine, sources, targets, arrival_taper, filterer,
-                    reference_taperer=None, plot=False, nprocs=1):
+def seis_synthetics(engine, sources, targets, arrival_taper=None,
+                    filterer=None, reference_taperer=None, plot=False,
+                    nprocs=1):
     '''
     Calculate synthetic seismograms of combination of targets and sources,
     filtering and tapering afterwards (filterer)
@@ -834,20 +836,21 @@ def seis_synthetics(engine, sources, targets, arrival_taper, filterer,
     for source, target, tr in response.iter_results():
         # extract interpolated travel times of phases which have been defined
         # in the store's config file and cut data/synth traces
-
-        if reference_taperer is None:
-            taperer = get_phase_taperer(engine,
+        if arrival_taper is not None:
+            if reference_taperer is None:
+                taperer = get_phase_taperer(engine,
                                         sources[0],
                                         target,
                                         arrival_taper)
-        else:
-            taperer = reference_taperer
+            else:
+                taperer = reference_taperer
 
-        # cut traces
-        tr.taper(taperer, inplace=True, chop=True)
+            # cut traces
+            tr.taper(taperer, inplace=True, chop=True)
 
-        # filter traces
-        tr.bandpass(corner_hp=filterer.lower_corner,
+        if filterer is not None:
+            # filter traces
+            tr.bandpass(corner_hp=filterer.lower_corner,
                     corner_lp=filterer.upper_corner,
                     order=filterer.order)
 
@@ -881,21 +884,23 @@ def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
     cut_traces = []
 
     for i, tr in enumerate(data_traces):
-
-        taperer = trace.CosTaper(
-            float(tmins[i]),
-            float(tmins[i] + arrival_taper.b),
-            float(tmins[i] + arrival_taper.a + arrival_taper.c),
-            float(tmins[i] + arrival_taper.a + arrival_taper.d))
-
         cut_trace = tr.copy()
-        # cut traces
-        cut_trace.taper(taperer, inplace=True, chop=True)
+        if arrival_taper is not None:
+            taperer = trace.CosTaper(
+                float(tmins[i]),
+                float(tmins[i] + arrival_taper.b),
+                float(tmins[i] + arrival_taper.a + arrival_taper.c),
+                float(tmins[i] + arrival_taper.a + arrival_taper.d))
 
-        # filter traces
-        cut_trace.bandpass(corner_hp=filterer.lower_corner,
-                           corner_lp=filterer.upper_corner,
-                           order=filterer.order)
+            # taper and cut traces
+            cut_trace.taper(taperer, inplace=True, chop=True)
+
+        if filterer is not None:
+            # filter traces
+            cut_trace.bandpass(corner_hp=filterer.lower_corner,
+                               corner_lp=filterer.upper_corner,
+                               order=filterer.order)
+
         cut_traces.append(cut_trace)
 
         if plot:
@@ -907,7 +912,8 @@ def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
 def init_nonlin(name, year, project_dir='./', store_superdir='',
                 sample_rate=1.0, n_variations=0, channels=['Z', 'T'],
                 geodetic_datadir='', seismic_datadir='', tracks=['A_T343co'],
-                distances=(30., 90.), blacklist=[]):
+                distances=(30., 90.), blacklist=[], arrival_taper=None,
+                filterer=None):
     '''
     Initialise BEATconfig File
     Have to fill it with data.
@@ -921,6 +927,8 @@ def init_nonlin(name, year, project_dir='./', store_superdir='',
     config.crust_inds = range(1 + n_variations)
     config.distances = distances
     config.blacklist = blacklist
+    config.arrival_taper = arrival_taper
+    config.filterer = filterer
 
     config.seismic_datadir = seismic_datadir
     config.geodetic_datadir = geodetic_datadir
