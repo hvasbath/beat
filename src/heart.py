@@ -92,18 +92,18 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
                     patch = gf.RectangularSource(
                         lat=float(self.lat),
                         lon=float(self.lon),
-                        east_shift=sub_center[0] + self.east_shift,
-                        north_shift=sub_center[1] + self.north_shift,
+                        east_shift=float(sub_center[0] + self.east_shift),
+                        north_shift=float(sub_center[1] + self.north_shift),
                         depth=float(sub_center[2]),
                         strike=self.strike, dip=self.dip, rake=self.rake,
                         length=length, width=width, stf=self.stf,
                         time=self.time, slip=self.slip)
                 elif datatype == 'geo':
                     patch = pscmp.PsCmpRectangularSource(
-                        lat=float(self.lat),
-                        lon=float(self.lon),
-                        east_shift=sub_center[0] + self.east_shift,
-                        north_shift=sub_center[1] + self.north_shift,
+                        lat=self.lat,
+                        lon=self.lon,
+                        east_shift=float(sub_center[0] + self.east_shift),
+                        north_shift=float(sub_center[1] + self.north_shift),
                         depth=float(sub_center[2]),
                         strike=self.strike, dip=self.dip, rake=self.rake,
                         length=length, width=width, slip=self.slip,

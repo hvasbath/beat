@@ -194,6 +194,25 @@ def transform_sources(sources):
     return seismic_sources, geodetic_sources
 
 
+def split_point(point):
+    '''
+    Split point in solution space into List of dictionaries with source
+    parameters for each source.
+    :py:param: point :py:class:`pymc3.Point`
+    '''
+    n_sources = point[point.keys()[0]].shape[0]
+
+    source_points = []
+    for i in range(n_sources):
+        source_param_dict = dict()
+        for param, value in point.iteritems():
+            source_param_dict[param] = float(value[i])
+
+        source_points.append(source_param_dict)
+
+    return source_points
+
+
 def utm_to_loc(utmx, utmy, zone, event):
     '''
     Convert UTM[m] to local coordinates with reference to the :py:class:`Event`

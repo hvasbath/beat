@@ -316,9 +316,11 @@ class GeometryOptimizer(Project):
         Input: Point dictionary from pymc3
         '''
         # update sources
-        for s, source in enumerate(self.sources):
-            for param, value in point.iteritems():
-                source.update(param=value[s])
+
+        source_points = utility.split_point(point)
+
+        for i, source in enumerate(self.sources):
+            source.update(**source_points[i])
 
         seismic_sources, geodetic_sources = utility.transform_sources(
                                                             self.sources)
