@@ -11,7 +11,10 @@ import os
 import theano
 
 from pyrocko import util
-
+from pymc3.model import modelcontext
+from pymc3.blocking import DictToArrayBijection
+from pymc3.vartypes import discrete_types
+from pymc3.theanof import inputvars
 from pymc3.theanof import make_shared_replacements, join_nonshared_inputs
 from pymc3.step_methods.metropolis import MultivariateNormalProposal as MvNPd
 from numpy.random import seed
@@ -69,11 +72,11 @@ class ATMCMC(pm.arraystep.ArrayStepShared):
                  likelihood_name='like', proposal_dist=MvNPd,
                  coef_variation=1., **kwargs):
 
-        model = pm.modelcontext(model)
+        model = modelcontext(model)
 
         if vars is None:
             vars = model.vars
-        vars = pm.inputvars(vars)
+        vars = inputvars(vars)
 
         if covariance is None:
             self.covariance = np.eye(sum(v.dsize for v in vars))
@@ -96,7 +99,7 @@ class ATMCMC(pm.arraystep.ArrayStepShared):
         self.likelihoods = []
         self.likelihood_name = likelihood_name
         self.discrete = np.concatenate(
-            [[v.dtype in pm.discrete_types] * (v.dsize or 1) for v in vars])
+            [[v.dtype in discrete_types] * (v.dsize or 1) for v in vars])
         self.any_discrete = self.discrete.any()
         self.all_discrete = self.discrete.all()
 
@@ -233,7 +236,7 @@ class ATMCMC(pm.arraystep.ArrayStepShared):
         array_population = np.zeros((self.n_chains,
                                       self.ordering.dimensions))
         n_steps = len(mtrace)
-        bij = pm.DictToArrayBijection(self.ordering, self.population[0])
+        bij = DictToArrayBijection(self.ordering, self.population[0])
 
         if self.stage > 0:
             # collect end points of each chain and put into array
@@ -279,7 +282,7 @@ class ATMCMC(pm.arraystep.ArrayStepShared):
         '''
         Calculate mean of the end-points and return point.
         '''
-        bij = pm.DictToArrayBijection(self.ordering, self.population[0])
+        bij = DictToArrayBijection(self.ordering, self.population[0])
         return bij.rmap(self.array_population.mean(axis=0))
 
     def resample(self):
@@ -564,14 +567,16 @@ def _iter_parallel_chains(parallel, **kwargs):
     Do Metropolis sampling over all the chains with each chain being
     sampled 'draws' times. Parallel execution according to njobs.
     """
+
     stage_path = kwargs.pop('stage_path')
     step = kwargs['step']
+    model = kwargs.pop('model')
     chains = list(range(step.n_chains))
     trace_list = []
 
     print('Initialising chain traces ...')
     for chain in chains:
-        trace_list.append(pm.backends.Text(stage_path))
+        trace_list.append(pm.backends.Text(stage_path, model=model))
 
     print('Sampling ...')
     traces = parallel(delayed(
