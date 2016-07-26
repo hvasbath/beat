@@ -48,11 +48,12 @@ class Project(Object):
             seis_likelihoods = mtrace.get_values(self._seis_like_name)
             geo_likelihoods = mtrace.get_values(self._geo_like_name)
 
-        seis_target_cov = num.cov(seis_likelihoods, bias=False, rowvar=0)
-        geo_target_cov = num.cov(geo_likelihoods, bias=False, rowvar=0)
-
-        self.seis_misfit_icov.set_value(num.linalg.inv(seis_target_cov))
-        self.geo_misfit_icov.set_value(num.linalg.inv(geo_target_cov))
+        seis_target_weights = num.mean(seis_likelihoods, axis=0) / \
+                              seis_likelihoods.sum(axis=0)
+        geo_target_weights = num.mean(geo_likelihoods, axis=0) / \
+                            geo_likelihoods.sum(axis=0)
+        self.seis_llk_weights.set_value(num.diag(seis_target_weights))
+        self.geo_llk_weights.set_value(num.diag(geo_target_weights))
 
     def init_atmip(self, n_chains=100, tune_interval=10):
         '''
@@ -190,9 +191,12 @@ class GeometryOptimizer(Project):
             self.stargets[s_t].covariance.set_inverse()
             self.sweights.append(shared(self.stargets[s_t].covariance.icov))
 
-        # Target weights, initially identity matrix = equal weights
-        self.seis_misfit_icov = shared(num.eye(self.ns_t))
-        self.geo_misfit_icov = shared(num.eye(self.ng_t))
+        # Target weights, initially identity matrix 
+        # equal weights adding up to 1.
+        self.seis_llk_weights = shared(
+            num.eye(self.ns_t)) * (1. / self.ns_t)
+        self.geo_llk_weights = shared(
+            num.eye(self.ng_t)) * (1. / self.ns_t)
 
         # merge geodetic data to call pscmp only once each forward model
         self.Bij = utility.ListToArrayBijection(ordering, disp_list)
@@ -300,53 +304,53 @@ class GeometryOptimizer(Project):
             # sum up geodetic and seismic likelihood
             like = pm.Deterministic(
                 self._like_name,
-                seis_llk.T.dot(self.seis_misfit_icov).sum() + \
-                geo_llk.T.dot(self.geo_misfit_icov).sum())
+                seis_llk.T.dot(self.seis_llk_weights).sum() + \
+                geo_llk.T.dot(self.geo_llk_weights).sum())
             llk = pm.Potential(self._like_name, like)
             logger.info('Model building was successful!')
 
-        def update_weights(self, point):
-            '''
-            Calculate and update model prediction uncertainty covariances
-            due to uncertainty in the velocity model.
-            Input: Point dictionary from pymc3
-            '''
-            # update sources
-            for s, source in enumerate(self.sources):
-                for param, value in point.iteritems():
-                    source.update(param=value[s])
+    def update_weights(self, point):
+        '''
+        Calculate and update model prediction uncertainty covariances
+        due to uncertainty in the velocity model.
+        Input: Point dictionary from pymc3
+        '''
+        # update sources
+        for s, source in enumerate(self.sources):
+            for param, value in point.iteritems():
+                source.update(param=value[s])
 
-            seismic_sources, geodetic_sources = utility.transform_sources(
-                                                                self.sources)
+        seismic_sources, geodetic_sources = utility.transform_sources(
+                                                            self.sources)
 
-            # seismic
-            for channel in self.config.channels:
-                for i, station in enumerate(self.stations):
-                    crust_targets = heart.init_targets(
-                                  stations=[station],
-                                  channels=channel,
-                                  sample_rate=self.config.sample_rate,
-                                  crust_inds=self.config.crust_inds)
+        # seismic
+        for channel in self.config.channels:
+            for i, station in enumerate(self.stations):
+                crust_targets = heart.init_targets(
+                              stations=[station],
+                              channels=channel,
+                              sample_rate=self.config.sample_rate,
+                              crust_inds=self.config.crust_inds)
 
-                    self.stargets[i].covariance.pred_v = \
-                        cov.get_seis_cov_velocity_models(
-                                 engine=self.engine,
-                                 sources=seismic_sources,
-                                 crust_inds=self.config.crust_inds,
-                                 targets=crust_targets,
-                                 sample_rate=self.config.sample_rate,
-                                 arrival_taper=self.config.arrival_taper,
-                                 corner_fs=self.config.corner_fs)
+                self.stargets[i].covariance.pred_v = \
+                    cov.get_seis_cov_velocity_models(
+                             engine=self.engine,
+                             sources=seismic_sources,
+                             crust_inds=self.config.crust_inds,
+                             targets=crust_targets,
+                             sample_rate=self.config.sample_rate,
+                             arrival_taper=self.config.arrival_taper,
+                             corner_fs=self.config.corner_fs)
 
-                    self.sweights[i].set_value(
-                        self.stargets[i].covariance.inverse())
+                self.sweights[i].set_value(
+                    self.stargets[i].covariance.inverse())
 
-            # geodetic
-            for i, gtarget in enumerate(self.gtargets):
-                gtarget.covariance.pred_v = cov.get_geo_cov_velocity_models(
-                         store_superdir=self.config.store_superdir,
-                         crust_inds=self.config.crust_inds,
-                         dataset=gtarget,
-                         sources=geodetic_sources)
+        # geodetic
+        for i, gtarget in enumerate(self.gtargets):
+            gtarget.covariance.pred_v = cov.get_geo_cov_velocity_models(
+                     store_superdir=self.config.store_superdir,
+                     crust_inds=self.config.crust_inds,
+                     dataset=gtarget,
+                     sources=geodetic_sources)
 
-                self.gweights[i].set_value(gtarget.covariance.inverse())
+            self.gweights[i].set_value(gtarget.covariance.inverse())

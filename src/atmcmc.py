@@ -10,6 +10,8 @@ import pymc3 as pm
 import os
 import theano
 
+from pyrocko import util
+
 from pymc3.theanof import make_shared_replacements, join_nonshared_inputs
 from pymc3.step_methods.metropolis import MultivariateNormalProposal as MvNPd
 from numpy.random import seed
@@ -416,8 +418,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
     homepath = trace
 
-    if not os.path.exists(homepath):
-        os.mkdir(homepath)
+    util.ensuredir(homepath)
 
     with model:
         with Parallel(n_jobs=njobs, verbose=verbosity) as parallel:

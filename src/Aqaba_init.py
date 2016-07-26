@@ -68,7 +68,8 @@ def build_geo_gfs():
         heart.geo_construct_gf(event, store_superdir,
              source_distance_min=0., source_distance_max=100.,
              source_depth_min=0., source_depth_max=50.,
-             source_spacing=0.5, earth_model='ak135-f-average.m',
+             source_distance_spacing=10., source_depth_spacing=0.5, 
+             earth_model='ak135-f-average.m',
              crust_ind=crust_ind, execute=True)
         logger.info('Done building model %i / %i \n' % (crust_ind + 1, n_mods))
 
@@ -86,5 +87,5 @@ def check_model_setup():
 
 if __name__ == '__main__':
 #    config = init()
-#    build_geo_gfs()
-    check_model_setup()
+    build_geo_gfs()
+#    check_model_setup()

@@ -700,27 +700,29 @@ def seis_construct_gf(station, event, superdir, code='QSSP',
 def geo_construct_gf(event, superdir,
                      source_distance_min=0., source_distance_max=100.,
                      source_depth_min=0., source_depth_max=40.,
-                     source_spacing=0.5, earth_model='ak135-f-average.m',
-                     crust_ind=0, execute=True):
+                     source_distance_spacing=5., source_depth_spacing=0.5,
+                     earth_model='ak135-f-average.m', crust_ind=0, execute=True):
     '''
     Given a :py:class:`Event` the crustal model :py:class:`LayeredModel` from
     :py:class:`Crust2Profile` at the event location is extracted and the
     geodetic greens functions are calculated with the given grid resolution.
     '''
-    conf = psgrn.PsGrnConfigFull()
+    config = psgrn.PsGrnConfigFull()
 
-    n_steps_depth = (source_depth_max - source_depth_min) / source_spacing
-    n_steps_distance = (source_distance_max - source_distance_min) \
-                            / source_spacing
+    n_steps_depth = (source_depth_max - source_depth_min) / \
+                    source_depth_spacing
+    n_steps_distance = (source_distance_max - source_distance_min) / \
+                    source_distance_spacing
 
-    conf.distance_grid = psgrn.PsGrnSpatialSampling(
+    config.distance_grid = psgrn.PsGrnSpatialSampling(
                                 n_steps=n_steps_distance,
                                 start_distance=source_distance_min,
                                 end_distance=source_distance_max)
-    conf.depth_grid = psgrn.PsGrnSpatialSampling(
+    config.depth_grid = psgrn.PsGrnSpatialSampling(
                                 n_steps=n_steps_depth,
                                 start_distance=source_depth_min,
                                 end_distance=source_depth_max)
+    config.sampling_interval = 10.
 
     # extract source crustal profile and check for water layer
     source_profile = crust2x2.get_profile(event.lat, event.lon)
@@ -752,15 +754,15 @@ def geo_construct_gf(event, superdir,
                                            err_velocities=err_velocities,
                                            depth_limit=None)[0]
 
-    conf.earthmodel_1d = source_model
-    conf.psgrn_outdir = superdir + 'psgrn_green_%i/' % (crust_ind)
-    conf.validate()
+    config.earthmodel_1d = source_model
+    config.psgrn_outdir = superdir + 'psgrn_green_%i/' % (crust_ind)
+    config.validate()
 
-    logger.info('Creating Geo GFs in directory: %s' % conf.psgrn_outdir)
+    logger.info('Creating Geo GFs in directory: %s' % config.psgrn_outdir)
 
-    runner = psgrn.PsGrnRunner(outdir=conf.psgrn_outdir)
+    runner = psgrn.PsGrnRunner(outdir=config.psgrn_outdir)
     if execute:
-        runner.run(conf)
+        runner.run(config)
 
 
 def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
