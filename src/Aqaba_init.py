@@ -81,8 +81,9 @@ def check_model_setup():
     problem = GeometryOptimizer(config)
 
     problem.built_model()
-#    test_logp = problem.model
-#    logger.info('The test probability is %f' % test_logp)
+    test_logp = problem.model.logpt.tag.test_value
+    logger.info('The likelihood of the test_model is %f' % float(test_logp))
+    problem.init_atmip(n_chains=5, tune_interval=2)
     return problem
 
 if __name__ == '__main__':

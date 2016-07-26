@@ -93,7 +93,7 @@ class Test_Pscmp(object):
                     self.crust_ind,
                     lons, lats, self.sources, keep_tmp=True)
         print self.sources[0].__dict__
-        return displ[0]
+        return displ
 
     def sym_pscmp_op(self):
         LONS = shared(lons)

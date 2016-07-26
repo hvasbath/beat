@@ -102,14 +102,12 @@ class GeoLayerSynthesizerStatic(theano.Op):
                           slip=float(sl))
             heart.update_center_coords(source, td * km)
 
-        displ = heart.geo_layer_synthetics(
+        z[0] = heart.geo_layer_synthetics(
             store_superdir=self.store_superdir,
             crust_ind=self.crust_ind,
             lons=self.lons,
             lats=self.lats,
             sources=self.sources)
-
-        z[0] = displ[0]
 
     def infer_shape(self, node, input_shapes):
         return [(len(self.lats), 3)]

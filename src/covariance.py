@@ -181,27 +181,30 @@ def get_model_prediction_sensitivity(engine, *args, **kwargs):
 
 
 def get_seis_cov_velocity_models(engine, sources, targets,
-                                  arrival_taper, filterer):
+                                  arrival_taper, filterer, plot=False):
     '''
     Calculate model prediction uncertainty matrix with respect to uncertainties
     in the velocity model for station and channel.
     Input:
-    :py:class:`BEATconfig` - wrapps and contains necessary input
-    :py:class:`station` - seismic station to be processed
-    channel - of the station to be processed ('T' or 'Z')
+    :py:class:`gf.Engine` - contains synthetics generation machine
+    :py:class:`gf.Targets` - targets to be processed
+    :py:class: `heart.ArrivalTaper` - Determines Tapering around Phase Arrival
     '''
 
     ref_target = copy.deepcopy(targets[0])
 
-    reference_taperer = heart.get_phase_taperer(engine,
-                                          sources[0],
-                                          ref_target,
-                                          arrival_taper)
+    reference_taperer = heart.get_phase_taperer(
+        engine,
+        sources[0],
+        ref_target,
+        arrival_taper)
 
-    synths = heart.seis_synthetics(engine, sources, targets,
-                             arrival_taper,
-                             filterer,
-                             reference_taperer=reference_taperer)
+    synths, _ = heart.seis_synthetics(
+        engine, sources, targets,
+        arrival_taper,
+        filterer,
+        reference_taperer=reference_taperer, plot=plot)
+
     return num.cov(synths, rowvar=0)
 
 
@@ -216,11 +219,16 @@ def get_geo_cov_velocity_models(store_superdir, crust_inds, dataset, sources):
     sources - List of :py:class:`PsCmpRectangularSource`
     '''
 
-    synths = num.zeros(len(crust_inds), dataset.lons.size)
-    for ind in crust_inds:
-        synths[:, ind] = heart.geo_layer_synthetics(store_superdir, ind,
-                                        lons=dataset.lons,
-                                        lats=dataset.lats,
-                                        sources=sources)
+    synths = num.zeros((len(crust_inds), dataset.lons.size))
+    for crust_ind in crust_inds:
+        disp = heart.geo_layer_synthetics(
+            store_superdir, crust_ind,
+            lons=dataset.lons,
+            lats=dataset.lats,
+            sources=sources)
+        synths[crust_ind, :] = (
+            disp[:, 0] * dataset.los_vector[:, 0] + \
+            disp[:, 1] * dataset.los_vector[:, 1] + \
+            disp[:, 2] * dataset.los_vector[:, 2]) * dataset.odw
 
     return num.cov(synths, rowvar=0)

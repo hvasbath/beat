@@ -243,7 +243,7 @@ class IFG(Object):
     wrapped_phase = Array.T(shape=(None,), dtype=num.float, optional=True)
     incidence = Array.T(shape=(None,), dtype=num.float, optional=True)
     heading = Array.T(shape=(None,), dtype=num.float, optional=True)
-    los_vec = Array.T(shape=(None, 3), dtype=num.float, optional=True)
+    los_vector = Array.T(shape=(None, 3), dtype=num.float, optional=True)
     utmn = Array.T(shape=(None,), dtype=num.float, optional=True)
     utme = Array.T(shape=(None,), dtype=num.float, optional=True)
     lats = Array.T(shape=(None,), dtype=num.float, optional=True)
@@ -261,7 +261,7 @@ class IFG(Object):
     def wavelength(self):
         return lambda_sensors[self.satellite]
 
-    def look_vector(self):
+    def update_los_vector(self):
         '''
         Calculate LOS vector for given incidence and heading.
         '''
@@ -273,7 +273,8 @@ class IFG(Object):
              num.cos(num.deg2rad(self.heading - 270))
         Se = - num.sin(num.deg2rad(self.incidence)) * \
              num.sin(num.deg2rad(self.heading - 270))
-        return num.array([Se, Sn, Su], dtype=num.float).T
+        self.los_vector = num.array([Se, Sn, Su], dtype=num.float).T
+        return self.los_vector
 
 
 class DiffIFG(IFG):
@@ -773,17 +774,17 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
            List of rectangular fault sources.
     Output: NumpyArray(nobservations; ux, uy, uz)
     '''
-    conf = pscmp.PsCmpConfigFull()
-    conf.observation = pscmp.PsCmpScatter(lats=lats, lons=lons)
-    conf.psgrn_outdir = store_superdir + 'psgrn_green_%i/' % (crust_ind)
+    config = pscmp.PsCmpConfigFull()
+    config.observation = pscmp.PsCmpScatter(lats=lats, lons=lons)
+    config.psgrn_outdir = store_superdir + 'psgrn_green_%i/' % (crust_ind)
     # only coseismic displacement
-    conf.times_snapshots = [0]
-    conf.rectangular_source_patches = sources
+    config.times_snapshots = [0]
+    config.rectangular_source_patches = sources
 
     runner = pscmp.PsCmpRunner(keep_tmp=keep_tmp)
-    runner.run(conf)
+    runner.run(config)
     # returns list of displacements for each snapshot
-    return runner.get_results(component='displ', flip_z=True)
+    return runner.get_results(component='displ', flip_z=True)[0]
 
 
 def get_phase_arrival_time(engine, source, target):

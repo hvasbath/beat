@@ -165,11 +165,11 @@ class GeometryOptimizer(Project):
         # geodetic data
         ordering = utility.ArrayOrdering(self.gtargets)
 
-        disp_list = [self.gtargets[i].displacement for i in range(self.ng_t)]
-        lons_list = [self.gtargets[i].lons for i in range(self.ng_t)]
-        lats_list = [self.gtargets[i].lats for i in range(self.ng_t)]
-        odws_list = [self.gtargets[i].odw for i in range(self.ng_t)]
-        lv_list = [self.gtargets[i].look_vector() for i in range(self.ng_t)]
+        _disp_list = [self.gtargets[i].displacement for i in range(self.ng_t)]
+        _lons_list = [self.gtargets[i].lons for i in range(self.ng_t)]
+        _lats_list = [self.gtargets[i].lats for i in range(self.ng_t)]
+        _odws_list = [self.gtargets[i].odw for i in range(self.ng_t)]
+        _lv_list = [self.gtargets[i].update_los_vector() for i in range(self.ng_t)]
 
         ## Data and model covariances
         logger.info('Getting data-covariances ...\n')
@@ -193,20 +193,18 @@ class GeometryOptimizer(Project):
 
         # Target weights, initially identity matrix 
         # equal weights adding up to 1.
-        self.seis_llk_weights = shared(
-            num.eye(self.ns_t)) * (1. / self.ns_t)
-        self.geo_llk_weights = shared(
-            num.eye(self.ng_t)) * (1. / self.ns_t)
+        self.seis_llk_weights = shared(num.eye(self.ns_t) * (1. / self.ns_t))
+        self.geo_llk_weights = shared(num.eye(self.ng_t) * (1. / self.ns_t))
 
         # merge geodetic data to call pscmp only once each forward model
-        self.Bij = utility.ListToArrayBijection(ordering, disp_list)
+        self.Bij = utility.ListToArrayBijection(ordering, _disp_list)
 
-        odws = self.Bij.fmap(odws_list)
-        lons = self.Bij.fmap(lons_list)
-        lats = self.Bij.fmap(lats_list)
+        odws = self.Bij.fmap(_odws_list)
+        lons = self.Bij.fmap(_lons_list)
+        lats = self.Bij.fmap(_lats_list)
 
-        self.wdata = shared(self.Bij.fmap(disp_list) * odws)
-        self.lv = shared(self.Bij.f3map(lv_list))
+        self.wdata = shared(self.Bij.fmap(_disp_list) * odws)
+        self.lv = shared(self.Bij.f3map(_lv_list))
         self.odws = shared(odws)
 
         # syntetics generation
@@ -261,7 +259,8 @@ class GeometryOptimizer(Project):
             t0 = time.time()
             disp = self.get_geo_synths(*self.geo_input_rvs)
             t1 = time.time()
-            logger.info('Geodetic forward model takes: %f' % (t1 - t0))
+            logger.info('Geodetic forward model on test model takes: %f' % \
+                        (t1 - t0))
 
             los = (disp[:, 0] * self.lv[:, 0] + \
                    disp[:, 1] * self.lv[:, 1] + \
@@ -277,7 +276,8 @@ class GeometryOptimizer(Project):
             t2 = time.time()
             synths, tmins = self.get_seis_synths(*self.seis_input_rvs)
             t3 = time.time()
-            logger.info('Teleseismic forward model takes: %f' % (t3 - t2))
+            logger.info('Teleseismic forward model on test model takes: %f' % \
+                        (t3 - t2))
 
             data_trcs = self.chop_traces(tmins)
 
@@ -309,10 +309,11 @@ class GeometryOptimizer(Project):
             llk = pm.Potential(self._like_name, like)
             logger.info('Model building was successful!')
 
-    def update_weights(self, point):
+    def update_weights(self, point, plot=False):
         '''
         Calculate and update model prediction uncertainty covariances
-        due to uncertainty in the velocity model.
+        due to uncertainty in the velocity model with respect to one point
+        in the solution space.
         Input: Point dictionary from pymc3
         '''
         # update sources
@@ -334,18 +335,19 @@ class GeometryOptimizer(Project):
                               sample_rate=self.config.sample_rate,
                               crust_inds=self.config.crust_inds)
 
-                self.stargets[i].covariance.pred_v = \
-                    cov.get_seis_cov_velocity_models(
+                cov_velocity_model = cov.get_seis_cov_velocity_models(
                              engine=self.engine,
                              sources=seismic_sources,
-                             crust_inds=self.config.crust_inds,
                              targets=crust_targets,
-                             sample_rate=self.config.sample_rate,
                              arrival_taper=self.config.arrival_taper,
-                             corner_fs=self.config.corner_fs)
+                             filterer=self.config.filterer,
+                             plot=plot)
 
+                self.engine.close_cashed_stores()
+
+                self.stargets[i].covariance.pred_v = cov_velocity_model
                 self.sweights[i].set_value(
-                    self.stargets[i].covariance.inverse())
+                    self.stargets[i].covariance.set_inverse())
 
         # geodetic
         for i, gtarget in enumerate(self.gtargets):
@@ -355,4 +357,4 @@ class GeometryOptimizer(Project):
                      dataset=gtarget,
                      sources=geodetic_sources)
 
-            self.gweights[i].set_value(gtarget.covariance.inverse())
+            self.gweights[i].set_value(gtarget.covariance.set_inverse())
