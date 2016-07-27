@@ -20,11 +20,12 @@ from pymc3.step_methods.metropolis import MultivariateNormalProposal as MvNPd
 from numpy.random import seed
 from joblib import Parallel, delayed
 
+from beat import backend
 
 __all__ = ['ATMCMC', 'ATMIP_sample']
 
 
-class ATMCMC(pm.arraystep.ArrayStepShared):
+class ATMCMC(backend.ArrayStepSharedLLK):
     """
     Adaptive Transitional Markov-Chain Monte-Carlo
     following: Ching & Chen 2007: Transitional Markov chain Monte Carlo method
@@ -40,6 +41,9 @@ class ATMCMC(pm.arraystep.ArrayStepShared):
     ----------
     vars : list
         List of variables for sampler
+    out_vars : list
+        List of output variables for trace recording. If empty unobserved_RVs
+        are taken.
     n_chains : (integer) Number of chains per stage has to be a large number
                of number of njobs (processors to be used) on the machine.
     covariance : (n_chains x n_chains) Numpy array
@@ -67,16 +71,22 @@ class ATMCMC(pm.arraystep.ArrayStepShared):
     """
     default_blocked = True
 
-    def __init__(self, vars=None, covariance=None, scaling=1., n_chains=100,
-                 tune=True, tune_interval=100, model=None, check_bound=True,
-                 likelihood_name='like', proposal_dist=MvNPd,
+    def __init__(self, vars=None, out_vars=None, covariance=None, scaling=1.,
+                 n_chains=100, tune=True, tune_interval=100, model=None,
+                 check_bound=True, likelihood_name='like', proposal_dist=MvNPd,
                  coef_variation=1., **kwargs):
 
         model = modelcontext(model)
 
         if vars is None:
             vars = model.vars
+
         vars = inputvars(vars)
+
+        if out_vars is None:
+            out_vars = model.unobserved_RVs
+
+        out_varnames = [out_vars.name for var in vars]
 
         if covariance is None:
             self.covariance = np.eye(sum(v.dsize for v in vars))
@@ -94,10 +104,15 @@ class ATMCMC(pm.arraystep.ArrayStepShared):
 
         self.beta = 0
         self.stage = 0
+        self.chain_index = 0
+        self.resampling_indexes = np.arange(n_chains)
+
         self.coef_variation = coef_variation
         self.n_chains = n_chains
         self.likelihoods = []
+        self.chain_previous_point = []
         self.likelihood_name = likelihood_name
+        self._llk_index = out_varnames.index(likelihood_name)
         self.discrete = np.concatenate(
             [[v.dtype in discrete_types] * (v.dsize or 1) for v in vars])
         self.any_discrete = self.discrete.any()
@@ -112,16 +127,16 @@ class ATMCMC(pm.arraystep.ArrayStepShared):
             self.population.append(dummy)
 
         shared = make_shared_replacements(vars, model)
-        self.logp_forw = logp_forw(model.logpt, vars, shared)
+        self.logp_forw = logp_forw(out_vars, vars, shared)
         self.check_bnd = logp_forw(model.varlogpt, vars, shared)
-        self.delta_logp = pm.metropolis.delta_logp(model.logpt, vars, shared)
 
-        super(ATMCMC, self).__init__(vars, shared)
+        super(ATMCMC, self).__init__(vars, out_vars, shared)
 
     def astep(self, q0):
         if self.stage == 0:
-            self.likelihoods.append(self.logp_forw(q0))
-            q_new = q0
+            q_new = self.logp_forw(q0)
+            self.likelihoods.append(q_new[self._llk_index])
+            self.chain_previous_point.append(q_new)
         else:
             if not self.stage_sample:
                 self.proposal_samples_array = self.proposal_dist(self.n_steps)
@@ -153,16 +168,24 @@ class ATMCMC(pm.arraystep.ArrayStepShared):
             if self.check_bnd:
                 varlogp = self.check_bnd(q)
                 if np.isfinite(varlogp):
+                    q = self.logp_forw(q0)
+                    q_p = self.chain_previous_point[
+                            self.resampling_index[self.chain_index]]
                     q_new = pm.metropolis.metrop_select(
-                                    self.beta * self.delta_logp(q, q0), q, q0)
-                    if q_new is q:
+                        self.beta * (q(self._llk_index) - q_p(self._llk_index)),
+                        q, q_p)
+                    if set(q_new) == set(q):
                         self.accepted += 1
                 else:
-                    q_new = q0
+                    q_new = q_p
             else:
+                q = self.logp_forw(q0)
+                q_p = self.chain_previous_point[
+                        self.resampling_index[self.chain_index]]
                 q_new = pm.metropolis.metrop_select(
-                                self.beta * self.delta_logp(q, q0), q, q0)
-                if q_new is q:
+                    self.beta * (q(self._llk_index) - q_p(self._llk_index)),
+                    q, q_p)
+                if set(q_new) == set(q):
                     self.accepted += 1
 
             self.steps_until_tune -= 1
@@ -431,11 +454,12 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                     # Initial stage
                     print('Sample initial stage: ...')
                     stage_path = homepath + '/stage_' + str(step.stage)
-                    trace = pm.backends.Text(stage_path, model=model)
+                    trace = backend.Text(stage_path, model=model)
                     initial = _iter_initial(step, chain=chain, trace=trace)
                     progress = pm.progressbar.progress_bar(step.n_chains)
                     try:
                         for i, strace in enumerate(initial):
+                            step.chain_index += 1
                             if progressbar:
                                 progress.update(i)
                     except KeyboardInterrupt:
@@ -445,13 +469,14 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                                             step.select_end_points(mtrace)
                     step.beta, step.old_beta, step.weights = step.calc_beta()
                     step.covariance = step.calc_covariance()
-                    step.res_indx = step.resample()
+                    step.resampling_indexes = step.resample()
 
                     if update is not None:
                         print('Updating Covariances ...')
                         mean_pt = step.mean_end_points()
                         update.update_weights(mean_pt)
-                        update.update_target_weights(mtrace, step.stage, n_steps)
+                        update.update_target_weights(
+                            mtrace, step.stage, n_steps)
 
                     step.stage += 1
                     del(strace, mtrace, trace)
@@ -479,7 +504,8 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                         print('Updating Covariances ...')
                         mean_pt = step.mean_end_points()
                         update.update_weights(mean_pt)
-                        update.update_target_weights(mtrace, step.stage, n_steps)
+                        update.update_target_weights(
+                            mtrace, step.stage, n_steps)
 
                     step.stage += 1
 
@@ -489,7 +515,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                         break
 
                     step.covariance = step.calc_covariance()
-                    step.res_indx = step.resample()
+                    step.resampling_indexes = step.resample()
                     del(mtrace)
 
             # Metropolis sampling final stage
@@ -500,7 +526,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
             step.weights = temp / np.sum(temp)
             step.covariance = step.calc_covariance()
             step.proposal_dist = MvNPd(step.covariance)
-            step.res_indx = step.resample()
+            step.resampling_indexes = step.resample()
 
             sample_args['step'] = step
             sample_args['stage_path'] = stage_path
@@ -510,6 +536,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
 def _iter_initial(step, chain=0, trace=None, model=None):
     """
+    Modified from pymc3 to work with ATMCMC.
     Yields generator for Iteration over initial stage similar to
     _iter_sample, just different input to loop over.
     """
@@ -531,7 +558,7 @@ def _iter_initial(step, chain=0, trace=None, model=None):
             yield strace
     else:
         for i in range(l_tr, step.n_chains):
-            point = step.step(step.population[i])
+            point = step.step(step.population[i], i)
             strace.record(point)
             yield strace
         else:
@@ -549,7 +576,7 @@ def _iter_serial_chains(draws, step=None, stage_path=None,
     for chain in range(step.n_chains):
         if progressbar:
             progress.update(chain)
-        trace = pm.backends.Text(stage_path, model=model)
+        trace = backend.Text(stage_path, model=model)
         mtraces.append(pm.sampling._sample(
                 draws=draws,
                 step=step,
@@ -557,7 +584,7 @@ def _iter_serial_chains(draws, step=None, stage_path=None,
                 trace=trace,
                 model=model,
                 progressbar=False,
-                start=step.population[step.res_indx[chain]]))
+                start=step.population[step.resampling_indexes[chain]]))
 
     return pm.sampling.merge_traces(mtraces)
 
@@ -576,14 +603,14 @@ def _iter_parallel_chains(parallel, **kwargs):
 
     print('Initialising chain traces ...')
     for chain in chains:
-        trace_list.append(pm.backends.Text(stage_path, model=model))
+        trace_list.append(backend.Text(stage_path, model=model))
 
     print('Sampling ...')
     traces = parallel(delayed(
                     pm.sampling._sample)(
                         chain=chain,
                         trace=trace_list[chain],
-                        start=step.population[step.res_indx[chain]],
+                        start=step.population[step.resampling_indexes[chain]],
                         **kwargs) for chain in chains)
     return pm.sampling.merge_traces(traces)
 
@@ -607,8 +634,8 @@ def tune(acc_rate):
     return np.power((a + (b * acc_rate)), 2)
 
 
-def logp_forw(logp, vars, shared):
-    [logp0], inarray0 = join_nonshared_inputs([logp], vars, shared)
-    f = theano.function([inarray0], logp0)
+def logp_forw(out_vars, vars, shared):
+    out_list, inarray0 = join_nonshared_inputs(out_vars, vars, shared)
+    f = theano.function([inarray0], out_list)
     f.trust_input = True
     return f

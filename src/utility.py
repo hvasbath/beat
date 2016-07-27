@@ -14,20 +14,20 @@ from pyproj import Proj
 DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype')
 
 
-class ArrayOrdering(object):
+class ListArrayOrdering(object):
     """
     An ordering for an array space. Modified from pymc3 blocking.
     """
-    def __init__(self, gtargets):
+    def __init__(self, list_array):
         self.vmap = []
         dim = 0
 
         count = 0
-        for target in gtargets:
-            slc = slice(dim, dim + target.displacement.size)
-            self.vmap.append(DataMap(count, slc, target.displacement.shape,
-                                                 target.displacement.dtype))
-            dim += target.displacement.size
+        for array in list_array:
+            slc = slice(dim, dim + array.size)
+            self.vmap.append(DataMap(count, slc, array.shape,
+                                                 array.dtype))
+            dim += array.size
             count += 1
 
         self.dimensions = dim
