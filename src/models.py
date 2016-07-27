@@ -327,7 +327,7 @@ class GeometryOptimizer(Project):
                                                             self.sources)
 
         # seismic
-        for channel in self.config.channels:
+        for j, channel in enumerate(self.config.channels):
             for i, station in enumerate(self.stations):
                 crust_targets = heart.init_targets(
                               stations=[station],
@@ -345,9 +345,12 @@ class GeometryOptimizer(Project):
 
                 self.engine.close_cashed_stores()
 
-                self.stargets[i].covariance.pred_v = cov_velocity_model
-                self.sweights[i].set_value(
-                    self.stargets[i].covariance.set_inverse())
+                index = j * len(self.stations) + i
+
+                self.stargets[index].covariance.pred_v = cov_velocity_model
+                self.stargets[index].covariance.set_inverse()
+                self.sweights[index].set_value(
+                    self.stargets[index].covariance.icov)
 
         # geodetic
         for i, gtarget in enumerate(self.gtargets):
@@ -357,4 +360,5 @@ class GeometryOptimizer(Project):
                      dataset=gtarget,
                      sources=geodetic_sources)
 
-            self.gweights[i].set_value(gtarget.covariance.set_inverse())
+            gtarget.covariance.set_inverse()
+            self.gweights[i].set_value(gtarget.covariance.icov)
