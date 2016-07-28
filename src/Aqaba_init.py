@@ -83,10 +83,11 @@ def check_model_setup():
     problem.built_model()
     test_logp = problem.model.logpt.tag.test_value
     logger.info('The likelihood of the test_model is %f' % float(test_logp))
-    problem.init_atmip(n_chains=5, tune_interval=2)
-    return problem
+    problem.init_atmip(n_chains=200, tune_interval=10)
+    mtrace = problem.sample(n_steps=50)
+    return mtrace
 
 if __name__ == '__main__':
 #    config = init()
-    build_geo_gfs()
-#    check_model_setup()
+#    build_geo_gfs()
+    check_model_setup()

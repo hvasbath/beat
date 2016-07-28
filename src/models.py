@@ -48,12 +48,14 @@ class Project(Object):
             seis_likelihoods = mtrace.get_values(self._seis_like_name)
             geo_likelihoods = mtrace.get_values(self._geo_like_name)
 
-        seis_target_weights = num.mean(seis_likelihoods, axis=0) / \
-                              seis_likelihoods.sum(axis=0)
-        geo_target_weights = num.mean(geo_likelihoods, axis=0) / \
-                            geo_likelihoods.sum(axis=0)
-        self.seis_llk_weights.set_value(num.diag(seis_target_weights))
-        self.geo_llk_weights.set_value(num.diag(geo_target_weights))
+        seis_mean_target = num.mean(seis_likelihoods, axis=0)
+        geo_mean_target = num.mean(geo_likelihoods, axis=0)
+
+        Ws = num.diag(1. / seis_mean_target)
+        Wg = num.diag(1. / geo_mean_target)
+
+        self.seis_llk_weights.set_value(Ws)
+        self.geo_llk_weights.set_value(Wg)
 
     def init_atmip(self, n_chains=100, tune_interval=10):
         '''

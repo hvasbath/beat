@@ -19,7 +19,7 @@ from pymc3.theanof import make_shared_replacements, join_nonshared_inputs
 from pymc3.step_methods.metropolis import MultivariateNormalProposal as MvNPd
 from numpy.random import seed
 from joblib import Parallel, delayed
-
+import pickle
 from beat import backend
 
 __all__ = ['ATMCMC', 'ATMIP_sample']
@@ -495,8 +495,8 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                         print('Updating Covariances ...')
                         mean_pt = step.mean_end_points()
                         update.update_weights(mean_pt)
-                        update.update_target_weights(
-                            mtrace, step.stage, n_steps)
+#                        update.update_target_weights(
+#                            mtrace, step.stage, n_steps)
 
                     step.chain_index = 0
                     step.stage += 1
@@ -525,8 +525,12 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                         print('Updating Covariances ...')
                         mean_pt = step.mean_end_points()
                         update.update_weights(mean_pt)
-                        update.update_target_weights(
-                            mtrace, step.stage, n_steps)
+#                        update.update_target_weights(
+#                            mtrace, step.stage, n_steps)
+
+                    outpath = stage_path + '/atmip.params'
+                    outparam_list = [step]
+                    dump_params(outpath, outparam_list)
 
                     step.stage += 1
 
@@ -552,8 +556,17 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
             sample_args['step'] = step
             sample_args['stage_path'] = stage_path
             mtrace = _iter_parallel_chains(parallel, **sample_args)
+            outpath = stage_path + '/atmip.params'
+            outparam_list = [step]
+            dump_params(outpath, outparam_list)
             return mtrace
 
+def dump_params(outpath, outparam_list):
+    '''
+    Dump parameters in outparam_list into pickle file.
+    '''
+    with open(outpath,'w') as f:
+        pickle.dump(outparam_list, f)
 
 def _iter_initial(step, chain=0, strace=None, model=None):
     """
