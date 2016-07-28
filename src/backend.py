@@ -18,14 +18,12 @@ represents two variables, x and y, where x is a scalar and y has a
 shape of (3, 2).
 """
 from glob import glob
-import numpy as num
+
 import os
 import pandas as pd
 
-import time
-
 import pymc3
-from pymc3.theanof import modelcontext
+from pymc3.model import modelcontext
 from pymc3.backends import base, ndarray
 from pymc3.backends import tracetab as ttab
 from pymc3.blocking import DictToArrayBijection, ArrayOrdering
@@ -49,17 +47,18 @@ class ArrayStepSharedLLK(pymc3.arraystep.BlockedStep):
         self.ordering = ArrayOrdering(vars)
         self.shared = {var.name: shared for var, shared in shared.items()}
         self.blocked = blocked
-        self.bij_in = None
-        self.bij_out = None
+        self.bij = None
 
     def step(self, point):
         for var, share in self.shared.items():
             share.container.storage[0] = point[var]
 
-        if self.bij_in is None:
-            self.bij_in = DictToArrayBijection(self.ordering, point)
+        if self.bij is None:
+            self.bij = DictToArrayBijection(self.ordering, point)
 
-        return self.astep(self.bij_in.map(point))
+        apoint, alist = self.astep(self.bij.map(point))
+
+        return self.bij.rmap(apoint), alist
 
 
 class BaseATMCMCTrace(object):
@@ -77,30 +76,26 @@ class BaseATMCMCTrace(object):
     """
     def __init__(self, name, model=None, vars=None):
         self.name = name
-        print name
-        print 'Hier 1', time.time()
         model = modelcontext(model)
-        print 'Hier 2', time.time()
         self.model = model
+
         if vars is None:
             vars = model.unobserved_RVs
-            print 'Hier 3', vars, time.time()
+
         self.vars = vars
         self.varnames = [var.name for var in vars]
 
         ## Get variable shapes. Most backends will need this
         ## information.
-        print model.test_point
-        print 'Hier 6', time.time()
-        self.var_shapes_list = [num.atleast_1d(var.tag.test_value.shape)
-                        for var in vars]
-        self.var_dtype_list = [var.tag.test_value.dtype for var in vars]
+
+        self.var_shapes_list = [var.tag.test_value.shape for var in vars]
+        self.var_dtypes_list = [var.tag.test_value.dtype for var in vars]
 
         self.var_shapes = {var: shape
             for var, shape in zip(self.varnames, self.var_shapes_list)}
         self.var_dtypes = {var: dtype
             for var, dtype in zip(self.varnames, self.var_dtypes_list)}
-        print 'Hier 7', time.time()
+
         self.chain = None
 
     def __getitem__(self, idx):
@@ -175,13 +170,14 @@ class Text(BaseATMCMCTrace):
         point : List
             Values mapped to variable names
         """
-        import time
-        print time.time()
-        columns = [str(value.ravel()) for varname, value in zip(
-                                                self.varnames, point)]
+
+        vals = {}
+        for varname, value in zip(self.varnames, point):
+            vals[varname] = value.ravel()
+
+        columns = [str(val) for var in self.varnames for val in vals[var]]
 
         self._fh.write(','.join(columns) + '\n')
-        print time.time()
 
     def close(self):
         self._fh.close()
@@ -285,5 +281,6 @@ def dump(name, trace, chains=None):
 
     for chain in chains:
         filename = os.path.join(name, 'chain-{}.csv'.format(chain))
-        df = ttab.trace_to_dataframe(trace, chains=chain, flat_names=flat_names)
+        df = ttab.trace_to_dataframe(
+            trace, chains=chain, flat_names=flat_names)
         df.to_csv(filename, index=False)

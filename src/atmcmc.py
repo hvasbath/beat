@@ -86,7 +86,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         if out_vars is None:
             out_vars = model.unobserved_RVs
 
-        out_varnames = [out_vars.name for var in vars]
+        out_varnames = [out_var.name for out_var in out_vars]
 
         if covariance is None:
             self.covariance = np.eye(sum(v.dsize for v in vars))
@@ -109,7 +109,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         self.coef_variation = coef_variation
         self.n_chains = n_chains
-        self.likelihoods = []
+        self.likelihoods = np.zeros(n_chains)
         self.chain_previous_point = []
         self.likelihood_name = likelihood_name
         self._llk_index = out_varnames.index(likelihood_name)
@@ -128,15 +128,17 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         shared = make_shared_replacements(vars, model)
         self.logp_forw = logp_forw(out_vars, vars, shared)
-        self.check_bnd = logp_forw(model.varlogpt, vars, shared)
+        self.check_bnd = logp_forw([model.varlogpt], vars, shared)
 
         super(ATMCMC, self).__init__(vars, out_vars, shared)
 
     def astep(self, q0):
         if self.stage == 0:
-            q_new = self.logp_forw(q0)
-            self.likelihoods.append(q_new[self._llk_index])
-            self.chain_previous_point.append(q_new)
+            l_new = self.logp_forw(q0)
+            q_new = q0
+            self.likelihoods[self.chain_index] = l_new[self._llk_index]
+            self.chain_previous_point.append(l_new)
+
         else:
             if not self.stage_sample:
                 self.proposal_samples_array = self.proposal_dist(self.n_steps)
@@ -165,28 +167,44 @@ class ATMCMC(backend.ArrayStepSharedLLK):
             else:
                 q = q0 + delta
 
+            l0 = self.chain_previous_point[
+                            self.resampling_indexes[self.chain_index]]
+
             if self.check_bnd:
                 varlogp = self.check_bnd(q)
+
                 if np.isfinite(varlogp):
-                    q = self.logp_forw(q0)
-                    q_p = self.chain_previous_point[
-                            self.resampling_index[self.chain_index]]
+                    l = self.logp_forw(q)
                     q_new = pm.metropolis.metrop_select(
-                        self.beta * (q(self._llk_index) - q_p(self._llk_index)),
-                        q, q_p)
-                    if set(q_new) == set(q):
+                        self.beta * (l[self._llk_index] - l0[self._llk_index]),
+                        q, q0)
+
+                    if q_new is q:
                         self.accepted += 1
+                        l_new = l
+                        self.chain_previous_point[
+                            self.resampling_indexes[self.chain_index]] = l_new
+                    else:
+                        l_new = l0
                 else:
-                    q_new = q_p
+                    q_new = q0
+                    l_new = l0
             else:
-                q = self.logp_forw(q0)
-                q_p = self.chain_previous_point[
-                        self.resampling_index[self.chain_index]]
+                l = self.logp_forw(q)
                 q_new = pm.metropolis.metrop_select(
-                    self.beta * (q(self._llk_index) - q_p(self._llk_index)),
-                    q, q_p)
-                if set(q_new) == set(q):
+                    self.beta * (l[self._llk_index] - l0[self._llk_index]),
+                    q, q0)
+
+                self.chain_previous_point[
+                    self.resampling_indexes[self.chain_index]] = l_new
+
+                if q_new is q:
                     self.accepted += 1
+                    l_new = l
+                    self.chain_previous_point[
+                        self.resampling_indexes[self.chain_index]] = l_new
+                else:
+                    l_new = l0
 
             self.steps_until_tune -= 1
             self.stage_sample += 1
@@ -195,7 +213,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
             if self.stage_sample == self.n_steps:
                 self.stage_sample = 0
 
-        return q_new
+        return q_new, l_new
 
     def calc_beta(self):
         """
@@ -258,6 +276,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         array_population = np.zeros((self.n_chains,
                                       self.ordering.dimensions))
+
         n_steps = len(mtrace)
         bij = DictToArrayBijection(self.ordering, self.population[0])
 
@@ -455,7 +474,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                     print('Sample initial stage: ...')
                     stage_path = homepath + '/stage_' + str(step.stage)
                     trace = backend.Text(stage_path, model=model)
-                    initial = _iter_initial(step, chain=chain, trace=trace)
+                    initial = _iter_initial(step, chain=chain, strace=trace)
                     progress = pm.progressbar.progress_bar(step.n_chains)
                     try:
                         for i, strace in enumerate(initial):
@@ -465,6 +484,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                     except KeyboardInterrupt:
                         strace.close()
                     mtrace = pm.backends.base.MultiTrace([strace])
+
                     step.population, step.array_population, step.likelihoods = \
                                             step.select_end_points(mtrace)
                     step.beta, step.old_beta, step.weights = step.calc_beta()
@@ -478,6 +498,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                         update.update_target_weights(
                             mtrace, step.stage, n_steps)
 
+                    step.chain_index = 0
                     step.stage += 1
                     del(strace, mtrace, trace)
                 else:
@@ -534,14 +555,13 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
             return mtrace
 
 
-def _iter_initial(step, chain=0, trace=None, model=None):
+def _iter_initial(step, chain=0, strace=None, model=None):
     """
     Modified from pymc3 to work with ATMCMC.
     Yields generator for Iteration over initial stage similar to
     _iter_sample, just different input to loop over.
     """
 
-    strace = pm.sampling._choose_backend(trace, chain, model=model)
     # check if trace file already exists before setup
     filename = os.path.join(strace.name, 'chain-{}.csv'.format(chain))
     if os.path.exists(filename):
@@ -558,11 +578,69 @@ def _iter_initial(step, chain=0, trace=None, model=None):
             yield strace
     else:
         for i in range(l_tr, step.n_chains):
-            point = step.step(step.population[i], i)
-            strace.record(point)
+            _, out_list = step.step(step.population[i])
+            strace.record(out_list)
             yield strace
         else:
             strace.close()
+
+
+def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
+            progressbar=True, model=None, random_seed=None):
+
+    sampling = _iter_sample(draws, step, start, trace, chain,
+                            tune, model, random_seed)
+    progress = pm.progressbar.progress_bar(draws)
+    for i, strace in enumerate(sampling):
+        step.chain_index = chain
+        try:
+            if progressbar:
+                progress.update(i)
+        except KeyboardInterrupt:
+            strace.close()
+    return pm.backends.base.MultiTrace([strace])
+
+
+def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
+                 model=None, random_seed=None):
+    '''
+    Modified from pymc3.sampling._iter_sample until they make
+    _choose_backends more flexible.
+    '''
+
+    model = modelcontext(model)
+
+    draws = int(draws)
+    seed(random_seed)
+    if draws < 1:
+        raise ValueError('Argument `draws` should be above 0.')
+
+    if start is None:
+        start = {}
+
+#    if len(strace) > 0:
+#        pm.sampling._soft_update(start, strace.point(-1))
+#    else:
+#        pm.sampling._soft_update(start, model.test_point)
+
+    try:
+        step = pm.step_methods.CompoundStep(step)
+    except TypeError:
+        pass
+
+    point = pm.Point(start, model=model)
+
+    trace.setup(draws, chain)
+    for i in range(draws):
+        if i == tune:
+            step = pm.sampling.stop_tuning(step)
+
+        point, out_list = step.step(point)
+        trace.record(out_list)
+
+        yield trace
+    else:
+        trace.close()
 
 
 def _iter_serial_chains(draws, step=None, stage_path=None,
@@ -577,7 +655,7 @@ def _iter_serial_chains(draws, step=None, stage_path=None,
         if progressbar:
             progress.update(chain)
         trace = backend.Text(stage_path, model=model)
-        mtraces.append(pm.sampling._sample(
+        mtraces.append(_sample(
                 draws=draws,
                 step=step,
                 chain=chain,
@@ -607,7 +685,7 @@ def _iter_parallel_chains(parallel, **kwargs):
 
     print('Sampling ...')
     traces = parallel(delayed(
-                    pm.sampling._sample)(
+                    _sample)(
                         chain=chain,
                         trace=trace_list[chain],
                         start=step.population[step.resampling_indexes[chain]],

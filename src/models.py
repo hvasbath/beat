@@ -163,7 +163,6 @@ class GeometryOptimizer(Project):
         self.ng_t = len(self.gtargets)
 
         # geodetic data
-        ordering = utility.ArrayOrdering(self.gtargets)
 
         _disp_list = [self.gtargets[i].displacement for i in range(self.ng_t)]
         _lons_list = [self.gtargets[i].lons for i in range(self.ng_t)]
@@ -197,6 +196,7 @@ class GeometryOptimizer(Project):
         self.geo_llk_weights = shared(num.eye(self.ng_t) * (1. / self.ns_t))
 
         # merge geodetic data to call pscmp only once each forward model
+        ordering = utility.ListArrayOrdering(_disp_list)
         self.Bij = utility.ListToArrayBijection(ordering, _disp_list)
 
         odws = self.Bij.fmap(_odws_list)
