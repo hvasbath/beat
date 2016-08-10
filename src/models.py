@@ -27,7 +27,7 @@ class Project(Object):
     _geo_like_name = 'geo_like'
     _like_name = 'like'
 
-    def update_target_weights(self, mtrace, stage, n_steps):
+    def update_target_weights(self, mtrace, stage, n_steps, mode='adaptive'):
         '''
         Update target weights based on distribution of misfits per target.
         Input: MultiTrace Object.
@@ -48,12 +48,19 @@ class Project(Object):
             seis_likelihoods = mtrace.get_values(self._seis_like_name)
             geo_likelihoods = mtrace.get_values(self._geo_like_name)
 
-        seis_mean_target = num.mean(seis_likelihoods, axis=0)
-        geo_mean_target = num.mean(geo_likelihoods, axis=0)
+        if mode == 'standard':
+            seis_mean_target = num.mean(seis_likelihoods, axis=0)
+            geo_mean_target = num.mean(geo_likelihoods, axis=0)
 
-        Ws = num.diag(1. / seis_mean_target)
-        Wg = num.diag(1. / geo_mean_target)
+            Ws = num.diag(1. / seis_mean_target)
+            Wg = num.diag(1. / geo_mean_target)
+        elif mode == 'adaptive':
+            seis_cov = num.cov(seis_likelihoods, bias=False, rowvar=0)
+            geo_cov = num.cov(geo_likelihoods, bias=False, rowvar=0)
 
+            Ws = num.linalg.inv(seis_cov)
+            Wg = num.linalg.inv(geo_cov)
+                        
         self.seis_llk_weights.set_value(Ws)
         self.geo_llk_weights.set_value(Wg)
 

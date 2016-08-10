@@ -495,8 +495,8 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                         print('Updating Covariances ...')
                         mean_pt = step.mean_end_points()
                         update.update_weights(mean_pt)
-#                        update.update_target_weights(
-#                            mtrace, step.stage, n_steps)
+                        update.update_target_weights(
+                            mtrace, step.stage, n_steps, mode='adaptive')
 
                     step.chain_index = 0
                     step.stage += 1
@@ -525,8 +525,8 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                         print('Updating Covariances ...')
                         mean_pt = step.mean_end_points()
                         update.update_weights(mean_pt)
-#                        update.update_target_weights(
-#                            mtrace, step.stage, n_steps)
+                        update.update_target_weights(
+                            mtrace, step.stage, n_steps, mode='adaptive')
 
                     outpath = stage_path + '/atmip.params'
                     outparam_list = [step]
