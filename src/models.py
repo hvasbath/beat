@@ -297,8 +297,8 @@ class GeometryOptimizer(Project):
             logpts_s = tt.zeros((self.ns_t), tconfig.floatX)
 
             for k in range(self.ns_t):
-                ssz = seis_res[k, :].shape[1]
-                sfactor = ssz * tt.log(2 * np.pi) + \
+                ssz = seis_res[k, :].shape[0]
+                sfactor = ssz * tt.log(2 * num.pi) + \
                               tt.log(tt.nlinalg.det(self.sweights[k]))
                 logpts_s = tt.set_subtensor(logpts_s[k:k + 1],
                     sfactor + (-0.5) * seis_res[k, :].dot(
@@ -306,8 +306,8 @@ class GeometryOptimizer(Project):
 
             for l in range(self.ng_t):
                 gsz = geo_res[l].shape[0]
-                gfactor = gsz * tt.log(2 * np.pi) + \
-                              tt.log(det(self.gweights[l]))
+                gfactor = gsz * tt.log(2 * num.pi) + \
+                              tt.log(tt.nlinalg.det(self.gweights[l]))
                 logpts_g = tt.set_subtensor(logpts_g[l:l + 1],
                     gfactor + (-0.5) * geo_res[l].dot(
                           self.gweights[l]).dot(geo_res[l].T))
