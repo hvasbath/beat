@@ -150,13 +150,15 @@ class Covariance(Object):
                     dtype=num.float,
                     help='Model prediction covariance matrix, velocity model',
                     optional=True)
-    icov = Array.T(shape=(None, None),
+    total = Array.T(shape=(None, None),
                     dtype=num.float,
-                    help='Inverse of all covariance matrixes used as weight'
-                         'in the inversion.',
+                    help='Total covariance of all components.',
                     optional=True)
 
-    def set_inverse(self):
+    def get_total(self):
+        return self.data + self.pred_g + self.pred_v
+
+    def get_inverse(self):
         '''
         Add and invert different covariance Matrices.
         '''
@@ -165,8 +167,17 @@ class Covariance(Object):
 
         if self.pred_v is None:
             self.pred_v = num.zeros_like(self.data)
+        total = self.get_total()
+        return num.linalg.inv(total)
 
-        self.icov = num.linalg.inv(self.data + self.pred_g + self.pred_v)
+    def get_log_determinant(self):
+        '''
+        Calculate the determinante of the covariance matrix according to
+        the properties of a triangular matrix.
+        '''
+        total = self.get_total()
+        cholesky = num.linalg.cholesky(total)
+        return num.log(1. / num.diag(cholesky)).sum()
 
 
 class TeleseismicTarget(gf.Target):
