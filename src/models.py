@@ -190,14 +190,14 @@ class GeometryOptimizer(Project):
 
         self.gweights = []
         for g_t in range(self.ng_t):
-            self.gtargets[g_t].covariance.set_inverse()
-            self.gweights.append(shared(self.gtargets[g_t].covariance.icov))
-
+            icov = self.gtargets[g_t].covariance.get_inverse()
+            self.gweights.append(shared(icov))
+            
         self.sweights = []
         for s_t in range(self.ns_t):
             self.stargets[s_t].covariance.data = cov_ds_seismic[s_t]
-            self.stargets[s_t].covariance.set_inverse()
-            self.sweights.append(shared(self.stargets[s_t].covariance.icov))
+            icov = self.stargets[s_t].covariance.get_inverse()
+            self.sweights.append(shared(icov))
 
         # Target weights, initially identity matrix 
         # equal weights adding up to 1.
@@ -299,18 +299,18 @@ class GeometryOptimizer(Project):
             for k in range(self.ns_t):
                 ssz = seis_res[k, :].shape[0]
                 sfactor = ssz * tt.log(2 * num.pi) + \
-                              tt.log(tt.nlinalg.det(self.sweights[k]))
+                              self.stargets[k].covariance.log_determinant
                 logpts_s = tt.set_subtensor(logpts_s[k:k + 1],
-                    sfactor + (-0.5) * seis_res[k, :].dot(
-                          self.sweights[k]).dot(seis_res[k, :].T))
+                    (-0.5) * (sfactor +  seis_res[k, :].dot(
+                          self.sweights[k]).dot(seis_res[k, :].T)))
 
             for l in range(self.ng_t):
                 gsz = geo_res[l].shape[0]
                 gfactor = gsz * tt.log(2 * num.pi) + \
-                              tt.log(tt.nlinalg.det(self.gweights[l]))
+                              self.gtargets[l].covariance.log_determinant
                 logpts_g = tt.set_subtensor(logpts_g[l:l + 1],
-                    gfactor + (-0.5) * geo_res[l].dot(
-                          self.gweights[l]).dot(geo_res[l].T))
+                     (-0.5) * (gfactor + geo_res[l].dot(
+                          self.gweights[l]).dot(geo_res[l].T)))
 
             # adding dataset missfits to traces
             seis_llk = pm.Deterministic(self._seis_like_name, logpts_s)
@@ -363,9 +363,8 @@ class GeometryOptimizer(Project):
                 index = j * len(self.stations) + i
 
                 self.stargets[index].covariance.pred_v = cov_velocity_model
-                self.stargets[index].covariance.set_inverse()
-                self.sweights[index].set_value(
-                    self.stargets[index].covariance.icov)
+                icov = self.stargets[index].covariance.get_inverse()
+                self.sweights[index].set_value(icov)
 
         # geodetic
         for i, gtarget in enumerate(self.gtargets):
@@ -375,5 +374,5 @@ class GeometryOptimizer(Project):
                      dataset=gtarget,
                      sources=geodetic_sources)
 
-            gtarget.covariance.set_inverse()
-            self.gweights[i].set_value(gtarget.covariance.icov)
+            icov = gtarget.covariance.get_inverse()
+            self.gweights[i].set_value(icov)

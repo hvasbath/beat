@@ -155,29 +155,30 @@ class Covariance(Object):
                     help='Total covariance of all components.',
                     optional=True)
 
-    def get_total(self):
+    @property
+    def total(self):
+        if self.pred_g is None:
+            self.pred_g = num.zeros_like(self.data)
+
+        if self.pred_v is None:
+            self.pred_v = num.zeros_like(self.data)
+            
         return self.data + self.pred_g + self.pred_v
 
     def get_inverse(self):
         '''
         Add and invert different covariance Matrices.
         '''
-        if self.pred_g is None:
-            self.pred_g = num.zeros_like(self.data)
+        return num.linalg.inv(self.total)
 
-        if self.pred_v is None:
-            self.pred_v = num.zeros_like(self.data)
-        total = self.get_total()
-        return num.linalg.inv(total)
-
-    def get_log_determinant(self):
+    @property
+    def log_determinant(self):
         '''
         Calculate the determinante of the covariance matrix according to
         the properties of a triangular matrix.
         '''
-        total = self.get_total()
-        cholesky = num.linalg.cholesky(total)
-        return num.log(1. / num.diag(cholesky)).sum()
+        cholesky = num.linalg.cholesky(self.total)
+        return num.log(num.diag(cholesky)).sum()
 
 
 class TeleseismicTarget(gf.Target):
