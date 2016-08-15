@@ -30,7 +30,7 @@ def load_SAR_data(datadir, tracks):
         utmy = data['cfoc'][:, 1]
         lons, lats = utility.utm_to_lonlat(utmx, utmy, 36)
         Lv = data['lvQT']
-        covariance = heart.Covariance(data=covs['Cov'], icov=covs['InvCov'])
+        covariance = heart.Covariance(data=covs['Cov'])
 
         DIFFGs.append(heart.DiffIFG(
                  track=k,
