@@ -4,20 +4,21 @@ import time
 import pymc3 as pm
 
 from pyrocko import gf, util, model
-from pyrocko.guts import Object
+from pyrocko.guts import Object, load
 
 import numpy as num
 import theano.tensor as tt
 from theano import config as tconfig
 from theano import shared
 
-from beat import theanof, heart, utility, atmcmc, inputf
+from beat import theanof, heart, utility, atmcmc, inputf, backend
 from beat import covariance as cov
 
 import logging
 
 logger = logging.getLogger('beat')
 
+config_file_name = 'config.yaml'
 
 class Project(Object):
 
@@ -376,3 +377,29 @@ class GeometryOptimizer(Project):
 
             icov = gtarget.covariance.get_inverse()
             self.gweights[i].set_value(icov)
+
+
+def load_model(project_dir):
+    '''
+    Load config from project directory and return model.
+    '''
+    config_fn = os.path.join(project_dir, config_file_name)
+    config = load(filename=config_fn)
+
+    problem = GeometryOptimizer(config)
+
+    problem.built_model()
+    return problem
+
+
+def load_stage(project_dir, stage_number, mode):
+    '''
+    Load stage results from ATMIP sampling.s
+    '''
+
+    problem = load_model(project_dir)
+    params = utility.load_atmip_params(project_dir, stage_number, mode)
+    tracepath = os.path.join(project_dir, mode, 'stage_%i' % stage_number)
+    mtrace = backend.load(tracepath, model=problem.model)
+    return problem, params, mtrace
+

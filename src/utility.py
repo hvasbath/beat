@@ -9,7 +9,7 @@ from pyrocko.cake import m2d
 import numpy as num
 
 from pyproj import Proj
-
+import pickle
 
 DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype')
 
@@ -263,3 +263,10 @@ def setup_logging(project_dir):
     logger.addHandler(fl)
 
     return logger
+
+
+def load_atmip_params(project_dir, stage_number, mode):
+    stage_path = os.path.join(project_dir, mode, 'stage_%i' % stage_number,
+        'atmip.params')
+    return pickle.load(open(stage_path, 'rb'))[0]
+
