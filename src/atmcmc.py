@@ -472,7 +472,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                 if step.stage == 0:
                     # Initial stage
                     print('Sample initial stage: ...')
-                    stage_path = homepath + '/stage_' + str(step.stage)
+                    stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
                     trace = backend.Text(stage_path, model=model)
                     initial = _iter_initial(step, chain=chain, strace=trace)
                     progress = pm.progressbar.progress_bar(step.n_chains)
@@ -495,8 +495,11 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                         print('Updating Covariances ...')
                         mean_pt = step.mean_end_points()
                         update.update_weights(mean_pt)
-                        update.update_target_weights(
-                            mtrace, step.stage, n_steps, mode='adaptive')
+                        update.update_target_weights(mtrace, mode='adaptive')
+
+                    outpath = os.path.join(stage_path, 'update.params')
+                    outupdate_list = [update]
+                    dump_params(outpath, outupdate_list)
 
                     step.chain_index = 0
                     step.stage += 1
@@ -505,7 +508,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                     if progressbar and njobs > 1:
                         progressbar = False
                     # Metropolis sampling intermediate stages
-                    stage_path = homepath + '/stage_' + str(step.stage)
+                    stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
                     step.proposal_dist = MvNPd(step.covariance)
 
                     sample_args = {
@@ -513,7 +516,8 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                             'step': step,
                             'stage_path': stage_path,
                             'progressbar': progressbar,
-                            'model': model}
+                            'model': model,
+                            'update': update}
 
                     mtrace = _iter_parallel_chains(parallel, **sample_args)
 
@@ -525,10 +529,8 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                         print('Updating Covariances ...')
                         mean_pt = step.mean_end_points()
                         update.update_weights(mean_pt)
-                        update.update_target_weights(
-                            mtrace, step.stage, n_steps, mode='adaptive')
 
-                    outpath = stage_path + '/atmip.params'
+                    outpath = os.path.join(stage_path, 'atmip.params')
                     outparam_list = [step]
                     dump_params(outpath, outparam_list)
 
@@ -545,7 +547,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
             # Metropolis sampling final stage
             print('Sample final stage')
-            stage_path = homepath + '/stage_final'
+            stage_path = os.path.join(homepath, 'stage_final')
             temp = np.exp((1 - step.old_beta) * \
                                (step.likelihoods - step.likelihoods.max()))
             step.weights = temp / np.sum(temp)
@@ -556,9 +558,14 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
             sample_args['step'] = step
             sample_args['stage_path'] = stage_path
             mtrace = _iter_parallel_chains(parallel, **sample_args)
-            outpath = stage_path + '/atmip.params'
+
+            outpath = os.path.join(stage_path, 'atmip.params')
             outparam_list = [step]
             dump_params(outpath, outparam_list)
+
+            outpath = os.path.join(stage_path, 'update.params')
+            outupdate_list = [update]
+            dump_params(outpath, outupdate_list)
             return mtrace
 
 def dump_params(outpath, outparam_list):
@@ -697,7 +704,8 @@ def _iter_parallel_chains(parallel, **kwargs):
         trace_list.append(backend.Text(stage_path, model=model))
 
     print('Sampling ...')
-    traces = parallel(delayed(
+    traces = parallel(
+                delayed(
                     _sample)(
                         chain=chain,
                         trace=trace_list[chain],
