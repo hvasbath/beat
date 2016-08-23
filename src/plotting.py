@@ -1,12 +1,25 @@
 from pyrocko import cake_plot as cp
+import pymc3 as pm
 
+from beat import models
+from matplotlib import pylab as plt
 import math
 import numpy as num
 from pyrocko import cake
 
 
-def n_model_plot(models, axes=None):
+def stage_posteriors(mtrace):
+    '''
+    Plot variable posteriors from certain stage of the ATMIP algorithm.
+    '''
+    PLT = pm.plots.traceplot(mtrace, combined=True)
+    plt.show(PLT[0][0])
 
+
+def n_model_plot(models, axes=None):
+    '''
+    Plot cake layered earth models.
+    '''
     if axes is None:
         from matplotlib import pyplot as plt
         cp.mpl_init()
