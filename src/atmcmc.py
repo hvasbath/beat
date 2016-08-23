@@ -516,8 +516,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                             'step': step,
                             'stage_path': stage_path,
                             'progressbar': progressbar,
-                            'model': model,
-                            'update': update}
+                            'model': model}
 
                     mtrace = _iter_parallel_chains(parallel, **sample_args)
 

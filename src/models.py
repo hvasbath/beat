@@ -74,7 +74,7 @@ class Project(Object):
             t2 = time.time()
             logger.info('Compilation time: %f' % (t2 - t1))
 
-    def sample(self, n_steps=100, njobs=1):
+    def sample(self, n_steps=100, n_jobs=1):
         '''
         Sample solution space with the (C)ATMIP algorithm.
 
@@ -93,7 +93,7 @@ class Project(Object):
             step=self.step,
             progressbar=True,
             model=self.model,
-            njobs=njobs,
+            njobs=n_jobs,
             update=self,
             trace=self.geometry_outfolder)
         return trace
