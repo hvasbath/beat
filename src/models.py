@@ -93,7 +93,7 @@ class Project(Object):
             step=self.step,
             progressbar=True,
             model=self.model,
-            njobs=n_jobs,
+            n_jobs=n_jobs,
             update=self,
             trace=self.geometry_outfolder)
         return trace

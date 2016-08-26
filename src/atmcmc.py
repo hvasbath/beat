@@ -45,7 +45,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         List of output variables for trace recording. If empty unobserved_RVs
         are taken.
     n_chains : (integer) Number of chains per stage has to be a large number
-               of number of njobs (processors to be used) on the machine.
+               of number of n_jobs (processors to be used) on the machine.
     covariance : (n_chains x n_chains) Numpy array
                  Initial Covariance matrix for proposal distribution,
                  if None - identity matrix taken
@@ -363,7 +363,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
 
 def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
-                  stage=None, njobs=1, tune=None, progressbar=False,
+                  stage=None, n_jobs=1, tune=None, progressbar=False,
                   model=None, update=None, random_seed=None):
     """
     (C)ATMIP sampling algorithm from Minson et al. 2013:
@@ -398,16 +398,16 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
         up the corresponding backend (with "mcmc" used as the base
         name).
     chain : int
-        Chain number used to store sample in backend. If `njobs` is
+        Chain number used to store sample in backend. If `n_jobs` is
         greater than one, chain numbers will start here.
     stage : int
         Stage where to start or continue the calculation. If None the start
         will be at stage = 0.
-    njobs : int
+    n_jobs : int
         The number of cores to be used in parallel. Be aware that theano has
         internal parallelisation. Sometimes this is more efficient especially
         for simple models.
-        step.n_chains / njobs has to be an integer number!
+        step.n_chains / n_jobs has to be an integer number!
     tune : int
         Number of iterations to tune, if applicable (defaults to None)
     trace : result_folder for storing stages, will be created if not existing
@@ -419,7 +419,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
     update : optional - if not none, has to be :py:class:`Project` contains
                         covariances to be updated each transition step
     random_seed : int or list of ints
-        A list is accepted if more if `njobs` is greater than one.
+        A list is accepted if more if `n_jobs` is greater than one.
 
     Returns
     -------
@@ -440,9 +440,9 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
         raise Exception('Argument `trace` should be either sqlite or text '
                         'backend object.')
 
-    if njobs > 1:
-        if not (step.n_chains / float(njobs)).is_integer():
-            raise Exception('n_chains / njobs has to be a whole number!')
+    if n_jobs > 1:
+        if not (step.n_chains / float(n_jobs)).is_integer():
+            raise Exception('n_chains / n_jobs has to be a whole number!')
 
     if start is not None:
         if len(start) != step.n_chains:
@@ -503,7 +503,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                 step.stage += 1
                 del(strace, mtrace, trace)
             else:
-                if progressbar and njobs > 1:
+                if progressbar and n_jobs > 1:
                     progressbar = False
                 # Metropolis sampling intermediate stages
                 stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
@@ -514,7 +514,8 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                         'step': step,
                         'stage_path': stage_path,
                         'progressbar': progressbar,
-                        'model': model}
+                        'model': model,
+                        'n_jobs': n_jobs}
 
                 mtrace = _iter_parallel_chains(**sample_args)
 
@@ -607,6 +608,7 @@ def _iter_initial(step, chain=0, strace=None, model=None):
 def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
             progressbar=True, model=None, random_seed=None):
 
+    print draws, start, trace, chain, progressbar
     sampling = _iter_sample(draws, step, start, trace, chain,
                             tune, model, random_seed)
     progress = pm.progressbar.progress_bar(draws)
@@ -662,6 +664,11 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
         trace.close()
 
 
+def work_chain(work):
+    draws, step, start, trace, chain, tune, progressbar, model = work
+    return _sample(draws, step, start, trace, chain, tune, progressbar, model)
+
+
 def _iter_serial_chains(draws, step=None, stage_path=None,
                         progressbar=True, model=None):
     """
@@ -690,7 +697,7 @@ def _iter_serial_chains(draws, step=None, stage_path=None,
 def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs):
     """
     Do Metropolis sampling over all the chains with each chain being
-    sampled 'draws' times. Parallel execution according to njobs.
+    sampled 'draws' times. Parallel execution according to n_jobs.
     """
     chains = list(range(step.n_chains))
     trace_list = []
@@ -700,7 +707,7 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs):
     block_pb = []
     list_pb = []
 
-    for i in range(int(chains / n_jobs)):
+    for i in range(int(step.n_chains / n_jobs)):
         block_pb.append(pack_pb)
 
     map(list_pb.extend, block_pb)
@@ -712,11 +719,11 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs):
 
     print('Sampling ...')
     work = [(draws, step, step.population[step.resampling_indexes[chain]],
-             trace_list[chain], chain, None, progressbar, model)
+             trace_list[chain], chain, None, list_pb[chain], model)
                 for chain in chains]
 
     for strace, chain in parimap.parimap(
-                    _sample, work, nprocs=n_jobs):
+                    work_chain, work, nprocs=n_jobs):
         result_traces[chain] = strace
 
     return pm.sampling.merge_traces(result_traces)
