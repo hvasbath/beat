@@ -10,7 +10,7 @@ import pymc3 as pm
 import os
 import theano
 
-from pyrocko import util
+from pyrocko import util, parimap
 from pymc3.model import modelcontext
 from pymc3.blocking import DictToArrayBijection
 from pymc3.vartypes import discrete_types
@@ -18,7 +18,7 @@ from pymc3.theanof import inputvars
 from pymc3.theanof import make_shared_replacements, join_nonshared_inputs
 from pymc3.step_methods.metropolis import MultivariateNormalProposal as MvNPd
 from numpy.random import seed
-from joblib import Parallel, delayed
+
 import pickle
 from beat import backend
 
@@ -440,6 +440,10 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
         raise Exception('Argument `trace` should be either sqlite or text '
                         'backend object.')
 
+    if njobs > 1:
+        if not (step.n_chains / float(njobs)).is_integer():
+            raise Exception('n_chains / njobs has to be a whole number!')
+
     if start is not None:
         if len(start) != step.n_chains:
             raise Exception('Argument `start` should have dicts equal the '
@@ -456,123 +460,119 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                             'a variable `' + step.likelihood_name + '` as '
                             'defined in `step`.')
 
-    if progressbar:
-        verbosity = 5
-    else:
-        verbosity = 0
-
     homepath = trace
 
     util.ensuredir(homepath)
 
     with model:
-        with Parallel(n_jobs=njobs, verbose=verbosity) as parallel:
-            while step.beta < 1.:
-                print('Beta: %f Stage: %i') % (step.beta, step.stage)
-                if step.stage == 0:
-                    # Initial stage
-                    print('Sample initial stage: ...')
-                    stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
-                    trace = backend.Text(stage_path, model=model)
-                    initial = _iter_initial(step, chain=chain, strace=trace)
-                    progress = pm.progressbar.progress_bar(step.n_chains)
-                    try:
-                        for i, strace in enumerate(initial):
-                            step.chain_index += 1
-                            if progressbar:
-                                progress.update(i)
-                    except KeyboardInterrupt:
-                        strace.close()
-                    mtrace = pm.backends.base.MultiTrace([strace])
+        while step.beta < 1.:
+            print('Beta: %f Stage: %i') % (step.beta, step.stage)
+            if step.stage == 0:
+                # Initial stage
+                print('Sample initial stage: ...')
+                stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
+                trace = backend.Text(stage_path, model=model)
+                initial = _iter_initial(step, chain=chain, strace=trace)
+                progress = pm.progressbar.progress_bar(step.n_chains)
+                try:
+                    for i, strace in enumerate(initial):
+                        step.chain_index += 1
+                        if progressbar:
+                            progress.update(i)
+                except KeyboardInterrupt:
+                    strace.close()
+                mtrace = pm.backends.base.MultiTrace([strace])
 
-                    step.population, step.array_population, step.likelihoods = \
-                                            step.select_end_points(mtrace)
-                    step.beta, step.old_beta, step.weights = step.calc_beta()
-                    step.covariance = step.calc_covariance()
-                    step.resampling_indexes = step.resample()
+                step.population, step.array_population, step.likelihoods = \
+                                        step.select_end_points(mtrace)
+                step.beta, step.old_beta, step.weights = step.calc_beta()
+                step.covariance = step.calc_covariance()
+                step.resampling_indexes = step.resample()
 
-                    if update is not None:
-                        print('Updating Covariances ...')
-                        mean_pt = step.mean_end_points()
-                        update.update_weights(mean_pt)
-                        update.update_target_weights(mtrace, mode='adaptive')
+                if update is not None:
+                    print('Updating Covariances ...')
+                    mean_pt = step.mean_end_points()
+                    update.update_weights(mean_pt)
+                    update.update_target_weights(mtrace, mode='adaptive')
 
-                    outpath = os.path.join(stage_path, 'update.params')
-                    outupdate_list = [update]
-                    dump_params(outpath, outupdate_list)
+                outpath = os.path.join(stage_path, 'update.params')
+                outupdate_list = [update]
+                dump_params(outpath, outupdate_list)
 
-                    step.chain_index = 0
-                    step.stage += 1
-                    del(strace, mtrace, trace)
-                else:
-                    if progressbar and njobs > 1:
-                        progressbar = False
-                    # Metropolis sampling intermediate stages
-                    stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
-                    step.proposal_dist = MvNPd(step.covariance)
+                step.chain_index = 0
+                step.stage += 1
+                del(strace, mtrace, trace)
+            else:
+                if progressbar and njobs > 1:
+                    progressbar = False
+                # Metropolis sampling intermediate stages
+                stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
+                step.proposal_dist = MvNPd(step.covariance)
 
-                    sample_args = {
-                            'draws': n_steps,
-                            'step': step,
-                            'stage_path': stage_path,
-                            'progressbar': progressbar,
-                            'model': model}
+                sample_args = {
+                        'draws': n_steps,
+                        'step': step,
+                        'stage_path': stage_path,
+                        'progressbar': progressbar,
+                        'model': model}
 
-                    mtrace = _iter_parallel_chains(parallel, **sample_args)
+                mtrace = _iter_parallel_chains(**sample_args)
 
-                    step.population, step.array_population, step.likelihoods = \
-                                            step.select_end_points(mtrace)
-                    step.beta, step.old_beta, step.weights = step.calc_beta()
+                step.population, step.array_population, step.likelihoods = \
+                                        step.select_end_points(mtrace)
+                step.beta, step.old_beta, step.weights = step.calc_beta()
 
-                    if update is not None:
-                        print('Updating Covariances ...')
-                        mean_pt = step.mean_end_points()
-                        update.update_weights(mean_pt)
+                if update is not None:
+                    print('Updating Covariances ...')
+                    mean_pt = step.mean_end_points()
+                    update.update_weights(mean_pt)
 
-                    outpath = os.path.join(stage_path, 'atmip.params')
-                    outparam_list = [step]
-                    dump_params(outpath, outparam_list)
+                outpath = os.path.join(stage_path, 'atmip.params')
+                outparam_list = [step]
+                dump_params(outpath, outparam_list)
 
-                    step.stage += 1
+                step.stage += 1
 
-                    if step.beta > 1.:
-                        print('Beta > 1.: ' + str(step.beta))
-                        step.beta = 1.
-                        break
+                if step.beta > 1.:
+                    print('Beta > 1.: ' + str(step.beta))
+                    step.beta = 1.
+                    break
 
-                    step.covariance = step.calc_covariance()
-                    step.resampling_indexes = step.resample()
-                    del(mtrace)
+                step.covariance = step.calc_covariance()
+                step.resampling_indexes = step.resample()
+                del(mtrace)
 
-            # Metropolis sampling final stage
-            print('Sample final stage')
-            stage_path = os.path.join(homepath, 'stage_final')
-            temp = np.exp((1 - step.old_beta) * \
-                               (step.likelihoods - step.likelihoods.max()))
-            step.weights = temp / np.sum(temp)
-            step.covariance = step.calc_covariance()
-            step.proposal_dist = MvNPd(step.covariance)
-            step.resampling_indexes = step.resample()
+        # Metropolis sampling final stage
+        print('Sample final stage')
+        stage_path = os.path.join(homepath, 'stage_final')
+        temp = np.exp((1 - step.old_beta) * \
+                           (step.likelihoods - step.likelihoods.max()))
+        step.weights = temp / np.sum(temp)
+        step.covariance = step.calc_covariance()
+        step.proposal_dist = MvNPd(step.covariance)
+        step.resampling_indexes = step.resample()
 
-            sample_args['step'] = step
-            sample_args['stage_path'] = stage_path
-            mtrace = _iter_parallel_chains(parallel, **sample_args)
+        sample_args['step'] = step
+        sample_args['stage_path'] = stage_path
+        mtrace = _iter_parallel_chains(**sample_args)
 
-            outpath = os.path.join(stage_path, 'atmip.params')
-            outparam_list = [step]
-            dump_params(outpath, outparam_list)
+        outpath = os.path.join(stage_path, 'atmip.params')
+        outparam_list = [step]
+        dump_params(outpath, outparam_list)
 
-            outpath = os.path.join(stage_path, 'update.params')
-            outupdate_list = [update]
-            dump_params(outpath, outupdate_list)
-            return mtrace
+        outpath = os.path.join(stage_path, 'update.params')
+        outupdate_list = [update]
+        dump_params(outpath, outupdate_list)
+        return mtrace
+
 
 def dump_params(outpath, outparam_list):
     '''
     Dump parameters in outparam_list into pickle file.
     '''
-    with open(outpath,'w') as f:
+    with open(outpath, 'w') as f:
         pickle.dump(outparam_list, f)
+
 
 def _iter_initial(step, chain=0, strace=None, model=None):
     """
@@ -617,7 +617,7 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
                 progress.update(i)
         except KeyboardInterrupt:
             strace.close()
-    return pm.backends.base.MultiTrace([strace])
+    return pm.backends.base.MultiTrace([strace]), chain
 
 
 def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
@@ -674,43 +674,52 @@ def _iter_serial_chains(draws, step=None, stage_path=None,
         if progressbar:
             progress.update(chain)
         trace = backend.Text(stage_path, model=model)
-        mtraces.append(_sample(
+        strace, chain = _sample(
                 draws=draws,
                 step=step,
                 chain=chain,
                 trace=trace,
                 model=model,
                 progressbar=False,
-                start=step.population[step.resampling_indexes[chain]]))
+                start=step.population[step.resampling_indexes[chain]])
+        mtraces.append(strace)
 
     return pm.sampling.merge_traces(mtraces)
 
 
-def _iter_parallel_chains(parallel, **kwargs):
+def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs):
     """
     Do Metropolis sampling over all the chains with each chain being
     sampled 'draws' times. Parallel execution according to njobs.
     """
-
-    stage_path = kwargs.pop('stage_path')
-    step = kwargs['step']
-    model = kwargs.pop('model')
     chains = list(range(step.n_chains))
     trace_list = []
+    result_traces = []
+
+    pack_pb = [progressbar for i in range(n_jobs - 1)] + [True]
+    block_pb = []
+    list_pb = []
+
+    for i in range(int(chains / n_jobs)):
+        block_pb.append(pack_pb)
+
+    map(list_pb.extend, block_pb)
 
     print('Initialising chain traces ...')
     for chain in chains:
         trace_list.append(backend.Text(stage_path, model=model))
+        result_traces.append(None)
 
     print('Sampling ...')
-    traces = parallel(
-                delayed(
-                    _sample)(
-                        chain=chain,
-                        trace=trace_list[chain],
-                        start=step.population[step.resampling_indexes[chain]],
-                        **kwargs) for chain in chains)
-    return pm.sampling.merge_traces(traces)
+    work = [(draws, step, step.population[step.resampling_indexes[chain]],
+             trace_list[chain], chain, None, progressbar, model)
+                for chain in chains]
+
+    for strace, chain in parimap.parimap(
+                    _sample, work, nprocs=n_jobs):
+        result_traces[chain] = strace
+
+    return pm.sampling.merge_traces(result_traces)
 
 
 def tune(acc_rate):
