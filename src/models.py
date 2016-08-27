@@ -130,6 +130,8 @@ class GeometryOptimizer(Project):
             stations=self.stations,
             channels=config.channels)
 
+
+
         target_deltat = 1. / config.sample_rate
 
         if self.data_traces[0].deltat != target_deltat:
