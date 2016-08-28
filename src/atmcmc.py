@@ -175,6 +175,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
                 if np.isfinite(varlogp):
                     l = self.logp_forw(q)
+
                     q_new = pm.metropolis.metrop_select(
                         self.beta * (l[self._llk_index] - l0[self._llk_index]),
                         q, q0)
@@ -609,7 +610,6 @@ def _iter_initial(step, chain=0, strace=None, model=None):
 def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
             progressbar=True, model=None, random_seed=None):
 
-#    print draws, start, trace, chain, progressbar
     sampling = _iter_sample(draws, step, start, trace, chain,
                             tune, model, random_seed)
     progress = pm.progressbar.progress_bar(draws)
@@ -667,12 +667,11 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
 
 def work_chain(work, pshared=None):
 
-    step, chain, start = work
+    step, chain, start, model = work
 
     if pshared is not None:
         draws = pshared['draws']
         progressbars = pshared['progressbars']
-        model = pshared['model']
         tune = pshared['tune']
         trace_list = pshared['trace_list']
 
@@ -732,15 +731,14 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model,
         result_traces.append(None)
 
     print('Sampling ...')
-    work = [(step, chain, step.population[step.resampling_indexes[chain]])
-                for chain in chains]
+    work = [(step, chain, step.population[step.resampling_indexes[chain]],
+            model) for chain in chains]
 
     pshared = dict(
-        draws = draws,
-        trace_list = trace_list,
-        progressbars = list_pb,
-        model = model,
-        tune = None)
+        draws=draws,
+        trace_list=trace_list,
+        progressbars=list_pb,
+        tune=None)
 
     for strace, chain in parimap.parimap(
                     work_chain, work, pshared=pshared, nprocs=n_jobs):
