@@ -85,9 +85,9 @@ def check_model_setup():
     problem.built_model()
     test_logp = problem.model.logpt.tag.test_value
     logger.info('The likelihood of the test_model is %f' % float(test_logp))
-    problem.init_atmip(n_chains=40, tune_interval=10)
+    problem.init_atmip(n_chains=20, tune_interval=10)
     #return problem
-    mtrace = problem.sample(n_steps=40, n_jobs=4)
+    mtrace = problem.sample(n_steps=20, n_jobs=4)
     return mtrace, problem
 
 if __name__ == '__main__':

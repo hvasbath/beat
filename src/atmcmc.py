@@ -416,8 +416,8 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
     model : Model (optional if in `with` context) has to contain deterministic
             variable 'name defined under step.likelihood_name' that contains
             model likelihood
-    update : optional - if not none, has to be :py:class:`Project` contains
-                        covariances to be updated each transition step
+    update : :py:class:`Project` contains all data and
+             covariances to be updated each transition step
     random_seed : int or list of ints
         A list is accepted if more if `n_jobs` is greater than one.
 
@@ -515,6 +515,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                         'stage_path': stage_path,
                         'progressbar': progressbar,
                         'model': model,
+                        'update': update,
                         'n_jobs': n_jobs}
 
                 mtrace = _iter_parallel_chains(**sample_args)
@@ -608,7 +609,7 @@ def _iter_initial(step, chain=0, strace=None, model=None):
 def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
             progressbar=True, model=None, random_seed=None):
 
-    print draws, start, trace, chain, progressbar
+#    print draws, start, trace, chain, progressbar
     sampling = _iter_sample(draws, step, start, trace, chain,
                             tune, model, random_seed)
     progress = pm.progressbar.progress_bar(draws)
@@ -664,8 +665,20 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
         trace.close()
 
 
-def work_chain(work):
-    draws, step, start, trace, chain, tune, progressbar, model = work
+def work_chain(work, pshared=None):
+
+    step, chain, start = work
+
+    if pshared is not None:
+        draws = pshared['draws']
+        progressbars = pshared['progressbars']
+        model = pshared['model']
+        tune = pshared['tune']
+        trace_list = pshared['trace_list']
+
+    progressbar = progressbars[chain]
+    trace = trace_list[chain]
+
     return _sample(draws, step, start, trace, chain, tune, progressbar, model)
 
 
@@ -694,7 +707,8 @@ def _iter_serial_chains(draws, step=None, stage_path=None,
     return pm.sampling.merge_traces(mtraces)
 
 
-def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs):
+def _iter_parallel_chains(draws, step, stage_path, progressbar, model,
+                          update, n_jobs):
     """
     Do Metropolis sampling over all the chains with each chain being
     sampled 'draws' times. Parallel execution according to n_jobs.
@@ -718,12 +732,18 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs):
         result_traces.append(None)
 
     print('Sampling ...')
-    work = [(draws, step, step.population[step.resampling_indexes[chain]],
-             trace_list[chain], chain, None, list_pb[chain], model)
+    work = [(step, chain, step.population[step.resampling_indexes[chain]])
                 for chain in chains]
 
+    pshared = dict(
+        draws = draws,
+        trace_list = trace_list,
+        progressbars = list_pb,
+        model = model,
+        tune = None)
+
     for strace, chain in parimap.parimap(
-                    work_chain, work, nprocs=n_jobs):
+                    work_chain, work, pshared=pshared, nprocs=n_jobs):
         result_traces[chain] = strace
 
     return pm.sampling.merge_traces(result_traces)

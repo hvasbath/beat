@@ -89,7 +89,7 @@ def load_data_traces(datadir, stations, channels):
                     # [nm] convert to m
                     data_trace.set_ydata(data_trace.ydata * m)
                     # hack to make trace pickleable for multiprocessings
-                    data_trace.__class__ = heart.PickleableTrace
+                    #data_trace.__class__ = heart.PickleableTrace
                     data_trcs.append(data_trace)
             except IOError as e:
                 logger.warn('Unable to open file: ' + trace_name)
