@@ -85,10 +85,12 @@ def load_data_traces(datadir, stations, channels):
 
             try:
                 with open(tracepath) as file:
-                    data_trace = io.load(tracepath, data_format)
+                    data_trace = io.load(tracepath, data_format)[0]
                     # [nm] convert to m
-                    data_trace[0].set_ydata(data_trace[0].ydata * m)
-                    data_trcs.append(data_trace[0])
+                    data_trace.set_ydata(data_trace.ydata * m)
+                    # hack to make trace pickleable for multiprocessings
+                    #data_trace.__class__ = heart.PickleableTrace
+                    data_trcs.append(data_trace)
             except IOError as e:
                 logger.warn('Unable to open file: ' + trace_name)
 

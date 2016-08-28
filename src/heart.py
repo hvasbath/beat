@@ -36,6 +36,22 @@ lambda_sensors = {
                 }
 
 
+class PickleableTrace(trace.Trace):
+
+    def __reduce__(self):
+        pickled_state = super(PickleableTrace, self).__reduce__()
+        if self.ydata is not None:
+            updated_state = pickled_state[2] + (self.ydata,)
+        else:
+            updated_state = pickled_state[2]
+
+        return (pickled_state[0], pickled_state[1], updated_state)
+
+    def __setstate__(self, state):
+        super(PickleableTrace, self).__setstate__(state[0:-1])
+        self.ydata = state[-1]
+
+
 class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
     '''
     Source for rectangular fault that unifies the necessary different source

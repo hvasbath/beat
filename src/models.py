@@ -93,7 +93,7 @@ class Project(Object):
             step=self.step,
             progressbar=True,
             model=self.model,
-            njobs=n_jobs,
+            n_jobs=n_jobs,
             update=self,
             trace=self.geometry_outfolder)
         return trace
@@ -129,6 +129,8 @@ class GeometryOptimizer(Project):
             datadir=config.seismic_datadir,
             stations=self.stations,
             channels=config.channels)
+
+
 
         target_deltat = 1. / config.sample_rate
 
