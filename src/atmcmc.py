@@ -7,6 +7,7 @@ Created on March, 2016
 import numpy as np
 import pymc3 as pm
 
+import logging
 import os
 import theano
 
@@ -20,9 +21,12 @@ from pymc3.step_methods.metropolis import MultivariateNormalProposal as MvNPd
 from numpy.random import seed
 
 import pickle
-from beat import backend
+from beat import backend, utility
 
 __all__ = ['ATMCMC', 'ATMIP_sample']
+
+logger = logging.getLogger('beat')
+logger.setLevel(logging.INFO)
 
 
 class ATMCMC(backend.ArrayStepSharedLLK):
@@ -281,43 +285,27 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         n_steps = len(mtrace)
         bij = DictToArrayBijection(self.ordering, self.population[0])
 
-        if self.stage > 0:
-            # collect end points of each chain and put into array
-            for var, slc, shp, _ in self.ordering.vmap:
-                if len(shp) == 0:
-                    array_population[:, slc] = np.atleast_2d(
-                                        mtrace.get_values(varname=var,
+        # collect end points of each chain and put into array
+        for var, slc, shp, _ in self.ordering.vmap:
+            if len(shp) == 0:
+                array_population[:, slc] = np.atleast_2d(
+                                    mtrace.get_values(varname=var,
+                                                burn=n_steps - 1,
+                                                combine=True)).T
+            else:
+                array_population[:, slc] = mtrace.get_values(
+                                                    varname=var,
                                                     burn=n_steps - 1,
-                                                    combine=True)).T
-                else:
-                    array_population[:, slc] = mtrace.get_values(
-                                                        varname=var,
-                                                        burn=n_steps - 1,
-                                                        combine=True)
-            # get likelihoods
-            likelihoods = mtrace.get_values(varname=self.likelihood_name,
-                                            burn=n_steps - 1,
-                                            combine=True)
-            population = []
+                                                    combine=True)
+        # get likelihoods
+        likelihoods = mtrace.get_values(varname=self.likelihood_name,
+                                        burn=n_steps - 1,
+                                        combine=True)
+        population = []
 
-            # map end array_endpoints to dict points
-            for i in range(self.n_chains):
-                population.append(bij.rmap(array_population[i, :]))
-
-        else:
-            # for initial stage only one trace that contains all points for
-            # each chain
-            likelihoods = mtrace.get_values(self.likelihood_name)
-            for var, slc, shp, _ in self.ordering.vmap:
-                if len(shp) == 0:
-                    array_population[:, slc] = np.atleast_2d(
-                        mtrace.get_values(varname=var)).T
-                else:
-                    array_population[:, slc] = mtrace.get_values(varname=var)
-
-            population = []
-            for i in range(self.n_chains):
-                population.append(bij.rmap(array_population[i, :]))
+        # map end array_endpoints to dict points
+        for i in range(self.n_chains):
+            population.append(bij.rmap(array_population[i, :]))
 
         return population, array_population, likelihoods
 
@@ -402,8 +390,9 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
         Chain number used to store sample in backend. If `n_jobs` is
         greater than one, chain numbers will start here.
     stage : int
-        Stage where to start or continue the calculation. If None the start
-        will be at stage = 0.
+        Stage where to start or continue the calculation. It is possible to
+        continue after completed stages (stage should be the number of the
+        completed stage). If None the start will be at stage = 0.
     n_jobs : int
         The number of cores to be used in parallel. Be aware that theano has
         internal parallelisation. Sometimes this is more efficient especially
@@ -432,121 +421,110 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
     seed(random_seed)
 
     if n_steps < 1:
-        raise ValueError('Argument `n_steps` should be above 0.')
+        logger.error('Argument `n_steps` should be above 0.', exc_info=1)
 
     if step is None:
-        raise Exception('Argument `step` has to be a TMCMC step object.')
+        logger.error('Argument `step` has to be a TMCMC step object.',
+            exc_info=1)
 
     if trace is None:
-        raise Exception('Argument `trace` should be either sqlite or text '
-                        'backend object.')
+        logger.error('Argument `trace` should be path to result_directory.',
+            exc_info=1)
 
     if n_jobs > 1:
         if not (step.n_chains / float(n_jobs)).is_integer():
-            raise Exception('n_chains / n_jobs has to be a whole number!')
+            logger.error('n_chains / n_jobs has to be a whole number!',
+                exc_info=1)
 
     if start is not None:
         if len(start) != step.n_chains:
-            raise Exception('Argument `start` should have dicts equal the '
-                            'number of chains (step.N-chains)')
+            logger.error('Argument `start` should have dicts equal the '
+                            'number of chains (step.N-chains)', exc_info=1)
         else:
             step.population = start
 
-    if stage is not None:
-        step.stage = stage
-
     if not any(
             step.likelihood_name in var.name for var in model.deterministics):
-            raise Exception('Model (deterministic) variables need to contain '
+            logger.error('Model (deterministic) variables need to contain '
                             'a variable `' + step.likelihood_name + '` as '
-                            'defined in `step`.')
+                            'defined in `step`.', exc_info=1)
 
     homepath = trace
 
     util.ensuredir(homepath)
 
+    if stage is not None:
+        if stage > 0:
+            logger.info('Loading completed stage_%i' % stage)
+            project_dir = os.path.dirname(homepath)
+            mode = os.path.basename(homepath)
+            step, update = utility.load_atmip_params(project_dir, stage, mode)
+            step.stage += 1
+            # remove following (inclomplete) stage results
+            stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
+            util.ensuredir(stage_path)
+            os.rmdir(stage_path)
+        else:
+            step.stage = stage
+
     with model:
         while step.beta < 1.:
-            print('Beta: %f Stage: %i') % (step.beta, step.stage)
+            logger.info('Beta: %f Stage: %i' % (step.beta, step.stage))
             if step.stage == 0:
                 # Initial stage
-                print('Sample initial stage: ...')
-                stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
-                trace = backend.Text(stage_path, model=model)
-                initial = _iter_initial(step, chain=chain, strace=trace)
-                progress = pm.progressbar.progress_bar(step.n_chains)
-                try:
-                    for i, strace in enumerate(initial):
-                        step.chain_index += 1
-                        if progressbar:
-                            progress.update(i)
-                except KeyboardInterrupt:
-                    strace.close()
-                mtrace = pm.backends.base.MultiTrace([strace])
+                logger.info('Sample initial stage: ...')
+                draws = 1
 
-                step.population, step.array_population, step.likelihoods = \
-                                        step.select_end_points(mtrace)
-                step.beta, step.old_beta, step.weights = step.calc_beta()
-                step.covariance = step.calc_covariance()
-                step.resampling_indexes = step.resample()
+            else:
+                draws = n_steps
 
-                if update is not None:
-                    print('Updating Covariances ...')
-                    mean_pt = step.mean_end_points()
-                    update.update_weights(mean_pt)
+            if progressbar and n_jobs > 1:
+                progressbar = False
+
+            # Metropolis sampling intermediate stages
+            stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
+
+            sample_args = {
+                    'draws': draws,
+                    'step': step,
+                    'stage_path': stage_path,
+                    'progressbar': progressbar,
+                    'model': model,
+                    'n_jobs': n_jobs}
+
+            mtrace = _iter_parallel_chains(**sample_args)
+
+            step.population, step.array_population, step.likelihoods = \
+                                    step.select_end_points(mtrace)
+            step.beta, step.old_beta, step.weights = step.calc_beta()
+
+            if update is not None:
+                logger.info('Updating Covariances ...')
+                mean_pt = step.mean_end_points()
+                update.update_weights(mean_pt)
+
+                if step.stage == 0:
                     update.update_target_weights(mtrace, mode='adaptive')
 
-                outpath = os.path.join(stage_path, 'update.params')
-                outupdate_list = [update]
-                dump_params(outpath, outupdate_list)
+            if step.beta > 1.:
+                logger.info('Beta > 1.: %f' % step.beta)
+                step.beta = 1.
+                break
 
-                step.chain_index = 0
-                step.stage += 1
-                del(strace, mtrace, trace)
-            else:
-                if progressbar and n_jobs > 1:
-                    progressbar = False
-                # Metropolis sampling intermediate stages
-                stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
-                step.proposal_dist = MvNPd(step.covariance)
+            step.covariance = step.calc_covariance()
+            step.proposal_dist = MvNPd(step.covariance)
+            step.resampling_indexes = step.resample()
 
-                sample_args = {
-                        'draws': n_steps,
-                        'step': step,
-                        'stage_path': stage_path,
-                        'progressbar': progressbar,
-                        'model': model,
-                        'update': update,
-                        'n_jobs': n_jobs}
+            outpath = os.path.join(stage_path, 'atmip.params')
+            outparam_list = [step, update]
+            dump_params(outpath, outparam_list)
 
-                mtrace = _iter_parallel_chains(**sample_args)
+            step.stage += 1
 
-                step.population, step.array_population, step.likelihoods = \
-                                        step.select_end_points(mtrace)
-                step.beta, step.old_beta, step.weights = step.calc_beta()
-
-                if update is not None:
-                    print('Updating Covariances ...')
-                    mean_pt = step.mean_end_points()
-                    update.update_weights(mean_pt)
-
-                outpath = os.path.join(stage_path, 'atmip.params')
-                outparam_list = [step]
-                dump_params(outpath, outparam_list)
-
-                step.stage += 1
-
-                if step.beta > 1.:
-                    print('Beta > 1.: ' + str(step.beta))
-                    step.beta = 1.
-                    break
-
-                step.covariance = step.calc_covariance()
-                step.resampling_indexes = step.resample()
-                del(mtrace)
+            del(mtrace)
 
         # Metropolis sampling final stage
-        print('Sample final stage')
+        logger.info('Sample final stage')
         stage_path = os.path.join(homepath, 'stage_final')
         temp = np.exp((1 - step.old_beta) * \
                            (step.likelihoods - step.likelihoods.max()))
@@ -560,12 +538,9 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
         mtrace = _iter_parallel_chains(**sample_args)
 
         outpath = os.path.join(stage_path, 'atmip.params')
-        outparam_list = [step]
+        outparam_list = [step, update]
         dump_params(outpath, outparam_list)
 
-        outpath = os.path.join(stage_path, 'update.params')
-        outupdate_list = [update]
-        dump_params(outpath, outupdate_list)
         return mtrace
 
 
@@ -667,13 +642,14 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
 
 def work_chain(work, pshared=None):
 
-    step, chain, start, model = work
+    step, chain, start = work
 
     if pshared is not None:
         draws = pshared['draws']
         progressbars = pshared['progressbars']
         tune = pshared['tune']
         trace_list = pshared['trace_list']
+        model = pshared['model']
 
     progressbar = progressbars[chain]
     trace = trace_list[chain]
@@ -706,8 +682,7 @@ def _iter_serial_chains(draws, step=None, stage_path=None,
     return pm.sampling.merge_traces(mtraces)
 
 
-def _iter_parallel_chains(draws, step, stage_path, progressbar, model,
-                          update, n_jobs):
+def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs):
     """
     Do Metropolis sampling over all the chains with each chain being
     sampled 'draws' times. Parallel execution according to n_jobs.
@@ -730,19 +705,25 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model,
         trace_list.append(backend.Text(stage_path, model=model))
         result_traces.append(None)
 
-    print('Sampling ...')
-    work = [(step, chain, step.population[step.resampling_indexes[chain]],
-            model) for chain in chains]
+    logger.info('Sampling ...')
+    work = [(step, chain, step.population[step.resampling_indexes[chain]])
+            for chain in chains]
 
     pshared = dict(
         draws=draws,
         trace_list=trace_list,
         progressbars=list_pb,
+        model=model,
         tune=None)
+
+    progress = pm.progressbar.progress_bar(step.n_chains)
+    chain_done = 0
 
     for strace, chain in parimap.parimap(
                     work_chain, work, pshared=pshared, nprocs=n_jobs):
         result_traces[chain] = strace
+        chain_done += 1
+        progress.update(chain_done)
 
     return pm.sampling.merge_traces(result_traces)
 

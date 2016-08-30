@@ -268,5 +268,6 @@ def setup_logging(project_dir):
 def load_atmip_params(project_dir, stage_number, mode):
     stage_path = os.path.join(project_dir, mode, 'stage_%i' % stage_number,
         'atmip.params')
-    return pickle.load(open(stage_path, 'rb'))[0]
+    step, update = pickle.load(open(stage_path, 'rb'))
+    return step, update
 
