@@ -39,6 +39,12 @@ class GeoLayerSynthesizerFree(theano.Op):
         self.crust_ind = crust_ind
         self.sources = tuple(sources)
 
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
     def perform(self, node, inputs, output):
 
         lons, lats, ess, nss, tds, sts, dis, ras, ls, ws, sls, ops = inputs
@@ -88,6 +94,12 @@ class GeoLayerSynthesizerStatic(theano.Op):
         self.crust_ind = crust_ind
         self.sources = tuple(sources)
 
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
     def perform(self, node, inputs, output):
 
         ess, nss, tds, sts, dis, ras, ls, ws, sls = inputs
@@ -131,6 +143,12 @@ class SeisSynthesizer(theano.Op):
         self.event = event
         self.arrival_taper = arrival_taper
         self.filterer = filterer
+
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
 
     def perform(self, node, inputs, output):
 

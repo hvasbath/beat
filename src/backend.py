@@ -49,6 +49,12 @@ class ArrayStepSharedLLK(pymc3.arraystep.BlockedStep):
         self.blocked = blocked
         self.bij = None
 
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
     def step(self, point):
         for var, share in self.shared.items():
             share.container.storage[0] = point[var]
@@ -106,6 +112,12 @@ class BaseATMCMCTrace(object):
             return self.point(int(idx))
         except (ValueError, TypeError):  # Passed variable or variable name.
             raise ValueError('Can only index with slice or integer')
+
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
 
 
 class Text(BaseATMCMCTrace):

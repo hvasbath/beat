@@ -9,7 +9,9 @@ import pymc3 as pm
 
 import logging
 import os
+import shutil
 import theano
+import copy
 
 from pyrocko import util, parimap
 from pymc3.model import modelcontext
@@ -114,7 +116,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         self.coef_variation = coef_variation
         self.n_chains = n_chains
         self.likelihoods = np.zeros(n_chains)
-        self.chain_previous_point = []
+
         self.likelihood_name = likelihood_name
         self._llk_index = out_varnames.index(likelihood_name)
         self.discrete = np.concatenate(
@@ -130,6 +132,8 @@ class ATMCMC(backend.ArrayStepSharedLLK):
                                                             model=model)
             self.population.append(dummy)
 
+        self.chain_previous_point = copy.deepcopy(self.population)
+
         shared = make_shared_replacements(vars, model)
         self.logp_forw = logp_forw(out_vars, vars, shared)
         self.check_bnd = logp_forw([model.varlogpt], vars, shared)
@@ -140,8 +144,6 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         if self.stage == 0:
             l_new = self.logp_forw(q0)
             q_new = q0
-            self.likelihoods[self.chain_index] = l_new[self._llk_index]
-            self.chain_previous_point.append(l_new)
 
         else:
             if not self.stage_sample:
@@ -392,7 +394,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
     stage : int
         Stage where to start or continue the calculation. It is possible to
         continue after completed stages (stage should be the number of the
-        completed stage). If None the start will be at stage = 0.
+        completed stage + 1). If None the start will be at stage = 0.
     n_jobs : int
         The number of cores to be used in parallel. Be aware that theano has
         internal parallelisation. Sometimes this is more efficient especially
@@ -455,15 +457,16 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
     if stage is not None:
         if stage > 0:
-            logger.info('Loading completed stage_%i' % stage)
+            logger.info('Loading completed stage_%i' % (stage - 1))
             project_dir = os.path.dirname(homepath)
             mode = os.path.basename(homepath)
-            step, update = utility.load_atmip_params(project_dir, stage, mode)
+            step, update = utility.load_atmip_params(
+                project_dir, stage - 1, mode)
             step.stage += 1
             # remove following (inclomplete) stage results
             stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
             util.ensuredir(stage_path)
-            os.rmdir(stage_path)
+            shutil.rmtree(stage_path)
         else:
             step.stage = stage
 
@@ -642,14 +645,14 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
 
 def work_chain(work, pshared=None):
 
-    step, chain, start = work
-
     if pshared is not None:
         draws = pshared['draws']
         progressbars = pshared['progressbars']
         tune = pshared['tune']
         trace_list = pshared['trace_list']
         model = pshared['model']
+
+    step, chain, start = work
 
     progressbar = progressbars[chain]
     trace = trace_list[chain]
@@ -691,7 +694,12 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs):
     trace_list = []
     result_traces = []
 
-    pack_pb = [progressbar for i in range(n_jobs - 1)] + [True]
+    if step.stage == 0:
+        display = False
+    else:
+        display = True
+
+    pack_pb = [progressbar for i in range(n_jobs - 1)] + [display]
     block_pb = []
     list_pb = []
 
@@ -700,21 +708,22 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs):
 
     map(list_pb.extend, block_pb)
 
-    print('Initialising chain traces ...')
+    logger.info('Initialising chain traces ...')
     for chain in chains:
         trace_list.append(backend.Text(stage_path, model=model))
         result_traces.append(None)
 
     logger.info('Sampling ...')
-    work = [(step, chain, step.population[step.resampling_indexes[chain]])
-            for chain in chains]
 
     pshared = dict(
         draws=draws,
         trace_list=trace_list,
         progressbars=list_pb,
-        model=model,
-        tune=None)
+        tune=None,
+        model=model)
+
+    work = [(step, chain, step.population[step.resampling_indexes[chain]])
+             for chain in chains]
 
     progress = pm.progressbar.progress_bar(step.n_chains)
     chain_done = 0

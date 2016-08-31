@@ -9,7 +9,7 @@ name = 'Aqaba'
 year = 1995
 
 config_file_name = 'config.yaml'
-project_dir = '/data3TB/' + name + str(year) + 'wcov2parimap'
+project_dir = '/data3TB/' + name + str(year) + 'wcov2restruct'
 store_superdir = '/data3TB/Teleseism/Greensfunctions/Aqaba1995GFS/'
 seismic_datadir = '/data3TB/Teleseism/autokiwi/events/Aqaba1995/kiwi/data/'
 geodetic_datadir = '/data/SAR_data/Aqaba1995/subsampled/'
@@ -87,7 +87,7 @@ def check_model_setup():
     logger.info('The likelihood of the test_model is %f' % float(test_logp))
     problem.init_atmip(n_chains=20, tune_interval=10)
     #return problem
-    mtrace = problem.sample(n_steps=20, n_jobs=2)
+    mtrace = problem.sample(n_steps=20, n_jobs=4, stage=1)
     return mtrace, problem
 
 if __name__ == '__main__':

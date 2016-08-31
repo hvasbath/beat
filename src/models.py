@@ -20,6 +20,7 @@ logger = logging.getLogger('beat')
 
 config_file_name = 'config.yaml'
 
+
 class Project(Object):
 
     step = None
@@ -44,13 +45,14 @@ class Project(Object):
 
             Ws = num.diag(1. / seis_mean_target)
             Wg = num.diag(1. / geo_mean_target)
+
         elif mode == 'adaptive':
             seis_cov = num.cov(seis_likelihoods, bias=False, rowvar=0)
             geo_cov = num.cov(geo_likelihoods, bias=False, rowvar=0)
 
             Ws = num.linalg.inv(seis_cov)
             Wg = num.linalg.inv(geo_cov)
-                        
+
         self.seis_llk_weights.set_value(Ws)
         self.geo_llk_weights.set_value(Wg)
 
@@ -74,13 +76,16 @@ class Project(Object):
             t2 = time.time()
             logger.info('Compilation time: %f' % (t2 - t1))
 
-    def sample(self, n_steps=100, n_jobs=1):
+        self.engine.close_cashed_stores()
+
+    def sample(self, n_steps=100, n_jobs=1, stage=None):
         '''
         Sample solution space with the (C)ATMIP algorithm.
 
         Inputs:
         n_steps - number of samples within each chain
         n_jobs - number of parallel chains
+        stage - stage where to continue sampling
         '''
 
         if not self.step:
@@ -94,6 +99,7 @@ class Project(Object):
             progressbar=True,
             model=self.model,
             n_jobs=n_jobs,
+            stage=stage,
             update=self,
             trace=self.geometry_outfolder)
         return trace
@@ -129,8 +135,6 @@ class GeometryOptimizer(Project):
             datadir=config.seismic_datadir,
             stations=self.stations,
             channels=config.channels)
-
-
 
         target_deltat = 1. / config.sample_rate
 
@@ -169,7 +173,8 @@ class GeometryOptimizer(Project):
         _lons_list = [self.gtargets[i].lons for i in range(self.ng_t)]
         _lats_list = [self.gtargets[i].lats for i in range(self.ng_t)]
         _odws_list = [self.gtargets[i].odw for i in range(self.ng_t)]
-        _lv_list = [self.gtargets[i].update_los_vector() for i in range(self.ng_t)]
+        _lv_list = [self.gtargets[i].update_los_vector()
+                        for i in range(self.ng_t)]
 
         ## Data and model covariances
         logger.info('Getting data-covariances ...\n')
@@ -184,14 +189,14 @@ class GeometryOptimizer(Project):
         for g_t in range(self.ng_t):
             icov = self.gtargets[g_t].covariance.get_inverse()
             self.gweights.append(shared(icov))
-            
+
         self.sweights = []
         for s_t in range(self.ns_t):
             self.stargets[s_t].covariance.data = cov_ds_seismic[s_t]
             icov = self.stargets[s_t].covariance.get_inverse()
             self.sweights.append(shared(icov))
 
-        # Target weights, initially identity matrix 
+        # Target weights, initially identity matrix
         # equal weights adding up to 1.
         self.seis_llk_weights = shared(num.eye(self.ns_t) * (1. / self.ns_t))
         self.geo_llk_weights = shared(num.eye(self.ng_t) * (1. / self.ns_t))
@@ -249,7 +254,8 @@ class GeometryOptimizer(Project):
                                        transform=None))
 
             self.geo_input_rvs = utility.weed_input_rvs(input_rvs, mode='geo')
-            self.seis_input_rvs = utility.weed_input_rvs(input_rvs, mode='seis')
+            self.seis_input_rvs = utility.weed_input_rvs(input_rvs,
+                 mode='seis')
 
             ## calc residuals
             # geo
@@ -293,7 +299,7 @@ class GeometryOptimizer(Project):
                 sfactor = ssz * tt.log(2 * num.pi) + \
                               self.stargets[k].covariance.log_determinant
                 logpts_s = tt.set_subtensor(logpts_s[k:k + 1],
-                    (-0.5) * (sfactor +  seis_res[k, :].dot(
+                    (-0.5) * (sfactor + seis_res[k, :].dot(
                           self.sweights[k]).dot(seis_res[k, :].T)))
 
             for l in range(self.ng_t):
@@ -393,4 +399,3 @@ def load_stage(project_dir, stage_number, mode):
     tracepath = os.path.join(project_dir, mode, 'stage_%i' % stage_number)
     mtrace = backend.load(tracepath, model=problem.model)
     return problem, params, mtrace
-
