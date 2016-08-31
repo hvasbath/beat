@@ -91,6 +91,10 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         if out_vars is None:
             out_vars = model.unobserved_RVs
+            self.lordering = utility.TVListArrayOrdering(out_vars)
+            lpoint = [var.tag.test_value for var in out_vars]
+            self.lij = utility.ListToArrayBijection(
+                self.lordering, lpoint)
 
         out_varnames = [out_var.name for out_var in out_vars]
 
@@ -267,8 +271,8 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
     def select_end_points(self, mtrace):
         """
-        Read trace results and take end points for each chain and set as
-        start population for the next stage.
+        Read trace results (variables and model likelihood) and take end points
+        for each chain and set as start population for the next stage.
         Parameters
         -------
 
@@ -285,7 +289,6 @@ class ATMCMC(backend.ArrayStepSharedLLK):
                                       self.ordering.dimensions))
 
         n_steps = len(mtrace)
-        bij = DictToArrayBijection(self.ordering, self.population[0])
 
         # collect end points of each chain and put into array
         for var, slc, shp, _ in self.ordering.vmap:
@@ -307,9 +310,51 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         # map end array_endpoints to dict points
         for i in range(self.n_chains):
-            population.append(bij.rmap(array_population[i, :]))
+            population.append(self.bij.rmap(array_population[i, :]))
 
         return population, array_population, likelihoods
+
+    def get_chain_previous_points(self, mtrace):
+        """
+        Read trace results and take end points for each chain and set as
+        previous chain result for comparison of metropolis select.
+
+        Parameters
+        -------
+
+        mtrace : Multitrace pymc3 object
+
+        Returns
+        -------
+        chain_previous_result - list of all unobservedRV values
+        """
+
+        array_population = np.zeros((self.n_chains,
+                                      self.lordering.dimensions))
+
+        n_steps = len(mtrace)
+
+        for var, list_ind, slc, shp, _ in zip(mtrace.varnames,
+                                                self.lordering.vmap):
+            if len(shp) == 0:
+                array_population[:, slc] = np.atleast_2d(
+                                    mtrace.get_values(varname=var,
+                                                burn=n_steps,
+                                                combine=True)).T
+            else:
+                array_population[:, slc] = mtrace.get_values(
+                                                    varname=var,
+                                                    burn=n_steps - 1,
+                                                    combine=True)
+
+        chain_previous_points = []
+
+        # map end array_endpoints to list lpoints
+        for i in range(self.n_chains):
+            chain_previous_points.append(
+                self.lij.rmap(array_population[i, :]))
+
+        return chain_previous_points
 
     def mean_end_points(self):
         '''
@@ -500,6 +545,10 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
             step.population, step.array_population, step.likelihoods = \
                                     step.select_end_points(mtrace)
             step.beta, step.old_beta, step.weights = step.calc_beta()
+
+            if step.stage == 0:
+                step.chain_previous_point = step.get_chain_previous_points(
+                                                              mtrace)
 
             if update is not None:
                 logger.info('Updating Covariances ...')

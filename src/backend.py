@@ -28,6 +28,7 @@ from pymc3.backends import base, ndarray
 from pymc3.backends import tracetab as ttab
 from pymc3.blocking import DictToArrayBijection, ArrayOrdering
 
+from beat import ListArrayOrdering
 
 class ArrayStepSharedLLK(pymc3.arraystep.BlockedStep):
     """
@@ -45,9 +46,10 @@ class ArrayStepSharedLLK(pymc3.arraystep.BlockedStep):
         """
         self.vars = vars
         self.ordering = ArrayOrdering(vars)
+        self.lordering = ListArrayOrdering()
         self.shared = {var.name: shared for var, shared in shared.items()}
         self.blocked = blocked
-        self.bij = None
+        self.bij = DictToArrayBijection(self.ordering, self.population[0])
 
     def __getstate__(self):
         return self.__dict__
@@ -59,10 +61,10 @@ class ArrayStepSharedLLK(pymc3.arraystep.BlockedStep):
         for var, share in self.shared.items():
             share.container.storage[0] = point[var]
 
-        if self.bij is None:
-            self.bij = DictToArrayBijection(self.ordering, point)
-
         apoint, alist = self.astep(self.bij.map(point))
+
+        print 'Here 5'
+        print apoint
 
         return self.bij.rmap(apoint), alist
 
@@ -174,17 +176,21 @@ class Text(BaseATMCMCTrace):
             self._fh = open(self.filename, 'w')
             self._fh.write(','.join(cnames) + '\n')
 
-    def record(self, point):
+    def record(self, lpoint):
         """Record results of a sampling iteration.
 
         Parameters
         ----------
-        point : List
+        lpoint : List of variable values
             Values mapped to variable names
         """
 
+        print lpoint
+        print self.varnames
+
         vals = {}
-        for varname, value in zip(self.varnames, point):
+        for varname, value in zip(self.varnames, lpoint):
+            print varname, value
             vals[varname] = value.ravel()
 
         columns = [str(val) for var in self.varnames for val in vals[var]]
