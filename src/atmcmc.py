@@ -91,10 +91,6 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         if out_vars is None:
             out_vars = model.unobserved_RVs
-            self.lordering = utility.TVListArrayOrdering(out_vars)
-            lpoint = [var.tag.test_value for var in out_vars]
-            self.lij = utility.ListToArrayBijection(
-                self.lordering, lpoint)
 
         out_varnames = [out_var.name for out_var in out_vars]
 
@@ -136,7 +132,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
                                                             model=model)
             self.population.append(dummy)
 
-        self.chain_previous_point = copy.deepcopy(self.population)
+        self.chain_previous_lpoint = copy.deepcopy(self.population)
 
         shared = make_shared_replacements(vars, model)
         self.logp_forw = logp_forw(out_vars, vars, shared)
@@ -177,7 +173,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
             else:
                 q = q0 + delta
 
-            l0 = self.chain_previous_point[
+            l0 = self.chain_previous_lpoint[
                             self.resampling_indexes[self.chain_index]]
 
             if self.check_bnd:
@@ -193,7 +189,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
                     if q_new is q:
                         self.accepted += 1
                         l_new = l
-                        self.chain_previous_point[
+                        self.chain_previous_lpoint[
                             self.resampling_indexes[self.chain_index]] = l_new
                     else:
                         l_new = l0
@@ -206,13 +202,13 @@ class ATMCMC(backend.ArrayStepSharedLLK):
                     self.beta * (l[self._llk_index] - l0[self._llk_index]),
                     q, q0)
 
-                self.chain_previous_point[
+                self.chain_previous_lpoint[
                     self.resampling_indexes[self.chain_index]] = l_new
 
                 if q_new is q:
                     self.accepted += 1
                     l_new = l
-                    self.chain_previous_point[
+                    self.chain_previous_lpoint[
                         self.resampling_indexes[self.chain_index]] = l_new
                 else:
                     l_new = l0
@@ -264,10 +260,15 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         -------
         Ndarray of weighted covariances (NumPy > 1.10. required)
         """
-        return np.cov(self.array_population,
+        cov = np.cov(self.array_population,
                       aweights=self.weights,
                       bias=False,
                       rowvar=0)
+
+        if np.isnan(cov).any() or np.isinf(cov).any():
+            Exception('Sample covariances not valid! Likely "n_chains" is '
+                         'too small!')
+        return cov
 
     def select_end_points(self, mtrace):
         """
@@ -314,7 +315,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         return population, array_population, likelihoods
 
-    def get_chain_previous_points(self, mtrace):
+    def get_chain_previous_lpoint(self, mtrace):
         """
         Read trace results and take end points for each chain and set as
         previous chain result for comparison of metropolis select.
@@ -326,7 +327,8 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         Returns
         -------
-        chain_previous_result - list of all unobservedRV values
+        chain_previous_lpoint - list of all unobservedRV values, including
+                                dataset likelihoods
         """
 
         array_population = np.zeros((self.n_chains,
@@ -334,27 +336,28 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         n_steps = len(mtrace)
 
-        for var, list_ind, slc, shp, _ in zip(mtrace.varnames,
-                                                self.lordering.vmap):
+        for var, vmap in zip(mtrace.varnames, self.lordering.vmap):
+
+            list_ind, slc, shp, _ = vmap
+
             if len(shp) == 0:
                 array_population[:, slc] = np.atleast_2d(
-                                    mtrace.get_values(varname=var,
-                                                burn=n_steps,
-                                                combine=True)).T
+                    mtrace.get_values(varname=var,
+                                      burn=n_steps - 1,
+                                      combine=True)).T
             else:
                 array_population[:, slc] = mtrace.get_values(
-                                                    varname=var,
-                                                    burn=n_steps - 1,
-                                                    combine=True)
+                                      varname=var,
+                                      burn=n_steps - 1,
+                                      combine=True)
 
-        chain_previous_points = []
+        chain_previous_lpoint = []
 
         # map end array_endpoints to list lpoints
         for i in range(self.n_chains):
-            chain_previous_points.append(
-                self.lij.rmap(array_population[i, :]))
+            chain_previous_lpoint.append(self.lij.rmap(array_population[i, :]))
 
-        return chain_previous_points
+        return chain_previous_lpoint
 
     def mean_end_points(self):
         '''
@@ -400,7 +403,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
 def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                   stage=None, n_jobs=1, tune=None, progressbar=False,
-                  model=None, update=None, random_seed=None):
+                  model=None, update=None, random_seed=None, rm_flag=False):
     """
     (C)ATMIP sampling algorithm from Minson et al. 2013:
     Bayesian inversion for finite fault earthquake source models I-
@@ -457,6 +460,9 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
              covariances to be updated each transition step
     random_seed : int or list of ints
         A list is accepted if more if `n_jobs` is greater than one.
+    rm_flag : bool
+        If True existing stage result folders are being deleted prior to
+        sampling.
 
     Returns
     -------
@@ -468,33 +474,30 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
     seed(random_seed)
 
     if n_steps < 1:
-        logger.error('Argument `n_steps` should be above 0.', exc_info=1)
+        Exception('Argument `n_steps` should be above 0.', exc_info=1)
 
     if step is None:
-        logger.error('Argument `step` has to be a TMCMC step object.',
-            exc_info=1)
+        Exception('Argument `step` has to be a TMCMC step object.')
 
     if trace is None:
-        logger.error('Argument `trace` should be path to result_directory.',
-            exc_info=1)
+        Exception('Argument `trace` should be path to result_directory.')
 
     if n_jobs > 1:
         if not (step.n_chains / float(n_jobs)).is_integer():
-            logger.error('n_chains / n_jobs has to be a whole number!',
-                exc_info=1)
+            Exception('n_chains / n_jobs has to be a whole number!')
 
     if start is not None:
         if len(start) != step.n_chains:
-            logger.error('Argument `start` should have dicts equal the '
-                            'number of chains (step.N-chains)', exc_info=1)
+            Exception('Argument `start` should have dicts equal the '
+                            'number of chains (step.N-chains)')
         else:
             step.population = start
 
     if not any(
             step.likelihood_name in var.name for var in model.deterministics):
-            logger.error('Model (deterministic) variables need to contain '
+            Exception('Model (deterministic) variables need to contain '
                             'a variable `' + step.likelihood_name + '` as '
-                            'defined in `step`.', exc_info=1)
+                            'defined in `step`.')
 
     homepath = trace
 
@@ -532,6 +535,10 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
             # Metropolis sampling intermediate stages
             stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
 
+            if rm_flag:
+                if os.path.exists(stage_path):
+                    shutil.rmtree(stage_path)
+
             sample_args = {
                     'draws': draws,
                     'step': step,
@@ -546,9 +553,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                                     step.select_end_points(mtrace)
             step.beta, step.old_beta, step.weights = step.calc_beta()
 
-            if step.stage == 0:
-                step.chain_previous_point = step.get_chain_previous_points(
-                                                              mtrace)
+            step.chain_previous_lpoint = step.get_chain_previous_lpoint(mtrace)
 
             if update is not None:
                 logger.info('Updating Covariances ...')
@@ -743,9 +748,10 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs):
     trace_list = []
     result_traces = []
 
-    if step.stage == 0:
+    if n_jobs > 1:
         display = False
-    else:
+
+    elif n_jobs == 1:
         display = True
 
     pack_pb = [progressbar for i in range(n_jobs - 1)] + [display]

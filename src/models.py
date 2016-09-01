@@ -37,7 +37,6 @@ class Project(Object):
     def __setstate__(self, state):
         self.seis_llk_weights, self.geo_llk_weights, self.gweights, self.sweights = state
 
-
     def update_target_weights(self, mtrace, mode='adaptive'):
         '''
         Update target weights after initial stage based on distribution of
@@ -87,7 +86,7 @@ class Project(Object):
 
         self.engine.close_cashed_stores()
 
-    def sample(self, n_steps=100, n_jobs=1, stage=None):
+    def sample(self, n_steps=100, n_jobs=1, stage=None, rm_flag=False):
         '''
         Sample solution space with the (C)ATMIP algorithm.
 
@@ -95,6 +94,7 @@ class Project(Object):
         n_steps - number of samples within each chain
         n_jobs - number of parallel chains
         stage - stage where to continue sampling
+        rm_flag - bool, whether to remove existing result stages
         '''
 
         if not self.step:
@@ -110,7 +110,8 @@ class Project(Object):
             n_jobs=n_jobs,
             stage=stage,
             update=self,
-            trace=self.geometry_outfolder)
+            trace=self.geometry_outfolder,
+            rm_flag=rm_flag)
         return trace
 
 
@@ -211,7 +212,7 @@ class GeometryOptimizer(Project):
         self.geo_llk_weights = shared(num.eye(self.ng_t) * (1. / self.ns_t))
 
         # merge geodetic data to call pscmp only once each forward model
-        ordering = utility.ListArrayOrdering(_disp_list)
+        ordering = utility.ListArrayOrdering(_disp_list, intype='numpy')
         self.Bij = utility.ListToArrayBijection(ordering, _disp_list)
 
         odws = self.Bij.fmap(_odws_list)

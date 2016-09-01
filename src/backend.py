@@ -28,7 +28,8 @@ from pymc3.backends import base, ndarray
 from pymc3.backends import tracetab as ttab
 from pymc3.blocking import DictToArrayBijection, ArrayOrdering
 
-from beat import ListArrayOrdering
+from beat import utility
+
 
 class ArrayStepSharedLLK(pymc3.arraystep.BlockedStep):
     """
@@ -46,10 +47,12 @@ class ArrayStepSharedLLK(pymc3.arraystep.BlockedStep):
         """
         self.vars = vars
         self.ordering = ArrayOrdering(vars)
-        self.lordering = ListArrayOrdering()
+        self.lordering = utility.ListArrayOrdering(out_vars, intype='tensor')
+        lpoint = [var.tag.test_value for var in out_vars]
         self.shared = {var.name: shared for var, shared in shared.items()}
         self.blocked = blocked
         self.bij = DictToArrayBijection(self.ordering, self.population[0])
+        self.lij = utility.ListToArrayBijection(self.lordering, lpoint)
 
     def __getstate__(self):
         return self.__dict__
@@ -62,9 +65,6 @@ class ArrayStepSharedLLK(pymc3.arraystep.BlockedStep):
             share.container.storage[0] = point[var]
 
         apoint, alist = self.astep(self.bij.map(point))
-
-        print 'Here 5'
-        print apoint
 
         return self.bij.rmap(apoint), alist
 
@@ -185,12 +185,9 @@ class Text(BaseATMCMCTrace):
             Values mapped to variable names
         """
 
-        print lpoint
-        print self.varnames
-
         vals = {}
         for varname, value in zip(self.varnames, lpoint):
-            print varname, value
+
             vals[varname] = value.ravel()
 
         columns = [str(val) for var in self.varnames for val in vals[var]]

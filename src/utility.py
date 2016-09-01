@@ -14,40 +14,29 @@ import pickle
 DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype')
 
 
-class TVListArrayOrdering(object):
-    """
-    An ordering for a list to array space, can be used by unobeserved RVs.
-    """
-    def __init__(self, vars):
-        self.vmap = []
-        dim = 0
-
-        count = 0
-        for var in vars:
-            test_val = var.tag.test_value
-            slc = slice(dim, dim + test_val.size)
-            self.vmap.append(DataMap(
-                count, slc, test_val.shape, test_val.dtype))
-            dim += test_val.size
-            count += 1
-
-        self.dimensions = dim
-
-
 class ListArrayOrdering(object):
     """
     An ordering for a list to an array space. Takes also non theano.tensors.
     Modified from pymc3 blocking.
+
+    Input:
+    list_arrays - list of numpy arrays or list of theano.tensors
+    intype - str, either 'tensor' or 'numpy'
     """
-    def __init__(self, list_arrays):
+    def __init__(self, list_arrays, intype='numpy'):
         self.vmap = []
         dim = 0
 
         count = 0
         for array in list_arrays:
+            if intype == 'tensor':
+                array = array.tag.test_value
+            elif intype == 'numpy':
+                pass
+
             slc = slice(dim, dim + array.size)
-            self.vmap.append(DataMap(count, slc, array.shape,
-                                                 array.dtype))
+            self.vmap.append(DataMap(
+                count, slc, array.shape, array.dtype))
             dim += array.size
             count += 1
 
