@@ -591,10 +591,12 @@ class PsCmpRunner:
         original = signal.signal(signal.SIGINT, signal_handler)
         try:
             try:
-                proc = Popen(program, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+                proc = Popen(program, stdin=PIPE, stdout=PIPE, stderr=PIPE,
+                             close_fds=True)
 
-            except OSError:
+            except OSError as err:
                 os.chdir(old_wd)
+		logger.error('OS error: {0}'.format(err))
                 raise PsCmpError('could not start pscmp: "%s"' % program)
 
             (output_str, error_str) = proc.communicate('input\n')
