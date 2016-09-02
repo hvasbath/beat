@@ -596,7 +596,7 @@ class PsCmpRunner:
 
             except OSError as err:
                 os.chdir(old_wd)
-		logger.error('OS error: {0}'.format(err))
+                logger.error('OS error: {0}'.format(err))
                 raise PsCmpError('could not start pscmp: "%s"' % program)
 
             (output_str, error_str) = proc.communicate('input\n')
