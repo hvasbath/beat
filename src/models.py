@@ -29,14 +29,6 @@ class Project(Object):
     _geo_like_name = 'geo_like'
     _like_name = 'like'
 
-    def __getstate__(self):
-        return (self.seis_llk_weights,
-                self.geo_llk_weights,
-                self.gweights, self.sweights)
-
-    def __setstate__(self, state):
-        self.seis_llk_weights, self.geo_llk_weights, self.gweights, self.sweights = state
-
     def update_target_weights(self, mtrace, mode='adaptive'):
         '''
         Update target weights after initial stage based on distribution of
@@ -248,6 +240,20 @@ class GeometryOptimizer(Project):
 
         self.config = config
 
+    def __getstate__(self):
+        return (self.seis_llk_weights, self.geo_llk_weights,
+                self.sweights, self.gweights,
+                self.stargets, self.gtargets,
+                self.stations, self.config,
+                self.engine, self.sources)
+
+    def __setstate__(self, state):
+        (self.seis_llk_weights, self.geo_llk_weights,
+         self.sweights, self.gweights,
+         self.stargets, self.gtargets,
+         self.stations, self.config,
+         self.engine, self.sources) = state
+        
     def built_model(self):
         logger.info('... Building model ...\n')
 
