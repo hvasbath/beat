@@ -364,6 +364,45 @@ class GeometryOptimizer(Problem):
             icov = gtarget.covariance.get_inverse()
             self.gweights[i].set_value(icov)
 
+    def get_synthetics(self, point):
+        '''
+        Get synthetics for given point in solution space.
+        '''
+
+        source_points = utility.split_point(point)
+
+        for i, source in enumerate(self.sources):
+            source.update(**source_points[i])
+
+        seismic_sources, geodetic_sources = utility.transform_sources(
+                                                            self.sources)
+
+        # seismic
+        seis_synths, _ = heart.seis_synthetics(
+            engine=self.engine,
+            sources=seismic_sources,
+            targets=self.stargets,
+            arrival_taper=self.config.arrival_taper,
+            filterer=self.config.filterer, outmode='traces')
+
+        # geodetic
+        crust_inds = [0]
+
+        geo_synths = []
+        for crust_ind in crust_inds:
+            for gtarget in self.gtargets:
+                disp = heart.geo_layer_synthetics(
+                    self.config.store_superdir, crust_ind,
+                    lons=gtarget.lons,
+                    lats=gtarget.lats,
+                    sources=geodetic_sources)
+                geo_synths.append((
+                    disp[:, 0] * gtarget.los_vector[:, 0] + \
+                    disp[:, 1] * gtarget.los_vector[:, 1] + \
+                    disp[:, 2] * gtarget.los_vector[:, 2]) * gtarget.odw)
+
+        return seis_synths, geo_synths
+
 
 def sample(step, problem, n_steps=100, n_jobs=1, stage=None, rm_flag=False):
         '''

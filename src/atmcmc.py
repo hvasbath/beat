@@ -1,6 +1,8 @@
 '''
 Created on March, 2016
 
+Various significant updates July, August 2016
+
 @author: Hannes Vasyura-Bathke
 '''
 
@@ -15,7 +17,6 @@ import copy
 
 from pyrocko import util, parimap
 from pymc3.model import modelcontext
-from pymc3.blocking import DictToArrayBijection
 from pymc3.vartypes import discrete_types
 from pymc3.theanof import inputvars
 from pymc3.theanof import make_shared_replacements, join_nonshared_inputs
@@ -363,8 +364,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         '''
         Calculate mean of the end-points and return point.
         '''
-        bij = DictToArrayBijection(self.ordering, self.population[0])
-        return bij.rmap(self.array_population.mean(axis=0))
+        return self.bij.rmap(self.array_population.mean(axis=0))
 
     def resample(self):
         """
@@ -509,7 +509,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
             project_dir = os.path.dirname(homepath)
             mode = os.path.basename(homepath)
             step, update = utility.load_atmip_params(
-                project_dir, stage - 1, mode)
+                project_dir, str(stage - 1), mode)
             step.stage += 1
             # remove following (inclomplete) stage results
             stage_path = os.path.join(homepath, 'stage_%i' % step.stage)

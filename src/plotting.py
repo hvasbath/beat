@@ -1,12 +1,28 @@
 from pyrocko import cake_plot as cp
 import pymc3 as pm
 
-from beat import models
+from beat import utility
 from matplotlib import pylab as plt
 import math
 import numpy as num
 from pyrocko import cake
 
+from matplotlib.backends.backend_pdf import PdfPages
+
+
+def plot_misfits(problem, mtrace, mode='geometry', posterior='mean'):
+
+    step, _ = utility.load_atmip_params(
+                problem.config.project_dir, 'final', mode)
+    _, step.array_population, step.likelihoods = \
+                                    step.select_end_points(mtrace)
+
+    if posterior == 'mean':
+        out_point = step.mean_end_points()
+
+    seis_synths, geo_synths = problem.get_synthetics(out_point)
+
+    return seis_synths, geo_synths
 
 def stage_posteriors(mtrace):
     '''

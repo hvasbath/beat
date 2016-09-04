@@ -850,7 +850,7 @@ def get_phase_taperer(engine, source, target, arrival_taper):
 
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     filterer=None, reference_taperer=None, plot=False,
-                    nprocs=1):
+                    nprocs=1, outmode='array'):
     '''
     Calculate synthetic seismograms of combination of targets and sources,
     filtering and tapering afterwards (filterer)
@@ -901,9 +901,13 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
             outstack = num.zeros([nt, synths.shape[1]])
             outstack += synths[(k * nt):(k + 1) * nt, :]
 
-        synths = outstack
+    if outmode == 'traces':
+        for i, tr in enumerate(synt_trcs):
+            tr.set_ydata(outstack[i, :])
 
-    return synths, tmins
+        outstack = synt_trcs
+
+    return outstack, tmins
 
 
 def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
