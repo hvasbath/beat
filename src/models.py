@@ -21,9 +21,8 @@ logger = logging.getLogger('beat')
 config_file_name = 'config.yaml'
 
 
-class Project(Object):
+class Problem(Object):
 
-    step = None
     model = None
     _seis_like_name = 'seis_like'
     _geo_like_name = 'geo_like'
@@ -69,7 +68,7 @@ class Project(Object):
                   ' n_chains=%i, tune_interval=%i\n' % (n_chains,
                                                            tune_interval))
             t1 = time.time()
-            self.step = atmcmc.ATMCMC(
+            step = atmcmc.ATMCMC(
                 n_chains=n_chains,
                 tune_interval=tune_interval,
                 likelihood_name=self._like_name)
@@ -78,36 +77,10 @@ class Project(Object):
 
         self.engine.close_cashed_stores()
 
-    def sample(self, n_steps=100, n_jobs=1, stage=None, rm_flag=False):
-        '''
-        Sample solution space with the (C)ATMIP algorithm.
-
-        Inputs:
-        n_steps - number of samples within each chain
-        n_jobs - number of parallel chains
-        stage - stage where to continue sampling
-        rm_flag - bool, whether to remove existing result stages
-        '''
-
-        if not self.step:
-            raise Exception('Sampler needs to be initialised first!'
-                            'with: "init_atmip" ')
-
-        logger.info('... Starting ATMIP ...\n')
-        trace = atmcmc.ATMIP_sample(
-            n_steps,
-            step=self.step,
-            progressbar=True,
-            model=self.model,
-            n_jobs=n_jobs,
-            stage=stage,
-            update=self,
-            trace=self.geometry_outfolder,
-            rm_flag=rm_flag)
-        return trace
+        return step
 
 
-class GeometryOptimizer(Project):
+class GeometryOptimizer(Problem):
     '''
     Defines the model setup to solve the non-linear fault geometry and
     returns the model object.
@@ -253,7 +226,7 @@ class GeometryOptimizer(Project):
          self.stargets, self.gtargets,
          self.stations, self.config,
          self.engine, self.sources) = state
-        
+
     def built_model(self):
         logger.info('... Building model ...\n')
 
@@ -390,6 +363,33 @@ class GeometryOptimizer(Project):
 
             icov = gtarget.covariance.get_inverse()
             self.gweights[i].set_value(icov)
+
+
+def sample(step, problem, n_steps=100, n_jobs=1, stage=None, rm_flag=False):
+        '''
+        Sample solution space with the (C)ATMIP algorithm.
+
+        Inputs:
+        step - Object from init_atmip
+        problem - Object with characteristics of problem to solve
+        n_steps - number of samples within each chain
+        n_jobs - number of parallel chains
+        stage - stage where to continue sampling
+        rm_flag - bool, whether to remove existing result stages
+        '''
+
+        logger.info('... Starting ATMIP ...\n')
+        trace = atmcmc.ATMIP_sample(
+            n_steps,
+            step=step,
+            progressbar=True,
+            model=problem.model,
+            n_jobs=n_jobs,
+            stage=stage,
+            update=problem,
+            trace=problem.geometry_outfolder,
+            rm_flag=rm_flag)
+        return trace
 
 
 def load_model(project_dir):

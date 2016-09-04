@@ -547,7 +547,9 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                     'model': model,
                     'n_jobs': n_jobs}
 
-            mtrace = _iter_parallel_chains(**sample_args)
+            _iter_parallel_chains(**sample_args)
+
+            mtrace = backend.load(stage_path, model)
 
             step.population, step.array_population, step.likelihoods = \
                                     step.select_end_points(mtrace)
@@ -592,13 +594,11 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
         sample_args['step'] = step
         sample_args['stage_path'] = stage_path
-        mtrace = _iter_parallel_chains(**sample_args)
+        _iter_parallel_chains(**sample_args)
 
         outpath = os.path.join(stage_path, 'atmip.params')
         outparam_list = [step, update]
         dump_params(outpath, outparam_list)
-
-        return mtrace
 
 
 def dump_params(outpath, outparam_list):
@@ -652,7 +652,8 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
                 progress.update(i)
         except KeyboardInterrupt:
             strace.close()
-    return pm.backends.base.MultiTrace([strace]), chain
+
+    return chain
 
 
 def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
@@ -671,11 +672,6 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
 
     if start is None:
         start = {}
-
-#    if len(strace) > 0:
-#        pm.sampling._soft_update(start, strace.point(-1))
-#    else:
-#        pm.sampling._soft_update(start, model.test_point)
 
     try:
         step = pm.step_methods.CompoundStep(step)
@@ -746,7 +742,6 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs):
     """
     chains = list(range(step.n_chains))
     trace_list = []
-    result_traces = []
 
     if n_jobs > 1:
         display = False
@@ -766,7 +761,6 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs):
     logger.info('Initialising chain traces ...')
     for chain in chains:
         trace_list.append(backend.Text(stage_path, model=model))
-        result_traces.append(None)
 
     logger.info('Sampling ...')
 
@@ -783,13 +777,11 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs):
     progress = pm.progressbar.progress_bar(step.n_chains)
     chain_done = 0
 
-    for strace, chain in parimap.parimap(
+    for chain in parimap.parimap(
                     work_chain, work, pshared=pshared, nprocs=n_jobs):
-        result_traces[chain] = strace
+
         chain_done += 1
         progress.update(chain_done)
-
-    return pm.sampling.merge_traces(result_traces)
 
 
 def tune(acc_rate):

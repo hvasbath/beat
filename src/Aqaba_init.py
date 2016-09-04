@@ -1,6 +1,6 @@
 import os
 from beat import heart, utility
-from beat.models import GeometryOptimizer
+from beat import models
 
 from pyrocko.guts import load
 from pyrocko import model, util
@@ -9,7 +9,7 @@ name = 'Aqaba'
 year = 1995
 
 config_file_name = 'config.yaml'
-project_dir = '/RCDrive/' + name + str(year)
+project_dir = '/data3TB/' + name + str(year) + 'wcov2parimap'
 store_superdir = '/data3TB/Teleseism/Greensfunctions/Aqaba1995GFS/'
 seismic_datadir = '/data3TB/Teleseism/autokiwi/events/Aqaba1995/kiwi/data/'
 geodetic_datadir = '/data/SAR_data/Aqaba1995/subsampled/'
@@ -80,14 +80,15 @@ def check_model_setup():
     config_fn = os.path.join(project_dir, config_file_name)
     config = load(filename=config_fn)
 
-    problem = GeometryOptimizer(config)
+    problem = models.GeometryOptimizer(config)
 
     problem.built_model()
     test_logp = problem.model.logpt.tag.test_value
     logger.info('The likelihood of the test_model is %f' % float(test_logp))
-    problem.init_atmip(n_chains=1000, tune_interval=10)
+    step = problem.init_atmip(n_chains=200, tune_interval=10)
     #return problem
-    mtrace = problem.sample(n_steps=100, n_jobs=20, stage=0, rm_flag=True)
+    mtrace = models.sample(step, problem,
+                           n_steps=20, n_jobs=8, stage=0, rm_flag=True)
     return mtrace, problem
 
 if __name__ == '__main__':
