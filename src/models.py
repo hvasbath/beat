@@ -320,6 +320,7 @@ class GeometryOptimizer(Problem):
         '''
         # update sources
         point = utility.adjust_point_units(point)
+        point['time'] += self.event.time
         source_points = utility.split_point(point)
 
         for i, source in enumerate(self.sources):
@@ -337,6 +338,7 @@ class GeometryOptimizer(Problem):
         # seismic
         for j, channel in enumerate(self.config.channels):
             for i, station in enumerate(self.stations):
+                print station
                 crust_targets = heart.init_targets(
                               stations=[station],
                               channels=channel,
@@ -375,6 +377,7 @@ class GeometryOptimizer(Problem):
         Get synthetics for given point in solution space.
         '''
         point = utility.adjust_point_units(point)
+        point['time'] += self.event.time
         source_points = utility.split_point(point)
 
         for i, source in enumerate(self.sources):
