@@ -11,7 +11,11 @@ import numpy as num
 from pyproj import Proj
 import pickle
 
+
 DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype')
+
+kmtypes = set(['east_shift', 'north_shift', 'length', 'width', 'depth'])
+km = 1000.
 
 
 class ListArrayOrdering(object):
@@ -202,6 +206,19 @@ def transform_sources(sources):
     map(seismic_sources.extend, sub_sources_seismic)
     map(geodetic_sources.extend, sub_sources_geodetic)
     return seismic_sources, geodetic_sources
+
+
+def adjust_point_units(point):
+    '''
+    Transform variables with [km] units to [m]
+    Input: Point
+    Returns: Point
+    '''
+    for key, value in point.iteritems():
+        if key in kmtypes:
+            point[key] = value * km
+
+    return point
 
 
 def split_point(point):

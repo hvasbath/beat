@@ -311,7 +311,7 @@ class GeometryOptimizer(Problem):
             llk = pm.Potential(self._like_name, like)
             logger.info('Model building was successful!')
 
-    def update_weights(self, point, plot=False):
+    def update_weights(self, point, n_jobs=1, plot=False):
         '''
         Calculate and update model prediction uncertainty covariances
         due to uncertainty in the velocity model with respect to one point
@@ -319,7 +319,7 @@ class GeometryOptimizer(Problem):
         Input: Point dictionary from pymc3
         '''
         # update sources
-
+        point = utility.adjust_point_units(point)
         source_points = utility.split_point(point)
 
         for i, source in enumerate(self.sources):
@@ -327,6 +327,12 @@ class GeometryOptimizer(Problem):
 
         seismic_sources, geodetic_sources = utility.transform_sources(
                                                             self.sources)
+
+        for s in seismic_sources:
+            print s
+
+        for g in geodetic_sources:
+            print g
 
         # seismic
         for j, channel in enumerate(self.config.channels):
@@ -343,7 +349,7 @@ class GeometryOptimizer(Problem):
                              targets=crust_targets,
                              arrival_taper=self.config.arrival_taper,
                              filterer=self.config.filterer,
-                             plot=plot)
+                             plot=plot, n_jobs=n_jobs)
 
                 self.engine.close_cashed_stores()
 
@@ -368,7 +374,7 @@ class GeometryOptimizer(Problem):
         '''
         Get synthetics for given point in solution space.
         '''
-
+        point = utility.adjust_point_units(point)
         source_points = utility.split_point(point)
 
         for i, source in enumerate(self.sources):

@@ -181,7 +181,7 @@ def get_model_prediction_sensitivity(engine, *args, **kwargs):
 
 
 def get_seis_cov_velocity_models(engine, sources, targets,
-                                  arrival_taper, filterer, plot=False):
+                              arrival_taper, filterer, plot=False, n_jobs=1):
     '''
     Calculate model prediction uncertainty matrix with respect to uncertainties
     in the velocity model for station and channel.
@@ -202,7 +202,7 @@ def get_seis_cov_velocity_models(engine, sources, targets,
     synths, _ = heart.seis_synthetics(
         engine, sources, targets,
         arrival_taper,
-        filterer,
+        filterer, nprocs=n_jobs,
         reference_taperer=reference_taperer, plot=plot)
 
     return num.cov(synths, rowvar=0)

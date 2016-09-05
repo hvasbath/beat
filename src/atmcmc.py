@@ -560,7 +560,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
             if update is not None:
                 logger.info('Updating Covariances ...')
                 mean_pt = step.mean_end_points()
-                update.update_weights(mean_pt)
+                update.update_weights(mean_pt, n_jobs=n_jobs)
 
                 if step.stage == 0:
                     update.update_target_weights(mtrace, mode='adaptive')

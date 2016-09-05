@@ -143,7 +143,9 @@ def update_center_coords(source, top_depth):
 
     dip_vec = RF.dipvector(dip=source.dip, strike=source.strike)
 
-    center = RF.center(top_depth=top_depth, width=source.width, dipvector=dip_vec)
+    center = RF.center(top_depth=top_depth,
+                       width=source.width,
+                       dipvector=dip_vec)
 
     source.update(east_shift=float(center[0] + source.east_shift),
                   north_shift=float(center[1] + source.north_shift),
@@ -730,7 +732,8 @@ def geo_construct_gf(event, superdir,
                      source_distance_min=0., source_distance_max=100.,
                      source_depth_min=0., source_depth_max=40.,
                      source_distance_spacing=5., source_depth_spacing=0.5,
-                     earth_model='ak135-f-average.m', crust_ind=0, execute=True):
+                     earth_model='ak135-f-average.m', crust_ind=0,
+                     execute=True):
     '''
     Given a :py:class:`Event` the crustal model :py:class:`LayeredModel` from
     :py:class:`Crust2Profile` at the event location is extracted and the
@@ -900,12 +903,16 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         for k in range(ns):
             outstack = num.zeros([nt, synths.shape[1]])
             outstack += synths[(k * nt):(k + 1) * nt, :]
+    else:
+        outstack = synths
 
     if outmode == 'traces':
-        for i, tr in enumerate(synt_trcs):
-            tr.set_ydata(outstack[i, :])
+        out = []
+        for i in range(nt):
+            synt_trcs[i].ydata = outstack[i, :]
+            out.append(synt_trcs[i])
 
-        outstack = synt_trcs
+        outstack = out
 
     return outstack, tmins
 
