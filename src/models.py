@@ -329,16 +329,10 @@ class GeometryOptimizer(Problem):
         seismic_sources, geodetic_sources = utility.transform_sources(
                                                             self.sources)
 
-        for s in seismic_sources:
-            print s
-
-        for g in geodetic_sources:
-            print g
-
         # seismic
         for j, channel in enumerate(self.config.channels):
             for i, station in enumerate(self.stations):
-                print station
+                logger.info('Station %s \n' % station.station)
                 crust_targets = heart.init_targets(
                               stations=[station],
                               channels=channel,
