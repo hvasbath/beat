@@ -2,7 +2,7 @@ from beat import psgrn, pscmp
 import numpy as num
 import os
 
-from pyrocko.guts import Object, List, String, Float, Int, Tuple, dump
+from pyrocko.guts import Object, List, String, Float, Int, Tuple, dump, Bool
 from pyrocko.guts_array import Array
 
 from pyrocko import crust2x2, gf, cake, orthodrome, trace, model, util
@@ -328,6 +328,163 @@ class DiffIFG(IFG):
             optional=True)
 
 
+class GFConfig(Object):
+    '''
+    Config for GreensFunction calculation parameters.
+    '''
+    store_superdir = String.T(default='./')
+    earth_model = String.T(default='ak135-f-average.m',
+                           help='Name of the reference earthmodel, see '
+                                'pyrocko.cake.builtin_models() for '
+                                'alternatives.')
+    use_crust2 = Bool.T(
+        default=True,
+        help='Flag, for replacing the crust from the earthmodel'
+             'with crust from the crust2 model.')
+    replace_water = Bool.T(default=True,
+                        help='Flag, for replacing water layers in the crust2'
+                             'model.')
+
+    crust_ind = List.T(default=range(10),
+                       help='List of indexes for different velocity models.'
+                            ' 0 is reference model.')
+
+    source_depth_min = Float.T(default=0.,
+                               help='Minimum depth [km] for GF function grid.')
+    source_depth_max = Float.T(default=10.,
+                               help='Maximum depth [km] for GF function grid.')
+    source_depth_spacing = Float.T(default=1.,
+                               help='Depth spacing [km] for GF function grid.')
+
+    source_distance_min = Float.T(
+        default=0.,
+        help='Minimum distance [km] for GF function grid.')
+    source_distance_max = Float.T(
+        default=100.,
+        help='Maximum distance [km] for GF function grid.')
+    source_distance_spacing = Float.T(
+        default=1.,
+        help='Distance spacing [km] for GF function grid.')
+
+    execute = Bool.T(default=False,
+                     help='Flag, for starting the modeling code after config'
+                          'creation.')
+    rm_gfs = Bool.T(default=True,
+                    help='Flag for removing existing directories.')
+    nworkers = Int.T(
+        default=1,
+        help='Number of processors to use for calculating the GFs')
+
+
+class SeismicGFConfig(GFConfig):
+    '''
+    Seismic GF parameters for Layered Halfspace.
+    '''
+    code = String.T(default='qssp',
+                  help='Modeling code to use. (qssp, qseis, comming soon: '
+                       'qseis2d)')
+    sample_rate = Float.T(default=2.,
+                          help='Sample rate for the Greens Functions.')
+    depth_limit = Float.T(
+        default=600.,
+        help='Depth limit [km] for varying the velocity model.')
+
+
+class GeodeticGFConfig(GFConfig):
+    '''
+    Geodetic GF parameters for Layered Halfspace.
+    '''
+    code = String.T(default='psgrn',
+                    help='Modeling code to use. (psgrn, ... others need to be'
+                         'implemented!)')
+
+
+class TeleseismicConfig(Object):
+    '''
+    Config for teleseismic setup related parameters.
+    '''
+
+    datadir = String.T(default='./')
+    blacklist = List.T(String.T(),
+                       optional=True,
+                       help='Station name for station to be thrown out.')
+    distances = Tuple.T(2, Float.T(), default=(30., 90.))
+    channels = List.T(String.T(), default=['Z', 'T'])
+
+    sample_rate = Float.T(default=1.0,
+                          help='Sample rate of GFs to be calculated')
+    arrival_taper = trace.Taper.T(
+                default=ArrivalTaper.D(),
+                help='Taper a,b/c,d time [s] before/after wave arrival')
+    filterer = Filter.T(default=Filter.D())
+    targets = List.T(TeleseismicTarget.T(), optional=True)
+    gf_config = SeismicGFConfig.T(default=SeismicGFConfig.D())
+
+
+class GeodeticConfig(Object):
+    '''
+    Config for geodetic setup related parameters.
+    '''
+
+    datadir = String.T(default='./')
+    tracks = List.T(String.T())
+    targets = List.T(optional=True)
+    gf_config = GeodeticGFConfig.T(default=GeodeticGFConfig.D())
+
+
+class ProblemConfig(Object):
+    '''
+    Config for inversion problem to setup.
+    '''
+    mode = String.T(default='Geometry',
+                    help='Problem to solve: "Geometry", "Static","Kinematic"')
+    datasets = List.T()
+    bounds = List.T(Parameter.T())
+
+    def __init__():
+        pass
+
+    def validate_bounds(self):
+        '''
+        Check if bounds and their test values do not contradict!
+        '''
+        for param in self.bounds:
+            param()
+
+        print('All parameter-bounds ok!')
+
+
+class ATMCMCConfig(Object):
+    '''
+    Config for optimization parameters for the ATMCMC algorithm.
+    '''
+    n_chains = Int.T(default=1000,
+                     help='Number of Metropolis chains for sampling.')
+    n_steps = Int.T(default=100,
+                    help='Number of steps for each chain per stage.')
+    n_jobs = Int.T(
+        default=1,
+        help='Number of processors to use, i.e. chains to sample in parallel.')
+    tune_interval = Int.T(
+        default=10,
+        help='Tune interval for adaptive tuning of Metropolis step size.')
+    proposal_dist = String.T(
+        default='MvNPd',
+        help='Multivariate Normal Proposal distribution, for Metropolis steps'
+             'alternatives need to be implemented')
+    check_bnd = Bool.T(
+        default=True,
+        help='Flag for checking whether propsed step lies within'
+             ' variable bounds.')
+    data_weighting = String.T(
+        default='meannorm',
+        help='dataset weighting sceme to calculate total model likelihood,'
+             '("meannorm", "covariance")')
+    likelihood_name = String.T(
+        default='like',
+        help='Name string in the result file for model likelihood')
+
+
 class BEATconfig(Object):
     '''
     BEATconfig class is the overarching class, providing all the configurations
@@ -338,40 +495,14 @@ class BEATconfig(Object):
     name = String.T()
     year = Int.T()
     event = model.Event.T(optional=True)
-
-    store_superdir = String.T(default='./')
     project_dir = String.T(default='event/')
-    seismic_datadir = String.T(default='./')
-    geodetic_datadir = String.T(default='./')
-    tracks = List.T(String.T())
-
-    bounds = List.T(Parameter.T())
-
-    gtargets = List.T(optional=True)
-    stargets = List.T(TeleseismicTarget.T(), optional=True)
-    stations = List.T(model.Station.T())
-    blacklist = List.T(String.T(),
-                       optional=True,
-                       help='Station name for station to be thrown out.')
-    distances = Tuple.T(2, Float.T(), default=(30., 90.))
-    channels = List.T(String.T(), default=['Z', 'T'])
-
-    sample_rate = Float.T(default=1.0,
-                          help='Sample rate of GFs to be calculated')
-    crust_inds = List.T(Int.T(default=0))
-    arrival_taper = trace.Taper.T(
-                default=ArrivalTaper.D(),
-                help='Taper a,b/c,d time [s] before/after wave arrival')
-    filterer = Filter.T(default=Filter.D())
-
-    def validate_bounds(self):
-        '''
-        Check if bounds and their test values do not contradict!
-        '''
-        for param in self.bounds:
-            param()
-
-        print('All parameter-bounds ok!')
+    problem_config = ProblemConfig.T()
+    geodetic_config = GeodeticConfig.T(GeodeticConfig.D())
+    teleseismic_config = TeleseismicConfig.T(TeleseismicConfig.D())
+    solver = String.T(
+        default='ATMCMC',
+        help='Solver to use for sampling the solution space.')
+    solver_config = ATMCMCConfig.T(default=ATMCMCConfig.D())
 
 
 def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0,
@@ -538,7 +669,7 @@ def ensemble_earthmodel(ref_earthmod, num_vary=10, err_depth=0.1,
     return earthmods
 
 
-def seis_construct_gf(station, event, superdir, code='QSSP',
+def seis_construct_gf(station, event, superdir, code='qssp',
                 source_depth_min=0., source_depth_max=10., source_spacing=1.,
                 sample_rate=2., source_range=100., depth_limit=600 * km,
                 earth_model='ak135-f-average.m', crust_ind=0,
@@ -648,10 +779,10 @@ def seis_construct_gf(station, event, superdir, code='QSSP',
                       1.1 * float(slownesses.max()),
                       1.3 * float(slownesses.max()))
 
-    if code == 'QSEIS':
+    if code == 'qseis':
         from pyrocko.fomosto.qseis import build
         receiver_model = receiver_model.extract(depth_max=200 * km)
-        model_code_id = 'qseis'
+        model_code_id = code
         version = '2006a'
         conf = qseis.QSeisConfig(
             filter_shallow_paths=0,
@@ -661,11 +792,11 @@ def seis_construct_gf(station, event, superdir, code='QSSP',
             sw_algorithm=1,
             qseis_version=version)
 
-    elif code == 'QSSP':
+    elif code == 'qssp':
         from pyrocko.fomosto.qssp import build
         source_model = copy.deepcopy(receiver_model)
         receiver_model = None
-        model_code_id = 'qssp'
+        model_code_id = code
         version = '2010beta'
         conf = qssp.QSSPConfig(
             qssp_version=version,
@@ -951,11 +1082,8 @@ def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
     return num.vstack([cut_traces[i].ydata for i in range(len(data_traces))])
 
 
-def init_nonlin(name, year, project_dir='./', store_superdir='',
-                sample_rate=1.0, n_variations=0, channels=['Z', 'T'],
-                geodetic_datadir='', seismic_datadir='', tracks=['A_T343co'],
-                distances=(30., 90.), blacklist=[], arrival_taper=None,
-                filterer=None):
+def init_config(name, year, project_dir='./', n_variations=0,
+                problem='geometry'):
     '''
     Initialise BEATconfig File
     Have to fill it with data.
