@@ -28,24 +28,26 @@ class Problem(Object):
     _geo_like_name = 'geo_like'
     _like_name = 'like'
 
-    def update_target_weights(self, mtrace, mode='adaptive'):
+    def update_target_weights(self, mtrace, mode='meannorm'):
         '''
         Update target weights after initial stage based on distribution of
         misfits per target.
         Input: MultiTrace Object.
         '''
-
+        logger.info('Updating data weights ...')
         seis_likelihoods = mtrace.get_values(self._seis_like_name)
         geo_likelihoods = mtrace.get_values(self._geo_like_name)
 
-        if mode == 'standard':
+        if mode == 'meannorm':
+            logger.info('Using means of datset distributions to normalize!')
             seis_mean_target = num.mean(seis_likelihoods, axis=0)
             geo_mean_target = num.mean(geo_likelihoods, axis=0)
 
             Ws = num.diag(1. / seis_mean_target)
             Wg = num.diag(1. / geo_mean_target)
 
-        elif mode == 'adaptive':
+        elif mode == 'covariance':
+            logger.info('Using covariances between dataset distributions!')
             seis_cov = num.cov(seis_likelihoods, bias=False, rowvar=0)
             geo_cov = num.cov(geo_likelihoods, bias=False, rowvar=0)
 
@@ -332,7 +334,7 @@ class GeometryOptimizer(Problem):
         # seismic
         for j, channel in enumerate(self.config.channels):
             for i, station in enumerate(self.stations):
-                logger.info('Station %s \n' % station.station)
+                logger.info('Station %s ' % station.station)
                 crust_targets = heart.init_targets(
                               stations=[station],
                               channels=channel,

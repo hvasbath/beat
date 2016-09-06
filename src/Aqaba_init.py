@@ -9,7 +9,7 @@ name = 'Aqaba'
 year = 1995
 
 config_file_name = 'config.yaml'
-project_dir = '/RCDrive/' + name + str(year)
+project_dir = '/data3TB/' + name + str(year)
 store_superdir = '/data3TB/Teleseism/Greensfunctions/Aqaba1995GFS/'
 seismic_datadir = '/data3TB/Teleseism/autokiwi/events/Aqaba1995/kiwi/data/'
 geodetic_datadir = '/data/SAR_data/Aqaba1995/subsampled/'
@@ -85,10 +85,10 @@ def check_model_setup():
     problem.built_model()
     test_logp = problem.model.logpt.tag.test_value
     logger.info('The likelihood of the test_model is %f' % float(test_logp))
-    step = problem.init_atmip(n_chains=1000, tune_interval=10)
+    step = problem.init_atmip(n_chains=400, tune_interval=10)
     #return problem
     models.sample(step, problem,
-                           n_steps=100, n_jobs=20, stage=0, rm_flag=True)
+                           n_steps=40, n_jobs=8, stage=0, rm_flag=True)
     return problem
 
 if __name__ == '__main__':

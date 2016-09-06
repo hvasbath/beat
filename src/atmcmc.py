@@ -72,6 +72,9 @@ class ATMCMC(backend.ArrayStepSharedLLK):
                   check if current sample lies outside of variable definition
                   speeds up computation as the forward model wont be executed
                   default: True
+    data_weighting : str
+                     'covariance' or 'meannorm', determines how the initial
+                     dataset pdfs are being used to weight the data
     model : PyMC Model
         Optional model for sampling step.
         Defaults to None (taken from context).
@@ -81,7 +84,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
     def __init__(self, vars=None, out_vars=None, covariance=None, scaling=1.,
                  n_chains=100, tune=True, tune_interval=100, model=None,
                  check_bound=True, likelihood_name='like', proposal_dist=MvNPd,
-                 coef_variation=1., **kwargs):
+                 coef_variation=1., data_weighting='meannorm', **kwargs):
 
         model = modelcontext(model)
 
@@ -115,6 +118,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         self.resampling_indexes = np.arange(n_chains)
 
         self.coef_variation = coef_variation
+        self.data_weighting = data_weighting
         self.n_chains = n_chains
         self.likelihoods = np.zeros(n_chains)
 
@@ -520,13 +524,12 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
     with model:
         while step.beta < 1.:
-            logger.info('Beta: %f Stage: %i' % (step.beta, step.stage))
             if step.stage == 0:
                 # Initial stage
                 logger.info('Sample initial stage: ...')
                 draws = 1
-
             else:
+                logger.info('Beta: %f Stage: %i' % (step.beta, step.stage))
                 draws = n_steps
 
             if progressbar and n_jobs > 1:
@@ -563,7 +566,11 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                 update.update_weights(mean_pt, n_jobs=n_jobs)
 
                 if step.stage == 0:
-                    update.update_target_weights(mtrace, mode='adaptive')
+                    update.update_target_weights(
+                        mtrace, mode=step.data_weighting)
+                    # reset beta again, because MF space changed
+                    step.beta = 0.
+                    step.old_beta = 0.
 
             if step.beta > 1.:
                 logger.info('Beta > 1.: %f' % step.beta)
