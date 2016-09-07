@@ -334,7 +334,6 @@ class GeometryOptimizer(Problem):
         # seismic
         for j, channel in enumerate(self.config.channels):
             for i, station in enumerate(self.stations):
-                logger.info('Station %s ' % station.station)
                 crust_targets = heart.init_targets(
                               stations=[station],
                               channels=channel,
