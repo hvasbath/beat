@@ -1,11 +1,10 @@
 from beat import psgrn, pscmp
 import numpy as num
-import os
 
-from pyrocko.guts import Object, List, String, Float, Int, Tuple, dump, Bool
+from pyrocko.guts import Object, String, Float, Int, Tuple
 from pyrocko.guts_array import Array
 
-from pyrocko import crust2x2, gf, cake, orthodrome, trace, model, util
+from pyrocko import crust2x2, gf, cake, orthodrome, trace
 from pyrocko.cake import GradientLayer
 from pyrocko.fomosto import qseis
 from pyrocko.fomosto import qssp
@@ -17,9 +16,6 @@ import copy
 
 logger = logging.getLogger('beat')
 logger.setLevel(logging.INFO)
-
-guts_prefix = 'beat'
-config_file_name = 'config.yaml'
 
 c = 299792458.  # [m/s]
 km = 1000.
@@ -180,7 +176,7 @@ class Covariance(Object):
 
         if self.pred_v is None:
             self.pred_v = num.zeros_like(self.data)
-            
+
         return self.data + self.pred_g + self.pred_v
 
     def get_inverse(self):
@@ -326,183 +322,6 @@ class DiffIFG(IFG):
             help='Overlapping data weights, additional weight factor to the'
                  'dataset for overlaps with other datasets',
             optional=True)
-
-
-class GFConfig(Object):
-    '''
-    Config for GreensFunction calculation parameters.
-    '''
-    store_superdir = String.T(default='./')
-    earth_model = String.T(default='ak135-f-average.m',
-                           help='Name of the reference earthmodel, see '
-                                'pyrocko.cake.builtin_models() for '
-                                'alternatives.')
-    use_crust2 = Bool.T(
-        default=True,
-        help='Flag, for replacing the crust from the earthmodel'
-             'with crust from the crust2 model.')
-    replace_water = Bool.T(default=True,
-                        help='Flag, for replacing water layers in the crust2'
-                             'model.')
-
-    crust_ind = List.T(default=range(10),
-                       help='List of indexes for different velocity models.'
-                            ' 0 is reference model.')
-
-    source_depth_min = Float.T(default=0.,
-                               help='Minimum depth [km] for GF function grid.')
-    source_depth_max = Float.T(default=10.,
-                               help='Maximum depth [km] for GF function grid.')
-    source_depth_spacing = Float.T(default=1.,
-                               help='Depth spacing [km] for GF function grid.')
-
-    source_distance_min = Float.T(
-        default=0.,
-        help='Minimum distance [km] for GF function grid.')
-    source_distance_max = Float.T(
-        default=100.,
-        help='Maximum distance [km] for GF function grid.')
-    source_distance_spacing = Float.T(
-        default=1.,
-        help='Distance spacing [km] for GF function grid.')
-
-    execute = Bool.T(default=False,
-                     help='Flag, for starting the modeling code after config'
-                          'creation.')
-    rm_gfs = Bool.T(default=True,
-                    help='Flag for removing existing directories.')
-    nworkers = Int.T(
-        default=1,
-        help='Number of processors to use for calculating the GFs')
-
-
-class SeismicGFConfig(GFConfig):
-    '''
-    Seismic GF parameters for Layered Halfspace.
-    '''
-    code = String.T(default='qssp',
-                  help='Modeling code to use. (qssp, qseis, comming soon: '
-                       'qseis2d)')
-    sample_rate = Float.T(default=2.,
-                          help='Sample rate for the Greens Functions.')
-    depth_limit = Float.T(
-        default=600.,
-        help='Depth limit [km] for varying the velocity model.')
-
-
-class GeodeticGFConfig(GFConfig):
-    '''
-    Geodetic GF parameters for Layered Halfspace.
-    '''
-    code = String.T(default='psgrn',
-                    help='Modeling code to use. (psgrn, ... others need to be'
-                         'implemented!)')
-
-
-class TeleseismicConfig(Object):
-    '''
-    Config for teleseismic setup related parameters.
-    '''
-
-    datadir = String.T(default='./')
-    blacklist = List.T(String.T(),
-                       optional=True,
-                       help='Station name for station to be thrown out.')
-    distances = Tuple.T(2, Float.T(), default=(30., 90.))
-    channels = List.T(String.T(), default=['Z', 'T'])
-
-    sample_rate = Float.T(default=1.0,
-                          help='Sample rate of GFs to be calculated')
-    arrival_taper = trace.Taper.T(
-                default=ArrivalTaper.D(),
-                help='Taper a,b/c,d time [s] before/after wave arrival')
-    filterer = Filter.T(default=Filter.D())
-    targets = List.T(TeleseismicTarget.T(), optional=True)
-    gf_config = SeismicGFConfig.T(default=SeismicGFConfig.D())
-
-
-class GeodeticConfig(Object):
-    '''
-    Config for geodetic setup related parameters.
-    '''
-
-    datadir = String.T(default='./')
-    tracks = List.T(String.T())
-    targets = List.T(optional=True)
-    gf_config = GeodeticGFConfig.T(default=GeodeticGFConfig.D())
-
-
-class ProblemConfig(Object):
-    '''
-    Config for inversion problem to setup.
-    '''
-    mode = String.T(default='Geometry',
-                    help='Problem to solve: "Geometry", "Static","Kinematic"')
-    datasets = List.T()
-    bounds = List.T(Parameter.T())
-
-    def __init__():
-        pass
-
-    def validate_bounds(self):
-        '''
-        Check if bounds and their test values do not contradict!
-        '''
-        for param in self.bounds:
-            param()
-
-        print('All parameter-bounds ok!')
-
-
-class ATMCMCConfig(Object):
-    '''
-    Config for optimization parameters for the ATMCMC algorithm.
-    '''
-    n_chains = Int.T(default=1000,
-                     help='Number of Metropolis chains for sampling.')
-    n_steps = Int.T(default=100,
-                    help='Number of steps for each chain per stage.')
-    n_jobs = Int.T(
-        default=1,
-        help='Number of processors to use, i.e. chains to sample in parallel.')
-    tune_interval = Int.T(
-        default=10,
-        help='Tune interval for adaptive tuning of Metropolis step size.')
-    proposal_dist = String.T(
-        default='MvNPd',
-        help='Multivariate Normal Proposal distribution, for Metropolis steps'
-             'alternatives need to be implemented')
-    check_bnd = Bool.T(
-        default=True,
-        help='Flag for checking whether propsed step lies within'
-             ' variable bounds.')
-    data_weighting = String.T(
-        default='meannorm',
-        help='dataset weighting sceme to calculate total model likelihood,'
-             '("meannorm", "covariance")')
-    likelihood_name = String.T(
-        default='like',
-        help='Name string in the result file for model likelihood')
-
-
-class BEATconfig(Object):
-    '''
-    BEATconfig class is the overarching class, providing all the configurations
-    for seismic data and geodetic data being used. Define directory structure
-    here for Greens functions geodetic and seismic.
-    '''
-
-    name = String.T()
-    year = Int.T()
-    event = model.Event.T(optional=True)
-    project_dir = String.T(default='event/')
-    problem_config = ProblemConfig.T()
-    geodetic_config = GeodeticConfig.T(GeodeticConfig.D())
-    teleseismic_config = TeleseismicConfig.T(TeleseismicConfig.D())
-    solver = String.T(
-        default='ATMCMC',
-        help='Solver to use for sampling the solution space.')
-    solver_config = ATMCMCConfig.T(default=ATMCMCConfig.D())
 
 
 def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0,
@@ -870,22 +689,24 @@ def geo_construct_gf(event, superdir,
     :py:class:`Crust2Profile` at the event location is extracted and the
     geodetic greens functions are calculated with the given grid resolution.
     '''
-    config = psgrn.PsGrnConfigFull()
+    c = psgrn.PsGrnConfigFull()
 
     n_steps_depth = (source_depth_max - source_depth_min) / \
                     source_depth_spacing
     n_steps_distance = (source_distance_max - source_distance_min) / \
                     source_distance_spacing
 
-    config.distance_grid = psgrn.PsGrnSpatialSampling(
-                                n_steps=n_steps_distance,
-                                start_distance=source_distance_min,
-                                end_distance=source_distance_max)
-    config.depth_grid = psgrn.PsGrnSpatialSampling(
-                                n_steps=n_steps_depth,
-                                start_distance=source_depth_min,
-                                end_distance=source_depth_max)
-    config.sampling_interval = 10.
+    c.distance_grid = psgrn.PsGrnSpatialSampling(
+        n_steps=n_steps_distance,
+        start_distance=source_distance_min,
+        end_distance=source_distance_max)
+
+    c.depth_grid = psgrn.PsGrnSpatialSampling(
+        n_steps=n_steps_depth,
+        start_distance=source_depth_min,
+        end_distance=source_depth_max)
+
+    c.sampling_interval = 10.
 
     # extract source crustal profile and check for water layer
     source_profile = crust2x2.get_profile(event.lat, event.lon)
@@ -898,34 +719,37 @@ def geo_construct_gf(event, superdir,
                                         crust2x2.LLOWERCRUST)[0]
 
         source_profile.set_layer_thickness(crust2x2.LWATER, 0.0)
-        source_profile.set_layer_thickness(crust2x2.LLOWERCRUST,
-                thickness_llowercrust + \
-                thickness_lwater)
+        source_profile.set_layer_thickness(
+            crust2x2.LLOWERCRUST,
+            thickness_llowercrust + thickness_lwater)
         source_profile._elevation = 0.0
+
         logger.info('New Lower crust layer thickness', \
                 str(source_profile.get_layer(crust2x2.LLOWERCRUST)[0]))
 
-    source_model = cake.load_model(earth_model,
-                                   crust2_profile=source_profile).extract(
-                                   depth_max=source_depth_max * km)
+    source_model = cake.load_model(
+        earth_model,
+        crust2_profile=source_profile).extract(
+           depth_max=source_depth_max * km)
 
     # potentially vary source model
     if crust_ind > 0:
-        source_model = ensemble_earthmodel(source_model,
-                                           num_vary=1,
-                                           err_depth=err_depth,
-                                           err_velocities=err_velocities,
-                                           depth_limit=None)[0]
+        source_model = ensemble_earthmodel(
+            source_model,
+            num_vary=1,
+            err_depth=err_depth,
+            err_velocities=err_velocities,
+            depth_limit=None)[0]
 
-    config.earthmodel_1d = source_model
-    config.psgrn_outdir = superdir + 'psgrn_green_%i/' % (crust_ind)
-    config.validate()
+    c.earthmodel_1d = source_model
+    c.psgrn_outdir = superdir + 'psgrn_green_%i/' % (crust_ind)
+    c.validate()
 
-    logger.info('Creating Geo GFs in directory: %s' % config.psgrn_outdir)
+    logger.info('Creating Geo GFs in directory: %s' % c.psgrn_outdir)
 
-    runner = psgrn.PsGrnRunner(outdir=config.psgrn_outdir)
+    runner = psgrn.PsGrnRunner(outdir=c.psgrn_outdir)
     if execute:
-        runner.run(config)
+        runner.run(c)
 
 
 def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
@@ -936,15 +760,16 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
            List of rectangular fault sources.
     Output: NumpyArray(nobservations; ux, uy, uz)
     '''
-    config = pscmp.PsCmpConfigFull()
-    config.observation = pscmp.PsCmpScatter(lats=lats, lons=lons)
-    config.psgrn_outdir = store_superdir + 'psgrn_green_%i/' % (crust_ind)
+    c = pscmp.PsCmpConfigFull()
+    c.observation = pscmp.PsCmpScatter(lats=lats, lons=lons)
+    c.psgrn_outdir = store_superdir + 'psgrn_green_%i/' % (crust_ind)
+
     # only coseismic displacement
-    config.times_snapshots = [0]
-    config.rectangular_source_patches = sources
+    c.times_snapshots = [0]
+    c.rectangular_source_patches = sources
 
     runner = pscmp.PsCmpRunner(keep_tmp=keep_tmp)
-    runner.run(config)
+    runner.run(c)
     # returns list of displacements for each snapshot
     return runner.get_results(component='displ', flip_z=True)[0]
 
@@ -999,14 +824,13 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
     synt_trcs = []
     for source, target, tr in response.iter_results():
-        # extract interpolated travel times of phases which have been defined
-        # in the store's config file and cut data/synth traces
         if arrival_taper is not None:
             if reference_taperer is None:
-                taperer = get_phase_taperer(engine,
-                                        sources[0],
-                                        target,
-                                        arrival_taper)
+                taperer = get_phase_taperer(
+                    engine,
+                    sources[0],
+                    target,
+                    arrival_taper)
             else:
                 taperer = reference_taperer
 
@@ -1081,98 +905,3 @@ def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
 
     return num.vstack([cut_traces[i].ydata for i in range(len(data_traces))])
 
-
-def init_config(name, year, project_dir='./', n_variations=0,
-                problem='geometry'):
-    '''
-    Initialise BEATconfig File
-    Have to fill it with data.
-    '''
-
-    config = BEATconfig(name=name, year=year, channels=channels)
-
-    config.project_dir = project_dir
-    config.store_superdir = store_superdir
-    config.sample_rate = sample_rate
-    config.crust_inds = range(1 + n_variations)
-    config.distances = distances
-    config.blacklist = blacklist
-    config.arrival_taper = arrival_taper
-    config.filterer = filterer
-
-    config.seismic_datadir = seismic_datadir
-    config.geodetic_datadir = geodetic_datadir
-    config.tracks = tracks
-
-    config.bounds = [
-        Parameter(
-            name='east_shift',
-            lower=num.array([-10., -10.], dtype=num.float),
-            upper=num.array([10., 10.], dtype=num.float),
-            testvalue=num.array([7., 5.], dtype=num.float)),
-        Parameter(
-            name='north_shift',
-            lower=num.array([-20., -40.], dtype=num.float),
-            upper=num.array([20., -10.], dtype=num.float),
-            testvalue=num.array([-13., -25.], dtype=num.float)),
-        Parameter(
-            name='depth',
-            lower=num.array([0., 0.], dtype=num.float),
-            upper=num.array([5., 20.], dtype=num.float),
-            testvalue=num.array([1., 10.], dtype=num.float)),
-        Parameter(
-            name='strike',
-            lower=num.array([180., 0.], dtype=num.float),
-            upper=num.array([210., 360.], dtype=num.float),
-            testvalue=num.array([190., 90.], dtype=num.float)),
-        Parameter(
-            name='dip',
-            lower=num.array([50., 0.], dtype=num.float),
-            upper=num.array([90., 90.], dtype=num.float),
-            testvalue=num.array([80., 45.], dtype=num.float)),
-        Parameter(
-            name='rake',
-            lower=num.array([-90., -180.], dtype=num.float),
-            upper=num.array([90., 180.], dtype=num.float),
-            testvalue=num.array([0., 0.], dtype=num.float)),
-        Parameter(
-            name='length',
-            lower=num.array([20., 1.], dtype=num.float),
-            upper=num.array([70., 10.], dtype=num.float),
-            testvalue=num.array([40., 5.], dtype=num.float)),
-        Parameter(
-            name='width',
-            lower=num.array([10., 1.], dtype=num.float),
-            upper=num.array([28., 10.], dtype=num.float),
-            testvalue=num.array([20., 5.], dtype=num.float)),
-        Parameter(
-            name='slip',
-            lower=num.array([0., 0.], dtype=num.float),
-            upper=num.array([8., 5.], dtype=num.float),
-            testvalue=num.array([2., 1.], dtype=num.float)),
-        Parameter(
-            name='opening',
-            lower=num.array([0., 0.], dtype=num.float),
-            upper=num.array([0., 0.], dtype=num.float),
-            testvalue=num.array([0., 0.], dtype=num.float)),
-        Parameter(
-            name='time',
-            lower=num.array([-5., -15.], dtype=num.float),
-            upper=num.array([10., -6.], dtype=num.float),
-            testvalue=num.array([0., -8.], dtype=num.float)),
-        Parameter(
-            name='duration',
-            lower=num.array([5., 0.], dtype=num.float),
-            upper=num.array([20., 6.], dtype=num.float),
-            testvalue=num.array([10., 3.], dtype=num.float))
-            ]
-
-    config.validate()
-    config.validate_bounds()
-
-    logger.info('Project_directory: %s \n' % config.project_dir)
-    util.ensuredir(config.project_dir)
-
-    conf_out = os.path.join(config.project_dir, config_file_name)
-    dump(config, filename=conf_out)
-    return config
