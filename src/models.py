@@ -43,8 +43,8 @@ class Problem(Object):
             seis_mean_target = num.mean(seis_likelihoods, axis=0)
             geo_mean_target = num.mean(geo_likelihoods, axis=0)
 
-            Ws = num.diag(1. / seis_mean_target)
-            Wg = num.diag(1. / geo_mean_target)
+            Ws = num.diag(1. / num.abs(seis_mean_target))
+            Wg = num.diag(1. / num.abs(geo_mean_target))
 
         elif mode == 'covariance':
             logger.info('Using covariances between dataset distributions!')
