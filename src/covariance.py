@@ -17,8 +17,8 @@ def sub_data_covariance(n, dt, tzero):
                               num.arange(n)[num.newaxis, :]) * dt / tzero)
 
 
-def get_seismic_data_covariances(data_traces, config, engine,
-                                 event, targets):
+def get_seismic_data_covariances(data_traces, engine, filterer, sample_rate,
+                                 arrival_taper, event, targets):
     '''
     Calculate SubCovariance Matrix of trace object following
     Duputel et al. 2012 GJI
@@ -30,9 +30,9 @@ def get_seismic_data_covariances(data_traces, config, engine,
        i,j are samples of the seismic trace
     '''
 
-    tzero = 1. / config.filterer.upper_corner
-    dt = 1. / config.sample_rate
-    ataper = config.arrival_taper
+    tzero = 1. / filterer.upper_corner
+    dt = 1. / sample_rate
+    ataper = arrival_taper
     n = int(num.ceil((ataper.a + ataper.d) / dt))
 
     csub = sub_data_covariance(n, dt, tzero)

@@ -137,13 +137,13 @@ class GeometryOptimizer(Problem):
 
             self.sources.append(source)
 
-        dsources = utility.transform_sources(self.sources, config)
+        dsources = utility.transform_sources(self.sources, pc.datasets)
 
         if self._seismic_flag:
             logger.info('Setting up seismic structure ...\n')
             sc = config.seismic_config
             self.engine = gf.LocalEngine(
-                store_superdirs=[config.store_superdir])
+                store_superdirs=[sc.gf_config.store_superdir])
 
             stations = inputf.load_and_blacklist_stations(
                 sc.datadir, blacklist=sc.blacklist)
@@ -174,7 +174,9 @@ class GeometryOptimizer(Problem):
             logger.info('Getting seismic data-covariances ...\n')
             cov_ds_seismic = cov.get_seismic_data_covariances(
                 data_traces=self.data_traces,
-                config=config,
+                filterer=sc.filterer,
+                sample_rate=sc.gf_config.sample_rate,
+                arrival_taper=sc.arrival_taper,
                 engine=self.engine,
                 event=self.event,
                 targets=self.stargets)
@@ -196,14 +198,14 @@ class GeometryOptimizer(Problem):
                 sources=dsources['seismic'],
                 targets=self.stargets,
                 event=self.event,
-                arrival_taper=config.arrival_taper,
-                filterer=config.filterer)
+                arrival_taper=sc.arrival_taper,
+                filterer=sc.filterer)
 
             self.chop_traces = theanof.SeisDataChopper(
-                sample_rate=config.sample_rate,
+                sample_rate=sc.gf_config.sample_rate,
                 traces=self.data_traces,
-                arrival_taper=config.arrival_taper,
-                filterer=config.filterer)
+                arrival_taper=sc.arrival_taper,
+                filterer=sc.filterer)
 
         if self._geodetic_flag:
             logger.info('Setting up geodetic structure ...\n')
@@ -248,7 +250,7 @@ class GeometryOptimizer(Problem):
             self.get_geo_synths = theanof.GeoLayerSynthesizerStatic(
                 lats=lats,
                 lons=lons,
-                store_superdir=config.store_superdir,
+                store_superdir=gc.gf_config.store_superdir,
                 crust_ind=0,    # always reference model
                 sources=dsources['geodetic'])
 
@@ -323,7 +325,8 @@ class GeometryOptimizer(Problem):
                 # seis
                 seis_names = [param.name for param in self.seis_input_rvs]
                 logger.info(
-                    'Teleseismic optimization on: \n \n %s' % ', '.join(seis_names))
+                    'Teleseismic optimization on: \n '
+                    ' %s' % ', '.join(seis_names))
 
                 t2 = time.time()
                 synths, tmins = self.get_seis_synths(*self.seis_input_rvs)
@@ -359,7 +362,8 @@ class GeometryOptimizer(Problem):
                 # geo
                 geo_names = [param.name for param in self.geo_input_rvs]
                 logger.info(
-                'Geodetic optimization on: \n \n %s' % ', '.join(geo_names))
+                    'Geodetic optimization on: \n '
+                    '%s' % ', '.join(geo_names))
 
                 t0 = time.time()
                 disp = self.get_geo_synths(*self.geo_input_rvs)
@@ -464,6 +468,8 @@ class GeometryOptimizer(Problem):
         '''
         point = utility.adjust_point_units(point)
 
+        d = dict()
+
         if self._seismic_flag:
             point['time'] += self.event.time
 
@@ -472,34 +478,44 @@ class GeometryOptimizer(Problem):
         for i, source in enumerate(self.sources):
             source.update(**source_points[i])
 
-        seismic_sources, geodetic_sources = utility.transform_sources(
-                                                            self.sources)
+        dsources = utility.transform_sources(
+            self.sources, self.config.problem_config.datasets)
 
         # seismic
-        seis_synths, _ = heart.seis_synthetics(
-            engine=self.engine,
-            sources=seismic_sources,
-            targets=self.stargets,
-            arrival_taper=self.config.arrival_taper,
-            filterer=self.config.filterer, outmode='traces')
+        if self._seismic_flag:
+            sc = self.config.seismic_config
+            seis_synths, _ = heart.seis_synthetics(
+                engine=self.engine,
+                sources=dsources['seismic'],
+                targets=self.stargets,
+                arrival_taper=sc.arrival_taper,
+                filterer=sc.filterer, outmode='traces')
+
+            d['seismic'] = seis_synths
 
         # geodetic
-        crust_inds = [0]
+        if self._geodetic_flag:
+            gc = self.config.geodetic_config
 
-        geo_synths = []
-        for crust_ind in crust_inds:
-            for gtarget in self.gtargets:
-                disp = heart.geo_layer_synthetics(
-                    self.config.store_superdir, crust_ind,
-                    lons=gtarget.lons,
-                    lats=gtarget.lats,
-                    sources=geodetic_sources)
-                geo_synths.append((
-                    disp[:, 0] * gtarget.los_vector[:, 0] + \
-                    disp[:, 1] * gtarget.los_vector[:, 1] + \
-                    disp[:, 2] * gtarget.los_vector[:, 2]) * gtarget.odw)
+            crust_inds = [0]
 
-        return seis_synths, geo_synths
+            geo_synths = []
+            for crust_ind in crust_inds:
+                for gtarget in self.gtargets:
+                    disp = heart.geo_layer_synthetics(
+                        gc.gf_config.store_superdir,
+                        crust_ind,
+                        lons=gtarget.lons,
+                        lats=gtarget.lats,
+                        sources=dsources['geodetic'])
+                    geo_synths.append((
+                        disp[:, 0] * gtarget.los_vector[:, 0] + \
+                        disp[:, 1] * gtarget.los_vector[:, 1] + \
+                        disp[:, 2] * gtarget.los_vector[:, 2]) * gtarget.odw)
+
+            d['geodetic'] = geo_synths
+
+        return d
 
 
 def sample(step, problem, n_steps=100, n_jobs=1, stage=None, rm_flag=False):
