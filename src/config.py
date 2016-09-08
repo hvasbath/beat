@@ -113,7 +113,7 @@ class GeodeticGFConfig(GFConfig):
                          'implemented!)')
 
 
-class TeleseismicConfig(Object):
+class SeismicConfig(Object):
     '''
     Config for teleseismic setup related parameters.
     '''
@@ -121,7 +121,6 @@ class TeleseismicConfig(Object):
     datadir = String.T(default='./')
     blacklist = List.T(String.T(),
                        default=['placeholder'],
-                       optional=True,
                        help='Station name for station to be thrown out.')
     distances = Tuple.T(2, Float.T(), default=(30., 90.))
     channels = List.T(String.T(), default=['Z', 'T'])
@@ -210,6 +209,12 @@ class ATMCMCConfig(Object):
     tune_interval = Int.T(
         default=10,
         help='Tune interval for adaptive tuning of Metropolis step size.')
+    coef_variation = Float.T(
+        default=1.,
+        help='Coefficient of variation, determines the similarity of the'
+             'intermediate stage pdfs;'
+             'low - small beta steps (slow cooling),'
+             'high - wide beta steps (fast cooling)')
     proposal_dist = String.T(
         default='MvNPd',
         help='Multivariate Normal Proposal distribution, for Metropolis steps'
@@ -238,42 +243,55 @@ class BEATconfig(Object):
 
     problem_config = ProblemConfig.T(default=ProblemConfig.D())
     geodetic_config = GeodeticConfig.T(default=GeodeticConfig.D())
-    teleseismic_config = TeleseismicConfig.T(default=TeleseismicConfig.D())
+    seismic_config = SeismicConfig.T(default=SeismicConfig.D())
     solver = String.T(
         default='ATMCMC',
         help='Solver to use for sampling the solution space.')
     solver_config = ATMCMCConfig.T(default=ATMCMCConfig.D())
 
 
-def init_config(name, year, project_dir='./', datasets=['geodetic'],
-                n_variations=0, problem='geometry', n_faults=1,
+def init_config(name, year, main_path='./', datasets=['geodetic'],
+                n_variations=0, mode='geometry', n_faults=1,
                 solver='ATMCMC'):
     '''
-    Initialise BEATconfig File. Fine parameters have to be edited in the file
-    manually.
+    Initialise BEATconfig File and write it to main_path/name+year/ .
+    Fine parameters have to be edited in the config file .yaml manually.
+    Input:
+    name - Str - Name of the event
+    year - Int - YYYY, Year of the event
     '''
 
     c = BEATconfig(name=name, year=year)
 
-    c.project_dir = project_dir
+    c.project_dir = os.path.join(main_path, name + '%i' % year)
+    util.ensuredir(c.project_dir)
 
     c.problem_config = ProblemConfig(
-        n_faults=n_faults, datasets=datasets, mode=problem)
+        n_faults=n_faults, datasets=datasets, mode=mode)
     c.problem_config.init_vars()
-    c.geodetic_config = GeodeticConfig(
-        crust_ind=range(1 + n_variations))
-    c.teleseismic_config = TeleseismicConfig(
-        crust_ind=range(1 + n_variations))
+
+    if 'geodetic' in datasets:
+        c.geodetic_config = GeodeticConfig()
+        c.geodetic_config.gf_config.crust_ind = range(1 + n_variations)
+    else:
+        c.geodetic_config = None
+
+    if 'seismic' in datasets:
+        c.seismic_config = SeismicConfig()
+        c.seismic_config.gf_config.crust_ind = range(1 + n_variations)
+    else:
+        c.seismic_config = None
+
     c.solver = solver
     c.solver_config = ATMCMCConfig()
 
     c.validate()
-    c.validate_bounds()
+    c.problem_config.validate_bounds()
 
     logger.info('Project_directory: %s \n' % c.project_dir)
     util.ensuredir(c.project_dir)
 
-    config_file_name = 'config_' + problem + '.yaml'
+    config_file_name = 'config_' + mode + '.yaml'
     conf_out = os.path.join(c.project_dir, config_file_name)
     dump(c, filename=conf_out)
     return c

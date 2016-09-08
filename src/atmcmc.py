@@ -567,7 +567,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
                 if step.stage == 0:
                     update.update_target_weights(
-                        mtrace, mode=step.data_weighting)
+                        mtrace, method=step.data_weighting)
                     # reset beta again, because MF space changed
                     step.beta = 0.
                     step.old_beta = 0.

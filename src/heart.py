@@ -100,7 +100,7 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
                             strike_vec * ((i + 0.5 - 0.5 * n) * length) + \
                             dip_vec * ((j + 0.5 - 0.5 * m) * width)
 
-                if datatype == 'seis':
+                if datatype == 'seismic':
                     patch = gf.RectangularSource(
                         lat=float(self.lat),
                         lon=float(self.lon),
@@ -110,7 +110,7 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
                         strike=self.strike, dip=self.dip, rake=self.rake,
                         length=length, width=width, stf=self.stf,
                         time=self.time, slip=self.slip)
-                elif datatype == 'geo':
+                elif datatype == 'geodetic':
                     patch = pscmp.PsCmpRectangularSource(
                         lat=self.lat,
                         lon=self.lon,
@@ -122,7 +122,7 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
                         opening=self.opening)
                 else:
                     raise Exception(
-                        "Datatype not supported either: 'seis/geo'")
+                        "Datatype not supported either: 'seismic/geodetic'")
 
                 patches.append(patch)
 

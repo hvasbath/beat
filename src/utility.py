@@ -113,7 +113,7 @@ class ListToArrayBijection(object):
         return a_list
 
 
-def weed_input_rvs(input_rvs, mode):
+def weed_input_rvs(input_rvs, dataset):
     '''
     Throw out random variables from input list that are not needed by the
     respective synthetics generating functions.
@@ -122,9 +122,9 @@ def weed_input_rvs(input_rvs, mode):
     name_order = [param.name for param in input_rvs]
     weeded_input_rvs = copy.copy(input_rvs)
 
-    if mode == 'geo':
+    if dataset == 'geodetic':
         tobeweeded = ['time', 'duration']
-    elif mode == 'seis':
+    elif dataset == 'seismic':
         tobeweeded = ['opening']
 
     indexes = []
@@ -188,24 +188,29 @@ def weed_stations(stations, event, distances=(30., 90.)):
     return weeded_stations
 
 
-def transform_sources(sources):
+def transform_sources(sources, datasets):
     '''
-    Transforms a list of :py:class:`beat.RectangularSource` to lists of
-    :py:class:`pscmp.RectangularSource` and :py:class:`gf.RectangularSource`.
+    Transforms a list of :py:class:`beat.RectangularSource` to dict of sources
+    :py:class:`pscmp.RectangularSource` for geodetic data and
+    :py:class:`gf.RectangularSource` for seismic data.
+    Input: sources - list of BEAT sources
+           datasets - config.problem.config.datasets
     '''
-    sub_sources_seismic = []
-    sub_sources_geodetic = []
+    d = dict()
 
-    for source in sources:
-        sub_sources_seismic.append(source.patches(1, 1, 'seis'))
-        sub_sources_geodetic.append(source.patches(1, 1, 'geo'))
+    for dataset in datasets:
+        sub_sources = []
 
-    # concatenate list of lists to single list
-    seismic_sources = []
-    geodetic_sources = []
-    map(seismic_sources.extend, sub_sources_seismic)
-    map(geodetic_sources.extend, sub_sources_geodetic)
-    return seismic_sources, geodetic_sources
+        for source in sources:
+            sub_sources.append(source.patches(1, 1, dataset))
+
+        # concatenate list of lists to single list
+        transformed_sources = []
+        map(transformed_sources.extend, sub_sources)
+
+        d[dataset] = transformed_sources
+
+    return d
 
 
 def adjust_point_units(point):
