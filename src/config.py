@@ -6,6 +6,8 @@ from pyrocko.guts import Object, List, String, Float, Int, Tuple, Bool, dump
 from pyrocko import trace, model, util
 from beat.heart import Filter, ArrivalTaper, TeleseismicTarget, Parameter
 
+from beat import utility
+
 import numpy as num
 
 guts_prefix = 'beat'
@@ -289,7 +291,7 @@ class BEATconfig(Object):
     '''
 
     name = String.T()
-    year = Int.T()
+    date = String.T()
     event = model.Event.T(optional=True)
     project_dir = String.T(default='event/')
 
@@ -299,24 +301,28 @@ class BEATconfig(Object):
     sampler_config = SamplerConfig.T(default=SamplerConfig.D())
 
 
-def init_config(name, year, main_path='./', datasets=['geodetic'],
-                n_variations=0, mode='geometry', n_faults=1,
-                solver='ATMCMC'):
+def init_config(name, date, min_magnitude=6.0, main_path='./',
+                datasets=['geodetic'],
+                n_variations=0, problem='geometry', n_faults=1,
+                sampler='ATMCMC'):
     '''
     Initialise BEATconfig File and write it to main_path/name+year/ .
     Fine parameters have to be edited in the config file .yaml manually.
     Input:
     name - Str - Name of the event
-    year - Int - YYYY, Year of the event
+    date - Str - 'YYYY-MM-DD', date of the event
+    min_magnitude - approximate minimum Mw of the event
     '''
 
-    c = BEATconfig(name=name, year=year)
+    c = BEATconfig(name=name, date=date)
 
-    c.project_dir = os.path.join(main_path, name + '%i' % year)
+    c.event = utility.search_catalog(date=date, min_magnitude=min_magnitude)
+
+    c.project_dir = os.path.join(main_path, name)
     util.ensuredir(c.project_dir)
 
     c.problem_config = ProblemConfig(
-        n_faults=n_faults, datasets=datasets, mode=mode)
+        n_faults=n_faults, datasets=datasets, mode=problem)
     c.problem_config.init_vars()
 
     if 'geodetic' in datasets:
@@ -331,7 +337,7 @@ def init_config(name, year, main_path='./', datasets=['geodetic'],
     else:
         c.seismic_config = None
 
-    c.solver_config = SamplerConfig(name=solver)
+    c.solver_config = SamplerConfig(name=sampler)
 
     c.validate()
     c.problem_config.validate_bounds()

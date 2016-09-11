@@ -3,7 +3,7 @@ import os
 import collections
 import copy
 
-from pyrocko import util, orthodrome
+from pyrocko import util, orthodrome, catalog
 from pyrocko.cake import m2d
 
 import numpy as num
@@ -11,10 +11,17 @@ import numpy as num
 from pyproj import Proj
 import pickle
 
+logger = logging.getLogger('beat')
 
 DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype')
 
 kmtypes = set(['east_shift', 'north_shift', 'length', 'width', 'depth'])
+
+seconds_str = '00:00:00'
+
+sphr = 3600.
+hrpd = 24.
+
 km = 1000.
 
 
@@ -309,3 +316,45 @@ def load_atmip_params(project_dir, stage_number, mode):
     step, update = pickle.load(open(stage_path, 'rb'))
     return step, update
 
+
+def search_catalog(date, min_magnitude):
+    '''
+    Search the gcmt catalog for the specified date (+- 1 day), filtering the
+    events with given magnitude threshold.
+    Input:
+    date - Str - 'YYYY-MM-DD', date of the event
+    min_magnitude - approximate minimum Mw of the event
+
+    Retuns:
+    event - Object
+    '''
+
+    gcmt = catalog.GlobalCMT()
+
+    time_s = util.stt(date + ' ' + seconds_str)
+    d1 = time_s - (sphr * hrpd)
+    d2 = time_s + (sphr * hrpd)
+
+    logger.info('Getting relevant events from the gCMT catalog for the dates:'
+                '%s - %s \n' % (util.tts(d1), util.tts(d2)))
+
+    events = gcmt.get_events((d1, d2), magmin=min_magnitude)
+
+    if len(events) < 1:
+        logger.warn('Found no event information in the gCMT catalog.')
+        event = None
+
+    if len(events) > 1:
+        logger.info(
+            'More than one event from that date with specified magnitude'
+            'found! Please copy the relevant event information to the'
+            'configuration file file!')
+        for event in events:
+            print event
+
+        event = events[0]
+
+    elif len(events) == 0:
+        event = events[0]
+
+    return event

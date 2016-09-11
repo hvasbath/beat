@@ -74,6 +74,9 @@ class Problem(Object):
         '''
         sc = self.config.solver_config
 
+        if self.model is None:
+            Exception('Model has to be built before initialising the sampler.')
+
         with self.model:
             if sc.name == 'Metropolis':
                 logger.info(
