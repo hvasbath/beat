@@ -195,7 +195,26 @@ class ProblemConfig(Object):
         print('All parameter-bounds ok!')
 
 
-class ATMCMCConfig(Object):
+class SamplerParameters(Object):
+    pass
+
+
+class MetropolisConfig(SamplerParameters):
+    '''
+    Config for optimization parameters for the adaptive Metropolis algorithm.
+    '''
+    n_steps = Int.T(default=10000,
+                    help='Number of steps for the MC chain.')
+    tune_interval = Int.T(
+        default=10,
+        help='Tune interval for adaptive tuning of Metropolis step size.')
+    proposal_dist = String.T(
+        default='Normal',
+        help='Normal Proposal distribution, for Metropolis steps'
+             'alternatives: Cauchy, Laplace, Poisson, MultivariateNormal')
+
+
+class ATMCMCConfig(SamplerParameters):
     '''
     Config for optimization parameters for the ATMCMC algorithm.
     '''
@@ -215,6 +234,8 @@ class ATMCMCConfig(Object):
              'intermediate stage pdfs;'
              'low - small beta steps (slow cooling),'
              'high - wide beta steps (fast cooling)')
+    stage = Int.T(default=0,
+                  help='Stage where to start/continue the sampling.')
     proposal_dist = String.T(
         default='MvNPd',
         help='Multivariate Normal Proposal distribution, for Metropolis steps'
@@ -227,6 +248,37 @@ class ATMCMCConfig(Object):
         default='meannorm',
         help='dataset weighting sceme to calculate total model likelihood,'
              '("meannorm", "covariance")')
+    rm_flag = Bool.T(default=False,
+                     help='Remove existing stage results prior to sampling.')
+
+
+class SamplerConfig(Object):
+    '''
+    Contains the sampler specific parameters.
+    '''
+
+    name = String.T(default='ATMCMC',
+                    help='Sampler to use for sampling the solution space.'
+                         'Metropolis/ ATMCMC coming soon: ADVI')
+    parameters = SamplerParameters.T(
+        default=ATMCMCConfig.D(),
+        optional=True,
+        help='Sampler dependend Parameters')
+
+    def __init__(self, **kwargs):
+
+        if 'name' in kwargs:
+            self.name = kwargs.pop('name')
+
+        else:
+            logger.info('name = None, Using default sampler: ATMCMC')
+            self.name = 'ATMCMC'
+
+        if self.name == 'Metropolis':
+            self.parameters = MetropolisConfig()
+
+        if self.name == 'ATMCMC':
+            self.parameters = ATMCMCConfig()
 
 
 class BEATconfig(Object):
@@ -244,10 +296,7 @@ class BEATconfig(Object):
     problem_config = ProblemConfig.T(default=ProblemConfig.D())
     geodetic_config = GeodeticConfig.T(default=GeodeticConfig.D())
     seismic_config = SeismicConfig.T(default=SeismicConfig.D())
-    solver = String.T(
-        default='ATMCMC',
-        help='Solver to use for sampling the solution space.')
-    solver_config = ATMCMCConfig.T(default=ATMCMCConfig.D())
+    sampler_config = SamplerConfig.T(default=SamplerConfig.D())
 
 
 def init_config(name, year, main_path='./', datasets=['geodetic'],
@@ -282,8 +331,7 @@ def init_config(name, year, main_path='./', datasets=['geodetic'],
     else:
         c.seismic_config = None
 
-    c.solver = solver
-    c.solver_config = ATMCMCConfig()
+    c.solver_config = SamplerConfig(name=solver)
 
     c.validate()
     c.problem_config.validate_bounds()
@@ -295,4 +343,3 @@ def init_config(name, year, main_path='./', datasets=['geodetic'],
     conf_out = os.path.join(c.project_dir, config_file_name)
     dump(c, filename=conf_out)
     return c
-

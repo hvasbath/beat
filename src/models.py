@@ -3,6 +3,8 @@ import time
 
 import pymc3 as pm
 
+from pymc3 import Metropolis
+
 from pyrocko import gf, util, model
 from pyrocko.guts import Object, load
 
@@ -66,25 +68,40 @@ class Problem(Object):
 
             self.geo_llk_weights.set_value(Wg)
 
-    def init_atmip(self, n_chains=100, tune_interval=10):
+    def init_sampler(self):
         '''
-        Initialise the (C)ATMIP algorithm.
+        Initialise the Sampling algorithm as defined in the configuration file.
+        '''
+        sc = self.config.solver_config
 
-        n_chains - number of independent Metropolis chains
-        tune_interval - number of samples after which Metropolis is being
-                        scaled according to the acceptance ratio.
-        '''
         with self.model:
-            logger.info('... Initiate Adaptive Transitional Metropolis ... \n'
-                  ' n_chains=%i, tune_interval=%i\n' % (n_chains,
-                                                           tune_interval))
-            t1 = time.time()
-            step = atmcmc.ATMCMC(
-                n_chains=n_chains,
-                tune_interval=tune_interval,
-                likelihood_name=self._like_name)
-            t2 = time.time()
-            logger.info('Compilation time: %f' % (t2 - t1))
+            if sc.name == 'Metropolis':
+                logger.info(
+                    '... Initiate Metropolis ... \n'
+                    'proposal_distribution %s, tune_interval=%i\n' % (
+                    sc.parameters.proposal_dist, sc.parameters.tune_interval))
+
+                t1 = time.time()
+                step = Metropolis(
+                    n_steps=sc.parameters.n_steps,
+                    tune_interval=sc.parameters.tune_interval,
+                    proposal_dist=choose_proposal(sc.parameters.proposal_dist))
+                t2 = time.time()
+                logger.info('Compilation time: %f' % (t2 - t1))
+
+            elif sc.name == 'AMCMC':
+                logger.info(
+                    '... Initiate Adaptive Transitional Metropolis ... \n'
+                    ' n_chains=%i, tune_interval=%i\n' % (
+                        sc.parameters.n_chains, sc.parameters.tune_interval))
+
+                t1 = time.time()
+                step = atmcmc.ATMCMC(
+                    n_chains=sc.parameters.n_chains,
+                    tune_interval=sc.parameters.tune_interval,
+                    likelihood_name=self._like_name)
+                t2 = time.time()
+                logger.info('Compilation time: %f' % (t2 - t1))
 
         self.engine.close_cashed_stores()
 
@@ -518,31 +535,62 @@ class GeometryOptimizer(Problem):
         return d
 
 
-def sample(step, problem, n_steps=100, n_jobs=1, stage=None, rm_flag=False):
+def sample(step, problem):
         '''
-        Sample solution space with the (C)ATMIP algorithm.
+        Sample solution space with the previously initalised algorithm.
 
         Inputs:
-        step - Object from init_atmip
+        step - Object from init_sampler
         problem - Object with characteristics of problem to solve
         n_steps - number of samples within each chain
         n_jobs - number of parallel chains
         stage - stage where to continue sampling
         rm_flag - bool, whether to remove existing result stages
+
+
+        n_chains - number of independent Metropolis chains
+        tune_interval - number of samples after which Metropolis is being
+                        scaled according to the acceptance ratio.
         '''
 
+        sc = problem.config.sampler_config.parameters
+
         logger.info('... Starting ATMIP ...\n')
-        trace = atmcmc.ATMIP_sample(
-            n_steps,
+        atmcmc.ATMIP_sample(
+            sc.n_steps,
             step=step,
             progressbar=True,
             model=problem.model,
-            n_jobs=n_jobs,
-            stage=stage,
+            n_jobs=sc.n_jobs,
+            stage=sc.stage,
             update=problem,
-            trace=problem.geometry_outfolder,
-            rm_flag=rm_flag)
-        return trace
+            trace=problem.outfolder,
+            rm_flag=sc.rm_flag)
+
+
+def choose_proposal(proposal_dist):
+    '''
+    Initialises and selects proposal distribution.
+    Returns:
+    Function
+    '''
+
+    if proposal_dist == 'Cauchy':
+        distribution = pm.CauchyProposal
+
+    elif proposal_dist == 'Poisson':
+        distribution = pm.PoissonProposal
+
+    elif proposal_dist == 'Normal':
+        distribution = pm.NormalProposal
+
+    elif proposal_dist == 'Laplace':
+        distribution = pm.LaplaceProposal
+
+    elif proposal_dist == 'MultivariateNormal':
+        distribution = pm.MultivariateNormalProposal
+
+    return distribution
 
 
 def load_model(project_dir):
