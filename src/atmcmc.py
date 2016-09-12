@@ -28,8 +28,7 @@ from beat import backend, utility
 
 __all__ = ['ATMCMC', 'ATMIP_sample']
 
-logger = logging.getLogger('beat')
-logger.setLevel(logging.INFO)
+logger = logging.getLogger('ATMCMC')
 
 
 class ATMCMC(backend.ArrayStepSharedLLK):

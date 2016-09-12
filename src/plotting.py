@@ -1,9 +1,10 @@
 from pyrocko import cake_plot as cp
 import pymc3 as pm
 
-from beat import utility
+import os
+from beat import utility, models, backend
 from matplotlib import pylab as plt
-import math
+
 import numpy as num
 from pyrocko import cake
 
@@ -24,12 +25,37 @@ def plot_misfits(problem, mtrace, mode='geometry', posterior='mean'):
 
     return seis_synths, geo_synths
 
-def stage_posteriors(mtrace):
+
+def stage_posteriors(mtrace, output='display'):
     '''
     Plot variable posteriors from certain stage of the ATMIP algorithm.
     '''
     PLT = pm.plots.traceplot(mtrace, combined=True)
-    plt.show(PLT[0][0])
+    if output == 'display':
+        plt.show(PLT[0][0])
+    elif output == 'png':
+        plt.savefig('stage_posterior.png', dpi=300)
+
+
+def plot_all_posteriors(project_dir, mode='geometry'):
+    '''
+    Loop through all stages and plot the pdfs of the variables.
+    '''
+    problem = models.load_model(project_dir)
+
+    step, _ = utility.load_atmip_params(project_dir, 'final', mode=mode)
+
+    for i in range(step.stage + 1):
+        stage_path = os.path.join(project_dir, mode, 'stage_%i' % i )
+        mtrace = backend.load(stage_path, model=problem.model)
+        os.chdir(stage_path)
+        print('plotting stage path: %s' %stage_path)
+        stage_posteriors(mtrace, output='png')
+
+    stage_path = os.path.join(project_dir, mode, 'stage_final')
+    mtrace = backend.load(stage_path, model=problem.model)
+    os.chdir(stage_path)
+    stage_posteriors(mtrace, output='png')
 
 
 def n_model_plot(models, axes=None):

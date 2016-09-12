@@ -12,7 +12,7 @@ import numpy as num
 
 guts_prefix = 'beat'
 
-logger = logging.getLogger('beat')
+logger = logging.getLogger('config')
 
 geo_vars_geometry = set(['east_shift', 'north_shift', 'depth', 'strike', 'dip',
                          'rake', 'length', 'width', 'slip'])
@@ -150,7 +150,7 @@ class ProblemConfig(Object):
     '''
     Config for inversion problem to setup.
     '''
-    mode = String.T(default='Geometry',
+    mode = String.T(default='geometry',
                     help='Problem to solve: "Geometry", "Static","Kinematic"')
     n_faults = Int.T(default=1,
                      help='Number of Sub-faults to solve for')
@@ -158,6 +158,7 @@ class ProblemConfig(Object):
     bounds = List.T(Parameter.T())
 
     def init_vars(self):
+
         if self.mode == 'geometry':
             if 'geodetic' in self.datasets:
                 variables = geo_vars_geometry
@@ -296,14 +297,16 @@ class BEATconfig(Object):
     project_dir = String.T(default='event/')
 
     problem_config = ProblemConfig.T(default=ProblemConfig.D())
-    geodetic_config = GeodeticConfig.T(default=GeodeticConfig.D())
-    seismic_config = SeismicConfig.T(default=SeismicConfig.D())
+    geodetic_config = GeodeticConfig.T(
+        default=GeodeticConfig.D(), optional=True)
+    seismic_config = SeismicConfig.T(
+        default=SeismicConfig.D(), optional= True)
     sampler_config = SamplerConfig.T(default=SamplerConfig.D())
 
 
 def init_config(name, date, min_magnitude=6.0, main_path='./',
                 datasets=['geodetic'],
-                n_variations=0, problem='geometry', n_faults=1,
+                n_variations=0, mode='geometry', n_faults=1,
                 sampler='ATMCMC'):
     '''
     Initialise BEATconfig File and write it to main_path/name+year/ .
@@ -322,7 +325,7 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
     util.ensuredir(c.project_dir)
 
     c.problem_config = ProblemConfig(
-        n_faults=n_faults, datasets=datasets, mode=problem)
+        n_faults=n_faults, datasets=datasets, mode=mode)
     c.problem_config.init_vars()
 
     if 'geodetic' in datasets:

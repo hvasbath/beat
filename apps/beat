@@ -3,7 +3,7 @@
 import sys, re, os, logging, copy
 from optparse import OptionParser
 
-from beat import heart, config
+from beat import heart, config, utility
 
 from pyrocko import model, util
 
@@ -64,8 +64,7 @@ def add_common_options(parser):
               'Default is "%default".')
 
 def process_common_options(options):
-    util.setup_logging(program_name, options.loglevel)
-
+    utility.setup_logging(options.main_path, options.loglevel)
 
 def die(message, err=''):
     sys.exit('%s: error: %s \n %s' % (program_name, message, err))
@@ -112,6 +111,9 @@ def load_config(fn):
 def command_init(args):
 
     def setup(parser):
+        def list_callback(option, opt, value, parser):
+            out = [ival.lstrip() for ival in value.split(',')]
+            setattr(parser.values, option.dest, out)
 
         parser.add_option('--min_mag', dest='min_mag', type=float,
                 default=6.,
@@ -123,19 +125,20 @@ def command_init(args):
                 help='Main path (absolute) for creating directory structure.'
                      '  Default: current directory ./')
 
-        parser.add_option('--datasets', dest='datasets', default='geodetic',
-                action='append',
-                choices=['geodetic', 'seismic'],
-                help='Datasets to include in the setup; "geodetic", "seismic".'
+        parser.add_option('--datasets',
+                default='geodetic', type='string',
+                action='callback', callback=list_callback,
+                help='Datasets to include in the setup; "geodetic, seismic".'
                      ' Default: "geometry"')
 
-        parser.add_option('--problem', dest='problem',
+        parser.add_option('--mode', dest='mode',
                 choices=['geometry', 'static_dist', 'kinemtic_dist'],
+                default='geometry',
                 help='Inversion problem to solve; "geometry", "static_dist",'
                      '"kinematic_dist". Default: "geometry"')
 
         parser.add_option('--n_variations', dest='n_variations', type='int',
-                metavar='N',
+                metavar='N', default=0,
                 help='Number of velocity models to vary the reference model.'
                      ' Default: 0')
 
@@ -160,7 +163,7 @@ def command_init(args):
                min_magnitude=options.min_mag,
                main_path=options.main_path,
                datasets=options.datasets,
-               problem=options.problem,
+               mode=options.mode,
                n_variations=options.n_variations,
                n_faults=options.n_faults,
                sampler=options.sampler)

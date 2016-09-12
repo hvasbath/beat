@@ -14,8 +14,7 @@ import logging
 import shutil
 import copy
 
-logger = logging.getLogger('beat')
-logger.setLevel(logging.INFO)
+logger = logging.getLogger('heart')
 
 c = 299792458.  # [m/s]
 km = 1000.

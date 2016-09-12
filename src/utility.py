@@ -11,7 +11,7 @@ import numpy as num
 from pyproj import Proj
 import pickle
 
-logger = logging.getLogger('beat')
+logger = logging.getLogger('utility')
 
 DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype')
 
@@ -278,30 +278,32 @@ def utm_to_lonlat(utmx, utmy, zone):
     return lon, lat
 
 
-def setup_logging(project_dir):
+def setup_logging(project_dir, levelname):
     '''
     Setup function for handling logging. The logfiles are saved in the
     'project_dir'.
     '''
 
-    logger = logging.getLogger('beat')
+    levels = {'debug': logging.DEBUG,
+              'info': logging.INFO,
+              'warning': logging.WARNING,
+              'error': logging.ERROR,
+              'critical': logging.CRITICAL}
 
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s %(message)s',
+        filename=os.path.join(project_dir, 'BEAT_log.txt'),
+        filemode='a')
 
-    fl = logging.FileHandler(
-        filename=os.path.join(project_dir, 'log.txt'), mode='w')
-    fl.setLevel(logging.INFO)
+    console = logging.StreamHandler()
+    console.setLevel(levels[levelname])
 
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s %(message)s')
+    formatter = logging.Formatter('%(name)-12s - %(levelname)-8s %(message)s')
 
-    fl.setFormatter(formatter)
+    console.setFormatter(formatter)
 
-    logger.addHandler(ch)
-    logger.addHandler(fl)
-
-    return logger
+    logging.getLogger('').addHandler(console)
 
 
 def load_atmip_params(project_dir, stage_number, mode):
@@ -354,7 +356,7 @@ def search_catalog(date, min_magnitude):
 
         event = events[0]
 
-    elif len(events) == 0:
+    elif len(events) == 1:
         event = events[0]
 
     return event

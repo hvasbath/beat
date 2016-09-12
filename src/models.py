@@ -18,7 +18,7 @@ from beat import covariance as cov
 
 import logging
 
-logger = logging.getLogger('beat')
+logger = logging.getLogger('models')
 
 config_file_name = 'config.yaml'
 
@@ -92,7 +92,7 @@ class Problem(Object):
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
 
-            elif sc.name == 'AMCMC':
+            elif sc.name == 'ATMCMC':
                 logger.info(
                     '... Initiate Adaptive Transitional Metropolis ... \n'
                     ' n_chains=%i, tune_interval=%i\n' % (
@@ -102,6 +102,7 @@ class Problem(Object):
                 step = atmcmc.ATMCMC(
                     n_chains=sc.parameters.n_chains,
                     tune_interval=sc.parameters.tune_interval,
+                    coef_variation=sc.parameters.coef_variation,
                     likelihood_name=self._like_name)
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
