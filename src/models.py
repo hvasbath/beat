@@ -20,8 +20,6 @@ import logging
 
 logger = logging.getLogger('models')
 
-config_file_name = 'config.yaml'
-
 
 class Problem(Object):
 
@@ -72,7 +70,7 @@ class Problem(Object):
         '''
         Initialise the Sampling algorithm as defined in the configuration file.
         '''
-        sc = self.config.solver_config
+        sc = self.config.sampler_config
 
         if self.model is None:
             Exception('Model has to be built before initialising the sampler.')
@@ -103,6 +101,7 @@ class Problem(Object):
                     n_chains=sc.parameters.n_chains,
                     tune_interval=sc.parameters.tune_interval,
                     coef_variation=sc.parameters.coef_variation,
+                    data_weighting=sc.parameters.data_weighting,
                     likelihood_name=self._like_name)
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
@@ -373,7 +372,7 @@ class GeometryOptimizer(Problem):
                 seis_llk = pm.Deterministic(self._seis_like_name, logpts_s)
 
                 total_llk = total_llk + \
-                    seis_llk.T.dot(self.seis_llk_weights).sum()
+                    seis_llk.T.dot(self.seis_llk_weights).sum() / self.ns_t
 
             if self._geodetic_flag:
                 self.geo_input_rvs = utility.weed_input_rvs(
@@ -412,7 +411,7 @@ class GeometryOptimizer(Problem):
                 geo_llk = pm.Deterministic(self._geo_like_name, logpts_g)
 
                 total_llk = total_llk + \
-                    geo_llk.T.dot(self.geo_llk_weights).sum()
+                    geo_llk.T.dot(self.geo_llk_weights).sum() / self.ng_t
 
             like = pm.Deterministic(
                 self._like_name, total_llk)
@@ -546,15 +545,6 @@ def sample(step, problem):
         Inputs:
         step - Object from init_sampler
         problem - Object with characteristics of problem to solve
-        n_steps - number of samples within each chain
-        n_jobs - number of parallel chains
-        stage - stage where to continue sampling
-        rm_flag - bool, whether to remove existing result stages
-
-
-        n_chains - number of independent Metropolis chains
-        tune_interval - number of samples after which Metropolis is being
-                        scaled according to the acceptance ratio.
         '''
 
         sc = problem.config.sampler_config.parameters
@@ -597,14 +587,22 @@ def choose_proposal(proposal_dist):
     return distribution
 
 
-def load_model(project_dir):
+def load_model(project_dir, mode):
     '''
     Load config from project directory and return model.
     '''
+    config_file_name = 'config_' + mode + '.yaml'
+
     config_fn = os.path.join(project_dir, config_file_name)
     config = load(filename=config_fn)
 
-    problem = GeometryOptimizer(config)
+    pc = config.problem_config
+
+    if pc.mode == 'geometry':
+        problem = GeometryOptimizer(config)
+    else:
+        logger.error('Modeling problem %s not supported' % pc.mode)
+        Exception('Model not supported')
 
     problem.built_model()
     return problem
