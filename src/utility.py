@@ -3,7 +3,7 @@ import os
 import collections
 import copy
 
-from pyrocko import util, orthodrome
+from pyrocko import util, orthodrome, catalog
 from pyrocko.cake import m2d
 
 import numpy as num
@@ -11,10 +11,17 @@ import numpy as num
 from pyproj import Proj
 import pickle
 
+logger = logging.getLogger('utility')
 
 DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype')
 
 kmtypes = set(['east_shift', 'north_shift', 'length', 'width', 'depth'])
+
+seconds_str = '00:00:00'
+
+sphr = 3600.
+hrpd = 24.
+
 km = 1000.
 
 
@@ -113,7 +120,7 @@ class ListToArrayBijection(object):
         return a_list
 
 
-def weed_input_rvs(input_rvs, mode):
+def weed_input_rvs(input_rvs, dataset):
     '''
     Throw out random variables from input list that are not needed by the
     respective synthetics generating functions.
@@ -122,9 +129,9 @@ def weed_input_rvs(input_rvs, mode):
     name_order = [param.name for param in input_rvs]
     weeded_input_rvs = copy.copy(input_rvs)
 
-    if mode == 'geo':
+    if dataset == 'geodetic':
         tobeweeded = ['time', 'duration']
-    elif mode == 'seis':
+    elif dataset == 'seismic':
         tobeweeded = ['opening']
 
     indexes = []
@@ -188,24 +195,29 @@ def weed_stations(stations, event, distances=(30., 90.)):
     return weeded_stations
 
 
-def transform_sources(sources):
+def transform_sources(sources, datasets):
     '''
-    Transforms a list of :py:class:`beat.RectangularSource` to lists of
-    :py:class:`pscmp.RectangularSource` and :py:class:`gf.RectangularSource`.
+    Transforms a list of :py:class:`beat.RectangularSource` to dict of sources
+    :py:class:`pscmp.RectangularSource` for geodetic data and
+    :py:class:`gf.RectangularSource` for seismic data.
+    Input: sources - list of BEAT sources
+           datasets - config.problem.config.datasets
     '''
-    sub_sources_seismic = []
-    sub_sources_geodetic = []
+    d = dict()
 
-    for source in sources:
-        sub_sources_seismic.append(source.patches(1, 1, 'seis'))
-        sub_sources_geodetic.append(source.patches(1, 1, 'geo'))
+    for dataset in datasets:
+        sub_sources = []
 
-    # concatenate list of lists to single list
-    seismic_sources = []
-    geodetic_sources = []
-    map(seismic_sources.extend, sub_sources_seismic)
-    map(geodetic_sources.extend, sub_sources_geodetic)
-    return seismic_sources, geodetic_sources
+        for source in sources:
+            sub_sources.append(source.patches(1, 1, dataset))
+
+        # concatenate list of lists to single list
+        transformed_sources = []
+        map(transformed_sources.extend, sub_sources)
+
+        d[dataset] = transformed_sources
+
+    return d
 
 
 def adjust_point_units(point):
@@ -266,30 +278,32 @@ def utm_to_lonlat(utmx, utmy, zone):
     return lon, lat
 
 
-def setup_logging(project_dir):
+def setup_logging(project_dir, levelname):
     '''
     Setup function for handling logging. The logfiles are saved in the
     'project_dir'.
     '''
 
-    logger = logging.getLogger('beat')
+    levels = {'debug': logging.DEBUG,
+              'info': logging.INFO,
+              'warning': logging.WARNING,
+              'error': logging.ERROR,
+              'critical': logging.CRITICAL}
 
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s %(message)s',
+        filename=os.path.join(project_dir, 'BEAT_log.txt'),
+        filemode='a')
 
-    fl = logging.FileHandler(
-        filename=os.path.join(project_dir, 'log.txt'), mode='w')
-    fl.setLevel(logging.INFO)
+    console = logging.StreamHandler()
+    console.setLevel(levels[levelname])
 
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s %(message)s')
+    formatter = logging.Formatter('%(name)-12s - %(levelname)-8s %(message)s')
 
-    fl.setFormatter(formatter)
+    console.setFormatter(formatter)
 
-    logger.addHandler(ch)
-    logger.addHandler(fl)
-
-    return logger
+    logging.getLogger('').addHandler(console)
 
 
 def load_atmip_params(project_dir, stage_number, mode):
@@ -304,3 +318,45 @@ def load_atmip_params(project_dir, stage_number, mode):
     step, update = pickle.load(open(stage_path, 'rb'))
     return step, update
 
+
+def search_catalog(date, min_magnitude):
+    '''
+    Search the gcmt catalog for the specified date (+- 1 day), filtering the
+    events with given magnitude threshold.
+    Input:
+    date - Str - 'YYYY-MM-DD', date of the event
+    min_magnitude - approximate minimum Mw of the event
+
+    Retuns:
+    event - Object
+    '''
+
+    gcmt = catalog.GlobalCMT()
+
+    time_s = util.stt(date + ' ' + seconds_str)
+    d1 = time_s - (sphr * hrpd)
+    d2 = time_s + (sphr * hrpd)
+
+    logger.info('Getting relevant events from the gCMT catalog for the dates:'
+                '%s - %s \n' % (util.tts(d1), util.tts(d2)))
+
+    events = gcmt.get_events((d1, d2), magmin=min_magnitude)
+
+    if len(events) < 1:
+        logger.warn('Found no event information in the gCMT catalog.')
+        event = None
+
+    if len(events) > 1:
+        logger.info(
+            'More than one event from that date with specified magnitude'
+            'found! Please copy the relevant event information to the'
+            'configuration file file!')
+        for event in events:
+            print event
+
+        event = events[0]
+
+    elif len(events) == 1:
+        event = events[0]
+
+    return event

@@ -1,11 +1,12 @@
 from pyrocko import cake_plot as cp
 import pymc3 as pm
+
+import os
 from beat import utility, models, backend
 from matplotlib import pylab as plt
-import math
+
 import numpy as num
 from pyrocko import cake
-import os
 
 from matplotlib.backends.backend_pdf import PdfPages
 
@@ -24,6 +25,7 @@ def plot_misfits(problem, mtrace, mode='geometry', posterior='mean'):
 
     return seis_synths, geo_synths
 
+
 def stage_posteriors(mtrace, output='display'):
     '''
     Plot variable posteriors from certain stage of the ATMIP algorithm.
@@ -34,6 +36,7 @@ def stage_posteriors(mtrace, output='display'):
     elif output == 'png':
         plt.savefig('stage_posterior.png', dpi=300)
 
+
 def plot_all_posteriors(project_dir, mode='geometry'):
     '''
     Loop through all stages and plot the pdfs of the variables.
@@ -43,16 +46,17 @@ def plot_all_posteriors(project_dir, mode='geometry'):
     step, _ = utility.load_atmip_params(project_dir, 'final', mode=mode)
 
     for i in range(step.stage + 1):
-	stage_path = os.path.join(project_dir, mode, 'stage_%i' % i )
+        stage_path = os.path.join(project_dir, mode, 'stage_%i' % i)
         mtrace = backend.load(stage_path, model=problem.model)
         os.chdir(stage_path)
-        print('plotting stage path: %s' %stage_path)
+        print('plotting stage path: %s' % stage_path)
         stage_posteriors(mtrace, output='png')
-    
+
     stage_path = os.path.join(project_dir, mode, 'stage_final')
     mtrace = backend.load(stage_path, model=problem.model)
     os.chdir(stage_path)
     stage_posteriors(mtrace, output='png')
+
 
 def n_model_plot(models, axes=None):
     '''
@@ -87,12 +91,13 @@ def n_model_plot(models, axes=None):
     ymin, ymax = axes.get_ylim()
     xmin, xmax = axes.get_xlim()
     xmin = 0.
-    my = (ymax-ymin)*0.05
-    mx = (xmax-xmin)*0.2
-    axes.set_ylim(ymax+my, ymin-my)
-    axes.set_xlim(xmin, xmax+mx)
+    my = (ymax - ymin) * 0.05
+    mx = (xmax - xmin) * 0.2
+    axes.set_ylim(ymax + my, ymin - my)
+    axes.set_xlim(xmin, xmax + mx)
     if plt:
         plt.show()
+
 
 def load_earthmodels(engine, targets, depth_max='cmb'):
     earthmodels = []

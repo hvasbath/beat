@@ -28,8 +28,7 @@ from beat import backend, utility
 
 __all__ = ['ATMCMC', 'ATMIP_sample']
 
-logger = logging.getLogger('beat')
-logger.setLevel(logging.INFO)
+logger = logging.getLogger('ATMCMC')
 
 
 class ATMCMC(backend.ArrayStepSharedLLK):
@@ -564,10 +563,10 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                 logger.info('Updating Covariances ...')
                 mean_pt = step.mean_end_points()
                 update.update_weights(mean_pt, n_jobs=n_jobs)
+                update.update_target_weights(
+                        mtrace, method=step.data_weighting)
 
                 if step.stage == 0:
-                    update.update_target_weights(
-                        mtrace, mode=step.data_weighting)
                     # reset beta again, because MF space changed
                     step.beta = 0.
                     step.old_beta = 0.

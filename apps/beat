@@ -3,8 +3,11 @@
 import sys, re, os, logging, copy
 from optparse import OptionParser
 
-import heart
+from beat import heart, config, utility, models
+
 from pyrocko import model, util
+
+from pyrocko.guts import load
 
 
 def d2u(d):
@@ -12,9 +15,9 @@ def d2u(d):
 
 subcommand_descriptions = {
         'init':           'create a new EQ model project',
-        'build_geo_gf':   'build geodetic GF stores',
-        'solve_geometry': 'sample non-linear pdf for source geometry',
-        'build_cov_p_g':  'build model prediction uncertainty cov matrix (geo)',
+        'sample':         'sample the solution space of the problem',
+        'build_gfs':      'build GF stores',
+        'plot':           'plot specified setups or results'
     }
 
 #        'sample_slip_s':    'sample static pdf',
@@ -23,64 +26,47 @@ subcommand_descriptions = {
 #    }
 
 subcommand_usages = {
-        'init':          ['init <type> <store-dir> [options]',
-                         'init redeploy <source> <destination> [options]'],
-        'build_geo_gf':  'build [store-dir] [options]',
-        'solve_geometry':'',
-        'build_cov_p_g' :''
+        'init':          'init <event_name> <event_date "YYYY-MM-DD"> '
+                         '[options]',
+        'sample':        'sample <event_name> [options]',
+        'build_gfs':     'build <event_name> [options]',
+        'plot':          'plot <event_name> <mode>',
     }
 
 subcommands = subcommand_descriptions.keys()
 
-program_name = 'BEAT'
+program_name = 'beat'
 
 usage = program_name + ''' <subcommand> <arguments> ... [options]
 
 Subcommands:
 
     init            %(init)s
-    build_geo_gf    %(build_geo_gf)s
-    solve_geometry  %(solve_geometry)s
-    build_cov_p_g   %(build_cov_p_g)s
+    sample          %(sample)s
+    build_gfs    %(build_gfs)s
 
 
 To get further help and a list of available options for any subcommand run:
 
-    BEAT <subcommand> --help
+    beat <subcommand> --help
 
 ''' % d2u(subcommand_descriptions)
 
 
-name = 'Aqaba'
-year = 1995
-
-project_dir = '/data3TB/' + name + str(year)
-store_superdir = '/data3TB/Teleseism/Greensfunctions/Aqaba1995GFS/'
-seismic_datadir = '/data3TB/Teleseism/autokiwi/events/Aqaba1995/kiwi/data/'
-
-geodetic_datadir = '/data/SAR_data/Aqaba1995/subsampled/'
-tracks = ['A_T114do', 'A_T114up', 'A_T343co',
-          'A_T343up', 'D_T254co', 'D_T350co']
-
-n_variations = 20
-sample_rate = 1.0
-channels = ['Z', 'T']
-
-
 def add_common_options(parser):
-    parser.add_option('--loglevel', 
-        action = 'store', 
-        dest = 'loglevel', 
+    parser.add_option('--loglevel',
+        action = 'store',
+        dest = 'loglevel',
         type = 'choice',
-        choices = ('critical', 'error', 'warning', 'info', 'debug'), 
+        choices = ('critical', 'error', 'warning', 'info', 'debug'),
         default = 'info',
         help ='set logger level to '
               '"critical", "error", "warning", "info", or "debug". '
               'Default is "%default".')
 
 def process_common_options(options):
-    util.setup_logging(program_name, options.loglevel)
-
+    utility.setup_logging(options.main_path, options.loglevel)
+    logger = logging.getLogger('beat')
 
 def die(message, err=''):
     sys.exit('%s: error: %s \n %s' % (program_name, message, err))
@@ -113,18 +99,109 @@ def cl_parse(command, args, setup=None, details=None):
     return parser, options, args
 
 
-def command_init():
+def load_config(fn):
+    try:
+        config = load(filename=fn)
+        assert isinstance(config, config.BEATconfig)
 
-    config = heart.init_nonlin(name, year,
-                project_dir=project_dir,
-                store_superdir=store_superdir,
-                sample_rate=sample_rate,
-                n_variations=n_variations,
-                channels=channels,
-                geodetic_datadir=geodetic_datadir,
-                seismic_datadir=seismic_datadir,
-                tracks=tracks)
+    except:
+        die('cannot load BEAT config from file: %s' % fn)
+
     return config
+
+
+def command_init(args):
+
+    def setup(parser):
+        def list_callback(option, opt, value, parser):
+            out = [ival.lstrip() for ival in value.split(',')]
+            setattr(parser.values, option.dest, out)
+
+        parser.add_option('--min_mag', dest='min_mag', type=float,
+                default=6.,
+                help='Minimum Mw for event, for catalog search.'
+                     ' Default: "6.0"')
+
+        parser.add_option('--main_path', dest='main_path', type='string',
+                default='./',
+                help='Main path (absolute) for creating directory structure.'
+                     '  Default: current directory ./')
+
+        parser.add_option('--datasets',
+                default='geodetic', type='string',
+                action='callback', callback=list_callback,
+                help='Datasets to include in the setup; "geodetic, seismic".'
+                     ' Default: "geometry"')
+
+        parser.add_option('--mode', dest='mode',
+                choices=['geometry', 'static_dist', 'kinemtic_dist'],
+                default='geometry',
+                help='Inversion problem to solve; "geometry", "static_dist",'
+                     '"kinematic_dist". Default: "geometry"')
+
+        parser.add_option('--n_variations', dest='n_variations', type='int',
+                metavar='N', default=0,
+                help='Number of velocity models to vary the reference model.'
+                     ' Default: 0')
+
+        parser.add_option('--n_faults', dest='n_faults', type='int',
+                default=1,
+                help='Integer Number of faults to invert for. Default: 1' )
+
+        parser.add_option('--sampler', dest='sampler', type='string',
+                default='ATMCMC',
+                help='Sampling algoruthm to sample the solution space;'
+                     '"ATMCMC", "Metropolis". Default: "ATMCMC"')
+
+    parser, options, args = cl_parse('init', args, setup=setup)
+
+    if len(args) != 2:
+        logger.error('Wrong number of input arguments!')
+        parser.print_help()
+        sys.exit(1)
+
+    name, date = args
+
+    return config.init_config(name, date,
+               min_magnitude=options.min_mag,
+               main_path=options.main_path,
+               datasets=options.datasets,
+               mode=options.mode,
+               n_variations=options.n_variations,
+               n_faults=options.n_faults,
+               sampler=options.sampler)
+
+def command_sample(args):
+
+    def setup(parser):
+        parser.add_option('--mode', dest='mode',
+                choices=['geometry', 'static_dist', 'kinemtic_dist'],
+                default='geometry',
+                help='Inversion problem to solve; "geometry", "static_dist",'
+                     '"kinematic_dist". Default: "geometry"')
+
+        parser.add_option('--main_path', dest='main_path', type='string',
+                default='./',
+                help='Main path (absolute) leading to folders of events that'
+                     ' have been created by "init".'
+                     ' Default: current directory: ./')
+
+    parser, options, args = cl_parse('sample', args, setup=setup)
+
+    try:
+        name = args.pop()
+    except:
+        parser.error('cannot get <event_name> argument')
+        parser.print_help()
+
+    main_path = os.getcwd()
+    project_dir = os.path.join(main_path, name)
+
+    problem = models.load_model(project_dir, options.mode)
+
+    step = problem.init_sampler()
+
+    models.sample(step, problem)
 
 
 def command_build_geo_gfs(config):
