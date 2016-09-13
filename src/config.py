@@ -14,16 +14,16 @@ guts_prefix = 'beat'
 
 logger = logging.getLogger('config')
 
-geo_vars_geometry = set(['east_shift', 'north_shift', 'depth', 'strike', 'dip',
-                         'rake', 'length', 'width', 'slip'])
-seis_vars_geometry = set(['time', 'duration'])
+geo_vars_geometry = ['east_shift', 'north_shift', 'depth', 'strike', 'dip',
+                         'rake', 'length', 'width', 'slip']
+seis_vars_geometry = ['time', 'duration']
 
-joint_vars_geometry = geo_vars_geometry | seis_vars_geometry
+joint_vars_geometry = geo_vars_geometry + seis_vars_geometry
 
-static_dist_vars = set(['Uparr', 'Uperp'])
-partial_kinematic_vars = set(['nuc_x', 'nuc_y', 'duration', 'velocity'])
+static_dist_vars = ['Uparr', 'Uperp']
+partial_kinematic_vars = ['nuc_x', 'nuc_y', 'duration', 'velocity']
 
-kinematic_dist_vars = static_dist_vars | partial_kinematic_vars
+kinematic_dist_vars = static_dist_vars + partial_kinematic_vars
 
 default_bounds = dict(
     east_shift=(-10., 10.),
@@ -141,7 +141,7 @@ class GeodeticConfig(Object):
     '''
 
     datadir = String.T(default='./')
-    tracks = List.T(String.T())
+    tracks = List.T(String.T(), default=['Data filenames here ...'])
     targets = List.T(optional=True)
     gf_config = GeodeticGFConfig.T(default=GeodeticGFConfig.D())
 

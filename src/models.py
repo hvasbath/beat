@@ -33,6 +33,17 @@ class Problem(Object):
 
     _like_name = 'like'
 
+    def __init__(self, pc):
+
+        logger.info('Analysing problem ...')
+        logger.info('---------------------\n')
+
+        if 'seismic' in pc.datasets:
+            self._seismic_flag = True
+
+        if 'geodetic' in pc.datasets:
+            self._geodetic_flag = True
+
     def update_target_weights(self, mtrace, method='meannorm'):
         '''
         Update target weights after initial stage based on distribution of
@@ -41,7 +52,7 @@ class Problem(Object):
         '''
         logger.info('Updating data weights ...')
 
-        if self._seis_flag:
+        if self._seismic_flag:
             seis_likelihoods = mtrace.get_values(self._seis_like_name)
 
             if method == 'meannorm':
@@ -53,7 +64,7 @@ class Problem(Object):
 
             self.seis_llk_weights.set_value(Ws)
 
-        if self._geo_flag:
+        if self._geodetic_flag:
             geo_likelihoods = mtrace.get_values(self._geo_like_name)
 
             if method == 'meannorm':
@@ -106,7 +117,8 @@ class Problem(Object):
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
 
-        self.engine.close_cashed_stores()
+        if self._seismic_flag:
+            self.engine.close_cashed_stores()
 
         return step
 
@@ -124,15 +136,9 @@ class GeometryOptimizer(Problem):
         self.outfolder = os.path.join(config.project_dir, 'geometry')
         util.ensuredir(self.outfolder)
 
-        logger.info('Analysing problem ...')
-        logger.info('---------------------\n')
         pc = config.problem_config
 
-        if 'seismic' in pc.datasets:
-            self._seismic_flag = True
-
-        if 'geodetic' in pc.datasets:
-            self._geodetic_flag = True
+        super(GeometryOptimizer, self).__init__(pc)
 
         # Load event
         if config.event is None:
@@ -147,7 +153,7 @@ class GeometryOptimizer(Problem):
 
         # Init sources
         self.sources = []
-        for i in range(config.problem_config.n_faults):
+        for i in range(pc.n_faults):
             if self.event:
                 source = heart.RectangularSource.from_pyrocko_event(self.event)
                 # hardcoded inversion for hypocentral time
@@ -190,6 +196,7 @@ class GeometryOptimizer(Problem):
                 interpolation='multilinear')
 
             self.ns_t = len(self.stargets)
+            logger.info('Number of seismic datasets: %i ' % self.ns_t)
 
             logger.info('Getting seismic data-covariances ...\n')
             cov_ds_seismic = cov.get_seismic_data_covariances(
@@ -234,6 +241,7 @@ class GeometryOptimizer(Problem):
             self.gtargets = inputf.load_SAR_data(gc.datadir, gc.tracks)
 
             self.ng_t = len(self.gtargets)
+            logger.info('Number of geodetic datasets: %i ' % self.ng_t)
 
             # geodetic data
             _disp_list = [self.gtargets[i].displacement
@@ -251,7 +259,7 @@ class GeometryOptimizer(Problem):
 
             # Initial target weights adding up to 1
             self.geo_llk_weights = shared(num.eye(self.ng_t) * \
-                (1. / self.ns_t))
+                (1. / self.ng_t))
 
             # merge geodetic data to call pscmp only once each forward model
             ordering = utility.ListArrayOrdering(_disp_list, intype='numpy')
@@ -260,6 +268,8 @@ class GeometryOptimizer(Problem):
             odws = self.Bij.fmap(_odws_list)
             lons = self.Bij.fmap(_lons_list)
             lats = self.Bij.fmap(_lats_list)
+
+            logger.info('Number of geodetic data points: %i ' % lats.shape[0])
 
             self.wdata = shared(self.Bij.fmap(_disp_list) * odws)
             self.lv = shared(self.Bij.f3map(_lv_list))

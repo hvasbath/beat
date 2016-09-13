@@ -15,9 +15,9 @@ def d2u(d):
 
 subcommand_descriptions = {
         'init':           'create a new EQ model project',
-        'build_geo_gf':   'build geodetic GF stores',
-        'solve_geometry': 'sample non-linear pdf for source geometry',
-        'build_cov_p_g':  'build model prediction uncertainty cov matrix (geo)',
+        'sample':         'sample the solution space of the problem',
+        'build_gfs':      'build GF stores',
+        'plot':           'plot specified setups or results'
     }
 
 #        'sample_slip_s':    'sample static pdf',
@@ -26,15 +26,16 @@ subcommand_descriptions = {
 #    }
 
 subcommand_usages = {
-        'init':          'init <event_name> <event_date "YYYY-MM-DD"> [options]',
-        'sample'         'sample <event_name> [options]',
-        'build_geo_gf':  'build [store-dir] [options]',
-        'solve_geometry':'',
+        'init':          'init <event_name> <event_date "YYYY-MM-DD"> '
+                         '[options]',
+        'sample':        'sample <event_name> [options]',
+        'build_gfs':     'build <event_name> [options]',
+        'plot':          'plot <event_name> <mode>',
     }
 
 subcommands = subcommand_descriptions.keys()
 
-program_name = 'BEAT v0.1'
+program_name = 'beat'
 
 usage = program_name + ''' <subcommand> <arguments> ... [options]
 
@@ -42,13 +43,12 @@ Subcommands:
 
     init            %(init)s
     sample          %(sample)s
-    build_geo_gf    %(build_geo_gf)s
-    build_cov_p_g   %(build_cov_p_g)s
+    build_gfs    %(build_gfs)s
 
 
 To get further help and a list of available options for any subcommand run:
 
-    BEAT <subcommand> --help
+    beat <subcommand> --help
 
 ''' % d2u(subcommand_descriptions)
 
@@ -66,6 +66,7 @@ def add_common_options(parser):
 
 def process_common_options(options):
     utility.setup_logging(options.main_path, options.loglevel)
+    logger = logging.getLogger('beat')
 
 def die(message, err=''):
     sys.exit('%s: error: %s \n %s' % (program_name, message, err))
@@ -179,6 +180,12 @@ def command_sample(args):
                 help='Inversion problem to solve; "geometry", "static_dist",'
                      '"kinematic_dist". Default: "geometry"')
 
+        parser.add_option('--main_path', dest='main_path', type='string',
+                default='./',
+                help='Main path (absolute) leading to folders of events that'
+                     ' have been created by "init".'
+                     ' Default: current directory: ./')
+
     parser, options, args = cl_parse('sample', args, setup=setup)
 
     try:
@@ -190,7 +197,7 @@ def command_sample(args):
     main_path = os.getcwd()
     project_dir = os.path.join(main_path, name)
 
-    problem = models.load_model(project_dir, option.mode)
+    problem = models.load_model(project_dir, options.mode)
 
     step = problem.init_sampler()
 

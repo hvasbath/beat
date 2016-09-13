@@ -903,4 +903,3 @@ def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
             trace.snuffle(cut_traces)
 
     return num.vstack([cut_traces[i].ydata for i in range(len(data_traces))])
-
