@@ -5,7 +5,7 @@ Far future:
     include a 'def grad:' -method to each Op in order to enable the use of
     gradient based optimization algorithms
 '''
-from beat import heart
+from beat import heart, utility, config
 
 import theano.tensor as tt
 import theano
@@ -102,17 +102,19 @@ class GeoLayerSynthesizerStatic(theano.Op):
 
     def perform(self, node, inputs, output):
 
-        ess, nss, tds, sts, dis, ras, ls, ws, sls = inputs
         z = output[0]
 
-        for es, ns, td, st, di, ra, l, w, sl, source in \
-            zip(ess, nss, tds, sts, dis, ras, ls, ws, sls, self.sources):
-            source.update(east_shift=float(es * km),
-                          north_shift=float(ns * km),
-                          strike=float(st), dip=float(di), rake=float(ra),
-                          length=float(l * km), width=float(w * km),
-                          slip=float(sl))
-            heart.update_center_coords(source, td * km)
+        point = {var: inp for var, inp in zip(
+                    config.geo_vars_geometry, inputs)}
+
+        point = utility.adjust_point_units(point)
+        print point
+        source_points = utility.split_point(point)
+
+        for i, source in enumerate(self.sources):
+            source.update(**source_points[i])
+            heart.update_center_coords(source)
+            print source
 
         z[0] = heart.geo_layer_synthetics(
             store_superdir=self.store_superdir,
@@ -152,25 +154,26 @@ class SeisSynthesizer(theano.Op):
 
     def perform(self, node, inputs, output):
 
-        ess, nss, tds, sts, dis, ras, ls, ws, sls, ts, rts = inputs
         synths = output[0]
         tmins = output[1]
 
-        for es, ns, td, st, di, ra, l, w, sl, t, rt, source in \
-            zip(ess, nss, tds, sts, dis, ras, ls, ws, sls, ts, rts, self.sources):
-            source.update(east_shift=float(es * km),
-                          north_shift=float(ns * km),
-                          strike=float(st), dip=float(di), rake=float(ra),
-                          length=float(l * km), width=float(w * km),
-                          slip=float(sl),
-                          time=float(self.event.time + t))
-            heart.update_center_coords(source, td * km)
-            source.stf.duration = float(rt)
+        point = {var: inp for var, inp in zip(
+                    config.joint_vars_geometry, inputs)}
 
-        synths[0], tmins[0] = heart.seis_synthetics(self.engine, self.sources,
-                                              self.targets,
-                                              self.arrival_taper,
-                                              self.filterer)
+        point = utility.adjust_point_units(point)
+        print point
+        source_points = utility.split_point(point)
+
+        for i, source in enumerate(self.sources):
+            source.update(**source_points[i])
+            heart.update_center_coords(source)
+            print source
+
+        synths[0], tmins[0] = heart.seis_synthetics(
+                self.engine, self.sources,
+                self.targets,
+                self.arrival_taper,
+                self.filterer)
 
     def infer_shape(self, node, input_shapes):
         nrow = len(self.targets)

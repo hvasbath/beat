@@ -43,6 +43,9 @@ default_bounds = dict(
     nuc_y=(0., 7.),
     velocity=(0.5, 4.2))
 
+seismic_data_name = 'seismic_data.pkl'
+geodetic_data_name = 'geodetic_data.pkl'
+
 
 class GFConfig(Object):
     '''

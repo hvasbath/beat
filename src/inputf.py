@@ -3,6 +3,7 @@ from beat import heart, utility
 from pyrocko import model, io
 
 import logging
+import pickle
 
 logger = logging.getLogger('beat')
 
@@ -95,3 +96,18 @@ def load_data_traces(datadir, stations, channels):
                 logger.warn('Unable to open file: ' + trace_name)
 
     return data_trcs
+
+
+def dump_objects(outpath, outlist):
+    '''
+    Dump objects in outparam_list into pickle file.
+    '''
+    with open(outpath, 'w') as f:
+        pickle.dump(outparam_list, f)
+
+
+def load_objects(loadpath):
+    '''
+    Load pickled objects from specified loadpath.
+    '''
+    return pickle.load(open(loadpath, 'rb'))

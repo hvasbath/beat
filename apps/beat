@@ -3,7 +3,7 @@
 import sys, re, os, logging, copy
 from optparse import OptionParser
 
-from beat import heart, config, utility, models
+from beat import heart, config, utility, models, inputf
 
 from pyrocko import model, util
 
@@ -15,6 +15,7 @@ def d2u(d):
 
 subcommand_descriptions = {
         'init':           'create a new EQ model project',
+        'import_data':    'import data from external format',
         'sample':         'sample the solution space of the problem',
         'build_gfs':      'build GF stores',
         'plot':           'plot specified setups or results'
@@ -28,6 +29,7 @@ subcommand_descriptions = {
 subcommand_usages = {
         'init':          'init <event_name> <event_date "YYYY-MM-DD"> '
                          '[options]',
+        'import_data':   'import_data <event_name> [options]',
         'sample':        'sample <event_name> [options]',
         'build_gfs':     'build <event_name> [options]',
         'plot':          'plot <event_name> <mode>',
@@ -42,8 +44,9 @@ usage = program_name + ''' <subcommand> <arguments> ... [options]
 Subcommands:
 
     init            %(init)s
+    import_data     %(import_data)s
     sample          %(sample)s
-    build_gfs    %(build_gfs)s
+    build_gfs       %(build_gfs)s
 
 
 To get further help and a list of available options for any subcommand run:
@@ -171,6 +174,60 @@ def command_init(args):
                n_faults=options.n_faults,
                sampler=options.sampler)
 
+def command_import_data(args):
+
+    def setup(parser):
+
+        parser.add_option('--main_path', dest='main_path', type='string',
+                default='./',
+                help='Main path (absolute) leading to folders of events that'
+                     ' have been created by "init".'
+                     ' Default: current directory: ./')
+        parser.add_option('--format', dest='format', type='string',
+                default='matlab',
+                help='Data format to be imported')
+
+    parser, options, args = cl_parse('import_data', args, setup=setup)
+
+    try:
+        name = args.pop()
+    except:
+        parser.error('cannot get <event_name> argument')
+        parser.print_help()
+
+    main_path = os.getcwd()
+    project_dir = os.path.join(main_path, name)
+
+    config_file_name = 'config_' + mode + '.yaml'
+
+    config_fn = os.path.join(project_dir, config_file_name)
+    config = load_config(filename=config_fn)
+
+    pc = config.problem_config
+
+    if 'seismic' in pc.datasets:
+
+    sc = config.seismic_config
+
+    stations = model.load_stations(os.path.join(sc.datadir,'stations.txt'))
+
+    data_traces = inputf.load_data_traces(
+                datadir=sc.datadir,
+                stations=stations,
+                channels=sc.channels)
+
+    seismic_outpath = os.path.join(
+        config.project_dir, bconfig.seismic_data_name)
+    inputf.dump_objects(seismic_outpath,
+                        outlist=[stations, data_traces])
+
+    if 'geodetic' in pc.datasets:
+    gc = config.geodetic_config
+    gtargets = inputf.load_SAR_data(gc.datadir, gc.tracks)
+    geodetic_outpath = os.path.join(
+        config.project_dir, bconfig.geodetic_data_name)
+    inputf.dump_objects(geodetic_outpath, outlist=[gtargets])
+
 def command_sample(args):
 
     def setup(parser):
@@ -194,6 +251,7 @@ def command_sample(args):
         parser.error('cannot get <event_name> argument')
         parser.print_help()
 
+    os.chdir(options.main_path)
     main_path = os.getcwd()
     project_dir = os.path.join(main_path, name)
 

@@ -51,7 +51,7 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
     '''
     Source for rectangular fault that unifies the necessary different source
     objects for teleseismic and geodetic computations.
-    Reference point of depth is the top-center of the fault.
+    Reference point of the depth attribute is the top-center of the fault.
     '''
     width = Float.T(help='width of the fault [m]',
                     default=1. * km)
@@ -83,7 +83,8 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
         '''
         Cut source into n by m sub-faults and return n times m SourceObjects.
         Discretization starts at shallow depth going row-wise deeper.
-        datatype - 'geo' or 'seis' determines the :py:class to be returned.
+        datatype - 'geodetic' or 'seismic' determines the :py:class to be
+        returned. Depth is being updated from top_depth to center depth.
         '''
 
         length = self.length / float(n)
@@ -128,17 +129,17 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
         return patches
 
 
-def update_center_coords(source, top_depth):
+def update_center_coords(source):
     '''
     Converts center_top depth of fault to center depth and east/north-shifts.
-    Takes RectangularSource(beat, pyrocko, pscmp)
+    Takes RectangularSources(beat, pyrocko, pscmp)
     Updates input source!
     '''
     RF = RectangularSource
 
     dip_vec = RF.dipvector(dip=source.dip, strike=source.strike)
 
-    center = RF.center(top_depth=top_depth,
+    center = RF.center(top_depth=source.depth,
                        width=source.width,
                        dipvector=dip_vec)
 

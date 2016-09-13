@@ -15,6 +15,7 @@ from theano import shared
 
 from beat import theanof, heart, utility, atmcmc, inputf, backend
 from beat import covariance as cov
+from beat import config as bconfig
 
 import logging
 
@@ -171,16 +172,13 @@ class GeometryOptimizer(Problem):
             self.engine = gf.LocalEngine(
                 store_superdirs=[sc.gf_config.store_superdir])
 
-            stations = inputf.load_and_blacklist_stations(
-                sc.datadir, blacklist=sc.blacklist)
+            seismic_data_path = os.path.join(
+                config.project_dir, bconfig.seismic_data_name)
+            stations, self.data_traces = inputf.load_objects(seismic_data_path)
+            stations = utility.apply_station_blacklist(stations, sc.blacklist)
 
             self.stations = utility.weed_stations(
                 stations, self.event, distances=sc.distances)
-
-            self.data_traces = inputf.load_data_traces(
-                datadir=sc.datadir,
-                stations=self.stations,
-                channels=sc.channels)
 
             target_deltat = 1. / sc.gf_config.sample_rate
 
@@ -238,7 +236,9 @@ class GeometryOptimizer(Problem):
             logger.info('Setting up geodetic structure ...\n')
             gc = config.geodetic_config
 
-            self.gtargets = inputf.load_SAR_data(gc.datadir, gc.tracks)
+            geodetic_data_path = os.path.join(
+                config.project_dir, bconfig.geodetic_data_name)
+            self.gtargets = inputf.load_objects(geodetic_data_path)[0]
 
             self.ng_t = len(self.gtargets)
             logger.info('Number of geodetic datasets: %i ' % self.ng_t)
@@ -621,10 +621,10 @@ def load_model(project_dir, mode):
 
 def load_stage(project_dir, stage_number, mode):
     '''
-    Load stage results from ATMIP sampling.s
+    Load stage results from ATMIP sampling.
     '''
 
-    problem = load_model(project_dir)
+    problem = load_model(project_dir, mode)
     params = utility.load_atmip_params(project_dir, stage_number, mode)
     tracepath = os.path.join(project_dir, mode, 'stage_%i' % stage_number)
     mtrace = backend.load(tracepath, model=problem.model)

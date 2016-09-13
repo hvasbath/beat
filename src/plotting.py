@@ -41,7 +41,7 @@ def plot_all_posteriors(project_dir, mode='geometry'):
     '''
     Loop through all stages and plot the pdfs of the variables.
     '''
-    problem = models.load_model(project_dir)
+    problem = models.load_model(project_dir, mode)
 
     step, _ = utility.load_atmip_params(project_dir, 'final', mode=mode)
 

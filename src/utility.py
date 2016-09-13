@@ -9,7 +9,7 @@ from pyrocko.cake import m2d
 import numpy as num
 
 from pyproj import Proj
-import pickle
+from beat.inputf import load_objects
 
 logger = logging.getLogger('utility')
 
@@ -315,7 +315,7 @@ def load_atmip_params(project_dir, stage_number, mode):
     '''
     stage_path = os.path.join(project_dir, mode, 'stage_%s' % stage_number,
         'atmip.params')
-    step, update = pickle.load(open(stage_path, 'rb'))
+    step, update = load_objects(stage_path)
     return step, update
 
 
