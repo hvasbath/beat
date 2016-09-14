@@ -2,6 +2,7 @@ import logging
 import os
 import collections
 import copy
+import pickle
 
 from pyrocko import util, orthodrome, catalog
 from pyrocko.cake import m2d
@@ -9,7 +10,7 @@ from pyrocko.cake import m2d
 import numpy as num
 
 from pyproj import Proj
-from beat.inputf import load_objects
+
 
 logger = logging.getLogger('utility')
 
@@ -164,6 +165,27 @@ def apply_station_blacklist(stations, blacklist):
         stations.pop(ind)
 
     return stations
+
+
+def weed_data_traces(data_traces, stations):
+    '''
+    Throw out data traces belonging to stations that are not in the
+    stations list.
+
+    Input:
+    data_traces - list of pyrocko trace.Trace
+    stations - list of pyrocko model.Station
+    '''
+
+    station_names = [station.station for station in stations]
+
+    weeded_data_traces = []
+
+    for tr in data_traces:
+        if tr.station in station_names:
+            weeded_data_traces.append(tr.copy())
+
+    return weeded_data_traces
 
 
 def downsample_traces(data_traces, deltat=None):
@@ -360,3 +382,18 @@ def search_catalog(date, min_magnitude):
         event = events[0]
 
     return event
+
+
+def dump_objects(outpath, outlist):
+    '''
+    Dump objects in outparam_list into pickle file.
+    '''
+    with open(outpath, 'w') as f:
+        pickle.dump(outlist, f)
+
+
+def load_objects(loadpath):
+    '''
+    Load pickled objects from specified loadpath.
+    '''
+    return pickle.load(open(loadpath, 'rb'))

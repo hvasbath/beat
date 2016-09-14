@@ -108,13 +108,12 @@ class GeoLayerSynthesizerStatic(theano.Op):
                     config.geo_vars_geometry, inputs)}
 
         point = utility.adjust_point_units(point)
-        print point
+
         source_points = utility.split_point(point)
 
         for i, source in enumerate(self.sources):
             source.update(**source_points[i])
             heart.update_center_coords(source)
-            print source
 
         z[0] = heart.geo_layer_synthetics(
             store_superdir=self.store_superdir,
@@ -161,13 +160,13 @@ class SeisSynthesizer(theano.Op):
                     config.joint_vars_geometry, inputs)}
 
         point = utility.adjust_point_units(point)
-        print point
+        point['time'] += self.event.time
+
         source_points = utility.split_point(point)
 
         for i, source in enumerate(self.sources):
             source.update(**source_points[i])
             heart.update_center_coords(source)
-            print source
 
         synths[0], tmins[0] = heart.seis_synthetics(
                 self.engine, self.sources,

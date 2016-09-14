@@ -24,7 +24,6 @@ from pymc3.step_methods.metropolis import MultivariateNormalProposal as MvNPd
 from numpy.random import seed
 
 from beat import backend, utility
-from beat.inputf import dump_objects
 
 __all__ = ['ATMCMC', 'ATMIP_sample']
 
@@ -265,12 +264,12 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         Ndarray of weighted covariances (NumPy > 1.10. required)
         """
         cov = np.cov(self.array_population,
-                      aweights=self.weights,
+                      aweights=self.weights.ravel(),
                       bias=False,
                       rowvar=0)
 
         if np.isnan(cov).any() or np.isinf(cov).any():
-            Exception('Sample covariances not valid! Likely "n_chains" is '
+            raise Exception('Sample covariances not valid! Likely "n_chains" is '
                          'too small!')
         return cov
 
@@ -477,30 +476,30 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
     seed(random_seed)
 
     if n_steps < 1:
-        Exception('Argument `n_steps` should be above 0.', exc_info=1)
+        raise Exception('Argument `n_steps` should be above 0.', exc_info=1)
 
     if step is None:
-        Exception('Argument `step` has to be a TMCMC step object.')
+        raise Exception('Argument `step` has to be a TMCMC step object.')
 
     if trace is None:
-        Exception('Argument `trace` should be path to result_directory.')
+        raise Exception('Argument `trace` should be path to result_directory.')
 
     if n_jobs > 1:
         if not (step.n_chains / float(n_jobs)).is_integer():
-            Exception('n_chains / n_jobs has to be a whole number!')
+            raise Exception('n_chains / n_jobs has to be a whole number!')
 
     if start is not None:
         if len(start) != step.n_chains:
-            Exception('Argument `start` should have dicts equal the '
+            raise Exception('Argument `start` should have dicts equal the '
                             'number of chains (step.N-chains)')
         else:
             step.population = start
 
     if not any(
             step.likelihood_name in var.name for var in model.deterministics):
-            Exception('Model (deterministic) variables need to contain '
-                            'a variable `' + step.likelihood_name + '` as '
-                            'defined in `step`.')
+            raise Exception('Model (deterministic) variables need to contain '
+                            'a variable %s '
+                            'as defined in `step`.' % step.likelihood_name)
 
     homepath = trace
 
@@ -582,7 +581,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
             outpath = os.path.join(stage_path, 'atmip.params')
             outparam_list = [step, update]
-            dump_objects(outpath, outparam_list)
+            utility.dump_objects(outpath, outparam_list)
 
             step.stage += 1
 
@@ -604,7 +603,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
         outpath = os.path.join(stage_path, 'atmip.params')
         outparam_list = [step, update]
-        dump_objects(outpath, outparam_list)
+        utility.dump_objects(outpath, outparam_list)
 
 
 def _iter_initial(step, chain=0, strace=None, model=None):

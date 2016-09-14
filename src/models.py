@@ -6,14 +6,14 @@ import pymc3 as pm
 from pymc3 import Metropolis
 
 from pyrocko import gf, util, model
-from pyrocko.guts import Object, load
+from pyrocko.guts import Object
 
 import numpy as num
 import theano.tensor as tt
 from theano import config as tconfig
 from theano import shared
 
-from beat import theanof, heart, utility, atmcmc, inputf, backend
+from beat import theanof, heart, utility, atmcmc, backend
 from beat import covariance as cov
 from beat import config as bconfig
 
@@ -85,7 +85,7 @@ class Problem(Object):
         sc = self.config.sampler_config
 
         if self.model is None:
-            Exception('Model has to be built before initialising the sampler.')
+            raise Exception('Model has to be built before initialising the sampler.')
 
         with self.model:
             if sc.name == 'Metropolis':
@@ -174,11 +174,15 @@ class GeometryOptimizer(Problem):
 
             seismic_data_path = os.path.join(
                 config.project_dir, bconfig.seismic_data_name)
-            stations, self.data_traces = inputf.load_objects(seismic_data_path)
+            stations, data_traces = utility.load_objects(
+                seismic_data_path)
             stations = utility.apply_station_blacklist(stations, sc.blacklist)
 
             self.stations = utility.weed_stations(
                 stations, self.event, distances=sc.distances)
+
+            self.data_traces = utility.weed_data_traces(
+                data_traces, self.stations)
 
             target_deltat = 1. / sc.gf_config.sample_rate
 
@@ -238,7 +242,7 @@ class GeometryOptimizer(Problem):
 
             geodetic_data_path = os.path.join(
                 config.project_dir, bconfig.geodetic_data_name)
-            self.gtargets = inputf.load_objects(geodetic_data_path)[0]
+            self.gtargets = utility.load_objects(geodetic_data_path)[0]
 
             self.ng_t = len(self.gtargets)
             logger.info('Number of geodetic datasets: %i ' % self.ng_t)
@@ -287,7 +291,7 @@ class GeometryOptimizer(Problem):
         self.config = config
 
     def __getstate__(self):
-        outstate = tuple(self.config, self.sources)
+        outstate = (self.config, self.sources)
 
         if self._seismic_flag:
             outstate = outstate + (
@@ -297,7 +301,7 @@ class GeometryOptimizer(Problem):
                 self.stations,
                 self.engine)
 
-        if self.geodetic_flag:
+        if self._geodetic_flag:
             outstate = outstate + (
                 self.geo_llk_weights,
                 self.gweights,
@@ -456,20 +460,21 @@ class GeometryOptimizer(Problem):
 
             for j, channel in enumerate(sc.channels):
                 for i, station in enumerate(self.stations):
-                    logger.info('Station %s ' % station.station)
+                    logger.info('Channel %s of Station %s ' % (
+                        channel, station.station))
                     crust_targets = heart.init_targets(
-                         stations=[station],
-                         channels=channel,
-                         sample_rate=sc.gf_config.sample_rate,
-                         crust_inds=sc.gf_config.crust_inds)
+                        stations=[station],
+                        channels=channel,
+                        sample_rate=sc.gf_config.sample_rate,
+                        crust_inds=sc.gf_config.crust_inds)
 
                     cov_velocity_model = cov.get_seis_cov_velocity_models(
-                         engine=self.engine,
-                         sources=dsources['seismic'],
-                         targets=crust_targets,
-                         arrival_taper=sc.arrival_taper,
-                         filterer=sc.filterer,
-                         plot=plot, n_jobs=n_jobs)
+                        engine=self.engine,
+                        sources=dsources['seismic'],
+                        targets=crust_targets,
+                        arrival_taper=sc.arrival_taper,
+                        filterer=sc.filterer,
+                        plot=plot, n_jobs=n_jobs)
 
                 self.engine.close_cashed_stores()
 
@@ -484,11 +489,12 @@ class GeometryOptimizer(Problem):
             gc = self.config.geodetic_config
 
             for i, gtarget in enumerate(self.gtargets):
+                logger.info('Track %s' % gtarget.track)
                 gtarget.covariance.pred_v = cov.get_geo_cov_velocity_models(
-                     store_superdir=gc.gf_config.store_superdir,
-                     crust_inds=gc.gf_config.crust_inds,
-                     dataset=gtarget,
-                     sources=dsources['geodetic'])
+                    store_superdir=gc.gf_config.store_superdir,
+                    crust_inds=gc.gf_config.crust_inds,
+                    dataset=gtarget,
+                    sources=dsources['geodetic'])
 
             icov = gtarget.covariance.get_inverse()
             self.gweights[i].set_value(icov)
@@ -602,10 +608,7 @@ def load_model(project_dir, mode):
     '''
     Load config from project directory and return model.
     '''
-    config_file_name = 'config_' + mode + '.yaml'
-
-    config_fn = os.path.join(project_dir, config_file_name)
-    config = load(filename=config_fn)
+    config = bconfig.load_config(project_dir, mode)
 
     pc = config.problem_config
 
@@ -613,7 +616,7 @@ def load_model(project_dir, mode):
         problem = GeometryOptimizer(config)
     else:
         logger.error('Modeling problem %s not supported' % pc.mode)
-        Exception('Model not supported')
+        raise Exception('Model not supported')
 
     problem.built_model()
     return problem

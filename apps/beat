@@ -10,6 +10,8 @@ from pyrocko import model, util
 from pyrocko.guts import load
 
 
+logger = logging.getLogger('beat')
+
 def d2u(d):
     return dict((k.replace('-','_'), v) for (k, v) in d.iteritems())
 
@@ -69,7 +71,6 @@ def add_common_options(parser):
 
 def process_common_options(options):
     utility.setup_logging(options.main_path, options.loglevel)
-    logger = logging.getLogger('beat')
 
 def die(message, err=''):
     sys.exit('%s: error: %s \n %s' % (program_name, message, err))
@@ -183,9 +184,22 @@ def command_import_data(args):
                 help='Main path (absolute) leading to folders of events that'
                      ' have been created by "init".'
                      ' Default: current directory: ./')
-        parser.add_option('--format', dest='format', type='string',
-                default='matlab',
-                help='Data format to be imported')
+
+        parser.add_option('--geodetic_format', dest='geodetic_format',
+                type='string', default='matlab',
+                help='Data format to be imported; "matlab", ...,'
+                     ' Default: "matlab"')
+
+        parser.add_option('--seismic_format', dest='seismic_format',
+                type='string', default='autokiwi',
+                help='Data format to be imported; "autokiwi", ...,'
+                     'Default: "autokiwi"')
+
+        parser.add_option('--mode', dest='mode',
+                choices=['geometry', 'static_dist', 'kinemtic_dist'],
+                default='geometry',
+                help='Inversion problem to solve; "geometry", "static_dist",'
+                     '"kinematic_dist". Default: "geometry"')
 
     parser, options, args = cl_parse('import_data', args, setup=setup)
 
@@ -198,35 +212,51 @@ def command_import_data(args):
     main_path = os.getcwd()
     project_dir = os.path.join(main_path, name)
 
-    config_file_name = 'config_' + mode + '.yaml'
+    c = config.load_config(project_dir, options.mode)
 
-    config_fn = os.path.join(project_dir, config_file_name)
-    config = load_config(filename=config_fn)
-
-    pc = config.problem_config
+    pc = c.problem_config
 
     if 'seismic' in pc.datasets:
+        sc = c.seismic_config
+        logger.info('Importing seismic data from %s' % sc.datadir)
 
-    sc = config.seismic_config
+        if options.seismic_format == 'autokiwi':
 
-    stations = model.load_stations(os.path.join(sc.datadir,'stations.txt'))
+            stations = model.load_stations(
+                os.path.join(sc.datadir,'stations.txt'))
 
-    data_traces = inputf.load_data_traces(
+            data_traces = inputf.load_data_traces(
                 datadir=sc.datadir,
                 stations=stations,
                 channels=sc.channels)
 
-    seismic_outpath = os.path.join(
-        config.project_dir, bconfig.seismic_data_name)
-    inputf.dump_objects(seismic_outpath,
-                        outlist=[stations, data_traces])
+            seismic_outpath = os.path.join(
+                c.project_dir, config.seismic_data_name)
+
+            logger.info('Pickle seismic data to %s' % seismic_outpath)
+            utility.dump_objects(seismic_outpath,
+                outlist=[stations, data_traces])
+
+        else:
+            raise Exception(
+                'Format: %s not implemented yet.' % options.seismic_format)
 
     if 'geodetic' in pc.datasets:
-    gc = config.geodetic_config
-    gtargets = inputf.load_SAR_data(gc.datadir, gc.tracks)
-    geodetic_outpath = os.path.join(
-        config.project_dir, bconfig.geodetic_data_name)
-    inputf.dump_objects(geodetic_outpath, outlist=[gtargets])
+        gc = c.geodetic_config
+        logger.info('Importing geodetic data from %s' % gc.datadir)
+
+        if options.geodetic_format == 'matlab':
+            gtargets = inputf.load_SAR_data(gc.datadir, gc.tracks)
+
+            geodetic_outpath = os.path.join(
+                c.project_dir, config.geodetic_data_name)
+
+            logger.info('Pickle geodetic data to %s' % geodetic_outpath)
+            utility.dump_objects(geodetic_outpath, outlist=[gtargets])
+        else:
+            raise Exception(
+                'Format: %s not implemented yet.' % options.geodetic_format)
+
 
 def command_sample(args):
 

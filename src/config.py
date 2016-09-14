@@ -1,7 +1,8 @@
 import logging
 import os
 
-from pyrocko.guts import Object, List, String, Float, Int, Tuple, Bool, dump
+from pyrocko.guts import Object, List, String, Float, Int, Tuple, Bool
+from pyrocko.guts import load, dump
 
 from pyrocko import trace, model, util
 from beat.heart import Filter, ArrivalTaper, TeleseismicTarget, Parameter
@@ -64,7 +65,7 @@ class GFConfig(Object):
                         help='Flag, for replacing water layers in the crust2'
                              'model.')
 
-    crust_ind = List.T(default=range(10),
+    crust_inds = List.T(default=range(10),
                        help='List of indexes for different velocity models.'
                             ' 0 is reference model.')
 
@@ -271,13 +272,10 @@ class SamplerConfig(Object):
         optional=True,
         help='Sampler dependend Parameters')
 
-    def __init__(self, **kwargs):
+    def set_parameters(self):
 
-        if 'name' in kwargs:
-            self.name = kwargs.pop('name')
-
-        else:
-            logger.info('name = None, Using default sampler: ATMCMC')
+        if self.name == None:
+            logger.info('Sampler not defined, using default sampler: ATMCMC')
             self.name = 'ATMCMC'
 
         if self.name == 'Metropolis':
@@ -301,9 +299,9 @@ class BEATconfig(Object):
 
     problem_config = ProblemConfig.T(default=ProblemConfig.D())
     geodetic_config = GeodeticConfig.T(
-        default=GeodeticConfig.D(), optional=True)
+        default=None, optional=True)
     seismic_config = SeismicConfig.T(
-        default=SeismicConfig.D(), optional= True)
+        default=None, optional= True)
     sampler_config = SamplerConfig.T(default=SamplerConfig.D())
 
 
@@ -343,7 +341,8 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
     else:
         c.seismic_config = None
 
-    c.solver_config = SamplerConfig(name=sampler)
+    c.sampler_config = SamplerConfig(name=sampler)
+    c.sampler_config.set_parameters()
 
     c.validate()
     c.problem_config.validate_bounds()
@@ -355,3 +354,12 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
     conf_out = os.path.join(c.project_dir, config_file_name)
     dump(c, filename=conf_out)
     return c
+
+
+def load_config(project_dir, mode):
+    config_file_name = 'config_' + mode + '.yaml'
+
+    config_fn = os.path.join(project_dir, config_file_name)
+    config = load(filename=config_fn)
+
+    return config
