@@ -365,7 +365,7 @@ class GeometryOptimizer(Problem):
                 t2 = time.time()
                 synths, tmins = self.get_seis_synths(*self.seis_input_rvs)
                 t3 = time.time()
-                logger.info(
+                logger.debug(
                     'Teleseismic forward model on test model takes: %f' % \
                         (t3 - t2))
 
@@ -402,7 +402,7 @@ class GeometryOptimizer(Problem):
                 t0 = time.time()
                 disp = self.get_geo_synths(*self.geo_input_rvs)
                 t1 = time.time()
-                logger.info(
+                logger.debug(
                     'Geodetic forward model on test model takes: %f' % \
                         (t1 - t0))
 
@@ -460,7 +460,7 @@ class GeometryOptimizer(Problem):
 
             for j, channel in enumerate(sc.channels):
                 for i, station in enumerate(self.stations):
-                    logger.info('Channel %s of Station %s ' % (
+                    logger.debug('Channel %s of Station %s ' % (
                         channel, station.station))
                     crust_targets = heart.init_targets(
                         stations=[station],
@@ -489,7 +489,7 @@ class GeometryOptimizer(Problem):
             gc = self.config.geodetic_config
 
             for i, gtarget in enumerate(self.gtargets):
-                logger.info('Track %s' % gtarget.track)
+                logger.debug('Track %s' % gtarget.track)
                 gtarget.covariance.pred_v = cov.get_geo_cov_velocity_models(
                     store_superdir=gc.gf_config.store_superdir,
                     crust_inds=gc.gf_config.crust_inds,

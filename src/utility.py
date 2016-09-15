@@ -313,7 +313,7 @@ def setup_logging(project_dir, levelname):
               'critical': logging.CRITICAL}
 
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=levels[levelname],
         format='%(asctime)s - %(name)s - %(levelname)s %(message)s',
         filename=os.path.join(project_dir, 'BEAT_log.txt'),
         filemode='a')

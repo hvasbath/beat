@@ -322,7 +322,7 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
 
     c.event = utility.search_catalog(date=date, min_magnitude=min_magnitude)
 
-    c.project_dir = os.path.join(main_path, name)
+    c.project_dir = os.path.join(os.path.abspath(main_path), name)
     util.ensuredir(c.project_dir)
 
     c.problem_config = ProblemConfig(
@@ -331,13 +331,13 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
 
     if 'geodetic' in datasets:
         c.geodetic_config = GeodeticConfig()
-        c.geodetic_config.gf_config.crust_ind = range(1 + n_variations)
+        c.geodetic_config.gf_config.crust_inds = range(1 + n_variations)
     else:
         c.geodetic_config = None
 
     if 'seismic' in datasets:
         c.seismic_config = SeismicConfig()
-        c.seismic_config.gf_config.crust_ind = range(1 + n_variations)
+        c.seismic_config.gf_config.crust_inds = range(1 + n_variations)
     else:
         c.seismic_config = None
 

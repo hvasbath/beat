@@ -77,7 +77,18 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
 
     @staticmethod
     def center(top_depth, width, dipvector):
+        '''
+        Get fault center coordinates. If input depth referrs to top_depth.
+        '''
         return num.array([0., 0., top_depth]) + 0.5 * width * dipvector
+
+    @staticmethod
+    def top_depth(depth, width, dipvector):
+        '''
+        Get top depth of the fault. If input depth referrs to center
+        coordinates. (Patches Funktion needs input depth to be top_depth.)
+        '''
+        return num.array([0., 0., depth]) - 0.5 * width * dipvector
 
     def patches(self, n, m, datatype):
         '''
@@ -129,9 +140,10 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
         return patches
 
 
-def update_center_coords(source):
+def adjust_fault_reference(source, input_depth='top'):
     '''
-    Converts center_top depth of fault to center depth and east/north-shifts.
+    Adjusts source depth and east/north-shifts variables of fault according to
+    input_depth mode 'top/center'.
     Takes RectangularSources(beat, pyrocko, pscmp)
     Updates input source!
     '''
@@ -139,9 +151,12 @@ def update_center_coords(source):
 
     dip_vec = RF.dipvector(dip=source.dip, strike=source.strike)
 
-    center = RF.center(top_depth=source.depth,
+    if input_depth == 'top':
+        center = RF.center(top_depth=source.depth,
                        width=source.width,
                        dipvector=dip_vec)
+    elif input_depth == 'center':
+        center = num.array([0., 0., source.depth])
 
     source.update(east_shift=float(center[0] + source.east_shift),
                   north_shift=float(center[1] + source.north_shift),

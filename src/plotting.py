@@ -11,6 +11,18 @@ from pyrocko import cake
 from matplotlib.backends.backend_pdf import PdfPages
 
 
+def plot(lons, lats, disp):
+    '''
+    Very simple scatter plot of displacements for fast inspections.
+    '''
+    #colim = num.max([disp.max(), num.abs(disp.min())])
+    ax = plt.axes()
+    im = ax.scatter(lons, lats, 15, disp, edgecolors='none')
+    plt.colorbar(im)
+    plt.title('Displacements [m]')
+    plt.show()
+
+
 def plot_misfits(problem, mtrace, mode='geometry', posterior='mean'):
 
     step, _ = utility.load_atmip_params(
@@ -21,9 +33,9 @@ def plot_misfits(problem, mtrace, mode='geometry', posterior='mean'):
     if posterior == 'mean':
         out_point = step.mean_end_points()
 
-    seis_synths, geo_synths = problem.get_synthetics(out_point)
+    d = problem.get_synthetics(out_point)
 
-    return seis_synths, geo_synths
+    return d
 
 
 def stage_posteriors(mtrace, output='display'):

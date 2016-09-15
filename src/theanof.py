@@ -57,7 +57,7 @@ class GeoLayerSynthesizerFree(theano.Op):
                           strike=st, dip=di, rake=ra,
                           length=l * km, width=w * km, slip=sl,
                           opening=op)
-            heart.update_center_coords(source, td * km)
+            heart.adjust_fault_reference(source, input_depth='top')
 
         displ = heart.geo_layer_synthetics(
             self.store_superdir,
@@ -113,7 +113,7 @@ class GeoLayerSynthesizerStatic(theano.Op):
 
         for i, source in enumerate(self.sources):
             source.update(**source_points[i])
-            heart.update_center_coords(source)
+            heart.adjust_fault_reference(source, input_depth='top')
 
         z[0] = heart.geo_layer_synthetics(
             store_superdir=self.store_superdir,
@@ -166,7 +166,7 @@ class SeisSynthesizer(theano.Op):
 
         for i, source in enumerate(self.sources):
             source.update(**source_points[i])
-            heart.update_center_coords(source)
+            heart.adjust_fault_reference(source, input_depth='top')
 
         synths[0], tmins[0] = heart.seis_synthetics(
                 self.engine, self.sources,

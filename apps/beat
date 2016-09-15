@@ -69,12 +69,12 @@ def add_common_options(parser):
               '"critical", "error", "warning", "info", or "debug". '
               'Default is "%default".')
 
-def process_common_options(options):
-    utility.setup_logging(options.main_path, options.loglevel)
+def process_common_options(options, name):
+    project_dir = os.path.join(options.main_path, name)
+    utility.setup_logging(project_dir, options.loglevel)
 
 def die(message, err=''):
     sys.exit('%s: error: %s \n %s' % (program_name, message, err))
-
 
 def cl_parse(command, args, setup=None, details=None):
     usage = subcommand_usages[command]
@@ -99,7 +99,7 @@ def cl_parse(command, args, setup=None, details=None):
 
     add_common_options(parser)
     (options, args) = parser.parse_args(args)
-    process_common_options(options)
+    process_common_options(options, name=args[0])
     return parser, options, args
 
 
