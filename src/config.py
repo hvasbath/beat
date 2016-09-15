@@ -17,6 +17,8 @@ logger = logging.getLogger('config')
 
 geo_vars_geometry = ['east_shift', 'north_shift', 'depth', 'strike', 'dip',
                          'rake', 'length', 'width', 'slip']
+geo_vars_magma = geo_vars_geometry + ['opening']
+
 seis_vars_geometry = ['time', 'duration']
 
 joint_vars_geometry = geo_vars_geometry + seis_vars_geometry
@@ -301,7 +303,7 @@ class BEATconfig(Object):
     geodetic_config = GeodeticConfig.T(
         default=None, optional=True)
     seismic_config = SeismicConfig.T(
-        default=None, optional= True)
+        default=None, optional=True)
     sampler_config = SamplerConfig.T(default=SamplerConfig.D())
 
 
@@ -323,7 +325,6 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
     c.event = utility.search_catalog(date=date, min_magnitude=min_magnitude)
 
     c.project_dir = os.path.join(os.path.abspath(main_path), name)
-    util.ensuredir(c.project_dir)
 
     c.problem_config = ProblemConfig(
         n_faults=n_faults, datasets=datasets, mode=mode)

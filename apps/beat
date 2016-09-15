@@ -71,6 +71,7 @@ def add_common_options(parser):
 
 def process_common_options(options, name):
     project_dir = os.path.join(options.main_path, name)
+    util.ensuredir(project_dir)
     utility.setup_logging(project_dir, options.loglevel)
 
 def die(message, err=''):
