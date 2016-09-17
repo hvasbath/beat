@@ -38,15 +38,20 @@ def plot_misfits(problem, mtrace, mode='geometry', posterior='mean'):
     return d
 
 
-def stage_posteriors(mtrace, output='display'):
+def stage_posteriors(mtrace, n_steps, output='display', outpath='./'):
     '''
     Plot variable posteriors from certain stage of the ATMIP algorithm.
+    n_steps of chains to select last samples of each trace.
     '''
-    PLT = pm.plots.traceplot(mtrace, combined=True)
+    def last_sample(x):
+        return x[(n_steps - 1)::n_steps]
+
+    PLT = pm.plots.traceplot(mtrace, transform=last_sample, combined=True)
     if output == 'display':
         plt.show(PLT[0][0])
     elif output == 'png':
-        plt.savefig('stage_posterior.png', dpi=300)
+        outpath = os.path.join(outpath, 'stage_posterior.png')
+        plt.savefig(outpath, dpi=300)
 
 
 def plot_all_posteriors(project_dir, mode='geometry'):

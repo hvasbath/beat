@@ -23,7 +23,7 @@ from pymc3.theanof import make_shared_replacements, join_nonshared_inputs
 from pymc3.step_methods.metropolis import MultivariateNormalProposal as MvNPd
 from numpy.random import seed
 
-from beat import backend, utility
+from beat import backend, utility, plotting
 
 __all__ = ['ATMCMC', 'ATMIP_sample']
 
@@ -405,7 +405,8 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
 def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                   stage=None, n_jobs=1, tune=None, progressbar=False,
-                  model=None, update=None, random_seed=None, rm_flag=False):
+                  model=None, update=None, random_seed=None, rm_flag=False,
+                  plot_flag=True):
     """
     (C)ATMIP sampling algorithm from Minson et al. 2013:
     Bayesian inversion for finite fault earthquake source models I-
@@ -585,6 +586,9 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
             step.stage += 1
 
+            if plot_flag:
+                plotting.stage_posteriors(
+                    mtrace, n_steps=draws, output='png', outpath=stage_path)
             del(mtrace)
 
         # Metropolis sampling final stage
@@ -604,6 +608,11 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
         outpath = os.path.join(stage_path, 'atmip.params')
         outparam_list = [step, update]
         utility.dump_objects(outpath, outparam_list)
+
+        if plot_flag:
+            mtrace = backend.load(stage_path, model)
+            plotting.stage_posteriors(
+                mtrace, n_steps=draws, output='png', outpath=stage_path)
 
 
 def _iter_initial(step, chain=0, strace=None, model=None):

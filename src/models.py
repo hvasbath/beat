@@ -576,7 +576,8 @@ def sample(step, problem):
             stage=sc.stage,
             update=problem,
             trace=problem.outfolder,
-            rm_flag=sc.rm_flag)
+            rm_flag=sc.rm_flag,
+            plot_flag=sc.plot_flag)
 
 
 def choose_proposal(proposal_dist):
