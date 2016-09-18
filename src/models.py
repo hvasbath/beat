@@ -513,7 +513,9 @@ class GeometryOptimizer(Problem):
         source_points = utility.split_point(point)
 
         for i, source in enumerate(self.sources):
+            print source
             source.update(**source_points[i])
+            print source
 
         dsources = utility.transform_sources(
             self.sources, self.config.problem_config.datasets)
@@ -536,6 +538,9 @@ class GeometryOptimizer(Problem):
 
             crust_inds = [0]
 
+            for source in dsources['geodetic']:
+                print source
+
             geo_synths = []
             for crust_ind in crust_inds:
                 for gtarget in self.gtargets:
@@ -548,7 +553,7 @@ class GeometryOptimizer(Problem):
                     geo_synths.append((
                         disp[:, 0] * gtarget.los_vector[:, 0] + \
                         disp[:, 1] * gtarget.los_vector[:, 1] + \
-                        disp[:, 2] * gtarget.los_vector[:, 2]) * gtarget.odw)
+                        disp[:, 2] * gtarget.los_vector[:, 2]))
 
             d['geodetic'] = geo_synths
 

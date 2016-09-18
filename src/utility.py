@@ -248,11 +248,12 @@ def adjust_point_units(point):
     Input: Point
     Returns: Point
     '''
+    mpoint = {}
     for key, value in point.iteritems():
         if key in kmtypes:
-            point[key] = value * km
+            mpoint[key] = value * km
 
-    return point
+    return mpoint
 
 
 def split_point(point):

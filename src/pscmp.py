@@ -4,6 +4,7 @@ import logging
 import os
 import shutil
 import signal
+import copy
 
 from tempfile import mkdtemp
 from subprocess import Popen, PIPE
@@ -91,10 +92,11 @@ class PsCmpProfile(PsCmpObservation):
 
     def string_for_config(self):
         self.sw = 1
-        self.start_distance /= km   # convert to km as pscmp takes [km]
-        self.end_distance /= km
+        # convert to km as pscmp takes [km]
+        str_start_distance = self.start_distance / km
+        str_end_distance = self.end_distance / km
         return ' %i' % (self.n_steps), \
-            ' ( %(start_distance)15f, %(end_distance)15f )' % self.__dict__
+            ' ( %15f, %15f )' % (str_start_distance, str_end_distance)
 
 
 class PsCmpArray(PsCmpObservation):
@@ -115,13 +117,16 @@ class PsCmpArray(PsCmpObservation):
 
     def string_for_config(self):
         self.sw = 2
-        self.start_distance_x /= km   # convert to km as pscmp takes [km]
-        self.end_distance_x /= km
-        self.start_distance_y /= km
-        self.end_distance_y /= km
+        # convert to km as pscmp takes [km]
+        str_start_distance_x = self.start_distance_x / km
+        str_end_distance_x = self.end_distance_x / km
+        str_start_distance_y = self.start_distance_y / km
+        str_end_distance_y = self.end_distance_y / km
 
-        return ' %(n_steps_x)i %(start_distance_x)15f %(end_distance_x)15f ' % self.__dict__, \
-               ' %(n_steps_y)i %(start_distance_y)15f %(end_distance_y)15f ' % self.__dict__
+        return ' %i %15f %15f ' % (
+                self.n_steps_x, str_start_distance_x, str_end_distance_x), \
+               ' %i %15f %15f ' % (
+                self.n_steps_y, str_start_distance_y, str_end_distance_y)
 
 
 class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
@@ -174,8 +179,6 @@ class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
         return dip_slip, strike_slip
 
     def string_for_config(self):
-        self.__dict__['effective_lat'] = self.effective_lat
-        self.__dict__['effective_lon'] = self.effective_lon
 
         if self.strike_slip or self.dip_slip is None:
             self.dip_slip, self.strike_slip = self.convert_slip()
@@ -184,12 +187,17 @@ class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
             self.pos_s = 0.
             self.pos_d = 0.
 
-        self.length /= km
-        self.width /= km
+        tempd = copy.deepcopy(self.__dict__)
+        tempd['effective_lat'] = self.effective_lat
+        tempd['effective_lon'] = self.effective_lon
+        tempd['depth'] /= km
+        tempd['length'] /= km
+        tempd['width'] /= km
+
         return '%(effective_lat)15f %(effective_lon)15f %(depth)15f' \
                '%(length)15f %(width)15f %(strike)15f' \
                '%(dip)15f 1 1 %(torigin)15f \n %(pos_s)15f %(pos_d)15f ' \
-               '%(strike_slip)15f %(dip_slip)15f %(opening)15f' % self.__dict__
+               '%(strike_slip)15f %(dip_slip)15f %(opening)15f' % tempd
 
 
 class PsCmpCoulombStress(Object):
@@ -681,6 +689,8 @@ in the directory %s'''.lstrip() % (
                 output.append(data[:, 11:14])
             elif component == 'gravity':
                 output.append(data[:, 14:16])
+            elif component == 'all':
+                output.append(data)
             else:
                 raise Exception(
        'get_results: component argument should be "displ/stress/tilt/gravity"')
