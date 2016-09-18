@@ -2,7 +2,7 @@ from pyrocko import cake_plot as cp
 import pymc3 as pm
 
 import os
-from beat import utility, models, backend
+from beat import utility, backend
 from matplotlib import pylab as plt
 
 import numpy as num
@@ -54,22 +54,22 @@ def stage_posteriors(mtrace, n_steps, output='display', outpath='./'):
         plt.savefig(outpath, dpi=300)
 
 
-def plot_all_posteriors(project_dir, mode='geometry'):
+def plot_all_posteriors(problem, mode='geometry'):
     '''
     Loop through all stages and plot the pdfs of the variables.
     '''
-    problem = models.load_model(project_dir, mode)
-
-    step, _ = utility.load_atmip_params(project_dir, 'final', mode=mode)
+    step, _ = utility.load_atmip_params(
+        problem.config.project_dir, 'final', mode=mode)
 
     for i in range(step.stage + 1):
-        stage_path = os.path.join(project_dir, mode, 'stage_%i' % i)
+        stage_path = os.path.join(
+            problem.config.project_dir, mode, 'stage_%i' % i)
         mtrace = backend.load(stage_path, model=problem.model)
         os.chdir(stage_path)
         print('plotting stage path: %s' % stage_path)
         stage_posteriors(mtrace, output='png')
 
-    stage_path = os.path.join(project_dir, mode, 'stage_final')
+    stage_path = os.path.join(problem.config.project_dir, mode, 'stage_final')
     mtrace = backend.load(stage_path, model=problem.model)
     os.chdir(stage_path)
     stage_posteriors(mtrace, output='png')
