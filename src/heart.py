@@ -1,3 +1,8 @@
+import os
+import logging
+import shutil
+import copy
+
 from beat import psgrn, pscmp
 import numpy as num
 from matplotlib import pylab as plt
@@ -5,15 +10,12 @@ from matplotlib import pylab as plt
 from pyrocko.guts import Object, String, Float, Int, Tuple
 from pyrocko.guts_array import Array
 
-from pyrocko import crust2x2, gf, cake, orthodrome, trace
+from pyrocko import crust2x2, gf, cake, orthodrome, trace, util
 from pyrocko.cake import GradientLayer
 from pyrocko.fomosto import qseis
 from pyrocko.fomosto import qssp
 #from pyrocko.fomosto import qseis2d
 
-import logging
-import shutil
-import copy
 
 logger = logging.getLogger('heart')
 
@@ -24,12 +26,12 @@ err_depth = 0.1
 err_velocities = 0.05
 
 lambda_sensors = {
-                'Envisat': 0.056,       # needs updating- no ressource file
-                'ERS1': 0.05656461471698113,
-                'ERS2': 0.056,          # needs updating
-                'JERS': 0.23513133960784313,
-                'RadarSat2': 0.055465772433
-                }
+    'Envisat': 0.056,       # needs updating- no ressource file
+    'ERS1': 0.05656461471698113,
+    'ERS2': 0.056,          # needs updating
+    'JERS': 0.23513133960784313,
+    'RadarSat2': 0.055465772433
+    }
 
 
 class PickleableTrace(trace.Trace):
@@ -213,10 +215,11 @@ class Covariance(Object):
 
 class TeleseismicTarget(gf.Target):
 
-    covariance = Covariance.T(default=Covariance.D(),
-                              optional=True,
-                              help=':py:class:`Covariance` that holds data'
-                                   'and model prediction covariance matrixes')
+    covariance = Covariance.T(
+        default=Covariance.D(),
+        optional=True,
+        help=':py:class:`Covariance` that holds data'
+             'and model prediction covariance matrixes')
 
 
 class ArrivalTaper(trace.Taper):
@@ -242,6 +245,9 @@ class Filter(Object):
 
 class Parameter(Object):
     name = String.T(default='lon')
+    form = String.T(default='Uniform',
+                    help='Type of prior distribution to use. Options:'
+                         ' "Uniform", ...')
     lower = Array.T(shape=(None,),
                     dtype=num.float,
                     serialize_as='list',
@@ -329,15 +335,16 @@ class DiffIFG(IFG):
     reference_point = Tuple.T(2, Float.T(), optional=True)
     reference_value = Float.T(optional=True, default=0.0)
     displacement = Array.T(shape=(None,), dtype=num.float, optional=True)
-    covariance = Covariance.T(optional=True,
-                              help=':py:class:`Covariance` that holds data'
-                                   'and model prediction covariance matrixes')
+    covariance = Covariance.T(
+        optional=True,
+        help=':py:class:`Covariance` that holds data'
+             'and model prediction covariance matrixes')
     odw = Array.T(
-            shape=(None,),
-            dtype=num.float,
-            help='Overlapping data weights, additional weight factor to the'
-                 'dataset for overlaps with other datasets',
-            optional=True)
+        shape=(None,),
+        dtype=num.float,
+        help='Overlapping data weights, additional weight factor to the'
+             'dataset for overlaps with other datasets',
+        optional=True)
 
     def plot(self, point_size=20):
         '''
@@ -431,7 +438,7 @@ def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
             for l_depth, vel_unc in mantle_vel_unc.items():
                 if float(l_depth) * km < layer.ztop:
                     err_velocities = vel_unc
-                    print err_velocities
+                    logger.debug('Velocity error: %f ', err_velocities)
 
             deltavp = float(num.random.normal(
                         0, layer.mtop.vp * err_velocities / 3., 1))
@@ -503,12 +510,14 @@ def ensemble_earthmodel(ref_earthmod, num_vary=10, err_depth=0.1,
     earthmods = []
     i = 0
     while i < num_vary:
-        new_model, cost = vary_model(ref_earthmod,
-                                     err_depth,
-                                     err_velocities,
-                                     depth_limit)
+        new_model, cost = vary_model(
+            ref_earthmod,
+            err_depth,
+            err_velocities,
+            depth_limit)
+
         if cost > 20:
-            print 'Skipped unlikely model', cost
+            logger.debug('Skipped unlikely model %f' % cost)
         else:
             i += 1
             earthmods.append(new_model)
@@ -517,24 +526,24 @@ def ensemble_earthmodel(ref_earthmod, num_vary=10, err_depth=0.1,
 
 
 def seis_construct_gf(station, event, superdir, code='qssp',
-                source_depth_min=0., source_depth_max=10., source_spacing=1.,
-                sample_rate=2., source_range=100., depth_limit=600 * km,
-                earth_model='ak135-f-average.m', crust_ind=0,
-                execute=False, rm_gfs=True, nworkers=1):
+        source_depth_min=0., source_depth_max=10., source_spacing=1.,
+        sample_rate=2., source_range=100., depth_limit=600 * km,
+        earth_model='ak135-f-average.m', crust_ind=0,
+        execute=False, rm_gfs=True, nworkers=1):
     '''Create a GF store for a station with respect to an event for a given
        Phase [P or S] and a distance range around the event.'''
 
     # calculate distance to station
     distance = orthodrome.distance_accurate50m(event, station)
-    print 'Station', station.station
-    print '---------------------'
+    logger.info('Station %s' % station.station)
+    logger.info('---------------------')
 
     # load velocity profile from CRUST2x2 and check for water layer
     profile_station = crust2x2.get_profile(station.lat, station.lon)
     thickness_lwater = profile_station.get_layer(crust2x2.LWATER)[0]
     if thickness_lwater > 0.0:
-        print 'Water layer', str(thickness_lwater), 'in CRUST model! \
-                remove and add to lower crust'
+        logger.info('Water layer %f in CRUST model!'
+            ' Remove and add to lower crust' % thickness_lwater)
         thickness_llowercrust = profile_station.get_layer(
                                         crust2x2.LLOWERCRUST)[0]
         thickness_lsoftsed = profile_station.get_layer(crust2x2.LSOFTSED)[0]
@@ -548,8 +557,8 @@ def seis_construct_gf(station, event, superdir, code='qssp',
                 (thickness_lsoftsed - num.ceil(thickness_lsoftsed / 3))
                 )
         profile_station._elevation = 0.0
-        print 'New Lower crust layer thickness', \
-                str(profile_station.get_layer(crust2x2.LLOWERCRUST)[0])
+        logger.info('New Lower crust layer thickness %f' % \
+            profile_station.get_layer(crust2x2.LLOWERCRUST)[0])
 
     profile_event = crust2x2.get_profile(event.lat, event.lon)
 
@@ -566,19 +575,20 @@ def seis_construct_gf(station, event, superdir, code='qssp',
     if crust_ind > 0:
         #moho_depth = receiver_model.discontinuity('moho').z
         receiver_model = ensemble_earthmodel(
-                                        receiver_model,
-                                        num_vary=1,
-                                        err_depth=err_depth,
-                                        err_velocities=err_velocities,
-                                        depth_limit=depth_limit)[0]
+            receiver_model,
+            num_vary=1,
+            err_depth=err_depth,
+            err_velocities=err_velocities,
+            depth_limit=depth_limit)[0]
 
     # define phases
-    tabulated_phases = [gf.TPDef(
-                            id='any_P',
-                            definition='p,P,p\\,P\\'),
-                        gf.TPDef(
-                            id='any_S',
-                            definition='s,S,s\\,S\\')]
+    tabulated_phases = [
+        gf.TPDef(
+            id='any_P',
+            definition='p,P,p\\,P\\'),
+        gf.TPDef(
+            id='any_S',
+            definition='s,S,s\\,S\\')]
 
     # fill config files for fomosto
     fom_conf = gf.ConfigTypeA(
@@ -669,7 +679,9 @@ def seis_construct_gf(station, event, superdir, code='qssp',
 
     # fill remaining fomosto params
     fom_conf.earthmodel_1d = source_model.extract(depth_max='cmb')
+
     fom_conf.earthmodel_receiver_1d = receiver_model
+
     fom_conf.modelling_code_id = model_code_id + '.' + version
 
     window_extension = 60.   # [s]
@@ -677,10 +689,13 @@ def seis_construct_gf(station, event, superdir, code='qssp',
     fom_conf.time_region = (
         gf.Timing(tabulated_phases[0].id + '-%s' % (1.1 * window_extension)),
         gf.Timing(tabulated_phases[1].id + '+%s' % (1.6 * window_extension)))
+
     fom_conf.cut = (
         gf.Timing(tabulated_phases[0].id + '-%s' % window_extension),
         gf.Timing(tabulated_phases[1].id + '+%s' % (1.5 * window_extension)))
+
     fom_conf.relevel_with_fade_in = True
+
     fom_conf.fade = (
         gf.Timing(tabulated_phases[0].id + '-%s' % (1.1 * window_extension)),
         gf.Timing(tabulated_phases[0].id + '-%s' % window_extension),
@@ -688,10 +703,11 @@ def seis_construct_gf(station, event, superdir, code='qssp',
         gf.Timing(tabulated_phases[1].id + '+%s' % (1.6 * window_extension)))
 
     fom_conf.validate()
+
     conf.validate()
 
     store_dir = superdir + fom_conf.id
-    print 'create Store at ', store_dir
+    logger.info('Creating Store at %s' % store_dir)
     gf.Store.create_editables(store_dir,
                               config=fom_conf,
                               extra={model_code_id: conf})
@@ -700,29 +716,33 @@ def seis_construct_gf(station, event, superdir, code='qssp',
         store.make_ttt()
         store.close()
         build(store_dir, nworkers=nworkers)
-        gf_dir = store_dir + '/qssp_green'
-        if rm_gfs:
+        if rm_gfs and code == 'qssp':
+            gf_dir = os.path.join(store_dir, 'qssp_green')
             logger.info('Removing QSSP Greens Functions!')
             shutil.rmtree(gf_dir)
 
 
-def geo_construct_gf(event, superdir,
-                     source_distance_min=0., source_distance_max=100.,
-                     source_depth_min=0., source_depth_max=40.,
-                     source_distance_spacing=5., source_depth_spacing=0.5,
-                     earth_model='ak135-f-average.m', crust_ind=0,
-                     execute=True):
+def geo_construct_gf(
+        event, store_superdir,
+        source_distance_min=0., source_distance_max=100.,
+        source_depth_min=0., source_depth_max=40.,
+        source_distance_spacing=5., source_depth_spacing=0.5,
+        sampling_interval=1.,
+        earth_model='ak135-f-average.m', crust_ind=0,
+        replace_water=True, use_crust2=True, custom_velocity_model=None,
+        execute=True):
     '''
-    Given a :py:class:`Event` the crustal model :py:class:`LayeredModel` from
-    :py:class:`Crust2Profile` at the event location is extracted and the
-    geodetic greens functions are calculated with the given grid resolution.
+    Given a :py:class:`Event` the crustal model :py:class:`cake.LayeredModel`
+    from :py:class:`cake.Crust2Profile` at the event location is extracted and
+    the geodetic greens functions are calculated with the given grid
+    resolution.
     '''
     c = psgrn.PsGrnConfigFull()
 
     n_steps_depth = (source_depth_max - source_depth_min) / \
-                    source_depth_spacing
+        source_depth_spacing
     n_steps_distance = (source_distance_max - source_distance_min) / \
-                    source_distance_spacing
+        source_distance_spacing
 
     c.distance_grid = psgrn.PsGrnSpatialSampling(
         n_steps=n_steps_distance,
@@ -734,31 +754,43 @@ def geo_construct_gf(event, superdir,
         start_distance=source_depth_min,
         end_distance=source_depth_max)
 
-    c.sampling_interval = 10.
+    c.sampling_interval = sampling_interval
 
     # extract source crustal profile and check for water layer
-    source_profile = crust2x2.get_profile(event.lat, event.lon)
-    thickness_lwater = source_profile.get_layer(crust2x2.LWATER)[0]
+    if use_crust2:
+        source_profile = crust2x2.get_profile(event.lat, event.lon)
 
-    if thickness_lwater > 0.0:
-        logger.info('Water layer', str(thickness_lwater), 'in CRUST model!'
-            'remove and add to lower crust')
-        thickness_llowercrust = source_profile.get_layer(
+        if replace_water:
+            thickness_lwater = source_profile.get_layer(crust2x2.LWATER)[0]
+
+            if thickness_lwater > 0.0:
+                logger.info('Water layer %f in CRUST model! '
+                        'Remove and add to lower crust' % thickness_lwater)
+
+                thickness_llowercrust = source_profile.get_layer(
                                         crust2x2.LLOWERCRUST)[0]
 
-        source_profile.set_layer_thickness(crust2x2.LWATER, 0.0)
-        source_profile.set_layer_thickness(
-            crust2x2.LLOWERCRUST,
-            thickness_llowercrust + thickness_lwater)
-        source_profile._elevation = 0.0
+                source_profile.set_layer_thickness(crust2x2.LWATER, 0.0)
+                source_profile.set_layer_thickness(
+                    crust2x2.LLOWERCRUST,
+                    thickness_llowercrust + thickness_lwater)
 
-        logger.info('New Lower crust layer thickness', \
-                str(source_profile.get_layer(crust2x2.LLOWERCRUST)[0]))
+                source_profile._elevation = 0.0
 
-    source_model = cake.load_model(
-        earth_model,
-        crust2_profile=source_profile).extract(
-           depth_max=source_depth_max * km)
+                logger.info('New Lower crust layer thickness %f' % \
+                    source_profile.get_layer(crust2x2.LLOWERCRUST)[0])
+
+        source_model = cake.load_model(
+            earth_model,
+            crust2_profile=source_profile).extract(
+                depth_max=source_depth_max * km)
+
+    else:
+        if custom_velocity_model is None:
+            raise Exception('custom velocity model not given!')
+
+        logger.info('Using custom model from config file')
+        source_model = custom_velocity_model
 
     # potentially vary source model
     if crust_ind > 0:
@@ -770,13 +802,21 @@ def geo_construct_gf(event, superdir,
             depth_limit=None)[0]
 
     c.earthmodel_1d = source_model
-    c.psgrn_outdir = superdir + 'psgrn_green_%i/' % (crust_ind)
+    c.psgrn_outdir = os.path.join(
+        store_superdir, 'psgrn_green_%i' % (crust_ind))
     c.validate()
 
-    logger.info('Creating Geo GFs in directory: %s' % c.psgrn_outdir)
+    util.ensuredir(c.psgrn_outdir)
 
     runner = psgrn.PsGrnRunner(outdir=c.psgrn_outdir)
+
+    if not execute:
+        logger.info('Geo GFs can be created in directory: %s ! '
+                    '(execute=True necessary)! GF params: \n' % c.psgrn_outdir)
+        print c
+
     if execute:
+        logger.info('Creating Geo GFs in directory: %s' % c.psgrn_outdir)
         runner.run(c)
 
 
@@ -790,7 +830,8 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
     '''
     c = pscmp.PsCmpConfigFull()
     c.observation = pscmp.PsCmpScatter(lats=lats, lons=lons)
-    c.psgrn_outdir = store_superdir + 'psgrn_green_%i/' % (crust_ind)
+    c.psgrn_outdir = os.path.join(
+        store_superdir, 'psgrn_green_%i/' % (crust_ind))
 
     # only coseismic displacement
     c.times_snapshots = [0]

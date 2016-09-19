@@ -69,13 +69,16 @@ def add_common_options(parser):
               '"critical", "error", "warning", "info", or "debug". '
               'Default is "%default".')
 
+
 def process_common_options(options, name):
     project_dir = os.path.join(options.main_path, name)
     util.ensuredir(project_dir)
     utility.setup_logging(project_dir, options.loglevel)
 
+
 def die(message, err=''):
     sys.exit('%s: error: %s \n %s' % (program_name, message, err))
+
 
 def cl_parse(command, args, setup=None, details=None):
     usage = subcommand_usages[command]
@@ -123,40 +126,45 @@ def command_init(args):
             setattr(parser.values, option.dest, out)
 
         parser.add_option('--min_mag', dest='min_mag', type=float,
-                default=6.,
-                help='Minimum Mw for event, for catalog search.'
-                     ' Default: "6.0"')
+            default=6.,
+            help='Minimum Mw for event, for catalog search.'
+                 ' Default: "6.0"')
 
         parser.add_option('--main_path', dest='main_path', type='string',
-                default='./',
-                help='Main path (absolute) for creating directory structure.'
-                     '  Default: current directory ./')
+            default='./',
+            help='Main path (absolute) for creating directory structure.'
+                 '  Default: current directory ./')
 
         parser.add_option('--datasets',
-                default='geodetic', type='string',
-                action='callback', callback=list_callback,
-                help='Datasets to include in the setup; "geodetic, seismic".'
-                     ' Default: "geometry"')
+            default=['geodetic'], type='string',
+            action='callback', callback=list_callback,
+            help='Datasets to include in the setup; "geodetic, seismic".')
 
         parser.add_option('--mode', dest='mode',
-                choices=['geometry', 'static_dist', 'kinemtic_dist'],
-                default='geometry',
-                help='Inversion problem to solve; "geometry", "static_dist",'
-                     '"kinematic_dist". Default: "geometry"')
+            choices=['geometry', 'static_dist', 'kinemtic_dist'],
+            default='geometry',
+            help='Inversion problem to solve; "geometry", "static_dist",'
+                 '"kinematic_dist". Default: "geometry"')
 
         parser.add_option('--n_variations', dest='n_variations', type='int',
-                metavar='N', default=0,
-                help='Number of velocity models to vary the reference model.'
-                     ' Default: 0')
+            metavar='N', default=0,
+            help='Number of velocity models to vary the reference model.'
+                 ' Default: 0')
 
         parser.add_option('--n_faults', dest='n_faults', type='int',
-                default=1,
-                help='Integer Number of faults to invert for. Default: 1' )
+            default=1,
+            help='Integer Number of faults to invert for. Default: 1' )
 
         parser.add_option('--sampler', dest='sampler', type='string',
-                default='ATMCMC',
-                help='Sampling algoruthm to sample the solution space;'
-                     '"ATMCMC", "Metropolis". Default: "ATMCMC"')
+            default='ATMCMC',
+            help='Sampling algoruthm to sample the solution space;'
+                 '"ATMCMC", "Metropolis". Default: "ATMCMC"')
+
+        parser.add_option('--use_custom', dest='use_custom',
+            action='store_true',
+            help='If set, a slot for a custom velocity model for the'
+                 ' near-field geodetic data is being created in the'
+                 ' configuration file.')
 
     parser, options, args = cl_parse('init', args, setup=setup)
 
@@ -174,33 +182,35 @@ def command_init(args):
                mode=options.mode,
                n_variations=options.n_variations,
                n_faults=options.n_faults,
-               sampler=options.sampler)
+               sampler=options.sampler,
+               use_custom=options.use_custom)
+
 
 def command_import_data(args):
 
     def setup(parser):
 
         parser.add_option('--main_path', dest='main_path', type='string',
-                default='./',
-                help='Main path (absolute) leading to folders of events that'
-                     ' have been created by "init".'
-                     ' Default: current directory: ./')
+            default='./',
+            help='Main path (absolute) leading to folders of events that'
+                 ' have been created by "init".'
+                 ' Default: current directory: ./')
 
         parser.add_option('--geodetic_format', dest='geodetic_format',
-                type='string', default='matlab',
-                help='Data format to be imported; "matlab", ...,'
-                     ' Default: "matlab"')
+            type='string', default='matlab',
+            help='Data format to be imported; "matlab", ...,'
+                 ' Default: "matlab"')
 
         parser.add_option('--seismic_format', dest='seismic_format',
-                type='string', default='autokiwi',
-                help='Data format to be imported; "autokiwi", ...,'
-                     'Default: "autokiwi"')
+            type='string', default='autokiwi',
+            help='Data format to be imported; "autokiwi", ...,'
+                 'Default: "autokiwi"')
 
         parser.add_option('--mode', dest='mode',
-                choices=['geometry', 'static_dist', 'kinemtic_dist'],
-                default='geometry',
-                help='Inversion problem to solve; "geometry", "static_dist",'
-                     '"kinematic_dist". Default: "geometry"')
+            choices=['geometry', 'static_dist', 'kinemtic_dist'],
+            default='geometry',
+            help='Inversion problem to solve; "geometry", "static_dist",'
+                 '"kinematic_dist". Default: "geometry"')
 
     parser, options, args = cl_parse('import_data', args, setup=setup)
 
@@ -253,7 +263,7 @@ def command_import_data(args):
                 c.project_dir, config.geodetic_data_name)
 
             logger.info('Pickle geodetic data to %s' % geodetic_outpath)
-            utility.dump_objects(geodetic_outpath, outlist=[gtargets])
+            utility.dump_objects(geodetic_outpath, outlist=gtargets)
         else:
             raise Exception(
                 'Format: %s not implemented yet.' % options.geodetic_format)
@@ -263,16 +273,16 @@ def command_sample(args):
 
     def setup(parser):
         parser.add_option('--mode', dest='mode',
-                choices=['geometry', 'static_dist', 'kinemtic_dist'],
-                default='geometry',
-                help='Inversion problem to solve; "geometry", "static_dist",'
-                     '"kinematic_dist". Default: "geometry"')
+            choices=['geometry', 'static_dist', 'kinemtic_dist'],
+            default='geometry',
+            help='Inversion problem to solve; "geometry", "static_dist",'
+                 '"kinematic_dist". Default: "geometry"')
 
         parser.add_option('--main_path', dest='main_path', type='string',
-                default='./',
-                help='Main path (absolute) leading to folders of events that'
-                     ' have been created by "init".'
-                     ' Default: current directory: ./')
+            default='./',
+            help='Main path (absolute) leading to folders of events that'
+                 ' have been created by "init".'
+                 ' Default: current directory: ./')
 
     parser, options, args = cl_parse('sample', args, setup=setup)
 
@@ -293,20 +303,66 @@ def command_sample(args):
     models.sample(step, problem)
 
 
-def command_build_geo_gfs(config):
+def command_build_gfs(args):
 
-    config_fn = os.path.join(project_dir, 'config')
-    config = model.load(filename=config_fn)
+    def setup(parser):
+        def list_callback(option, opt, value, parser):
+            out = [ival.lstrip() for ival in value.split(',')]
+            setattr(parser.values, option.dest, out)
 
-    eventname = os.path.join(config.seismic_datadir, 'event.txt')
-    event = model.load_one_event(eventname)
+        parser.add_option('--main_path', dest='main_path', type='string',
+            default='./',
+            help='Main path (absolute) leading to folders of events that'
+                 ' have been created by "init".'
+                 ' Default: current directory: ./')
 
-    for crust_ind in config.crust_inds:
-        heart.geo_construct_gf(event, store_superdir,
-                     source_distance_min=0., source_distance_max=100.,
-                     source_depth_min=0., source_depth_max=50.,
-                     source_spacing=0.5, earth_model='ak135-f-average.m',
-                     crust_ind=crust_ind, execute=True)
+        parser.add_option('--mode', dest='mode',
+            choices=['geometry', 'static_dist', 'kinemtic_dist'],
+            default='geometry',
+            help='Inversion problem to calculate GFs for; "geometry",'
+                 '"static_dist", "kinematic_dist". Default: "geometry"')
+
+        parser.add_option('--datasets',
+            default='geodetic', type='string',
+            action='callback', callback=list_callback,
+            help='Datasets to calculate the GFs for; "geodetic, seismic".'
+                 ' Default: "geodetic"')
+
+    parser, options, args = cl_parse('build_gfs', args, setup=setup)
+
+    try:
+        name = args.pop()
+    except:
+        parser.error('cannot get <event_name> argument')
+        parser.print_help()
+
+    main_path = os.getcwd()
+    project_dir = os.path.join(main_path, name)
+
+    c = config.load_config(project_dir, options.mode)
+
+    gf = c.geodetic_config.gf_config
+
+    if 'geodetic' in options.datasets:
+        for crust_ind in gf.crust_inds:
+            heart.geo_construct_gf(
+                event=c.event,
+                store_superdir=gf.store_superdir,
+                source_depth_min=gf.source_depth_min,
+                source_depth_max=gf.source_depth_max,
+                source_depth_spacing=gf.source_depth_spacing,
+                source_distance_min=gf.source_distance_min,
+                source_distance_max=gf.source_distance_max,
+                source_distance_spacing=gf.source_distance_spacing,
+                sampling_interval=gf.sampling_interval,
+                earth_model=gf.earth_model,
+                crust_ind=crust_ind,
+                use_crust2=gf.use_crust2,
+                custom_velocity_model=gf.custom_velocity_model,
+                replace_water=gf.replace_water,
+                execute=gf.execute)
+
+    logger.info('GF calculations successful!')
 
 
 if __name__ == '__main__':

@@ -3,8 +3,10 @@ import os
 
 from pyrocko.guts import Object, List, String, Float, Int, Tuple, Bool
 from pyrocko.guts import load, dump
+from pyrocko.cake import load_model
 
 from pyrocko import trace, model, util
+from pyrocko.gf import Earthmodel1D
 from beat.heart import Filter, ArrivalTaper, TeleseismicTarget, Parameter
 
 from beat import utility
@@ -49,6 +51,8 @@ default_bounds = dict(
 seismic_data_name = 'seismic_data.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
 
+km = 1000.
+
 
 class GFConfig(Object):
     '''
@@ -66,7 +70,6 @@ class GFConfig(Object):
     replace_water = Bool.T(default=True,
                         help='Flag, for replacing water layers in the crust2'
                              'model.')
-
     crust_inds = List.T(default=range(10),
                        help='List of indexes for different velocity models.'
                             ' 0 is reference model.')
@@ -91,8 +94,6 @@ class GFConfig(Object):
     execute = Bool.T(default=False,
                      help='Flag, for starting the modeling code after config'
                           'creation.')
-    rm_gfs = Bool.T(default=True,
-                    help='Flag for removing existing directories.')
     nworkers = Int.T(
         default=1,
         help='Number of processors to use for calculating the GFs')
@@ -110,6 +111,9 @@ class SeismicGFConfig(GFConfig):
     depth_limit_variation = Float.T(
         default=600.,
         help='Depth limit [km] for varying the velocity model.')
+    rm_gfs = Bool.T(default=True,
+                    help='Flag for removing modeling module GF files after'
+                         ' completion.')
 
 
 class GeodeticGFConfig(GFConfig):
@@ -119,6 +123,15 @@ class GeodeticGFConfig(GFConfig):
     code = String.T(default='psgrn',
                     help='Modeling code to use. (psgrn, ... others need to be'
                          'implemented!)')
+    sampling_interval = Float.T(\
+        default=1.0,
+        help='Distance dependend sampling spacing coefficient.'
+             '1. - equidistant')
+    custom_velocity_model = Earthmodel1D.T(
+        default=None,
+        optional=True,
+        help='Custom Earthmodel, in case crust2 and standard model not'
+             ' wanted. Needs to be a :py::class:cake.LayeredModel')
 
 
 class SeismicConfig(Object):
@@ -161,7 +174,7 @@ class ProblemConfig(Object):
     n_faults = Int.T(default=1,
                      help='Number of Sub-faults to solve for')
     datasets = List.T(default=['geodetic'])
-    bounds = List.T(Parameter.T())
+    priors = List.T(Parameter.T())
 
     def init_vars(self):
 
@@ -183,7 +196,7 @@ class ProblemConfig(Object):
                                 'geodetic data!')
 
         for variable in variables:
-            self.bounds.append(
+            self.priors.append(
             Parameter(
                 name=variable,
                 lower=num.ones(self.n_faults, dtype=num.float) * \
@@ -194,14 +207,14 @@ class ProblemConfig(Object):
                     num.mean(default_bounds[variable]))
                                )
 
-    def validate_bounds(self):
+    def validate_priors(self):
         '''
-        Check if bounds and their test values do not contradict!
+        Check if priors and their test values do not contradict!
         '''
-        for param in self.bounds:
+        for param in self.priors:
             param()
 
-        print('All parameter-bounds ok!')
+        print('All parameter-priors ok!')
 
 
 class SamplerParameters(Object):
@@ -313,7 +326,7 @@ class BEATconfig(Object):
 def init_config(name, date, min_magnitude=6.0, main_path='./',
                 datasets=['geodetic'],
                 n_variations=0, mode='geometry', n_faults=1,
-                sampler='ATMCMC'):
+                sampler='ATMCMC', use_custom=False):
     '''
     Initialise BEATconfig File and write it to main_path/name+year/ .
     Fine parameters have to be edited in the config file .yaml manually.
@@ -336,6 +349,13 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
     if 'geodetic' in datasets:
         c.geodetic_config = GeodeticConfig()
         c.geodetic_config.gf_config.crust_inds = range(1 + n_variations)
+        if use_custom:
+            logger.info('use_custom flag set, the velocity model in the'
+                        ' configuration file has to be updated!')
+            c.geodetic_config.gf_config.custom_velocity_model = \
+                load_model().extract(depth_max=100. * km)
+            c.geodetic_config.gf_config.use_crust2 = False
+            c.geodetic_config.gf_config.replace_water = False
     else:
         c.geodetic_config = None
 
@@ -349,7 +369,7 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
     c.sampler_config.set_parameters()
 
     c.validate()
-    c.problem_config.validate_bounds()
+    c.problem_config.validate_priors()
 
     logger.info('Project_directory: %s \n' % c.project_dir)
     util.ensuredir(c.project_dir)

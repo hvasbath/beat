@@ -242,7 +242,7 @@ class GeometryOptimizer(Problem):
 
             geodetic_data_path = os.path.join(
                 config.project_dir, bconfig.geodetic_data_name)
-            self.gtargets = utility.load_objects(geodetic_data_path)[0]
+            self.gtargets = utility.load_objects(geodetic_data_path)
 
             self.ng_t = len(self.gtargets)
             logger.info('Number of geodetic datasets: %i ' % self.ng_t)
@@ -343,7 +343,7 @@ class GeometryOptimizer(Problem):
             logger.info('Optimization for %i sources', len(self.sources))
 
             input_rvs = []
-            for param in self.config.problem_config.bounds:
+            for param in self.config.problem_config.priors:
                 input_rvs.append(pm.Uniform(param.name,
                                        shape=param.dimension,
                                        lower=param.lower,
@@ -513,9 +513,7 @@ class GeometryOptimizer(Problem):
         source_points = utility.split_point(point)
 
         for i, source in enumerate(self.sources):
-            print source
             source.update(**source_points[i])
-            print source
 
         dsources = utility.transform_sources(
             self.sources, self.config.problem_config.datasets)
@@ -537,9 +535,6 @@ class GeometryOptimizer(Problem):
             gc = self.config.geodetic_config
 
             crust_inds = [0]
-
-            for source in dsources['geodetic']:
-                print source
 
             geo_synths = []
             for crust_ind in crust_inds:
