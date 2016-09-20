@@ -199,6 +199,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
                 else:
                     q_new = q0
                     l_new = l0
+
             else:
                 l = self.logp_forw(q)
                 q_new = pm.metropolis.metrop_select(

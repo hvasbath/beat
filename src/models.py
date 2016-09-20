@@ -565,7 +565,7 @@ def sample(step, problem):
         '''
 
         sc = problem.config.sampler_config.parameters
-
+        print sc
         logger.info('... Starting ATMIP ...\n')
         atmcmc.ATMIP_sample(
             sc.n_steps,

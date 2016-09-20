@@ -174,13 +174,13 @@ class SeisSynthesizer(theano.Op):
         point = {var: inp for var, inp in zip(
                     config.joint_vars_geometry, inputs)}
 
-        point = utility.adjust_point_units(point)
-        point['time'] += self.event.time
+        mpoint = utility.adjust_point_units(point)
 
-        source_points = utility.split_point(point)
+        source_points = utility.split_point(mpoint)
 
         for i, source in enumerate(self.sources):
             source.update(**source_points[i])
+            source.time += self.event.time
             heart.adjust_fault_reference(source, input_depth='top')
 
         synths[0], tmins[0] = heart.seis_synthetics(
