@@ -146,8 +146,7 @@ class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
     torigin = Float.T(default=0.0)
 
     slip = Float.T(optional=True, default=1.0)
-    strike_slip = Float.T(optional=True, default=None)
-    dip_slip = Float.T(optional=True, default=None)
+
     pos_s = Float.T(optional=True, default=None)
     pos_d = Float.T(optional=True, default=None)
     opening = Float.T(default=0.0)
@@ -173,20 +172,23 @@ class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
         for (k, v) in kwargs.iteritems():
             self[k] = v
 
-    def convert_slip(self):
-        dip_slip = float(self.slip * dsin(self.rake) * (-1))
-        strike_slip = float(self.slip * dcos(self.rake))
-        return dip_slip, strike_slip
+    @property
+    def dip_slip(self):
+        return float(self.slip * dsin(self.rake) * (-1))
+
+    @property
+    def strike_slip(self):
+        return float(self.slip * dcos(self.rake))
 
     def string_for_config(self):
-
-        self.dip_slip, self.strike_slip = self.convert_slip()
 
         if self.pos_s or self.pos_d is None:
             self.pos_s = 0.
             self.pos_d = 0.
 
         tempd = copy.deepcopy(self.__dict__)
+        tempd['dip_slip'] = self.dip_slip
+        tempd['strike_slip'] = self.strike_slip
         tempd['effective_lat'] = self.effective_lat
         tempd['effective_lon'] = self.effective_lon
         tempd['depth'] /= km
