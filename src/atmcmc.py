@@ -781,7 +781,7 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs):
     work = [(step, chain, step.population[step.resampling_indexes[chain]])
              for chain in chains]
 
-    progress = pm.progressbar.progress_bar(step.n_chains)
+    progress = util.progressbar('chains done', step.n_chains)
     chain_done = 0
 
     for chain in parimap.parimap(
