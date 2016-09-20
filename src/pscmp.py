@@ -180,8 +180,7 @@ class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
 
     def string_for_config(self):
 
-        if self.strike_slip or self.dip_slip is None:
-            self.dip_slip, self.strike_slip = self.convert_slip()
+        self.dip_slip, self.strike_slip = self.convert_slip()
 
         if self.pos_s or self.pos_d is None:
             self.pos_s = 0.

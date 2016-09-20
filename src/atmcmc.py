@@ -269,8 +269,8 @@ class ATMCMC(backend.ArrayStepSharedLLK):
                       rowvar=0)
 
         if np.isnan(cov).any() or np.isinf(cov).any():
-            raise Exception('Sample covariances not valid! Likely "n_chains" is '
-                         'too small!')
+            raise Exception('Sample covariances not valid! Likely "n_chains"'
+                            ' is too small!')
         return cov
 
     def select_end_points(self, mtrace):
@@ -553,6 +553,10 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
             mtrace = backend.load(stage_path, model)
 
+            if plot_flag:
+                plotting.stage_posteriors(
+                    mtrace, n_steps=draws, output='png', outpath=stage_path)
+
             step.population, step.array_population, step.likelihoods = \
                                     step.select_end_points(mtrace)
             step.beta, step.old_beta, step.weights = step.calc_beta()
@@ -586,9 +590,6 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
             step.stage += 1
 
-            if plot_flag:
-                plotting.stage_posteriors(
-                    mtrace, n_steps=draws, output='png', outpath=stage_path)
             del(mtrace)
 
         # Metropolis sampling final stage

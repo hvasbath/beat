@@ -252,6 +252,8 @@ def adjust_point_units(point):
     for key, value in point.iteritems():
         if key in kmtypes:
             mpoint[key] = value * km
+        else:
+            mpoint[key] = value
 
     return mpoint
 
