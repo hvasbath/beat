@@ -528,8 +528,9 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                 logger.info('Sample initial stage: ...')
                 draws = 1
             else:
-                logger.info('Beta: %f Stage: %i' % (step.beta, step.stage))
                 draws = n_steps
+
+            logger.info('Beta: %f Stage: %i' % (step.beta, step.stage))
 
             if progressbar and n_jobs > 1:
                 progressbar = False
@@ -570,14 +571,12 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                 update.update_target_weights(
                         mtrace, method=step.data_weighting)
 
-                if step.stage == 0:
-                    # reset beta again, because MF space changed
-                    step.beta = 0.
-                    step.old_beta = 0.
-
             if step.beta > 1.:
                 logger.info('Beta > 1.: %f' % step.beta)
                 step.beta = 1.
+                outpath = os.path.join(stage_path, 'atmip.params')
+                outparam_list = [step, update]
+                utility.dump_objects(outpath, outparam_list)
                 break
 
             step.covariance = step.calc_covariance()
