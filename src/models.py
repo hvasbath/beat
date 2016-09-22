@@ -80,7 +80,6 @@ class Problem(Object):
                     n_chains=sc.parameters.n_chains,
                     tune_interval=sc.parameters.tune_interval,
                     coef_variation=sc.parameters.coef_variation,
-                    data_weighting=sc.parameters.data_weighting,
                     likelihood_name=self._like_name)
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
