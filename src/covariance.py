@@ -1,4 +1,5 @@
 from pyrocko import gf, trace
+from pyrocko import orthodrome as ortho
 import numpy as num
 
 import copy
@@ -221,14 +222,19 @@ def get_geo_cov_velocity_models(store_superdir, crust_inds, dataset, sources):
 
     synths = num.zeros((len(crust_inds), dataset.lons.size))
     for crust_ind in crust_inds:
+#        distances = ortho.distance_accurate50m_numpy(
+#            sources[0].lat, sources[0].lon, dataset.lats, dataset.lons)
+#        sorted_ind = num.argsort(distances)
+
         disp = heart.geo_layer_synthetics(
             store_superdir, crust_ind,
-            lons=dataset.lons,
-            lats=dataset.lats,
+            lons=dataset.lons,  #[sorted_ind],
+            lats=dataset.lats,  #[sorted_ind],
             sources=sources)
         synths[crust_ind, :] = (
             disp[:, 0] * dataset.los_vector[:, 0] + \
             disp[:, 1] * dataset.los_vector[:, 1] + \
-            disp[:, 2] * dataset.los_vector[:, 2]) * dataset.odw
+            disp[:, 2] * dataset.los_vector[:, 2]) * \
+                dataset.odw
 
     return num.cov(synths, rowvar=0)

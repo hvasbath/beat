@@ -264,7 +264,7 @@ class ATMCMCConfig(SamplerParameters):
              'alternatives need to be implemented')
     check_bnd = Bool.T(
         default=True,
-        help='Flag for checking whether propsed step lies within'
+        help='Flag for checking whether proposed step lies within'
              ' variable bounds.')
     update_covariances = Bool.T(
         default='false',

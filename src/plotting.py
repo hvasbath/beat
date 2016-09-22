@@ -23,6 +23,16 @@ def plot(lons, lats, disp):
     plt.show()
 
 
+def plot_matrix(A):
+    '''
+    Very simple plot of a matrix for fast inspections.
+    '''
+    ax = plt.axes()
+    im = ax.matshow(A)
+    plt.colorbar(im)
+    plt.show()
+
+
 def plot_misfits(problem, mtrace, mode='geometry', posterior='mean'):
 
     step, _ = utility.load_atmip_params(
