@@ -45,39 +45,6 @@ class Problem(Object):
         if 'geodetic' in pc.datasets:
             self._geodetic_flag = True
 
-    def update_target_weights(self, mtrace, method='meannorm'):
-        '''
-        Update target weights after initial stage based on distribution of
-        misfits per target.
-        Input: MultiTrace Object.
-        '''
-        logger.info('Updating data weights ...')
-
-        if self._seismic_flag:
-            seis_likelihoods = mtrace.get_values(self._seis_like_name)
-
-            if method == 'meannorm':
-                seis_mean_target = num.mean(seis_likelihoods, axis=0)
-                Ws = num.diag(1. / num.abs(seis_mean_target))
-            elif method == 'covariance':
-                seis_cov = num.cov(seis_likelihoods, bias=False, rowvar=0)
-                Ws = num.linalg.inv(seis_cov)
-
-            self.seis_llk_weights.set_value(Ws)
-
-        if self._geodetic_flag:
-            geo_likelihoods = mtrace.get_values(self._geo_like_name)
-
-            if method == 'meannorm':
-                geo_mean_target = num.mean(geo_likelihoods, axis=0)
-                Wg = num.diag(1. / num.abs(geo_mean_target))
-
-            elif method == 'covariance':
-                geo_cov = num.cov(geo_likelihoods, bias=False, rowvar=0)
-                Wg = num.linalg.inv(geo_cov)
-
-            self.geo_llk_weights.set_value(Wg)
-
     def init_sampler(self):
         '''
         Initialise the Sampling algorithm as defined in the configuration file.
@@ -216,10 +183,6 @@ class GeometryOptimizer(Problem):
                 icov = self.stargets[s_t].covariance.get_inverse()
                 self.sweights.append(shared(icov))
 
-            # Initial target weights adding up to 1
-            self.seis_llk_weights = shared(num.eye(self.ns_t) * \
-                (1. / self.ns_t))
-
             # syntetics generation
             logger.info('Initialising synthetics functions ... \n')
             self.get_seis_synths = theanof.SeisSynthesizer(
@@ -261,10 +224,6 @@ class GeometryOptimizer(Problem):
                 icov = self.gtargets[g_t].covariance.get_inverse()
                 self.gweights.append(shared(icov))
 
-            # Initial target weights adding up to 1
-            self.geo_llk_weights = shared(num.eye(self.ng_t) * \
-                (1. / self.ng_t))
-
             # merge geodetic data to call pscmp only once each forward model
             ordering = utility.ListArrayOrdering(_disp_list, intype='numpy')
             self.Bij = utility.ListToArrayBijection(ordering, _disp_list)
@@ -295,7 +254,6 @@ class GeometryOptimizer(Problem):
 
         if self._seismic_flag:
             outstate = outstate + (
-                self.seis_llk_weights,
                 self.sweights,
                 self.stargets,
                 self.stations,
@@ -303,7 +261,6 @@ class GeometryOptimizer(Problem):
 
         if self._geodetic_flag:
             outstate = outstate + (
-                self.geo_llk_weights,
                 self.gweights,
                 self.gtargets)
 
@@ -312,18 +269,15 @@ class GeometryOptimizer(Problem):
     def __setstate__(self, state):
         if self._seismic_flag and self._geodetic_flag:
             self.config, self.sources,
-            self.seis_llk_weights,
             self.sweights,
             self.stargets,
             self.stations,
             self.engine,
-            self.geo_llk_weights,
             self.gweights,
             self.gtargets = state
 
         elif self._seismic_flag and not self._geodetic_flag:
             self.config, self.sources,
-            self.seis_llk_weights,
             self.sweights,
             self.stargets,
             self.stations,
@@ -331,7 +285,6 @@ class GeometryOptimizer(Problem):
 
         if not self._seismic_flag and self._geodetic_flag:
             self.config, self.sources,
-            self.geo_llk_weights,
             self.gweights,
             self.gtargets = state
 
@@ -385,8 +338,7 @@ class GeometryOptimizer(Problem):
 
                 seis_llk = pm.Deterministic(self._seis_like_name, logpts_s)
 
-                total_llk = total_llk + \
-                    seis_llk.T.dot(self.seis_llk_weights).sum() / self.ns_t
+                total_llk = total_llk + seis_llk.sum()
 
             if self._geodetic_flag:
                 self.geo_input_rvs = utility.weed_input_rvs(
@@ -415,17 +367,15 @@ class GeometryOptimizer(Problem):
                 logpts_g = tt.zeros((self.ng_t), tconfig.floatX)
 
                 for l in range(self.ng_t):
-                    gsz = geo_res[l].shape[0]
-                    gfactor = gsz * tt.log(2 * num.pi) + \
-                                  self.gtargets[l].covariance.log_determinant
+                    gfactor = self.gtargets[l].covariance.log_norm_factor
+
                     logpts_g = tt.set_subtensor(logpts_g[l:l + 1],
                          (-0.5) * (gfactor + geo_res[l].dot(
                               self.gweights[l]).dot(geo_res[l].T)))
 
                 geo_llk = pm.Deterministic(self._geo_like_name, logpts_g)
 
-                total_llk = total_llk + \
-                    geo_llk.T.dot(self.geo_llk_weights).sum() / self.ng_t
+                total_llk = total_llk + geo_llk.sum()
 
             like = pm.Deterministic(
                 self._like_name, total_llk)
@@ -556,28 +506,33 @@ class GeometryOptimizer(Problem):
 
 
 def sample(step, problem):
-        '''
-        Sample solution space with the previously initalised algorithm.
+    '''
+    Sample solution space with the previously initalised algorithm.
 
-        Inputs:
-        step - Object from init_sampler
-        problem - Object with characteristics of problem to solve
-        '''
+    Inputs:
+    step - Object from init_sampler
+    problem - Object with characteristics of problem to solve
+    '''
 
-        sc = problem.config.sampler_config.parameters
+    sc = problem.config.sampler_config.parameters
 
-        logger.info('... Starting ATMIP ...\n')
-        atmcmc.ATMIP_sample(
-            sc.n_steps,
-            step=step,
-            progressbar=True,
-            model=problem.model,
-            n_jobs=sc.n_jobs,
-            stage=sc.stage,
-            update=problem,
-            trace=problem.outfolder,
-            rm_flag=sc.rm_flag,
-            plot_flag=sc.plot_flag)
+    if sc.update_covariances:
+        update = problem
+    else:
+        update = None
+
+    logger.info('... Starting ATMIP ...\n')
+    atmcmc.ATMIP_sample(
+        sc.n_steps,
+        step=step,
+        progressbar=True,
+        model=problem.model,
+        n_jobs=sc.n_jobs,
+        stage=sc.stage,
+        update=update,
+        trace=problem.outfolder,
+        rm_flag=sc.rm_flag,
+        plot_flag=sc.plot_flag)
 
 
 def choose_proposal(proposal_dist):

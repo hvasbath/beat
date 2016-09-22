@@ -166,6 +166,17 @@ def adjust_fault_reference(source, input_depth='top'):
                   depth=float(center[2]))
 
 
+def log_determinant(A):
+    '''
+    Calculates the natural logarithm of a determinant of the given matrix '
+    according to the properties of a triangular matrix.
+    Input: n x n Numpy array
+    Returns: float log determinant
+    '''
+    cholesky = num.linalg.cholesky(A)
+    return num.log(num.diag(cholesky)).sum()
+
+
 class Covariance(Object):
     '''
     Covariance of an observation.
@@ -188,29 +199,53 @@ class Covariance(Object):
                     optional=True)
 
     @property
-    def total(self):
+    def p_total(self):
         if self.pred_g is None:
             self.pred_g = num.zeros_like(self.data)
 
         if self.pred_v is None:
             self.pred_v = num.zeros_like(self.data)
 
-        return self.data + self.pred_g + self.pred_v
+        return self.pred_g + self.pred_v
 
     def get_inverse(self):
         '''
-        Add and invert different covariance Matrices.
+        Add and invert ALL uncertainty covariance Matrices.
         '''
-        return num.linalg.inv(self.total)
+        return num.linalg.inv(self.p_total + self.data)
+
+    def get_inverse_p(self):
+        '''
+        Add and invert different MODEL uncertainty covariance Matrices.
+        '''
+        return num.linalg.inv(self.p_total)
+
+    def get_inverse_d(self):
+        '''
+        Invert DATA covariance Matrix.
+        '''
+        return num.linalg.inv(self.data)
 
     @property
-    def log_determinant(self):
+    def log_norm_factor(self):
         '''
-        Calculate the determinante of the covariance matrix according to
-        the properties of a triangular matrix.
+        Calculate the normalisation factor of the posterior pdf.
+        Following Duputel et al. 2014
         '''
-        cholesky = num.linalg.cholesky(self.total)
-        return num.log(num.diag(cholesky)).sum()
+
+        N = self.data.shape[0]
+
+        ldet_d = log_determinant(self.data)
+
+        if self.p_total.any():
+            ldet_p = log_determinant(self.p_total)
+            ldet_i_dp = log_determinant(
+                self.get_inverse_d() + self.get_inverse_p())
+        else:
+            ldet_p = 0.
+            ldet_i_dp = 0.
+
+        return (N * num.log(2 * num.pi)) + ldet_d + ldet_p + ldet_i_dp
 
 
 class TeleseismicTarget(gf.Target):

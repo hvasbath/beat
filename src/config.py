@@ -266,10 +266,10 @@ class ATMCMCConfig(SamplerParameters):
         default=True,
         help='Flag for checking whether propsed step lies within'
              ' variable bounds.')
-    data_weighting = String.T(
-        default='meannorm',
-        help='dataset weighting sceme to calculate total model likelihood,'
-             '("meannorm", "covariance")')
+    update_covariances = Bool.T(
+        default='false',
+        help='Update model prediction covariance matrixes in transition '
+             'stages.')
     rm_flag = Bool.T(default=False,
                      help='Remove existing stage results prior to sampling.')
     plot_flag = Bool.T(default=True,

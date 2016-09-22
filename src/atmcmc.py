@@ -67,12 +67,9 @@ class ATMCMC(backend.ArrayStepSharedLLK):
                                          results in many stages and vice verca
                      (default: 1.)
     check_bound : boolean
-                  check if current sample lies outside of variable definition
+                  Check if current sample lies outside of variable definition
                   speeds up computation as the forward model wont be executed
                   default: True
-    data_weighting : str
-                     'covariance' or 'meannorm', determines how the initial
-                     dataset pdfs are being used to weight the data
     model : PyMC Model
         Optional model for sampling step.
         Defaults to None (taken from context).
@@ -82,7 +79,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
     def __init__(self, vars=None, out_vars=None, covariance=None, scaling=1.,
                  n_chains=100, tune=True, tune_interval=100, model=None,
                  check_bound=True, likelihood_name='like', proposal_dist=MvNPd,
-                 coef_variation=1., data_weighting='meannorm', **kwargs):
+                 coef_variation=1., **kwargs):
 
         model = modelcontext(model)
 
@@ -116,7 +113,6 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         self.resampling_indexes = np.arange(n_chains)
 
         self.coef_variation = coef_variation
-        self.data_weighting = data_weighting
         self.n_chains = n_chains
         self.likelihoods = np.zeros(n_chains)
 
@@ -569,8 +565,6 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                 logger.info('Updating Covariances ...')
                 mean_pt = step.mean_end_points()
                 update.update_weights(mean_pt, n_jobs=n_jobs)
-                update.update_target_weights(
-                        mtrace, method=step.data_weighting)
 
             if step.beta > 1.:
                 logger.info('Beta > 1.: %f' % step.beta)
