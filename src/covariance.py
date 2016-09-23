@@ -1,10 +1,18 @@
 from pyrocko import gf, trace
-from pyrocko import orthodrome as ortho
 import numpy as num
 
 import copy
 
 from beat import heart
+
+
+def repair_covariance(A):
+    '''
+    Make covariance input matrix A positive definite.
+    '''
+    eigvalue, eigvectors = num.eigh(A)
+    pos_eigvalue = num.where(eigvalue < 0., 0., eigvalue)
+    return eigvectors.dot(num.diag(pos_eigvalue)).dot(eigvectors.T)
 
 
 def sub_data_covariance(n, dt, tzero):
@@ -94,7 +102,6 @@ def get_model_prediction_sensitivity(engine, *args, **kwargs):
         kwargs['source_params'] = args[2]
 
     request = kwargs.pop('request', None)
-    status_callback = kwargs.pop('status_callback', None)
     nprocs = kwargs.pop('nprocs', 1)
     source_params = kwargs.pop('source_params', None)
     h = kwargs.pop('h', None)
@@ -222,14 +229,10 @@ def get_geo_cov_velocity_models(store_superdir, crust_inds, dataset, sources):
 
     synths = num.zeros((len(crust_inds), dataset.lons.size))
     for crust_ind in crust_inds:
-#        distances = ortho.distance_accurate50m_numpy(
-#            sources[0].lat, sources[0].lon, dataset.lats, dataset.lons)
-#        sorted_ind = num.argsort(distances)
-
         disp = heart.geo_layer_synthetics(
             store_superdir, crust_ind,
-            lons=dataset.lons,  #[sorted_ind],
-            lats=dataset.lats,  #[sorted_ind],
+            lons=dataset.lons,
+            lats=dataset.lats,
             sources=sources)
         synths[crust_ind, :] = (
             disp[:, 0] * dataset.los_vector[:, 0] + \
