@@ -6,6 +6,52 @@ import copy
 from beat import heart
 
 
+def near_psd(x, epsilon=0):
+    '''
+    Calculates the nearest postive semi-definite matrix for a correlation/
+    covariance matrix
+
+    Parameters
+    ----------
+    x : array_like
+      Covariance/correlation matrix
+    epsilon : float
+      Eigenvalue limit (usually set to zero to ensure positive definiteness)
+
+    Returns
+    -------
+    near_cov : array_like
+      closest positive definite covariance/correlation matrix
+
+    Notes
+    -----
+    Document source
+    http://www.quarchome.org/correlationmatrix.pdf
+
+    '''
+
+    if min(num.linalg.eigvals(x)) > epsilon:
+        return x
+
+    # Removing scaling factor of covariance matrix
+    n = x.shape[0]
+    scaling = num.sqrt(num.diag(x))
+    a, b = num.meshgrid(scaling, scaling)
+    y = x / (a * b)
+
+    # getting the nearest correlation matrix
+    eigval, eigvec = num.linalg.eig(y)
+    val = num.matrix(num.maximum(eigval, epsilon))
+    vec = num.matrix(eigvec)
+    T = 1 / (num.multiply(vec, vec) * val.T)
+    T = num.matrix(num.sqrt(num.diag(num.array(T).reshape((n)))))
+    B = T * vec * num.diag(num.array(num.sqrt(val)).reshape((n)))
+    near_corr = B * B.T
+
+    # returning the scaling factors
+    return near_corr * a * b
+
+
 def repair_covariance(A):
     '''
     Make covariance input matrix A positive definite.
