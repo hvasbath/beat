@@ -14,20 +14,19 @@ def near_psd(x, epsilon=0):
     Parameters
     ----------
     x : array_like
-      Covariance/correlation matrix
+        Covariance/correlation matrix
     epsilon : float
-      Eigenvalue limit (usually set to zero to ensure positive definiteness)
+              Eigenvalue limit
+              (usually set to zero to ensure positive definiteness)
 
     Returns
     -------
     near_cov : array_like
-      closest positive definite covariance/correlation matrix
+               closest positive definite covariance/correlation matrix
 
     Notes
     -----
-    Document source
-    http://www.quarchome.org/correlationmatrix.pdf
-
+    Algorithm after Rebonato & Jaekel 1999
     '''
 
     if min(num.linalg.eigvals(x)) > epsilon:

@@ -52,7 +52,8 @@ class Problem(Object):
         sc = self.config.sampler_config
 
         if self.model is None:
-            raise Exception('Model has to be built before initialising the sampler.')
+            raise Exception(
+                'Model has to be built before initialising the sampler.')
 
         with self.model:
             if sc.name == 'Metropolis':
@@ -416,7 +417,7 @@ class GeometryOptimizer(Problem):
                         sample_rate=sc.gf_config.sample_rate,
                         crust_inds=sc.gf_config.crust_inds)
 
-                    cov_velocity_model = cov.get_seis_cov_velocity_models(
+                    cov_pv = cov.get_seis_cov_velocity_models(
                         engine=self.engine,
                         sources=dsources['seismic'],
                         targets=crust_targets,
@@ -424,13 +425,20 @@ class GeometryOptimizer(Problem):
                         filterer=sc.filterer,
                         plot=plot, n_jobs=n_jobs)
 
-                self.engine.close_cashed_stores()
+                    try:
+                        _ = num.linalg.cholesky(cov_pv)
+                    except num.linalg.LinAlgError:
+                        logger.info('Cov_pv not positive definite!'
+                                    ' Finding nearest psd matrix...')
+                        cov_pv = cov.near_psd(cov_pv)
 
-                index = j * len(self.stations) + i
+                    self.engine.close_cashed_stores()
 
-                self.stargets[index].covariance.pred_v = cov_velocity_model
-                icov = self.stargets[index].covariance.get_inverse()
-                self.sweights[index].set_value(icov)
+                    index = j * len(self.stations) + i
+
+                    self.stargets[index].covariance.pred_v = cov_pv
+                    icov = self.stargets[index].covariance.get_inverse()
+                    self.sweights[index].set_value(icov)
 
         # geodetic
         if self._geodetic_flag:
@@ -438,14 +446,22 @@ class GeometryOptimizer(Problem):
 
             for i, gtarget in enumerate(self.gtargets):
                 logger.debug('Track %s' % gtarget.track)
-                gtarget.covariance.pred_v = cov.get_geo_cov_velocity_models(
+                cov_pv = cov.get_geo_cov_velocity_models(
                     store_superdir=gc.gf_config.store_superdir,
                     crust_inds=gc.gf_config.crust_inds,
                     dataset=gtarget,
                     sources=dsources['geodetic'])
 
-            icov = gtarget.covariance.get_inverse()
-            self.gweights[i].set_value(icov)
+                try:
+                    _ = num.linalg.cholesky(cov_pv)
+                except num.linalg.LinAlgError:
+                    logger.info('Cov_pv not positive definite!'
+                                ' Finding nearest psd matrix...')
+                    cov_pv = cov.near_psd(cov_pv)
+
+                gtarget.covariance.pred_v = cov_pv
+                icov = gtarget.covariance.get_inverse()
+                self.gweights[i].set_value(icov)
 
     def get_synthetics(self, point):
         '''
