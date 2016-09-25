@@ -503,6 +503,9 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
     util.ensuredir(homepath)
 
+    figdirpath = os.path.join(homepath, 'figures')
+    util.ensuredir(figdirpath)
+
     if stage is not None:
         if stage > 0:
             logger.info('Loading completed stage_%i' % (stage - 1))
@@ -552,8 +555,10 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
             mtrace = backend.load(stage_path, model)
 
             if plot_flag:
+                outpath = os.path.join(
+                    figdirpath, 'stage_posterior_%s.png' % step.stage)
                 plotting.stage_posteriors(
-                    mtrace, n_steps=draws, output='png', outpath=stage_path)
+                    mtrace, n_steps=draws, output='png', outpath=outpath)
 
             step.population, step.array_population, step.likelihoods = \
                                     step.select_end_points(mtrace)
@@ -606,8 +611,9 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
         if plot_flag:
             mtrace = backend.load(stage_path, model)
+            outpath = os.path.join(figdirpath, 'stage_posterior_final.png')
             plotting.stage_posteriors(
-                mtrace, n_steps=draws, output='png', outpath=stage_path)
+                mtrace, n_steps=draws, output='png', outpath=outpath)
 
 
 def _iter_initial(step, chain=0, strace=None, model=None):
