@@ -328,9 +328,8 @@ class GeometryOptimizer(Problem):
                 logpts_s = tt.zeros((self.ns_t), tconfig.floatX)
 
                 for k in range(self.ns_t):
-                    ssz = seis_res[k, :].shape[0]
-                    sfactor = ssz * tt.log(2 * num.pi) + \
-                                  self.stargets[k].covariance.log_determinant
+                    sfactor = self.stargets[k].covariance.log_norm_factor
+
                     logpts_s = tt.set_subtensor(logpts_s[k:k + 1],
                         (-0.5) * (sfactor + seis_res[k, :].dot(
                               self.sweights[k]).dot(seis_res[k, :].T)))

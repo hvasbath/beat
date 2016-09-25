@@ -96,6 +96,7 @@ def stage_posteriors(mtrace, n_steps, output='display',
     '''
     Plot variable posteriors from certain stage of the ATMIP algorithm.
     n_steps of chains to select last samples of each trace.
+    lines - a point to draw vertical lines for
     '''
     def last_sample(x):
         return x[(n_steps - 1)::n_steps]

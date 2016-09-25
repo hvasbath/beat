@@ -267,7 +267,7 @@ class ATMCMCConfig(SamplerParameters):
         help='Flag for checking whether proposed step lies within'
              ' variable bounds.')
     update_covariances = Bool.T(
-        default='false',
+        default=False,
         help='Update model prediction covariance matrixes in transition '
              'stages.')
     rm_flag = Bool.T(default=False,
