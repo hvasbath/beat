@@ -306,14 +306,15 @@ class GeometryOptimizer(Problem):
                     transform=None))
 
             hyperparams = []
-            for hyperpar in self.config.problem_config.hyperparameters:
-                hyperparams.append(pm.Uniform(
-                    hyperpar.name,
-                    shape=hyperpar.dimension,
-                    lower=hyperpar.lower,
-                    upper=hyperpar.upper,
-                    testval=hyperpar.testvalue,
-                    transform=None))
+            if len(self.config.problem_config.hyperparameters) > 0:
+                for hyperpar in self.config.problem_config.hyperparameters:
+                    hyperparams.append(pm.Uniform(
+                        hyperpar.name,
+                        shape=hyperpar.dimension,
+                        lower=hyperpar.lower,
+                        upper=hyperpar.upper,
+                        testval=hyperpar.testvalue,
+                        transform=None))
             else:
                 hyperparams.append(1)
 
