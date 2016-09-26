@@ -30,6 +30,8 @@ partial_kinematic_vars = ['nuc_x', 'nuc_y', 'duration', 'velocity']
 
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars
 
+hyper_pars = ['alpha', 'beta', 'gamma']
+
 default_bounds = dict(
     east_shift=(-10., 10.),
     north_shift=(-10., 10.),
@@ -46,7 +48,10 @@ default_bounds = dict(
     Uperp=(-0.3, 4.),
     nuc_x=(0., 10.),
     nuc_y=(0., 7.),
-    velocity=(0.5, 4.2))
+    velocity=(0.5, 4.2),
+    alpha=(1e-16, 1e16),
+    beta=(1e-16, 1e16),
+    gamma=(1e-16, 1e16))
 
 seismic_data_name = 'seismic_data.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
@@ -174,6 +179,7 @@ class ProblemConfig(Object):
     n_faults = Int.T(default=1,
                      help='Number of Sub-faults to solve for')
     datasets = List.T(default=['geodetic'])
+    hyperparameters = List.T(Parameter.T())
     priors = List.T(Parameter.T())
 
     def init_vars(self):
@@ -197,15 +203,27 @@ class ProblemConfig(Object):
 
         for variable in variables:
             self.priors.append(
-            Parameter(
-                name=variable,
-                lower=num.ones(self.n_faults, dtype=num.float) * \
-                    default_bounds[variable][0],
-                upper=num.ones(self.n_faults, dtype=num.float) * \
-                    default_bounds[variable][1],
-                testvalue=num.ones(self.n_faults, dtype=num.float) * \
-                    num.mean(default_bounds[variable]))
+                Parameter(
+                    name=variable,
+                    lower=num.ones(self.n_faults, dtype=num.float) * \
+                        default_bounds[variable][0],
+                    upper=num.ones(self.n_faults, dtype=num.float) * \
+                        default_bounds[variable][1],
+                    testvalue=num.ones(self.n_faults, dtype=num.float) * \
+                        num.mean(default_bounds[variable]))
                                )
+
+        for i in range(len(self.datasets) - 1):
+            self.hyperparameters.append(
+                Parameter(
+                    name=hyper_pars[i],
+                    lower=num.ones(1, dtype=num.float) * \
+                        default_bounds[hyper_pars[i]][0],
+                    upper=num.ones(1, dtype=num.float) * \
+                        default_bounds[hyper_pars[i]][1],
+                    testvalue=num.ones(1, dtype=num.float) * \
+                        num.mean(default_bounds[hyper_pars[i]]))
+                                        )
 
     def validate_priors(self):
         '''
@@ -213,6 +231,9 @@ class ProblemConfig(Object):
         '''
         for param in self.priors:
             param()
+
+        for hyperparam in self.hyperparameters:
+            hyperparam()
 
         print('All parameter-priors ok!')
 

@@ -304,6 +304,12 @@ class GeometryOptimizer(Problem):
                                        testval=param.testvalue,
                                        transform=None))
 
+            if len(self.config.problem_config.datasets) > 1:
+                alpha = pm.Uniform(
+                    'alpha', shape=1, lower=, upper=, testval=, transform=None)
+            else:
+                alpha = 1.
+
             total_llk = tt.zeros((1), tconfig.floatX)
 
             if self._seismic_flag:
