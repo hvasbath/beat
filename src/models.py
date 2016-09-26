@@ -425,12 +425,7 @@ class GeometryOptimizer(Problem):
                         filterer=sc.filterer,
                         plot=plot, n_jobs=n_jobs)
 
-                    try:
-                        _ = num.linalg.cholesky(cov_pv)
-                    except num.linalg.LinAlgError:
-                        logger.info('Cov_pv not positive definite!'
-                                    ' Finding nearest psd matrix...')
-                        cov_pv = cov.near_psd(cov_pv)
+                    cov_pv = utility.ensure_cov_psd(cov_pv)
 
                     self.engine.close_cashed_stores()
 
@@ -452,12 +447,7 @@ class GeometryOptimizer(Problem):
                     dataset=gtarget,
                     sources=dsources['geodetic'])
 
-                try:
-                    _ = num.linalg.cholesky(cov_pv)
-                except num.linalg.LinAlgError:
-                    logger.info('Cov_pv not positive definite!'
-                                ' Finding nearest psd matrix...')
-                    cov_pv = cov.near_psd(cov_pv)
+                cov_pv = utility.ensure_cov_psd(cov_pv)
 
                 gtarget.covariance.pred_v = cov_pv
                 icov = gtarget.covariance.get_inverse()

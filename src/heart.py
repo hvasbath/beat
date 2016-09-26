@@ -3,7 +3,8 @@ import logging
 import shutil
 import copy
 
-from beat import psgrn, pscmp
+from beat import psgrn, pscmp, utility
+
 import numpy as num
 from matplotlib import pylab as plt
 
@@ -166,14 +167,24 @@ def adjust_fault_reference(source, input_depth='top'):
                   depth=float(center[2]))
 
 
-def log_determinant(A):
+def log_determinant(A, inverse=False):
     '''
     Calculates the natural logarithm of a determinant of the given matrix '
     according to the properties of a triangular matrix.
     Input: n x n Numpy array
+           inverse - bool
+           If true calculates the log determinant of the inverse of the colesky
+           decomposition, which is equvalent to taking the determinant of the
+           inverse of the matrix.
+
+           L.T* L = R           inverse=False
+           L-1*(L-1)T = R-1     inverse=True
+
     Returns: float log determinant
     '''
     cholesky = num.linalg.cholesky(A)
+    if inverse:
+        cholesky = num.linalg.inv(cholesky)
     return num.log(num.diag(cholesky)).sum()
 
 
@@ -192,10 +203,6 @@ class Covariance(Object):
     pred_v = Array.T(shape=(None, None),
                     dtype=num.float,
                     help='Model prediction covariance matrix, velocity model',
-                    optional=True)
-    total = Array.T(shape=(None, None),
-                    dtype=num.float,
-                    help='Total covariance of all components.',
                     optional=True)
 
     @property
@@ -239,8 +246,10 @@ class Covariance(Object):
 
         if self.p_total.any():
             ldet_p = log_determinant(self.p_total)
-            ldet_i_dp = log_determinant(
-                self.get_inverse_d() + self.get_inverse_p())
+            tot_i = self.get_inverse_d() + self.get_inverse_p()
+            itot_i = num.linalg.inv(tot_i)
+            rep_itoti = utility.ensure_cov_psd(itot_i)
+            ldet_i_dp = 1. / log_determinant(rep_itoti)
         else:
             ldet_p = 0.
             ldet_i_dp = 0.

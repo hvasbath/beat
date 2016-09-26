@@ -400,3 +400,106 @@ def load_objects(loadpath):
     Load pickled objects from specified loadpath.
     '''
     return pickle.load(open(loadpath, 'rb'))
+
+
+def ensure_cov_psd(cov):
+    '''
+    Ensure that the input covariance matrix is positive definite.
+    If not find the nearest positive semi-definite matrix.
+
+    Input: array
+           symmetric covariance matrix
+    Returns: array
+             positive definite covariance matrix
+    '''
+
+    try:
+        _ = num.linalg.cholesky(cov)
+    except num.linalg.LinAlgError:
+        logger.info('Cov_pv not positive definite!'
+                    ' Finding nearest psd matrix...')
+        cov = repair_covariance(cov)
+
+    return cov
+
+
+def near_psd(x, epsilon=num.finfo(num.float64).eps):
+    '''
+    Calculates the nearest postive semi-definite matrix for a correlation/
+    covariance matrix
+
+    Parameters
+    ----------
+    x : array_like
+        Covariance/correlation matrix
+    epsilon : float
+              Eigenvalue limit
+              here set to accuracy of numbers in numpy, otherwise the resulting
+              matrix, likely is still not going to be positive definite
+
+    Returns
+    -------
+    near_cov : array_like
+               closest positive definite covariance/correlation matrix
+
+    Notes
+    -----
+    Numpy number precission not high enough to resolve this for low valued
+    covariance matrixes! The result will have very small negative eigvals!!!
+
+    See repair_covariance below for a simpler implementation that can resolve
+    the numbers!
+
+    Algorithm after Rebonato & Jaekel 1999
+    '''
+
+    if min(num.linalg.eigvals(x)) > epsilon:
+        return x
+
+    # Removing scaling factor of covariance matrix
+    n = x.shape[0]
+    scaling = num.sqrt(num.diag(x))
+    a, b = num.meshgrid(scaling, scaling)
+    y = x / (a * b)
+
+    # getting the nearest correlation matrix
+    eigval, eigvec = num.linalg.eigh(y)
+    val = num.maximum(eigval, epsilon)
+    vec = num.matrix(eigvec)
+    T = 1. / (num.multiply(vec, vec) * val.T)
+    T = num.matrix(num.sqrt(num.diag(num.array(T).reshape((n)))))
+    B = T * vec * num.diag(num.array(num.sqrt(val)).reshape((n)))
+    near_corr = num.array(B * B.T)
+
+    # returning the scaling factors
+    return near_corr * a * b
+
+
+def repair_covariance(x, epsilon=num.finfo(num.float64).eps):
+    '''
+    Make covariance input matrix A positive definite.
+    Setting eigenvalues that are lower than the precission of numpy floats to
+    at least that precision and backtransform.
+
+    Parameters
+    ----------
+    x : array_like
+        Covariance/correlation matrix
+    epsilon : float
+              Eigenvalue limit
+              here set to accuracy of numbers in numpy, otherwise the resulting
+              matrix, likely is still not going to be positive definite
+
+    Returns
+    -------
+    near_cov : array_like
+               closest positive definite covariance/correlation matrix
+    Following: Gilbert Strange: Introduction to linear Algebra
+    '''
+
+    eigval, eigvec = num.linalg.eigh(x)
+    val = num.maximum(eigval, epsilon)
+    vec = num.matrix(eigvec)
+    return vec * num.diag(val) * vec.T
+
+
