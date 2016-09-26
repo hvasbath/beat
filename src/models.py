@@ -297,18 +297,25 @@ class GeometryOptimizer(Problem):
 
             input_rvs = []
             for param in self.config.problem_config.priors:
-                input_rvs.append(pm.Uniform(param.name,
-                                       shape=param.dimension,
-                                       lower=param.lower,
-                                       upper=param.upper,
-                                       testval=param.testvalue,
-                                       transform=None))
+                input_rvs.append(pm.Uniform(
+                    param.name,
+                    shape=param.dimension,
+                    lower=param.lower,
+                    upper=param.upper,
+                    testval=param.testvalue,
+                    transform=None))
 
-            if len(self.config.problem_config.datasets) > 1:
-                alpha = pm.Uniform(
-                    'alpha', shape=1, lower=, upper=, testval=, transform=None)
+            hyperparams = []
+            for hyperpar in self.config.problem_config.hyperparameters:
+                hyperparams.append(pm.Uniform(
+                    hyperpar.name,
+                    shape=hyperpar.dimension,
+                    lower=hyperpar.lower,
+                    upper=hyperpar.upper,
+                    testval=hyperpar.testvalue,
+                    transform=None))
             else:
-                alpha = 1.
+                hyperparams.append(1)
 
             total_llk = tt.zeros((1), tconfig.floatX)
 
@@ -372,11 +379,15 @@ class GeometryOptimizer(Problem):
                 logpts_g = tt.zeros((self.ng_t), tconfig.floatX)
 
                 for l in range(self.ng_t):
+                    M = self.gtargets[l].displacement.size
                     gfactor = self.gtargets[l].covariance.log_norm_factor
 
                     logpts_g = tt.set_subtensor(logpts_g[l:l + 1],
-                         (-0.5) * (gfactor + geo_res[l].dot(
-                              self.gweights[l]).dot(geo_res[l].T)))
+                         (-0.5) * (gfactor - \
+                         ((M / 2) * tt.log(hyperparams[0])) + \
+                         tt.power(hyperparams[0], 2) * \
+                         (geo_res[l].dot(self.gweights[l]).dot(geo_res[l].T)))
+                                               )
 
                 geo_llk = pm.Deterministic(self._geo_like_name, logpts_g)
 

@@ -49,9 +49,9 @@ default_bounds = dict(
     nuc_x=(0., 10.),
     nuc_y=(0., 7.),
     velocity=(0.5, 4.2),
-    alpha=(1e-16, 1e16),
-    beta=(1e-16, 1e16),
-    gamma=(1e-16, 1e16))
+    alpha=(1e-20, 1e20),
+    beta=(1e-20, 1e20),
+    gamma=(1e-20, 1e20))
 
 seismic_data_name = 'seismic_data.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
@@ -179,7 +179,10 @@ class ProblemConfig(Object):
     n_faults = Int.T(default=1,
                      help='Number of Sub-faults to solve for')
     datasets = List.T(default=['geodetic'])
-    hyperparameters = List.T(Parameter.T())
+    hyperparameters = List.T(
+        Parameter.T(),
+        optional=True,
+        help='Hyperparameters to weight different types of datasets.')
     priors = List.T(Parameter.T())
 
     def init_vars(self):
