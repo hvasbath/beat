@@ -42,13 +42,17 @@ subcommands = subcommand_descriptions.keys()
 program_name = 'beat'
 
 usage = program_name + ''' <subcommand> <arguments> ... [options]
+BEAT: Bayesian earthquake analysis tool
+ Version 0.1
+author: Hannes Vasyuara-Bathke
+email: hannes.vasyura-bathke@kaust.edu.sa
 
 Subcommands:
 
     init            %(init)s
     import_data     %(import_data)s
-    sample          %(sample)s
     build_gfs       %(build_gfs)s
+    sample          %(sample)s
 
 
 To get further help and a list of available options for any subcommand run:
@@ -341,9 +345,9 @@ def command_build_gfs(args):
 
     c = config.load_config(project_dir, options.mode)
 
-    gf = c.geodetic_config.gf_config
-
     if 'geodetic' in options.datasets:
+        gf = c.geodetic_config.gf_config
+
         for crust_ind in gf.crust_inds:
             heart.geo_construct_gf(
                 event=c.event,
@@ -362,7 +366,33 @@ def command_build_gfs(args):
                 replace_water=gf.replace_water,
                 execute=gf.execute)
 
-    logger.info('GF calculations successful!')
+        logger.info('GF calculations successful!')
+
+    if 'seismic' in options.datasets:
+        sc = c.seismic_config
+        sf = sc.gf_config
+
+        stations, data_traces = utility.load_objects(sc.seismic_data_path)
+        stations = utility.apply_station_blacklist(stations, sc.blacklist)
+
+        for station in stations:
+            seis_construct_gf(
+                station=station,
+                event=c.event,
+                store_superdir=sf.store_superdir,
+                code=sf.code,
+                source_depth_min=sf.source_depth_min,
+                source_depth_max=sf.source_depth_max,
+                source_depth_spacing=sf.source_depth_spacing,
+                sample_rate=sf.sample_rate,
+                source_distance_radius=sf.source_distance_radius,
+                source_distance_spacing=sf.source_distance_spacing,
+                depth_limit=sf.depth_limit,
+                earth_model=sf.earth_model,
+                crust_ind=sf.use_crust2,
+                execute=sf.execute,
+                rm_gfs=sf.rm_gfs,
+                nworkers=sf.nworkers)
 
 
 if __name__ == '__main__':

@@ -49,9 +49,9 @@ default_bounds = dict(
     nuc_x=(0., 10.),
     nuc_y=(0., 7.),
     velocity=(0.5, 4.2),
-    alpha=(1e-20, 1e20),
-    beta=(1e-20, 1e20),
-    gamma=(1e-20, 1e20))
+    alpha=(1e-10, 1e10),
+    beta=(1e-10, 1e10),
+    gamma=(1e-10, 1e10))
 
 seismic_data_name = 'seismic_data.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
@@ -86,16 +86,6 @@ class GFConfig(Object):
     source_depth_spacing = Float.T(default=1.,
                                help='Depth spacing [km] for GF function grid.')
 
-    source_distance_min = Float.T(
-        default=0.,
-        help='Minimum distance [km] for GF function grid.')
-    source_distance_max = Float.T(
-        default=100.,
-        help='Maximum distance [km] for GF function grid.')
-    source_distance_spacing = Float.T(
-        default=1.,
-        help='Distance spacing [km] for GF function grid.')
-
     execute = Bool.T(default=False,
                      help='Flag, for starting the modeling code after config'
                           'creation.')
@@ -119,6 +109,13 @@ class SeismicGFConfig(GFConfig):
     rm_gfs = Bool.T(default=True,
                     help='Flag for removing modeling module GF files after'
                          ' completion.')
+    source_distance_radius = Float.T(
+        default=20.,
+        help='Radius of distance grid [km] for GF function grid around '
+             'reference event.')
+    source_distance_spacing = Float.T(
+        default=1.,
+        help='Distance spacing [km] for GF function grid.')
 
 
 class GeodeticGFConfig(GFConfig):
@@ -137,6 +134,15 @@ class GeodeticGFConfig(GFConfig):
         optional=True,
         help='Custom Earthmodel, in case crust2 and standard model not'
              ' wanted. Needs to be a :py::class:cake.LayeredModel')
+    source_distance_min = Float.T(
+        default=0.,
+        help='Minimum distance [km] for GF function grid.')
+    source_distance_max = Float.T(
+        default=100.,
+        help='Maximum distance [km] for GF function grid.')
+    source_distance_spacing = Float.T(
+        default=1.,
+        help='Distance spacing [km] for GF function grid.')
 
 
 class SeismicConfig(Object):
@@ -181,7 +187,6 @@ class ProblemConfig(Object):
     datasets = List.T(default=['geodetic'])
     hyperparameters = List.T(
         Parameter.T(),
-        optional=True,
         help='Hyperparameters to weight different types of datasets.')
     priors = List.T(Parameter.T())
 

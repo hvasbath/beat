@@ -489,6 +489,7 @@ def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
 
             if layer.ztop == 0:
                 layer.mtop.vp += deltavp
+                layer.mbot.vs += (deltavp / layer.mbot.vp_vs_ratio())
 
             # ensure increasing velocity with depth
             if last_l:
@@ -507,6 +508,7 @@ def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
                 else:
                     layer.mtop.vp += deltavp
                     layer.mtop.vs += (deltavp / layer.mtop.vp_vs_ratio())
+
                     if isinstance(layer, GradientLayer):
                         layer.mbot.vp += deltavp
                         layer.mbot.vs += (deltavp / layer.mbot.vp_vs_ratio())
@@ -569,51 +571,64 @@ def ensemble_earthmodel(ref_earthmod, num_vary=10, err_depth=0.1,
     return earthmods
 
 
-def seis_construct_gf(station, event, superdir, code='qssp',
+def seis_construct_gf(station, event, store_superdir, code='qssp',
         source_depth_min=0., source_depth_max=10., source_spacing=1.,
-        sample_rate=2., source_range=100., depth_limit=600 * km,
+        source_distance_radius=10., source_distance_spacing=1.,
+        sample_rate=2., depth_limit=600,
         earth_model='ak135-f-average.m', crust_ind=0,
-        execute=False, rm_gfs=True, nworkers=1):
+        execute=False, rm_gfs=True, nworkers=1, use_crust2=True,
+        replace_water=True, custom_velocity_model=None):
     '''Create a GF store for a station with respect to an event for a given
-       Phase [P or S] and a distance range around the event.'''
+       Phase [P or S] and a distance range(min, max)[km] around the event.'''
 
-    # calculate distance to station
+    # calculate distance to station [m]
     distance = orthodrome.distance_accurate50m(event, station)
     logger.info('Station %s' % station.station)
     logger.info('---------------------')
 
-    # load velocity profile from CRUST2x2 and check for water layer
-    profile_station = crust2x2.get_profile(station.lat, station.lon)
-    thickness_lwater = profile_station.get_layer(crust2x2.LWATER)[0]
-    if thickness_lwater > 0.0:
-        logger.info('Water layer %f in CRUST model!'
-            ' Remove and add to lower crust' % thickness_lwater)
-        thickness_llowercrust = profile_station.get_layer(
-                                        crust2x2.LLOWERCRUST)[0]
-        thickness_lsoftsed = profile_station.get_layer(crust2x2.LSOFTSED)[0]
+    if use_crust2:
+        # load velocity profile from CRUST2x2 and check for water layer
+        profile_station = crust2x2.get_profile(station.lat, station.lon)
 
-        profile_station.set_layer_thickness(crust2x2.LWATER, 0.0)
-        profile_station.set_layer_thickness(crust2x2.LSOFTSED,
-                num.ceil(thickness_lsoftsed / 3))
-        profile_station.set_layer_thickness(crust2x2.LLOWERCRUST,
-                thickness_llowercrust + \
-                thickness_lwater + \
-                (thickness_lsoftsed - num.ceil(thickness_lsoftsed / 3))
-                )
-        profile_station._elevation = 0.0
-        logger.info('New Lower crust layer thickness %f' % \
-            profile_station.get_layer(crust2x2.LLOWERCRUST)[0])
+        if replace_water:
+            thickness_lwater = profile_station.get_layer(crust2x2.LWATER)[0]
+            if thickness_lwater > 0.0:
+                logger.info('Water layer %f in CRUST model!'
+                    ' Remove and add to lower crust' % thickness_lwater)
+                thickness_llowercrust = profile_station.get_layer(
+                                                crust2x2.LLOWERCRUST)[0]
+                thickness_lsoftsed = profile_station.get_layer(
+                    crust2x2.LSOFTSED)[0]
 
-    profile_event = crust2x2.get_profile(event.lat, event.lon)
+                profile_station.set_layer_thickness(crust2x2.LWATER, 0.0)
+                profile_station.set_layer_thickness(crust2x2.LSOFTSED,
+                        num.ceil(thickness_lsoftsed / 3))
+                profile_station.set_layer_thickness(crust2x2.LLOWERCRUST,
+                        thickness_llowercrust + \
+                        thickness_lwater + \
+                        (thickness_lsoftsed - num.ceil(thickness_lsoftsed / 3))
+                        )
+                profile_station._elevation = 0.0
+                logger.info('New Lower crust layer thickness %f' % \
+                    profile_station.get_layer(crust2x2.LLOWERCRUST)[0])
 
-    #extract model for source region
-    source_model = cake.load_model(
-        earth_model, crust2_profile=profile_event)
+        profile_event = crust2x2.get_profile(event.lat, event.lon)
 
-    # extract model for receiver stations,
-    # lowest layer has to be as well in source layer structure!
-    receiver_model = cake.load_model(
-        earth_model, crust2_profile=profile_station)
+        #extract model for source region
+        source_model = cake.load_model(
+            earth_model, crust2_profile=profile_event)
+
+        # extract model for receiver stations,
+        # lowest layer has to be as well in source layer structure!
+        receiver_model = cake.load_model(
+            earth_model, crust2_profile=profile_station)
+
+    else:
+        global_model = cake.load_model(earth_model)
+        source_model = utility.join_models(
+            global_model, custom_velocity_model)
+
+        receiver_model = copy.deepcopy(source_model)
 
     # randomly vary receiver site crustal model
     if crust_ind > 0:
@@ -623,7 +638,7 @@ def seis_construct_gf(station, event, superdir, code='qssp',
             num_vary=1,
             err_depth=err_depth,
             err_velocities=err_velocities,
-            depth_limit=depth_limit)[0]
+            depth_limit=depth_limit * km)[0]
 
     # define phases
     tabulated_phases = [
@@ -646,9 +661,9 @@ def seis_construct_gf(station, event, superdir, code='qssp',
         source_depth_min=source_depth_min * km,
         source_depth_max=source_depth_max * km,
         source_depth_delta=source_spacing * km,
-        distance_min=distance - source_range * km,
-        distance_max=distance + source_range * km,
-        distance_delta=source_spacing * km,
+        distance_min=distance - (source_distance_radius * km),
+        distance_max=distance + (source_distance_radius * km),
+        distance_delta=source_distance_spacing * km,
         tabulated_phases=tabulated_phases)
 
    # slowness taper
@@ -750,7 +765,7 @@ def seis_construct_gf(station, event, superdir, code='qssp',
 
     conf.validate()
 
-    store_dir = superdir + fom_conf.id
+    store_dir = store_superdir + fom_conf.id
     logger.info('Creating Store at %s' % store_dir)
     gf.Store.create_editables(store_dir,
                               config=fom_conf,

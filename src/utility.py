@@ -399,7 +399,12 @@ def load_objects(loadpath):
     '''
     Load pickled objects from specified loadpath.
     '''
-    return pickle.load(open(loadpath, 'rb'))
+    try:
+        objects = pickle.load(open(loadpath, 'rb'))
+    except IOError:
+        raise Exception(
+            'File %s does not exist! Data already imported?' % loadpath)
+    return objects
 
 
 def ensure_cov_psd(cov):
@@ -503,3 +508,23 @@ def repair_covariance(x, epsilon=num.finfo(num.float64).eps):
     return vec * num.diag(val) * vec.T
 
 
+def join_models(global_model, crustal_model):
+    '''
+    Replace the part of the global model that is covered by crustal_model with
+    the latter one.
+
+    Parameters:
+    global_model, crustal_model - cake.LayeredModel
+
+    Returns:
+    cake.LayeredModel
+    '''
+
+    max_depth = crustal_model.max('z')
+
+    global_model.extract(depth_min=max_depth)
+
+    for element in global_model.elements():
+        crustal_model.append(element)
+
+    return crustal_model
