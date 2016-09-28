@@ -1,17 +1,16 @@
-import numpy as num
+
 import logging
 import os
-import shutil
+
 import math
-import copy
+
 import signal
 
-from tempfile import mkdtemp
 from subprocess import Popen, PIPE
 from os.path import join as pjoin
 
-from pyrocko.guts import Float, Int, Tuple, List, Bool, Object, String
-from pyrocko import trace, util, cake
+from pyrocko.guts import Float, Int, Tuple, Object, String
+from pyrocko import cake
 from pyrocko import gf
 
 
@@ -37,7 +36,7 @@ psgrn_gravity_names = ('gd', 'gr')
 
 
 def nextpow2(i):
-    return 2**int(math.ceil(math.log(i)/math.log(2.)))
+    return 2 ** int(math.ceil(math.log(i) / math.log(2.)))
 
 
 def str_float_vals(vals):
@@ -62,8 +61,9 @@ def cake_model_to_config(mod):
     srows = []
     for i, row in enumerate(mod.to_scanlines()):
         depth, vp, vs, rho, qp, qs = row
-        row = [depth/k, vp/k, vs/k, rho, eta1, eta2, alpha]  # replace qs with etas = 0.
-        srows.append('%i %15s' % (i+1, str_float_vals(row)))
+        # replace qs with etas = 0.
+        row = [depth / k, vp / k, vs / k, rho, eta1, eta2, alpha]
+        srows.append('%i %15s' % (i + 1, str_float_vals(row)))
 
     return '\n'.join(srows), len(srows)
 
@@ -74,7 +74,8 @@ class PsGrnSpatialSampling(Object):
     end_distance = Float.T(default=100.)    # end
 
     def string_for_config(self):
-        return '%i %15e %15e' % (self.n_steps, self.start_distance, self.end_distance)
+        return '%i %15e %15e' % (self.n_steps, self.start_distance,
+                                                        self.end_distance)
 
 
 class PsGrnConfig(Object):
@@ -114,7 +115,7 @@ class PsGrnConfigFull(PsGrnConfig):
     @staticmethod
     def example():
         conf = PsGrnConfigFull()
-        conf.earthmodel_1d = cake.load_model().extract(depth_max= 100 * km)
+        conf.earthmodel_1d = cake.load_model().extract(depth_max=100 * km)
         conf.psgrn_outdir = 'TEST_psgrn_functions/'
         return conf
 
@@ -248,7 +249,7 @@ class PsGrnConfigFull(PsGrnConfig):
 #    used for a graphic plot of the layered model. Layers which have different
 #    parameter values at top and bottom, will be treated as layers with a
 #    constant gradient, and will be discretised to a number of homogeneous
-#    sublayers. Errors due to the discretisation are limited within about 
+#    sublayers. Errors due to the discretisation are limited within about
 #    5percent (changeable, see psgglob.h).
 #
 # 2....	parameters of the multilayered model
@@ -289,6 +290,13 @@ class Interrupted(gf.store.StoreError):
         return 'Interrupted.'
 
 
+def remove_if_exists(fn, force=False):
+    if os.path.exists(fn):
+        if force:
+            os.remove(fn)
+        else:
+            raise gf.CannotCreate('file %s already exists' % fn)
+
 
 class PsGrnRunner:
 
@@ -298,10 +306,12 @@ class PsGrnRunner:
         self.outdir = outdir
         self.config = None
 
-    def run(self, config):
+    def run(self, config, force=False):
         self.config = config
 
         input_fn = pjoin(self.outdir, 'input')
+
+        remove_if_exists(input_fn, force=force)
 
         f = open(input_fn, 'w')
         input_str = config.string_for_config()
@@ -373,5 +383,3 @@ in the directory %s'''.lstrip() % (
         self.psgrn_error = error_str
 
         os.chdir(old_wd)
-
-

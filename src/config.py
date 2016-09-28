@@ -68,6 +68,8 @@ class GFConfig(Object):
                            help='Name of the reference earthmodel, see '
                                 'pyrocko.cake.builtin_models() for '
                                 'alternatives.')
+    n_variations = Int.T(default=0,
+                         help='Times to vary input velocity model.')
     use_crust2 = Bool.T(
         default=True,
         help='Flag, for replacing the crust from the earthmodel'
@@ -75,9 +77,11 @@ class GFConfig(Object):
     replace_water = Bool.T(default=True,
                         help='Flag, for replacing water layers in the crust2'
                              'model.')
-    crust_inds = List.T(default=range(10),
-                       help='List of indexes for different velocity models.'
-                            ' 0 is reference model.')
+    custom_velocity_model = Earthmodel1D.T(
+        default=None,
+        optional=True,
+        help='Custom Earthmodel, in case crust2 and standard model not'
+             ' wanted. Needs to be a :py::class:cake.LayeredModel')
 
     source_depth_min = Float.T(default=0.,
                                help='Minimum depth [km] for GF function grid.')
@@ -86,9 +90,6 @@ class GFConfig(Object):
     source_depth_spacing = Float.T(default=1.,
                                help='Depth spacing [km] for GF function grid.')
 
-    execute = Bool.T(default=False,
-                     help='Flag, for starting the modeling code after config'
-                          'creation.')
     nworkers = Int.T(
         default=1,
         help='Number of processors to use for calculating the GFs')
@@ -129,11 +130,6 @@ class GeodeticGFConfig(GFConfig):
         default=1.0,
         help='Distance dependend sampling spacing coefficient.'
              '1. - equidistant')
-    custom_velocity_model = Earthmodel1D.T(
-        default=None,
-        optional=True,
-        help='Custom Earthmodel, in case crust2 and standard model not'
-             ' wanted. Needs to be a :py::class:cake.LayeredModel')
     source_distance_min = Float.T(
         default=0.,
         help='Minimum distance [km] for GF function grid.')
@@ -354,7 +350,7 @@ class BEATconfig(Object):
 
 def init_config(name, date, min_magnitude=6.0, main_path='./',
                 datasets=['geodetic'],
-                n_variations=0, mode='geometry', n_faults=1,
+                mode='geometry', n_faults=1,
                 sampler='ATMCMC', use_custom=False):
     '''
     Initialise BEATconfig File and write it to main_path/name+year/ .
@@ -377,10 +373,9 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
 
     if 'geodetic' in datasets:
         c.geodetic_config = GeodeticConfig()
-        c.geodetic_config.gf_config.crust_inds = range(1 + n_variations)
         if use_custom:
-            logger.info('use_custom flag set, the velocity model in the'
-                        ' configuration file has to be updated!')
+            logger.info('use_custom flag set! The velocity model in the'
+                        ' geodetic GF configuration has to be updated!')
             c.geodetic_config.gf_config.custom_velocity_model = \
                 load_model().extract(depth_max=100. * km)
             c.geodetic_config.gf_config.use_crust2 = False
@@ -390,7 +385,13 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
 
     if 'seismic' in datasets:
         c.seismic_config = SeismicConfig()
-        c.seismic_config.gf_config.crust_inds = range(1 + n_variations)
+        if use_custom:
+            logger.info('use_custom flag set! The velocity model in the'
+                        ' seismic GF configuration has to be updated!')
+            c.seismic_config.gf_config.custom_velocity_model = \
+                load_model().extract(depth_max=100. * km)
+            c.seismic_config.gf_config.use_crust2 = False
+            c.seismic_config.gf_config.replace_water = False
     else:
         c.seismic_config = None
 

@@ -150,11 +150,6 @@ def command_init(args):
             help='Inversion problem to solve; "geometry", "static_dist",'
                  '"kinematic_dist". Default: "geometry"')
 
-        parser.add_option('--n_variations', dest='n_variations', type='int',
-            metavar='N', default=0,
-            help='Number of velocity models to vary the reference model.'
-                 ' Default: 0')
-
         parser.add_option('--n_faults', dest='n_faults', type='int',
             default=1,
             help='Integer Number of faults to invert for. Default: 1' )
@@ -166,9 +161,8 @@ def command_init(args):
 
         parser.add_option('--use_custom', dest='use_custom',
             action='store_true',
-            help='If set, a slot for a custom velocity model for the'
-                 ' near-field geodetic data is being created in the'
-                 ' configuration file.')
+            help='If set, a slot for a custom velocity model is being created'
+                 ' in the configuration file.')
 
     parser, options, args = cl_parse('init', args, setup=setup)
 
@@ -184,7 +178,6 @@ def command_init(args):
                main_path=options.main_path,
                datasets=options.datasets,
                mode=options.mode,
-               n_variations=options.n_variations,
                n_faults=options.n_faults,
                sampler=options.sampler,
                use_custom=options.use_custom)
@@ -332,6 +325,13 @@ def command_build_gfs(args):
             help='Datasets to calculate the GFs for; "geodetic, seismic".'
                  ' Default: "geodetic"')
 
+        parser.add_option('--force', dest='force', action='store_true',
+                help='Overwrite existing files')
+
+        parser.add_option('--execute', dest='execute', action='store_true',
+                help='Start actual GF calculations. If not set only'
+                     ' configuration files are being created')
+
     parser, options, args = cl_parse('build_gfs', args, setup=setup)
 
     try:
@@ -348,7 +348,7 @@ def command_build_gfs(args):
     if 'geodetic' in options.datasets:
         gf = c.geodetic_config.gf_config
 
-        for crust_ind in gf.crust_inds:
+        for crust_ind in range(gf.n_variations + 1):
             heart.geo_construct_gf(
                 event=c.event,
                 store_superdir=gf.store_superdir,
@@ -364,36 +364,51 @@ def command_build_gfs(args):
                 use_crust2=gf.use_crust2,
                 custom_velocity_model=gf.custom_velocity_model,
                 replace_water=gf.replace_water,
-                execute=gf.execute)
+                execute=options.execute,
+                force=options.force)
 
-        logger.info('GF calculations successful!')
+        if options.execute:
+            logger.info('Geodetic GF calculations successful!')
 
     if 'seismic' in options.datasets:
         sc = c.seismic_config
         sf = sc.gf_config
 
-        stations, data_traces = utility.load_objects(sc.seismic_data_path)
+        seismic_data_path = os.path.join(
+            c.project_dir, config.seismic_data_name)
+
+        stations, data_traces = utility.load_objects(seismic_data_path)
         stations = utility.apply_station_blacklist(stations, sc.blacklist)
 
-        for station in stations:
-            seis_construct_gf(
-                station=station,
-                event=c.event,
-                store_superdir=sf.store_superdir,
-                code=sf.code,
-                source_depth_min=sf.source_depth_min,
-                source_depth_max=sf.source_depth_max,
-                source_depth_spacing=sf.source_depth_spacing,
-                sample_rate=sf.sample_rate,
-                source_distance_radius=sf.source_distance_radius,
-                source_distance_spacing=sf.source_distance_spacing,
-                depth_limit=sf.depth_limit,
-                earth_model=sf.earth_model,
-                crust_ind=sf.use_crust2,
-                execute=sf.execute,
-                rm_gfs=sf.rm_gfs,
-                nworkers=sf.nworkers)
+        for crust_ind in range(sf.n_variations + 1):
+            for station in stations:
+                heart.seis_construct_gf(
+                    station=station,
+                    event=c.event,
+                    store_superdir=sf.store_superdir,
+                    code=sf.code,
+                    source_depth_min=sf.source_depth_min,
+                    source_depth_max=sf.source_depth_max,
+                    source_depth_spacing=sf.source_depth_spacing,
+                    sample_rate=sf.sample_rate,
+                    source_distance_radius=sf.source_distance_radius,
+                    source_distance_spacing=sf.source_distance_spacing,
+                    depth_limit_variation=sf.depth_limit_variation,
+                    earth_model=sf.earth_model,
+                    crust_ind=crust_ind,
+                    use_crust2=sf.use_crust2,
+                    execute=options.execute,
+                    rm_gfs=sf.rm_gfs,
+                    nworkers=sf.nworkers,
+                    custom_velocity_model=sf.custom_velocity_model,
+                    force=options.force)
 
+        if not options.execute:
+            logger.info('Seismic GF store configs successfully created! '
+                        'To start calculations set e')
+
+        if options.execute:
+            logger.info('Seismic GF calculations successful!')
 
 if __name__ == '__main__':
 

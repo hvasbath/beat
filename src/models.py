@@ -8,7 +8,6 @@ from pymc3 import Metropolis
 from pyrocko import gf, util, model
 from pyrocko.guts import Object
 
-import numpy as num
 import theano.tensor as tt
 from theano import config as tconfig
 from theano import shared
@@ -433,7 +432,7 @@ class GeometryOptimizer(Problem):
                         stations=[station],
                         channels=channel,
                         sample_rate=sc.gf_config.sample_rate,
-                        crust_inds=sc.gf_config.crust_inds)
+                        crust_inds=range(sc.gf_config.n_variations))
 
                     cov_pv = cov.get_seis_cov_velocity_models(
                         engine=self.engine,
@@ -461,7 +460,7 @@ class GeometryOptimizer(Problem):
                 logger.debug('Track %s' % gtarget.track)
                 cov_pv = cov.get_geo_cov_velocity_models(
                     store_superdir=gc.gf_config.store_superdir,
-                    crust_inds=gc.gf_config.crust_inds,
+                    crust_inds=range(gc.gf_config.n_variations),
                     dataset=gtarget,
                     sources=dsources['geodetic'])
 

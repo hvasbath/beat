@@ -430,11 +430,11 @@ def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0,
 
 
 def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
-               depth_limit=600 * km):
+               depth_limit_variation=600 * km):
     '''
     Vary depth and velocities in the given source model by Gaussians with given
     2-sigma errors [percent]. Ensures increasing velocity with depth. Stops at
-    the given depth_limit [m].
+    the given depth_limit_variation [m].
     Mantle discontinuity uncertainties are hardcoded.
     Returns: Varied Earthmodel
              Cost - Counts repetitions of cycles to ensure increasing layer
@@ -459,9 +459,9 @@ def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
                       '400': 0.01}     # above 400
 
     for layer in layers:
-        # stop if depth_limit is reached
-        if depth_limit:
-            if layer.ztop >= depth_limit:
+        # stop if depth_limit_variation is reached
+        if depth_limit_variation:
+            if layer.ztop >= depth_limit_variation:
                 layer.ztop = last_l.zbot
                 # assign large cost if previous layer has higher velocity
                 if layer.mtop.vp < last_l.mtop.vp or \
@@ -545,7 +545,7 @@ def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
 
 
 def ensemble_earthmodel(ref_earthmod, num_vary=10, err_depth=0.1,
-                        err_velocities=0.1, depth_limit=600 * km):
+                        err_velocities=0.1, depth_limit_variation=600 * km):
     '''
     Create ensemble of earthmodels (num_vary) that vary around a given input
     pyrocko cake earth model by a Gaussian of std_depth (in Percent 0.1 = 10%)
@@ -560,7 +560,7 @@ def ensemble_earthmodel(ref_earthmod, num_vary=10, err_depth=0.1,
             ref_earthmod,
             err_depth,
             err_velocities,
-            depth_limit)
+            depth_limit_variation)
 
         if cost > 20:
             logger.debug('Skipped unlikely model %f' % cost)
@@ -572,12 +572,12 @@ def ensemble_earthmodel(ref_earthmod, num_vary=10, err_depth=0.1,
 
 
 def seis_construct_gf(station, event, store_superdir, code='qssp',
-        source_depth_min=0., source_depth_max=10., source_spacing=1.,
+        source_depth_min=0., source_depth_max=10., source_depth_spacing=1.,
         source_distance_radius=10., source_distance_spacing=1.,
-        sample_rate=2., depth_limit=600,
+        sample_rate=2., depth_limit_variation=600,
         earth_model='ak135-f-average.m', crust_ind=0,
         execute=False, rm_gfs=True, nworkers=1, use_crust2=True,
-        replace_water=True, custom_velocity_model=None):
+        replace_water=True, custom_velocity_model=None, force=False):
     '''Create a GF store for a station with respect to an event for a given
        Phase [P or S] and a distance range(min, max)[km] around the event.'''
 
@@ -638,7 +638,7 @@ def seis_construct_gf(station, event, store_superdir, code='qssp',
             num_vary=1,
             err_depth=err_depth,
             err_velocities=err_velocities,
-            depth_limit=depth_limit * km)[0]
+            depth_limit_variation=depth_limit_variation * km)[0]
 
     # define phases
     tabulated_phases = [
@@ -660,7 +660,7 @@ def seis_construct_gf(station, event, store_superdir, code='qssp',
         receiver_depth=0. * km,
         source_depth_min=source_depth_min * km,
         source_depth_max=source_depth_max * km,
-        source_depth_delta=source_spacing * km,
+        source_depth_delta=source_depth_spacing * km,
         distance_min=distance - (source_distance_radius * km),
         distance_max=distance + (source_distance_radius * km),
         distance_delta=source_distance_spacing * km,
@@ -769,7 +769,8 @@ def seis_construct_gf(station, event, store_superdir, code='qssp',
     logger.info('Creating Store at %s' % store_dir)
     gf.Store.create_editables(store_dir,
                               config=fom_conf,
-                              extra={model_code_id: conf})
+                              extra={model_code_id: conf},
+                              force=force)
     if execute:
         store = gf.Store(store_dir, 'r')
         store.make_ttt()
@@ -789,7 +790,7 @@ def geo_construct_gf(
         sampling_interval=1.,
         earth_model='ak135-f-average.m', crust_ind=0,
         replace_water=True, use_crust2=True, custom_velocity_model=None,
-        execute=True):
+        execute=True, force=False):
     '''
     Given a :py:class:`Event` the crustal model :py:class:`cake.LayeredModel`
     from :py:class:`cake.Crust2Profile` at the event location is extracted and
@@ -876,7 +877,7 @@ def geo_construct_gf(
 
     if execute:
         logger.info('Creating Geo GFs in directory: %s' % c.psgrn_outdir)
-        runner.run(c)
+        runner.run(c, force)
 
 
 def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,

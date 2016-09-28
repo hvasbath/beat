@@ -522,9 +522,9 @@ def join_models(global_model, crustal_model):
 
     max_depth = crustal_model.max('z')
 
-    global_model.extract(depth_min=max_depth)
+    cut_model = global_model.extract(depth_min=max_depth)
 
-    for element in global_model.elements():
+    for element in cut_model.elements():
         crustal_model.append(element)
 
     return crustal_model
