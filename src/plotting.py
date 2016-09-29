@@ -92,7 +92,7 @@ def plot_misfits(problem, posterior='mean', dataset='geodetic'):
 
 
 def stage_posteriors(mtrace, n_steps, output='display',
-    outpath='./stage_posterior.png', lines=None):
+                        outpath='./stage_posterior.png', lines=None):
     '''
     Plot variable posteriors from certain stage of the ATMIP algorithm.
     n_steps of chains to select last samples of each trace.
@@ -107,6 +107,8 @@ def stage_posteriors(mtrace, n_steps, output='display',
         plt.show(PLT[0][0])
     elif output == 'png':
         plt.savefig(outpath, dpi=300)
+
+    plt.close()
 
 
 def plot_all_posteriors(problem):
@@ -126,16 +128,18 @@ def plot_all_posteriors(problem):
             draws = step.n_steps
 
         stage_path = os.path.join(
-            problem.config.project_dir, mode, 'stage_%i' % i)
+            problem.config.project_dir, mode, 'figures', 'stage_%i' % i)
         mtrace = backend.load(stage_path, model=problem.model)
         os.chdir(stage_path)
         print('plotting stage path: %s' % stage_path)
         stage_posteriors(
             mtrace, n_steps=draws, output='png', outpath=stage_path)
 
-    stage_path = os.path.join(problem.config.project_dir, mode, 'stage_final')
+    stage_path = os.path.join(
+        problem.config.project_dir, mode, 'figures', 'stage_final')
     mtrace = backend.load(stage_path, model=problem.model)
     os.chdir(stage_path)
+    print('plotting stage path: %s' % stage_path)
     stage_posteriors(mtrace, n_steps=draws, output='png', outpath=stage_path)
 
 

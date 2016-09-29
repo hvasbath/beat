@@ -858,8 +858,7 @@ def geo_construct_gf(
             source_model,
             num_vary=1,
             err_depth=err_depth,
-            err_velocities=err_velocities,
-            depth_limit=None)[0]
+            err_velocities=err_velocities)[0]
 
     c.earthmodel_1d = source_model
     c.psgrn_outdir = os.path.join(
