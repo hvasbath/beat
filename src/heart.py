@@ -738,31 +738,28 @@ def seis_construct_gf(station, event, store_superdir, code='qssp',
 
     # fill remaining fomosto params
     fom_conf.earthmodel_1d = source_model.extract(depth_max='cmb')
-
     fom_conf.earthmodel_receiver_1d = receiver_model
-
     fom_conf.modelling_code_id = model_code_id + '.' + version
 
     window_extension = 60.   # [s]
 
-    fom_conf.time_region = (
+    conf.time_region = (
         gf.Timing(tabulated_phases[0].id + '-%s' % (1.1 * window_extension)),
         gf.Timing(tabulated_phases[1].id + '+%s' % (1.6 * window_extension)))
 
-    fom_conf.cut = (
+    conf.cut = (
         gf.Timing(tabulated_phases[0].id + '-%s' % window_extension),
         gf.Timing(tabulated_phases[1].id + '+%s' % (1.5 * window_extension)))
 
-    fom_conf.relevel_with_fade_in = True
+    conf.relevel_with_fade_in = True
 
-    fom_conf.fade = (
+    conf.fade = (
         gf.Timing(tabulated_phases[0].id + '-%s' % (1.1 * window_extension)),
         gf.Timing(tabulated_phases[0].id + '-%s' % window_extension),
         gf.Timing(tabulated_phases[1].id + '+%s' % (1.5 * window_extension)),
         gf.Timing(tabulated_phases[1].id + '+%s' % (1.6 * window_extension)))
 
     fom_conf.validate()
-
     conf.validate()
 
     store_dir = store_superdir + fom_conf.id
@@ -773,9 +770,9 @@ def seis_construct_gf(station, event, store_superdir, code='qssp',
                               force=force)
     if execute:
         store = gf.Store(store_dir, 'r')
-        store.make_ttt()
+        store.make_ttt(force=force)
         store.close()
-        build(store_dir, nworkers=nworkers)
+        build(store_dir, nworkers=nworkers, force=force)
         if rm_gfs and code == 'qssp':
             gf_dir = os.path.join(store_dir, 'qssp_green')
             logger.info('Removing QSSP Greens Functions!')
@@ -936,7 +933,7 @@ def get_phase_taperer(engine, source, target, arrival_taper):
 
 
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
-                    filterer=None, reference_taperer=None, plot=False,
+                    filterer=None, reference_taperer=None, plot=True,
                     nprocs=1, outmode='array'):
     '''
     Calculate synthetic seismograms of combination of targets and sources,
