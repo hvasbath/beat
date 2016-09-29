@@ -933,7 +933,7 @@ def get_phase_taperer(engine, source, target, arrival_taper):
 
 
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
-                    filterer=None, reference_taperer=None, plot=True,
+                    filterer=None, reference_taperer=None, plot=False,
                     nprocs=1, outmode='array'):
     '''
     Calculate synthetic seismograms of combination of targets and sources,
