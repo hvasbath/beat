@@ -528,3 +528,23 @@ def join_models(global_model, crustal_model):
         crustal_model.append(element)
 
     return crustal_model
+
+
+def split_off_list(l, off_length):
+    '''
+    Cut a list with length "off_length" from the beginning of an input list l.
+    '''
+    return [l.pop(0) for i in range(off_length)]
+
+
+def biggest_common_divisor(a, b):
+    '''
+    Find the biggest common divisor of two float numbers a and b.
+    '''
+
+    while b > 0:
+        rest = a % b
+        a = b
+        b = rest
+
+    return int(a)

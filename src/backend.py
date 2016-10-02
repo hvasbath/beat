@@ -21,6 +21,7 @@ from glob import glob
 
 import os
 import pandas as pd
+import logging
 
 import pymc3
 from pymc3.model import modelcontext
@@ -29,6 +30,8 @@ from pymc3.backends import tracetab as ttab
 from pymc3.blocking import DictToArrayBijection, ArrayOrdering
 
 from beat import utility
+
+logger = logging.getLogger('backend')
 
 
 class ArrayStepSharedLLK(pymc3.arraystep.BlockedStep):
@@ -146,6 +149,7 @@ class Text(BaseATMCMCTrace):
         self.filename = None
         self._fh = None
         self.df = None
+        self.corrupted_flag = False
 
     ## Sampling methods
 
@@ -202,7 +206,12 @@ class Text(BaseATMCMCTrace):
 
     def _load_df(self):
         if self.df is None:
-            self.df = pd.read_csv(self.filename)
+            try:
+                self.df = pd.read_csv(self.filename)
+            except pd.parser.EmptyDataError:
+                logger.warn('Trace %s is empty and needs to be resampled' % \
+                    self.filename)
+                self.corrupted_flag = True
 
     def __len__(self):
         if self.filename is None:
@@ -245,6 +254,30 @@ class Text(BaseATMCMCTrace):
             vals = self.df[self.flat_names[varname]].iloc[idx]
             pt[varname] = vals.reshape(self.var_shapes[varname])
         return pt
+
+
+def check_multitrace(mtrace, draws, n_chains):
+    '''
+    Check multitrace for incomplete sampling and return indexes from chains
+    that need to be resampled.
+    '''
+    not_sampled_idx = []
+
+    for chain in range(n_chains):
+        if chain in mtrace.chains:
+            mtrace._straces[chain]._load_df()
+            if len(mtrace._straces[chain]) != draws:
+                mtrace._straces[chain].corrupted_flag = True
+
+        else:
+            not_sampled_idx.append(chain)
+
+    flag_bool = [
+        mtrace._straces[chain].corrupted_flag for chain in mtrace.chains]
+
+    corrupted_idx = [i for i, x in enumerate(flag_bool) if x]
+
+    return corrupted_idx + not_sampled_idx
 
 
 def load(name, model=None):

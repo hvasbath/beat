@@ -8,6 +8,7 @@ Various significant updates July, August 2016
 
 import numpy as np
 import pymc3 as pm
+from tqdm import tqdm
 
 import logging
 import os
@@ -508,18 +509,21 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
     if stage is not None:
         if stage > 0:
-            logger.info('Loading completed stage_%i' % (stage - 1))
+            # continue sampling
+            logger.info(
+                'Loading parameters from completed stage_%i' % (stage - 1))
             project_dir = os.path.dirname(homepath)
             mode = os.path.basename(homepath)
             step, update = utility.load_atmip_params(
                 project_dir, str(stage - 1), mode)
             step.stage += 1
-            # remove following (inclomplete) stage results
+
             stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
             util.ensuredir(stage_path)
-            shutil.rmtree(stage_path)
+
         else:
             step.stage = stage
+            stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
 
     with model:
         while step.beta < 1.:
@@ -540,7 +544,35 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
             if rm_flag:
                 if os.path.exists(stage_path):
+                    logger.info('Removing previous sampling results ... '
+                        '%s' % stage_path)
                     shutil.rmtree(stage_path)
+                    chains = None
+            else:
+                # load incomplete stage results
+                if os.path.exists(stage_path):
+                    mtrace = backend.load(stage_path, model=model)
+                    if len(mtrace) > 0:
+                        # continue sampling if traces exist
+                        chains = backend.check_multitrace(
+                            mtrace, draws=n_steps, n_chains=step.n_chains)
+                        rest = len(chains) % n_jobs
+
+                        if len(chains) > n_jobs and rest > 0.:
+                            rest_chains = utility.split_off_list(chains, rest)
+                            # process traces that are not a multiple of n_jobs
+                            sample_args = {
+                                    'draws': draws,
+                                    'step': step,
+                                    'stage_path': stage_path,
+                                    'progressbar': progressbar,
+                                    'model': model,
+                                    'n_jobs': rest,
+                                    'chains': rest_chains}
+
+                            _iter_parallel_chains(**sample_args)
+                else:
+                    chains = None
 
             sample_args = {
                     'draws': draws,
@@ -548,7 +580,8 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                     'stage_path': stage_path,
                     'progressbar': progressbar,
                     'model': model,
-                    'n_jobs': n_jobs}
+                    'n_jobs': n_jobs,
+                    'chains': chains}
 
             _iter_parallel_chains(**sample_args)
 
@@ -651,14 +684,16 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
 
     sampling = _iter_sample(draws, step, start, trace, chain,
                             tune, model, random_seed)
-    progress = pm.progressbar.progress_bar(draws)
-    for i, strace in enumerate(sampling):
-        step.chain_index = chain
-        try:
-            if progressbar:
-                progress.update(i)
-        except KeyboardInterrupt:
-            strace.close()
+
+    if progressbar:
+        sampling = tqdm(sampling, total=draws)
+
+    try:
+        for strace in sampling:
+            pass
+
+    except KeyboardInterrupt:
+        strace.close()
 
     return chain
 
@@ -742,12 +777,15 @@ def _iter_serial_chains(draws, step=None, stage_path=None,
     return pm.sampling.merge_traces(mtraces)
 
 
-def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs):
+def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
+        chains=None):
     """
     Do Metropolis sampling over all the chains with each chain being
     sampled 'draws' times. Parallel execution according to n_jobs.
     """
-    chains = list(range(step.n_chains))
+    if chains is None:
+        chains = list(range(step.n_chains))
+
     trace_list = []
 
     if n_jobs > 1:
@@ -781,14 +819,10 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs):
     work = [(step, chain, step.population[step.resampling_indexes[chain]])
              for chain in chains]
 
-    progress = pm.progressbar.progress_bar(step.n_chains)
-    chain_done = 0
-
-    for chain in parimap.parimap(
-                    work_chain, work, pshared=pshared, nprocs=n_jobs):
-
-        chain_done += 1
-        progress.update(chain_done)
+    for chain in tqdm(parimap.parimap(
+                        work_chain, work, pshared=pshared, nprocs=n_jobs),
+                        total=step.n_chains):
+        pass
 
 
 def tune(acc_rate):
