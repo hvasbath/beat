@@ -558,7 +558,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                             mtrace, draws=n_steps, n_chains=step.n_chains)
                         rest = len(chains) % n_jobs
 
-                        if len(chains) > n_jobs and rest > 0.:
+                        if rest > 0.:
                             rest_chains = utility.split_off_list(chains, rest)
                             # process traces that are not a multiple of n_jobs
                             sample_args = {
@@ -798,7 +798,7 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
     block_pb = []
     list_pb = []
 
-    for i in range(int(step.n_chains / n_jobs)):
+    for i in range(int(len(chains) / n_jobs)):
         block_pb.append(pack_pb)
 
     map(list_pb.extend, block_pb)
