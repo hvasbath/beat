@@ -748,10 +748,10 @@ def work_chain(work, pshared=None):
         trace_list = pshared['trace_list']
         model = pshared['model']
 
-    step, chain, start = work
+    step, chain, idx, start = work
 
-    progressbar = progressbars[chain]
-    trace = trace_list[chain]
+    progressbar = progressbars[idx]
+    trace = trace_list[idx]
 
     return _sample(draws, step, start, trace, chain, tune, progressbar, model)
 
@@ -789,6 +789,9 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
     """
     if chains is None:
         chains = list(range(step.n_chains))
+        idxs = chains
+    else:
+        idxs = list(range(len(chains)))
 
     trace_list = []
 
@@ -820,12 +823,12 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
         tune=None,
         model=model)
 
-    work = [(step, chain, step.population[step.resampling_indexes[chain]])
-             for chain in chains]
+    work = [(step, chain, idx, step.population[step.resampling_indexes[chain]])
+             for chain, idx in zip(chains, idxs)]
 
     for chain in tqdm(parimap.parimap(
                         work_chain, work, pshared=pshared, nprocs=n_jobs),
-                        total=step.n_chains):
+                        total=len(chains)):
         pass
 
 
