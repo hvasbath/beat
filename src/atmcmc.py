@@ -551,14 +551,17 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
             else:
                 # load incomplete stage results
                 if os.path.exists(stage_path):
+                    logger.info('Reloading existing results ...')
                     mtrace = backend.load(stage_path, model=model)
                     if len(mtrace) > 0:
                         # continue sampling if traces exist
+                        logger.info('Checking for corrupted files ...')
                         chains = backend.check_multitrace(
                             mtrace, draws=n_steps, n_chains=step.n_chains)
                         rest = len(chains) % n_jobs
 
                         if rest > 0.:
+                            logger.info('Fixing %i chains ...' % rest)
                             rest_chains = utility.split_off_list(chains, rest)
                             # process traces that are not a multiple of n_jobs
                             sample_args = {
@@ -571,6 +574,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                                     'chains': rest_chains}
 
                             _iter_parallel_chains(**sample_args)
+                            logger.info('Back to normal!')
                 else:
                     chains = None
 
