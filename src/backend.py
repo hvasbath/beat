@@ -211,6 +211,7 @@ class Text(BaseATMCMCTrace):
             except pd.parser.EmptyDataError:
                 logger.warn('Trace %s is empty and needs to be resampled' % \
                     self.filename)
+                os.remove(self.filename)
                 self.corrupted_flag = True
 
     def __len__(self):
