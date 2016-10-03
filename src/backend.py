@@ -216,8 +216,13 @@ class Text(BaseATMCMCTrace):
     def __len__(self):
         if self.filename is None:
             return 0
+
         self._load_df()
-        return self.df.shape[0]
+
+        if self.df is None:
+            return 0
+        else:
+            return self.df.shape[0]
 
     def get_values(self, varname, burn=0, thin=1):
         """Get values from trace.
@@ -265,7 +270,6 @@ def check_multitrace(mtrace, draws, n_chains):
 
     for chain in range(n_chains):
         if chain in mtrace.chains:
-            mtrace._straces[chain]._load_df()
             if len(mtrace._straces[chain]) != draws:
                 mtrace._straces[chain].corrupted_flag = True
 
