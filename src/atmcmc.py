@@ -542,15 +542,14 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
             # Metropolis sampling intermediate stages
             stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
 
-            if rm_flag:
-                if os.path.exists(stage_path):
+            if os.path.exists(stage_path):
+                if rm_flag:
                     logger.info('Removing previous sampling results ... '
                         '%s' % stage_path)
                     shutil.rmtree(stage_path)
                     chains = None
-            else:
-                # load incomplete stage results
-                if os.path.exists(stage_path):
+                else:
+                    # load incomplete stage results
                     logger.info('Reloading existing results ...')
                     mtrace = backend.load(stage_path, model=model)
                     if len(mtrace) > 0:
@@ -575,8 +574,8 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
                             _iter_parallel_chains(**sample_args)
                             logger.info('Back to normal!')
-                else:
-                    chains = None
+            else:
+                chains = None
 
             sample_args = {
                     'draws': draws,
