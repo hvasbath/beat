@@ -613,6 +613,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                 outpath = os.path.join(stage_path, 'atmip.params')
                 outparam_list = [step, update]
                 utility.dump_objects(outpath, outparam_list)
+                chains = None
                 break
 
             step.covariance = step.calc_covariance()
@@ -639,6 +640,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
         sample_args['step'] = step
         sample_args['stage_path'] = stage_path
+        sample_args['chains'] = chains
         _iter_parallel_chains(**sample_args)
 
         outpath = os.path.join(stage_path, 'atmip.params')
