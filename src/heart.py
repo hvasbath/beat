@@ -975,26 +975,37 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
     nt = len(targets)
     ns = len(sources)
-    synths = num.vstack([synt_trcs[i].ydata for i in range(len(synt_trcs))])
+
     tmins = num.vstack([synt_trcs[i].tmin for i in range(nt)]).flatten()
 
-    # stack traces for all sources
-    if ns > 1:
-        for k in range(ns):
-            outstack = num.zeros([nt, synths.shape[1]])
-            outstack += synths[(k * nt):(k + 1) * nt, :]
-    else:
-        outstack = synths
+    if arrival_taper is not None:
+        synths = num.vstack(
+            [synt_trcs[i].ydata for i in range(len(synt_trcs))])
+
+        # stack traces for all sources
+        if ns > 1:
+            for k in range(ns):
+                outstack = num.zeros([nt, synths.shape[1]])
+                outstack += synths[(k * nt):(k + 1) * nt, :]
+        else:
+            outstack = synths
 
     if outmode == 'traces':
-        out = []
+        outstack = []
         for i in range(nt):
             synt_trcs[i].ydata = outstack[i, :]
-            out.append(synt_trcs[i])
+            outstack.append(synt_trcs[i])
 
-        outstack = out
+        return outstack, tmins
 
-    return outstack, tmins
+    elif outmode == 'data':
+        return synt_trcs, tmins
+
+    elif outmode == 'array':
+        return outstack, tmins
+
+    else:
+        raise Exception('Outmode %s not supported!' % outmode)
 
 
 def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,

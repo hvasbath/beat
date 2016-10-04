@@ -157,12 +157,16 @@ def apply_station_blacklist(stations, blacklist):
 
     indexes = []
     for burian in blacklist:
-        indexes.append(station_names.index(burian))
+        try:
+            indexes.append(station_names.index(burian))
+        except ValueError:
+            logger.warn('Station %s in blacklist is not in stations.' % burian)
 
-    indexes.sort(reverse=True)
+    if len(indexes) > 0:
+        indexes.sort(reverse=True)
 
-    for ind in indexes:
-        stations.pop(ind)
+        for ind in indexes:
+            stations.pop(ind)
 
     return stations
 

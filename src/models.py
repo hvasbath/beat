@@ -470,7 +470,7 @@ class GeometryOptimizer(Problem):
                 icov = gtarget.covariance.get_inverse()
                 self.gweights[i].set_value(icov)
 
-    def get_synthetics(self, point):
+    def get_synthetics(self, point, **kwargs):
         '''
         Get synthetics for given point in solution space.
         '''
@@ -497,7 +497,7 @@ class GeometryOptimizer(Problem):
                 sources=dsources['seismic'],
                 targets=self.stargets,
                 arrival_taper=sc.arrival_taper,
-                filterer=sc.filterer, outmode='traces')
+                filterer=sc.filterer, **kwargs)
 
             d['seismic'] = seis_synths
 
