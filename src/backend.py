@@ -147,7 +147,6 @@ class Text(BaseATMCMCTrace):
                            for v, shape in self.var_shapes.items()}
 
         self.filename = None
-        self._fh = None
         self.df = None
         self.corrupted_flag = False
 
@@ -169,16 +168,10 @@ class Text(BaseATMCMCTrace):
         cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
 
         if os.path.exists(self.filename):
-            with open(self.filename) as fh:
-                prev_cnames = next(fh).strip().split(',')
-            if prev_cnames != cnames:
-                raise base.BackendError(
-                    "Previous file '{}' has different variables names "
-                    "than current model.".format(self.filename))
-            self._fh = open(self.filename, 'a')
-        else:
-            self._fh = open(self.filename, 'w')
-            self._fh.write(','.join(cnames) + '\n')
+            os.remove(self.filename)
+
+        with open(self.filename, 'w') as fh:
+            fh.write(','.join(cnames) + '\n')
 
     def record(self, lpoint):
         """Record results of a sampling iteration.
@@ -196,23 +189,23 @@ class Text(BaseATMCMCTrace):
 
         columns = [str(val) for var in self.varnames for val in vals[var]]
 
-        self._fh.write(','.join(columns) + '\n')
-
-    def close(self):
-        self._fh.close()
-        self._fh = None  # Avoid serialization issue.
-
-    ## Selection methods
+        with open(self.filename, 'a') as fh:
+            fh.write(','.join(columns) + '\n')
 
     def _load_df(self):
         if self.df is None:
             try:
                 self.df = pd.read_csv(self.filename)
             except pd.parser.EmptyDataError:
-                logger.warn('Trace %s is empty and needs to be resampled' % \
+                logger.warn('Trace %s is empty and needs to be resampled!' % \
                     self.filename)
                 os.remove(self.filename)
                 self.corrupted_flag = True
+            except pd.io.common.CParserError:
+                logger.warn('Trace %s has wrong size!' % \
+                    self.filename)
+                self.corrupted_flag = True
+                os.remove(self.filename)
 
     def __len__(self):
         if self.filename is None:

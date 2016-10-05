@@ -698,7 +698,7 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
             pass
 
     except KeyboardInterrupt:
-        strace.close()
+        pass
 
     return chain
 
@@ -736,8 +736,6 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
         trace.record(out_list)
 
         yield trace
-    else:
-        trace.close()
 
 
 def work_chain(work, pshared=None):
