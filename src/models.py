@@ -384,8 +384,8 @@ class GeometryOptimizer(Problem):
 
                     logpts_g = tt.set_subtensor(logpts_g[l:l + 1],
                          (-0.5) * (gfactor - \
-                         ((M / 2) * tt.log(hyperparams[0])) + \
-                         tt.power(hyperparams[0], 2) * \
+                         ((M / 2) * hyperparams[0]) + \
+                         tt.exp(hyperparams[0] * 2) * \
                          (geo_res[l].dot(self.gweights[l]).dot(geo_res[l].T)))
                                                )
 

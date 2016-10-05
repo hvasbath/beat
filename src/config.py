@@ -49,9 +49,9 @@ default_bounds = dict(
     nuc_x=(0., 10.),
     nuc_y=(0., 7.),
     velocity=(0.5, 4.2),
-    alpha=(1e-10, 1e10),
-    beta=(1e-10, 1e10),
-    gamma=(1e-10, 1e10))
+    alpha=(-20., 20.),
+    beta=(-20., 20.),
+    gamma=(-20., 20.))
 
 seismic_data_name = 'seismic_data.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
