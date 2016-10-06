@@ -242,19 +242,12 @@ class Covariance(Object):
 
         N = self.data.shape[0]
 
-        ldet_d = log_determinant(self.data)
-
         if self.p_total.any():
-            ldet_p = log_determinant(self.p_total)
-            tot_i = self.get_inverse_d() + self.get_inverse_p()
-            itot_i = num.linalg.inv(tot_i)
-            rep_itoti = utility.ensure_cov_psd(itot_i)
-            ldet_i_dp = 1. / log_determinant(rep_itoti)
+            ldet_x = log_determinant(self.data + self.p_total)
         else:
-            ldet_p = 0.
-            ldet_i_dp = 0.
+            ldet_x = log_determinant(self.data)
 
-        return (N * num.log(2 * num.pi)) + ldet_d + ldet_p + ldet_i_dp
+        return (N * num.log(2 * num.pi)) + ldet_x
 
 
 class TeleseismicTarget(gf.Target):
