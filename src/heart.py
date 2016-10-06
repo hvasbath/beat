@@ -168,20 +168,24 @@ def adjust_fault_reference(source, input_depth='top'):
 
 
 def log_determinant(A, inverse=False):
-    '''
+    """
     Calculates the natural logarithm of a determinant of the given matrix '
     according to the properties of a triangular matrix.
-    Input: n x n Numpy array
-           inverse - bool
-           If true calculates the log determinant of the inverse of the colesky
-           decomposition, which is equvalent to taking the determinant of the
-           inverse of the matrix.
 
-           L.T* L = R           inverse=False
-           L-1*(L-1)T = R-1     inverse=True
+    Input:
+    n x n Numpy array
+    inverse : bool
+    If true calculates the log determinant of the inverse of the colesky
+    decomposition, which is equvalent to taking the determinant of the
+    inverse of the matrix.
 
-    Returns: float log determinant
-    '''
+    L.T* L = R           inverse=False
+    L-1*(L-1)T = R-1     inverse=True
+
+    Returns:
+    log determinant : float
+    """
+
     cholesky = num.linalg.cholesky(A)
     if inverse:
         cholesky = num.linalg.inv(cholesky)
@@ -423,16 +427,19 @@ def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0,
 
 
 def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
-               depth_limit_variation=600 * km):
+        depth_limit_variation=600 * km):
     '''
     Vary depth and velocities in the given source model by Gaussians with given
     2-sigma errors [percent]. Ensures increasing velocity with depth. Stops at
     the given depth_limit_variation [m].
     Mantle discontinuity uncertainties are hardcoded.
-    Returns: Varied Earthmodel
-             Cost - Counts repetitions of cycles to ensure increasing layer
-                    velocity, if high - unlikely velocities are too high
-                    cost up to 10 are ok for crustal profiles.
+
+    Returns:
+
+    Varied Earthmodel
+    Cost - Counts repetitions of cycles to ensure increasing layer velocity,
+    if high - unlikely velocities are too high
+    cost up to 10 are ok for crustal profiles.
     '''
 
     new_earthmod = copy.deepcopy(earthmod)
@@ -872,11 +879,15 @@ def geo_construct_gf(
 def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
                          keep_tmp=False):
     '''
-    Input: Greensfunction store path, index of potentialy varied model store
-           List of observation points Latitude and Longitude,
-           List of rectangular fault sources.
-    Output: NumpyArray(nobservations; ux, uy, uz)
+    Input :
+    Greensfunction store path, index of potentialy varied model store
+    List of observation points Latitude and Longitude,
+    List of rectangular fault sources.
+
+    Output :
+    NumpyArray(nobservations; ux, uy, uz)
     '''
+
     c = pscmp.PsCmpConfigFull()
     c.observation = pscmp.PsCmpScatter(lats=lats, lons=lons)
     c.psgrn_outdir = os.path.join(
