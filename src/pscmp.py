@@ -6,7 +6,7 @@ import shutil
 import signal
 import copy
 
-from tempfile import mkdtemp
+from tempfile import mkdtemp, TemporaryFile
 from subprocess import Popen, PIPE
 from os.path import join as pjoin
 
@@ -579,6 +579,8 @@ class PsCmpRunner:
         self.tempdir = mkdtemp(prefix='pscmprun-', dir=tmp)
         self.keep_tmp = keep_tmp
         self.config = None
+        self.stdout = TemporaryFile(prefix='pscmprun-out-', dir=self.tempdir)
+        self.stderr = TemporaryFile(prefix='pscmprun-err-', dir=self.tempdir)
 
     def run(self, config):
         self.config = config
@@ -608,8 +610,9 @@ class PsCmpRunner:
         original = signal.signal(signal.SIGINT, signal_handler)
         try:
             try:
-                proc = Popen(program, stdin=PIPE, stdout=PIPE, stderr=PIPE,
-                             close_fds=True)
+                proc = Popen(program,
+                    stdin=PIPE, stdout=self.stdout, stderr=self.stderr,
+                    close_fds=True)
 
             except OSError as err:
                 os.chdir(old_wd)
