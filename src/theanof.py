@@ -86,6 +86,7 @@ class GeoLayerSynthesizerStatic(theano.Op):
     east_shifts, north_shifts, top_depths, strikes, dips, rakes,
     lengths, widths, slips
     '''
+
     __props__ = ('lats', 'lons', 'store_superdir', 'crust_ind', 'sources')
 
     def __init__(self, lats, lons, store_superdir, crust_ind, sources):
@@ -137,6 +138,14 @@ class GeoLayerSynthesizerStatic(theano.Op):
 
 
 class SeisSynthesizer(theano.Op):
+    '''
+    Theano wrapper for a seismic forward model for given source, targets
+
+    Inputs Type: Numpy arrays:
+                    Source parameters (RectangularSource)
+    east_shifts, north_shifts, top_depths, strikes, dips, rakes,
+    lengths, widths, slips
+    '''
 
     __props__ = ('engine', 'sources', 'targets', 'event',
                  'arrival_taper', 'filterer')

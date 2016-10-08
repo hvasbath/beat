@@ -75,6 +75,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         Optional model for sampling step.
         Defaults to None (taken from context).
     """
+
     default_blocked = True
 
     def __init__(self, vars=None, out_vars=None, covariance=None, scaling=1.,
