@@ -619,7 +619,7 @@ class PsCmpRunner:
                 logger.error('OS error: {0}'.format(err))
                 raise PsCmpError('could not start pscmp: "%s"' % program)
 
-            (output_str, error_str) = proc.communicate('input\n')
+            proc.communicate('input\n')
 
         finally:
             signal.signal(signal.SIGINT, original)
@@ -628,7 +628,10 @@ class PsCmpRunner:
             raise KeyboardInterrupt()
 
         logger.debug('===== begin pscmp output =====\n'
-                     '%s===== end pscmp output =====' % output_str)
+                     '%s===== end pscmp output =====' % self.stdout)
+
+	error_str = self.stderr.read()
+	output_str = self.stdout.read()
 
         errmess = []
         if proc.returncode != 0:
