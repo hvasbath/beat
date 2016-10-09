@@ -20,6 +20,9 @@ import logging
 
 logger = logging.getLogger('models')
 
+__all__ = ['GeometryOptimizer', 'sample', 'load_model', 'load_stage',
+    'choose_proposal']
+
 
 class Problem(Object):
     """
@@ -72,7 +75,6 @@ class Problem(Object):
 
                 t1 = time.time()
                 step = Metropolis(
-                    n_steps=sc.parameters.n_steps,
                     tune_interval=sc.parameters.tune_interval,
                     proposal_dist=choose_proposal(sc.parameters.proposal_dist))
                 t2 = time.time()
@@ -100,12 +102,17 @@ class Problem(Object):
 
 
 class GeometryOptimizer(Problem):
-    '''
+    """
     Defines the model setup to solve the non-linear fault geometry and
     returns the model object.
 
-    Input: :py:class: 'BEATconfig'
-    '''
+    Parameters
+    ----------
+    config : :class:'config.BEATconfig'
+        Contains all the information about the model setup and optimization
+        boundaries, as well as the sampler parameters.
+    """
+
     def __init__(self, config):
         logger.info('... Initialising Geometry Optimizer ... \n')
 
@@ -297,6 +304,11 @@ class GeometryOptimizer(Problem):
             self.gtargets = state
 
     def built_model(self):
+        """
+        Initialise :class:`pymc3.Model` depending on configuration file,
+        geodetic and/or seismic data is included.
+        """
+
         logger.info('... Building model ...\n')
 
         with pm.Model() as self.model:
@@ -409,12 +421,22 @@ class GeometryOptimizer(Problem):
             logger.info('Model building was successful!')
 
     def update_weights(self, point, n_jobs=1, plot=False):
-        '''
+        """
         Calculate and update model prediction uncertainty covariances
         due to uncertainty in the velocity model with respect to one point
-        in the solution space.
-        Input: Point dictionary from pymc3
-        '''
+        in the solution space. Shared variables are updated.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters, for which the covariance matrixes
+            with respect to velocity model uncertainties are calculated
+        n_jobs : int
+            Number of processors to use for calculation of seismic covariances
+        plot : boolean
+            Flag for opening the seismic waveforms in the snuffler
+        """
+
         # update sources
         point = utility.adjust_point_units(point)
 
@@ -480,9 +502,22 @@ class GeometryOptimizer(Problem):
                 self.gweights[i].set_value(icov)
 
     def get_synthetics(self, point, **kwargs):
-        '''
+        """
         Get synthetics for given point in solution space.
-        '''
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters
+        kwargs especially to change output of seismic forward model
+            outmode = 'traces'/ 'array' / 'data'
+
+        Returns
+        -------
+        Dictionary with keys according to datasets containing the synthetics
+        as lists.
+        """
+
         point = utility.adjust_point_units(point)
 
         d = dict()
@@ -536,41 +571,56 @@ class GeometryOptimizer(Problem):
 
 
 def sample(step, problem):
-    '''
+    """
     Sample solution space with the previously initalised algorithm.
 
-    Inputs:
-    step - Object from init_sampler
-    problem - Object with characteristics of problem to solve
-    '''
+    Parameters
+    ----------
+
+    step : :class:`ATMCMC` or :class:`pymc3.metropolis.Metropolis`
+        from problem.init_sampler()
+    problem : :class:`Problem` with characteristics of problem to solve
+    """
 
     sc = problem.config.sampler_config.parameters
 
-    if sc.update_covariances:
-        update = problem
-    else:
-        update = None
+    if problem.config.sampler_config.name == 'Metropolis':
+        logger.info('... Starting Metropolis ...\n')
+        pm.sample(draws=sc.n_steps, step=step, model=problem.model)
 
-    logger.info('... Starting ATMIP ...\n')
-    atmcmc.ATMIP_sample(
-        sc.n_steps,
-        step=step,
-        progressbar=True,
-        model=problem.model,
-        n_jobs=sc.n_jobs,
-        stage=sc.stage,
-        update=update,
-        trace=problem.outfolder,
-        rm_flag=sc.rm_flag,
-        plot_flag=sc.plot_flag)
+    elif problem.config.sampler_config.name == 'ATMCMC':
+        if sc.update_covariances:
+            update = problem
+        else:
+            update = None
+
+        logger.info('... Starting ATMIP ...\n')
+        atmcmc.ATMIP_sample(
+            sc.n_steps,
+            step=step,
+            progressbar=True,
+            model=problem.model,
+            n_jobs=sc.n_jobs,
+            stage=sc.stage,
+            update=update,
+            trace=problem.outfolder,
+            rm_flag=sc.rm_flag,
+            plot_flag=sc.plot_flag)
 
 
 def choose_proposal(proposal_dist):
-    '''
+    """
     Initialises and selects proposal distribution.
-    Returns:
-    Function
-    '''
+
+    Parameters
+    ----------
+    proposal_dist : string
+        Name of the proposal distribution to initialise
+
+    Returns
+    -------
+    class:'pymc3.Proposal' Object
+    """
 
     if proposal_dist == 'Cauchy':
         distribution = pm.CauchyProposal
@@ -591,9 +641,21 @@ def choose_proposal(proposal_dist):
 
 
 def load_model(project_dir, mode):
-    '''
-    Load config from project directory and return model.
-    '''
+    """
+    Load config from project directory and return BEAT problem including model.
+
+    Parameters
+    ----------
+    project_dir : string
+        path to beat model directory
+    mode : string
+        problem name to be loaded
+
+    Returns
+    -------
+    :class:`Problem`
+    """
+
     config = bconfig.load_config(project_dir, mode)
 
     pc = config.problem_config
@@ -609,9 +671,24 @@ def load_model(project_dir, mode):
 
 
 def load_stage(project_dir, stage_number, mode):
-    '''
+    """
     Load stage results from ATMIP sampling.
-    '''
+
+    Parameters
+    ----------
+    project_dir : string
+        path to beat model directory
+    stage_number : int
+        number of stage to be loaded
+    mode : string
+        problem name to be loaded
+
+    Returns
+    -------
+    :class:`Problem`
+    :class:`atmcmc.ATMCMC`
+    :class:`pymc3.backend.base.MultiTrace`
+    """
 
     problem = load_model(project_dir, mode)
     params = utility.load_atmip_params(project_dir, stage_number, mode)

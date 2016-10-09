@@ -52,11 +52,12 @@ class PickleableTrace(trace.Trace):
 
 
 class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
-    '''
+    """
     Source for rectangular fault that unifies the necessary different source
     objects for teleseismic and geodetic computations.
     Reference point of the depth attribute is the top-center of the fault.
-    '''
+    """
+
     width = Float.T(help='width of the fault [m]',
                     default=1. * km)
     length = Float.T(help='length of the fault [m]',
@@ -81,26 +82,40 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
 
     @staticmethod
     def center(top_depth, width, dipvector):
-        '''
+        """
         Get fault center coordinates. If input depth referrs to top_depth.
-        '''
+        """
         return num.array([0., 0., top_depth]) + 0.5 * width * dipvector
 
     @staticmethod
     def top_depth(depth, width, dipvector):
-        '''
+        """
         Get top depth of the fault. If input depth referrs to center
-        coordinates. (Patches Funktion needs input depth to be top_depth.)
-        '''
+        coordinates. (Patches Function needs input depth to be top_depth.)
+        """
         return num.array([0., 0., depth]) - 0.5 * width * dipvector
 
     def patches(self, n, m, datatype):
-        '''
-        Cut source into n by m sub-faults and return n times m SourceObjects.
+        """
+        Cut source into n by m sub-faults and return n times m
+        :class:`RectangularSource` Objects.
         Discretization starts at shallow depth going row-wise deeper.
-        datatype - 'geodetic' or 'seismic' determines the :py:class to be
-        returned. Depth is being updated from top_depth to center depth.
-        '''
+
+        Parameters
+        ----------
+        n : int
+            number of patches in length direction (strike)
+        m : int
+            number of patches in width direction (dip)
+        datatype : string
+            'geodetic' or 'seismic' determines the source to be returned
+
+        Returns
+        -------
+        :class:`pscmp.RectangularSource` or
+        :class:`pyrocko.gf.RectangularSource` depending on datatype
+        depth is being updated from top_depth to center_depth.
+        """
 
         length = self.length / float(n)
         width = self.width / float(m)
@@ -145,12 +160,23 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
 
 
 def adjust_fault_reference(source, input_depth='top'):
-    '''
+    """
     Adjusts source depth and east/north-shifts variables of fault according to
     input_depth mode 'top/center'.
-    Takes RectangularSources(beat, pyrocko, pscmp)
-    Updates input source!
-    '''
+
+    Parameters
+    ----------
+    source : :class:`RectangularSource` or :class:`pyrocko.RectangularSource`
+        or :class:`pscmp.RectangularSource`
+    input_depth : string
+        if 'top' the depth in the source is interpreted as top depth
+        if 'center' the depth in the source is interpreted as center depth
+
+    Returns
+    -------
+    Updated input source object
+    """
+
     RF = RectangularSource
 
     dip_vec = RF.dipvector(dip=source.dip, strike=source.strike)
@@ -172,18 +198,20 @@ def log_determinant(A, inverse=False):
     Calculates the natural logarithm of a determinant of the given matrix '
     according to the properties of a triangular matrix.
 
-    Input:
-    n x n Numpy array
-    inverse : bool
-    If true calculates the log determinant of the inverse of the colesky
-    decomposition, which is equvalent to taking the determinant of the
-    inverse of the matrix.
+    Parameters
+    ----------
+    A : n x n :class:`numpy.Array`
+    inverse : boolean
+        If true calculates the log determinant of the inverse of the colesky
+        decomposition, which is equvalent to taking the determinant of the
+        inverse of the matrix.
 
-    L.T* L = R           inverse=False
-    L-1*(L-1)T = R-1     inverse=True
+        L.T* L = R           inverse=False
+        L-1*(L-1)T = R-1     inverse=True
 
-    Returns:
-    log determinant : float
+    Returns
+    -------
+    float logarithm of the determinant of the input Matrix A
     """
 
     cholesky = num.linalg.cholesky(A)
@@ -193,9 +221,11 @@ def log_determinant(A, inverse=False):
 
 
 class Covariance(Object):
-    '''
-    Covariance of an observation.
-    '''
+    """
+    Covariance of an observation. Holds data and model prediction uncertainties
+    for one observation object.
+    """
+
     data = Array.T(shape=(None, None),
                     dtype=num.float,
                     help='Data covariance matrix',
@@ -220,29 +250,29 @@ class Covariance(Object):
         return self.pred_g + self.pred_v
 
     def get_inverse(self):
-        '''
+        """
         Add and invert ALL uncertainty covariance Matrices.
-        '''
+        """
         return num.linalg.inv(self.p_total + self.data)
 
     def get_inverse_p(self):
-        '''
+        """
         Add and invert different MODEL uncertainty covariance Matrices.
-        '''
+        """
         return num.linalg.inv(self.p_total)
 
     def get_inverse_d(self):
-        '''
+        """
         Invert DATA covariance Matrix.
-        '''
+        """
         return num.linalg.inv(self.data)
 
     @property
     def log_norm_factor(self):
-        '''
+        """
         Calculate the normalisation factor of the posterior pdf.
         Following Duputel et al. 2014
-        '''
+        """
 
         N = self.data.shape[0]
 
@@ -264,27 +294,39 @@ class TeleseismicTarget(gf.Target):
 
 
 class ArrivalTaper(trace.Taper):
-    ''' Cosine arrival Taper.
+    """
+    Cosine arrival Taper.
+    """
 
-    :param a: start of fading in; [s] before phase arrival
-    :param b: end of fading in; [s] before phase arrival
-    :param c: start of fading out; [s] after phase arrival
-    :param d: end of fading out; [s] after phase arrival
-    '''
-
-    a = Float.T(default=15.)
-    b = Float.T(default=10.)
-    c = Float.T(default=50.)
-    d = Float.T(default=55.)
+    a = Float.T(default=15.,
+                help='start of fading in; [s] w.r.t. phase arrival')
+    b = Float.T(default=10.,
+                help='end of fading in; [s] w.r.t. phase arrival')
+    c = Float.T(default=50.,
+                help='start of fading in; [s] w.r.t. phase arrival')
+    d = Float.T(default=55.,
+                help='end of fading in; [s] w.r.t phase arrival')
 
 
 class Filter(Object):
-    lower_corner = Float.T(default=0.001)
-    upper_corner = Float.T(default=0.1)
-    order = Int.T(default=4)
+    """
+    Filter object defining frequency range of traces after filtering
+    """
+    lower_corner = Float.T(
+        default=0.001,
+        help='Lower corner frequency')
+    upper_corner = Float.T(
+        default=0.1,
+        help='Upper corner frequency')
+    order = Int.T(
+        default=4,
+        help='order of filter, the higher the steeper')
 
 
 class Parameter(Object):
+    """
+    Optimization parameter object determines the bounds of the search space.
+    """
     name = String.T(default='lon')
     form = String.T(default='Uniform',
                     help='Type of prior distribution to use. Options:'
@@ -320,9 +362,9 @@ class Parameter(Object):
 
 
 class IFG(Object):
-    '''
+    """
     Interferogram class as a dataset in the inversion.
-    '''
+    """
     track = String.T(default='A')
     master = String.T(optional=True,
                       help='Acquisition time of master image YYYY-MM-DD')
@@ -351,9 +393,9 @@ class IFG(Object):
         return lambda_sensors[self.satellite]
 
     def update_los_vector(self):
-        '''
-        Calculate LOS vector for given incidence and heading.
-        '''
+        """
+        Calculate LOS vector for given incidence and heading angles.
+        """
         if self.incidence.all() and self.heading.all() is None:
             Exception('Incidence and Heading need to be provided!')
 
@@ -367,10 +409,10 @@ class IFG(Object):
 
 
 class DiffIFG(IFG):
-    '''
+    """
     Differential Interferogram class as geodetic target for the calculation
     of synthetics.
-    '''
+    """
     unwrapped_phase = Array.T(shape=(None,), dtype=num.float, optional=True)
     coherence = Array.T(shape=(None,), dtype=num.float, optional=True)
     reference_point = Tuple.T(2, Float.T(), optional=True)
@@ -388,9 +430,14 @@ class DiffIFG(IFG):
         optional=True)
 
     def plot(self, point_size=20):
-        '''
+        """
         Very simple scatter plot of given attribute for fast inspections.
-        '''
+
+        Parameters
+        ----------
+        point_size : int
+            determines the size of the scatter plot points
+        """
         #colim = num.max([disp.max(), num.abs(disp.min())])
         ax = plt.axes()
         im = ax.scatter(self.lons, self.lats, point_size, self.displacement,
@@ -402,10 +449,11 @@ class DiffIFG(IFG):
 
 def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0,
                  crust_inds=[0], interpolation='multilinear'):
-    '''
+    """
     Initiate a list of target objects given a list of indexes to the
     respective GF store velocity model variation index (crust_inds).
-    '''
+    """
+
     targets = [TeleseismicTarget(
         quantity='displacement',
         codes=(stations[sta_num].network,
@@ -923,14 +971,15 @@ def get_phase_arrival_time(engine, source, target):
 
 
 def get_phase_taperer(engine, source, target, arrival_taper):
-    '''
-    and taper return :py:class:`CosTaper`
+    """
+    Create phase taperer according to synthetic travel times from
+    source- target pair and taper return :py:class:`CosTaper`
     according to defined arrival_taper times.
-    '''
+    """
     arrival_time = get_phase_arrival_time(engine, source, target)
 
-    taperer = trace.CosTaper(arrival_time - arrival_taper.a,
-                             arrival_time - arrival_taper.b,
+    taperer = trace.CosTaper(arrival_time + arrival_taper.a,
+                             arrival_time + arrival_taper.b,
                              arrival_time + arrival_taper.c,
                              arrival_time + arrival_taper.d)
     return taperer
@@ -939,14 +988,37 @@ def get_phase_taperer(engine, source, target, arrival_taper):
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     filterer=None, reference_taperer=None, plot=False,
                     nprocs=1, outmode='array'):
-    '''
+    """
     Calculate synthetic seismograms of combination of targets and sources,
     filtering and tapering afterwards (filterer)
     tapering according to arrival_taper around P -or S wave.
     If reference_taper the given taper is always used.
-    Returns: Array with data each row-one target
-    plot - flag for looking at traces
-    '''
+
+    Parameters
+    ----------
+    engine : :class:`pyrocko.gf.LocalEngine`
+    sources : List
+        containing :class:`pyrocko.gf.Source` Objects
+    targets : List
+        containing :class:`pyrocko.gf.Target` Objects
+    arrival_taper : :class:`ArrivalTaper`
+    filterer : :class:`Filterer`
+    reference_taperer : :class:`ArrivalTaper`
+        if set all the traces are tapered with the specifications of this Taper
+    plot : boolean
+        flag for looking at traces
+    nprocs : int
+        number of processors to use for synthetics calculation
+    outmode : string
+        output format of synthetics can be 'array', 'traces',
+        'data' returns traces unstacked including post-processing
+
+    Returns
+    -------
+    :class:`numpy.Array` or List of :class:`pyrocko.trace.Trace`
+         with data each row-one target
+
+    """
 
     response = engine.process(sources=sources,
                               targets=targets, nprocs=nprocs)
@@ -1014,10 +1086,27 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
 def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
                         plot=False):
-    '''
+    """
     Taper and filter data_traces according to given taper and filterers.
     Tapering will start at the given tmin.
-    '''
+
+    Parameters
+    ----------
+    data_traces : List
+        containing :class:`pyrocko.trace.Trace` objects
+    arrival_taper : :class:`ArrivalTaper`
+    filterer : :class:`Filterer`
+    tmins : :class:`numpy.array`
+        Array containing the start times [s] since 1st.January 1970 to start
+        tapering
+
+    Returns
+    -------
+    :class:`numpy.array`
+        with tapered and filtered data traces, rows different traces,
+        columns temporal values
+    """
+
     cut_traces = []
 
     for i, tr in enumerate(data_traces):
@@ -1025,9 +1114,9 @@ def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
         if arrival_taper is not None:
             taperer = trace.CosTaper(
                 float(tmins[i]),
-                float(tmins[i] + arrival_taper.b),
-                float(tmins[i] + arrival_taper.a + arrival_taper.c),
-                float(tmins[i] + arrival_taper.a + arrival_taper.d))
+                float(tmins[i] - arrival_taper.b),
+                float(tmins[i] - arrival_taper.a + arrival_taper.c),
+                float(tmins[i] - arrival_taper.a + arrival_taper.d))
 
             # taper and cut traces
             cut_trace.taper(taperer, inplace=True, chop=True)

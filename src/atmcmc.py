@@ -296,7 +296,6 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         Parameters
         ----------
-
         mtrace : :class:`pymc3.backend.base.MultiTrace`
 
         Returns
@@ -345,7 +344,6 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         Parameters
         ----------
-
         mtrace : :class:`pymc3.backend.base.MultiTrace`
 
         Returns
@@ -388,7 +386,6 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         Returns
         -------
-
         Dictionary of trace variables
         """
 
@@ -401,7 +398,6 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         Returns
         -------
-
         outindex : :class:`numpy.array`
             Array of resampled trace indexes
         """
@@ -459,7 +455,6 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
     Parameters
     ----------
-
     n_steps : int
         The number of samples to draw for each Markov-chain per stage
     step : :class:`ATMCMC`
@@ -705,10 +700,10 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
 
 def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
                  model=None, random_seed=None):
-    '''
+    """
     Modified from :func:`pymc3.sampling._iter_sample` to be more efficient with
     the ATMCMC algorithm.
-    '''
+    """
 
     model = modelcontext(model)
 
