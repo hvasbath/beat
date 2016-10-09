@@ -22,6 +22,14 @@ logger = logging.getLogger('models')
 
 
 class Problem(Object):
+    """
+    Overarching class for the optimization problems to be solved.
+
+    Parameters
+    ----------
+    pc : :class:`beat.ProblemConfig`
+        Configuration object that contains the problem definition.
+    """
 
     event = None
     model = None
@@ -45,9 +53,10 @@ class Problem(Object):
             self._geodetic_flag = True
 
     def init_sampler(self):
-        '''
+        """
         Initialise the Sampling algorithm as defined in the configuration file.
-        '''
+        """
+
         sc = self.config.sampler_config
 
         if self.model is None:

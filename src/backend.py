@@ -39,15 +39,21 @@ class ArrayStepSharedLLK(pymc3.arraystep.BlockedStep):
     Modified ArrayStepShared To handle returned larger point including the
     likelihood values.
     Takes additionally a list of output vars including the likelihoods.
+
+    Parameters
+    ----------
+
+    vars : list
+        variables to be sampled
+    out_vars : list
+        variables to be stored in the traces
+    shared : dict
+        theano variable -> shared variables
+    blocked : boolen
+        (default True)
     """
+
     def __init__(self, vars, out_vars, shared, blocked=True):
-        """
-        Parameters
-        ----------
-        vars : list of sampling variables
-        shared : dict of theano variable -> shared variable
-        blocked : Boolean (default True)
-        """
         self.vars = vars
         self.ordering = ArrayOrdering(vars)
         self.lordering = utility.ListArrayOrdering(out_vars, intype='tensor')
@@ -77,6 +83,7 @@ class BaseATMCMCTrace(object):
 
     Parameters
     ----------
+
     name : str
         Name of backend
     model : Model
@@ -85,6 +92,7 @@ class BaseATMCMCTrace(object):
         Sampling values will be stored for these variables. If None,
         `model.unobserved_RVs` is used.
     """
+
     def __init__(self, name, model=None, vars=None):
         self.name = name
         model = modelcontext(model)
@@ -126,10 +134,12 @@ class BaseATMCMCTrace(object):
 
 
 class Text(BaseATMCMCTrace):
-    """Text trace object
+    """
+    Text trace object
 
     Parameters
     ----------
+
     name : str
         Name of directory to store text files
     model : Model
@@ -138,6 +148,7 @@ class Text(BaseATMCMCTrace):
         Sampling values will be stored for these variables. If None,
         `model.unobserved_RVs` is used.
     """
+
     def __init__(self, name, model=None, vars=None):
         if not os.path.exists(name):
             os.mkdir(name)
@@ -157,11 +168,13 @@ class Text(BaseATMCMCTrace):
 
         Parameters
         ----------
+
         draws : int
             Expected number of draws
         chain : int
             Chain number
         """
+
         self.chain = chain
         self.filename = os.path.join(self.name, 'chain-{}.csv'.format(chain))
 
@@ -174,10 +187,12 @@ class Text(BaseATMCMCTrace):
             fh.write(','.join(cnames) + '\n')
 
     def record(self, lpoint):
-        """Record results of a sampling iteration.
+        """
+        Record results of a sampling iteration.
 
         Parameters
         ----------
+
         lpoint : List of variable values
             Values mapped to variable names
         """
@@ -219,17 +234,25 @@ class Text(BaseATMCMCTrace):
             return self.df.shape[0]
 
     def get_values(self, varname, burn=0, thin=1):
-        """Get values from trace.
+        """
+        Get values from trace.
 
         Parameters
         ----------
+
         varname : str
+            Variable name for which values are to be retrieved.
         burn : int
+            Burn-in samples from trace. This is the number of samples to be 
+            thrown out from the start of the trace
         thin : int
+            Nuber of thinning samples. Throw out every 'thin' sample of the
+            trace.
 
         Returns
         -------
-        A NumPy array
+
+        :class:`numpy.array`
         """
         self._load_df()
         var_df = self.df[self.flat_names[varname]]
@@ -243,8 +266,17 @@ class Text(BaseATMCMCTrace):
         return ndarray._slice_as_ndarray(self, idx)
 
     def point(self, idx):
-        """Return dictionary of point values at `idx` for current chain
-        with variables names as keys.
+        """
+        Get point of current chain with variables names as keys.
+
+        Parameters
+        ----------
+        idx : int
+            Index of the nth step of the chain
+
+        Returns
+        -------
+        dictionary of point values
         """
         idx = int(idx)
         self._load_df()
@@ -256,10 +288,25 @@ class Text(BaseATMCMCTrace):
 
 
 def check_multitrace(mtrace, draws, n_chains):
-    '''
+    """
     Check multitrace for incomplete sampling and return indexes from chains
     that need to be resampled.
-    '''
+
+    Parameters
+    ----------
+
+    mtrace : :class:`pymc3.backend.base.MultiTrace`
+        Mutlitrace object containing the sampling traces
+    draws : int
+        Number of steps (i.e. chain length for each Marcov Chain)
+    n_chains : int
+        Number of Marcov Chains
+
+    Returns
+    -------
+    list of indexes for chains that need to be resampled
+    """
+
     not_sampled_idx = []
 
     for chain in range(n_chains):
@@ -279,10 +326,12 @@ def check_multitrace(mtrace, draws, n_chains):
 
 
 def load(name, model=None):
-    """Load Text database.
+    """
+    Load Text database.
 
     Parameters
     ----------
+
     name : str
         Name of directory with files (one per chain)
     model : Model
@@ -290,7 +339,8 @@ def load(name, model=None):
 
     Returns
     -------
-    A MultiTrace instance
+
+    A :class:`pymc3.backend.base.MultiTrace` instance
     """
     files = glob(os.path.join(name, 'chain-*.csv'))
 
@@ -305,17 +355,20 @@ def load(name, model=None):
 
 
 def dump(name, trace, chains=None):
-    """Store values from NDArray trace as CSV files.
+    """
+    Store values from NDArray trace as CSV files.
 
     Parameters
     ----------
+
     name : str
         Name of directory to store CSV files in
-    trace : MultiTrace of NDArray traces
+    trace : :class:`pymc3.backend.base.MultiTrace` of NDArray traces
         Result of MCMC run with default NDArray backend
     chains : list
         Chains to dump. If None, all chains are dumped.
     """
+
     if not os.path.exists(name):
         os.mkdir(name)
     if chains is None:

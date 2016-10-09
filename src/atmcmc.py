@@ -1,10 +1,14 @@
-'''
+"""
+Adaptive Transitional Marcov Chain Monte Carlo sampler module.
+
+Runs on any pymc3 model.
+
 Created on March, 2016
 
 Various significant updates July, August 2016
 
 @author: Hannes Vasyura-Bathke
-'''
+"""
 
 import numpy as np
 import pymc3 as pm
@@ -26,19 +30,20 @@ from numpy.random import seed
 
 from beat import backend, utility, plotting
 
-__all__ = ['ATMCMC', 'ATMIP_sample']
+__all__ = ['ATMCMC', 'ATMIP_sample', 'logp_forw']
 
 logger = logging.getLogger('ATMCMC')
 
 
 class ATMCMC(backend.ArrayStepSharedLLK):
     """
-    Adaptive Transitional Markov-Chain Monte-Carlo
-    following: Ching & Chen 2007: Transitional Markov chain Monte Carlo method
-                for Bayesian model updating, model class selection and model
-                averaging
-                Journal of Engineering Mechanics 2007
-                DOI:10.1016/(ASCE)0733-9399(2007)133:7(816)
+    Adaptive Transitional Markov-Chain Monte-Carlo sampler class.
+    following:
+        Ching & Chen 2007: Transitional Markov chain Monte Carlo method
+        for Bayesian model updating, model class selection and model
+        averaging
+        Journal of Engineering Mechanics 2007
+        DOI:10.1016/(ASCE)0733-9399(2007)133:7(816)
     http://ascelibrary.org/doi/abs/10.1061/%28ASCE%290733-9399%282007%29133:7%28816%29
 
     Creates initial samples and framework around the (C)ATMIP parameters
@@ -50,28 +55,35 @@ class ATMCMC(backend.ArrayStepSharedLLK):
     out_vars : list
         List of output variables for trace recording. If empty unobserved_RVs
         are taken.
-    n_chains : (integer) Number of chains per stage has to be a large number
-               of number of n_jobs (processors to be used) on the machine.
-    covariance : (n_chains x n_chains) Numpy array
-                 Initial Covariance matrix for proposal distribution,
-                 if None - identity matrix taken
+    n_chains : int
+        Number of chains per stage has to be a large number
+        of number of n_jobs (processors to be used) on the machine.
+    scaling : float
+        Factor applied to the proposal distribution i.e. the step size of the
+        Markov Chain
+    covariance : :class:`numpy.array`
+        (n_chains x n_chains)
+        Initial Covariance matrix for proposal distribution,
+        if None - identity matrix taken
     likelihood_name : string
-                      name of the determinsitic variable that contains the
-                      model likelihood - defaults to 'like'
-    proposal_dist : pymc3 object
-                    Type of proposal distribution, see metropolis.py for
-                    options
+        name of the :class:`pymc3.determinsitic` variable that contains the
+        model likelihood - defaults to 'like'
+    proposal_dist :
+        :class:`pymc3.metropolis.Proposal`
+        Type of proposal distribution, see
+        :module:`pymc3.step_methods.metropolis` for options
+    tune : boolean
+        Flag for adaptive scaling based on the acceptance rate
     coef_variation : scalar, float
-                     Coefficient of variation, determines the change of beta
-                     from stage to stage, i.e.indirectly the number of stages,
-                     low coef_variation --> slow beta change,
-                                         results in many stages and vice verca
-                     (default: 1.)
+        Coefficient of variation, determines the change of beta
+        from stage to stage, i.e.indirectly the number of stages,
+        low coef_variation --> slow beta change,
+        results in many stages and vice verca (default: 1.)
     check_bound : boolean
-                  Check if current sample lies outside of variable definition
-                  speeds up computation as the forward model wont be executed
-                  default: True
-    model : PyMC Model
+        Check if current sample lies outside of variable definition
+        speeds up computation as the forward model wont be executed
+        default: True
+    model : :class:`pymc3.Model`
         Optional model for sampling step.
         Defaults to None (taken from context).
     """
@@ -231,9 +243,12 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         Returns
         -------
-        beta(m+1) : scalar float tempering parameter of the next stage
-        beta(m) : scalar float tempering parameter of the current stage
-        weights : NdArray of importance weights (floats)
+        beta(m+1) : scalar, float
+            tempering parameter of the next stage
+        beta(m) : scalar, float
+            tempering parameter of the current stage
+        weights : :class:`numpy.array`
+            Importance weights (floats)
         """
 
         low_beta = self.beta
@@ -260,8 +275,10 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         Returns
         -------
-        Ndarray of weighted covariances (NumPy > 1.10. required)
+        cov : :class:`numpy.array`
+            weighted covariances (NumPy > 1.10. required)
         """
+
         cov = np.cov(self.array_population,
                       aweights=self.weights.ravel(),
                       bias=False,
@@ -276,16 +293,20 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         """
         Read trace results (variables and model likelihood) and take end points
         for each chain and set as start population for the next stage.
-        Parameters
-        -------
 
-        mtrace : Multitrace pymc3 object
+        Parameters
+        ----------
+
+        mtrace : :class:`pymc3.backend.base.MultiTrace`
 
         Returns
         -------
-        population : List of pymc3.Point - objects,
-        array_population : Ndarray of trace end-points
-        likelihoods : Ndarray of likelihoods of the trace end-points
+        population : list
+            of :func:`pymc3.Point` dictionaries
+        array_population : :class:`numpy.array`
+            Array of trace end-points
+        likelihoods : :class:`numpy.array`
+            Array of likelihoods of the trace end-points
         """
 
         array_population = np.zeros((self.n_chains,
@@ -323,14 +344,14 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         previous chain result for comparison of metropolis select.
 
         Parameters
-        -------
+        ----------
 
-        mtrace : Multitrace pymc3 object
+        mtrace : :class:`pymc3.backend.base.MultiTrace`
 
         Returns
         -------
-        chain_previous_lpoint - list of all unobservedRV values, including
-                                dataset likelihoods
+        chain_previous_lpoint : list
+            all unobservedRV values, including dataset likelihoods
         """
 
         array_population = np.zeros((self.n_chains,
@@ -362,9 +383,15 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         return chain_previous_lpoint
 
     def mean_end_points(self):
-        '''
+        """
         Calculate mean of the end-points and return point.
-        '''
+
+        Returns
+        -------
+
+        Dictionary of trace variables
+        """
+
         return self.bij.rmap(self.array_population.mean(axis=0))
 
     def resample(self):
@@ -374,8 +401,11 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         Returns
         -------
-        outindex : Ndarray of resampled trace indexes
+
+        outindex : :class:`numpy.array`
+            Array of resampled trace indexes
         """
+
         parents = np.array(range(self.n_chains))
         N_childs = np.zeros(self.n_chains, dtype=int)
 
@@ -408,13 +438,16 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                   plot_flag=True):
     """
     (C)ATMIP sampling algorithm from Minson et al. 2013:
-    Bayesian inversion for finite fault earthquake source models I-
-        Theory and algorithm
-    (without cascading- C)
+    Bayesian inversion for finite fault earthquake source models
+    I- Theory and algorithm
     https://gji.oxfordjournals.org/content/194/3/1701.full
+
+    (Cascading - (C) not always relevant)
+
     Samples the solution space with n_chains of Metropolis chains, where each
     chain has n_steps iterations. Once finished, the sampled traces are
     evaluated:
+
     (1) Based on the likelihoods of the final samples, chains are weighted
     (2) the weighted covariance of the ensemble is calculated and set as new
         proposal distribution
@@ -429,15 +462,12 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
     n_steps : int
         The number of samples to draw for each Markov-chain per stage
-    step : function from TMCMC initialisation
-    start : List of dicts with length(n_chains)
+    step : :class:`ATMCMC`
+        ATMCMC initialisation object
+    start : List of dictionaries
+        with length of (n_chains)
         Starting points in parameter space (or partial point)
         Defaults to random draws from variables (defaults to empty dict)
-    trace : backend
-        This should be a backend instance.
-        Passing either "text" or "sqlite" is taken as a shortcut to set
-        up the corresponding backend (with "mcmc" used as the base
-        name).
     chain : int
         Chain number used to store sample in backend. If `n_jobs` is
         greater than one, chain numbers will start here.
@@ -452,23 +482,22 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
         step.n_chains / n_jobs has to be an integer number!
     tune : int
         Number of iterations to tune, if applicable (defaults to None)
-    trace : result_folder for storing stages, will be created if not existing
+    trace : string
+        Result_folder for storing stages, will be created if not existing.
     progressbar : bool
-        Flag for progress bar
-    model : Model (optional if in `with` context) has to contain deterministic
-            variable 'name defined under step.likelihood_name' that contains
-            model likelihood
-    update : :py:class:`Project` contains all data and
-             covariances to be updated each transition step
+        Flag for displaying a progress bar
+    model : :class:`pymc3.Model`
+        (optional if in `with` context) has to contain deterministic
+        variable name defined under step.likelihood_name' that contains the
+        model likelihood
+    update : :py:class:`beat.models.Problem`
+        Problem object that contains all the observed data and (if applicable)
+        covariances to be updated each transition step.
     random_seed : int or list of ints
-        A list is accepted if more if `n_jobs` is greater than one.
+        A list is accepted, more if `n_jobs` is greater than one.
     rm_flag : bool
         If True existing stage result folders are being deleted prior to
         sampling.
-
-    Returns
-    -------
-    MultiTrace object with access to sampling values
     """
 
     model = pm.modelcontext(model)
@@ -655,36 +684,6 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                 mtrace, n_steps=draws, output='png', outpath=outpath)
 
 
-def _iter_initial(step, chain=0, strace=None, model=None):
-    """
-    Modified from pymc3 to work with ATMCMC.
-    Yields generator for Iteration over initial stage similar to
-    _iter_sample, just different input to loop over.
-    """
-
-    # check if trace file already exists before setup
-    filename = os.path.join(strace.name, 'chain-{}.csv'.format(chain))
-    if os.path.exists(filename):
-        strace.setup(step.n_chains, chain=0)
-        l_tr = len(strace)
-    else:
-        strace.setup(step.n_chains, chain=0)
-        l_tr = 0
-
-    if l_tr == step.n_chains:
-        # only return strace
-        for i in range(1):
-            print('Using results of previous run!')
-            yield strace
-    else:
-        for i in range(l_tr, step.n_chains):
-            _, out_list = step.step(step.population[i])
-            strace.record(out_list)
-            yield strace
-        else:
-            strace.close()
-
-
 def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
             progressbar=True, model=None, random_seed=None):
 
@@ -707,8 +706,8 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
 def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
                  model=None, random_seed=None):
     '''
-    Modified from pymc3.sampling._iter_sample until they make
-    _choose_backends more flexible.
+    Modified from :func:`pymc3.sampling._iter_sample` to be more efficient with
+    the ATMCMC algorithm.
     '''
 
     model = modelcontext(model)
@@ -740,6 +739,21 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
 
 
 def work_chain(work, pshared=None):
+    """
+    Wrapper function for parallel execution of _sample i.e. the Markov Chains.
+
+    Parameters
+    ----------
+    work : List
+        Containing all the information that is unique for each Markov Chain
+        i.e. [:class:'ATMCMC', chain_number(int),
+        sampling index(int), start_point(dictionary)]
+
+    Returns
+    -------
+    chain : int
+        Index of chain that has been sampled
+    """
 
     if pshared is not None:
         draws = pshared['draws']
@@ -761,6 +775,7 @@ def _iter_serial_chains(draws, step=None, stage_path=None,
     """
     Do Metropolis sampling over all the chains with each chain being
     sampled 'draws' times. Serial execution one after another.
+    Deprecated function- maybe worth to revive at some point.
     """
     mtraces = []
     progress = pm.progressbar.progress_bar(step.n_chains)
@@ -787,6 +802,7 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
     Do Metropolis sampling over all the chains with each chain being
     sampled 'draws' times. Parallel execution according to n_jobs.
     """
+
     if chains is None:
         chains = list(range(step.n_chains))
         idxs = chains
@@ -835,10 +851,11 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
 def tune(acc_rate):
     """
     Tune adaptively based on the acceptance rate.
+
     Parameters
     ----------
-    acc_rate: scalar float
-              Acceptance rate of the Metropolis sampling
+    acc_rate: scalar, float
+        Acceptance rate of the Metropolis sampling
 
     Returns
     -------
@@ -852,6 +869,18 @@ def tune(acc_rate):
 
 
 def logp_forw(out_vars, vars, shared):
+    """
+    Compile Theano function of the model and the input and output variables.
+
+    Parameters
+    ----------
+    out_vars : List
+        containing :class:`pymc3.Distribution` for the output variables
+    vars : List
+        containing :class:`pymc3.Distribution` for the input variables
+    shared : List
+        containing :class:`theano.tensor.Tensor` for dependend shared data
+    """
     out_list, inarray0 = join_nonshared_inputs(out_vars, vars, shared)
     f = theano.function([inarray0], out_list)
     f.trust_input = True

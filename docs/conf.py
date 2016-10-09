@@ -35,6 +35,7 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
+    'numpydoc'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -339,4 +340,10 @@ texinfo_documents = [
 
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'https://docs.python.org/': None}
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/', None),
+    'numpy': ('http://docs.scipy.org/doc/numpy/', None),
+    'pymc3': ('http://pymc-devs.github.io/pymc3/', None),
+    'pyrocko': ('http://pyrocko.org/v0.3/', None),
+    'theano': ('http://deeplearning.net/software/theano/', None)
+}
