@@ -1,3 +1,8 @@
+"""
+Core module with functions to calculate Greens Functions and synthetics.
+Also contains main classes for setup specific parameters.
+"""
+
 import os
 import logging
 import shutil
@@ -36,7 +41,10 @@ lambda_sensors = {
 
 
 class PickleableTrace(trace.Trace):
-
+    """
+    Class build on top of :class:`pyrocko.trace.Trace` to make them pickleable.
+    Obsolete as this has been implemented in pyrocko.
+    """
     def __reduce__(self):
         pickled_state = super(PickleableTrace, self).__reduce__()
         if self.ydata is not None:
@@ -69,6 +77,21 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
 
     @staticmethod
     def dipvector(dip, strike):
+        """
+        Calculate 3 dimensional dip-vector of a planar fault.
+
+        Parameters
+        ----------
+        dip : scalar, float
+            dip-angle [deg] of the fault
+        strike : scalar, float
+            strike-abgle [deg] of the fault
+
+        Returns
+        -------
+        :class:`numpy.array`
+        """
+
         return num.array(
                 [num.cos(dip * d2r) * num.cos(strike * d2r),
                  -num.cos(dip * d2r) * num.sin(strike * d2r),
@@ -76,6 +99,19 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
 
     @staticmethod
     def strikevector(strike):
+        """
+        Calculate 3 dimensional strike-vector of a planar fault.
+
+        Parameters
+        ----------
+        strike : scalar, float
+            strike-abgle [deg] of the fault
+
+        Returns
+        -------
+        :class:`numpy.array`
+        """
+
         return num.array([num.sin(strike * d2r),
                           num.cos(strike * d2r),
                           0.])
@@ -83,16 +119,46 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
     @staticmethod
     def center(top_depth, width, dipvector):
         """
-        Get fault center coordinates. If input depth referrs to top_depth.
+        Get 3d fault center coordinates.
+
+        Parameters
+        ----------
+        top_depth : scalar, float
+            central, top depth [m] of the upper edge of the fault
+        width : scalar, float
+            width [m] of the fault (dip-direction)
+        dipvector : :class:`numpy.array`
+            3d dip-vector of the fault, see also dipvector method
+
+        Returns
+        -------
+        :class:`numpy.array` with x, y, z coordinates of the center of the
+        fault
         """
+
         return num.array([0., 0., top_depth]) + 0.5 * width * dipvector
 
     @staticmethod
     def top_depth(depth, width, dipvector):
         """
-        Get top depth of the fault. If input depth referrs to center
-        coordinates. (Patches Function needs input depth to be top_depth.)
+        Get top depth of the fault [m]. (Patches method needs input depth to
+        be top_depth.)
+
+        Parameters
+        ----------
+        depth : scalar, float
+            depth [m] of the center of the fault
+        width : scalar, float
+            width [m] of the fault (dip-direction)
+        dipvector : :class:`numpy.array`
+            3d dip-vector of the fault, see also dipvector method
+
+        Returns
+        -------
+        :class:`numpy.array` with x, y, z coordinates of the upper edge of the
+        fault
         """
+
         return num.array([0., 0., depth]) - 0.5 * width * dipvector
 
     def patches(self, n, m, datatype):
@@ -285,6 +351,10 @@ class Covariance(Object):
 
 
 class TeleseismicTarget(gf.Target):
+    """
+    Extension to :class:`pyrocko.gf.Target` to have :class:`Covariance` as an
+    attribute.
+    """
 
     covariance = Covariance.T(
         default=Covariance.D(),
@@ -312,6 +382,7 @@ class Filter(Object):
     """
     Filter object defining frequency range of traces after filtering
     """
+
     lower_corner = Float.T(
         default=0.001,
         help='Lower corner frequency')
@@ -327,6 +398,7 @@ class Parameter(Object):
     """
     Optimization parameter object determines the bounds of the search space.
     """
+
     name = String.T(default='lon')
     form = String.T(default='Uniform',
                     help='Type of prior distribution to use. Options:'
@@ -363,8 +435,9 @@ class Parameter(Object):
 
 class IFG(Object):
     """
-    Interferogram class as a dataset in the inversion.
+    Interferogram class as a dataset in the optimization.
     """
+
     track = String.T(default='A')
     master = String.T(optional=True,
                       help='Acquisition time of master image YYYY-MM-DD')
@@ -394,8 +467,9 @@ class IFG(Object):
 
     def update_los_vector(self):
         """
-        Calculate LOS vector for given incidence and heading angles.
+        Calculate LOS vector for given attributes incidence and heading angles.
         """
+
         if self.incidence.all() and self.heading.all() is None:
             Exception('Incidence and Heading need to be provided!')
 
@@ -411,8 +485,9 @@ class IFG(Object):
 class DiffIFG(IFG):
     """
     Differential Interferogram class as geodetic target for the calculation
-    of synthetics.
+    of synthetics and container for SAR data.
     """
+
     unwrapped_phase = Array.T(shape=(None,), dtype=num.float, optional=True)
     coherence = Array.T(shape=(None,), dtype=num.float, optional=True)
     reference_point = Tuple.T(2, Float.T(), optional=True)
@@ -438,6 +513,7 @@ class DiffIFG(IFG):
         point_size : int
             determines the size of the scatter plot points
         """
+
         #colim = num.max([disp.max(), num.abs(disp.min())])
         ax = plt.axes()
         im = ax.scatter(self.lons, self.lats, point_size, self.displacement,
@@ -452,6 +528,27 @@ def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0,
     """
     Initiate a list of target objects given a list of indexes to the
     respective GF store velocity model variation index (crust_inds).
+
+    Parameters
+    ----------
+    stations : List of :class:`pyrocko.model.Station`
+        List of station objects for which the targets are being initialised
+    channels : List of str
+        Components of the traces to be optimized for if rotated:
+        T - transversal, Z - vertical, R - radial
+        If not rotated:
+        E - East, N- North, U - Up (Vertical)
+    sample_rate : scalar, float
+        sample rate [Hz] of the Greens Functions to use
+    crust_inds : List of int
+        Indexes of different velocity model realisations, 0 - reference model
+    interpolation : str
+        Method of interpolation for the Greens Functions, can be 'multilinear'
+        or 'nearest_neighbor'
+
+    Returns
+    -------
+    List of :class:`pyrocko.gf.seismosizer.Target`
     """
 
     targets = [TeleseismicTarget(
@@ -476,19 +573,32 @@ def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0,
 
 def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
         depth_limit_variation=600 * km):
-    '''
-    Vary depth and velocities in the given source model by Gaussians with given
-    2-sigma errors [percent]. Ensures increasing velocity with depth. Stops at
-    the given depth_limit_variation [m].
-    Mantle discontinuity uncertainties are hardcoded.
+    """
+    Vary depths and velocities in the given source model by Gaussians with
+    given 2-sigma errors [percent]. Ensures increasing velocity with depth.
+    Stops variating the input model at the given depth_limit_variation [m].
+    Mantle discontinuity uncertainties are hardcoded based on
+    Mooney et al. 1981 and Woodward et al.1991
 
-    Returns:
+    Parameters
+    ----------
+    earthmod : :class:`pyrocko.cake.LayeredModel`
+        Earthmodel defining layers, depth, velocities, densities
+    err_depth : scalar, float
+        2 sigma error in percent of the depth for the respective layers
+    err_velocities : scalar, float
+        2 sigma error in percent of the velocities for the respective layers
+    depth_limit_variations : scalar, float
+        depth threshold [m], layers with depth > than this are not varied
 
-    Varied Earthmodel
-    Cost - Counts repetitions of cycles to ensure increasing layer velocity,
-    if high - unlikely velocities are too high
-    cost up to 10 are ok for crustal profiles.
-    '''
+    Returns
+    -------
+    Varied Earthmodel : :class:`pyrocko.cake.LayeredModel`
+    Cost : int
+        Counts repetitions of cycles to ensure increasing layer velocity,
+        unlikely velocities have high Cost
+        Cost of up to 20 are ok for crustal profiles.
+    """
 
     new_earthmod = copy.deepcopy(earthmod)
     layers = new_earthmod.layers()
@@ -594,12 +704,28 @@ def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
 
 def ensemble_earthmodel(ref_earthmod, num_vary=10, err_depth=0.1,
                         err_velocities=0.1, depth_limit_variation=600 * km):
-    '''
-    Create ensemble of earthmodels (num_vary) that vary around a given input
-    pyrocko cake earth model by a Gaussian of std_depth (in Percent 0.1 = 10%)
-    for the depth layers and std_velocities (in Percent) for the p and s wave
-    velocities.
-    '''
+    """
+    Create ensemble of earthmodels that vary around a given input earth model
+    by a Gaussian of 2 sigma (in Percent 0.1 = 10%) for the depth layers
+    and for the p and s wave velocities. Vp / Vs is kept unchanged
+
+    Parameters
+    ----------
+    ref_earthmod : :class:`pyrocko.cake.LayeredModel`
+        Reference earthmodel defining layers, depth, velocities, densities
+    num_vary : scalar, int
+        Number of variation realisations
+    err_depth : scalar, float
+        2 sigma error in percent of the depth for the respective layers
+    err_velocities : scalar, float
+        2 sigma error in percent of the velocities for the respective layers
+    depth_limit_variations : scalar, float
+        depth threshold [m], layers with depth > than this are not varied
+
+    Returns
+    -------
+    List of Varied Earthmodels :class:`pyrocko.cake.LayeredModel`
+    """
 
     earthmods = []
     i = 0
@@ -626,9 +752,10 @@ def seis_construct_gf(station, event, store_superdir, code='qssp',
         earth_model='ak135-f-average.m', crust_ind=0,
         execute=False, rm_gfs=True, nworkers=1, use_crust2=True,
         replace_water=True, custom_velocity_model=None, force=False):
-    '''Create a GF store for a station with respect to an event for a given
-       Phase [P or S] and a distance range(min, max)[km] around the event.'''
-
+    """
+    Create a GF store for a station with respect to an event for a given
+    Phase [P or S] and a distance range(min, max)[km] around the event.
+    """
     # calculate distance to station [m]
     distance = orthodrome.distance_accurate50m(event, station)
     logger.info('Station %s' % station.station)
@@ -836,12 +963,13 @@ def geo_construct_gf(
         earth_model='ak135-f-average.m', crust_ind=0,
         replace_water=True, use_crust2=True, custom_velocity_model=None,
         execute=True, force=False):
-    '''
+    """
     Given a :py:class:`Event` the crustal model :py:class:`cake.LayeredModel`
     from :py:class:`cake.Crust2Profile` at the event location is extracted and
     the geodetic greens functions are calculated with the given grid
     resolution.
-    '''
+    """
+
     c = psgrn.PsGrnConfigFull()
 
     n_steps_depth = (source_depth_max - source_depth_min) / \
@@ -926,15 +1054,30 @@ def geo_construct_gf(
 
 def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
                          keep_tmp=False):
-    '''
-    Input :
-    Greensfunction store path, index of potentialy varied model store
-    List of observation points Latitude and Longitude,
-    List of rectangular fault sources.
+    """
+    Calculate synthetic displacements for a given Greens Function database
+    sources and observation points on the earths surface.
 
-    Output :
-    NumpyArray(nobservations; ux, uy, uz)
-    '''
+    Parameters
+    ----------
+    store_superdir : str
+        main path to directory containing the different Greensfunction stores
+    crust_ind : int
+        index of Greens Function store to use
+    lons : List of floats
+        Longitudes [decimal deg] of observation points
+    lats : List of floats
+        Latitudes [decimal deg] of observation points
+    sources : List of :class:`pscmp.PsCmpRectangularSource`
+        Sources i.e. faults to calculate synthetics for
+    keep_tmp : boolean
+        Flag to keep directories (in '/tmp') where calculated synthetics are
+        stored.
+
+    Returns
+    -------
+    :class:`numpy.array` (n_observations; ux, uy, uz)
+    """
 
     c = pscmp.PsCmpConfigFull()
     c.observation = pscmp.PsCmpScatter(lats=lats, lons=lons)
@@ -952,11 +1095,25 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
 
 
 def get_phase_arrival_time(engine, source, target):
-    '''
-    Get arrival time from store for respective :py:class:`target`
-    and :py:class:`source/event` pair. The channel of target determines
-    if S or P wave.
-    '''
+    """
+    Get arrival time from Greens Function store for respective
+    :class:`pyrocko.gf.seismosizer.Target`,
+    :class:`pyrocko.gf.meta.Location` pair. The channel of the target
+    determines if S or P wave arrival time is returned.
+
+    Parameters
+    ----------
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+    source : :class:`pyrocko.gf.meta.Location`
+        can be therefore :class:`pyrocko.gf.seismosizer.Source` or
+        :class:`pyrocko.model.Event`
+    target : :class:`pyrocko.gf.seismosizer.Target`
+
+    Returns
+    -------
+    scalar, float of the arrival time of the wave
+    """
+
     store = engine.get_store(target.store_id)
     dist = target.distance_to(source)
     depth = source.depth
@@ -973,9 +1130,23 @@ def get_phase_arrival_time(engine, source, target):
 def get_phase_taperer(engine, source, target, arrival_taper):
     """
     Create phase taperer according to synthetic travel times from
-    source- target pair and taper return :py:class:`CosTaper`
+    source- target pair and taper return :class:`pyrocko.trace.CosTaper`
     according to defined arrival_taper times.
+
+    Parameters
+    ----------
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+    source : :class:`pyrocko.gf.meta.Location`
+        can be therefore :class:`pyrocko.gf.seismosizer.Source` or
+        :class:`pyrocko.model.Event`
+    target : :class:`pyrocko.gf.seismosizer.Target`
+    arrival_taper : :class:`ArrivalTaper`
+
+    Returns
+    -------
+    :class:`pyrocko.trace.CosTaper`
     """
+
     arrival_time = get_phase_arrival_time(engine, source, target)
 
     taperer = trace.CosTaper(arrival_time + arrival_taper.a,
@@ -996,11 +1167,11 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
     Parameters
     ----------
-    engine : :class:`pyrocko.gf.LocalEngine`
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
     sources : List
-        containing :class:`pyrocko.gf.Source` Objects
+        containing :class:`pyrocko.gf.seismosizer.Source` Objects
     targets : List
-        containing :class:`pyrocko.gf.Target` Objects
+        containing :class:`pyrocko.gf.seismosizer.Target` Objects
     arrival_taper : :class:`ArrivalTaper`
     filterer : :class:`Filterer`
     reference_taperer : :class:`ArrivalTaper`
@@ -1017,7 +1188,6 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     -------
     :class:`numpy.Array` or List of :class:`pyrocko.trace.Trace`
          with data each row-one target
-
     """
 
     response = engine.process(sources=sources,

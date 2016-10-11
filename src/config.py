@@ -1,3 +1,11 @@
+"""
+The config module contains the classes to build the configuration files that
+are being read by the beat executable.
+
+So far there are configuration files for the three main optimization problems
+implemented. Solving the fault geometry, the static distributed slip and the
+kinematic distributed slip.
+"""
 import logging
 import os
 
@@ -60,9 +68,9 @@ km = 1000.
 
 
 class GFConfig(Object):
-    '''
+    """
     Config for GreensFunction calculation parameters.
-    '''
+    """
     store_superdir = String.T(default='./')
     earth_model = String.T(default='ak135-f-average.m',
                            help='Name of the reference earthmodel, see '
@@ -96,9 +104,9 @@ class GFConfig(Object):
 
 
 class SeismicGFConfig(GFConfig):
-    '''
+    """
     Seismic GF parameters for Layered Halfspace.
-    '''
+    """
     code = String.T(default='qssp',
                   help='Modeling code to use. (qssp, qseis, comming soon: '
                        'qseis2d)')
@@ -120,9 +128,9 @@ class SeismicGFConfig(GFConfig):
 
 
 class GeodeticGFConfig(GFConfig):
-    '''
+    """
     Geodetic GF parameters for Layered Halfspace.
-    '''
+    """
     code = String.T(default='psgrn',
                     help='Modeling code to use. (psgrn, ... others need to be'
                          'implemented!)')
@@ -142,9 +150,9 @@ class GeodeticGFConfig(GFConfig):
 
 
 class SeismicConfig(Object):
-    '''
-    Config for teleseismic setup related parameters.
-    '''
+    """
+    Config for seismic data optimization related parameters.
+    """
 
     datadir = String.T(default='./')
     blacklist = List.T(String.T(),
@@ -162,20 +170,20 @@ class SeismicConfig(Object):
 
 
 class GeodeticConfig(Object):
-    '''
-    Config for geodetic setup related parameters.
-    '''
+    """
+    Config for geodetic data optimization related parameters.
+    """
 
     datadir = String.T(default='./')
-    tracks = List.T(String.T(), default=['Data filenames here ...'])
+    tracks = List.T(String.T(), default=['Data prefix filenames here ...'])
     targets = List.T(optional=True)
     gf_config = GeodeticGFConfig.T(default=GeodeticGFConfig.D())
 
 
 class ProblemConfig(Object):
-    '''
+    """
     Config for inversion problem to setup.
-    '''
+    """
     mode = String.T(default='geometry',
                     help='Problem to solve: "Geometry", "Static","Kinematic"')
     n_faults = Int.T(default=1,
@@ -230,9 +238,9 @@ class ProblemConfig(Object):
                                         )
 
     def validate_priors(self):
-        '''
+        """
         Check if priors and their test values do not contradict!
-        '''
+        """
         for param in self.priors:
             param()
 
@@ -247,9 +255,9 @@ class SamplerParameters(Object):
 
 
 class MetropolisConfig(SamplerParameters):
-    '''
-    Config for optimization parameters for the adaptive Metropolis algorithm.
-    '''
+    """
+    Config for optimization parameters of the Adaptive Metropolis algorithm.
+    """
     n_steps = Int.T(default=10000,
                     help='Number of steps for the MC chain.')
     tune_interval = Int.T(
@@ -262,9 +270,9 @@ class MetropolisConfig(SamplerParameters):
 
 
 class ATMCMCConfig(SamplerParameters):
-    '''
-    Config for optimization parameters for the ATMCMC algorithm.
-    '''
+    """
+    Config for optimization parameters of the ATMCMC algorithm.
+    """
     n_chains = Int.T(default=1000,
                      help='Number of Metropolis chains for sampling.')
     n_steps = Int.T(default=100,
@@ -303,9 +311,9 @@ class ATMCMCConfig(SamplerParameters):
 
 
 class SamplerConfig(Object):
-    '''
-    Contains the sampler specific parameters.
-    '''
+    """
+    Config for the sampler specific parameters.
+    """
 
     name = String.T(default='ATMCMC',
                     help='Sampler to use for sampling the solution space.'
@@ -329,11 +337,11 @@ class SamplerConfig(Object):
 
 
 class BEATconfig(Object):
-    '''
-    BEATconfig class is the overarching class, providing all the configurations
-    for seismic data and geodetic data being used. Define directory structure
-    here for Greens functions geodetic and seismic.
-    '''
+    """
+    BEATconfig is the overarching configuration class, providing all the
+    sub-configurations classes for the problem setup, Greens Function
+    generation, optimization algorithm and the data being used.
+    """
 
     name = String.T()
     date = String.T()
@@ -352,14 +360,35 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
                 datasets=['geodetic'],
                 mode='geometry', n_faults=1,
                 sampler='ATMCMC', use_custom=False):
-    '''
-    Initialise BEATconfig File and write it to main_path/name+year/ .
+    """
+    Initialise BEATconfig File and write it main_path/name .
     Fine parameters have to be edited in the config file .yaml manually.
-    Input:
-    name - Str - Name of the event
-    date - Str - 'YYYY-MM-DD', date of the event
-    min_magnitude - approximate minimum Mw of the event
-    '''
+
+    Parameters
+    ----------
+    name : str
+        Name of the event
+    date : str
+        'YYYY-MM-DD', date of the event
+    min_magnitude : scalar, float
+        approximate minimum Mw of the event
+    datasets : List of strings
+        data sets to include in the optimization: either 'geodetic' and/or
+        'seismic'
+    mode : str
+        type of optimization problem: 'Geometry' / 'Static'/ 'Kinematic'
+    n_faults : int
+        number of faults to solve for / discretize depending on mode parameter
+    sampler : str
+        Optimization algorithm to use to sample the solution space
+        Options: 'ATMCMC', 'Metropolis'
+    use_custom : boolean
+        Flag to setup manually a custom velocity model.
+
+    Returns
+    -------
+    :class:`BEATconfig`
+    """
 
     c = BEATconfig(name=name, date=date)
 
@@ -411,6 +440,20 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
 
 
 def load_config(project_dir, mode):
+    """
+    Load configuration file.
+
+    Parameters
+    ----------
+    project_dir : str
+        path to the directory of the configuration file
+    mode : str
+        type of optimization problem: 'Geometry' / 'Static'/ 'Kinematic'
+
+    Returns
+    -------
+    :class:`BEATconfig`
+    """
     config_file_name = 'config_' + mode + '.yaml'
 
     config_fn = os.path.join(project_dir, config_file_name)

@@ -1,10 +1,10 @@
-'''
+"""
 Package for wrapping various functions into Theano-Ops to be able to include
 them into theano graphs as is needed by the pymc3 models.
 Far future:
     include a 'def grad:' -method to each Op in order to enable the use of
     gradient based optimization algorithms
-'''
+"""
 from beat import heart, utility, config
 
 import theano.tensor as tt
