@@ -92,19 +92,23 @@ def plot_misfits(problem, posterior='mean', dataset='geodetic'):
 
 
 def stage_posteriors(mtrace, n_steps, output='display',
-                        outpath='./stage_posterior.png', lines=None):
+            outpath='./stage_posterior.png', lines=None, style='lines'):
     '''
     Plot variable posteriors from certain stage of the ATMIP algorithm.
     n_steps of chains to select last samples of each trace.
     lines - a point to draw vertical lines for
     '''
     def last_sample(x):
-        return x[(n_steps - 1)::n_steps]
+        return x[(n_steps - 1)::n_steps].flatten()
 
-    PLT = pm.plots.traceplot(mtrace, transform=last_sample, combined=True,
-        lines=lines)
+    if style=='lines' or lines is not None:
+        PLT = pm.plots.traceplot(mtrace, transform=last_sample, combined=True,
+            lines=lines)
+    else:
+        PLT = pm.plot_posterior(mtrace, transform=last_sample)
+
     if output == 'display':
-        plt.show(PLT[0][0])
+        plt.show(PLT)
     elif output == 'png':
         plt.savefig(outpath, dpi=300)
 

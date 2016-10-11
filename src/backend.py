@@ -164,11 +164,11 @@ class Text(BaseATMCMCTrace):
     ## Sampling methods
 
     def setup(self, draws, chain):
-        """Perform chain-specific setup.
+        """
+        Perform chain-specific setup.
 
         Parameters
         ----------
-
         draws : int
             Expected number of draws
         chain : int
@@ -192,7 +192,6 @@ class Text(BaseATMCMCTrace):
 
         Parameters
         ----------
-
         lpoint : List of variable values
             Values mapped to variable names
         """
@@ -239,7 +238,6 @@ class Text(BaseATMCMCTrace):
 
         Parameters
         ----------
-
         varname : str
             Variable name for which values are to be retrieved.
         burn : int
@@ -294,7 +292,6 @@ def check_multitrace(mtrace, draws, n_chains):
 
     Parameters
     ----------
-
     mtrace : :class:`pymc3.backend.base.MultiTrace`
         Mutlitrace object containing the sampling traces
     draws : int
@@ -312,6 +309,7 @@ def check_multitrace(mtrace, draws, n_chains):
     for chain in range(n_chains):
         if chain in mtrace.chains:
             if len(mtrace._straces[chain]) != draws:
+                logger.warn('Trace number %i incomplete' % chain)
                 mtrace._straces[chain].corrupted_flag = True
 
         else:
@@ -331,7 +329,6 @@ def load(name, model=None):
 
     Parameters
     ----------
-
     name : str
         Name of directory with files (one per chain)
     model : Model
@@ -360,7 +357,6 @@ def dump(name, trace, chains=None):
 
     Parameters
     ----------
-
     name : str
         Name of directory to store CSV files in
     trace : :class:`pymc3.backend.base.MultiTrace` of NDArray traces
