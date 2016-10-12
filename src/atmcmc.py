@@ -61,7 +61,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
     scaling : float
         Factor applied to the proposal distribution i.e. the step size of the
         Markov Chain
-    covariance : :class:`numpy.array`
+    covariance : :class:`numpy.ndarray`
         (n_chains x n_chains)
         Initial Covariance matrix for proposal distribution,
         if None - identity matrix taken
@@ -247,7 +247,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
             tempering parameter of the next stage
         beta(m) : scalar, float
             tempering parameter of the current stage
-        weights : :class:`numpy.array`
+        weights : :class:`numpy.ndarray`
             Importance weights (floats)
         """
 
@@ -275,7 +275,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         Returns
         -------
-        cov : :class:`numpy.array`
+        cov : :class:`numpy.ndarray`
             weighted covariances (NumPy > 1.10. required)
         """
 
@@ -302,9 +302,9 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         -------
         population : list
             of :func:`pymc3.Point` dictionaries
-        array_population : :class:`numpy.array`
+        array_population : :class:`numpy.ndarray`
             Array of trace end-points
-        likelihoods : :class:`numpy.array`
+        likelihoods : :class:`numpy.ndarray`
             Array of likelihoods of the trace end-points
         """
 
@@ -398,7 +398,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         Returns
         -------
-        outindex : :class:`numpy.array`
+        outindex : :class:`numpy.ndarray`
             Array of resampled trace indexes
         """
 

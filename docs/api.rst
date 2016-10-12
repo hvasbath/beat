@@ -6,6 +6,13 @@ The :mod:`heart` Module
    :members:
 
 
+The :mod:`config` Module
+=======================
+
+.. automodule:: config
+   :members:
+
+
 The :mod:`atmcmc` Module
 ========================
 

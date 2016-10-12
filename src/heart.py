@@ -89,7 +89,7 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
 
         Returns
         -------
-        :class:`numpy.array`
+        :class:`numpy.ndarray`
         """
 
         return num.array(
@@ -109,7 +109,7 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
 
         Returns
         -------
-        :class:`numpy.array`
+        :class:`numpy.ndarray`
         """
 
         return num.array([num.sin(strike * d2r),
@@ -127,12 +127,12 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
             central, top depth [m] of the upper edge of the fault
         width : scalar, float
             width [m] of the fault (dip-direction)
-        dipvector : :class:`numpy.array`
+        dipvector : :class:`numpy.ndarray`
             3d dip-vector of the fault, see also dipvector method
 
         Returns
         -------
-        :class:`numpy.array` with x, y, z coordinates of the center of the
+        :class:`numpy.ndarray` with x, y, z coordinates of the center of the
         fault
         """
 
@@ -150,12 +150,12 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
             depth [m] of the center of the fault
         width : scalar, float
             width [m] of the fault (dip-direction)
-        dipvector : :class:`numpy.array`
+        dipvector : :class:`numpy.ndarray`
             3d dip-vector of the fault, see also dipvector method
 
         Returns
         -------
-        :class:`numpy.array` with x, y, z coordinates of the upper edge of the
+        :class:`numpy.ndarray` with x, y, z coordinates of the upper edge of the
         fault
         """
 
@@ -178,8 +178,8 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
 
         Returns
         -------
-        :class:`pscmp.RectangularSource` or
-        :class:`pyrocko.gf.RectangularSource` depending on datatype
+        :class:`pscmp.PsCmpRectangularSource` or
+        :class:`pyrocko.gf.seismosizer.RectangularSource` depending on datatype
         depth is being updated from top_depth to center_depth.
         """
 
@@ -232,8 +232,8 @@ def adjust_fault_reference(source, input_depth='top'):
 
     Parameters
     ----------
-    source : :class:`RectangularSource` or :class:`pyrocko.RectangularSource`
-        or :class:`pscmp.RectangularSource`
+    source : :class:`RectangularSource` or :class:`pscmp.RectangularSource` or
+        :class:`pyrocko.gf.seismosizer.RectangularSource`
     input_depth : string
         if 'top' the depth in the source is interpreted as top depth
         if 'center' the depth in the source is interpreted as center depth
@@ -266,7 +266,7 @@ def log_determinant(A, inverse=False):
 
     Parameters
     ----------
-    A : n x n :class:`numpy.Array`
+    A : n x n :class:`numpy.ndarray`
     inverse : boolean
         If true calculates the log determinant of the inverse of the colesky
         decomposition, which is equvalent to taking the determinant of the
@@ -352,8 +352,8 @@ class Covariance(Object):
 
 class TeleseismicTarget(gf.Target):
     """
-    Extension to :class:`pyrocko.gf.Target` to have :class:`Covariance` as an
-    attribute.
+    Extension to :class:`pyrocko.gf.seismpsizer.Target` to have 
+    :class:`Covariance` as an attribute.
     """
 
     covariance = Covariance.T(
@@ -396,7 +396,7 @@ class Filter(Object):
 
 class Parameter(Object):
     """
-    Optimization parameter object determines the bounds of the search space.
+    Optimization parameter determines the bounds of the search space.
     """
 
     name = String.T(default='lon')
@@ -468,6 +468,10 @@ class IFG(Object):
     def update_los_vector(self):
         """
         Calculate LOS vector for given attributes incidence and heading angles.
+
+        Returns
+        -------
+        :class:`numpy.ndarray` (n_points, 3)
         """
 
         if self.incidence.all() and self.heading.all() is None:
@@ -753,9 +757,69 @@ def seis_construct_gf(station, event, store_superdir, code='qssp',
         execute=False, rm_gfs=True, nworkers=1, use_crust2=True,
         replace_water=True, custom_velocity_model=None, force=False):
     """
-    Create a GF store for a station with respect to an event for a given
-    Phase [P or S] and a distance range(min, max)[km] around the event.
+    Calculate seismic Greens Functions (GFs) and create a repository 'store'
+    that is being used later on repeatetly to calculate the synthetic
+    waveforms.
+
+    Parameters
+    ----------
+    station : :class:`pyrocko.model.Station`
+        Station object that defines the distance from the event for which the
+        GFs are being calculated
+    event : :class:`pyrocko.model.Event`
+        The event is used as a reference point for all the calculations
+        According to the its location the earth model is being built
+    store_superdir : str
+        Path to the main directory where all the GF stores are stored
+    code : str
+        Modeling code to use for the calculation of waveforms.
+        implemented so far: `qseis`, `qssp`, coming soon `qseis2d`
+        QSSP does calculations on a circle thus it is recommended to use it for
+        teleseismic distances. QSEIS does calculations on a cylinder and is
+        more accurate for near-field seismic waveforms, QSEIS2d is a
+        significantly, computationally more efficient version of QSEIS, outputs
+        are almost identical
+    source_distance_min : scalar, float
+        Lower bound [km] for the source-distance grid of GFs to calculate
+    source_distance_max : scalar, float
+        Upper bound [km] for the source-distance grid of GFs to calculate
+    source_distance_spacing : scalar, float
+        Spacing [km] for the source-distance grid of GFs to calculate
+    source_depth_min : scalar, float
+        Lower bound [km] for the source-depth grid of GFs to calculate
+    source_depth_max : scalar, float
+        Upper bound [km] for the source-depth grid of GFs to calculate
+    source_depth_spacing : scalar, float
+        Spacing [km] for the source-depth grid of GFs to calculate
+    sample_rate : scalar, float
+        Temporal sampling rate [Hz] of seismic waveforms
+    crust_ind : int
+        Index to set to the Greens Function store, 0 is reference store
+        indexes > 0 use reference model and vary its parameters by a Gaussian
+    depth_limit_variation : scalar, float
+        depth threshold [m], layers with depth > than this limit are not varied
+    earth_model : str
+        Name of the base earth model to be used, check
+        :func:`pyrocko.cake.builtin_models` for alternatives,
+        default ak135 with medium resolution
+    nworkers : int
+        Number of processors to use for computations
+    rm_gfs : boolean
+        Valid if qssp or qseis2d are being used, remove the intermediate 
+        files after finishing the computation
+    replace_water : boolean
+        Flag to remove water layers from the crust2.0 profile
+    use_crust2 : boolean
+        Flag to use the crust2.0 model for the crustal earth model
+    custom_velocity_model : :class:`pyrocko.cake.LayeredModel`
+        If the implemented velocity models should not be used, a custom
+        velocity model can be given here
+    execute : boolean
+        Flag to execute the calculation, if False just setup tested
+    force : boolean
+        Flag to overwrite existing GF stores
     """
+
     # calculate distance to station [m]
     distance = orthodrome.distance_accurate50m(event, station)
     logger.info('Station %s' % station.station)
@@ -964,10 +1028,50 @@ def geo_construct_gf(
         replace_water=True, use_crust2=True, custom_velocity_model=None,
         execute=True, force=False):
     """
-    Given a :py:class:`Event` the crustal model :py:class:`cake.LayeredModel`
-    from :py:class:`cake.Crust2Profile` at the event location is extracted and
-    the geodetic greens functions are calculated with the given grid
-    resolution.
+    Calculate geodetic Greens Functions (GFs) and create a repository 'store'
+    that is being used later on repeatetly to calculate the synthetic
+    displacements.
+
+    Parameters
+    ----------
+    event : :class:`pyrocko.model.Event`
+        The event is used as a reference point for all the calculations
+        According to the its location the earth model is being built
+    store_superdir : str
+        Path to the main directory where all the GF stores are stored
+    source_distance_min : scalar, float
+        Lower bound [km] for the source-distance grid of GFs to calculate
+    source_distance_max : scalar, float
+        Upper bound [km] for the source-distance grid of GFs to calculate
+    source_distance_spacing : scalar, float
+        Spacing [km] for the source-distance grid of GFs to calculate
+    source_depth_min : scalar, float
+        Lower bound [km] for the source-depth grid of GFs to calculate
+    source_depth_max : scalar, float
+        Upper bound [km] for the source-depth grid of GFs to calculate
+    source_depth_spacing : scalar, float
+        Spacing [km] for the source-depth grid of GFs to calculate
+    sampling_interval : scalar, float >= 1.
+        Source-distance dependend sampling density of grid points, if == 1
+        linear distance sampling, if > 1. exponentially decreasing sampling
+        with increasing distance
+    earth_model : str
+        Name of the base earth model to be used, check
+        :func:`pyrocko.cake.builtin_models` for alternatives,
+        default ak135 with medium resolution
+    crust_ind : int
+        Index to set to the Greens Function store
+    replace_water : boolean
+        Flag to remove water layers from the crust2.0 profile
+    use_crust2 : boolean
+        Flag to use the crust2.0 model for the crustal earth model
+    custom_velocity_model : :class:`pyrocko.cake.LayeredModel`
+        If the implemented velocity models should not be used, a custom
+        velocity model can be given here
+    execute : boolean
+        Flag to execute the calculation, if False just setup tested
+    force : boolean
+        Flag to overwrite existing GF stores
     """
 
     c = psgrn.PsGrnConfigFull()
@@ -1076,7 +1180,7 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
 
     Returns
     -------
-    :class:`numpy.array` (n_observations; ux, uy, uz)
+    :class:`numpy.ndarray` (n_observations; ux, uy, uz)
     """
 
     c = pscmp.PsCmpConfigFull()
@@ -1186,7 +1290,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
     Returns
     -------
-    :class:`numpy.Array` or List of :class:`pyrocko.trace.Trace`
+    :class:`numpy.ndarray` or List of :class:`pyrocko.trace.Trace`
          with data each row-one target
     """
 
@@ -1266,13 +1370,13 @@ def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
         containing :class:`pyrocko.trace.Trace` objects
     arrival_taper : :class:`ArrivalTaper`
     filterer : :class:`Filterer`
-    tmins : :class:`numpy.array`
+    tmins : :class:`numpy.ndarray`
         Array containing the start times [s] since 1st.January 1970 to start
         tapering
 
     Returns
     -------
-    :class:`numpy.array`
+    :class:`numpy.ndarray`
         with tapered and filtered data traces, rows different traces,
         columns temporal values
     """
