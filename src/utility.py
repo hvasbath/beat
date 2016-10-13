@@ -2,7 +2,7 @@ import logging
 import os
 import collections
 import copy
-import pickle
+import cPickle as pickle
 
 from pyrocko import util, orthodrome, catalog
 from pyrocko.cake import m2d

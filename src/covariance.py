@@ -37,7 +37,7 @@ def get_seismic_data_covariances(data_traces, engine, filterer, sample_rate,
     tzero = 1. / filterer.upper_corner
     dt = 1. / sample_rate
     ataper = arrival_taper
-    n = int(num.ceil((ataper.a + ataper.d) / dt))
+    n = int(num.ceil((num.abs(ataper.a) + ataper.d) / dt))
 
     csub = sub_data_covariance(n, dt, tzero)
 

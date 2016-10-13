@@ -295,24 +295,24 @@ class GeometryOptimizer(Problem):
             self._seismic_flag = False
 
         if self._seismic_flag and self._geodetic_flag:
-            self.config, self.sources,
-            self.sweights,
-            self.stargets,
-            self.stations,
-            self.engine,
-            self.gweights,
+            self.config, self.sources, \
+            self.sweights, \
+            self.stargets, \
+            self.stations, \
+            self.engine, \
+            self.gweights, \
             self.gtargets = state
 
         elif self._seismic_flag and not self._geodetic_flag:
-            self.config, self.sources,
-            self.sweights,
-            self.stargets,
-            self.stations,
+            self.config, self.sources, \
+            self.sweights, \
+            self.stargets, \
+            self.stations, \
             self.engine = state
 
         elif not self._seismic_flag and self._geodetic_flag:
-            self.config, self.sources,
-            self.gweights,
+            self.config, self.sources, \
+            self.gweights, \
             self.gtargets = state
 
     def built_model(self):
