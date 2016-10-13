@@ -315,6 +315,21 @@ class GeometryOptimizer(Problem):
             self.gweights, \
             self.gtargets = state
 
+    def apply(self, updates):
+        """
+        Update problem object with covariance matrixes
+        """
+
+        if self._seismic_flag:
+            for i, sw in enumerate(updates.sweights):
+                A = sw.get_value()
+                self.sweights[i].set_value(A)
+
+        if self._geodetic_flag:
+            for j, gw in enumerate(updates.gweights):
+                B = gw.get_value()
+                self.gweights[j].set_value(B)
+
     def built_model(self):
         """
         Initialise :class:`pymc3.Model` depending on configuration file,

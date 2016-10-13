@@ -142,11 +142,13 @@ def plot_all_posteriors(problem):
             mtrace, n_steps=draws, output='png', outpath=outpath)
 
     stage_path = os.path.join(
-        problem.config.project_dir, mode, 'figures', 'stage_final')
+            problem.config.project_dir, mode, 'stage_final')
     mtrace = backend.load(stage_path, model=problem.model)
-    os.chdir(stage_path)
+
+    out_path = os.path.join(
+        problem.config.project_dir, mode, 'figures', 'stage_final')
     print('plotting stage path: %s' % stage_path)
-    stage_posteriors(mtrace, n_steps=draws, output='png', outpath=stage_path)
+    stage_posteriors(mtrace, n_steps=draws, output='png', outpath=out_path)
 
 
 def n_model_plot(models, axes=None):

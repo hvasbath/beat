@@ -539,8 +539,12 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                 'Loading parameters from completed stage_%i' % (stage - 1))
             project_dir = os.path.dirname(homepath)
             mode = os.path.basename(homepath)
-            step, update = utility.load_atmip_params(
+            step, updates = utility.load_atmip_params(
                 project_dir, str(stage - 1), mode)
+
+            if update is not None:
+                update.apply(updates)
+
             step.stage += 1
 
             stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
