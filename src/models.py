@@ -282,6 +282,18 @@ class GeometryOptimizer(Problem):
         return outstate
 
     def __setstate__(self, state):
+        c = state[0]
+
+        if 'geodetic' in c.problem_config.datasets:
+            self._geodetic_flag = True
+        else:
+            self._geodetic_flag = False
+
+        if 'seismic' in c.problem_config.datasets:
+            self._seismic_flag = True
+        else:
+            self._seismic_flag = False
+
         if self._seismic_flag and self._geodetic_flag:
             self.config, self.sources,
             self.sweights,
@@ -298,7 +310,7 @@ class GeometryOptimizer(Problem):
             self.stations,
             self.engine = state
 
-        if not self._seismic_flag and self._geodetic_flag:
+        elif not self._seismic_flag and self._geodetic_flag:
             self.config, self.sources,
             self.gweights,
             self.gtargets = state
