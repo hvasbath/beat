@@ -8,6 +8,8 @@ from pymc3 import Metropolis
 from pyrocko import gf, util, model
 from pyrocko.guts import Object
 
+import numpy as num
+
 import theano.tensor as tt
 from theano import config as tconfig
 from theano import shared
@@ -182,15 +184,25 @@ class GeometryOptimizer(Problem):
             self.ns_t = len(self.stargets)
             logger.info('Number of seismic datasets: %i ' % self.ns_t)
 
-            logger.info('Getting seismic data-covariances ...\n')
-            cov_ds_seismic = cov.get_seismic_data_covariances(
-                data_traces=self.data_traces,
-                filterer=sc.filterer,
-                sample_rate=sc.gf_config.sample_rate,
-                arrival_taper=sc.arrival_taper,
-                engine=self.engine,
-                event=self.event,
-                targets=self.stargets)
+            if sc.calc_data_cov:
+                logger.info('Estimating seismic data-covariances ...\n')
+                cov_ds_seismic = cov.get_seismic_data_covariances(
+                    data_traces=self.data_traces,
+                    filterer=sc.filterer,
+                    sample_rate=sc.gf_config.sample_rate,
+                    arrival_taper=sc.arrival_taper,
+                    engine=self.engine,
+                    event=self.event,
+                    targets=self.stargets)
+            else:
+                logger.info('No data-covariance estimation ...\n')
+                cov_ds_seismic = []
+                at = sc.arrival_taper
+                n_samples = int(num.ceil(
+                    (num.abs(at.a) + at.d) * sc.gf_config.sample_rate))
+
+                for tr in self.data_traces:
+                    cov_ds_seismic.append(num.eye(n_samples))
 
             self.sweights = []
             for s_t in range(self.ns_t):

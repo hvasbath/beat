@@ -112,6 +112,10 @@ class SeismicGFConfig(GFConfig):
                        'qseis2d)')
     sample_rate = Float.T(default=2.,
                           help='Sample rate for the Greens Functions.')
+    calc_data_cov = Bool.T(
+        default=True,
+        help='Flag for calculating the data covariance matrix based on the'
+             ' pre P arrival data trace noise.')
     depth_limit_variation = Float.T(
         default=600.,
         help='Depth limit [km] for varying the velocity model.')
