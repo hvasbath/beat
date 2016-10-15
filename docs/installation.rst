@@ -1,6 +1,8 @@
+.. installation:
 
+*************************
 Installation instructions
--------------------------
+*************************
 
 BEAT can be installed on any Unix based system that supports its prerequisites.
 
@@ -26,12 +28,13 @@ For everyone else I summarized the relevant points below.
 For all the heavy details I refer to these links:
 
 https://hunseblog.wordpress.com/2014/09/15/installing-numpy-and-openblas/
+
 http://www.johnwittenauer.net/configuring-theano-for-high-performance-deep-learning/
 
 OpenBlas
 """"""""
-If the OpenBlas library is compiled locally it is optimized for your machine
-and again speeds up the calculations::
+If the OpenBlas library is compiled locally, it is optimized for your machine
+and speeds up the calculations::
 
     cd ~/src  # or where you keep your source files
     git clone https://github.com/xianyi/OpenBLAS
@@ -41,9 +44,9 @@ and again speeds up the calculations::
 
 Numpy
 """""
-Again, I want to note how important it is, to compile your numpy locally
+Again, I want to note how important it is to compile your numpy locally
 against the previously installed OpenBlas library. For my machine it resulted 
-in a speed-up of the numpy related calculations by a factor of at least 3.
+in a speed-up of the numpy related calculations by a factor of at least 3.::
 
     cd ~/src
     git clone https://github.com/numpy/numpy
@@ -54,20 +57,20 @@ install one of the most recent stable branches::
 
     git checkout -v1.11.1
 
-Next create a configuration file `site.cfg` that tells numpy where to find the
- previously installed OpenBlas library:
+Next, create a configuration file `site.cfg` that tells numpy where to find the
+previously installed OpenBlas library::
 
-[default]
-include_dirs = /usr/local/include
-library_dirs = /usr/local/lib
+    [default]
+    include_dirs = /usr/local/include
+    library_dirs = /usr/local/lib
 
-[openblas]
-openblas_libs = openblas
-library_dirs = /usr/local/lib
+    [openblas]
+    openblas_libs = openblas
+    library_dirs = /usr/local/lib
 
-[lapack]
-lapack_libs = openblas
-library_dirs = /usr/local/lib
+    [lapack]
+    lapack_libs = openblas
+    library_dirs = /usr/local/lib
 
 To make sure everything is working you should run::
 
@@ -85,12 +88,13 @@ Finally::
 Theano
 """"""
 
-
+Main Packages
+-------------
 
 BEAT relies on 2 main libraries. Detailed installation instructions for each
 can be found on the respective websites:
-*`pyrocko <http://pyrocko.org/>`
-*`pymc3
+* `pyrocko <http://pyrocko.org/>`
+* `pymc3
 
 
 pyproj
