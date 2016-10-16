@@ -220,8 +220,8 @@ Main Packages
 BEAT relies on 2 main libraries. Detailed installation instructions for each
 can be found on the respective websites::
 
- * `pyrocko <http://pyrocko.org/>`__
- * `pymc3 <https://github.com/pymc-devs/pymc3>`__
+`pyrocko <http://pyrocko.org/>`__
+`pymc3 <https://github.com/pymc-devs/pymc3>`__
 
 Pyrocko
 """""""
@@ -236,6 +236,16 @@ framework to efficiently store and access Greens Functions.::
 Pyproj is the last and most easy one to install::
 
     pip install pyproj
+
+pymc3
+"""""
+Pymc3 is a framework that provides various optimization algorithms allows and
+allows to build Bayesian models.::
+
+    cd ~/src
+    git clone https://github.com/pymc-devs/pymc3
+    cd beat
+    sudo python setup.py install
 
 
 BEAT source
@@ -253,9 +263,9 @@ Greens Function calculations
 
 To calculate the Greens Functions we rely on modeling codes written by
 `Rongjiang Wang <http://www.gfz-potsdam.de/en/section/physics-of-earthquakes-and-volcanoes/staff/profil/rongjiang-wang/>`__.
-If you plan to use the GreensFunction calculation framework
+If you plan to use the GreensFunction calculation framework,
 these codes are required and need to be compiled manually.
-The original codes packeged for windows can be found 
+The original codes are packaged for windows and can be found 
 `here <http://www.gfz-potsdam.de/en/section/physics-of-earthquakes-and-volcanoes/data-products-services/downloads-software/>`__.
 
 For Unix systems the codes had to be repackaged.
@@ -269,7 +279,7 @@ Geodetic synthetics
 """""""""""""""""""
 * PSGRN and PSCMP
 
-Is so far included in the beat repository, but will be a part of the pyrocko framework in the future.
+These codes are so far included in the beat repository, but will be a part of the pyrocko framework in the future.
 In the BEAT folder::
 
     cd fomosto-psgrn-pscmp
