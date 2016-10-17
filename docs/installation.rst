@@ -279,6 +279,13 @@ Seismic synthetics
 * `QSEIS <http://kinherd.org/fomosto-qseis-2006a.tar.gz>`__
 * `QSSP <http://kinherd.org/fomosto-qssp-2010.tar.gz>`__
 
+After unpacking each package within each folder::
+
+    autoreconf -i   # only if 'configure' script is missing
+    F77=gfortran ./configure
+    make
+    sudo make install
+
 Geodetic synthetics
 """""""""""""""""""
 * PSGRN and PSCMP

@@ -5,8 +5,9 @@ Bayesian Earthquake Analysis Tool, based on pyrocko, theano and pymc3
 This repository is very much work in progress!
 Please dont expect anything to work smoothly!
 
+It provides a python wrapper for the programs psgrn and pscmp.
 
-# PSGRN and PSCMP (packaged as fomosto backend)
+## PSGRN and PSCMP (packaged as fomosto backend)
 
 Code to calculate synthetic stress/strain/tilt/gravitational fields on a
 layered viscoelastic halfspace.
@@ -15,7 +16,7 @@ PSGRN and PSCMP have been written by Rongjiang Wang.
 
 Packaging has been done by Hannes Vasyura-Bathke.
 
-## References
+### References
 
 - Wang, R., F. Lorenzo-Martín and F. Roth (2003), Computation of deformation
   induced by earthquakes in a multi-layered elastic crust - FORTRAN programs
@@ -28,7 +29,7 @@ Packaging has been done by Hannes Vasyura-Bathke.
   gravity effect in (visco)elastic plane-earth models, Geophysical Journal
   International, 161, 191-196.
 
-# Compile and install PSGRN and PSCMP
+### Compile and install PSGRN and PSCMP
 ```
 autoreconf -i   # only if 'configure' script is missing
 F77=gfortran FFLAGS=-mcmodel=medium ./configure
