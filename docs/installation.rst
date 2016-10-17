@@ -101,7 +101,7 @@ For the bleeding edge installation do::
 
     git clone https://github.com/Theano/Theano
     cd Theano
-    sudo python setup install
+    sudo python setup.py install
 
 For any troubleshooting and detailed installation instructions I refer to the
 `Theano <http://deeplearning.net/software/theano/install.html>`__ webpage.
@@ -240,11 +240,15 @@ Pyproj is the last and most easy one to install::
 pymc3
 """""
 Pymc3 is a framework that provides various optimization algorithms allows and
-allows to build Bayesian models.::
+allows to build Bayesian models. For the last stable release::
+
+    pip install pymc3
+
+For the bleeding edge::
 
     cd ~/src
     git clone https://github.com/pymc-devs/pymc3
-    cd beat
+    cd pymc3
     sudo python setup.py install
 
 
