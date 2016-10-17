@@ -1,0 +1,424 @@
+#===============================================================================
+# This is input file of FORTRAN77 program "pscmp08" for modeling post-seismic
+# deformation induced by earthquakes in multi-layered viscoelastic media using
+# the Green's function approach. The earthquke source is represented by an
+# arbitrary number of rectangular dislocation planes. For more details, please
+# read the accompanying READ.ME file.
+#
+# written by Rongjiang Wang
+# GeoForschungsZentrum Potsdam
+# e-mail: wang@gfz-potsdam.de
+# phone +49 331 2881209
+# fax +49 331 2881204
+#
+# Last modified: Potsdam, July, 2008
+#
+#################################################################
+##                                                             ##
+## Green's functions should have been prepared with the        ##
+## program "psgrn08" before the program "pscmp08" is started.  ##
+##                                                             ##
+## For local Cartesian coordinate system, the Aki's convention ##
+## is used, that is, x is northward, y is eastward, and z is   ##
+## downward.                                                   ##
+##                                                             ##
+## If not specified otherwise, SI Unit System is used overall! ##
+##                                                             ##
+#################################################################
+#===============================================================================
+# OBSERVATION ARRAY
+# =================
+# 1. selection for irregular observation positions (= 0) or a 1D observation
+#    profile (= 1) or a rectangular 2D observation array (= 2): iposrec
+#
+#    IF (iposrec = 0 for irregular observation positions) THEN
+#
+# 2. number of positions: nrec
+#
+# 3. coordinates of the observations: (lat(i),lon(i)), i=1,nrec
+#
+#    ELSE IF (iposrec = 1 for regular 1D observation array) THEN
+#
+# 2. number of position samples of the profile: nrec
+#
+# 3. the start and end positions: (lat1,lon1), (lat2,lon2)
+#
+#    ELSE IF (iposrec = 2 for rectanglular 2D observation array) THEN
+#
+# 2. number of x samples, start and end values: nxrec, xrec1, xrec2
+#
+# 3. number of y samples, start and end values: nyrec, yrec1, yrec2
+#
+#    sequence of the positions in output data: lat(1),lon(1); ...; lat(nx),lon(1);
+#    lat(1),lon(2); ...; lat(nx),lon(2); ...; lat(1),lon(ny); ...; lat(nx),lon(ny).
+#
+#    Note that the total number of observation positions (nrec or nxrec*nyrec)
+#    should be <= NRECMAX (see pecglob.h)!
+#===============================================================================
+  0
+  180
+( 31.8010, 104.4430) ( 32.1820, 104.8720) ( 31.0600, 103.6910) ( 31.4860, 104.2250) ( 32.5700, 105.2200)
+( 31.3530, 104.1860) ( 31.7050, 104.4430) ( 31.0080, 103.1450) ( 32.3600, 104.8100) ( 30.9680, 103.7400)
+( 30.8800, 103.6200) ( 32.4050, 104.5710) ( 31.1560, 104.4400) ( 31.4860, 104.7600) ( 31.4860, 104.7810)
+( 32.0600, 103.5800) ( 31.8500, 102.6700) ( 32.0750, 103.1650) ( 30.7320, 104.0770) ( 32.0200, 105.8300)
+( 32.0200, 105.8300) ( 32.3610, 103.7310) ( 31.7050, 102.3060) ( 30.6300, 104.0800) ( 32.4480, 105.8300)
+( 32.4480, 105.8300) ( 30.6300, 103.6300) ( 31.4660, 102.0950) ( 31.0300, 102.4000) ( 32.5900, 103.6130)
+( 31.1000, 105.1000) ( 31.8700, 105.9800) ( 31.7700, 101.6150) ( 32.8510, 103.5700) ( 30.9600, 101.8700)
+( 32.7850, 102.5000) ( 33.0000, 104.6250) ( 32.9300, 103.4350) ( 30.4050, 104.5300) ( 30.3750, 104.5360)
+( 32.9010, 101.7060) ( 32.8000, 105.7800) ( 31.1430, 100.9300) ( 33.4300, 105.0100) ( 30.9500, 101.1630)
+( 25.3410, 100.4960) ( 25.4810, 100.5480) ( 25.6080, 103.2410) ( 25.6410, 101.9010) ( 25.7310, 101.3200)
+( 26.0010, 102.5310) ( 26.0500, 101.6810) ( 26.1050, 103.1650) ( 26.5030, 101.7480) ( 26.6200, 102.6100)
+( 26.6900, 102.2630) ( 26.6900, 101.8550) ( 26.9310, 102.9060) ( 27.0480, 101.9580) ( 27.1380, 100.9330)
+( 27.4200, 101.5130) ( 27.4530, 102.1880) ( 27.5400, 101.7100) ( 27.6560, 101.2380) ( 27.7480, 100.6530)
+( 27.8750, 102.2310) ( 28.3000, 102.4360) ( 28.5150, 102.1250) ( 28.9630, 101.5180) ( 29.2280, 103.2610)
+( 29.6000, 103.8000) ( 29.6880, 102.0800) ( 29.7900, 102.8160) ( 29.8460, 101.5580) ( 29.8480, 102.2900)
+( 30.0410, 103.8450) ( 30.0730, 101.7880) ( 30.0750, 101.4850) ( 30.1060, 101.0230) ( 30.2510, 102.8400)
+( 30.4150, 103.4100) ( 30.4950, 101.4960) ( 30.5000, 105.7800) ( 30.8000, 106.2000) ( 34.4030, 104.0730)
+( 32.8000, 106.1800) ( 32.8500, 107.1700) ( 33.1000, 106.3300) ( 33.1160, 106.6800) ( 33.1900, 106.5800)
+( 33.2280, 104.2250) ( 33.2760, 103.8880) ( 33.3400, 105.8050) ( 33.3400, 106.1550) ( 33.4000, 105.6280)
+( 33.4230, 104.8230) ( 33.5710, 102.9910) ( 33.6960, 105.5950) ( 33.6960, 105.5950) ( 33.7800, 105.2850)
+( 33.7860, 104.4010) ( 33.8910, 105.8150) ( 33.9150, 106.5080) ( 33.9360, 103.7260) ( 34.0000, 104.4200)
+( 34.0200, 105.3000) ( 34.0460, 104.3830) ( 34.1080, 105.3060) ( 34.1080, 103.1460) ( 34.2510, 105.8110)
+( 34.3600, 104.5000) ( 34.3600, 104.8300) ( 34.4660, 104.9150) ( 34.5000, 105.8600) ( 34.5510, 108.9130)
+( 34.5930, 105.6960) ( 34.7130, 104.9400) ( 34.7480, 106.1580) ( 34.8500, 104.4800) ( 34.8710, 105.6550)
+( 35.1410, 105.3780) ( 35.1730, 106.0110) ( 34.7930, 105.3680) ( 35.0380, 104.1050) ( 26.6760, 101.2450)
+( 27.3700, 102.5480) ( 33.9100, 106.2300) ( 26.6650, 100.7560) ( 29.2630, 102.4380) ( 28.9580, 103.8930)
+( 26.8260, 102.1000) ( 34.5150, 106.4000) ( 25.5760, 102.5050) ( 26.2110, 100.5960) ( 35.0050, 106.2060)
+( 29.6010, 103.4680) ( 25.7980, 102.9410) ( 30.1200, 103.1000) ( 35.0800, 105.7950) ( 34.4960, 108.2330)
+( 25.7960, 100.5600) ( 28.7700, 104.6000) ( 34.9460, 106.6780) ( 34.4330, 107.5800) ( 35.0580, 108.0860)
+( 28.9550, 102.7660) ( 34.0700, 107.6400) ( 34.9730, 108.9980) ( 35.0460, 104.5410) ( 29.9750, 103.0030)
+( 28.2500, 103.6400) ( 29.9750, 103.0030) ( 34.1100, 108.1560) ( 27.6930, 102.7900) ( 34.8950, 106.8210)
+( 28.6710, 102.5310) ( 26.4050, 103.2260) ( 27.9980, 102.8330) ( 33.8800, 109.9230) ( 25.0360, 100.5210)
+( 34.4260, 107.1430) ( 34.0880, 107.2950) ( 34.4710, 107.3780) ( 34.7200, 104.3800) ( 27.7700, 103.8910)
+( 33.6160, 106.9250) ( 34.3010, 108.1950) ( 34.3460, 109.9680) ( 31.0000, 107.1000) ( 34.9500, 109.9700)
+( 27.3560, 103.6860) ( 34.4600, 109.7060) ( 27.6830, 103.2680) ( 28.8430, 103.5260) ( 34.0500, 108.9080)
+( 28.6050, 103.9780) ( 29.3480, 102.6550) ( 33.5400, 107.9800) ( 33.5000, 109.2000) ( 28.3110, 103.1210)
+#
+#  1
+#  51
+#  (0.0, -100.0), (0.0, 400.0)0
+#
+#  2
+# 101     30.59521  31.92271
+# 101    103.49411 105.00661
+#===============================================================================
+# OUTPUTS
+# =======
+#
+# 1. select (1/0) output for los displacement (only for snapshots, see below),
+#    x, y, and z-cosines to the INSAR orbit: insar, xlos, ylos, zlos
+#
+#    if this option is selected, the snapshots will include additional data:
+#    LOS_Dsp = los displacement to the given satellite orbit.
+#
+# 2. select (1/0) output for Coulomb stress changes (only for snapshots, see
+#    below): icmb, friction, Skempton ratio, strike, dip, and rake angles [deg]
+#    describing the uniform regional master fault mechanism, the uniform regional
+#    principal stresses: sigma1, sigma2 and sigma3 [Pa] in arbitrary order (the
+#    orietation of the pre-stress field will be derived by assuming that the
+#    master fault is optimally oriented according to Coulomb failure criterion)
+#
+#    if this option is selected (icmb = 1), the snapshots will include additional
+#    data:
+#    CMB_Fix, Sig_Fix = Coulomb and normal stress changes on master fault;
+#    CMB_Op1/2, Sig_Op1/2 = Coulomb and normal stress changes on the two optimally
+#                       oriented faults;
+#    Str_Op1/2, Dip_Op1/2, Slp_Op1/2 = strike, dip and rake angles of the two
+#                       optimally oriented faults.
+#
+#    Note: the 1. optimally orieted fault is the one closest to the master fault.
+#
+# 3. output directory in char format: outdir
+#
+# 4. select outputs for displacement components (1/0 = yes/no): itout(i), i=1,3
+#
+# 5. the file names in char format for the x, y, and z components:
+#    toutfile(i), i=1,3
+#
+# 6. select outputs for stress components (1/0 = yes/no): itout(i), i=4,9
+#
+# 7. the file names in char format for the xx, yy, zz, xy, yz, and zx components:
+#    toutfile(i), i=4,9
+#
+# 8. select outputs for vertical NS and EW tilt components, block rotation, geoid
+#    and gravity changes (1/0 = yes/no): itout(i), i=10,14
+#
+# 9. the file names in char format for the NS tilt (positive if borehole top
+#    tilts to north), EW tilt (positive if borehole top tilts to east), block
+#    rotation (clockwise positive), geoid and gravity changes: toutfile(i), i=10,14
+#
+#    Note that all above outputs are time series with the time window as same
+#    as used for the Green's functions
+#
+#10. number of scenario outputs ("snapshots": spatial distribution of all above
+#    observables at given time points; <= NSCENMAX (see pscglob.h): nsc
+#
+#11. the time [day], and file name (in char format) for the 1. snapshot;
+#12. the time [day], and file name (in char format) for the 2. snapshot;
+#13. ...
+#
+#    Note that all file or directory names should not be longer than 80
+#    characters. Directories must be ended by / (unix) or \ (dos)!
+#===============================================================================
+ 1    0.0  0.0  -1.00      !displacement upward positive
+ 0     0.700  0.000  330.000   90.000  180.000    0.0E+00    0.0E+00    0.0E+00
+'.\'
+  0           0           0
+  'ux.dat'    'uy.dat'    'uz.dat'
+  0           0           0           0            0           0
+  'sxx.dat'   'syy.dat'   'szz.dat'   'sxy.dat'    'syz.dat'   'szx.dat'
+  0           0           0           0           0
+  'tx.dat'    'ty.dat'    'rot.dat'   'gd.dat'    'gr.dat'
+  1
+     0.00  'coseis-gps.dat'          |0 co-seismic
+#===============================================================================
+#
+# GREEN'S FUNCTION DATABASE
+# =========================
+# 1. directory where the Green's functions are stored: grndir
+#
+# 2. file names (without extensions!) for the 13 Green's functions:
+#    3 displacement komponents (uz, ur, ut): green(i), i=1,3
+#    6 stress components (szz, srr, stt, szr, srt, stz): green(i), i=4,9
+#    radial and tangential components measured by a borehole tiltmeter,
+#    rigid rotation around z-axis, geoid and gravity changes (tr, tt, rot, gd, gr):
+#    green(i), i=10,14
+#
+#    Note that all file or directory names should not be longer than 80
+#    characters. Directories must be ended by / (unix) or \ (dos)! The
+#    extensions of the file names will be automatically considered. They
+#    are ".ep", ".ss", ".ds" and ".cl" denoting the explosion (inflation)
+#    strike-slip, the dip-slip and the compensated linear vector dipole
+#    sources, respectively.
+#
+#===============================================================================
+ '..\wcpsgrnfcts\'
+ 'uz'  'ur'  'ut'
+ 'szz' 'srr' 'stt' 'szr' 'srt' 'stz'
+ 'tr'  'tt'  'rot' 'gd'  'gr'
+#===============================================================================
+# RECTANGULAR SUBFAULTS
+# =====================
+# 1. number of subfaults (<= NSMAX in pscglob.h), latitude [deg] and east
+#    longitude [deg] of the regional reference point as  origin of the Cartesian
+#    coordinate system: ns, lat0, lon0
+#
+# 2. parameters for the 1. rectangular subfault: geographic coordinates
+#    (O_lat, O_lon) [deg] and O_depth [km] of the local reference point on
+#    the present fault plane, length (along strike) [km] and width (along down
+#    dip) [km], strike [deg], dip [deg], number of equi-size fault
+#    patches along the strike (np_st) and along the dip (np_di) (total number of
+#    fault patches = np_st x np_di), and the start time of the rupture; the
+#    following data lines describe the slip distribution on the present sub-
+#    fault:
+#
+#    pos_s[km]  pos_d[km]  slip_along_strike[m]  slip_along_dip[m]  opening[m]
+#
+#    where (pos_s,pos_d) defines the position of the center of each patch in
+#    the local coordinate system with the origin at the reference point:
+#    pos_s = distance along the length (positive in the strike direction)
+#    pos_d = distance along the width (positive in the down-dip direction)
+#
+#
+# 3. ... for the 2. subfault ...
+# ...
+#                   N
+#                  /
+#                 /| strike
+#                +------------------------
+#                |\        p .            \ W
+#                :-\      i .              \ i
+#                |  \    l .                \ d
+#                :90 \  S .                  \ t
+#                |-dip\  .                    \ h
+#                :     \. | rake               \
+#                Z      -------------------------
+#                              L e n g t h
+#
+#    Note that a point inflation can be simulated by three point openning
+#    faults (each causes a third part of the volume of the point inflation)
+#    with orientation orthogonal to each other. the results obtained should
+#    be multiplied by a scaling factor 3(1-nu)/(1+nu), where nu is the Poisson
+#    ratio at the source. The scaling factor is the ratio of the seismic
+#    moment (energy) of an inflation source to that of a tensile source inducing
+#    a plate openning with the same volume change.
+#===============================================================================
+# n_faults (Slip model by Ji Chen, USGS)
+#-------------------------------------------------------------------------------
+  1
+#-------------------------------------------------------------------------------
+# n   O_lat   O_lon    O_depth length  width strike dip   np_st np_di start_time
+# [-] [deg]   [deg]    [km]    [km]     [km] [deg]  [deg] [-]   [-]   [day]
+#     pos_s   pos_d    slp_stk slp_dip open
+#     [km]    [km]     [m]     [m]     [m]
+#-------------------------------------------------------------------------------
+ 1    32.5224 105.4260 0.7411  315.00  40.00 229.00 33.00  21   8     0.00
+    7.50    2.50    0.00    0.00    0.00
+   22.50    2.50    0.57   -0.11    0.00
+   37.50    2.50    1.18   -0.38    0.00
+   52.50    2.50    0.85   -0.03    0.00
+   67.50    2.50   -0.03   -0.27    0.00
+   82.50    2.50   -0.54   -0.47    0.00
+   97.50    2.50   -0.37   -1.16    0.00
+  112.50    2.50    0.53   -1.68    0.00
+  127.50    2.50    0.50   -2.67    0.00
+  142.50    2.50    1.02   -2.57    0.00
+  157.50    2.50    0.21   -2.18    0.00
+  172.50    2.50   -0.82   -1.52    0.00
+  187.50    2.50   -1.47   -1.12    0.00
+  202.50    2.50   -2.24   -0.75    0.00
+  217.50    2.50   -2.58   -0.78    0.00
+  232.50    2.50   -2.00   -1.33    0.00
+  247.50    2.50   -1.01   -0.17    0.00
+  262.50    2.50    0.15   -0.15    0.00
+  277.50    2.50    0.48   -1.60    0.00
+  292.50    2.50    0.75   -1.34    0.00
+  307.50    2.50   -0.03   -0.04    0.00
+    7.50    7.50   -0.01    0.00    0.00
+   22.50    7.50    1.12   -0.07    0.00
+   37.50    7.50    1.06   -0.02    0.00
+   52.50    7.50    0.21   -0.25    0.00
+   67.50    7.50   -1.35   -0.60    0.00
+   82.50    7.50   -1.55   -1.04    0.00
+   97.50    7.50   -0.89   -2.67    0.00
+  112.50    7.50   -0.47   -3.92    0.00
+  127.50    7.50   -0.52   -5.11    0.00
+  142.50    7.50    0.33   -4.93    0.00
+  157.50    7.50   -0.03   -3.99    0.00
+  172.50    7.50   -1.25   -2.75    0.00
+  187.50    7.50   -2.64   -2.56    0.00
+  202.50    7.50   -4.41   -2.49    0.00
+  217.50    7.50   -5.55   -2.88    0.00
+  232.50    7.50   -4.60   -2.46    0.00
+  247.50    7.50   -2.85   -0.35    0.00
+  262.50    7.50   -0.42   -0.11    0.00
+  277.50    7.50    0.44   -0.89    0.00
+  292.50    7.50    0.61   -1.69    0.00
+  307.50    7.50    0.00   -0.08    0.00
+    7.50   12.50   -0.01   -0.04    0.00
+   22.50   12.50    0.63   -0.05    0.00
+   37.50   12.50   -0.06   -0.15    0.00
+   52.50   12.50   -2.17   -0.51    0.00
+   67.50   12.50   -4.15   -1.11    0.00
+   82.50   12.50   -3.91   -2.45    0.00
+   97.50   12.50   -2.88   -3.56    0.00
+  112.50   12.50   -2.43   -4.50    0.00
+  127.50   12.50   -2.12   -5.64    0.00
+  142.50   12.50   -1.30   -5.64    0.00
+  157.50   12.50   -2.00   -4.71    0.00
+  172.50   12.50   -3.09   -3.88    0.00
+  187.50   12.50   -3.95   -3.60    0.00
+  202.50   12.50   -6.18   -4.41    0.00
+  217.50   12.50   -7.78   -5.01    0.00
+  232.50   12.50   -6.52   -3.60    0.00
+  247.50   12.50   -4.02   -0.88    0.00
+  262.50   12.50   -1.76   -0.11    0.00
+  277.50   12.50   -0.84   -0.36    0.00
+  292.50   12.50   -0.47   -1.87    0.00
+  307.50   12.50    0.07   -0.06    0.00
+    7.50   17.50    0.02   -0.01    0.00
+   22.50   17.50    0.31   -0.15    0.00
+   37.50   17.50   -1.47   -0.02    0.00
+   52.50   17.50   -4.91   -0.14    0.00
+   67.50   17.50   -7.21   -1.25    0.00
+   82.50   17.50   -7.52   -1.88    0.00
+   97.50   17.50   -5.79   -1.79    0.00
+  112.50   17.50   -4.80   -2.79    0.00
+  127.50   17.50   -3.92   -3.21    0.00
+  142.50   17.50   -3.71   -4.62    0.00
+  157.50   17.50   -3.70   -4.03    0.00
+  172.50   17.50   -4.29   -2.87    0.00
+  187.50   17.50   -4.69   -2.63    0.00
+  202.50   17.50   -6.46   -4.26    0.00
+  217.50   17.50   -7.50   -5.18    0.00
+  232.50   17.50   -6.14   -4.57    0.00
+  247.50   17.50   -4.25   -2.55    0.00
+  262.50   17.50   -1.55   -1.43    0.00
+  277.50   17.50   -1.39   -1.01    0.00
+  292.50   17.50   -1.11   -2.57    0.00
+  307.50   17.50    0.00    0.00    0.00
+    7.50   22.50    0.02   -0.01    0.00
+   22.50   22.50    0.28   -0.04    0.00
+   37.50   22.50   -0.63   -0.06    0.00
+   52.50   22.50   -5.03   -0.24    0.00
+   67.50   22.50   -7.51   -2.18    0.00
+   82.50   22.50   -8.91   -2.61    0.00
+   97.50   22.50   -7.24   -1.05    0.00
+  112.50   22.50   -5.72   -1.23    0.00
+  127.50   22.50   -5.06   -1.17    0.00
+  142.50   22.50   -4.42   -2.54    0.00
+  157.50   22.50   -4.19   -2.16    0.00
+  172.50   22.50   -4.29   -0.89    0.00
+  187.50   22.50   -4.80   -1.75    0.00
+  202.50   22.50   -5.11   -3.93    0.00
+  217.50   22.50   -4.98   -5.16    0.00
+  232.50   22.50   -4.69   -5.14    0.00
+  247.50   22.50   -3.12   -3.77    0.00
+  262.50   22.50   -1.31   -2.97    0.00
+  277.50   22.50   -1.59   -2.25    0.00
+  292.50   22.50   -1.59   -3.28    0.00
+  307.50   22.50   -0.02   -0.01    0.00
+    7.50   27.50   -0.03   -0.03    0.00
+   22.50   27.50    0.09   -0.08    0.00
+   37.50   27.50   -0.66   -0.09    0.00
+   52.50   27.50   -4.27   -0.07    0.00
+   67.50   27.50   -6.66   -1.32    0.00
+   82.50   27.50   -7.54   -2.60    0.00
+   97.50   27.50   -5.74   -1.71    0.00
+  112.50   27.50   -4.45   -0.63    0.00
+  127.50   27.50   -3.16   -0.12    0.00
+  142.50   27.50   -3.12   -1.20    0.00
+  157.50   27.50   -2.97   -1.41    0.00
+  172.50   27.50   -2.52   -0.45    0.00
+  187.50   27.50   -2.48   -1.17    0.00
+  202.50   27.50   -2.36   -2.49    0.00
+  217.50   27.50   -2.47   -4.33    0.00
+  232.50   27.50   -2.12   -4.76    0.00
+  247.50   27.50   -0.98   -3.36    0.00
+  262.50   27.50   -0.45   -2.94    0.00
+  277.50   27.50   -0.74   -3.59    0.00
+  292.50   27.50   -2.06   -3.60    0.00
+  307.50   27.50   -0.03   -0.04    0.00
+    7.50   32.50    0.01   -0.04    0.00
+   22.50   32.50   -0.15    0.00    0.00
+   37.50   32.50    0.00   -0.01    0.00
+   52.50   32.50   -2.19   -0.01    0.00
+   67.50   32.50   -3.58   -0.08    0.00
+   82.50   32.50   -3.91   -1.27    0.00
+   97.50   32.50   -2.45   -0.84    0.00
+  112.50   32.50   -1.61   -0.39    0.00
+  127.50   32.50   -0.92   -0.12    0.00
+  142.50   32.50   -1.02   -0.17    0.00
+  157.50   32.50   -1.08   -0.55    0.00
+  172.50   32.50   -0.45   -0.24    0.00
+  187.50   32.50   -0.22   -0.05    0.00
+  202.50   32.50   -0.68   -0.76    0.00
+  217.50   32.50   -1.37   -2.36    0.00
+  232.50   32.50   -1.23   -2.35    0.00
+  247.50   32.50   -0.19   -1.36    0.00
+  262.50   32.50   -0.08   -1.38    0.00
+  277.50   32.50   -0.29   -2.50    0.00
+  292.50   32.50   -1.82   -2.41    0.00
+  307.50   32.50   -0.02   -0.05    0.00
+    7.50   37.50    0.06   -0.03    0.00
+   22.50   37.50    0.04   -0.03    0.00
+   37.50   37.50    0.01   -0.04    0.00
+   52.50   37.50   -0.02   -0.02    0.00
+   67.50   37.50   -0.03   -0.01    0.00
+   82.50   37.50   -0.01   -0.04    0.00
+   97.50   37.50   -0.02   -0.05    0.00
+  112.50   37.50   -0.05   -0.07    0.00
+  127.50   37.50    0.05   -0.01    0.00
+  142.50   37.50   -0.03   -0.01    0.00
+  157.50   37.50    0.03   -0.09    0.00
+  172.50   37.50    0.03   -0.02    0.00
+  187.50   37.50    0.06   -0.04    0.00
+  202.50   37.50    0.07   -0.03    0.00
+  217.50   37.50    0.00   -0.01    0.00
+  232.50   37.50   -0.04   -0.04    0.00
+  247.50   37.50    0.04   -0.08    0.00
+  262.50   37.50    0.00   -0.04    0.00
+  277.50   37.50   -0.03    0.00    0.00
+  292.50   37.50   -0.06   -0.02    0.00
+  307.50   37.50    0.09   -0.02    0.00
+#================================end of input===================================

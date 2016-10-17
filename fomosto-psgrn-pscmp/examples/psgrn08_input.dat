@@ -1,0 +1,159 @@
+#=============================================================================
+# This is input file of FORTRAN77 program "psgrn08" for computing responses
+# (Green's functions) of a multi-layered viscoelastic halfspace to point
+# dislocation sources buried at different depths. All results will be stored in
+# the given directory and provide the necessary data base for the program
+# "pscmp07a" for computing time-dependent deformation, geoid and gravity changes
+# induced by an earthquake with extended fault planes via linear superposition.
+# For more details, please read the accompanying READ.ME file.
+#
+# written by Rongjiang Wang
+# GeoForschungsZentrum Potsdam
+# e-mail: wang@gfz-potsdam.de
+# phone +49 331 2881209
+# fax +49 331 2881204
+#
+# Last modified: Potsdam, July, 2008
+#
+# References:
+#
+# (1) Wang, R., F. Lorenzo-Martín and F. Roth (2003), Computation of deformation
+#     induced by earthquakes in a multi-layered elastic crust - FORTRAN programs
+#     EDGRN/EDCMP, Computer and Geosciences, 29(2), 195-207.
+# (2) Wang, R., F. Lorenzo-Martin and F. Roth (2006), PSGRN/PSCMP - a new code for
+#     calculating co- and post-seismic deformation, geoid and gravity changes
+#     based on the viscoelastic-gravitational dislocation theory, Computers and
+#     Geosciences, 32, 527-541. DOI:10.1016/j.cageo.2005.08.006.
+# (3) Wang, R. (2005), The dislocation theory: a consistent way for including the
+#     gravity effect in (visco)elastic plane-earth models, Geophysical Journal
+#     International, 161, 191-196.
+#
+#################################################################
+##                                                             ##
+## Cylindrical coordinates (Z positive downwards!) are used.   ##
+##                                                             ##
+## If not specified otherwise, SI Unit System is used overall! ##
+##                                                             ##
+#################################################################
+#
+#------------------------------------------------------------------------------
+#
+#	PARAMETERS FOR SOURCE-OBSERVATION CONFIGURATIONS
+#	================================================
+# 1. the uniform depth of the observation points [km], switch for oceanic (0)
+#    or continental(1) earthquakes;
+# 2. number of (horizontal) observation distances (> 1 and <= nrmax defined in
+#    psgglob.h), start and end distances [km], ratio (>= 1.0) between max. and
+#    min. sampling interval (1.0 for equidistant sampling);
+# 3. number of equidistant source depths (>= 1 and <= nzsmax defined in
+#    psgglob.h), start and end source depths [km];
+#
+#    r1,r2 = minimum and maximum horizontal source-observation
+#            distances (r2 > r1).
+#    zs1,zs2 = minimum and maximum source depths (zs2 >= zs1 > 0).
+#
+#    Note that the same sampling rates dr_min and dzs will be used later by the
+#    program "pscmp08" for discretizing the finite source planes to a 2D grid
+#    of point sources.
+#------------------------------------------------------------------------------
+        0.0       0
+   73   0.0  2000.0  10.0
+   30   1.0    59.0
+#------------------------------------------------------------------------------
+#
+#	PARAMETERS FOR TIME SAMPLING
+#	============================
+# 1. number of time samples (<= ntmax def. in psgglob.h) and time window [days].
+#
+#    Note that nt (> 0) should be power of 2 (the fft-rule). If nt = 1, the
+#    coseismic (t = 0) changes will be computed; If nt = 2, the coseismic
+#    (t = 0) and steady-state (t -> infinity) changes will be computed;
+#    Otherwise, time series for the given time samples will be computed.
+#
+#------------------------------------------------------------------------------
+ 512   46628.75
+#------------------------------------------------------------------------------
+#
+#	PARAMETERS FOR WAVENUMBER INTEGRATION
+#	=====================================
+# 1. relative accuracy of the wave-number integration (suggested: 0.1 - 0.01)
+# 2. factor (> 0 and < 1) for including influence of earth's gravity on the
+#    deformation field (e.g. 0/1 = without / with 100% gravity effect).
+#------------------------------------------------------------------------------
+ 0.025
+ 1.00
+#------------------------------------------------------------------------------
+#
+#	PARAMETERS FOR OUTPUT FILES
+#	===========================
+#
+# 1. output directory
+# 2. file names for 3 displacement components (uz, ur, ut)
+# 3. file names for 6 stress components (szz, srr, stt, szr, srt, stz)
+# 4. file names for radial and tangential tilt components (as measured by a
+#    borehole tiltmeter), rigid rotation of horizontal plane, geoid and gravity
+#    changes (tr, tt, rot, gd, gr)
+#
+#    Note that all file or directory names should not be longer than 80
+#    characters. Directory and subdirectoy names must be separated and ended
+#    by / (unix) or \ (dos)! All file names should be given without extensions
+#    that will be appended automatically by ".ep" for the explosion (inflation)
+#    source, ".ss" for the strike-slip source, ".ds" for the dip-slip source,
+#    and ".cl" for the compensated linear vector dipole source)
+#
+#------------------------------------------------------------------------------
+ './'
+ 'uz'  'ur'  'ut'
+ 'szz' 'srr' 'stt' 'szr' 'srt' 'stz'
+ 'tr'  'tt'  'rot' 'gd'  'gr'
+#------------------------------------------------------------------------------
+#
+#	GLOBAL MODEL PARAMETERS
+#	=======================
+# 1. number of data lines of the layered model (<= lmax as defined in psgglob.h)
+#
+#    The surface and the upper boundary of the half-space as well as the
+#    interfaces at which the viscoelastic parameters are continuous, are all
+#    defined by a single data line; All other interfaces, at which the
+#    viscoelastic parameters are discontinuous, are all defined by two data
+#    lines (upper-side and lower-side values). This input format could also be
+#    used for a graphic plot of the layered model. Layers which have different
+#    parameter values at top and bottom, will be treated as layers with a
+#    constant gradient, and will be discretised to a number of homogeneous
+#    sublayers. Errors due to the discretisation are limited within about 5%
+#    (changeable, see psgglob.h).
+#
+# 2....	parameters of the multilayered model
+#
+#    Burgers rheology [a Kelvin-Voigt body (mu1, eta1) and a Maxwell body
+#    (mu2, eta2) in series connection] for relaxation of shear modulus is
+#    implemented. No relaxation of compressional modulus is considered.
+#
+#    eta1  = transient viscosity (dashpot of the Kelvin-Voigt body; <= 0 means
+#            infinity value)
+#    eta2  = steady-state viscosity (dashpot of the Maxwell body; <= 0 means
+#            infinity value)
+#    alpha = ratio between the effective and the unrelaxed shear modulus
+#            = mu1/(mu1+mu2) (> 0 and <= 1) (unrelaxed modulus mu2 is
+#            derived from S wave velocity and density)
+#
+#    Special cases:
+#        (1) Elastic: eta1 and eta2 <= 0 (i.e. infinity); alpha meaningless
+#        (2) Maxwell body: eta1 <= 0 (i.e. eta1 = infinity)
+#                          or alpha = 1 (i.e. mu1 = infinity)
+#        (3) Standard-Linear-Solid: eta2 <= 0 (i.e. infinity)
+#            fully relaxed modulus = alpha*unrelaxed_modulus
+#            characteristic relaxation time = eta1*alpha/unrelaxed_modulus
+#------------------------------------------------------------------------------
+  7                               |int: no_model_lines;
+#------------------------------------------------------------------------------
+# no  depth[km]  vp[km/s]  vs[km/s]  rho[kg/m^3] eta1[Pa*s] eta2[Pa*s] alpha
+#------------------------------------------------------------------------------
+  1      0.000   6.0000    3.4600    2600.0      0.0E+00    0.0E+00    1.000
+  2     16.000   6.0000    3.4600    2600.0      0.0E+00    0.0E+00    1.000
+  3     16.000   6.7000    3.8700    2800.0      0.0E+00    0.0E+00    1.000
+  4     30.000   6.7000    3.8700    2800.0      0.0E+00    0.0E+00    1.000
+  5     30.000   8.0000    4.6200    3400.0      0.0E+00    0.0E+00    1.000
+  6     60.000   8.0000    4.6200    3400.0      0.0E+00    0.0E+00    1.000
+  7     60.000   8.0000    4.6200    3400.0      0.0E+00    1.0E+19    1.000
+#=======================end of input===========================================
