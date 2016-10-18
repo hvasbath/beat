@@ -51,7 +51,7 @@ the line::
 If it is there, fine. If not, you have to create it.
 
 If you decided to install OpenBlas in a totally different directory you have
-create a file `openblas.conf` containing your custom_path.
+create a file `openblas.conf` containing your custom_path::
 
     /custom_path/lib
 
@@ -62,7 +62,7 @@ file with the path; you have to do::
 
 Numpy
 """""
-Buildin numpy from source requires cython:
+Buildin numpy from source requires cython::
 
     pip install cython
 
@@ -106,6 +106,10 @@ Finally::
 
     sudo python setup.py install
 
+or if you prefer you can again use pip and it will be cleaner recognized by the
+packaging::
+
+    pip install .
 
 Theano
 """"""
