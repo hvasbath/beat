@@ -293,6 +293,7 @@ Geodetic synthetics
 These codes are so far included in the beat repository, but will be a part of the pyrocko framework in the future.
 In the BEAT folder::
 
+    tar -xvzf fomosto-psgrn-pscmp.tar.gz
     cd fomosto-psgrn-pscmp
     autoreconf -i   # only if 'configure' script is missing
     F77=gfortran FFLAGS=-mcmodel=medium ./configure
