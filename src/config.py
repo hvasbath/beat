@@ -112,10 +112,6 @@ class SeismicGFConfig(GFConfig):
                        'qseis2d)')
     sample_rate = Float.T(default=2.,
                           help='Sample rate for the Greens Functions.')
-    calc_data_cov = Bool.T(
-        default=True,
-        help='Flag for calculating the data covariance matrix based on the'
-             ' pre P arrival data trace noise.')
     depth_limit_variation = Float.T(
         default=600.,
         help='Depth limit [km] for varying the velocity model.')
@@ -164,7 +160,10 @@ class SeismicConfig(Object):
                        help='Station name for station to be thrown out.')
     distances = Tuple.T(2, Float.T(), default=(30., 90.))
     channels = List.T(String.T(), default=['Z', 'T'])
-
+    calc_data_cov = Bool.T(
+        default=True,
+        help='Flag for calculating the data covariance matrix based on the'
+             ' pre P arrival data trace noise.')
     arrival_taper = trace.Taper.T(
                 default=ArrivalTaper.D(),
                 help='Taper a,b/c,d time [s] before/after wave arrival')

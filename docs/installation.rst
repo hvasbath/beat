@@ -42,8 +42,30 @@ and speeds up the calculations::
     make FC=gfortran
     sudo make PREFIX=/usr/local install
 
+Now we have to tell the system where to find the new OpenBLAS library.
+In the directory /etc/ld.so.conf.d/ should be a file `libc.conf` containing
+the line::
+
+    /usr/local/lib
+
+If it is there, fine. If not, you have to create it.
+
+If you decided to install OpenBlas in a totally different directory you have
+create a file `openblas.conf` containing your custom_path.
+
+    /custom_path/lib
+
+In both cases, either only checking if the files are there or creating the new
+file with the path; you have to do::
+
+    sudo ldconfig
+
 Numpy
 """""
+Buildin numpy from source requires cython:
+
+    pip install cython
+
 If you compile your numpy locally against the previously installed OpenBlas
 library you can gain significant speedup. For my machine it resulted 
 in a speed-up of the numpy related calculations by a factor of at least 3.::
@@ -55,7 +77,7 @@ in a speed-up of the numpy related calculations by a factor of at least 3.::
 Per default, the current developers branch is being installed. We want to
 install one of the most recent stable branches::
 
-    git checkout -v1.11.1
+    git checkout v1.11.1
 
 Next, create a configuration file `site.cfg` that tells numpy where to find the
 previously installed OpenBlas library::
@@ -99,6 +121,7 @@ well.
 
 For the bleeding edge installation do::
 
+    cd ~/src
     git clone https://github.com/Theano/Theano
     cd Theano
     sudo python setup.py install
@@ -218,7 +241,7 @@ Main Packages
 ^^^^^^^^^^^^^
 
 BEAT relies on 2 main libraries. Detailed installation instructions for each
-can be found on the respective websites::
+can be found on the respective websites:
 
 `pyrocko <http://pyrocko.org/>`__
 `pymc3 <https://github.com/pymc-devs/pymc3>`__
