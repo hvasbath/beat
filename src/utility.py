@@ -274,11 +274,26 @@ def split_point(point):
     for i in range(n_sources):
         source_param_dict = dict()
         for param, value in point.iteritems():
-            source_param_dict[param] = float(copy.deepcopy(value[i]))
+            source_param_dict[param] = float(value[i])
 
         source_points.append(source_param_dict)
 
     return source_points
+
+
+def update_source(source, **kwargs):
+    """
+    Update source keeping stf and source params seperate.
+    """
+    for (k, v) in kwargs.iteritems():
+        if k not in source.keys():
+            if source.stf is not None:
+                source.stf[k] = v
+            else:
+                raise Exception('Please set a STF before updating its'
+                                    ' parameters.')
+        else:
+            source[k] = v
 
 
 def utm_to_loc(utmx, utmy, zone, event):

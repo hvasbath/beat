@@ -492,10 +492,7 @@ class GeometryOptimizer(Problem):
         source_points = utility.split_point(point)
 
         for i, source in enumerate(self.sources):
-            for stfv in bconfig.stf_vars:
-		source.stf[stfv] = source_points[i].pop(stfv)
-
-            source.update(**source_points[i])
+            utility.update_source(source, **source_points[i])
 
         dsources = utility.transform_sources(
             self.sources, self.config.problem_config.datasets)
@@ -577,7 +574,7 @@ class GeometryOptimizer(Problem):
         source_points = utility.split_point(point)
 
         for i, source in enumerate(self.sources):
-            source.update(**source_points[i])
+            utility.update_source(source, **source_points[i])
 
         dsources = utility.transform_sources(
             self.sources, self.config.problem_config.datasets)

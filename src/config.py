@@ -29,9 +29,7 @@ geo_vars_geometry = ['east_shift', 'north_shift', 'depth', 'strike', 'dip',
                          'rake', 'length', 'width', 'slip']
 geo_vars_magma = geo_vars_geometry + ['opening']
 
-stf_vars = ['duration']
-
-seis_vars_geometry = ['time'] + stf_vars
+seis_vars_geometry = ['time', 'duration']
 
 joint_vars_geometry = geo_vars_geometry + seis_vars_geometry
 
