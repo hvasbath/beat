@@ -479,12 +479,22 @@ class GeometryOptimizer(Problem):
         # update sources
         point = utility.adjust_point_units(point)
 
+        # remove hyperparameters from point
+        hps = self.config.problem_config.hyperparameters
+
+        if len(hps) > 0:
+            for hyper in hps:
+                point.pop(hyper.name)
+
         if self._seismic_flag:
             point['time'] += self.event.time
 
         source_points = utility.split_point(point)
 
         for i, source in enumerate(self.sources):
+            for stfv in bconfig.stf_vars:
+		source.stf[stfv] = source_points[i].pop(stfv)
+
             source.update(**source_points[i])
 
         dsources = utility.transform_sources(

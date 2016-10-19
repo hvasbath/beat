@@ -265,7 +265,7 @@ def adjust_point_units(point):
 def split_point(point):
     '''
     Split point in solution space into List of dictionaries with source
-    parameters for each source.
+    parameters for each source. Does a deepcopy of each parameter.
     :py:param: point :py:class:`pymc3.Point`
     '''
     n_sources = point[point.keys()[0]].shape[0]
@@ -274,7 +274,7 @@ def split_point(point):
     for i in range(n_sources):
         source_param_dict = dict()
         for param, value in point.iteritems():
-            source_param_dict[param] = float(value[i])
+            source_param_dict[param] = float(copy.deepcopy(value[i]))
 
         source_points.append(source_param_dict)
 
