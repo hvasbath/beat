@@ -1341,12 +1341,12 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
             outstack = synths
 
     if outmode == 'traces':
-        outstack = []
+        outtraces = []
         for i in range(nt):
             synt_trcs[i].ydata = outstack[i, :]
-            outstack.append(synt_trcs[i])
+            outtraces.append(synt_trcs[i])
 
-        return outstack, tmins
+        return outtraces, tmins
 
     elif outmode == 'data':
         return synt_trcs, tmins
