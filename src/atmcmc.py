@@ -19,6 +19,7 @@ import os
 import shutil
 import theano
 import copy
+from glob import glob
 
 from pyrocko import util, parimap
 from pymc3.model import modelcontext
@@ -466,7 +467,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
     chain : int
         Chain number used to store sample in backend. If `n_jobs` is
         greater than one, chain numbers will start here.
-    stage : int
+    stage : str
         Stage where to start or continue the calculation. It is possible to
         continue after completed stages (stage should be the number of the
         completed stage + 1). If None the start will be at stage = 0.
@@ -532,9 +533,36 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
     figdirpath = os.path.join(homepath, 'figures')
     util.ensuredir(figdirpath)
 
+    if progressbar and n_jobs > 1:
+        progressbar = False
+
     if stage is not None:
-        if stage > 0:
-            # continue sampling
+        if stage == '0':
+            # continue or start initial stage
+            step.stage = int(stage)
+            stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
+            draws = 1
+  
+        elif stage == 'final':
+            # continue sampling final stage
+            last = get_highest_sampled_stage(homepath)
+
+            logger.info(
+                'Loading parameters from completed stage_%i' % last)
+            project_dir = os.path.dirname(homepath)
+            mode = os.path.basename(homepath)
+            step, updates = utility.load_atmip_params(
+                project_dir, str(last) , mode)
+
+            if update is not None:
+                update.apply(updates)
+
+            stage_path = os.path.join(homepath, 'stage_final')
+            draws = step.n_steps
+
+        else:
+            # continue sampling intermediate
+            stage = int(stage)
             logger.info(
                 'Loading parameters from completed stage_%i' % (stage - 1))
             project_dir = os.path.dirname(homepath)
@@ -548,11 +576,42 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
             step.stage += 1
 
             stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
-            util.ensuredir(stage_path)
+            draws = step.n_steps
 
+        if rm_flag:
+            logger.info('Removing previous sampling results ... '
+                '%s' % stage_path)
+            shutil.rmtree(stage_path)
+            chains = None
         else:
-            step.stage = stage
-            stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
+            with model:
+	        # load incomplete stage results
+	        logger.info('Reloading existing results ...')
+	        mtrace = backend.load(stage_path, model=model)
+	        if len(mtrace) > 0:
+		    # continue sampling if traces exist
+		    logger.info('Checking for corrupted files ...')
+		    chains = backend.check_multitrace(
+		        mtrace, draws=draws, n_chains=step.n_chains)
+		    rest = len(chains) % n_jobs
+
+		    if rest > 0.:
+		        logger.info('Fixing %i chains ...' % rest)
+		        rest_chains = utility.split_off_list(chains, rest)
+		        # process traces that are not a multiple of n_jobs
+		        sample_args = {
+		            'draws': draws,
+		            'step': step,
+		            'stage_path': stage_path,
+		            'progressbar': progressbar,
+		            'model': model,
+		            'n_jobs': rest,
+		            'chains': rest_chains}
+
+		        _iter_parallel_chains(**sample_args)
+		        logger.info('Back to normal!')
+    else:
+        raise Exception('stage has to be not None!')
 
     with model:
         while step.beta < 1.:
@@ -565,45 +624,10 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
             logger.info('Beta: %f Stage: %i' % (step.beta, step.stage))
 
-            if progressbar and n_jobs > 1:
-                progressbar = False
-
             # Metropolis sampling intermediate stages
             stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
 
-            if os.path.exists(stage_path):
-                if rm_flag:
-                    logger.info('Removing previous sampling results ... '
-                        '%s' % stage_path)
-                    shutil.rmtree(stage_path)
-                    chains = None
-                else:
-                    # load incomplete stage results
-                    logger.info('Reloading existing results ...')
-                    mtrace = backend.load(stage_path, model=model)
-                    if len(mtrace) > 0:
-                        # continue sampling if traces exist
-                        logger.info('Checking for corrupted files ...')
-                        chains = backend.check_multitrace(
-                            mtrace, draws=draws, n_chains=step.n_chains)
-                        rest = len(chains) % n_jobs
-
-                        if rest > 0.:
-                            logger.info('Fixing %i chains ...' % rest)
-                            rest_chains = utility.split_off_list(chains, rest)
-                            # process traces that are not a multiple of n_jobs
-                            sample_args = {
-                                    'draws': draws,
-                                    'step': step,
-                                    'stage_path': stage_path,
-                                    'progressbar': progressbar,
-                                    'model': model,
-                                    'n_jobs': rest,
-                                    'chains': rest_chains}
-
-                            _iter_parallel_chains(**sample_args)
-                            logger.info('Back to normal!')
-            else:
+            if not os.path.exists(stage_path):
                 chains = None
 
             sample_args = {
@@ -642,7 +666,10 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                 outpath = os.path.join(stage_path, 'atmip.params')
                 outparam_list = [step, update]
                 utility.dump_objects(outpath, outparam_list)
-                chains = None
+                if stage == 'final':
+                    chains = []
+                else:
+                    chains = None
                 break
 
             step.covariance = step.calc_covariance()
@@ -884,3 +911,31 @@ def logp_forw(out_vars, vars, shared):
     f = theano.function([inarray0], out_list)
     f.trust_input = True
     return f
+
+
+def get_highest_sampled_stage(homedir):
+    """
+    Return stage number of stage that has been sampled before the final stage.
+
+    Paramaeters
+    -----------
+    homedir : str
+        Directory to the sampled stage results
+
+    Returns
+    -------
+    stage number : int
+    """
+    stages = glob(os.path.join(homedir, 'stage_*'))
+
+    stagenumbers = [] 
+    for s in stages:
+        stage_ending = os.path.splitext(s)[0].rsplit('_', 1)[1]
+        try:
+            stagenumbers.append(int(stage_ending))
+        except ValueError:
+            logger.debug('string - Thats the final stage!')
+
+    stagenumbers.sort()
+
+    return stagenumbers[-1]

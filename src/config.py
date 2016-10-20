@@ -292,8 +292,9 @@ class ATMCMCConfig(SamplerParameters):
              'intermediate stage pdfs;'
              'low - small beta steps (slow cooling),'
              'high - wide beta steps (fast cooling)')
-    stage = Int.T(default=0,
-                  help='Stage where to start/continue the sampling.')
+    stage = String.T(default='0',
+                  help='Stage where to start/continue the sampling. Have to be '
+                       ' int or "final"')
     proposal_dist = String.T(
         default='MvNPd',
         help='Multivariate Normal Proposal distribution, for Metropolis steps'
