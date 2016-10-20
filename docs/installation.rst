@@ -323,9 +323,14 @@ In the BEAT folder::
     tar -xvzf fomosto-psgrn-pscmp.tar.gz
     cd fomosto-psgrn-pscmp
     autoreconf -i   # only if 'configure' script is missing
-    F77=gfortran FFLAGS=-mcmodel=medium ./configure
-    make
-    sudo make install
+    ./configure
 
 If the number of modelled points is large the FFLAGS flag has to be changed to
-FFLAGS=-mcmodel=large, this will result in a long compilation time.
+FFLAGS=-mcmodel=large, this will result in a long compilation time.::
+
+    FFLAGS=-mcmodel=large ./configure
+
+After configuration::
+
+    make
+    sudo make install
