@@ -186,12 +186,20 @@ def command_init(args):
 def command_import_data(args):
 
     def setup(parser):
+        def list_callback(option, opt, value, parser):
+            out = [ival.lstrip() for ival in value.split(',')]
+            setattr(parser.values, option.dest, out)
 
         parser.add_option('--main_path', dest='main_path', type='string',
             default='./',
             help='Main path (absolute) leading to folders of events that'
                  ' have been created by "init".'
                  ' Default: current directory: ./')
+
+        parser.add_option('--datasets',
+            default=['geodetic'], type='string',
+            action='callback', callback=list_callback,
+            help='Datasets to import; "geodetic, seismic".')
 
         parser.add_option('--geodetic_format', dest='geodetic_format',
             type='string', default='matlab',
@@ -224,7 +232,7 @@ def command_import_data(args):
 
     pc = c.problem_config
 
-    if 'seismic' in pc.datasets:
+    if 'seismic' in options.datasets:
         sc = c.seismic_config
         logger.info('Importing seismic data from %s' % sc.datadir)
 
@@ -249,7 +257,7 @@ def command_import_data(args):
             raise Exception(
                 'Format: %s not implemented yet.' % options.seismic_format)
 
-    if 'geodetic' in pc.datasets:
+    if 'geodetic' in options.datasets:
         gc = c.geodetic_config
         logger.info('Importing geodetic data from %s' % gc.datadir)
 

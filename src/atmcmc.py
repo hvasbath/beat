@@ -585,7 +585,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                         # continue sampling if traces exist
                         logger.info('Checking for corrupted files ...')
                         chains = backend.check_multitrace(
-                            mtrace, draws=n_steps, n_chains=step.n_chains)
+                            mtrace, draws=draws, n_chains=step.n_chains)
                         rest = len(chains) % n_jobs
 
                         if rest > 0.:
