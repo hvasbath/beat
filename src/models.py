@@ -479,13 +479,20 @@ class GeometryOptimizer(Problem):
         # update sources
         point = utility.adjust_point_units(point)
 
+        # remove hyperparameters from point
+        hps = self.config.problem_config.hyperparameters
+
+        if len(hps) > 0:
+            for hyper in hps:
+                point.pop(hyper.name)
+
         if self._seismic_flag:
             point['time'] += self.event.time
 
         source_points = utility.split_point(point)
 
         for i, source in enumerate(self.sources):
-            source.update(**source_points[i])
+            utility.update_source(source, **source_points[i])
 
         dsources = utility.transform_sources(
             self.sources, self.config.problem_config.datasets)
@@ -567,7 +574,7 @@ class GeometryOptimizer(Problem):
         source_points = utility.split_point(point)
 
         for i, source in enumerate(self.sources):
-            source.update(**source_points[i])
+            utility.update_source(source, **source_points[i])
 
         dsources = utility.transform_sources(
             self.sources, self.config.problem_config.datasets)

@@ -265,7 +265,7 @@ def adjust_point_units(point):
 def split_point(point):
     '''
     Split point in solution space into List of dictionaries with source
-    parameters for each source.
+    parameters for each source. Does a deepcopy of each parameter.
     :py:param: point :py:class:`pymc3.Point`
     '''
     n_sources = point[point.keys()[0]].shape[0]
@@ -279,6 +279,21 @@ def split_point(point):
         source_points.append(source_param_dict)
 
     return source_points
+
+
+def update_source(source, **kwargs):
+    """
+    Update source keeping stf and source params seperate.
+    """
+    for (k, v) in kwargs.iteritems():
+        if k not in source.keys():
+            if source.stf is not None:
+                source.stf[k] = v
+            else:
+                raise Exception('Please set a STF before updating its'
+                                    ' parameters.')
+        else:
+            source[k] = v
 
 
 def utm_to_loc(utmx, utmy, zone, event):

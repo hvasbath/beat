@@ -188,7 +188,7 @@ class SeisSynthesizer(theano.Op):
         source_points = utility.split_point(mpoint)
 
         for i, source in enumerate(self.sources):
-            source.update(**source_points[i])
+            utility.update_source(source, **source_points[i])
             source.time += self.event.time
             heart.adjust_fault_reference(source, input_depth='top')
 
