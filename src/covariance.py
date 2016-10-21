@@ -53,7 +53,7 @@ def get_seismic_data_covariances(data_traces, engine, filterer, sample_rate,
 
         ctrace = tr.chop(
             tmin=tr.tmin,
-            tmax=arrival_time - ataper.b,
+            tmax=arrival_time - num.abs(ataper.b),
             inplace=False)
 
         cov_ds.append(num.var(ctrace.ydata, ddof=1) * csub)
