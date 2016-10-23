@@ -25,6 +25,8 @@ guts_prefix = 'beat'
 
 logger = logging.getLogger('config')
 
+modes = ['geometry', 'static_dist', 'kinematic_dist']
+
 geo_vars_geometry = ['east_shift', 'north_shift', 'depth', 'strike', 'dip',
                          'rake', 'length', 'width', 'slip']
 geo_vars_magma = geo_vars_geometry + ['opening']
@@ -182,7 +184,7 @@ class GeodeticConfig(Object):
     datadir = String.T(default='./')
     tracks = List.T(String.T(), default=['Data prefix filenames here ...'])
     types = List.T(
-        default='SAR',
+        default=['SAR'],
         help='Types of geodetic data, i.e. SAR, GPS, ...')
     gf_config = GeodeticGFConfig.T(default=GeodeticGFConfig.D())
 
@@ -192,7 +194,7 @@ class ProblemConfig(Object):
     Config for inversion problem to setup.
     """
     mode = String.T(default='geometry',
-                    help='Problem to solve: "Geometry", "Static","Kinematic"')
+                    help='Problem to solve: "geometry", "static","kinematic"')
     n_faults = Int.T(default=1,
                      help='Number of Sub-faults to solve for')
     datasets = List.T(default=['geodetic'])
@@ -202,16 +204,19 @@ class ProblemConfig(Object):
 
     def init_vars(self):
 
+        if self.mode not in modes:
+            raise ValueError('Problem mode %s not implemented' % self.mode)
+
         if self.mode == 'geometry':
             if 'geodetic' in self.datasets:
                 variables = geo_vars_geometry
             if 'seismic' in self.datasets:
                 variables = joint_vars_geometry
 
-        elif self.mode == 'static_dist':
+        elif self.mode == 'static':
             variables = static_dist_vars
 
-        elif self.mode == 'kinematic_dist':
+        elif self.mode == 'kinematic':
             variables = kinematic_dist_vars
             if 'seismic' not in self.datasets:
                 logger.error('A kinematic model cannot be resolved with'
@@ -253,6 +258,7 @@ class ProblemConfig(Object):
         else:
             logger.info('No hyper-parameters defined!')
 
+
 class SamplerParameters(Object):
     pass
 
@@ -293,8 +299,8 @@ class ATMCMCConfig(SamplerParameters):
              'low - small beta steps (slow cooling),'
              'high - wide beta steps (fast cooling)')
     stage = String.T(default='0',
-                  help='Stage where to start/continue the sampling. Have to be '
-                       ' int or "final"')
+                  help='Stage where to start/continue the sampling. Have to '
+                       ' be int or "final"')
     proposal_dist = String.T(
         default='MvNPd',
         help='Multivariate Normal Proposal distribution, for Metropolis steps'
@@ -466,7 +472,6 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
     c.problem_config.validate_priors()
 
     c.validate()
-
 
     logger.info('Project_directory: %s \n' % c.project_dir)
     util.ensuredir(c.project_dir)

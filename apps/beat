@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 
 import sys, re, os, logging, copy
+import shutil
+
 from optparse import OptionParser
 
 from beat import heart, config, utility, models, inputf
 
 from pyrocko import model, util
 
-from pyrocko.guts import load
+from pyrocko.guts import load, dump
 
 
 logger = logging.getLogger('beat')
@@ -20,6 +22,7 @@ subcommand_descriptions = {
         'import_data':    'import data from external format',
         'sample':         'sample the solution space of the problem',
         'build_gfs':      'build GF stores',
+        'clone':          'clone EQ model project into new directory',
         'plot':           'plot specified setups or results'
     }
 
@@ -34,6 +37,7 @@ subcommand_usages = {
         'import_data':   'import_data <event_name> [options]',
         'sample':        'sample <event_name> [options]',
         'build_gfs':     'build <event_name> [options]',
+        'clone':         'clone <event_name> <cloned_event_name> [options]',
         'plot':          'plot <event_name> <mode>',
     }
 
@@ -50,6 +54,7 @@ email: hannes.vasyura-bathke@kaust.edu.sa
 Subcommands:
 
     init            %(init)s
+    clone           %(clone)s
     import_data     %(import_data)s
     build_gfs       %(build_gfs)s
     sample          %(sample)s
@@ -122,12 +127,14 @@ def load_config(fn):
     return config
 
 
+def list_callback(option, opt, value, parser):
+    out = [ival.lstrip() for ival in value.split(',')]
+    setattr(parser.values, option.dest, out)
+
+
 def command_init(args):
 
     def setup(parser):
-        def list_callback(option, opt, value, parser):
-            out = [ival.lstrip() for ival in value.split(',')]
-            setattr(parser.values, option.dest, out)
 
         parser.add_option('--min_mag', dest='min_mag', type=float,
             default=6.,
@@ -186,9 +193,6 @@ def command_init(args):
 def command_import_data(args):
 
     def setup(parser):
-        def list_callback(option, opt, value, parser):
-            out = [ival.lstrip() for ival in value.split(',')]
-            setattr(parser.values, option.dest, out)
 
         parser.add_option('--main_path', dest='main_path', type='string',
             default='./',
@@ -274,6 +278,83 @@ def command_import_data(args):
                 'Format: %s not implemented yet.' % options.geodetic_format)
 
 
+def command_clone(args):
+
+    def setup(parser):
+
+        parser.add_option('--main_path', dest='main_path', type='string',
+            default='./',
+            help='Main path (absolute) leading to folders of events that'
+                 ' have been created by "init".'
+                 ' Default: current directory: ./')
+
+        parser.add_option('--datasets',
+            default=['geodetic', 'seismic'], type='string',
+            action='callback', callback=list_callback,
+            help='Datasets to clone; "geodetic, seismic".')
+
+        parser.add_option('--mode',
+            default=config.modes, type='string',
+            action='callback', callback=list_callback,
+            help='Inversion problem configs to clone if available;'
+                 ' "geometry", "static", "kinematic". Default: all')
+
+        parser.add_option('--copy_data', dest='copy_data',
+            action='store_true',
+            help='If set, the imported data will be copied into the cloned'
+                 ' directory.')
+
+    parser, options, args = cl_parse('clone', args, setup=setup)
+
+    if not len(args) == 2:
+        parser.print_help()
+        sys.exit(1)
+
+    name, cloned_name = args
+
+    main_path = os.getcwd()
+    project_dir = os.path.join(main_path, name)
+    cloned_dir = os.path.join(main_path, cloned_name)
+
+    util.ensuredir(cloned_dir)
+
+    for mode in options.mode:
+        config_fn = os.path.join(project_dir, 'config_' + mode + '.yaml')
+        if os.path.exists(config_fn):
+            logger.info('Cloning %s problem config.' % mode)
+            c = config.load_config(project_dir, mode)
+            c.name = cloned_name
+            c.project_dir = cloned_dir
+
+            new_datasets = []
+            for dataset in  options.datasets:
+                if dataset not in c.problem_config.datasets:
+                    logger.warn('Dataset to be cloned is not in config!')
+                else:
+                    new_datasets.append(dataset)
+
+                    data_path = os.path.join(
+                        project_dir, dataset + '_data.pkl')
+
+                    if os.path.exists(data_path) and options.copy_data:
+                        logger.info('Cloning %s data.' % dataset)
+                        cloned_data_path = os.path.join(
+                            cloned_dir, dataset + '_data.pkl')
+                        shutil.copyfile(data_path, cloned_data_path)
+
+            c.problem_config.datasets = new_datasets
+            c.problem_config.init_vars()
+
+            if 'seismic' not in new_datasets:
+                c.seismic_config = None
+            if 'geodetic' not in new_datasets:
+                c.geodetic_config = None
+
+            c.update_hypers()
+            cloned_config_fn = os.path.join(
+                cloned_dir, 'config_' + mode + '.yaml')
+            dump(c, filename=cloned_config_fn)
+
 def command_sample(args):
 
     def setup(parser):
@@ -311,9 +392,6 @@ def command_sample(args):
 def command_build_gfs(args):
 
     def setup(parser):
-        def list_callback(option, opt, value, parser):
-            out = [ival.lstrip() for ival in value.split(',')]
-            setattr(parser.values, option.dest, out)
 
         parser.add_option('--main_path', dest='main_path', type='string',
             default='./',
