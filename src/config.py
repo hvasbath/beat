@@ -9,7 +9,7 @@ kinematic distributed slip.
 import logging
 import os
 
-from pyrocko.guts import Object, List, String, Float, Int, Tuple, Bool
+from pyrocko.guts import Object, List, String, Float, Int, Tuple, Bool, Dict
 from pyrocko.guts import load, dump
 from pyrocko.cake import load_model
 
@@ -38,7 +38,8 @@ partial_kinematic_vars = ['nuc_x', 'nuc_y', 'duration', 'velocity']
 
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars
 
-hyper_pars = ['alpha', 'beta', 'gamma']
+hyper_pars = {'Z':'seis_Z', 'T':'seis_T',
+             'SAR':'geo_S', 'GPS':'geo_G'}
 
 default_bounds = dict(
     east_shift=(-10., 10.),
@@ -57,9 +58,10 @@ default_bounds = dict(
     nuc_x=(0., 10.),
     nuc_y=(0., 7.),
     velocity=(0.5, 4.2),
-    alpha=(-20., 20.),
-    beta=(-20., 20.),
-    gamma=(-20., 20.))
+    seis_Z=(-20., 20.),
+    seis_T=(-20., 20.),
+    geo_S=(-20., 20.),
+    geo_G=(-20., 20.))
 
 seismic_data_name = 'seismic_data.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
@@ -179,7 +181,9 @@ class GeodeticConfig(Object):
 
     datadir = String.T(default='./')
     tracks = List.T(String.T(), default=['Data prefix filenames here ...'])
-    targets = List.T(optional=True)
+    types = List.T(
+        default='SAR',
+        help='Types of geodetic data, i.e. SAR, GPS, ...')
     gf_config = GeodeticGFConfig.T(default=GeodeticGFConfig.D())
 
 
@@ -192,8 +196,7 @@ class ProblemConfig(Object):
     n_faults = Int.T(default=1,
                      help='Number of Sub-faults to solve for')
     datasets = List.T(default=['geodetic'])
-    hyperparameters = List.T(
-        Parameter.T(),
+    hyperparameters = Dict.T(
         help='Hyperparameters to weight different types of datasets.')
     priors = List.T(Parameter.T())
 
@@ -228,18 +231,6 @@ class ProblemConfig(Object):
                         num.mean(default_bounds[variable]))
                                )
 
-        for i in range(len(self.datasets) - 1):
-            self.hyperparameters.append(
-                Parameter(
-                    name=hyper_pars[i],
-                    lower=num.ones(1, dtype=num.float) * \
-                        default_bounds[hyper_pars[i]][0],
-                    upper=num.ones(1, dtype=num.float) * \
-                        default_bounds[hyper_pars[i]][1],
-                    testvalue=num.ones(1, dtype=num.float) * \
-                        num.mean(default_bounds[hyper_pars[i]]))
-                                        )
-
     def validate_priors(self):
         """
         Check if priors and their test values do not contradict!
@@ -247,11 +238,20 @@ class ProblemConfig(Object):
         for param in self.priors:
             param()
 
-        for hyperparam in self.hyperparameters:
-            hyperparam()
+        logger.info('All parameter-priors ok!')
 
-        print('All parameter-priors ok!')
+    def validate_hypers(self):
+        """
+        Check if hyperparameters and their test values do not contradict!
+        """
+        if self.hyperparameters is not None:
+            for hp in self.hyperparameters.itervalues():
+                hp()
 
+            logger.info('All hyper-parameters ok!')
+
+        else:
+            logger.info('No hyper-parameters defined!')
 
 class SamplerParameters(Object):
     pass
@@ -359,6 +359,36 @@ class BEATconfig(Object):
         default=None, optional=True)
     sampler_config = SamplerConfig.T(default=SamplerConfig.D())
 
+    def update_hypers(self):
+        """
+        Evaluate the whole config and initialise necessary hyperparameters.
+        """
+
+        hypernames = []
+
+        if self.geodetic_config is not None:
+            for ty in self.geodetic_config.types:
+                hypernames.append(hyper_pars[ty])
+
+        if self.seismic_config is not None:
+            for ch in self.seismic_config.channels:
+                hypernames.append(hyper_pars[ch])
+
+        hypers = dict()
+        for name in hypernames:
+            hypers[name] = Parameter(
+                    name=name,
+                    lower=num.ones(1, dtype=num.float) * \
+                        default_bounds[name][0],
+                    upper=num.ones(1, dtype=num.float) * \
+                        default_bounds[name][1],
+                    testvalue=num.ones(1, dtype=num.float) * \
+                        num.mean(default_bounds[name])
+                                        )
+
+        self.problem_config.hyperparameters = hypers
+        self.problem_config.validate_hypers()
+
 
 def init_config(name, date, min_magnitude=6.0, main_path='./',
                 datasets=['geodetic'],
@@ -431,8 +461,12 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
     c.sampler_config = SamplerConfig(name=sampler)
     c.sampler_config.set_parameters()
 
-    c.validate()
+    c.update_hypers()
+
     c.problem_config.validate_priors()
+
+    c.validate()
+
 
     logger.info('Project_directory: %s \n' % c.project_dir)
     util.ensuredir(c.project_dir)
@@ -462,5 +496,11 @@ def load_config(project_dir, mode):
 
     config_fn = os.path.join(project_dir, config_file_name)
     config = load(filename=config_fn)
+
+    if config.problem_config.hyperparameters is None or \
+        len(config.problem_config.hyperparameters) == 0:
+        config.update_hypers()
+        logger.info('Updated hyper parameters!')
+        dump(config, filename=config_fn)
 
     return config

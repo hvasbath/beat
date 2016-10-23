@@ -354,8 +354,10 @@ class GeometryOptimizer(Problem):
 
             logger.info('Optimization for %i sources', len(self.sources))
 
+            pc = self.config.problem_config
+
             input_rvs = []
-            for param in self.config.problem_config.priors:
+            for param in pc.priors:
                 input_rvs.append(pm.Uniform(
                     param.name,
                     shape=param.dimension,
@@ -364,18 +366,15 @@ class GeometryOptimizer(Problem):
                     testval=param.testvalue,
                     transform=None))
 
-            hyperparams = []
-            if len(self.config.problem_config.hyperparameters) > 0:
-                for hyperpar in self.config.problem_config.hyperparameters:
-                    hyperparams.append(pm.Uniform(
-                        hyperpar.name,
-                        shape=hyperpar.dimension,
-                        lower=hyperpar.lower,
-                        upper=hyperpar.upper,
-                        testval=hyperpar.testvalue,
-                        transform=None))
-            else:
-                hyperparams.append(1)
+            self.hyperparams = {}
+            for hyperpar in pc.hyperparameters.itervalues():
+                self.hyperparams[hyperpar.name] = pm.Uniform(
+                    hyperpar.name,
+                    shape=hyperpar.dimension,
+                    lower=hyperpar.lower,
+                    upper=hyperpar.upper,
+                    testval=hyperpar.testvalue,
+                    transform=None)
 
             total_llk = tt.zeros((1), tconfig.floatX)
 
@@ -400,13 +399,18 @@ class GeometryOptimizer(Problem):
                 seis_res = data_trcs - synths
 
                 logpts_s = tt.zeros((self.ns_t), tconfig.floatX)
+                M = seis_res.shape[1]
 
-                for k in range(self.ns_t):
-                    sfactor = self.stargets[k].covariance.log_norm_factor
+                for k, target in enumerate(self.stargets):
+                    sfactor = target.covariance.log_norm_factor
+                    hp_name = bconfig.hyper_pars[target.codes[3]]
 
                     logpts_s = tt.set_subtensor(logpts_s[k:k + 1],
-                        (-0.5) * (sfactor + seis_res[k, :].dot(
-                              self.sweights[k]).dot(seis_res[k, :].T)))
+                        (-0.5) * (sfactor - \
+                        ((M / 2) * self.hyperparams[hp_name]) + \
+                        tt.exp(self.hyperparams[hp_name] * 2) * \
+                        (seis_res[k, :].dot(
+                            self.sweights[k]).dot(seis_res[k, :].T))))
 
                 seis_llk = pm.Deterministic(self._seis_like_name, logpts_s)
 
@@ -438,14 +442,15 @@ class GeometryOptimizer(Problem):
 
                 logpts_g = tt.zeros((self.ng_t), tconfig.floatX)
 
-                for l in range(self.ng_t):
-                    M = self.gtargets[l].displacement.size
-                    gfactor = self.gtargets[l].covariance.log_norm_factor
+                for l, target in enumerate(self.gtargets):
+                    M = target.displacement.size
+                    gfactor = target.covariance.log_norm_factor
+                    hp_name = bconfig.hyper_pars[target.typ]
 
                     logpts_g = tt.set_subtensor(logpts_g[l:l + 1],
                          (-0.5) * (gfactor - \
-                         ((M / 2) * hyperparams[0]) + \
-                         tt.exp(hyperparams[0] * 2) * \
+                         ((M / 2) * self.hyperparams[hp_name]) + \
+                         tt.exp(self.hyperparams[hp_name] * 2) * \
                          (geo_res[l].dot(self.gweights[l]).dot(geo_res[l].T)))
                                                )
 
@@ -483,7 +488,7 @@ class GeometryOptimizer(Problem):
         hps = self.config.problem_config.hyperparameters
 
         if len(hps) > 0:
-            for hyper in hps:
+            for hyper in hps.keys():
                 point.pop(hyper.name)
 
         if self._seismic_flag:

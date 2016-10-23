@@ -433,7 +433,15 @@ class Parameter(Object):
                          dtype=num.float)
 
 
-class IFG(Object):
+class GeodeticTarget(Object):
+    """
+    Overall geodetic data set class
+    """
+
+    typ = String.T(default='SAR')
+
+
+class IFG(GeodeticTarget):
     """
     Interferogram class as a dataset in the optimization.
     """
