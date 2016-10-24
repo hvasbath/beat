@@ -492,7 +492,7 @@ class GeometryOptimizer(Problem):
 
         if len(hps) > 0:
             for hyper in hps.keys():
-                point.pop(hyper.name)
+                point.pop(hyper)
 
         if self._seismic_flag:
             point['time'] += self.event.time
