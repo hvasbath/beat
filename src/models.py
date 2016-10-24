@@ -407,10 +407,12 @@ class GeometryOptimizer(Problem):
 
                     logpts_s = tt.set_subtensor(logpts_s[k:k + 1],
                         (-0.5) * (sfactor - \
-                        ((M / 2) * self.hyperparams[hp_name]) + \
+                        (M * 2 * self.hyperparams[hp_name]) + \
                         tt.exp(self.hyperparams[hp_name] * 2) * \
                         (seis_res[k, :].dot(
-                            self.sweights[k]).dot(seis_res[k, :].T))))
+                            self.sweights[k]).dot(seis_res[k, :].T))
+                                 )
+                                                )
 
                 seis_llk = pm.Deterministic(self._seis_like_name, logpts_s)
 
@@ -449,9 +451,10 @@ class GeometryOptimizer(Problem):
 
                     logpts_g = tt.set_subtensor(logpts_g[l:l + 1],
                          (-0.5) * (gfactor - \
-                         ((M / 2) * self.hyperparams[hp_name]) + \
+                         (M * 2 * self.hyperparams[hp_name]) + \
                          tt.exp(self.hyperparams[hp_name] * 2) * \
-                         (geo_res[l].dot(self.gweights[l]).dot(geo_res[l].T)))
+                         (geo_res[l].dot(self.gweights[l]).dot(geo_res[l].T))
+                                  )
                                                )
 
                 geo_llk = pm.Deterministic(self._geo_like_name, logpts_g)
