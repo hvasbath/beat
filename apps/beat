@@ -347,8 +347,10 @@ def command_clone(args):
             if 'seismic' not in new_datasets:
                 c.seismic_config = None
                 new_priors = config.geo_vars_geometry
-            if 'geodetic' not in new_datasets:
+            elif 'geodetic' not in new_datasets:
                 c.geodetic_config = None
+                new_priors = config.joint_vars_geometry
+            else:
                 new_priors = config.joint_vars_geometry
 
             old_priors_name = [prior.name for prior in c.problem_config.priors]
