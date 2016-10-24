@@ -605,12 +605,12 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                             'step': step,
                             'stage_path': stage_path,
                             'progressbar': progressbar,
-                                'model': model,
-                                'n_jobs': rest,
-                                'chains': rest_chains}
+                            'model': model,
+                            'n_jobs': rest,
+                            'chains': rest_chains}
 
-                                _iter_parallel_chains(**sample_args)
-                                logger.info('Back to normal!')
+                        _iter_parallel_chains(**sample_args)
+                        logger.info('Back to normal!')
                 else:
                     logger.info('Init new trace!')
                     chains = None
