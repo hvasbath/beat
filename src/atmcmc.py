@@ -579,37 +579,41 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
             draws = step.n_steps
 
         if rm_flag:
-            logger.info('Removing previous sampling results ... '
-                '%s' % stage_path)
-            shutil.rmtree(stage_path)
             chains = None
+            if os.path.exists(stage_path):
+                logger.info('Removing previous sampling results ... '
+                    '%s' % stage_path)
+                shutil.rmtree(stage_path)
         else:
             with model:
-	        # load incomplete stage results
-	        logger.info('Reloading existing results ...')
-	        mtrace = backend.load(stage_path, model=model)
-	        if len(mtrace) > 0:
-		    # continue sampling if traces exist
-		    logger.info('Checking for corrupted files ...')
-		    chains = backend.check_multitrace(
-		        mtrace, draws=draws, n_chains=step.n_chains)
-		    rest = len(chains) % n_jobs
+                # load incomplete stage results
+                logger.info('Reloading existing results ...')
+                mtrace = backend.load(stage_path, model=model)
+                if len(mtrace) > 0:
+                    # continue sampling if traces exist
+                    logger.info('Checking for corrupted files ...')
+                    chains = backend.check_multitrace(
+                        mtrace, draws=draws, n_chains=step.n_chains)
+                    rest = len(chains) % n_jobs
 
-		    if rest > 0.:
-		        logger.info('Fixing %i chains ...' % rest)
-		        rest_chains = utility.split_off_list(chains, rest)
-		        # process traces that are not a multiple of n_jobs
-		        sample_args = {
-		            'draws': draws,
-		            'step': step,
-		            'stage_path': stage_path,
-		            'progressbar': progressbar,
-		            'model': model,
-		            'n_jobs': rest,
-		            'chains': rest_chains}
+                    if rest > 0.:
+                        logger.info('Fixing %i chains ...' % rest)
+                        rest_chains = utility.split_off_list(chains, rest)
+                        # process traces that are not a multiple of n_jobs
+                        sample_args = {
+                            'draws': draws,
+                            'step': step,
+                            'stage_path': stage_path,
+                            'progressbar': progressbar,
+                                'model': model,
+                                'n_jobs': rest,
+                                'chains': rest_chains}
 
-		        _iter_parallel_chains(**sample_args)
-		        logger.info('Back to normal!')
+                                _iter_parallel_chains(**sample_args)
+                                logger.info('Back to normal!')
+                else:
+                    logger.info('Init new trace!')
+                    chains = None
     else:
         raise Exception('stage has to be not None!')
 
