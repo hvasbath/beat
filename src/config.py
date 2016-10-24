@@ -224,6 +224,7 @@ class ProblemConfig(Object):
                 raise Exception('Kinematic model not resolvable with only'
                                 'geodetic data!')
 
+        self.priors = []
         for variable in variables:
             self.priors.append(
                 Parameter(
@@ -299,7 +300,7 @@ class ATMCMCConfig(SamplerParameters):
              'low - small beta steps (slow cooling),'
              'high - wide beta steps (fast cooling)')
     stage = String.T(default='0',
-                  help='Stage where to start/continue the sampling. Have to '
+                  help='Stage where to start/continue the sampling. Has to'
                        ' be int or "final"')
     proposal_dist = String.T(
         default='MvNPd',
