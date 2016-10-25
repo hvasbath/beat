@@ -367,14 +367,19 @@ class GeometryOptimizer(Problem):
                     transform=None))
 
             self.hyperparams = {}
+            n_hyp = len(pc.hyperparameters.keys())
+
             for hyperpar in pc.hyperparameters.itervalues():
-                self.hyperparams[hyperpar.name] = pm.Uniform(
-                    hyperpar.name,
-                    shape=hyperpar.dimension,
-                    lower=hyperpar.lower,
-                    upper=hyperpar.upper,
-                    testval=hyperpar.testvalue,
-                    transform=None)
+                if not self._seismic_flag and n_hyp == 1:
+                    self.hyperparams[hyperpar.name] = 1.
+                else:
+                    self.hyperparams[hyperpar.name] = pm.Uniform(
+                        hyperpar.name,
+                        shape=hyperpar.dimension,
+                        lower=hyperpar.lower,
+                        upper=hyperpar.upper,
+                        testval=hyperpar.testvalue,
+                        transform=None)
 
             total_llk = tt.zeros((1), tconfig.floatX)
 
