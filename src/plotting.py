@@ -1,14 +1,18 @@
 from pyrocko import cake_plot as cp
-import pymc3 as pm
+from pymc3 import plots as pmp
 
 import os
+import logging
+
 from beat import utility, backend
+
 from matplotlib import pylab as plt
+from matplotlib.backends.backend_pdf import PdfPages
 
 import numpy as num
 from pyrocko import cake, util
 
-from matplotlib.backends.backend_pdf import PdfPages
+logger = logging.getLogger('plotting')
 
 
 def plot(lons, lats, disp):
@@ -91,6 +95,97 @@ def plot_misfits(problem, posterior='mean', dataset='geodetic'):
     pdfp.close()
 
 
+def histplot_op(ax, data, alpha=.35, color=None):
+    """
+    Modified from pymc3. Additional color argument.
+    """
+    for i in range(data.shape[1]):
+        d = data[:, i]
+
+        mind = num.min(d)
+        maxd = num.max(d)
+        step = (maxd - mind) / 40.
+        ax.hist(d, bins=int(num.ceil((maxd - mind) / step)),
+                alpha=alpha, align='left', color=color)
+        ax.set_xlim(mind - .5, maxd + .5)
+
+
+def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
+              lines=None, combined=False, grid=False,
+              alpha=0.35, priors=None, prior_alpha=1, prior_style='--',
+              ax=None):
+    """
+    Plots posterior pdfs as histograms from multiple mtrace objects.
+
+    Modified from pymc3.
+
+    Parameters
+    ----------
+
+    trace : result of MCMC run
+    varnames : list of variable names
+        Variables to be plotted, if None all variable are plotted
+    transform : callable
+        Function to transform data (defaults to identity)
+    figsize : figure size tuple
+        If None, size is (12, num of variables * 2) inch
+    lines : dict
+        Dictionary of variable name / value  to be overplotted as vertical
+        lines to the posteriors and horizontal lines on sample values
+        e.g. mean of posteriors, true values of a simulation
+    combined : bool
+        Flag for combining multiple chains into a single chain. If False
+        (default), chains will be plotted separately.
+    grid : bool
+        Flag for adding gridlines to histogram. Defaults to True.
+    alpha : float
+        Alpha value for plot line. Defaults to 0.35.
+    ax : axes
+        Matplotlib axes. Defaults to None.
+
+    Returns
+    -------
+
+    ax : matplotlib axes
+    """
+
+    if varnames is None:
+        varnames = [name for name in trace.varnames if not name.endswith('_')]
+
+    n = len(varnames)
+    nrow = int(num.ceil(n / 2.))
+    ncol = 2
+
+    if figsize is None:
+        figsize = (12, n * 2)
+
+    if ax is None:
+        fig, ax = plt.subplots(nrow, ncol, squeeze=False, figsize=figsize)
+    elif ax.shape != (nrow, ncol):
+        logger.warn('traceplot requires n*2 subplots')
+        return None
+
+    for i, v in enumerate(varnames):
+        coli, rowi = utility.mod_i(i, nrow)
+        print coli, rowi
+        for d in trace.get_values(v, combine=combined, squeeze=False):
+            d = num.squeeze(transform(d))
+            d = pmp.make_2d(d)
+            histplot_op(ax[rowi, coli], d, alpha=alpha)
+            ax[rowi, coli].set_title(str(v))
+            ax[rowi, coli].grid(grid)
+            ax[rowi, coli].set_ylabel("Frequency")
+
+            if lines:
+                try:
+                    ax[rowi, coli].axvline(x=lines[v], color="r", lw=1.5)
+                except KeyError:
+                    pass
+
+    plt.tight_layout()
+    return ax
+
+
 def stage_posteriors(mtrace, n_steps, output='display',
             outpath='./stage_posterior.png', lines=None, style='lines'):
     '''
@@ -101,14 +196,14 @@ def stage_posteriors(mtrace, n_steps, output='display',
     def last_sample(x):
         return x[(n_steps - 1)::n_steps].flatten()
 
-    if style=='lines' or lines is not None:
-        PLT = pm.plots.traceplot(mtrace, transform=last_sample, combined=True,
+    if style == 'lines' or lines is not None:
+        PLT = traceplot(mtrace, transform=last_sample, combined=True,
             lines=lines)
     else:
-        PLT = pm.plot_posterior(mtrace, transform=last_sample)
+        PLT = pmp.plot_posterior(mtrace, transform=last_sample)
 
     if output == 'display':
-        plt.show(PLT)
+        plt.show(PLT[0][0])
     elif output == 'png':
         plt.savefig(outpath, dpi=300)
 

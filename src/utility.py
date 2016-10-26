@@ -556,6 +556,28 @@ def split_off_list(l, off_length):
     return [l.pop(0) for i in range(off_length)]
 
 
+def mod_i(i, cycle):
+    """
+    Calculates modulus of a function and returns number of full cycles and the
+    rest.
+
+    Parameters
+    ----------
+    i : int or float
+        Number to be cycled over
+    cycle : int o float
+        Cycle length
+
+    Returns
+    -------
+    fullc : int or float depending on input
+    rest : int or float depending on input
+    """
+    fullc = i / cycle
+    rest = i % cycle
+    return fullc, rest
+
+
 def biggest_common_divisor(a, b):
     '''
     Find the biggest common divisor of two float numbers a and b.
