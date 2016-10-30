@@ -95,7 +95,7 @@ def plot_misfits(problem, posterior='mean', dataset='geodetic'):
     pdfp.close()
 
 
-def histplot_op(ax, data, alpha=.35, color=None):
+def histplot_op(ax, data, alpha=.35, color=None, bins=None):
     """
     Modified from pymc3. Additional color argument.
     """
@@ -105,15 +105,18 @@ def histplot_op(ax, data, alpha=.35, color=None):
         mind = num.min(d)
         maxd = num.max(d)
         step = (maxd - mind) / 40.
-        ax.hist(d, bins=int(num.ceil((maxd - mind) / step)),
-                alpha=alpha, align='left', color=color)
+
+        if bins is None:
+            bins = int(num.ceil((maxd - mind) / step))
+
+        ax.hist(d, bins=bins, alpha=alpha, align='left', color=color)
         ax.set_xlim(mind - .5, maxd + .5)
 
 
 def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
-              lines=None, combined=False, grid=False,
+              lines=None, combined=False, grid=False, varbins=None, nbins=40,
               alpha=0.35, priors=None, prior_alpha=1, prior_style='--',
-              ax=None):
+              ax=None, posterior=None):
     """
     Plots posterior pdfs as histograms from multiple mtrace objects.
 
@@ -127,6 +130,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         Variables to be plotted, if None all variable are plotted
     transform : callable
         Function to transform data (defaults to identity)
+    posterior : str
+        To mark posterior value in distribution 'max', 'min', 'mean'
     figsize : figure size tuple
         If None, size is (12, num of variables * 2) inch
     lines : dict
@@ -138,6 +143,11 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         (default), chains will be plotted separately.
     grid : bool
         Flag for adding gridlines to histogram. Defaults to True.
+    varbins : list of arrays
+        List containing the binning arrays for the variables, if None they will
+        be created.
+    nbins : int
+        Number of bins for each histogram
     alpha : float
         Alpha value for plot line. Defaults to 0.35.
     ax : axes
@@ -149,8 +159,38 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     ax : matplotlib axes
     """
 
+    def make_bins(data, nbins=40):
+        d = data.flatten()
+        mind = d.min()
+        maxd = d.max()
+        return num.linspace(mind, maxd, nbins)
+
+    def remove_var(varnames, varname):
+        idx = varnames.index(varname)
+        varnames.pop(idx)
+
     if varnames is None:
         varnames = [name for name in trace.varnames if not name.endswith('_')]
+
+    if 'geo_like' in varnames:
+        remove_var(varnames, varname='geo_like')
+
+    if 'seis_like' in varnames:
+        remove_var(varnames, varname='seis_like')
+
+    if posterior is not None:
+        llk = trace.get_values('like', combine=combined, squeeze=False)
+        llk = num.squeeze(transform(llk[0]))
+        llk = pmp.make_2d(llk)
+
+        if posterior == 'mean':
+            idx = (num.abs(llk - llk.mean())).argmin()
+
+        if posterior == 'min':
+            idx = (num.abs(llk - llk.min())).argmin()
+
+        elif posterior == 'max':
+            idx = (num.abs(llk - llk.max())).argmin()
 
     n = len(varnames)
     nrow = int(num.ceil(n / 2.))
@@ -165,13 +205,26 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         logger.warn('traceplot requires n*2 subplots')
         return None
 
+    if varbins is None:
+        make_bins_flag = True
+        varbins = []
+    else:
+        make_bins_flag = False
+
     for i, v in enumerate(varnames):
         coli, rowi = utility.mod_i(i, nrow)
-        print coli, rowi
+
         for d in trace.get_values(v, combine=combined, squeeze=False):
             d = num.squeeze(transform(d))
             d = pmp.make_2d(d)
-            histplot_op(ax[rowi, coli], d, alpha=alpha)
+
+            if make_bins_flag:
+                varbin = make_bins(d, nbins=nbins)
+                varbins.append(varbin)
+            else:
+                varbin = varbins[i]
+
+            histplot_op(ax[rowi, coli], d, bins=varbin, alpha=alpha)
             ax[rowi, coli].set_title(str(v))
             ax[rowi, coli].grid(grid)
             ax[rowi, coli].set_ylabel("Frequency")
@@ -182,8 +235,11 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                 except KeyError:
                     pass
 
+            if posterior is not None:
+                ax[rowi, coli].axvline(x=d[idx], color="b", lw=1.5)
+
     plt.tight_layout()
-    return ax
+    return ax, varbins
 
 
 def stage_posteriors(mtrace, n_steps, output='display',
