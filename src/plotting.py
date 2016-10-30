@@ -15,15 +15,22 @@ from pyrocko import cake, util
 logger = logging.getLogger('plotting')
 
 
-def plot(lons, lats, disp):
-    '''
-    Very simple scatter plot of displacements for fast inspections.
-    '''
+def plot(uwifg, point_size=20):
+    """
+    Very simple scatter plot of given IFG for fast inspections.
+
+    Parameters
+    ----------
+    point_size : int
+        determines the size of the scatter plot points
+    """
+
     #colim = num.max([disp.max(), num.abs(disp.min())])
     ax = plt.axes()
-    im = ax.scatter(lons, lats, 15, disp, edgecolors='none')
+    im = ax.scatter(uwifg.lons, uwifg.lats, point_size, uwifg.displacement,
+        edgecolors='none')
     plt.colorbar(im)
-    plt.title('Displacements [m]')
+    plt.title('Displacements [m] %s' % uwifg.track)
     plt.show()
 
 

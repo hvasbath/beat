@@ -11,7 +11,6 @@ import copy
 from beat import psgrn, pscmp, utility
 
 import numpy as num
-from matplotlib import pylab as plt
 
 from pyrocko.guts import Object, String, Float, Int, Tuple
 from pyrocko.guts_array import Array
@@ -515,24 +514,6 @@ class DiffIFG(IFG):
         help='Overlapping data weights, additional weight factor to the'
              'dataset for overlaps with other datasets',
         optional=True)
-
-    def plot(self, point_size=20):
-        """
-        Very simple scatter plot of given attribute for fast inspections.
-
-        Parameters
-        ----------
-        point_size : int
-            determines the size of the scatter plot points
-        """
-
-        #colim = num.max([disp.max(), num.abs(disp.min())])
-        ax = plt.axes()
-        im = ax.scatter(self.lons, self.lats, point_size, self.displacement,
-            edgecolors='none')
-        plt.colorbar(im)
-        plt.title('Displacements [m] %s' % self.track)
-        plt.show()
 
 
 def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0,
