@@ -50,7 +50,7 @@ the line::
 
 If it is there, fine. If not, you have to create it.
 
-If you decided to install OpenBlas in a totally different directory you have
+If you decided to install OpenBlas in a totally different directory you have to
 create a file `openblas.conf` containing your custom_path::
 
     /custom_path/lib
@@ -59,6 +59,11 @@ In both cases, either only checking if the files are there or creating the new
 file with the path; you have to do::
 
     sudo ldconfig
+
+Alternatively, you could add your /custom_path/lib to the $LD_LIBRARY_PATH in
+your .bashrc or .cshrc in the homedirectory::
+
+    export LD_LIBRARY_PATH=/custom_path/lib:$LD_LIBRARY_PATH
 
 Numpy
 """""
@@ -230,6 +235,7 @@ Using the CPU::
 Using the GPU::
 
     THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python gpu_test.py 
+
     Using gpu device 0: Quadro 5000 (CNMeM is disabled, cuDNN not available)
     [GpuElemwise{exp,no_inplace}(<CudaNdarrayType(float32, vector)>),
      HostFromGpu(GpuElemwise{exp,no_inplace}.0)]
@@ -247,22 +253,8 @@ Main Packages
 BEAT relies on 2 main libraries. Detailed installation instructions for each
 can be found on the respective websites:
 
-`pyrocko <http://pyrocko.org/>`__
 `pymc3 <https://github.com/pymc-devs/pymc3>`__
-
-Pyrocko
-"""""""
-Pyrocko is an extensive library for seismological applications and provides a
-framework to efficiently store and access Greens Functions.::
-
-    cd ~/src
-    git clone git://github.com/pyrocko/pyrocko.git pyrocko
-    cd beat
-    sudo python setup.py install
-
-Pyproj is the last and most easy one to install::
-
-    pip install pyproj
+`pyrocko <http://pyrocko.org/>`__
 
 pymc3
 """""
@@ -277,6 +269,23 @@ For the bleeding edge::
     git clone https://github.com/pymc-devs/pymc3
     cd pymc3
     sudo python setup.py install
+
+Pyrocko
+"""""""
+Pyrocko is an extensive library for seismological applications and provides a
+framework to efficiently store and access Greens Functions.::
+
+    cd ~/src
+    git clone git://github.com/pyrocko/pyrocko.git pyrocko
+    cd beat
+    sudo python setup.py install
+
+Pyproj
+""""""
+Pyproj is the last package and also the most easy one to install::
+
+    pip install pyproj
+
 
 
 BEAT source
@@ -306,7 +315,7 @@ Seismic synthetics
 * `QSEIS <http://kinherd.org/fomosto-qseis-2006a.tar.gz>`__
 * `QSSP <http://kinherd.org/fomosto-qssp-2010.tar.gz>`__
 
-After unpacking each package within each folder::
+After unpacking each package, within each folder run::
 
     autoreconf -i   # only if 'configure' script is missing
     F77=gfortran ./configure
