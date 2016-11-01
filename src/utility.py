@@ -317,13 +317,13 @@ def weed_stations(stations, event, distances=(30., 90.)):
 def transform_sources(sources, datasets):
     """
     Transforms a list of :py:class:`heart.RectangularSource` to a dictionary of
-    sources :py:class:`pscmp.RectangularSource` for geodetic data and
-    :py:class:`pyrocko.gf.RectangularSource` for seismic data.
+    sources :py:class:`pscmp.PsCmpRectangularSource` for geodetic data and
+    :py:class:`pyrocko.gf.seismosizer.RectangularSource` for seismic data.
 
     Parameters
     ----------
     sources : list
-        :class:`RectangularSource`
+        :class:`heart.RectangularSource`
     datasets : list
         of strings with the datasets to be included 'geodetic' or 'seismic'
 
@@ -657,7 +657,7 @@ def near_psd(x, epsilon=num.finfo(num.float64).eps):
 
     Parameters
     ----------
-    x : array_like
+    x : :class:`numpy.ndarray`
         Covariance/correlation matrix
     epsilon : float
         Eigenvalue limit
@@ -666,7 +666,7 @@ def near_psd(x, epsilon=num.finfo(num.float64).eps):
 
     Returns
     -------
-    near_cov : array_like
+    near_cov : :class:`numpy.ndarray`
         closest positive definite covariance/correlation matrix
 
     Notes
@@ -710,7 +710,7 @@ def repair_covariance(x, epsilon=num.finfo(num.float64).eps):
 
     Parameters
     ----------
-    x : array_like
+    x : :class:`numpy.ndarray`
         Covariance/correlation matrix
     epsilon : float
         Eigenvalue limit
@@ -719,7 +719,7 @@ def repair_covariance(x, epsilon=num.finfo(num.float64).eps):
 
     Returns
     -------
-    near_cov : array_like
+    near_cov : :class:`numpy.ndarray`
         closest positive definite covariance/correlation matrix
 
     Notes

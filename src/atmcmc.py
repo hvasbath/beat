@@ -39,13 +39,6 @@ logger = logging.getLogger('ATMCMC')
 class ATMCMC(backend.ArrayStepSharedLLK):
     """
     Adaptive Transitional Markov-Chain Monte-Carlo sampler class.
-    following:
-        Ching & Chen 2007: Transitional Markov chain Monte Carlo method
-        for Bayesian model updating, model class selection and model
-        averaging
-        Journal of Engineering Mechanics 2007
-        DOI:10.1016/(ASCE)0733-9399(2007)133:7(816)
-    http://ascelibrary.org/doi/abs/10.1061/%28ASCE%290733-9399%282007%29133:7%28816%29
 
     Creates initial samples and framework around the (C)ATMIP parameters
 
@@ -87,6 +80,15 @@ class ATMCMC(backend.ArrayStepSharedLLK):
     model : :class:`pymc3.Model`
         Optional model for sampling step.
         Defaults to None (taken from context).
+
+    References
+    ----------
+    .. `[Ching2007] <http://ascelibrary.org/doi/abs/10.1061/%28ASCE%290733-9399
+        %282007%29133:7%28816%29>`__
+        Ching & Chen 2007. Transitional Markov Chain Monte Carlo method for
+        Bayesian model updating, model class selection and model averaging.
+        Journal of Engineering Mechanics 2007,
+        DOI:10.1016/(ASCE)0733-9399(2007)133:7(816)
     """
 
     default_blocked = True
@@ -542,7 +544,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
             step.stage = int(stage)
             stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
             draws = 1
-  
+
         elif stage == 'final':
             # continue sampling final stage
             last = get_highest_sampled_stage(homepath)
@@ -552,7 +554,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
             project_dir = os.path.dirname(homepath)
             mode = os.path.basename(homepath)
             step, updates = utility.load_atmip_params(
-                project_dir, str(last) , mode)
+                project_dir, str(last), mode)
 
             if update is not None:
                 update.apply(updates)
@@ -932,7 +934,7 @@ def get_highest_sampled_stage(homedir):
     """
     stages = glob(os.path.join(homedir, 'stage_*'))
 
-    stagenumbers = [] 
+    stagenumbers = []
     for s in stages:
         stage_ending = os.path.splitext(s)[0].rsplit('_', 1)[1]
         try:
