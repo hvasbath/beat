@@ -83,11 +83,11 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
     References
     ----------
-    .. `[Ching2007] Ching & Chen 2007. Transitional Markov Chain Monte Carlo method for
-        Bayesian model updating, model class selection and model averaging.
-        Journal of Engineering Mechanics 2007,
-        DOI:10.1016/(ASCE)0733-9399(2007)133:7(816)
-        <link http://ascelibrary.org/doi/abs/10.1061/%28ASCE%290733-9399
+    .. [Ching2007] Ching, J. and Chen, Y. (2007).
+        Transitional Markov Chain Monte Carlo Method for Bayesian Model
+        Updating, Model Class Selection, and Model Averaging.
+        J. Eng. Mech., 10.1061/(ASCE)0733-9399(2007)133:7(816), 816-832.
+        `link <http://ascelibrary.org/doi/abs/10.1061/%28ASCE%290733-9399
         %282007%29133:7%28816%29>`__
     """
 
@@ -436,11 +436,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                   model=None, update=None, random_seed=None, rm_flag=False,
                   plot_flag=True):
     """
-    (C)ATMIP sampling algorithm from Minson et al. 2013:
-    Bayesian inversion for finite fault earthquake source models
-    I- Theory and algorithm
-    https://gji.oxfordjournals.org/content/194/3/1701.full
-
+    (C)ATMIP sampling algorithm
     (Cascading - (C) not always relevant)
 
     Samples the solution space with n_chains of Metropolis chains, where each
@@ -488,7 +484,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
         (optional if in `with` context) has to contain deterministic
         variable name defined under step.likelihood_name' that contains the
         model likelihood
-    update : :py:class:`beat.models.Problem`
+    update : :py:class:`models.Problem`
         Problem object that contains all the observed data and (if applicable)
         covariances to be updated each transition step.
     random_seed : int or list of ints
@@ -496,6 +492,14 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
     rm_flag : bool
         If True existing stage result folders are being deleted prior to
         sampling.
+
+    References
+    ----------
+    .. [Minson2013] Minson, S. E. and Simons, M. and Beck, J. L., (2013),
+        Bayesian inversion for finite fault earthquake source models
+        I- Theory and algorithm. Geophysical Journal International, 2013,
+        194(3), pp.1701-1726,
+        `link <https://gji.oxfordjournals.org/content/194/3/1701.full>`__
     """
 
     model = pm.modelcontext(model)
