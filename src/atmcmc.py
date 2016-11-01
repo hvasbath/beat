@@ -83,12 +83,12 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
     References
     ----------
-    .. `[Ching2007] <http://ascelibrary.org/doi/abs/10.1061/%28ASCE%290733-9399
-        %282007%29133:7%28816%29>`__
-        Ching & Chen 2007. Transitional Markov Chain Monte Carlo method for
+    .. `[Ching2007] Ching & Chen 2007. Transitional Markov Chain Monte Carlo method for
         Bayesian model updating, model class selection and model averaging.
         Journal of Engineering Mechanics 2007,
         DOI:10.1016/(ASCE)0733-9399(2007)133:7(816)
+        <link http://ascelibrary.org/doi/abs/10.1061/%28ASCE%290733-9399
+        %282007%29133:7%28816%29>`__
     """
 
     default_blocked = True
