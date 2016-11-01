@@ -31,10 +31,14 @@ class ListArrayOrdering(object):
     An ordering for a list to an array space. Takes also non theano.tensors.
     Modified from pymc3 blocking.
 
-    Input:
-    list_arrays - list of numpy arrays or list of theano.tensors
-    intype - str, either 'tensor' or 'numpy'
+    Parameters
+    ----------
+    list_arrays : list
+        :class:`numpy.ndarray` or :class:`theano.tensor.Tensor`
+    intype : str
+        defining the input type 'tensor' or 'numpy'
     """
+
     def __init__(self, list_arrays, intype='numpy'):
         self.vmap = []
         dim = 0
@@ -58,7 +62,14 @@ class ListArrayOrdering(object):
 class ListToArrayBijection(object):
     """
     A mapping between a List of arrays and an array space
+
+    Parameters
+    ----------
+    ordering : :class:`ListArrayOrdering`
+    list_arrays : list
+        of :class:`numpy.ndarray`
     """
+
     def __init__(self, ordering, list_arrays):
         self.ordering = ordering
         self.list_arrays = list_arrays
@@ -69,12 +80,19 @@ class ListToArrayBijection(object):
 
         Parameters
         ----------
-        list_arrays : list of numpy arrays
+        list_arrays : list
+            of :class:`numpy.ndarray`
+
+        Returns
+        -------
+        array : :class:`numpy.ndarray`
+            single array comprising all the input arrays
         """
-        a_list = num.empty(self.ordering.dimensions)
+
+        array = num.empty(self.ordering.dimensions)
         for list_ind, slc, _, _ in self.ordering.vmap:
-            a_list[slc] = list_arrays[list_ind].ravel()
-        return a_list
+            array[slc] = list_arrays[list_ind].ravel()
+        return array
 
     def f3map(self, list_arrays):
         """
@@ -82,21 +100,35 @@ class ListToArrayBijection(object):
 
         Parameters
         ----------
-        list_arrays : list of numpy arrays
+        list_arrays : list
+            of :class:`numpy.ndarray` with size: n x 3
+
+        Returns
+        -------
+        array : :class:`numpy.ndarray`
+            single array comprising all the input arrays
         """
-        a_list = num.empty((self.ordering.dimensions, 3))
+
+        array = num.empty((self.ordering.dimensions, 3))
         for list_ind, slc, _, _ in self.ordering.vmap:
-            a_list[slc, :] = list_arrays[list_ind]
-        return a_list
+            array[slc, :] = list_arrays[list_ind]
+        return array
 
     def rmap(self, array):
         """
         Maps value from array space to List space
+        Inverse operation of fmap.
 
         Parameters
         ----------
-        array - numpy-array non-symbolic
+        array : :class:`numpy.ndarray`
+
+        Returns
+        -------
+        a_list : list
+            of :class:`numpy.ndarray`
         """
+
         a_list = copy.copy(self.list_arrays)
 
         for list_ind, slc, shp, dtype in self.ordering.vmap:
@@ -111,8 +143,14 @@ class ListToArrayBijection(object):
 
         Parameters
         ----------
-        tarray - theano-array symbolic
+        tarray : :class:`theano.tensor.Tensor`
+
+        Returns
+        -------
+        a_list : list
+            of :class:`theano.tensor.Tensor`
         """
+
         a_list = copy.copy(self.list_arrays)
 
         for list_ind, slc, shp, dtype in self.ordering.vmap:
@@ -122,11 +160,23 @@ class ListToArrayBijection(object):
 
 
 def weed_input_rvs(input_rvs, dataset):
-    '''
-    Throw out random variables from input list that are not needed by the
-    respective synthetics generating functions.
-    mode = seis/geo
-    '''
+    """
+    Throw out random variables (RV)s from input list that are not included by
+    the respective synthetics generating functions.
+
+    Parameters
+    ----------
+    input_rvs : list
+        of :class:`pymc3.Distribution`
+    mode : str
+        'seismic' or 'geodetic' determining the discarded RVs
+
+    Returns
+    -------
+    weeded_input_rvs : list
+        of :class:`pymc3.Distribution`
+    """
+
     name_order = [param.name for param in input_rvs]
     weeded_input_rvs = copy.copy(input_rvs)
 
@@ -149,9 +199,21 @@ def weed_input_rvs(input_rvs, dataset):
 
 
 def apply_station_blacklist(stations, blacklist):
-    '''
-    Throw out stations listed in the blacklist.
-    '''
+    """
+    Weed stations listed in the blacklist.
+    Modifies input list!
+
+    Parameters
+    ----------
+    stations : list
+        :class:`pyrocko.model.Station`
+    blacklist : list
+        strings of station names
+
+    Returns
+    -------
+    stations : list of :class:`pyrocko.model.Station`
+    """
 
     station_names = [station.station for station in stations]
 
@@ -160,7 +222,7 @@ def apply_station_blacklist(stations, blacklist):
         try:
             indexes.append(station_names.index(burian))
         except ValueError:
-            logger.warn('Station %s in blacklist is not in stations.' % burian)
+            logger.info('Station %s in blacklist is not in stations.' % burian)
 
     if len(indexes) > 0:
         indexes.sort(reverse=True)
@@ -172,14 +234,22 @@ def apply_station_blacklist(stations, blacklist):
 
 
 def weed_data_traces(data_traces, stations):
-    '''
+    """
     Throw out data traces belonging to stations that are not in the
     stations list.
 
-    Input:
-    data_traces - list of pyrocko trace.Trace
-    stations - list of pyrocko model.Station
-    '''
+    Parameters
+    ----------
+    data_traces : list
+        of :class:`pyrocko.trace.Trace`
+    stations : list
+        of :class:`pyrocko.model.Station`
+
+    Returns
+    -------
+    weeded_data_traces : list
+        of :class:`pyrocko.trace.Trace`
+    """
 
     station_names = [station.station for station in stations]
 
@@ -193,9 +263,17 @@ def weed_data_traces(data_traces, stations):
 
 
 def downsample_traces(data_traces, deltat=None):
-    '''
+    """
     Downsample data_traces to given sampling interval 'deltat'.
-    '''
+    Modifies input :class:`pyrocko.trace.Trace` Objects!
+
+    Parameters
+    ----------
+    data_traces : list
+        of :class:`pyrocko.trace.Trace`
+    deltat : sampling interval [s] to which traces should be downsampled
+    """
+
     for tr in data_traces:
         if deltat is not None:
             try:
@@ -207,10 +285,25 @@ def downsample_traces(data_traces, deltat=None):
 
 
 def weed_stations(stations, event, distances=(30., 90.)):
-    '''
-    Throw out stations, that are not within the given distances(min,max) to
+    """
+    Weed stations, that are not within the given distance range(min, max) to
     a reference event.
-    '''
+
+    Parameters
+    ----------
+    stations : list
+        of :class:`pyrocko.model.Station`
+    event
+        :class:`pyrocko.model.Event`
+    distances : tuple
+        of minimum and maximum distance [deg] for station-event pairs
+
+    Returns
+    -------
+    weeded_stations : list
+        of :class:`pyrocko.model.Station`
+    """
+
     weeded_stations = []
     for station in stations:
         distance = orthodrome.distance_accurate50m(event, station) * m2d
@@ -222,13 +315,24 @@ def weed_stations(stations, event, distances=(30., 90.)):
 
 
 def transform_sources(sources, datasets):
-    '''
-    Transforms a list of :py:class:`beat.RectangularSource` to dict of sources
-    :py:class:`pscmp.RectangularSource` for geodetic data and
-    :py:class:`gf.RectangularSource` for seismic data.
-    Input: sources - list of BEAT sources
-           datasets - config.problem.config.datasets
-    '''
+    """
+    Transforms a list of :py:class:`heart.RectangularSource` to a dictionary of
+    sources :py:class:`pscmp.RectangularSource` for geodetic data and
+    :py:class:`pyrocko.gf.RectangularSource` for seismic data.
+
+    Parameters
+    ----------
+    sources : list
+        :class:`RectangularSource`
+    datasets : list
+        of strings with the datasets to be included 'geodetic' or 'seismic'
+
+    Returns
+    -------
+    d : dict
+        of transformed sources with datasets as keys
+    """
+
     d = dict()
 
     for dataset in datasets:
@@ -247,11 +351,20 @@ def transform_sources(sources, datasets):
 
 
 def adjust_point_units(point):
-    '''
+    """
     Transform variables with [km] units to [m]
-    Input: Point
-    Returns: Point
-    '''
+
+    Parameters
+    ----------
+    point : dict
+        :func:`pymc3.model.Point` of model parameter units as keys
+
+    Returns
+    -------
+    mpoint : dict
+        :func:`pymc3.model.Point`
+    """
+
     mpoint = {}
     for key, value in point.iteritems():
         if key in kmtypes:
@@ -263,11 +376,21 @@ def adjust_point_units(point):
 
 
 def split_point(point):
-    '''
+    """
     Split point in solution space into List of dictionaries with source
     parameters for each source. Does a deepcopy of each parameter.
-    :py:param: point :py:class:`pymc3.Point`
-    '''
+
+    Parameters
+    ----------
+    point : dict
+        :func:`pymc3.model.Point`
+
+    Returns
+    -------
+    source_points : list
+        of :func:`pymc3.model.Point`
+    """
+
     n_sources = point[point.keys()[0]].shape[0]
 
     source_points = []
@@ -284,7 +407,15 @@ def split_point(point):
 def update_source(source, **kwargs):
     """
     Update source keeping stf and source params seperate.
+    Modifies input source Object!
+
+    Parameters
+    ----------
+    source : :class:`pyrocko.gf.seismosizer.Source`
+    point : dict
+        :func:`pymc3.model.Point`
     """
+
     for (k, v) in kwargs.iteritems():
         if k not in source.keys():
             if source.stf is not None:
@@ -297,36 +428,71 @@ def update_source(source, **kwargs):
 
 
 def utm_to_loc(utmx, utmy, zone, event):
-    '''
-    Convert UTM[m] to local coordinates with reference to the :py:class:`Event`
-    Input: Numpy arrays with UTM easting(utmx) and northing(utmy)
-           zone - Integer number with utm zone
-    Returns: Local coordinates [m] x, y
-    '''
+    """
+    Convert UTM[m] to local coordinates with reference to the
+    :class:`pyrocko.model.Event`
+
+    Parameters
+    ----------
+    utmx : :class:`numpy.ndarray`
+        with UTM easting
+    utmy : :class:`numpy.ndarray`
+        with UTM northing
+    zone : int
+        number with utm zone
+    event : :class:`pyrocko.model.Event`
+
+    Returns
+    -------
+    locx : :class:`numpy.ndarray`
+        Local coordinates [m] for x direction (East)
+    locy : :class:`numpy.ndarray`
+        Local coordinates [m] for y direction (North)
+    """
+
     p = Proj(proj='utm', zone=zone, ellps='WGS84')
     ref_x, ref_y = p(event.lon, event.lat)
-    utmx -= ref_x
-    utmy -= ref_y
-    return utmx, utmy
+    locx = utmx - ref_x
+    locy = utmy - ref_y
+    return locx, locy
 
 
 def utm_to_lonlat(utmx, utmy, zone):
-    '''
-    Convert UTM[m] to Latitude and Longitude
-    Input: Numpy arrays with UTM easting(utmx) and northing(utmy)
-           zone - Integer number with utm zone
-    Returns: Longitude, Latitude [deg]
-    '''
+    """
+    Convert UTM[m] to Latitude and Longitude coordinates.
+
+    Parameters
+    ----------
+    utmx : :class:`numpy.ndarray`
+        with UTM easting
+    utmy : :class:`numpy.ndarray`
+        with UTM northing
+    zone : int
+        number with utm zone
+
+    Returns
+    -------
+    lon : :class:`numpy.ndarray` Longitude [decimal deg]
+    lat : :class:`numpy.ndarray` Latitude [decimal deg]
+    """
+
     p = Proj(proj='utm', zone=zone, ellps='WGS84')
     lon, lat = p(utmx, utmy, inverse=True)
     return lon, lat
 
 
 def setup_logging(project_dir, levelname):
-    '''
-    Setup function for handling logging. The logfiles are saved in the
-    'project_dir'.
-    '''
+    """
+    Setup function for handling BEAT logging. The logfile 'BEAT_log.txt' is
+    saved in the 'project_dir'.
+
+    Parameters
+    ----------
+    project_dir : str
+        absolute path to the output directory for the Log file
+    levelname : str
+        defining the level of logging
+    """
 
     levels = {'debug': logging.DEBUG,
               'info': logging.INFO,
@@ -351,35 +517,49 @@ def setup_logging(project_dir, levelname):
 
 
 def load_atmip_params(project_dir, stage_number, mode):
-    '''
-    Load step and update objects for given stage.
-    Input: project_dir - string to directory of project
-           stage number - string of stage number or 'final' for last stage
-           mode - problem that has been solved (geometry, static, kinematic)
-    '''
+    """
+    Load saved parameters from given ATMIP stage.
+
+    Parameters
+    ----------
+    project_dir : str
+        absolute path to directory of BEAT project
+    stage number : string
+        of stage number or 'final' for last stage
+    mode : str
+        problem mode that has been solved ('geometry', 'static', 'kinematic')
+    """
+
     stage_path = os.path.join(project_dir, mode, 'stage_%s' % stage_number,
         'atmip.params')
     step, update = load_objects(stage_path)
     return step, update
 
 
-def search_catalog(date, min_magnitude):
-    '''
+def search_catalog(date, min_magnitude, dayrange=1.):
+    """
     Search the gcmt catalog for the specified date (+- 1 day), filtering the
     events with given magnitude threshold.
-    Input:
-    date - Str - 'YYYY-MM-DD', date of the event
-    min_magnitude - approximate minimum Mw of the event
 
-    Retuns:
-    event - Object
-    '''
+    Parameters
+    ----------
+    date : str
+        'YYYY-MM-DD', date of the event
+    min_magnitude : float
+        approximate minimum Mw of the event
+    dayrange : float
+        temporal search interval [days] around date
+
+    Returns
+    -------
+    event : :class:`pyrocko.model.Event`
+    """
 
     gcmt = catalog.GlobalCMT()
 
     time_s = util.stt(date + ' ' + seconds_str)
-    d1 = time_s - (sphr * hrpd)
-    d2 = time_s + (sphr * hrpd)
+    d1 = time_s - (dayrange * (sphr * hrpd))
+    d2 = time_s + (dayrange * (sphr * hrpd))
 
     logger.info('Getting relevant events from the gCMT catalog for the dates:'
                 '%s - %s \n' % (util.tts(d1), util.tts(d2)))
@@ -407,17 +587,35 @@ def search_catalog(date, min_magnitude):
 
 
 def dump_objects(outpath, outlist):
-    '''
-    Dump objects in outparam_list into pickle file.
-    '''
+    """
+    Dump objects in outlist into pickle file.
+
+    Parameters
+    ----------
+    outpath : str
+        absolute path and file name for the file to be stored
+    outlist : list
+        of objects to save pickle
+    """
+
     with open(outpath, 'w') as f:
         pickle.dump(outlist, f)
 
 
 def load_objects(loadpath):
-    '''
-    Load pickled objects from specified loadpath.
-    '''
+    """
+    Load (unpickle) saved (pickled) objects from specified loadpath.
+
+    Parameters
+    ----------
+    loadpath : absolute path and file name to the file to be loaded
+
+    Returns
+    -------
+    objects : list
+        of saved objects
+    """
+
     try:
         objects = pickle.load(open(loadpath, 'rb'))
     except IOError:
@@ -427,20 +625,25 @@ def load_objects(loadpath):
 
 
 def ensure_cov_psd(cov):
-    '''
+    """
     Ensure that the input covariance matrix is positive definite.
-    If not find the nearest positive semi-definite matrix.
+    If not, find the nearest positive semi-definite matrix.
 
-    Input: array
-           symmetric covariance matrix
-    Returns: array
-             positive definite covariance matrix
-    '''
+    Parameters
+    ----------
+    cov : :class:`numpy.ndarray`
+        symmetric covariance matrix
+
+    Returns
+    -------
+    cov : :class:`numpy.ndarray`
+        positive definite covariance matrix
+    """
 
     try:
-        _ = num.linalg.cholesky(cov)
+        num.linalg.cholesky(cov)
     except num.linalg.LinAlgError:
-        logger.info('Cov_pv not positive definite!'
+        logger.debug('Cov_pv not positive definite!'
                     ' Finding nearest psd matrix...')
         cov = repair_covariance(cov)
 
@@ -448,7 +651,7 @@ def ensure_cov_psd(cov):
 
 
 def near_psd(x, epsilon=num.finfo(num.float64).eps):
-    '''
+    """
     Calculates the nearest postive semi-definite matrix for a correlation/
     covariance matrix
 
@@ -457,14 +660,14 @@ def near_psd(x, epsilon=num.finfo(num.float64).eps):
     x : array_like
         Covariance/correlation matrix
     epsilon : float
-              Eigenvalue limit
-              here set to accuracy of numbers in numpy, otherwise the resulting
-              matrix, likely is still not going to be positive definite
+        Eigenvalue limit
+        here set to accuracy of numbers in numpy, otherwise the resulting
+        matrix, likely is still not going to be positive definite
 
     Returns
     -------
     near_cov : array_like
-               closest positive definite covariance/correlation matrix
+        closest positive definite covariance/correlation matrix
 
     Notes
     -----
@@ -475,7 +678,7 @@ def near_psd(x, epsilon=num.finfo(num.float64).eps):
     the numbers!
 
     Algorithm after Rebonato & Jaekel 1999
-    '''
+    """
 
     if min(num.linalg.eigvals(x)) > epsilon:
         return x
@@ -500,7 +703,7 @@ def near_psd(x, epsilon=num.finfo(num.float64).eps):
 
 
 def repair_covariance(x, epsilon=num.finfo(num.float64).eps):
-    '''
+    """
     Make covariance input matrix A positive definite.
     Setting eigenvalues that are lower than the precission of numpy floats to
     at least that precision and backtransform.
@@ -510,16 +713,19 @@ def repair_covariance(x, epsilon=num.finfo(num.float64).eps):
     x : array_like
         Covariance/correlation matrix
     epsilon : float
-              Eigenvalue limit
-              here set to accuracy of numbers in numpy, otherwise the resulting
-              matrix, likely is still not going to be positive definite
+        Eigenvalue limit
+        here set to accuracy of numbers in numpy, otherwise the resulting
+        matrix, likely is still not going to be positive definite
 
     Returns
     -------
     near_cov : array_like
-               closest positive definite covariance/correlation matrix
-    Following: Gilbert Strange: Introduction to linear Algebra
-    '''
+        closest positive definite covariance/correlation matrix
+
+    Notes
+    -----
+    Algorithm after Gilbert Strange, 'Introduction to linear Algebra'
+    """
 
     eigval, eigvec = num.linalg.eigh(x)
     val = num.maximum(eigval, epsilon)
@@ -528,31 +734,48 @@ def repair_covariance(x, epsilon=num.finfo(num.float64).eps):
 
 
 def join_models(global_model, crustal_model):
-    '''
-    Replace the part of the global model that is covered by crustal_model with
-    the latter one.
+    """
+    Replace the part of the 'global model' that is covered by 'crustal_model'.
 
-    Parameters:
-    global_model, crustal_model - cake.LayeredModel
+    Parameters
+    ----------
+    global_model : :class:`pyrocko.cake.LayeredModel`
+    crustal_model : :class:`pyrocko.cake.LayeredModel`
 
-    Returns:
-    cake.LayeredModel
-    '''
+    Returns
+    -------
+    joined_model : cake.LayeredModel
+    """
 
     max_depth = crustal_model.max('z')
 
     cut_model = global_model.extract(depth_min=max_depth)
+    joined_model = copy.deepcopy(crustal_model)
 
     for element in cut_model.elements():
-        crustal_model.append(element)
+        joined_model.append(element)
 
-    return crustal_model
+    return joined_model
 
 
 def split_off_list(l, off_length):
-    '''
-    Cut a list with length "off_length" from the beginning of an input list l.
-    '''
+    """
+    Split a list with length 'off_length' from the beginning of an input
+    list l.
+    Modifies input list!
+
+    Parameters
+    ----------
+    l : list
+        of objects to be seperated
+    off_length : int
+        number of elements from l to be split off
+
+    Returns
+    -------
+    list
+    """
+
     return [l.pop(0) for i in range(off_length)]
 
 
@@ -579,9 +802,17 @@ def mod_i(i, cycle):
 
 
 def biggest_common_divisor(a, b):
-    '''
+    """
     Find the biggest common divisor of two float numbers a and b.
-    '''
+
+    Parameters
+    ----------
+    a, b: float
+
+    Returns
+    -------
+    int
+    """
 
     while b > 0:
         rest = a % b

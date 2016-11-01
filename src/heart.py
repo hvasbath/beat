@@ -154,8 +154,8 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
 
         Returns
         -------
-        :class:`numpy.ndarray` with x, y, z coordinates of the upper edge of the
-        fault
+        :class:`numpy.ndarray` with x, y, z coordinates of the upper edge of
+        the fault
         """
 
         return num.array([0., 0., depth]) - 0.5 * width * dipvector
@@ -351,7 +351,7 @@ class Covariance(Object):
 
 class TeleseismicTarget(gf.Target):
     """
-    Extension to :class:`pyrocko.gf.seismpsizer.Target` to have 
+    Extension to :class:`pyrocko.gf.seismpsizer.Target` to have
     :class:`Covariance` as an attribute.
     """
 
@@ -794,7 +794,7 @@ def seis_construct_gf(station, event, store_superdir, code='qssp',
     nworkers : int
         Number of processors to use for computations
     rm_gfs : boolean
-        Valid if qssp or qseis2d are being used, remove the intermediate 
+        Valid if qssp or qseis2d are being used, remove the intermediate
         files after finishing the computation
     replace_water : boolean
         Flag to remove water layers from the crust2.0 profile
