@@ -6,6 +6,16 @@ Installation instructions
 
 BEAT can be installed on any Unix based system that supports its prerequisites.
 
+BEAT source
+-----------
+First of all please download the beat source code::
+
+    cd ~/src  # or whereever you keep the packages
+    git clone https://github.com/hvasbath/beat
+
+The package includes scripts that help setting up and testing the following
+optimizations of your numerics libraries.
+
 Prerequisites
 -------------
 First of all we need a fortran compiler and the python developers library::
@@ -67,11 +77,11 @@ your .bashrc or .cshrc in the homedirectory::
 
 Numpy
 """""
-Buildin numpy from source requires cython::
+Building numpy from source requires cython::
 
     pip install cython
 
-If you compile your numpy locally against the previously installed OpenBlas
+If you compile numpy locally against the previously installed OpenBlas
 library you can gain significant speedup. For my machine it resulted 
 in a speed-up of the numpy related calculations by a factor of at least 3.::
 
@@ -116,6 +126,19 @@ packaging::
 
     pip install .
 
+Test the performance and if everything works fine::
+
+    cd ~/src/beat
+    python src/test/numpy_test.py
+
+Depending on your hardware something around these numbers should be fine!::
+
+    dotted two (1000,1000) matrices in 73.6 ms
+    dotted two (4000) vectors in 10.82 us
+    SVD of (2000,1000) matrix in 9.939 s
+    Eigendecomp of (1500,1500) matrix in 36.625 s
+
+
 Theano
 """"""
 Theano is a package that was originally designed for deep learning and enables
@@ -140,9 +163,38 @@ For any troubleshooting and detailed installation instructions I refer to the
 
 CPU setup
 #########
+
+Optional: Setup for libamdm
+___________________________
+Only for 64-bit machines!
+This again speeds up the elemantary operations! Theano will for sure work
+without including this, but the performance increase (below)
+will convince you to do so ;) .
+
+Download the amdlibm package `here <http://developer.amd.com/tools-and-sdks/
+archive/compute/libm/>`__ according to your system.
+
+For Linux based systems if you have admin rights (with $ROOT=/usr) do ::
+
+    tar -xvfz amdlibm-3.1-lin64.tar.gz
+    cd amdlibm-3.1-lin64
+    cp /lib/*/* $ROOT/lib64/
+    cp /include/amdlibm.h $ROOT/include/
+
+If you do not want to install the library to your system libraries ergo
+$ROOT = /custom_path/ you need to add this path again to your environment
+variables $LD_LIBRARY_PATH and $LIBRARY_PATH, for example if
+$ROOT=/usr/local/ ::
+
+    export LIBRARY_PATH=/usr/local/lib64:$LIBRARY_PATH
+    export LD_LIBRARY_PATH=/usr/local/lib64:$LD_LIBRARY_PATH
+    export C_INCLUDE_PATH=/usr/local/include:$C_INCLUDE_PATH
+
+General
+_______
 In your home directory create a file `.theanorc`.
 The file has to be edited depending on the type of processing unit that is
-intended to be used. For CPU::
+intended to be used. Set amdlibm = True if you did the optional step! ::
 
     [blas]
     ldflags = -L/usr/local/lib -lopenblas -lgfortran
@@ -153,6 +205,10 @@ intended to be used. For CPU::
     [global]
     device = cpu
     floatX = float64
+
+    [lib]
+    amdlibm = False  # if applicable set True here
+
 
 GPU setup
 #########
@@ -196,45 +252,41 @@ In your home directory create a file `.theanorc` with these settings::
     device = gpu
     floatX = float32
 
-To check if the GPU is being actually active and used in the calculations
-copy and paste the follwing code and run it::
 
-    from theano import function, config, shared, sandbox
-    import theano.tensor as T
-    import numpy
-    import time
+Check performance
+#################
 
-    vlen = 10 * 30 * 768  # 10 x #cores x # threads per core
-    iters = 1000
+To check the performance of the CPU or GPU and whether the GPU is being used
+as intended::
 
-    rng = numpy.random.RandomState(22)
-    x = shared(numpy.asarray(rng.rand(vlen), config.floatX))
-    f = function([], T.exp(x))
-    print(f.maker.fgraph.toposort())
-    t0 = time.time()
-    for i in range(iters):
-        r = f()
-    t1 = time.time()
-    print("Looping %d times took %f seconds" % (iters, t1 - t0))
-    print("Result is %s" % (r,))
-    if numpy.any([isinstance(x.op, T.Elemwise) for x in f.maker.fgraph.toposort()]):
-        print('Used the cpu')
-    else:
-        print('Used the gpu')
+    cd ~/src/beat
 
-Using the CPU::
+Using the CPU (amdlibm = False)::
 
-    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python gpu_test.py 
+    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python src/test/gpu_test.py 
 
     [Elemwise{exp,no_inplace}(<TensorType(float32, vector)>)]
-    Looping 1000 times took 1.311933 seconds
+    Looping 1000 times took 2.717895 seconds
     Result is [ 1.23178029  1.61879337  1.52278066 ...,  2.20771813  2.29967761
       1.62323284]
     Used the cpu
 
+Using the CPU (amdlibm = True)::
+
+    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python src/test/gpu_test.py 
+
+    [Elemwise{exp,no_inplace}(<TensorType(float32, vector)>)]
+    Looping 1000 times took 0.703979 seconds
+    Result is [ 1.23178029  1.61879337  1.52278066 ...,  2.20771813  2.29967761
+      1.62323284]
+    Used the cpu
+
+That's a speedup of 3.86! On the ELEMENTARY operations like exp(), log(), cos() ...
+
+
 Using the GPU::
 
-    THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python gpu_test.py 
+    THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python src/test/gpu_test.py 
 
     Using gpu device 0: Quadro 5000 (CNMeM is disabled, cuDNN not available)
     [GpuElemwise{exp,no_inplace}(<CudaNdarrayType(float32, vector)>),
@@ -244,7 +296,7 @@ Using the GPU::
       1.62323296]
     Used the gpu
 
-You are done with the numerics installations!
+Congratulations, you are done with the numerics installations!
 
 
 Main Packages
@@ -253,8 +305,8 @@ Main Packages
 BEAT relies on 2 main libraries. Detailed installation instructions for each
 can be found on the respective websites:
 
-`pymc3 <https://github.com/pymc-devs/pymc3>`__
-`pyrocko <http://pyrocko.org/>`__
+ - `pymc3 <https://github.com/pymc-devs/pymc3>`__
+ - `pyrocko <http://pyrocko.org/>`__
 
 pymc3
 """""
@@ -277,7 +329,7 @@ framework to efficiently store and access Greens Functions.::
 
     cd ~/src
     git clone git://github.com/pyrocko/pyrocko.git pyrocko
-    cd beat
+    cd pyrocko
     sudo python setup.py install
 
 Pyproj
@@ -290,12 +342,9 @@ Pyproj is the last package and also the most easy one to install::
 
 BEAT source
 -----------
-After these long and heavy installations, BEAT itself is easy and
-straight-forward to install::
+After these long and heavy installations, you can setup BEAT itself::
 
-    cd ~/src
-    git clone https://github.com/hvasbath/beat
-    cd beat
+    cd ~/src/beat
     sudo python setup.py install
 
 Greens Function calculations
