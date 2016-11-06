@@ -15,6 +15,48 @@ from pyrocko import cake, util
 logger = logging.getLogger('plotting')
 
 
+def correlation_plot(mtrace, varnames=None,
+        transform=lambda x: x, figsize=None, cmap=None):
+    """
+    Plot 2d marginals and their correlations of the parameters.
+    """
+
+    if varnames is None:
+        varnames = mtrace.varnames
+
+    nvar = len(varnames)
+
+    if figsize is None:
+        figsize = (8.2, 11.7)   # A4 landscape
+
+    fig, axs = plt.subplots(sharey='row', sharex='col',
+        nrows=nvar - 1, ncols=nvar - 1, figsize=figsize)
+
+    d = dict()
+    for var in varnames:
+        d[var] = transform(mtrace.get_values(
+                var, combine=True, squeeze=True))
+
+    for k in range(nvar - 1):
+        a = d[varnames[k]]
+        for l in range(k + 1, nvar):
+            print varnames[k], varnames[l]
+            b = d[varnames[l]]
+
+            pmp.kde2plot(a, b, grid=200, ax=axs[l - 1, k], cmap=cmap)
+
+            if k == 0:
+                axs[l - 1, k].set_ylabel(varnames[l])
+
+        axs[l - 1, k].set_xlabel(varnames[k])
+
+    for k in range(nvar - 1):
+        for l in range(k):
+            fig.delaxes(axs[l, k])
+
+    return fig, axs
+
+
 def plot(uwifg, point_size=20):
     """
     Very simple scatter plot of given IFG for fast inspections.
