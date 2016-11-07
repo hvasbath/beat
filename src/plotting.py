@@ -16,9 +16,37 @@ logger = logging.getLogger('plotting')
 
 
 def correlation_plot(mtrace, varnames=None,
-        transform=lambda x: x, figsize=None, cmap=None):
+        transform=lambda x: x, figsize=None, cmap=None, grid=200, point=None,
+        point_style='.', point_color='white', point_size='8'):
     """
     Plot 2d marginals and their correlations of the parameters.
+
+    Parameters
+    ----------
+    mtrace : :class:`pymc3.base.MutliTrace`
+        Mutlitrace instance containing the sampling results
+    varnames : list of variable names
+        Variables to be plotted, if None all variable are plotted
+    transform : callable
+        Function to transform data (defaults to identity)
+    figsize : figure size tuple
+        If None, size is (12, num of variables * 2) inch
+    cmap : matplotlib colormap
+    grid : resolution of kernel density estimation
+    point : dict
+        Dictionary of variable name / value  to be overplotted as marker
+        to the posteriors e.g. mean of posteriors, true values of a simulation
+    point_style : str
+        style of marker according to matplotlib conventions
+    point_color : str or tuple of 3
+        color according to matplotlib convention
+    point_size : str
+        marker size according to matplotlib conventions
+
+    Returns
+    -------
+    fig : figure object
+    axs : subplot axis handles
     """
 
     if varnames is None:
@@ -40,10 +68,15 @@ def correlation_plot(mtrace, varnames=None,
     for k in range(nvar - 1):
         a = d[varnames[k]]
         for l in range(k + 1, nvar):
-            print varnames[k], varnames[l]
+            logger.debug('%s, %s' % (varnames[k], varnames[l]))
             b = d[varnames[l]]
 
-            pmp.kde2plot(a, b, grid=200, ax=axs[l - 1, k], cmap=cmap)
+            pmp.kde2plot(
+                a, b, grid=grid, ax=axs[l - 1, k], cmap=cmap, aspect='auto')
+            if point is not None:
+                axs[l - 1, k].plot(point[varnames[k]], point[varnames[l]],
+                    color=point_color, marker=point_style,
+                    markersize=point_size)
 
             if k == 0:
                 axs[l - 1, k].set_ylabel(varnames[l])
@@ -54,6 +87,103 @@ def correlation_plot(mtrace, varnames=None,
         for l in range(k):
             fig.delaxes(axs[l, k])
 
+    return fig, axs
+
+
+def correlation_plot_hist(mtrace, varnames=None,
+        transform=lambda x: x, figsize=None, hist_color='orange', cmap=None,
+        grid=200, point=None,
+        point_style='.', point_color='red', point_size='8', alpha=0.35):
+    """
+    Plot 2d marginals and their correlations of the parameters.
+
+    Parameters
+    ----------
+    mtrace : :class:`pymc3.base.MutliTrace`
+        Mutlitrace instance containing the sampling results
+    varnames : list of variable names
+        Variables to be plotted, if None all variable are plotted
+    transform : callable
+        Function to transform data (defaults to identity)
+    figsize : figure size tuple
+        If None, size is (12, num of variables * 2) inch
+    cmap : matplotlib colormap
+    hist_color : str or tuple of 3
+        color according to matplotlib convention
+    grid : resolution of kernel density estimation
+    point : dict
+        Dictionary of variable name / value  to be overplotted as marker
+        to the posteriors e.g. mean of posteriors, true values of a simulation
+    point_style : str
+        style of marker according to matplotlib conventions
+    point_color : str or tuple of 3
+        color according to matplotlib convention
+    point_size : str
+        marker size according to matplotlib conventions
+
+    Returns
+    -------
+    fig : figure object
+    axs : subplot axis handles
+    """
+
+    if varnames is None:
+        varnames = mtrace.varnames
+
+    nvar = len(varnames)
+
+    if figsize is None:
+        figsize = (11.7, 8.2)   # A4 landscape
+
+    fig, axs = plt.subplots(nrows=nvar, ncols=nvar, figsize=figsize,
+            subplot_kw={'adjustable': 'box-forced'})
+
+    d = dict()
+    for var in varnames:
+        d[var] = transform(mtrace.get_values(
+                var, combine=True, squeeze=True))
+
+    for k in range(nvar):
+        a = d[varnames[k]]
+
+        for l in range(k, nvar):
+
+            if l == k:
+                histplot_op(
+                    axs[l, k], pmp.make_2d(a), alpha=alpha, color='orange')
+                axs[l, k].set_xbound(a.min(), a.max())
+                axs[l, k].get_yaxis().set_visible(False)
+
+                if point is not None:
+                    axs[l, k].axvline(
+                        x=point[varnames[k]], color=point_color,
+                        lw=int(point_size) / 4.)
+            else:
+                b = d[varnames[l]]
+
+                pmp.kde2plot(
+                    a, b, grid=grid, ax=axs[l, k], cmap=cmap, aspect='auto')
+
+                if point is not None:
+                    axs[l, k].plot(point[varnames[k]], point[varnames[l]],
+                        color=point_color, marker=point_style,
+                        markersize=point_size)
+
+            if l != nvar -1:
+                axs[l, k].get_xaxis().set_ticklabels([])
+
+            if k == 0:
+                axs[l, k].set_ylabel(varnames[l])
+            else:
+                axs[l, k].get_yaxis().set_ticklabels([])
+
+        axs[l, k].set_xlabel(varnames[k])
+
+    for k in range(nvar):
+        for l in range(k):
+            fig.delaxes(axs[l, k])
+
+    fig.tight_layout()
     return fig, axs
 
 
