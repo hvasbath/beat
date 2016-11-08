@@ -19,7 +19,8 @@ def correlation_plot(mtrace, varnames=None,
         transform=lambda x: x, figsize=None, cmap=None, grid=200, point=None,
         point_style='.', point_color='white', point_size='8'):
     """
-    Plot 2d marginals and their correlations of the parameters.
+    Plot 2d marginals (with kernel density estimation) showing the correlations
+    of the model parameters.
 
     Parameters
     ----------
@@ -55,7 +56,7 @@ def correlation_plot(mtrace, varnames=None,
     nvar = len(varnames)
 
     if figsize is None:
-        figsize = (8.2, 11.7)   # A4 landscape
+        figsize = (11.7, 8.2)   # A4 landscape
 
     fig, axs = plt.subplots(sharey='row', sharex='col',
         nrows=nvar - 1, ncols=nvar - 1, figsize=figsize)
@@ -73,10 +74,13 @@ def correlation_plot(mtrace, varnames=None,
 
             pmp.kde2plot(
                 a, b, grid=grid, ax=axs[l - 1, k], cmap=cmap, aspect='auto')
+
             if point is not None:
                 axs[l - 1, k].plot(point[varnames[k]], point[varnames[l]],
                     color=point_color, marker=point_style,
                     markersize=point_size)
+
+            axs[l - 1, k].tick_params(direction='in')
 
             if k == 0:
                 axs[l - 1, k].set_ylabel(varnames[l])
@@ -87,6 +91,8 @@ def correlation_plot(mtrace, varnames=None,
         for l in range(k):
             fig.delaxes(axs[l, k])
 
+    fig.subplots_adjust(wspace=0.05, hspace=0.05)
+
     return fig, axs
 
 
@@ -95,7 +101,9 @@ def correlation_plot_hist(mtrace, varnames=None,
         grid=200, point=None,
         point_style='.', point_color='red', point_size='8', alpha=0.35):
     """
-    Plot 2d marginals and their correlations of the parameters.
+    Plot 2d marginals (with kernel density estimation) showing the correlations
+    of the model parameters. In the main diagonal is shown the parameter
+    histograms.
 
     Parameters
     ----------
@@ -147,7 +155,7 @@ def correlation_plot_hist(mtrace, varnames=None,
         a = d[varnames[k]]
 
         for l in range(k, nvar):
-
+            logger.debug('%s, %s' % (varnames[k], varnames[l]))
             if l == k:
                 histplot_op(
                     axs[l, k], pmp.make_2d(a), alpha=alpha, color='orange')
@@ -177,13 +185,15 @@ def correlation_plot_hist(mtrace, varnames=None,
             else:
                 axs[l, k].get_yaxis().set_ticklabels([])
 
+            axs[l, k].tick_params(direction='in')
+
         axs[l, k].set_xlabel(varnames[k])
 
     for k in range(nvar):
         for l in range(k):
             fig.delaxes(axs[l, k])
 
-    fig.tight_layout()
+    fig.subplots_adjust(wspace=0.05, hspace=0.05)
     return fig, axs
 
 
