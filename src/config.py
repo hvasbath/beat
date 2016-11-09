@@ -40,8 +40,8 @@ partial_kinematic_vars = ['nuc_x', 'nuc_y', 'duration', 'velocity']
 
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars
 
-hyper_pars = {'Z':'seis_Z', 'T':'seis_T',
-             'SAR':'geo_S', 'GPS':'geo_G'}
+hyper_pars = {'Z': 'seis_Z', 'T': 'seis_T',
+             'SAR': 'geo_S', 'GPS': 'geo_G'}
 
 default_bounds = dict(
     east_shift=(-10., 10.),
@@ -204,6 +204,26 @@ class ProblemConfig(Object):
 
     def init_vars(self):
 
+        variables = self.select_variables()
+
+        self.priors = []
+        for variable in variables:
+            self.priors.append(
+                Parameter(
+                    name=variable,
+                    lower=num.ones(self.n_faults, dtype=num.float) * \
+                        default_bounds[variable][0],
+                    upper=num.ones(self.n_faults, dtype=num.float) * \
+                        default_bounds[variable][1],
+                    testvalue=num.ones(self.n_faults, dtype=num.float) * \
+                        num.mean(default_bounds[variable]))
+                               )
+
+    def select_variables(self):
+        """
+        Return model variables depending on problem config.
+        """
+
         if self.mode not in modes:
             raise ValueError('Problem mode %s not implemented' % self.mode)
 
@@ -224,18 +244,7 @@ class ProblemConfig(Object):
                 raise Exception('Kinematic model not resolvable with only'
                                 'geodetic data!')
 
-        self.priors = []
-        for variable in variables:
-            self.priors.append(
-                Parameter(
-                    name=variable,
-                    lower=num.ones(self.n_faults, dtype=num.float) * \
-                        default_bounds[variable][0],
-                    upper=num.ones(self.n_faults, dtype=num.float) * \
-                        default_bounds[variable][1],
-                    testvalue=num.ones(self.n_faults, dtype=num.float) * \
-                        num.mean(default_bounds[variable]))
-                               )
+        return variables
 
     def validate_priors(self):
         """

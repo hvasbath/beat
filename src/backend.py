@@ -285,6 +285,36 @@ class Text(BaseATMCMCTrace):
         return pt
 
 
+def get_highest_sampled_stage(homedir, return_final=False):
+    """
+    Return stage number of stage that has been sampled before the final stage.
+
+    Paramaeters
+    -----------
+    homedir : str
+        Directory to the sampled stage results
+
+    Returns
+    -------
+    stage number : int
+    """
+    stages = glob(os.path.join(homedir, 'stage_*'))
+
+    stagenumbers = []
+    for s in stages:
+        stage_ending = os.path.splitext(s)[0].rsplit('_', 1)[1]
+        try:
+            stagenumbers.append(int(stage_ending))
+        except ValueError:
+            logger.debug('string - Thats the final stage!')
+            if return_final:
+                return stage_ending
+
+    stagenumbers.sort()
+
+    return stagenumbers[-1]
+
+
 def check_multitrace(mtrace, draws, n_chains):
     """
     Check multitrace for incomplete sampling and return indexes from chains

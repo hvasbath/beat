@@ -6,7 +6,7 @@ import logging
 
 from beat import utility, backend
 
-from matplotlib import pylab as plt
+from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 import numpy as num
@@ -177,7 +177,7 @@ def correlation_plot_hist(mtrace, varnames=None,
                         color=point_color, marker=point_style,
                         markersize=point_size)
 
-            if l != nvar -1:
+            if l != nvar - 1:
                 axs[l, k].get_xaxis().set_ticklabels([])
 
             if k == 0:
@@ -428,67 +428,119 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                 ax[rowi, coli].axvline(x=d[idx], color="b", lw=1.5)
 
     plt.tight_layout()
-    return ax, varbins
+    return fig, ax, varbins
 
 
-def stage_posteriors(mtrace, n_steps, output='display',
-            outpath='./stage_posterior.png', lines=None, style='lines'):
-    '''
-    Plot variable posteriors from certain stage of the ATMIP algorithm.
-    n_steps of chains to select last samples of each trace.
-    lines - a point to draw vertical lines for
-    '''
+def stage_posteriors(mtrace, n_steps, lines=None):
+    """
+    Plot variable posteriors from a certain stage of the ATMIP algorithm.
+
+    Parameters
+    ----------
+    mtrace : :class:`pymc3.backend.base.MultiTrace`
+    n_steps : int
+        Number of chains to select last samples of each trace.
+    lines : dict
+        :func:pymc3.model.Point to draw vertical lines for reference
+    """
+
     def last_sample(x):
         return x[(n_steps - 1)::n_steps].flatten()
 
-    if style == 'lines' or lines is not None:
-        PLT = traceplot(mtrace, transform=last_sample, combined=True,
-            lines=lines)
-    else:
-        PLT = pmp.plot_posterior(mtrace, transform=last_sample)
+    fig, axs, varbins = traceplot(mtrace, transform=last_sample,
+        combined=True, lines=lines)
 
-    if output == 'display':
-        plt.show(PLT[0][0])
-    elif output == 'png':
-        plt.savefig(outpath, dpi=300)
-
-    plt.close()
+    return fig
 
 
-def plot_all_posteriors(problem):
-    '''
-    Loop through all stages and plot the pdfs of the variables.
-    Inputs: problem Object
-    '''
+def draw_posteriors(problem, format='pdf', force=False, dpi=450):
+    """
+    Identify which stage is the last complete stage and plot posteriors up to
+    format : str
+        output format: 'display', 'png' or 'pdf'
+    """
+
+    nstage = backend.get_highest_sampled_stage(
+        problem.outfolder, return_final=True)
+
+    if isinstance(nstage, int):
+        nstage -= 1
+
     mode = problem.config.problem_config.mode
 
     step, _ = utility.load_atmip_params(
-        problem.config.project_dir, 'final', mode=mode)
+        problem.config.project_dir, nstage, mode=mode)
 
-    for i in range(step.stage + 1):
-        if i == 0:
+    if nstage == 'final':
+        list_indexes = [str(i) for i in range(step.stage + 1)] + ['final']
+    else:
+        list_indexes = [str(i) for i in range(step.stage)]
+
+    figs = []
+
+    for s in list_indexes:
+        if s == '0':
             draws = 1
         else:
             draws = step.n_steps
 
         stage_path = os.path.join(
-            problem.config.project_dir, mode, 'stage_%i' % i)
+            problem.config.project_dir, mode, 'stage_%s' % s)
         mtrace = backend.load(stage_path, model=problem.model)
 
         outpath = os.path.join(
-            problem.config.project_dir, mode, 'figures', 'stage_%i' % i)
-        print('plotting stage path: %s' % stage_path)
-        stage_posteriors(
-            mtrace, n_steps=draws, output='png', outpath=outpath)
+            problem.config.project_dir, mode, 'figures', 'stage_%s' % s)
 
-    stage_path = os.path.join(
-            problem.config.project_dir, mode, 'stage_final')
-    mtrace = backend.load(stage_path, model=problem.model)
+        if not os.path.exists(outpath) or force:
+            logger.info('plotting stage path: %s' % stage_path)
+            fig = stage_posteriors(
+                mtrace, n_steps=draws, outpath=outpath)
+            if not format == 'display':
+                fig.savefig(outpath, format=format, dpi=dpi)
+            else:
+                figs.append(fig)
 
-    out_path = os.path.join(
-        problem.config.project_dir, mode, 'figures', 'stage_final')
-    print('plotting stage path: %s' % stage_path)
-    stage_posteriors(mtrace, n_steps=draws, output='png', outpath=out_path)
+        else:
+            logger.info('plot for stage %s exists. Use force=True for'
+                ' replotting!')
+
+    if format == 'display':
+        plt.show()
+
+
+def draw_correlation_hist(problem, format='pdf', force=False, dpi=450):
+    """
+    Draw parameter correlation plot and histograms from the final atmip stage.
+    Only feasible for 'geometry' problem.
+    """
+
+    mode = problem.config.problem_config.mode
+
+    assert mode == 'geometry'
+
+    def last_sample(x):
+        return x[(n_steps - 1)::n_steps].flatten()
+
+    n_steps = problem.config.sampler_config.parameters.n_steps
+
+    stage_path = os.path.join(problem.config.project_dir, mode, 'stage_final')
+
+    fig, axs = correlation_plot_hist(
+        mtrace=backend.load(stage_path, model=problem.model),
+        varnames=problem.config.problem_config.select_variables(),
+        transform=last_sample,
+        cmap=plt.cm.gist_earth_r,
+        point=problem.model.test_point,
+        point_size='8',
+        point_color='red')
+
+    outpath = os.path.join(
+        problem.config.project_dir, mode, 'figures', 'corr_hist')
+
+    if format == 'display':
+        plt.show()
+    else:
+        fig.savefig(outpath, format=format, dpi=dpi)
 
 
 def n_model_plot(models, axes=None):
@@ -540,3 +592,12 @@ def load_earthmodels(engine, targets, depth_max='cmb'):
         earthmodels.append(em)
 
     return earthmodels
+
+
+plots_catalog = {
+    'correlation_hist': draw_correlation_hist,
+    'stage_posteriors': draw_posteriors}
+
+
+def available_plots():
+    return list(plots_catalog.keys())

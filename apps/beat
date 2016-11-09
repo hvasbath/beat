@@ -38,7 +38,7 @@ subcommand_usages = {
         'sample':        'sample <event_name> [options]',
         'build_gfs':     'build <event_name> [options]',
         'clone':         'clone <event_name> <cloned_event_name> [options]',
-        'plot':          'plot <event_name> <mode>',
+        'plot':          'plot <event_name> <plot_type> [options]',
     }
 
 subcommands = subcommand_descriptions.keys()
@@ -58,7 +58,7 @@ Subcommands:
     import_data     %(import_data)s
     build_gfs       %(build_gfs)s
     sample          %(sample)s
-
+    plot            %(plot)s
 
 To get further help and a list of available options for any subcommand run:
 
@@ -438,6 +438,7 @@ def command_build_gfs(args):
         parser.error('cannot get <event_name> argument')
         parser.print_help()
 
+    os.chdir(options.main_path)
     main_path = os.getcwd()
     project_dir = os.path.join(main_path, name)
 
@@ -507,6 +508,67 @@ def command_build_gfs(args):
 
         if options.execute:
             logger.info('Seismic GF calculations successful!')
+
+def command_plot(args):
+
+    def setup(parser):
+
+        parser.add_option('--main_path', dest='main_path', type='string',
+            default='./',
+            help='Main path (absolute) leading to folders of events that'
+                 ' have been created by "init".'
+                 ' Default: current directory: ./')
+
+        parser.add_option('--mode', dest='mode',
+            choices=['geometry', 'static_dist', 'kinemtic_dist'],
+            default='geometry',
+            help='Inversion problem to calculate GFs for; "geometry",'
+                 '"static_dist", "kinematic_dist". Default: "geometry"')
+
+        parser.add_option('--format', dest='format',
+            choices=['display', 'pdf', 'png'],
+            default='pdf',
+            help='Output format of the plot; "display", "pdf" or "png"'
+                 'Default: "pdf"')
+
+        parser.add_option('--dpi', dest='dpi', type='integer',
+            default=300,
+            help='Output resolution of the plots in dpi (dots per inch);
+                 ' Default: "300"')
+
+        parser.add_option('--force', dest='force', action='store_true',
+                help='Overwrite existing files')
+
+    plots_avail = plotting.available_plots()
+
+    details = '''Available <plot types> are: %s or "all". Multiple plots can be
+        selected giving a comma seperated list''' % (
+        ', '.join('"%s"' % plot for plot in plots_avail))
+
+    parser, options, args = cl_parse('plot', args, setup, details)
+
+    if len(args) != 2:
+        parser.print_help()
+        sys.exit(1)
+
+    if args[1] == 'all':
+        plotnames = plots_avail
+    else
+        plotnames = args[1].split(',')
+
+    os.chdir(options.main_path)
+    main_path = os.getcwd()
+    project_dir = os.path.join(main_path, name)
+
+    problem = models.load_model(project_dir, options.mode)
+
+    for plots in plotnames:
+        plotting.plot_catalog[plots](
+            problem,
+            format=options.format,
+            force=options.force,
+            dpi=options.dpi)
+
 
 if __name__ == '__main__':
 

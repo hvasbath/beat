@@ -19,7 +19,6 @@ import os
 import shutil
 import theano
 import copy
-from glob import glob
 
 from pyrocko import util, parimap
 from pymc3.model import modelcontext
@@ -551,7 +550,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
         elif stage == 'final':
             # continue sampling final stage
-            last = get_highest_sampled_stage(homepath)
+            last = backend.get_highest_sampled_stage(homepath)
 
             logger.info(
                 'Loading parameters from completed stage_%i' % last)
@@ -655,9 +654,10 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
             if plot_flag:
                 outpath = os.path.join(
-                    figdirpath, 'stage_posterior_%s.png' % step.stage)
+                    figdirpath, 'stage_posterior_%s' % step.stage)
+
                 plotting.stage_posteriors(
-                    mtrace, n_steps=draws, output='png', outpath=outpath)
+                    mtrace, n_steps=draws, format='pdf', outpath=outpath)
 
             step.population, step.array_population, step.likelihoods = \
                                     step.select_end_points(mtrace)
@@ -921,31 +921,3 @@ def logp_forw(out_vars, vars, shared):
     f = theano.function([inarray0], out_list)
     f.trust_input = True
     return f
-
-
-def get_highest_sampled_stage(homedir):
-    """
-    Return stage number of stage that has been sampled before the final stage.
-
-    Paramaeters
-    -----------
-    homedir : str
-        Directory to the sampled stage results
-
-    Returns
-    -------
-    stage number : int
-    """
-    stages = glob(os.path.join(homedir, 'stage_*'))
-
-    stagenumbers = []
-    for s in stages:
-        stage_ending = os.path.splitext(s)[0].rsplit('_', 1)[1]
-        try:
-            stagenumbers.append(int(stage_ending))
-        except ValueError:
-            logger.debug('string - Thats the final stage!')
-
-    stagenumbers.sort()
-
-    return stagenumbers[-1]
