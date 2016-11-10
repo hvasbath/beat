@@ -5,7 +5,7 @@ import shutil
 
 from optparse import OptionParser
 
-from beat import heart, config, utility, models, inputf
+from beat import heart, config, utility, models, inputf, plotting
 
 from pyrocko import model, util
 
@@ -531,13 +531,16 @@ def command_plot(args):
             help='Output format of the plot; "display", "pdf" or "png"'
                  'Default: "pdf"')
 
-        parser.add_option('--dpi', dest='dpi', type='integer',
+        parser.add_option('--dpi', dest='dpi', type='int',
             default=300,
-            help='Output resolution of the plots in dpi (dots per inch);
+            help='Output resolution of the plots in dpi (dots per inch);'
                  ' Default: "300"')
 
         parser.add_option('--force', dest='force', action='store_true',
                 help='Overwrite existing files')
+
+        parser.add_option('--reference', dest='reference', action='store_true',
+                help='Plot reference (test_point) into stage posteriors.')
 
     plots_avail = plotting.available_plots()
 
@@ -553,17 +556,23 @@ def command_plot(args):
 
     if args[1] == 'all':
         plotnames = plots_avail
-    else
+    else:
         plotnames = args[1].split(',')
 
     os.chdir(options.main_path)
     main_path = os.getcwd()
-    project_dir = os.path.join(main_path, name)
+    project_dir = os.path.join(main_path, args[0])
 
+    logger.info('Loading problem ...')
     problem = models.load_model(project_dir, options.mode)
 
+    if options.reference:
+        problem.reference = problem.model.test_point
+    else:
+        problem.reference = None
+
     for plots in plotnames:
-        plotting.plot_catalog[plots](
+        plotting.plots_catalog[plots](
             problem,
             format=options.format,
             force=options.force,

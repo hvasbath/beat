@@ -11,6 +11,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 import numpy as num
 from pyrocko import cake, util
+from pyrocko.cake_plot import str_to_mpl_color as scolor
 
 logger = logging.getLogger('plotting')
 
@@ -305,7 +306,7 @@ def histplot_op(ax, data, alpha=.35, color=None, bins=None):
 def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
               lines=None, combined=False, grid=False, varbins=None, nbins=40,
               alpha=0.35, priors=None, prior_alpha=1, prior_style='--',
-              ax=None, posterior=None):
+              axs=None, posterior=None):
     """
     Plots posterior pdfs as histograms from multiple mtrace objects.
 
@@ -320,7 +321,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     transform : callable
         Function to transform data (defaults to identity)
     posterior : str
-        To mark posterior value in distribution 'max', 'min', 'mean'
+        To mark posterior value in distribution 'max', 'min', 'mean', 'all'
     figsize : figure size tuple
         If None, size is (12, num of variables * 2) inch
     lines : dict
@@ -339,7 +340,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         Number of bins for each histogram
     alpha : float
         Alpha value for plot line. Defaults to 0.35.
-    ax : axes
+    axs : axes
         Matplotlib axes. Defaults to None.
 
     Returns
@@ -367,30 +368,37 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     if 'seis_like' in varnames:
         remove_var(varnames, varname='seis_like')
 
-    if posterior is not None:
+    if posterior:
         llk = trace.get_values('like', combine=combined, squeeze=False)
         llk = num.squeeze(transform(llk[0]))
         llk = pmp.make_2d(llk)
 
-        if posterior == 'mean':
-            idx = (num.abs(llk - llk.mean())).argmin()
+        mean_idx = (num.abs(llk - llk.mean())).argmin()
+        min_idx = (num.abs(llk - llk.min())).argmin()
+        max_idx = (num.abs(llk - llk.max())).argmin()
 
-        if posterior == 'min':
-            idx = (num.abs(llk - llk.min())).argmin()
+        posterior_idxs = {
+            'mean': mean_idx,
+            'min': min_idx,
+            'max': max_idx}
 
-        elif posterior == 'max':
-            idx = (num.abs(llk - llk.max())).argmin()
+        colors = {
+            'mean': scolor('orange1'),
+            'min': scolor('butter1'),
+            'max': scolor('scarletred2')}
 
     n = len(varnames)
     nrow = int(num.ceil(n / 2.))
     ncol = 2
 
-    if figsize is None:
-        figsize = (12, n * 2)
+    n_fig = nrow * ncol
 
-    if ax is None:
-        fig, ax = plt.subplots(nrow, ncol, squeeze=False, figsize=figsize)
-    elif ax.shape != (nrow, ncol):
+    if figsize is None:
+        figsize = (8.2, 11.7)
+
+    if axs is None:
+        fig, axs = plt.subplots(nrow, ncol, figsize=figsize)
+    elif axs.shape != (nrow, ncol):
         logger.warn('traceplot requires n*2 subplots')
         return None
 
@@ -400,38 +408,47 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     else:
         make_bins_flag = False
 
-    for i, v in enumerate(varnames):
+    for i in range(n_fig):
         coli, rowi = utility.mod_i(i, nrow)
 
-        for d in trace.get_values(v, combine=combined, squeeze=False):
-            d = num.squeeze(transform(d))
-            d = pmp.make_2d(d)
+        if i > len(varnames) - 1:
+            fig.delaxes(axs[rowi, coli])
+        else:
+            v = varnames[i]
 
-            if make_bins_flag:
-                varbin = make_bins(d, nbins=nbins)
-                varbins.append(varbin)
-            else:
-                varbin = varbins[i]
+            for d in trace.get_values(v, combine=combined, squeeze=False):
+                d = num.squeeze(transform(d))
+                d = pmp.make_2d(d)
 
-            histplot_op(ax[rowi, coli], d, bins=varbin, alpha=alpha)
-            ax[rowi, coli].set_title(str(v))
-            ax[rowi, coli].grid(grid)
-            ax[rowi, coli].set_ylabel("Frequency")
+                if make_bins_flag:
+                    varbin = make_bins(d, nbins=nbins)
+                    varbins.append(varbin)
+                else:
+                    varbin = varbins[i]
 
-            if lines:
-                try:
-                    ax[rowi, coli].axvline(x=lines[v], color="r", lw=1.5)
-                except KeyError:
-                    pass
+                histplot_op(
+                    axs[rowi, coli], d, bins=varbin, alpha=alpha,
+                    color=scolor('aluminium3'))
+                axs[rowi, coli].set_title(str(v))
+                axs[rowi, coli].grid(grid)
+                axs[rowi, coli].set_ylabel("Frequency")
 
-            if posterior is not None:
-                ax[rowi, coli].axvline(x=d[idx], color="b", lw=1.5)
+                if lines:
+                    try:
+                        axs[rowi, coli].axvline(x=lines[v], color="k", lw=1.5)
+                    except KeyError:
+                        pass
 
-    plt.tight_layout()
-    return fig, ax, varbins
+                if posterior:
+                    for k, idx in posterior_idxs.iteritems():
+                        axs[rowi, coli].axvline(
+                            x=d[idx], color=colors[k], lw=1.5)
+
+    fig.tight_layout()
+    return fig, axs, varbins
 
 
-def stage_posteriors(mtrace, n_steps, lines=None):
+def stage_posteriors(mtrace, n_steps, posterior=None, lines=None):
     """
     Plot variable posteriors from a certain stage of the ATMIP algorithm.
 
@@ -440,6 +457,8 @@ def stage_posteriors(mtrace, n_steps, lines=None):
     mtrace : :class:`pymc3.backend.base.MultiTrace`
     n_steps : int
         Number of chains to select last samples of each trace.
+    posterior : str
+        To mark posterior value in distribution 'max', 'min', 'mean', 'all'
     lines : dict
         :func:pymc3.model.Point to draw vertical lines for reference
     """
@@ -448,7 +467,7 @@ def stage_posteriors(mtrace, n_steps, lines=None):
         return x[(n_steps - 1)::n_steps].flatten()
 
     fig, axs, varbins = traceplot(mtrace, transform=last_sample,
-        combined=True, lines=lines)
+        combined=True, lines=lines, posterior=posterior)
 
     return fig
 
@@ -486,23 +505,25 @@ def draw_posteriors(problem, format='pdf', force=False, dpi=450):
 
         stage_path = os.path.join(
             problem.config.project_dir, mode, 'stage_%s' % s)
-        mtrace = backend.load(stage_path, model=problem.model)
 
         outpath = os.path.join(
-            problem.config.project_dir, mode, 'figures', 'stage_%s' % s)
+            problem.config.project_dir,
+            mode, 'figures', 'stage_%s.%s' % (s, format))
 
         if not os.path.exists(outpath) or force:
-            logger.info('plotting stage path: %s' % stage_path)
-            fig = stage_posteriors(
-                mtrace, n_steps=draws, outpath=outpath)
+            logger.info('plotting stage: %s' % stage_path)
+            mtrace = backend.load(stage_path, model=problem.model)
+            fig = stage_posteriors(mtrace, n_steps=draws, posterior='all',
+                    lines=problem.reference)
             if not format == 'display':
+                logger.info('saving figure to %s' % outpath)
                 fig.savefig(outpath, format=format, dpi=dpi)
             else:
                 figs.append(fig)
 
         else:
             logger.info('plot for stage %s exists. Use force=True for'
-                ' replotting!')
+                ' replotting!' % s)
 
     if format == 'display':
         plt.show()
@@ -525,21 +546,26 @@ def draw_correlation_hist(problem, format='pdf', force=False, dpi=450):
 
     stage_path = os.path.join(problem.config.project_dir, mode, 'stage_final')
 
-    fig, axs = correlation_plot_hist(
-        mtrace=backend.load(stage_path, model=problem.model),
-        varnames=problem.config.problem_config.select_variables(),
-        transform=last_sample,
-        cmap=plt.cm.gist_earth_r,
-        point=problem.model.test_point,
-        point_size='8',
-        point_color='red')
-
     outpath = os.path.join(
-        problem.config.project_dir, mode, 'figures', 'corr_hist')
+        problem.config.project_dir,
+        mode, 'figures', 'corr_hist.%s' % format)
+
+    if not os.path.exists(outpath) or force:
+        fig, axs = correlation_plot_hist(
+            mtrace=backend.load(stage_path, model=problem.model),
+            varnames=problem.config.problem_config.select_variables(),
+            transform=last_sample,
+            cmap=plt.cm.gist_earth_r,
+            point=problem.model.test_point,
+            point_size='8',
+            point_color='red')
+    else:
+        logger.info('correlation plot exists. Use force=True for replotting!')
 
     if format == 'display':
         plt.show()
     else:
+        logger.info('saving figure to %s' % outpath)
         fig.savefig(outpath, format=format, dpi=dpi)
 
 
