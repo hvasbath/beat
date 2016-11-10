@@ -482,9 +482,6 @@ def draw_posteriors(problem, format='pdf', force=False, dpi=450):
     nstage = backend.get_highest_sampled_stage(
         problem.outfolder, return_final=True)
 
-    if isinstance(nstage, int):
-        nstage -= 1
-
     mode = problem.config.problem_config.mode
 
     step, _ = utility.load_atmip_params(
