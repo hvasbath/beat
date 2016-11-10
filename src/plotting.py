@@ -482,6 +482,9 @@ def draw_posteriors(problem, format='pdf', force=False, dpi=450):
     nstage = backend.get_highest_sampled_stage(
         problem.outfolder, return_final=True)
 
+    if isinstance(nstage, int):
+        nstage -= 1
+
     mode = problem.config.problem_config.mode
 
     step, _ = utility.load_atmip_params(
@@ -490,7 +493,7 @@ def draw_posteriors(problem, format='pdf', force=False, dpi=450):
     if nstage == 'final':
         list_indexes = [str(i) for i in range(step.stage + 1)] + ['final']
     else:
-        list_indexes = [str(i) for i in range(step.stage)]
+        list_indexes = [str(i) for i in range(step.stage + 1)]
 
     figs = []
 
@@ -542,6 +545,9 @@ def draw_correlation_hist(problem, format='pdf', force=False, dpi=450):
     n_steps = problem.config.sampler_config.parameters.n_steps
 
     stage_path = os.path.join(problem.config.project_dir, mode, 'stage_final')
+
+    if not os.path.exists(stage_path):
+        raise Exception('Final stage not reached with sampling!')
 
     outpath = os.path.join(
         problem.config.project_dir,
