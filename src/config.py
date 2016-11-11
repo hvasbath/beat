@@ -327,7 +327,7 @@ class ATMCMCConfig(SamplerParameters):
                      help='Remove existing stage results prior to sampling.')
     plot_flag = Bool.T(default=True,
                        help='Plot stage posteriors after sampling of'
-                            'each stage')
+                            'each stage-Obsolete...keeping shortly...')
 
 
 class SamplerConfig(Object):

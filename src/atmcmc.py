@@ -28,7 +28,7 @@ from pymc3.theanof import make_shared_replacements, join_nonshared_inputs
 from pymc3.step_methods.metropolis import MultivariateNormalProposal as MvNPd
 from numpy.random import seed
 
-from beat import backend, utility, plotting
+from beat import backend, utility
 
 __all__ = ['ATMCMC', 'ATMIP_sample', 'logp_forw']
 
@@ -432,8 +432,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
 def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                   stage=None, n_jobs=1, tune=None, progressbar=False,
-                  model=None, update=None, random_seed=None, rm_flag=False,
-                  plot_flag=True):
+                  model=None, update=None, random_seed=None, rm_flag=False):
     """
     (C)ATMIP sampling algorithm
     (Cascading - (C) not always relevant)
@@ -652,13 +651,6 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
             mtrace = backend.load(stage_path, model)
 
-            if plot_flag:
-                outpath = os.path.join(
-                    figdirpath, 'stage_posterior_%s' % step.stage)
-
-                plotting.stage_posteriors(
-                    mtrace, n_steps=draws, format='pdf', outpath=outpath)
-
             step.population, step.array_population, step.likelihoods = \
                                     step.select_end_points(mtrace)
             step.beta, step.old_beta, step.weights = step.calc_beta()
@@ -712,12 +704,6 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
         outpath = os.path.join(stage_path, 'atmip.params')
         outparam_list = [step, update]
         utility.dump_objects(outpath, outparam_list)
-
-        if plot_flag:
-            mtrace = backend.load(stage_path, model)
-            outpath = os.path.join(figdirpath, 'stage_posterior_final.png')
-            plotting.stage_posteriors(
-                mtrace, n_steps=draws, output='png', outpath=outpath)
 
 
 def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
