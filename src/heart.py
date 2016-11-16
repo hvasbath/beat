@@ -1065,10 +1065,10 @@ def geo_construct_gf(
 
     c = psgrn.PsGrnConfigFull()
 
-    n_steps_depth = (source_depth_max - source_depth_min) / \
-        source_depth_spacing
-    n_steps_distance = (source_distance_max - source_distance_min) / \
-        source_distance_spacing
+    n_steps_depth = int((source_depth_max - source_depth_min) / \
+        source_depth_spacing) + 1
+    n_steps_distance = int((source_distance_max - source_distance_min) / \
+        source_distance_spacing) + 1
 
     c.distance_grid = psgrn.PsGrnSpatialSampling(
         n_steps=n_steps_distance,
