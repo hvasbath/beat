@@ -26,23 +26,6 @@ __all__ = ['GeometryOptimizer', 'sample', 'load_model', 'load_stage',
     'choose_proposal']
 
 
-class PlotOptions(Object):
-
-    result_llk = String.T(
-        default='max',
-        help='Which model to plot on the specified plot; options:'
-             ' "max", "min", "mean"')
-    load_stage = String.T(
-        default='final',
-        help='Which ATMCMC stage to select for plotting')
-    figure_dir = String.T(
-        default='figures',
-        help='Name of the output directory of plots')
-    reference = Dict.T(
-        help='Reference point for example from a synthetic test.'
-        optional=True)
-
-
 class Problem(Object):
     """
     Overarching class for the optimization problems to be solved.
@@ -120,12 +103,6 @@ class Problem(Object):
             self.engine.close_cashed_stores()
 
         return step
-
-    def get_plot_options(self):
-        return self._plot_options
-
-    def set_plot_options(self, plot_options):
-        self._plot_options = plot_options
 
 
 class GeometryOptimizer(Problem):
@@ -784,10 +761,9 @@ def load_stage(problem, stage_number=None, load='trace'):
 
     project_dir = problem.config.project_dir
     mode = problem.config.problem_config.mode
-    po = problem.get_plot_options()
 
     if stage_number is None:
-        stage_number = po.load_stage
+        stage_number = 'final'
 
     homepath = os.path.join(project_dir, mode)
     stagepath = os.path.join(homepath, 'stage_%s' % stage_number)

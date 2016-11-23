@@ -5,17 +5,38 @@ import math
 import os
 import logging
 
-from beat import utility, backend
+from beat import utility, backend, heart
 from beat.models import load_stage
 
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 import numpy as num
+from pyrocko.guts import Object, String, Dict, Bool, Int
 from pyrocko import cake, util
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 
 logger = logging.getLogger('plotting')
+
+
+class PlotOptions(Object):
+
+    post_llk = String.T(
+        default='max',
+        help='Which model to plot on the specified plot; options:'
+             ' "max", "min", "mean"')
+    load_stage = String.T(
+        default='final',
+        help='Which ATMCMC stage to select for plotting')
+    figure_dir = String.T(
+        default='figures',
+        help='Name of the output directory of plots')
+    reference = Dict.T(
+        help='Reference point for example from a synthetic test.',
+        optional=True)
+    outformat = String.T(default='pdf')
+    dpi = Int.T(default=300)
+    force = Bool.T(default=False)
 
 
 def correlation_plot(mtrace, varnames=None,
@@ -319,14 +340,12 @@ def plot_dtrace(axes, tr, space, mi, ma, **kwargs):
         **kwargs)
 
 
-def plot_dtrace_vline(axes, t, space, **kwargs):
-    axes.plot([t, t], [-1.0 - space, -1.0], **kwargs)
+def draw_seismic_fits_figures(problem, plot_options):
+    """
+    Modified from grond. Plot synthetic and data waveforms and the misfit for
+    the selcted posterior model.
+    """
 
-
-def draw_seismic_fits_figures(problem, format='pdf', force=False, dpi=450):
-    '''
-    Modified from grond plot.
-    '''
     fontsize = 8
     fontsize_title = 10
 
@@ -335,35 +354,64 @@ def draw_seismic_fits_figures(problem, format='pdf', force=False, dpi=450):
 
     mode = problem.config.problem_config.mode
 
-    po = problem.get_plot_options()
-    figure_dir = po['figure_dir']
-
     stage = load_stage(problem, load='full')
 
-    figure_path = os.path.join(problem.outfolder, figure_dir)
+    po = plot_options
+
+    figure_path = os.path.join(problem.outfolder, po.figure_dir)
     util.ensuredir(figure_path)
 
     population, _, llk = stage.step.select_end_points(stage.mtrace)
 
     posterior_idxs = get_fit_indexes(llk)
-    idx = posterior_idxs[problem.plot_options]
+    idx = posterior_idxs[po.post_llk]
 
     out_point = population[idx]
+
+    problem._geodetic_flag = False
+
+    syn_proc_traces = problem.get_synthetics(
+        out_point, outmode='traces')['seismic']
+
+    tmins = [tr.tmin for tr in syn_proc_traces]
+
+    at = copy.deepcopy(problem.config.seismic_config.arrival_taper)
+
+    obs_proc_traces = heart.taper_filter_traces(
+        problem.data_traces,
+        arrival_taper=at,
+        filterer=problem.config.seismic_config.filterer,
+        tmins=tmins,
+        outmode='traces')
+
+    problem.config.seismic_config.arrival_taper = None
+    syn_filt_traces = problem.get_synthetics(
+        out_point, outmode='traces')['seismic']
+
+    obs_filt_traces = heart.taper_filter_traces(
+        problem.data_traces,
+        filterer=problem.config.seismic_config.filterer,
+        outmode='traces')
+
+    for trs, tro, ta in zip(syn_filt_traces, obs_filt_traces, problem.stargets):
+        i = target_index[ta]
+        trs.chop(tmin=tmins[i] - at.fade,
+                 tmax=tmins[i] + at.fade + at.duration)
+        tro.chop(tmin=tmins[i] - at.fade,
+                 tmax=tmins[i] + at.fade + at.duration)
+
     # have to get best result based on llk
     target_to_result = {}
     all_syn_trs = []
 
     dtraces = []
-    for target, result in zip(problem.targets, results):
-        if isinstance(result, gf.SeismosizerError):
-            dtraces.append(None)
-            continue
+    for i, target in problem.stargets:
 
         itarget = target_index[target]
         w = target.get_combined_weight(problem.apply_balancing_weights)
 
-            dtrace = result.processed_syn.copy()
-            dtrace.set_ydata(
+        dtrace = result.processed_syn.copy()
+        dtrace.set_ydata(
                 (
                     (result.processed_syn.get_ydata() -
                      result.processed_obs.get_ydata())**2))
@@ -504,10 +552,7 @@ def draw_seismic_fits_figures(problem, format='pdf', force=False, dpi=450):
                 axes = axes2.twinx()
                 axes.set_axis_off()
 
-                if target.misfit_config.domain == 'cc_max_norm':
-                    axes.set_ylim(-10. * space_factor, 10.)
-                else:
-                    axes.set_ylim(-absmax*1.33 * space_factor, absmax*1.33)
+                axes.set_ylim(-absmax*1.33 * space_factor, absmax*1.33)
 
                 itarget = target_index[target]
                 result = target_to_result[target]
@@ -533,24 +578,10 @@ def draw_seismic_fits_figures(problem, format='pdf', force=False, dpi=450):
 
                 cc_color = scolor('aluminium5')
 
-                # no clue what is dtrace ...
-                if target.misfit_config.domain == 'cc_max_norm':
-                    tref = (result.filtered_obs.tmin +
-                            result.filtered_obs.tmax) * 0.5
-
-                    plot_dtrace(
-                        axes2, dtrace, space, -1., 1.,
-                        fc=light(cc_color, 0.5),
-                        ec=cc_color)
-
-                    plot_dtrace_vline(
-                        axes2, tref, space, color=tap_color_annot)
-
-                else:
-                    plot_dtrace(
-                        axes2, dtrace, space, 0., 1.,
-                        fc=light(misfit_color, 0.3),
-                        ec=misfit_color)
+                plot_dtrace(
+                    axes2, dtrace, space, 0., 1.,
+                    fc=light(misfit_color, 0.3),
+                    ec=misfit_color)
 
                 plot_trace(
                     axes, result.filtered_syn,
@@ -836,7 +867,7 @@ def stage_posteriors(mtrace, n_steps, posterior=None, lines=None):
     return fig
 
 
-def draw_posteriors(problem, format='pdf', force=False, dpi=450):
+def draw_posteriors(problem, plot_options):
     """
     Identify which stage is the last complete stage and plot posteriors up to
     format : str
@@ -844,8 +875,7 @@ def draw_posteriors(problem, format='pdf', force=False, dpi=450):
     """
 
     mode = problem.config.problem_config.mode
-
-    po = problem.get_plot_options()
+    po = plot_options
 
     stage = load_stage(problem, stage_number=po.load_stage, load='params')
     step = stage.step
@@ -871,16 +901,16 @@ def draw_posteriors(problem, format='pdf', force=False, dpi=450):
 
         outpath = os.path.join(
             problem.config.project_dir,
-            mode, po.figure_dir, 'stage_%s.%s' % (s, format))
+            mode, po.figure_dir, 'stage_%s.%s' % (s, po.outformat))
 
-        if not os.path.exists(outpath) or force:
+        if not os.path.exists(outpath) or po.force:
             logger.info('plotting stage: %s' % stage_path)
             mtrace = backend.load(stage_path, model=problem.model)
             fig = stage_posteriors(mtrace, n_steps=draws, posterior='all',
                     lines=po.reference)
-            if not format == 'display':
+            if not po.outformat == 'display':
                 logger.info('saving figure to %s' % outpath)
-                fig.savefig(outpath, format=format, dpi=dpi)
+                fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
             else:
                 figs.append(fig)
 
@@ -892,7 +922,7 @@ def draw_posteriors(problem, format='pdf', force=False, dpi=450):
         plt.show()
 
 
-def draw_correlation_hist(problem, format='pdf', force=False, dpi=450):
+def draw_correlation_hist(problem, plot_options):
     """
     Draw parameter correlation plot and histograms from the final atmip stage.
     Only feasible for 'geometry' problem.
@@ -907,15 +937,14 @@ def draw_correlation_hist(problem, format='pdf', force=False, dpi=450):
 
     n_steps = problem.config.sampler_config.parameters.n_steps
 
-    stage = load_stage(problem, load='trace')
-
-    po = problem.get_plot_options()
+    po = plot_options
+    stage = load_stage(problem, po.load_stage, load='trace')
 
     outpath = os.path.join(
         problem.config.project_dir,
-        mode, po.figure_dir, 'corr_hist_%s.%s' % (stage.number, format))
+        mode, po.figure_dir, 'corr_hist_%s.%s' % (stage.number, po.outformat))
 
-    if not os.path.exists(outpath) or force:
+    if not os.path.exists(outpath) or po.force:
         fig, axs = correlation_plot_hist(
             mtrace=stage.mtrace,
             varnames=problem.config.problem_config.select_variables(),
@@ -927,11 +956,11 @@ def draw_correlation_hist(problem, format='pdf', force=False, dpi=450):
     else:
         logger.info('correlation plot exists. Use force=True for replotting!')
 
-    if format == 'display':
+    if po.outformat == 'display':
         plt.show()
     else:
         logger.info('saving figure to %s' % outpath)
-        fig.savefig(outpath, format=format, dpi=dpi)
+        fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
 def n_model_plot(models, axes=None):
@@ -988,9 +1017,6 @@ def load_earthmodels(engine, targets, depth_max='cmb'):
 plots_catalog = {
     'correlation_hist': draw_correlation_hist,
     'stage_posteriors': draw_posteriors}
-
-
-def plot_results(problem, plotoptions)
 
 
 def available_plots():

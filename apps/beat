@@ -525,6 +525,12 @@ def command_plot(args):
             help='Inversion problem to calculate GFs for; "geometry",'
                  '"static_dist", "kinematic_dist". Default: "geometry"')
 
+        parser.add_option('--post_llk', dest='post_llk',
+            choices=['max', 'min', 'mean'],
+            default='max',
+            help='Plot model with specified likelihood; "max", "min" or "mean"'
+                 'Default: "max"')
+
         parser.add_option('--stage_number', dest='stage_number',
             choices=['final', 'n'],
             default=None,
@@ -572,22 +578,20 @@ def command_plot(args):
     logger.info('Loading problem ...')
     problem = models.load_model(project_dir, options.mode)
 
-    po = problem.get_plot_options()
-    po.load_stage = options.stage_number
+    po = plotting.PlotOptions(
+        post_llk=options.post_llk,
+        load_stage=options.stage_number,
+        outformat=options.format,
+        force=options.force,
+        dpi=options.dpi)
 
     if options.reference:
         po.reference = problem.model.test_point
     else:
         po.reference = None
 
-    problem.set_plot_options(po)
-
     for plots in plotnames:
-        plotting.plots_catalog[plots](
-            problem,
-            format=options.format,
-            force=options.force,
-            dpi=options.dpi)
+        plotting.plots_catalog[plots](problem, po)
 
 
 if __name__ == '__main__':

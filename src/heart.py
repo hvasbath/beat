@@ -367,14 +367,22 @@ class ArrivalTaper(trace.Taper):
     Cosine arrival Taper.
     """
 
-    a = Float.T(default=15.,
+    a = Float.T(default=-15.,
                 help='start of fading in; [s] w.r.t. phase arrival')
-    b = Float.T(default=10.,
+    b = Float.T(default=-10.,
                 help='end of fading in; [s] w.r.t. phase arrival')
     c = Float.T(default=50.,
-                help='start of fading in; [s] w.r.t. phase arrival')
+                help='start of fading out; [s] w.r.t. phase arrival')
     d = Float.T(default=55.,
-                help='end of fading in; [s] w.r.t phase arrival')
+                help='end of fading out; [s] w.r.t phase arrival')
+
+    @property
+    def duration(self):
+        return num.abs(self.a) + self.d
+
+    @property
+    def fade(self):
+        return num.abs(self.a - self.b)
 
 
 class Filter(Object):
@@ -1251,7 +1259,7 @@ def get_phase_taperer(engine, source, target, arrival_taper):
 
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     filterer=None, reference_taperer=None, plot=False,
-                    nprocs=1, outmode='array'):
+                    nprocs=1, outmode='array', inplace=True, chop=True):
     """
     Calculate synthetic seismograms of combination of targets and sources,
     filtering and tapering afterwards (filterer)
@@ -1299,7 +1307,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
                 taperer = reference_taperer
 
             # cut traces
-            tr.taper(taperer, inplace=True, chop=True)
+            tr.taper(taperer, inplace=inplace, chop=chop)
 
         if filterer is not None:
             # filter traces
@@ -1347,8 +1355,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         raise Exception('Outmode %s not supported!' % outmode)
 
 
-def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
-                        plot=False):
+def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
+                        tmins=None, plot=False, outmode='array', chop=True):
     """
     Taper and filter data_traces according to given taper and filterers.
     Tapering will start at the given tmin.
@@ -1359,9 +1367,11 @@ def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
         containing :class:`pyrocko.trace.Trace` objects
     arrival_taper : :class:`ArrivalTaper`
     filterer : :class:`Filterer`
-    tmins : :class:`numpy.ndarray`
-        Array containing the start times [s] since 1st.January 1970 to start
+    tmins : list or:class:`numpy.ndarray`
+        containing the start times [s] since 1st.January 1970 to start
         tapering
+    outmode : str
+        defines the output structure, options: "traces", "array"
 
     Returns
     -------
@@ -1382,7 +1392,7 @@ def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
                 float(tmins[i] - arrival_taper.a + arrival_taper.d))
 
             # taper and cut traces
-            cut_trace.taper(taperer, inplace=True, chop=True)
+            cut_trace.taper(taperer, inplace=True, chop=chop)
 
         if filterer is not None:
             # filter traces
@@ -1395,4 +1405,11 @@ def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
         if plot:
             trace.snuffle(cut_traces)
 
-    return num.vstack([cut_traces[i].ydata for i in range(len(data_traces))])
+    if outmode == 'array':
+        if arrival_taper is not None:
+            return num.vstack(
+                [cut_traces[i].ydata for i in range(len(data_traces))])
+        else:
+            raise Exception('Cannot return array without tapering!')
+    if outmode == 'traces':
+        return cut_traces
