@@ -1,10 +1,12 @@
 from pyrocko import cake_plot as cp
 from pymc3 import plots as pmp
 
+import math
 import os
 import logging
 
 from beat import utility, backend
+from beat.models import load_stage
 
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -227,28 +229,36 @@ def plot_matrix(A):
     plt.show()
 
 
-def plot_misfits(problem, posterior='mean', dataset='geodetic'):
+def get_fit_indexes(llk):
+    """
+    Find indexes of various likelihoods in a likelihood distribution.
+    """
+
+    mean_idx = (num.abs(llk - llk.mean())).argmin()
+    min_idx = (num.abs(llk - llk.min())).argmin()
+    max_idx = (num.abs(llk - llk.max())).argmin()
+
+    posterior_idxs = {
+        'mean': mean_idx,
+        'min': min_idx,
+        'max': max_idx}
+
+    return posterior_idxs
+
+
+def draw_geodetic_misfit_figures(problem, format='pdf', force=False, dpi=450):
 
     mode = problem.config.problem_config.mode
 
-    mtrace = backend.load(
-        problem.outfolder + '/stage_final', model=problem.model)
+    stage = load_stage(problem, load='full')
 
     figure_path = os.path.join(problem.outfolder, 'figures')
     util.ensuredir(figure_path)
 
-    step, _ = utility.load_atmip_params(
-                problem.config.project_dir, 'final', mode)
-    population, _, llk = step.select_end_points(mtrace)
 
-    if posterior == 'mean':
-        idx = (num.abs(llk - llk.mean())).argmin()
+    population, _, llk = stage.step.select_end_points(mtrace)
 
-    if posterior == 'min':
-        idx = (num.abs(llk - llk.min())).argmin()
-
-    elif posterior == 'max':
-        idx = (num.abs(llk - llk.max())).argmin()
+    posterior_idxs = get_fit_indexes(llk)
 
     out_point = population[idx]
 
@@ -283,6 +293,367 @@ def plot_misfits(problem, posterior='mean', dataset='geodetic'):
         pdfp.savefig()
 
     pdfp.close()
+
+
+def plot_trace(axes, tr, **kwargs):
+    return axes.plot(tr.get_xdata(), tr.get_ydata(), **kwargs)
+
+
+def plot_taper(axes, t, taper, **kwargs):
+    y = num.ones(t.size) * 0.9
+    taper(y, t[0], t[1] - t[0])
+    y2 = num.concatenate((y, -y[::-1]))
+    t2 = num.concatenate((t, t[::-1]))
+    axes.fill(t2, y2, **kwargs)
+
+
+def plot_dtrace(axes, tr, space, mi, ma, **kwargs):
+    t = tr.get_xdata()
+    y = tr.get_ydata()
+    y2 = (num.concatenate((y, num.zeros(y.size))) - mi) / \
+        (ma-mi) * space - (1.0 + space)
+    t2 = num.concatenate((t, t[::-1]))
+    axes.fill(
+        t2, y2,
+        clip_on=False,
+        **kwargs)
+
+
+def plot_dtrace_vline(axes, t, space, **kwargs):
+    axes.plot([t, t], [-1.0 - space, -1.0], **kwargs)
+
+
+def draw_seismic_fits_figures(problem, format='pdf', force=False, dpi=450):
+    '''
+    Modified from grond plot.
+    '''
+    fontsize = 8
+    fontsize_title = 10
+
+    target_index = dict(
+        (target, i) for (i, target) in enumerate(problem.stargets))
+
+    mode = problem.config.problem_config.mode
+
+    po = problem.get_plot_options()
+    figure_dir = po['figure_dir']
+
+    stage = load_stage(problem, load='full')
+
+    figure_path = os.path.join(problem.outfolder, figure_dir)
+    util.ensuredir(figure_path)
+
+    population, _, llk = stage.step.select_end_points(stage.mtrace)
+
+    posterior_idxs = get_fit_indexes(llk)
+    idx = posterior_idxs[problem.plot_options]
+
+    out_point = population[idx]
+    # have to get best result based on llk
+    target_to_result = {}
+    all_syn_trs = []
+
+    dtraces = []
+    for target, result in zip(problem.targets, results):
+        if isinstance(result, gf.SeismosizerError):
+            dtraces.append(None)
+            continue
+
+        itarget = target_index[target]
+        w = target.get_combined_weight(problem.apply_balancing_weights)
+
+            dtrace = result.processed_syn.copy()
+            dtrace.set_ydata(
+                (
+                    (result.processed_syn.get_ydata() -
+                     result.processed_obs.get_ydata())**2))
+
+        target_to_result[target] = result
+
+        dtrace.meta = dict(super_group=target.super_group, group=target.group)
+        dtraces.append(dtrace)
+
+        result.processed_syn.meta = dict(
+            super_group=target.super_group, group=target.group)
+
+        all_syn_trs.append(result.processed_syn)
+
+    skey = lambda tr: (tr.meta['super_group'], tr.meta['group'])
+
+    trace_minmaxs = trace.minmax(all_syn_trs, skey)
+
+    dminmaxs = trace.minmax([x for x in dtraces if x is not None], skey)
+
+    for tr in dtraces:
+        if tr:
+            dmin, dmax = dminmaxs[skey(tr)]
+            tr.ydata /= max(abs(dmin), abs(dmax))
+
+    figs = []
+    # put loop over channels here ...
+    for cg in cgs:
+        targets = cg_to_targets[cg]
+
+        # can keep from here ... until
+        nframes = len(targets)
+
+        nx = int(math.ceil(math.sqrt(nframes)))
+        ny = (nframes-1)/nx+1
+
+        nxmax = 4
+        nymax = 4
+
+        nxx = (nx-1) / nxmax + 1
+        nyy = (ny-1) / nymax + 1
+
+        # nz = nxx * nyy
+
+        xs = num.arange(nx) / ((max(2, nx) - 1.0) / 2.)
+        ys = num.arange(ny) / ((max(2, ny) - 1.0) / 2.)
+
+        xs -= num.mean(xs)
+        ys -= num.mean(ys)
+
+        fxs = num.tile(xs, ny)
+        fys = num.repeat(ys, nx)
+
+        data = []
+
+        for target in targets:
+            azi = source.azibazi_to(target)[0]
+            dist = source.distance_to(target)
+            x = dist*num.sin(num.deg2rad(azi))
+            y = dist*num.cos(num.deg2rad(azi))
+            data.append((x, y, dist))
+
+        gxs, gys, dists = num.array(data, dtype=num.float).T
+
+        iorder = num.argsort(dists)
+
+        gxs = gxs[iorder]
+        gys = gys[iorder]
+        targets_sorted = [targets[ii] for ii in iorder]
+
+        gxs -= num.mean(gxs)
+        gys -= num.mean(gys)
+
+        gmax = max(num.max(num.abs(gys)), num.max(num.abs(gxs)))
+        if gmax == 0.:
+            gmax = 1.
+
+        gxs /= gmax
+        gys /= gmax
+
+        dists = num.sqrt(
+            (fxs[num.newaxis, :] - gxs[:, num.newaxis])**2 +
+            (fys[num.newaxis, :] - gys[:, num.newaxis])**2)
+
+        distmax = num.max(dists)
+
+        availmask = num.ones(dists.shape[1], dtype=num.bool)
+        frame_to_target = {}
+        for itarget, target in enumerate(targets_sorted):
+            iframe = num.argmin(
+                num.where(availmask, dists[itarget], distmax + 1.))
+            availmask[iframe] = False
+            iy, ix = num.unravel_index(iframe, (ny, nx))
+            frame_to_target[iy, ix] = target
+
+        figures = {}
+        for iy in xrange(ny):
+            for ix in xrange(nx):
+                if (iy, ix) not in frame_to_target:
+                    continue
+
+                ixx = ix/nxmax
+                iyy = iy/nymax
+                if (iyy, ixx) not in figures:
+                    figures[iyy, ixx] = plt.figure(
+                        figsize=mpl_papersize('a4', 'landscape'))
+
+                    figures[iyy, ixx].subplots_adjust(
+                        left=0.03,
+                        right=1.0 - 0.03,
+                        bottom=0.03,
+                        top=1.0 - 0.06,
+                        wspace=0.2,
+                        hspace=0.2)
+
+                    figs.append(figures[iyy, ixx])
+
+                fig = figures[iyy, ixx]
+
+                target = frame_to_target[iy, ix]
+
+                # can keep until here ...
+                amin, amax = trace_minmaxs[target.super_group, target.group]
+                absmax = max(abs(amin), abs(amax))
+
+                ny_this = nymax  # min(ny, nymax)
+                nx_this = nxmax  # min(nx, nxmax)
+                i_this = (iy % ny_this) * nx_this + (ix % nx_this) + 1
+
+                axes2 = fig.add_subplot(ny_this, nx_this, i_this)
+
+
+                space = 0.5
+                space_factor = 1.0 + space
+                axes2.set_axis_off()
+                axes2.set_ylim(-1.05 * space_factor, 1.05)
+
+                axes = axes2.twinx()
+                axes.set_axis_off()
+
+                if target.misfit_config.domain == 'cc_max_norm':
+                    axes.set_ylim(-10. * space_factor, 10.)
+                else:
+                    axes.set_ylim(-absmax*1.33 * space_factor, absmax*1.33)
+
+                itarget = target_index[target]
+                result = target_to_result[target]
+
+                dtrace = dtraces[itarget]
+
+                tap_color_annot = (0.35, 0.35, 0.25)
+                tap_color_edge = (0.85, 0.85, 0.80)
+                tap_color_fill = (0.95, 0.95, 0.90)
+
+                plot_taper( # trace.Taper object
+                    axes2, result.processed_obs.get_xdata(), result.taper,
+                    fc=tap_color_fill, ec=tap_color_edge)
+
+                obs_color = scolor('aluminium5')
+                obs_color_light = light(obs_color, 0.5)
+
+                syn_color = scolor('scarletred2')
+                syn_color_light = light(syn_color, 0.5)
+
+                misfit_color = scolor('scarletred2')
+                weight_color = scolor('chocolate2')
+
+                cc_color = scolor('aluminium5')
+
+                # no clue what is dtrace ...
+                if target.misfit_config.domain == 'cc_max_norm':
+                    tref = (result.filtered_obs.tmin +
+                            result.filtered_obs.tmax) * 0.5
+
+                    plot_dtrace(
+                        axes2, dtrace, space, -1., 1.,
+                        fc=light(cc_color, 0.5),
+                        ec=cc_color)
+
+                    plot_dtrace_vline(
+                        axes2, tref, space, color=tap_color_annot)
+
+                else:
+                    plot_dtrace(
+                        axes2, dtrace, space, 0., 1.,
+                        fc=light(misfit_color, 0.3),
+                        ec=misfit_color)
+
+                plot_trace(
+                    axes, result.filtered_syn,
+                    color=syn_color_light, lw=1.0)
+
+                plot_trace(
+                    axes, result.filtered_obs,
+                    color=obs_color_light, lw=0.75)
+
+                plot_trace(
+                    axes, result.processed_syn,
+                    color=syn_color, lw=1.0)
+
+                plot_trace(
+                    axes, result.processed_obs,
+                    color=obs_color, lw=0.75)
+
+                xdata = result.filtered_obs.get_xdata()
+                axes.set_xlim(xdata[0], xdata[-1])
+
+                tmarks = [
+                    result.processed_obs.tmin,
+                    result.processed_obs.tmax]
+
+                for tmark in tmarks:
+                    axes2.plot(
+                        [tmark, tmark], [-0.9, 0.1], color=tap_color_annot)
+
+                for tmark, text, ha in [
+                        (tmarks[0],
+                         '$\,$ ' + str_duration(tmarks[0] - source.time),
+                         'right'),
+                        (tmarks[1],
+                         '$\Delta$ ' + str_duration(tmarks[1] - tmarks[0]),
+                         'left')]:
+
+                    axes2.annotate(
+                        text,
+                        xy=(tmark, -0.9),
+                        xycoords='data',
+                        xytext=(
+                            fontsize*0.4 * [-1, 1][ha == 'left'],
+                            fontsize*0.2),
+                        textcoords='offset points',
+                        ha=ha,
+                        va='bottom',
+                        color=tap_color_annot,
+                        fontsize=fontsize)
+
+                rel_w = ws[itarget] / w_max
+                rel_c = gcms[itarget] / gcm_max
+
+                sw = 0.25
+                sh = 0.1
+                ph = 0.01
+
+                for (ih, rw, facecolor, edgecolor) in [
+                        (0, rel_w,  light(weight_color, 0.5), weight_color),
+                        (1, rel_c,  light(misfit_color, 0.5), misfit_color)]:
+
+                    bar = patches.Rectangle(
+                        (1.0-rw*sw, 1.0-(ih+1)*sh+ph), rw*sw, sh-2*ph,
+                        facecolor=facecolor, edgecolor=edgecolor,
+                        zorder=10,
+                        transform=axes.transAxes, clip_on=False)
+
+                    axes.add_patch(bar)
+
+                scale_string = None
+
+                if target.misfit_config.domain == 'cc_max_norm':
+                    scale_string = 'Syn/obs scales differ!'
+
+                infos = []
+                if scale_string:
+                    infos.append(scale_string)
+
+                infos.append('.'.join(x for x in target.codes if x))
+                dist = source.distance_to(target)
+                azi = source.azibazi_to(target)[0]
+                infos.append(str_dist(dist))
+                infos.append(u'%.0f\u00B0' % azi)
+                infos.append('%.3g' % ws[itarget])
+                infos.append('%.3g' % gcms[itarget])
+                axes2.annotate(
+                    '\n'.join(infos),
+                    xy=(0., 1.),
+                    xycoords='axes fraction',
+                    xytext=(2., 2.),
+                    textcoords='offset points',
+                    ha='left',
+                    va='top',
+                    fontsize=fontsize,
+                    fontstyle='normal')
+
+        for (iyy, ixx), fig in figures.iteritems():
+            title = '.'.join(x for x in cg if x)
+            if len(figures) > 1:
+                title += ' (%i/%i, %i/%i)' % (iyy+1, nyy, ixx+1, nxx)
+
+            fig.suptitle(title, fontsize=fontsize_title)
+
+    return figs
 
 
 def histplot_op(ax, data, alpha=.35, color=None, bins=None):
@@ -373,14 +744,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         llk = num.squeeze(transform(llk[0]))
         llk = pmp.make_2d(llk)
 
-        mean_idx = (num.abs(llk - llk.mean())).argmin()
-        min_idx = (num.abs(llk - llk.min())).argmin()
-        max_idx = (num.abs(llk - llk.max())).argmin()
-
-        posterior_idxs = {
-            'mean': mean_idx,
-            'min': min_idx,
-            'max': max_idx}
+        posterior_idxs = get_fit_indexes(llk)
 
         colors = {
             'mean': scolor('orange1'),
@@ -479,21 +843,20 @@ def draw_posteriors(problem, format='pdf', force=False, dpi=450):
         output format: 'display', 'png' or 'pdf'
     """
 
-    nstage = backend.get_highest_sampled_stage(
-        problem.outfolder, return_final=True)
-
-    if isinstance(nstage, int):
-        nstage -= 1
-
     mode = problem.config.problem_config.mode
 
-    step, _ = utility.load_atmip_params(
-        problem.config.project_dir, nstage, mode=mode)
+    po = problem.get_plot_options()
 
-    if nstage == 'final':
-        list_indexes = [str(i) for i in range(step.stage + 1)] + ['final']
+    stage = load_stage(problem, stage_number=po.load_stage, load='params')
+    step = stage.step
+
+    if po.load_stage is not None:
+        list_indexes = [po.load_stage]
     else:
         list_indexes = [str(i) for i in range(step.stage + 1)]
+
+        if stage.number == 'final':
+            list_indexes = list_indexes + ['final']
 
     figs = []
 
@@ -508,13 +871,13 @@ def draw_posteriors(problem, format='pdf', force=False, dpi=450):
 
         outpath = os.path.join(
             problem.config.project_dir,
-            mode, 'figures', 'stage_%s.%s' % (s, format))
+            mode, po.figure_dir, 'stage_%s.%s' % (s, format))
 
         if not os.path.exists(outpath) or force:
             logger.info('plotting stage: %s' % stage_path)
             mtrace = backend.load(stage_path, model=problem.model)
             fig = stage_posteriors(mtrace, n_steps=draws, posterior='all',
-                    lines=problem.reference)
+                    lines=po.reference)
             if not format == 'display':
                 logger.info('saving figure to %s' % outpath)
                 fig.savefig(outpath, format=format, dpi=dpi)
@@ -544,22 +907,21 @@ def draw_correlation_hist(problem, format='pdf', force=False, dpi=450):
 
     n_steps = problem.config.sampler_config.parameters.n_steps
 
-    stage_path = os.path.join(problem.config.project_dir, mode, 'stage_final')
+    stage = load_stage(problem, load='trace')
 
-    if not os.path.exists(stage_path):
-        raise Exception('Final stage not reached with sampling!')
+    po = problem.get_plot_options()
 
     outpath = os.path.join(
         problem.config.project_dir,
-        mode, 'figures', 'corr_hist.%s' % format)
+        mode, po.figure_dir, 'corr_hist_%s.%s' % (stage.number, format))
 
     if not os.path.exists(outpath) or force:
         fig, axs = correlation_plot_hist(
-            mtrace=backend.load(stage_path, model=problem.model),
+            mtrace=stage.mtrace,
             varnames=problem.config.problem_config.select_variables(),
             transform=last_sample,
             cmap=plt.cm.gist_earth_r,
-            point=problem.model.test_point,
+            point=po.reference,
             point_size='8',
             point_color='red')
     else:
@@ -626,6 +988,9 @@ def load_earthmodels(engine, targets, depth_max='cmb'):
 plots_catalog = {
     'correlation_hist': draw_correlation_hist,
     'stage_posteriors': draw_posteriors}
+
+
+def plot_results(problem, plotoptions)
 
 
 def available_plots():

@@ -525,6 +525,12 @@ def command_plot(args):
             help='Inversion problem to calculate GFs for; "geometry",'
                  '"static_dist", "kinematic_dist". Default: "geometry"')
 
+        parser.add_option('--stage_number', dest='stage_number',
+            choices=['final', 'n'],
+            default=None,
+            help='String of the stage number "n" of the stage to be plotted.
+                 ' Default: last complete stage')
+
         parser.add_option('--format', dest='format',
             choices=['display', 'pdf', 'png'],
             default='pdf',
@@ -566,10 +572,15 @@ def command_plot(args):
     logger.info('Loading problem ...')
     problem = models.load_model(project_dir, options.mode)
 
+    po = problem.get_plot_options()
+    po.load_stage = options.stage_number
+
     if options.reference:
-        problem.reference = problem.model.test_point
+        po.reference = problem.model.test_point
     else:
-        problem.reference = None
+        po.reference = None
+
+    problem.set_plot_options(po)
 
     for plots in plotnames:
         plotting.plots_catalog[plots](

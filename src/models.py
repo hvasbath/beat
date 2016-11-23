@@ -6,7 +6,7 @@ import pymc3 as pm
 from pymc3 import Metropolis
 
 from pyrocko import gf, util, model
-from pyrocko.guts import Object
+from pyrocko.guts import Object, String, Dict
 
 import numpy as num
 
@@ -24,6 +24,23 @@ logger = logging.getLogger('models')
 
 __all__ = ['GeometryOptimizer', 'sample', 'load_model', 'load_stage',
     'choose_proposal']
+
+
+class PlotOptions(Object):
+
+    result_llk = String.T(
+        default='max',
+        help='Which model to plot on the specified plot; options:'
+             ' "max", "min", "mean"')
+    load_stage = String.T(
+        default='final',
+        help='Which ATMCMC stage to select for plotting')
+    figure_dir = String.T(
+        default='figures',
+        help='Name of the output directory of plots')
+    reference = Dict.T(
+        help='Reference point for example from a synthetic test.'
+        optional=True)
 
 
 class Problem(Object):
@@ -45,6 +62,8 @@ class Problem(Object):
     _geodetic_flag = False
 
     _like_name = 'like'
+
+    _plot_options = PlotOptions.T(PlotOptions.D())
 
     def __init__(self, pc):
 
@@ -101,6 +120,12 @@ class Problem(Object):
             self.engine.close_cashed_stores()
 
         return step
+
+    def get_plot_options(self):
+        return self._plot_options
+
+    def set_plot_options(self, plot_options):
+        self._plot_options = plot_options
 
 
 class GeometryOptimizer(Problem):
@@ -345,7 +370,7 @@ class GeometryOptimizer(Problem):
     def built_model(self):
         """
         Initialise :class:`pymc3.Model` depending on configuration file,
-        geodetic and/or seismic data is included.
+        geodetic and/or seismic data are included.
         """
 
         logger.info('... Building model ...\n')
@@ -728,28 +753,71 @@ def load_model(project_dir, mode):
     return problem
 
 
-def load_stage(project_dir, stage_number, mode):
+class ATMCMCStage(Object):
+    """
+    ATMCMC stage, containing sampling results and intermediate optimizer
+    parameters.
+    """
+    number = String.T()
+    path = String.T()
+    step = None
+    updates = Problem.T(Problem.D())
+    mtrace = None
+
+
+def load_stage(problem, stage_number=None, load='trace'):
     """
     Load stage results from ATMIP sampling.
 
     Parameters
     ----------
-    project_dir : string
-        path to beat model directory
-    stage_number : int
-        number of stage to be loaded
-    mode : string
-        problem name to be loaded
+    problem : :class:`Problem`
+    stage_number : str
+        Number of stage to load
+    load : str
+        what to load and return 'full', 'trace', 'params'
 
     Returns
     -------
-    :class:`Problem`
-    :class:`atmcmc.ATMCMC`
-    :class:`pymc3.backend.base.MultiTrace`
+    dict
     """
 
-    problem = load_model(project_dir, mode)
-    params = utility.load_atmip_params(project_dir, stage_number, mode)
-    tracepath = os.path.join(project_dir, mode, 'stage_%i' % stage_number)
-    mtrace = backend.load(tracepath, model=problem.model)
-    return problem, params, mtrace
+    project_dir = problem.config.project_dir
+    mode = problem.config.problem_config.mode
+    po = problem.get_plot_options()
+
+    if stage_number is None:
+        stage_number = po.load_stage
+
+    homepath = os.path.join(project_dir, mode)
+    stagepath = os.path.join(homepath, 'stage_%s' % stage_number)
+
+    if os.path.exists(stagepath):
+        logger.info('Loading sampling results from: %s' % stagepath)
+    else:
+        stage_number = backend.get_highest_sampled_stage(
+            homepath, return_final=True)
+
+        if isinstance(stage_number, int):
+            stage_number -= 1
+
+        stagepath = os.path.join(homepath, 'stage_%s' % str(stage_number))
+        logger.info(
+            'Stage results %s do not exist! Loading last sampled'
+            ' stage %i' % (stagepath, stage_number))
+
+    if load == 'full':
+        to_load = ['params', 'trace']
+    else:
+        to_load = [load]
+
+    stage = ATMCMCStage(stagepath=stagepath, number=stage_number)
+
+    if 'trace' in to_load:
+        stage.mtrace = backend.load(stagepath, model=problem.model)
+
+    if 'params' in to_load:
+        stage.step, stage.updates = utility.load_atmip_params(
+            project_dir, stage_number, mode)
+
+    return stage
