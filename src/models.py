@@ -1,12 +1,13 @@
 import os
 import time
+import copy
 
 import pymc3 as pm
 
 from pymc3 import Metropolis
 
 from pyrocko import gf, util, model
-from pyrocko.guts import Object, String, Dict
+from pyrocko.guts import Object, String
 
 import numpy as num
 
@@ -45,8 +46,6 @@ class Problem(Object):
     _geodetic_flag = False
 
     _like_name = 'like'
-
-    _plot_options = PlotOptions.T(PlotOptions.D())
 
     def __init__(self, pc):
 
@@ -629,6 +628,76 @@ class GeometryOptimizer(Problem):
             d['geodetic'] = geo_synths
 
         return d
+
+    def assemble_seismic_results(self, point):
+        """
+        Assemble seismic traces for given point in solution space.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters
+
+        Returns
+        -------
+        List with :class:`heart.SeismicResult`
+        """
+        assert self._seismic_flag
+
+        if self._geodetic_flag:
+            self._geodetic_flag = False
+            reset_flag = True
+
+        syn_proc_traces = self.get_synthetics(
+            point, outmode='traces')['seismic']
+
+        tmins = [tr.tmin for tr in syn_proc_traces]
+
+        at = copy.deepcopy(self.config.seismic_config.arrival_taper)
+
+        obs_proc_traces = heart.taper_filter_traces(
+            self.data_traces,
+            arrival_taper=at,
+            filterer=self.config.seismic_config.filterer,
+            tmins=tmins,
+            outmode='traces')
+
+        self.config.seismic_config.arrival_taper = None
+
+        syn_filt_traces = self.get_synthetics(
+            point, outmode='traces')['seismic']
+
+        obs_filt_traces = heart.taper_filter_traces(
+            self.data_traces,
+            filterer=self.config.seismic_config.filterer,
+            outmode='traces')
+
+        for i, (trs, tro) in enumerate(zip(syn_filt_traces, obs_filt_traces)):
+
+            trs.chop(tmin=tmins[i] - at.fade,
+                     tmax=tmins[i] + at.fade + at.duration)
+            tro.chop(tmin=tmins[i] - at.fade,
+                     tmax=tmins[i] + at.fade + at.duration)
+
+        self.config.seismic_config.arrival_taper = at
+
+        results = []
+        for i, obstr in enumerate(obs_proc_traces):
+            dtrace = obstr.copy()
+            dtrace.set_ydata(
+                (obstr.get_ydata() - syn_proc_traces[i].get_ydata()))
+
+            results.append(heart.SeismicResult(
+                    processed_obs=obstr,
+                    processed_syn=syn_proc_traces[i],
+                    processed_res=dtrace,
+                    filtered_obs=obs_filt_traces[i],
+                    filtered_syn=syn_filt_traces[i]))
+
+        if reset_flag:
+            self._geodetic_flag = True
+
+        return results
 
 
 def sample(step, problem):

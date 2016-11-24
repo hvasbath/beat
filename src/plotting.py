@@ -5,18 +5,24 @@ import math
 import os
 import logging
 
-from beat import utility, backend, heart
+from beat import utility, backend
 from beat.models import load_stage
 
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib import patches
 
 import numpy as num
 from pyrocko.guts import Object, String, Dict, Bool, Int
-from pyrocko import cake, util
+from pyrocko import util, trace
 from pyrocko.cake_plot import str_to_mpl_color as scolor
+from pyrocko.cake_plot import light
+
+from pyrocko.plot import mpl_papersize
 
 logger = logging.getLogger('plotting')
+
+km = 1000.
 
 
 class PlotOptions(Object):
@@ -37,6 +43,40 @@ class PlotOptions(Object):
     outformat = String.T(default='pdf')
     dpi = Int.T(default=300)
     force = Bool.T(default=False)
+
+
+def str_dist(dist):
+    """
+    Return string representation of distance.
+    """
+    if dist < 10.0:
+        return '%g m' % dist
+    elif 10. <= dist < 1. * km:
+        return '%.0f m' % dist
+    elif 1. * km <= dist < 10. * km:
+        return '%.1f km' % (dist / km)
+    else:
+        return '%.0f km' % (dist / km)
+
+
+def str_duration(t):
+    """
+    Convert time to str representation.
+    """
+    s = ''
+    if t < 0.:
+        s = '-'
+
+    t = abs(t)
+
+    if t < 10.0:
+        return s + '%.2g s' % t
+    elif 10.0 <= t < 3600.:
+        return s + util.time_to_str(t, format='%M:%S min')
+    elif 3600. <= t < 24 * 3600.:
+        return s + util.time_to_str(t, format='%H:%M h')
+    else:
+        return s + '%.1f d' % (t / (24. * 3600.))
 
 
 def correlation_plot(mtrace, varnames=None,
@@ -267,27 +307,28 @@ def get_fit_indexes(llk):
     return posterior_idxs
 
 
-def draw_geodetic_misfit_figures(problem, format='pdf', force=False, dpi=450):
+def draw_geodetic_misfit_figures(problem, plot_options):
 
-    mode = problem.config.problem_config.mode
+    po = plot_options
 
     stage = load_stage(problem, load='full')
 
     figure_path = os.path.join(problem.outfolder, 'figures')
     util.ensuredir(figure_path)
 
-
-    population, _, llk = stage.step.select_end_points(mtrace)
+    population, _, llk = stage.step.select_end_points(stage.mtrace)
 
     posterior_idxs = get_fit_indexes(llk)
+    idx = posterior_idxs[po.post_llk]
 
     out_point = population[idx]
 
     d = problem.get_synthetics(out_point)
 
-    dd = d[dataset]
+    dd = d['geodetic']
 
-    outfigure = os.path.join(figure_path, 'misfits_%s.pdf' % posterior)
+    outfigure = os.path.join(
+        figure_path, 'misfits_%s.%s' % (po.post_llk, po.format))
     pdfp = PdfPages(outfigure)
 
     for i, gt in enumerate(problem.gtargets):
@@ -332,7 +373,7 @@ def plot_dtrace(axes, tr, space, mi, ma, **kwargs):
     t = tr.get_xdata()
     y = tr.get_ydata()
     y2 = (num.concatenate((y, num.zeros(y.size))) - mi) / \
-        (ma-mi) * space - (1.0 + space)
+        (ma - mi) * space - (1.0 + space)
     t2 = num.concatenate((t, t[::-1]))
     axes.fill(
         t2, y2,
@@ -352,8 +393,6 @@ def draw_seismic_fits_figures(problem, plot_options):
     target_index = dict(
         (target, i) for (i, target) in enumerate(problem.stargets))
 
-    mode = problem.config.problem_config.mode
-
     stage = load_stage(problem, load='full')
 
     po = plot_options
@@ -365,80 +404,43 @@ def draw_seismic_fits_figures(problem, plot_options):
 
     posterior_idxs = get_fit_indexes(llk)
     idx = posterior_idxs[po.post_llk]
+    gcms = stage.mtrace.get_values(varname='seis_llk', point=idx)
+    gcm_max = num.nanmax(gcms)
 
     out_point = population[idx]
 
-    problem._geodetic_flag = False
+    results = problem.assemble_seismic_results(out_point)
+    source = problem.sources[0]
 
-    syn_proc_traces = problem.get_synthetics(
-        out_point, outmode='traces')['seismic']
-
-    tmins = [tr.tmin for tr in syn_proc_traces]
-
-    at = copy.deepcopy(problem.config.seismic_config.arrival_taper)
-
-    obs_proc_traces = heart.taper_filter_traces(
-        problem.data_traces,
-        arrival_taper=at,
-        filterer=problem.config.seismic_config.filterer,
-        tmins=tmins,
-        outmode='traces')
-
-    problem.config.seismic_config.arrival_taper = None
-    syn_filt_traces = problem.get_synthetics(
-        out_point, outmode='traces')['seismic']
-
-    obs_filt_traces = heart.taper_filter_traces(
-        problem.data_traces,
-        filterer=problem.config.seismic_config.filterer,
-        outmode='traces')
-
-    for trs, tro, ta in zip(syn_filt_traces, obs_filt_traces, problem.stargets):
-        i = target_index[ta]
-        trs.chop(tmin=tmins[i] - at.fade,
-                 tmax=tmins[i] + at.fade + at.duration)
-        tro.chop(tmin=tmins[i] - at.fade,
-                 tmax=tmins[i] + at.fade + at.duration)
-
-    # have to get best result based on llk
     target_to_result = {}
     all_syn_trs = []
-
     dtraces = []
-    for i, target in problem.stargets:
+    for target in problem.stargets:
+        i = target_index[target]
+        target_to_result[target] = results[i]
 
-        itarget = target_index[target]
-        w = target.get_combined_weight(problem.apply_balancing_weights)
+        all_syn_trs.append(results[i].processed_syn)
+        dtraces.append(results[i].processed_res)
 
-        dtrace = result.processed_syn.copy()
-        dtrace.set_ydata(
-                (
-                    (result.processed_syn.get_ydata() -
-                     result.processed_obs.get_ydata())**2))
-
-        target_to_result[target] = result
-
-        dtrace.meta = dict(super_group=target.super_group, group=target.group)
-        dtraces.append(dtrace)
-
-        result.processed_syn.meta = dict(
-            super_group=target.super_group, group=target.group)
-
-        all_syn_trs.append(result.processed_syn)
-
-    skey = lambda tr: (tr.meta['super_group'], tr.meta['group'])
+    skey = lambda tr: tr.channel
 
     trace_minmaxs = trace.minmax(all_syn_trs, skey)
-
-    dminmaxs = trace.minmax([x for x in dtraces if x is not None], skey)
+    dminmaxs = trace.minmax(dtraces, skey)
 
     for tr in dtraces:
         if tr:
             dmin, dmax = dminmaxs[skey(tr)]
             tr.ydata /= max(abs(dmin), abs(dmax))
 
+    cg_to_targets = utility.gather(
+        problem.stargets,
+        lambda t: t.codes[3],
+        filter=lambda t: t in target_to_result)
+
+    cgs = cg_to_targets.keys()
+
     figs = []
-    # put loop over channels here ...
+
     for cg in cgs:
         targets = cg_to_targets[cg]
 
@@ -446,13 +448,13 @@ def draw_seismic_fits_figures(problem, plot_options):
         nframes = len(targets)
 
         nx = int(math.ceil(math.sqrt(nframes)))
-        ny = (nframes-1)/nx+1
+        ny = (nframes - 1) / nx + 1
 
         nxmax = 4
         nymax = 4
 
-        nxx = (nx-1) / nxmax + 1
-        nyy = (ny-1) / nymax + 1
+        nxx = (nx - 1) / nxmax + 1
+        nyy = (ny - 1) / nymax + 1
 
         # nz = nxx * nyy
 
@@ -470,8 +472,8 @@ def draw_seismic_fits_figures(problem, plot_options):
         for target in targets:
             azi = source.azibazi_to(target)[0]
             dist = source.distance_to(target)
-            x = dist*num.sin(num.deg2rad(azi))
-            y = dist*num.cos(num.deg2rad(azi))
+            x = dist * num.sin(num.deg2rad(azi))
+            y = dist * num.cos(num.deg2rad(azi))
             data.append((x, y, dist))
 
         gxs, gys, dists = num.array(data, dtype=num.float).T
@@ -493,8 +495,8 @@ def draw_seismic_fits_figures(problem, plot_options):
         gys /= gmax
 
         dists = num.sqrt(
-            (fxs[num.newaxis, :] - gxs[:, num.newaxis])**2 +
-            (fys[num.newaxis, :] - gys[:, num.newaxis])**2)
+            (fxs[num.newaxis, :] - gxs[:, num.newaxis]) ** 2 +
+            (fys[num.newaxis, :] - gys[:, num.newaxis]) ** 2)
 
         distmax = num.max(dists)
 
@@ -513,8 +515,8 @@ def draw_seismic_fits_figures(problem, plot_options):
                 if (iy, ix) not in frame_to_target:
                     continue
 
-                ixx = ix/nxmax
-                iyy = iy/nymax
+                ixx = ix / nxmax
+                iyy = iy / nymax
                 if (iyy, ixx) not in figures:
                     figures[iyy, ixx] = plt.figure(
                         figsize=mpl_papersize('a4', 'landscape'))
@@ -533,8 +535,7 @@ def draw_seismic_fits_figures(problem, plot_options):
 
                 target = frame_to_target[iy, ix]
 
-                # can keep until here ...
-                amin, amax = trace_minmaxs[target.super_group, target.group]
+                amin, amax = trace_minmaxs[target.codes[3]]
                 absmax = max(abs(amin), abs(amax))
 
                 ny_this = nymax  # min(ny, nymax)
@@ -542,7 +543,6 @@ def draw_seismic_fits_figures(problem, plot_options):
                 i_this = (iy % ny_this) * nx_this + (ix % nx_this) + 1
 
                 axes2 = fig.add_subplot(ny_this, nx_this, i_this)
-
 
                 space = 0.5
                 space_factor = 1.0 + space
@@ -552,7 +552,7 @@ def draw_seismic_fits_figures(problem, plot_options):
                 axes = axes2.twinx()
                 axes.set_axis_off()
 
-                axes.set_ylim(-absmax*1.33 * space_factor, absmax*1.33)
+                axes.set_ylim(- absmax * 1.33 * space_factor, absmax * 1.33)
 
                 itarget = target_index[target]
                 result = target_to_result[target]
@@ -563,7 +563,7 @@ def draw_seismic_fits_figures(problem, plot_options):
                 tap_color_edge = (0.85, 0.85, 0.80)
                 tap_color_fill = (0.95, 0.95, 0.90)
 
-                plot_taper( # trace.Taper object
+                plot_taper(
                     axes2, result.processed_obs.get_xdata(), result.taper,
                     fc=tap_color_fill, ec=tap_color_edge)
 
@@ -574,9 +574,6 @@ def draw_seismic_fits_figures(problem, plot_options):
                 syn_color_light = light(syn_color, 0.5)
 
                 misfit_color = scolor('scarletred2')
-                weight_color = scolor('chocolate2')
-
-                cc_color = scolor('aluminium5')
 
                 plot_dtrace(
                     axes2, dtrace, space, 0., 1.,
@@ -623,15 +620,14 @@ def draw_seismic_fits_figures(problem, plot_options):
                         xy=(tmark, -0.9),
                         xycoords='data',
                         xytext=(
-                            fontsize*0.4 * [-1, 1][ha == 'left'],
-                            fontsize*0.2),
+                            fontsize * 0.4 * [-1, 1][ha == 'left'],
+                            fontsize * 0.2),
                         textcoords='offset points',
                         ha=ha,
                         va='bottom',
                         color=tap_color_annot,
                         fontsize=fontsize)
 
-                rel_w = ws[itarget] / w_max
                 rel_c = gcms[itarget] / gcm_max
 
                 sw = 0.25
@@ -639,11 +635,12 @@ def draw_seismic_fits_figures(problem, plot_options):
                 ph = 0.01
 
                 for (ih, rw, facecolor, edgecolor) in [
-                        (0, rel_w,  light(weight_color, 0.5), weight_color),
                         (1, rel_c,  light(misfit_color, 0.5), misfit_color)]:
 
                     bar = patches.Rectangle(
-                        (1.0-rw*sw, 1.0-(ih+1)*sh+ph), rw*sw, sh-2*ph,
+                        (1.0 - rw * sw, 1.0 - (ih + 1) * sh + ph),
+                        rw * sw,
+                        sh - 2 * ph,
                         facecolor=facecolor, edgecolor=edgecolor,
                         zorder=10,
                         transform=axes.transAxes, clip_on=False)
@@ -664,7 +661,6 @@ def draw_seismic_fits_figures(problem, plot_options):
                 azi = source.azibazi_to(target)[0]
                 infos.append(str_dist(dist))
                 infos.append(u'%.0f\u00B0' % azi)
-                infos.append('%.3g' % ws[itarget])
                 infos.append('%.3g' % gcms[itarget])
                 axes2.annotate(
                     '\n'.join(infos),
@@ -680,7 +676,7 @@ def draw_seismic_fits_figures(problem, plot_options):
         for (iyy, ixx), fig in figures.iteritems():
             title = '.'.join(x for x in cg if x)
             if len(figures) > 1:
-                title += ' (%i/%i, %i/%i)' % (iyy+1, nyy, ixx+1, nxx)
+                title += ' (%i/%i, %i/%i)' % (iyy + 1, nyy, ixx + 1, nxx)
 
             fig.suptitle(title, fontsize=fontsize_title)
 

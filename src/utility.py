@@ -820,3 +820,26 @@ def biggest_common_divisor(a, b):
         b = rest
 
     return int(a)
+
+
+def gather(l, key, sort=None, filter=None):
+    """
+    Return dictionary of input l grouped by key.
+    """
+    d = {}
+    for x in l:
+        if filter is not None and not filter(x):
+            continue
+
+        k = key(x)
+        if k not in d:
+            d[k] = []
+
+        d[k].append(x)
+
+    if sort is not None:
+        for v in d.tervalues():
+            v.sort(key=sort)
+
+    return d
+
