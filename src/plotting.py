@@ -1015,7 +1015,9 @@ def load_earthmodels(engine, targets, depth_max='cmb'):
 
 plots_catalog = {
     'correlation_hist': draw_correlation_hist,
-    'stage_posteriors': draw_posteriors}
+    'stage_posteriors': draw_posteriors,
+    'waveform_fits': draw_seismic_fits_figures,
+            }
 
 
 def available_plots():

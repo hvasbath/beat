@@ -534,7 +534,7 @@ def command_plot(args):
         parser.add_option('--stage_number', dest='stage_number',
             choices=['final', 'n'],
             default=None,
-            help='String of the stage number "n" of the stage to be plotted.
+            help='String of the stage number "n" of the stage to be plotted.'
                  ' Default: last complete stage')
 
         parser.add_option('--format', dest='format',
@@ -557,7 +557,7 @@ def command_plot(args):
     plots_avail = plotting.available_plots()
 
     details = '''Available <plot types> are: %s or "all". Multiple plots can be
-        selected giving a comma seperated list''' % (
+selected giving a comma seperated list.''' % (
         ', '.join('"%s"' % plot for plot in plots_avail))
 
     parser, options, args = cl_parse('plot', args, setup, details)

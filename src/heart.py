@@ -385,6 +385,10 @@ class ArrivalTaper(trace.Taper):
         return num.abs(self.a - self.b)
 
 
+class Trace(Object):
+    pass
+
+
 class Filter(Object):
     """
     Filter object defining frequency range of traces after filtering
@@ -405,10 +409,10 @@ class SeismicResult(Object):
     """
     Result object assembling different traces of misfit.
     """
-    processed_obs = trace.Trace.T(optional=True)
-    filtered_obs = trace.Trace.T(optional=True)
-    processed_syn = trace.Trace.T(optional=True)
-    filtered_obs = trace.Trace.T(optional=True)
+    processed_obs = Trace.T(optional=True)
+    filtered_obs = Trace.T(optional=True)
+    processed_syn = Trace.T(optional=True)
+    filtered_obs = Trace.T(optional=True)
     arrival_taper = trace.Taper.T(optional=True)
     llk = Float.T(default=0., optional=True)
 
@@ -1425,6 +1429,3 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
             raise Exception('Cannot return array without tapering!')
     if outmode == 'traces':
         return cut_traces
-
-
-def 

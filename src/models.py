@@ -152,7 +152,7 @@ class GeometryOptimizer(Problem):
         dsources = utility.transform_sources(self.sources, pc.datasets)
 
         if self._seismic_flag:
-            logger.info('Setting up seismic structure ...\n')
+            logger.debug('Setting up seismic structure ...\n')
             sc = config.seismic_config
             self.engine = gf.LocalEngine(
                 store_superdirs=[sc.gf_config.store_superdir])
@@ -212,7 +212,7 @@ class GeometryOptimizer(Problem):
                 self.sweights.append(shared(icov))
 
             # syntetics generation
-            logger.info('Initialising synthetics functions ... \n')
+            logger.debug('Initialising synthetics functions ... \n')
             self.get_seis_synths = theanof.SeisSynthesizer(
                 engine=self.engine,
                 sources=dsources['seismic'],
@@ -228,7 +228,7 @@ class GeometryOptimizer(Problem):
                 filterer=sc.filterer)
 
         if self._geodetic_flag:
-            logger.info('Setting up geodetic structure ...\n')
+            logger.debug('Setting up geodetic structure ...\n')
             gc = config.geodetic_config
 
             geodetic_data_path = os.path.join(
@@ -267,7 +267,7 @@ class GeometryOptimizer(Problem):
             self.odws = shared(odws)
 
             # syntetics generation
-            logger.info('Initialising synthetics functions ... \n')
+            logger.debug('Initialising synthetics functions ... \n')
             self.get_geo_synths = theanof.GeoLayerSynthesizerStatic(
                 lats=lats,
                 lons=lons,
@@ -353,7 +353,7 @@ class GeometryOptimizer(Problem):
 
         with pm.Model() as self.model:
 
-            logger.info('Optimization for %i sources', len(self.sources))
+            logger.debug('Optimization for %i sources', len(self.sources))
 
             pc = self.config.problem_config
 
@@ -389,7 +389,7 @@ class GeometryOptimizer(Problem):
                     input_rvs, dataset='seismic')
                 # seis
                 seis_names = [param.name for param in self.seis_input_rvs]
-                logger.info(
+                logger.debug(
                     'Teleseismic optimization on: \n '
                     ' %s' % ', '.join(seis_names))
 
@@ -431,7 +431,7 @@ class GeometryOptimizer(Problem):
                 ## calc residuals
                 # geo
                 geo_names = [param.name for param in self.geo_input_rvs]
-                logger.info(
+                logger.debug(
                     'Geodetic optimization on: \n '
                     '%s' % ', '.join(geo_names))
 
@@ -579,6 +579,13 @@ class GeometryOptimizer(Problem):
         """
 
         point = utility.adjust_point_units(point)
+
+        # remove hyperparameters from point
+        hps = self.config.problem_config.hyperparameters
+
+        if len(hps) > 0:
+            for hyper in hps.keys():
+                point.pop(hyper)
 
         d = dict()
 
@@ -799,16 +806,19 @@ def load_model(project_dir, mode):
     return problem
 
 
-class ATMCMCStage(Object):
+class ATMCMCStage(object):
     """
     ATMCMC stage, containing sampling results and intermediate optimizer
     parameters.
     """
-    number = String.T()
-    path = String.T()
-    step = None
-    updates = Problem.T(Problem.D())
-    mtrace = None
+
+    def __init__(self, number='final', path='./', step=None, updates=None,
+                 mtrace=None):
+        self.number = number
+        self.path = path
+        self.step = step
+        self.updates = updates
+        self.mtrace = mtrace
 
 
 def load_stage(problem, stage_number=None, load='trace'):
@@ -846,7 +856,7 @@ def load_stage(problem, stage_number=None, load='trace'):
         if isinstance(stage_number, int):
             stage_number -= 1
 
-        stagepath = os.path.join(homepath, 'stage_%s' % str(stage_number))
+        stagepath = os.path.join(homepath, 'stage_%s' % str(stage_number + 1))
         logger.info(
             'Stage results %s do not exist! Loading last sampled'
             ' stage %i' % (stagepath, stage_number))
@@ -856,7 +866,7 @@ def load_stage(problem, stage_number=None, load='trace'):
     else:
         to_load = [load]
 
-    stage = ATMCMCStage(stagepath=stagepath, number=stage_number)
+    stage = ATMCMCStage(path=stagepath, number=stage_number)
 
     if 'trace' in to_load:
         stage.mtrace = backend.load(stagepath, model=problem.model)
