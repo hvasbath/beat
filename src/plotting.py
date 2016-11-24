@@ -404,8 +404,11 @@ def draw_seismic_fits_figures(problem, plot_options):
 
     posterior_idxs = get_fit_indexes(llk)
     idx = posterior_idxs[po.post_llk]
-    gcms = stage.mtrace.get_values(varname='seis_llk', point=idx)
-    gcm_max = num.nanmax(gcms)
+
+    n_steps = problem.config.sampler_config.parameters.n_steps - 1
+    d = stage.mtrace.point(idx=n_steps, chain=idx)
+    gcms = d['seis_like']
+    gcm_max = d['like']
 
     out_point = population[idx]
 
@@ -628,7 +631,7 @@ def draw_seismic_fits_figures(problem, plot_options):
                         color=tap_color_annot,
                         fontsize=fontsize)
 
-                rel_c = gcms[itarget] / gcm_max
+                rel_c = num.exp(gcms[itarget] - gcm_max)
 
                 sw = 0.25
                 sh = 0.1
