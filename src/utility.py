@@ -378,7 +378,7 @@ def adjust_point_units(point):
 def split_point(point):
     """
     Split point in solution space into List of dictionaries with source
-    parameters for each source. Does a deepcopy of each parameter.
+    parameters for each source.
 
     Parameters
     ----------

@@ -412,9 +412,11 @@ class SeismicResult(Object):
     processed_obs = Trace.T(optional=True)
     filtered_obs = Trace.T(optional=True)
     processed_syn = Trace.T(optional=True)
-    filtered_obs = Trace.T(optional=True)
+    filtered_syn = Trace.T(optional=True)
+    processed_res = Trace.T(optional=True)
     arrival_taper = trace.Taper.T(optional=True)
     llk = Float.T(default=0., optional=True)
+    taper = trace.Taper.T(optional=True)
 
 
 class Parameter(Object):
@@ -1298,8 +1300,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     nprocs : int
         number of processors to use for synthetics calculation
     outmode : string
-        output format of synthetics can be 'array', 'traces',
-        'data' returns traces unstacked including post-processing
+        output format of synthetics can be 'array', 'stacked_traces',
+        'full' returns traces unstacked including post-processing
 
     Returns
     -------
@@ -1353,13 +1355,17 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         else:
             outstack = synths
 
-    if outmode == 'traces':
-        outtraces = []
-        for i in range(nt):
-            synt_trcs[i].ydata = outstack[i, :]
-            outtraces.append(synt_trcs[i])
+    if outmode == 'stacked_traces':
+        if arrival_taper is not None:
+            outtraces = []
+            for i in range(nt):
+                synt_trcs[i].ydata = outstack[i, :]
+                outtraces.append(synt_trcs[i])
 
-        return outtraces, tmins
+            return outtraces, tmins
+        else:
+            raise Exception(
+                'arrival taper has to be defined for %s type!' % outmode)
 
     elif outmode == 'data':
         return synt_trcs, tmins

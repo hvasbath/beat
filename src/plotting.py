@@ -381,11 +381,13 @@ def plot_dtrace(axes, tr, space, mi, ma, **kwargs):
         **kwargs)
 
 
-def draw_seismic_fits_figures(problem, plot_options):
+def seismic_fits(problem, plot_options):
     """
     Modified from grond. Plot synthetic and data waveforms and the misfit for
     the selcted posterior model.
     """
+
+    logger.info('plotting waveforms ...')
 
     fontsize = 8
     fontsize_title = 10
@@ -683,7 +685,52 @@ def draw_seismic_fits_figures(problem, plot_options):
 
             fig.suptitle(title, fontsize=fontsize_title)
 
+    outpath = os.path.join(
+        problem.config.project_dir,
+        mode, po.figure_dir, 'corr_hist_%s.%s' % (stage.number, po.outformat))
+
+    if not os.path.exists(outpath) or po.force:
+        fig, axs = correlation_plot_hist(
+            mtrace=stage.mtrace,
+            varnames=problem.config.problem_config.select_variables(),
+            transform=last_sample,
+            cmap=plt.cm.gist_earth_r,
+            point=po.reference,
+            point_size='8',
+            point_color='red')
+    else:
+        logger.info('correlation plot exists. Use force=True for replotting!')
+
+    if po.outformat == 'display':
+        plt.show()
+    else:
+        logger.info('saving figure to %s' % outpath)
+        fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
+
     return figs
+
+
+def draw_seismic_fits(problem, po):
+
+    outpath = os.path.join(
+        problem.config.project_dir,
+        mode, po.figure_dir, 'waveforms_%s.%s' % (stage.number, po.outformat))
+
+    if not os.path.exists(outpath) or po.force:
+        figs = seismic_fits(problem, po)
+    else:
+        logger.info('waveform plots exist. Use force=True for replotting!')
+
+    if po.outformat == 'display':
+        plt.show()
+    else:
+        with PdfPages(outpath) as opdf:
+            for fig in figs:
+                opdf.savefig(fig)
+
+        opdf.close()
+        logger.info('saving figure to %s' % outpath)
+        fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
 def histplot_op(ax, data, alpha=.35, color=None, bins=None):
@@ -1016,7 +1063,7 @@ def load_earthmodels(engine, targets, depth_max='cmb'):
 plots_catalog = {
     'correlation_hist': draw_correlation_hist,
     'stage_posteriors': draw_posteriors,
-    'waveform_fits': draw_seismic_fits_figures,
+    'waveform_fits': draw_seismic_fits,
             }
 
 

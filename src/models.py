@@ -7,7 +7,7 @@ import pymc3 as pm
 from pymc3 import Metropolis
 
 from pyrocko import gf, util, model
-from pyrocko.guts import Object, String
+from pyrocko.guts import Object
 
 import numpy as num
 
@@ -577,22 +577,23 @@ class GeometryOptimizer(Problem):
         Dictionary with keys according to datasets containing the synthetics
         as lists.
         """
+        tpoint = copy.deepcopy(point)
 
-        point = utility.adjust_point_units(point)
+        tpoint = utility.adjust_point_units(tpoint)
 
         # remove hyperparameters from point
         hps = self.config.problem_config.hyperparameters
 
         if len(hps) > 0:
             for hyper in hps.keys():
-                point.pop(hyper)
+                tpoint.pop(hyper)
 
         d = dict()
 
         if self._seismic_flag:
-            point['time'] += self.event.time
+            tpoint['time'] += self.event.time
 
-        source_points = utility.split_point(point)
+        source_points = utility.split_point(tpoint)
 
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
@@ -651,12 +652,14 @@ class GeometryOptimizer(Problem):
         """
         assert self._seismic_flag
 
+        logger.info('Assembling seismic waveforms ...')
+
         if self._geodetic_flag:
             self._geodetic_flag = False
             reset_flag = True
 
         syn_proc_traces = self.get_synthetics(
-            point, outmode='traces')['seismic']
+            point, outmode='stacked_traces')['seismic']
 
         tmins = [tr.tmin for tr in syn_proc_traces]
 
@@ -672,7 +675,7 @@ class GeometryOptimizer(Problem):
         self.config.seismic_config.arrival_taper = None
 
         syn_filt_traces = self.get_synthetics(
-            point, outmode='traces')['seismic']
+            point, outmode='data')['seismic']
 
         obs_filt_traces = heart.taper_filter_traces(
             self.data_traces,
@@ -699,7 +702,8 @@ class GeometryOptimizer(Problem):
                     processed_syn=syn_proc_traces[i],
                     processed_res=dtrace,
                     filtered_obs=obs_filt_traces[i],
-                    filtered_syn=syn_filt_traces[i]))
+                    filtered_syn=syn_filt_traces[i]),
+                    taper=at)
 
         if reset_flag:
             self._geodetic_flag = True
@@ -844,7 +848,7 @@ def load_stage(problem, stage_number=None, load='trace'):
     if stage_number is None:
         stage_number = 'final'
 
-    homepath = os.path.join(project_dir, mode)
+    homepath = problem.outfolder
     stagepath = os.path.join(homepath, 'stage_%s' % stage_number)
 
     if os.path.exists(stagepath):
@@ -856,10 +860,10 @@ def load_stage(problem, stage_number=None, load='trace'):
         if isinstance(stage_number, int):
             stage_number -= 1
 
-        stagepath = os.path.join(homepath, 'stage_%s' % str(stage_number + 1))
         logger.info(
-            'Stage results %s do not exist! Loading last sampled'
+            'Stage results %s do not exist! Loading last completed'
             ' stage %i' % (stagepath, stage_number))
+        stagepath = os.path.join(homepath, 'stage_%s' % str(stage_number))
 
     if load == 'full':
         to_load = ['params', 'trace']
