@@ -1,19 +1,82 @@
 from pyrocko import cake_plot as cp
 from pymc3 import plots as pmp
 
+import math
 import os
 import logging
 
 from beat import utility, backend
+from beat.models import load_stage
 
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib import patches
 
 import numpy as num
-from pyrocko import cake, util
+from pyrocko.guts import Object, String, Dict, Bool, Int
+from pyrocko import util, trace
 from pyrocko.cake_plot import str_to_mpl_color as scolor
+from pyrocko.cake_plot import light
+
+from pyrocko.plot import mpl_papersize
 
 logger = logging.getLogger('plotting')
+
+km = 1000.
+
+
+class PlotOptions(Object):
+
+    post_llk = String.T(
+        default='max',
+        help='Which model to plot on the specified plot; options:'
+             ' "max", "min", "mean"')
+    load_stage = String.T(
+        default='final',
+        help='Which ATMCMC stage to select for plotting')
+    figure_dir = String.T(
+        default='figures',
+        help='Name of the output directory of plots')
+    reference = Dict.T(
+        help='Reference point for example from a synthetic test.',
+        optional=True)
+    outformat = String.T(default='pdf')
+    dpi = Int.T(default=300)
+    force = Bool.T(default=False)
+
+
+def str_dist(dist):
+    """
+    Return string representation of distance.
+    """
+    if dist < 10.0:
+        return '%g m' % dist
+    elif 10. <= dist < 1. * km:
+        return '%.0f m' % dist
+    elif 1. * km <= dist < 10. * km:
+        return '%.1f km' % (dist / km)
+    else:
+        return '%.0f km' % (dist / km)
+
+
+def str_duration(t):
+    """
+    Convert time to str representation.
+    """
+    s = ''
+    if t < 0.:
+        s = '-'
+
+    t = abs(t)
+
+    if t < 10.0:
+        return s + '%.2g s' % t
+    elif 10.0 <= t < 3600.:
+        return s + util.time_to_str(t, format='%M:%S min')
+    elif 3600. <= t < 24 * 3600.:
+        return s + util.time_to_str(t, format='%H:%M h')
+    else:
+        return s + '%.1f d' % (t / (24. * 3600.))
 
 
 def correlation_plot(mtrace, varnames=None,
@@ -136,6 +199,8 @@ def correlation_plot_hist(mtrace, varnames=None,
     axs : subplot axis handles
     """
 
+    logger.info('Drawing correlation figure ...')
+
     if varnames is None:
         varnames = mtrace.varnames
 
@@ -227,36 +292,45 @@ def plot_matrix(A):
     plt.show()
 
 
-def plot_misfits(problem, posterior='mean', dataset='geodetic'):
+def get_fit_indexes(llk):
+    """
+    Find indexes of various likelihoods in a likelihood distribution.
+    """
 
-    mode = problem.config.problem_config.mode
+    mean_idx = (num.abs(llk - llk.mean())).argmin()
+    min_idx = (num.abs(llk - llk.min())).argmin()
+    max_idx = (num.abs(llk - llk.max())).argmin()
 
-    mtrace = backend.load(
-        problem.outfolder + '/stage_final', model=problem.model)
+    posterior_idxs = {
+        'mean': mean_idx,
+        'min': min_idx,
+        'max': max_idx}
+
+    return posterior_idxs
+
+
+def draw_geodetic_misfit_figures(problem, plot_options):
+
+    po = plot_options
+
+    stage = load_stage(problem, load='full')
 
     figure_path = os.path.join(problem.outfolder, 'figures')
     util.ensuredir(figure_path)
 
-    step, _ = utility.load_atmip_params(
-                problem.config.project_dir, 'final', mode)
-    population, _, llk = step.select_end_points(mtrace)
+    population, _, llk = stage.step.select_end_points(stage.mtrace)
 
-    if posterior == 'mean':
-        idx = (num.abs(llk - llk.mean())).argmin()
-
-    if posterior == 'min':
-        idx = (num.abs(llk - llk.min())).argmin()
-
-    elif posterior == 'max':
-        idx = (num.abs(llk - llk.max())).argmin()
+    posterior_idxs = get_fit_indexes(llk)
+    idx = posterior_idxs[po.post_llk]
 
     out_point = population[idx]
 
     d = problem.get_synthetics(out_point)
 
-    dd = d[dataset]
+    dd = d['geodetic']
 
-    outfigure = os.path.join(figure_path, 'misfits_%s.pdf' % posterior)
+    outfigure = os.path.join(
+        figure_path, 'misfits_%s.%s' % (po.post_llk, po.format))
     pdfp = PdfPages(outfigure)
 
     for i, gt in enumerate(problem.gtargets):
@@ -283,6 +357,357 @@ def plot_misfits(problem, posterior='mean', dataset='geodetic'):
         pdfp.savefig()
 
     pdfp.close()
+
+
+def plot_trace(axes, tr, **kwargs):
+    return axes.plot(tr.get_xdata(), tr.get_ydata(), **kwargs)
+
+
+def plot_taper(axes, t, taper, **kwargs):
+    y = num.ones(t.size) * 0.9
+    taper(y, t[0], t[1] - t[0])
+    y2 = num.concatenate((y, -y[::-1]))
+    t2 = num.concatenate((t, t[::-1]))
+    axes.fill(t2, y2, **kwargs)
+
+
+def plot_dtrace(axes, tr, space, mi, ma, **kwargs):
+    t = tr.get_xdata()
+    y = tr.get_ydata()
+    y2 = (num.concatenate((y, num.zeros(y.size))) - mi) / \
+        (ma - mi) * space - (1.0 + space)
+    t2 = num.concatenate((t, t[::-1]))
+    axes.fill(
+        t2, y2,
+        clip_on=False,
+        **kwargs)
+
+
+def seismic_fits(problem, stage, plot_options):
+    """
+    Modified from grond. Plot synthetic and data waveforms and the misfit for
+    the selected posterior model.
+    """
+
+    fontsize = 8
+    fontsize_title = 10
+
+    target_index = dict(
+        (target, i) for (i, target) in enumerate(problem.stargets))
+
+    po = plot_options
+
+    figure_path = os.path.join(problem.outfolder, po.figure_dir)
+    util.ensuredir(figure_path)
+
+    population, _, llk = stage.step.select_end_points(stage.mtrace)
+
+    posterior_idxs = get_fit_indexes(llk)
+    idx = posterior_idxs[po.post_llk]
+
+    n_steps = problem.config.sampler_config.parameters.n_steps - 1
+    d = stage.mtrace.point(idx=n_steps, chain=idx)
+    gcms = d['seis_like']
+    gcm_max = d['like']
+
+    out_point = population[idx]
+
+    results = problem.assemble_seismic_results(out_point)
+    source = problem.sources[0]
+
+    logger.info('Plotting waveforms ...')
+    target_to_result = {}
+    all_syn_trs = []
+    dtraces = []
+    for target in problem.stargets:
+        i = target_index[target]
+        target_to_result[target] = results[i]
+
+        all_syn_trs.append(results[i].processed_syn)
+        dtraces.append(results[i].processed_res)
+
+    skey = lambda tr: tr.channel
+
+    trace_minmaxs = trace.minmax(all_syn_trs, skey)
+    dminmaxs = trace.minmax(dtraces, skey)
+
+    for tr in dtraces:
+        if tr:
+            dmin, dmax = dminmaxs[skey(tr)]
+            tr.ydata /= max(abs(dmin), abs(dmax))
+
+    cg_to_targets = utility.gather(
+        problem.stargets,
+        lambda t: t.codes[3],
+        filter=lambda t: t in target_to_result)
+
+    cgs = cg_to_targets.keys()
+
+    figs = []
+
+    for cg in cgs:
+        targets = cg_to_targets[cg]
+
+        # can keep from here ... until
+        nframes = len(targets)
+
+        nx = int(math.ceil(math.sqrt(nframes)))
+        ny = (nframes - 1) / nx + 1
+
+        nxmax = 4
+        nymax = 4
+
+        nxx = (nx - 1) / nxmax + 1
+        nyy = (ny - 1) / nymax + 1
+
+        # nz = nxx * nyy
+
+        xs = num.arange(nx) / ((max(2, nx) - 1.0) / 2.)
+        ys = num.arange(ny) / ((max(2, ny) - 1.0) / 2.)
+
+        xs -= num.mean(xs)
+        ys -= num.mean(ys)
+
+        fxs = num.tile(xs, ny)
+        fys = num.repeat(ys, nx)
+
+        data = []
+
+        for target in targets:
+            azi = source.azibazi_to(target)[0]
+            dist = source.distance_to(target)
+            x = dist * num.sin(num.deg2rad(azi))
+            y = dist * num.cos(num.deg2rad(azi))
+            data.append((x, y, dist))
+
+        gxs, gys, dists = num.array(data, dtype=num.float).T
+
+        iorder = num.argsort(dists)
+
+        gxs = gxs[iorder]
+        gys = gys[iorder]
+        targets_sorted = [targets[ii] for ii in iorder]
+
+        gxs -= num.mean(gxs)
+        gys -= num.mean(gys)
+
+        gmax = max(num.max(num.abs(gys)), num.max(num.abs(gxs)))
+        if gmax == 0.:
+            gmax = 1.
+
+        gxs /= gmax
+        gys /= gmax
+
+        dists = num.sqrt(
+            (fxs[num.newaxis, :] - gxs[:, num.newaxis]) ** 2 +
+            (fys[num.newaxis, :] - gys[:, num.newaxis]) ** 2)
+
+        distmax = num.max(dists)
+
+        availmask = num.ones(dists.shape[1], dtype=num.bool)
+        frame_to_target = {}
+        for itarget, target in enumerate(targets_sorted):
+            iframe = num.argmin(
+                num.where(availmask, dists[itarget], distmax + 1.))
+            availmask[iframe] = False
+            iy, ix = num.unravel_index(iframe, (ny, nx))
+            frame_to_target[iy, ix] = target
+
+        figures = {}
+        for iy in xrange(ny):
+            for ix in xrange(nx):
+                if (iy, ix) not in frame_to_target:
+                    continue
+
+                ixx = ix / nxmax
+                iyy = iy / nymax
+                if (iyy, ixx) not in figures:
+                    figures[iyy, ixx] = plt.figure(
+                        figsize=mpl_papersize('a4', 'landscape'))
+
+                    figures[iyy, ixx].subplots_adjust(
+                        left=0.03,
+                        right=1.0 - 0.03,
+                        bottom=0.03,
+                        top=1.0 - 0.06,
+                        wspace=0.2,
+                        hspace=0.2)
+
+                    figs.append(figures[iyy, ixx])
+
+                fig = figures[iyy, ixx]
+
+                target = frame_to_target[iy, ix]
+
+                amin, amax = trace_minmaxs[target.codes[3]]
+                absmax = max(abs(amin), abs(amax))
+
+                ny_this = nymax  # min(ny, nymax)
+                nx_this = nxmax  # min(nx, nxmax)
+                i_this = (iy % ny_this) * nx_this + (ix % nx_this) + 1
+
+                axes2 = fig.add_subplot(ny_this, nx_this, i_this)
+
+                space = 0.5
+                space_factor = 1.0 + space
+                axes2.set_axis_off()
+                axes2.set_ylim(-1.05 * space_factor, 1.05)
+
+                axes = axes2.twinx()
+                axes.set_axis_off()
+
+                axes.set_ylim(- absmax * 1.33 * space_factor, absmax * 1.33)
+
+                itarget = target_index[target]
+                result = target_to_result[target]
+
+                dtrace = dtraces[itarget]
+
+                tap_color_annot = (0.35, 0.35, 0.25)
+                tap_color_edge = (0.85, 0.85, 0.80)
+                tap_color_fill = (0.95, 0.95, 0.90)
+
+                plot_taper(
+                    axes2, result.processed_obs.get_xdata(), result.taper,
+                    fc=tap_color_fill, ec=tap_color_edge)
+
+                obs_color = scolor('aluminium5')
+                obs_color_light = light(obs_color, 0.5)
+
+                syn_color = scolor('scarletred2')
+                syn_color_light = light(syn_color, 0.5)
+
+                misfit_color = scolor('scarletred2')
+
+                plot_dtrace(
+                    axes2, dtrace, space, 0., 1.,
+                    fc=light(misfit_color, 0.3),
+                    ec=misfit_color)
+
+                plot_trace(
+                    axes, result.filtered_syn,
+                    color=syn_color_light, lw=1.0)
+
+                plot_trace(
+                    axes, result.filtered_obs,
+                    color=obs_color_light, lw=0.75)
+
+                plot_trace(
+                    axes, result.processed_syn,
+                    color=syn_color, lw=1.0)
+
+                plot_trace(
+                    axes, result.processed_obs,
+                    color=obs_color, lw=0.75)
+
+                xdata = result.filtered_obs.get_xdata()
+                axes.set_xlim(xdata[0], xdata[-1])
+
+                tmarks = [
+                    result.processed_obs.tmin,
+                    result.processed_obs.tmax]
+
+                for tmark in tmarks:
+                    axes2.plot(
+                        [tmark, tmark], [-0.9, 0.1], color=tap_color_annot)
+
+                for tmark, text, ha, va in [
+                        (tmarks[0],
+                         '$\,$ ' + str_duration(tmarks[0] - source.time),
+                         'right',
+                         'bottom'),
+                        (tmarks[1],
+                         '$\Delta$ ' + str_duration(tmarks[1] - tmarks[0]),
+                         'left',
+                         'top')]:
+
+                    axes2.annotate(
+                        text,
+                        xy=(tmark, -0.9),
+                        xycoords='data',
+                        xytext=(
+                            fontsize * 0.4 * [-1, 1][ha == 'left'],
+                            fontsize * 0.2),
+                        textcoords='offset points',
+                        ha=ha,
+                        va=va,
+                        color=tap_color_annot,
+                        fontsize=fontsize)
+
+#                rel_c = num.exp(gcms[itarget] - gcm_max)
+
+#                sw = 0.25
+#                sh = 0.1
+#                ph = 0.01
+
+#                for (ih, rw, facecolor, edgecolor) in [
+#                        (1, rel_c,  light(misfit_color, 0.5), misfit_color)]:
+
+#                    bar = patches.Rectangle(
+#                        (1.0 - rw * sw, 1.0 - (ih + 1) * sh + ph),
+#                        rw * sw,
+#                        sh - 2 * ph,
+#                        facecolor=facecolor, edgecolor=edgecolor,
+#                        zorder=10,
+#                        transform=axes.transAxes, clip_on=False)
+
+#                    axes.add_patch(bar)
+
+                scale_string = None
+
+                infos = []
+                if scale_string:
+                    infos.append(scale_string)
+
+                infos.append('.'.join(x for x in target.codes if x))
+                dist = source.distance_to(target)
+                azi = source.azibazi_to(target)[0]
+                infos.append(str_dist(dist))
+                infos.append(u'%.0f\u00B0' % azi)
+                infos.append('%.3f' % gcms[itarget])
+                axes2.annotate(
+                    '\n'.join(infos),
+                    xy=(0., 1.),
+                    xycoords='axes fraction',
+                    xytext=(2., 2.),
+                    textcoords='offset points',
+                    ha='left',
+                    va='top',
+                    fontsize=fontsize,
+                    fontstyle='normal')
+
+        for (iyy, ixx), fig in figures.iteritems():
+            title = '.'.join(x for x in cg if x)
+            if len(figures) > 1:
+                title += ' (%i/%i, %i/%i)' % (iyy + 1, nyy, ixx + 1, nxx)
+
+            fig.suptitle(title, fontsize=fontsize_title)
+
+    return figs
+
+
+def draw_seismic_fits(problem, po):
+
+    stage = load_stage(problem, load='full')
+
+    mode = problem.config.problem_config.mode
+
+    outpath = os.path.join(
+        problem.config.project_dir,
+        mode, po.figure_dir, 'waveforms_%s.%s' % (stage.number, po.outformat))
+
+    if not os.path.exists(outpath) or po.force:
+        figs = seismic_fits(problem, stage, po)
+    else:
+        logger.info('waveform plots exist. Use force=True for replotting!')
+
+    if po.outformat == 'display':
+        plt.show()
+    else:
+        logger.info('saving figures to %s' % outpath)
+        with PdfPages(outpath) as opdf:
+            for fig in figs:
+                opdf.savefig(fig)
 
 
 def histplot_op(ax, data, alpha=.35, color=None, bins=None):
@@ -373,14 +798,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         llk = num.squeeze(transform(llk[0]))
         llk = pmp.make_2d(llk)
 
-        mean_idx = (num.abs(llk - llk.mean())).argmin()
-        min_idx = (num.abs(llk - llk.min())).argmin()
-        max_idx = (num.abs(llk - llk.max())).argmin()
-
-        posterior_idxs = {
-            'mean': mean_idx,
-            'min': min_idx,
-            'max': max_idx}
+        posterior_idxs = get_fit_indexes(llk)
 
         colors = {
             'mean': scolor('orange1'),
@@ -472,28 +890,26 @@ def stage_posteriors(mtrace, n_steps, posterior=None, lines=None):
     return fig
 
 
-def draw_posteriors(problem, format='pdf', force=False, dpi=450):
+def draw_posteriors(problem, plot_options):
     """
     Identify which stage is the last complete stage and plot posteriors up to
     format : str
         output format: 'display', 'png' or 'pdf'
     """
 
-    nstage = backend.get_highest_sampled_stage(
-        problem.outfolder, return_final=True)
-
-    if isinstance(nstage, int):
-        nstage -= 1
-
     mode = problem.config.problem_config.mode
+    po = plot_options
 
-    step, _ = utility.load_atmip_params(
-        problem.config.project_dir, nstage, mode=mode)
+    stage = load_stage(problem, stage_number=po.load_stage, load='params')
+    step = stage.step
 
-    if nstage == 'final':
-        list_indexes = [str(i) for i in range(step.stage + 1)] + ['final']
+    if po.load_stage is not None:
+        list_indexes = [po.load_stage]
     else:
         list_indexes = [str(i) for i in range(step.stage + 1)]
+
+        if stage.number == 'final':
+            list_indexes = list_indexes + ['final']
 
     figs = []
 
@@ -508,16 +924,16 @@ def draw_posteriors(problem, format='pdf', force=False, dpi=450):
 
         outpath = os.path.join(
             problem.config.project_dir,
-            mode, 'figures', 'stage_%s.%s' % (s, format))
+            mode, po.figure_dir, 'stage_%s.%s' % (s, po.outformat))
 
-        if not os.path.exists(outpath) or force:
+        if not os.path.exists(outpath) or po.force:
             logger.info('plotting stage: %s' % stage_path)
             mtrace = backend.load(stage_path, model=problem.model)
             fig = stage_posteriors(mtrace, n_steps=draws, posterior='all',
-                    lines=problem.reference)
-            if not format == 'display':
+                    lines=po.reference)
+            if not po.outformat == 'display':
                 logger.info('saving figure to %s' % outpath)
-                fig.savefig(outpath, format=format, dpi=dpi)
+                fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
             else:
                 figs.append(fig)
 
@@ -529,7 +945,7 @@ def draw_posteriors(problem, format='pdf', force=False, dpi=450):
         plt.show()
 
 
-def draw_correlation_hist(problem, format='pdf', force=False, dpi=450):
+def draw_correlation_hist(problem, plot_options):
     """
     Draw parameter correlation plot and histograms from the final atmip stage.
     Only feasible for 'geometry' problem.
@@ -544,32 +960,30 @@ def draw_correlation_hist(problem, format='pdf', force=False, dpi=450):
 
     n_steps = problem.config.sampler_config.parameters.n_steps
 
-    stage_path = os.path.join(problem.config.project_dir, mode, 'stage_final')
-
-    if not os.path.exists(stage_path):
-        raise Exception('Final stage not reached with sampling!')
+    po = plot_options
+    stage = load_stage(problem, po.load_stage, load='trace')
 
     outpath = os.path.join(
         problem.config.project_dir,
-        mode, 'figures', 'corr_hist.%s' % format)
+        mode, po.figure_dir, 'corr_hist_%s.%s' % (stage.number, po.outformat))
 
-    if not os.path.exists(outpath) or force:
+    if not os.path.exists(outpath) or po.force:
         fig, axs = correlation_plot_hist(
-            mtrace=backend.load(stage_path, model=problem.model),
+            mtrace=stage.mtrace,
             varnames=problem.config.problem_config.select_variables(),
             transform=last_sample,
             cmap=plt.cm.gist_earth_r,
-            point=problem.model.test_point,
+            point=po.reference,
             point_size='8',
             point_color='red')
     else:
         logger.info('correlation plot exists. Use force=True for replotting!')
 
-    if format == 'display':
+    if po.outformat == 'display':
         plt.show()
     else:
         logger.info('saving figure to %s' % outpath)
-        fig.savefig(outpath, format=format, dpi=dpi)
+        fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
 def n_model_plot(models, axes=None):
@@ -625,7 +1039,9 @@ def load_earthmodels(engine, targets, depth_max='cmb'):
 
 plots_catalog = {
     'correlation_hist': draw_correlation_hist,
-    'stage_posteriors': draw_posteriors}
+    'stage_posteriors': draw_posteriors,
+    'waveform_fits': draw_seismic_fits,
+            }
 
 
 def available_plots():

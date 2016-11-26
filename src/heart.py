@@ -367,14 +367,26 @@ class ArrivalTaper(trace.Taper):
     Cosine arrival Taper.
     """
 
-    a = Float.T(default=15.,
+    a = Float.T(default=-15.,
                 help='start of fading in; [s] w.r.t. phase arrival')
-    b = Float.T(default=10.,
+    b = Float.T(default=-10.,
                 help='end of fading in; [s] w.r.t. phase arrival')
     c = Float.T(default=50.,
-                help='start of fading in; [s] w.r.t. phase arrival')
+                help='start of fading out; [s] w.r.t. phase arrival')
     d = Float.T(default=55.,
-                help='end of fading in; [s] w.r.t phase arrival')
+                help='end of fading out; [s] w.r.t phase arrival')
+
+    @property
+    def duration(self):
+        return num.abs(self.a) + self.d
+
+    @property
+    def fade(self):
+        return num.abs(self.a - self.b)
+
+
+class Trace(Object):
+    pass
 
 
 class Filter(Object):
@@ -391,6 +403,20 @@ class Filter(Object):
     order = Int.T(
         default=4,
         help='order of filter, the higher the steeper')
+
+
+class SeismicResult(Object):
+    """
+    Result object assembling different traces of misfit.
+    """
+    processed_obs = Trace.T(optional=True)
+    filtered_obs = Trace.T(optional=True)
+    processed_syn = Trace.T(optional=True)
+    filtered_syn = Trace.T(optional=True)
+    processed_res = Trace.T(optional=True)
+    arrival_taper = trace.Taper.T(optional=True)
+    llk = Float.T(default=0., optional=True)
+    taper = trace.Taper.T(optional=True)
 
 
 class Parameter(Object):
@@ -1065,10 +1091,10 @@ def geo_construct_gf(
 
     c = psgrn.PsGrnConfigFull()
 
-    n_steps_depth = (source_depth_max - source_depth_min) / \
-        source_depth_spacing
-    n_steps_distance = (source_distance_max - source_distance_min) / \
-        source_distance_spacing
+    n_steps_depth = int((source_depth_max - source_depth_min) / \
+        source_depth_spacing) + 1
+    n_steps_distance = int((source_distance_max - source_distance_min) / \
+        source_distance_spacing) + 1
 
     c.distance_grid = psgrn.PsGrnSpatialSampling(
         n_steps=n_steps_distance,
@@ -1251,7 +1277,7 @@ def get_phase_taperer(engine, source, target, arrival_taper):
 
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     filterer=None, reference_taperer=None, plot=False,
-                    nprocs=1, outmode='array'):
+                    nprocs=1, outmode='array', inplace=True, chop=True):
     """
     Calculate synthetic seismograms of combination of targets and sources,
     filtering and tapering afterwards (filterer)
@@ -1274,8 +1300,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     nprocs : int
         number of processors to use for synthetics calculation
     outmode : string
-        output format of synthetics can be 'array', 'traces',
-        'data' returns traces unstacked including post-processing
+        output format of synthetics can be 'array', 'stacked_traces',
+        'full' returns traces unstacked including post-processing
 
     Returns
     -------
@@ -1299,7 +1325,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
                 taperer = reference_taperer
 
             # cut traces
-            tr.taper(taperer, inplace=True, chop=True)
+            tr.taper(taperer, inplace=inplace, chop=chop)
 
         if filterer is not None:
             # filter traces
@@ -1329,13 +1355,17 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         else:
             outstack = synths
 
-    if outmode == 'traces':
-        outtraces = []
-        for i in range(nt):
-            synt_trcs[i].ydata = outstack[i, :]
-            outtraces.append(synt_trcs[i])
+    if outmode == 'stacked_traces':
+        if arrival_taper is not None:
+            outtraces = []
+            for i in range(nt):
+                synt_trcs[i].ydata = outstack[i, :]
+                outtraces.append(synt_trcs[i])
 
-        return outtraces, tmins
+            return outtraces, tmins
+        else:
+            raise Exception(
+                'arrival taper has to be defined for %s type!' % outmode)
 
     elif outmode == 'data':
         return synt_trcs, tmins
@@ -1347,8 +1377,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         raise Exception('Outmode %s not supported!' % outmode)
 
 
-def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
-                        plot=False):
+def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
+                        tmins=None, plot=False, outmode='array', chop=True):
     """
     Taper and filter data_traces according to given taper and filterers.
     Tapering will start at the given tmin.
@@ -1359,9 +1389,11 @@ def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
         containing :class:`pyrocko.trace.Trace` objects
     arrival_taper : :class:`ArrivalTaper`
     filterer : :class:`Filterer`
-    tmins : :class:`numpy.ndarray`
-        Array containing the start times [s] since 1st.January 1970 to start
+    tmins : list or:class:`numpy.ndarray`
+        containing the start times [s] since 1st.January 1970 to start
         tapering
+    outmode : str
+        defines the output structure, options: "traces", "array"
 
     Returns
     -------
@@ -1382,7 +1414,7 @@ def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
                 float(tmins[i] - arrival_taper.a + arrival_taper.d))
 
             # taper and cut traces
-            cut_trace.taper(taperer, inplace=True, chop=True)
+            cut_trace.taper(taperer, inplace=True, chop=chop)
 
         if filterer is not None:
             # filter traces
@@ -1395,4 +1427,11 @@ def taper_filter_traces(data_traces, arrival_taper, filterer, tmins,
         if plot:
             trace.snuffle(cut_traces)
 
-    return num.vstack([cut_traces[i].ydata for i in range(len(data_traces))])
+    if outmode == 'array':
+        if arrival_taper is not None:
+            return num.vstack(
+                [cut_traces[i].ydata for i in range(len(data_traces))])
+        else:
+            raise Exception('Cannot return array without tapering!')
+    if outmode == 'traces':
+        return cut_traces

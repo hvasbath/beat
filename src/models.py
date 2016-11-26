@@ -1,11 +1,12 @@
 import os
 import time
+import copy
 
 import pymc3 as pm
 
 from pymc3 import Metropolis
 
-from pyrocko import gf, util, model
+from pyrocko import gf, util, model, trace
 from pyrocko.guts import Object
 
 import numpy as num
@@ -151,7 +152,7 @@ class GeometryOptimizer(Problem):
         dsources = utility.transform_sources(self.sources, pc.datasets)
 
         if self._seismic_flag:
-            logger.info('Setting up seismic structure ...\n')
+            logger.debug('Setting up seismic structure ...\n')
             sc = config.seismic_config
             self.engine = gf.LocalEngine(
                 store_superdirs=[sc.gf_config.store_superdir])
@@ -211,7 +212,7 @@ class GeometryOptimizer(Problem):
                 self.sweights.append(shared(icov))
 
             # syntetics generation
-            logger.info('Initialising synthetics functions ... \n')
+            logger.debug('Initialising synthetics functions ... \n')
             self.get_seis_synths = theanof.SeisSynthesizer(
                 engine=self.engine,
                 sources=dsources['seismic'],
@@ -227,7 +228,7 @@ class GeometryOptimizer(Problem):
                 filterer=sc.filterer)
 
         if self._geodetic_flag:
-            logger.info('Setting up geodetic structure ...\n')
+            logger.debug('Setting up geodetic structure ...\n')
             gc = config.geodetic_config
 
             geodetic_data_path = os.path.join(
@@ -266,7 +267,7 @@ class GeometryOptimizer(Problem):
             self.odws = shared(odws)
 
             # syntetics generation
-            logger.info('Initialising synthetics functions ... \n')
+            logger.debug('Initialising synthetics functions ... \n')
             self.get_geo_synths = theanof.GeoLayerSynthesizerStatic(
                 lats=lats,
                 lons=lons,
@@ -345,14 +346,14 @@ class GeometryOptimizer(Problem):
     def built_model(self):
         """
         Initialise :class:`pymc3.Model` depending on configuration file,
-        geodetic and/or seismic data is included.
+        geodetic and/or seismic data are included.
         """
 
         logger.info('... Building model ...\n')
 
         with pm.Model() as self.model:
 
-            logger.info('Optimization for %i sources', len(self.sources))
+            logger.debug('Optimization for %i sources', len(self.sources))
 
             pc = self.config.problem_config
 
@@ -388,7 +389,7 @@ class GeometryOptimizer(Problem):
                     input_rvs, dataset='seismic')
                 # seis
                 seis_names = [param.name for param in self.seis_input_rvs]
-                logger.info(
+                logger.debug(
                     'Teleseismic optimization on: \n '
                     ' %s' % ', '.join(seis_names))
 
@@ -430,7 +431,7 @@ class GeometryOptimizer(Problem):
                 ## calc residuals
                 # geo
                 geo_names = [param.name for param in self.geo_input_rvs]
-                logger.info(
+                logger.debug(
                     'Geodetic optimization on: \n '
                     '%s' % ', '.join(geo_names))
 
@@ -576,15 +577,23 @@ class GeometryOptimizer(Problem):
         Dictionary with keys according to datasets containing the synthetics
         as lists.
         """
+        tpoint = copy.deepcopy(point)
 
-        point = utility.adjust_point_units(point)
+        tpoint = utility.adjust_point_units(tpoint)
+
+        # remove hyperparameters from point
+        hps = self.config.problem_config.hyperparameters
+
+        if len(hps) > 0:
+            for hyper in hps.keys():
+                tpoint.pop(hyper)
 
         d = dict()
 
         if self._seismic_flag:
-            point['time'] += self.event.time
+            tpoint['time'] += self.event.time
 
-        source_points = utility.split_point(point)
+        source_points = utility.split_point(tpoint)
 
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
@@ -627,6 +636,85 @@ class GeometryOptimizer(Problem):
             d['geodetic'] = geo_synths
 
         return d
+
+    def assemble_seismic_results(self, point):
+        """
+        Assemble seismic traces for given point in solution space.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters
+
+        Returns
+        -------
+        List with :class:`heart.SeismicResult`
+        """
+        assert self._seismic_flag
+
+        logger.info('Assembling seismic waveforms ...')
+
+        if self._geodetic_flag:
+            self._geodetic_flag = False
+            reset_flag = True
+
+        syn_proc_traces = self.get_synthetics(
+            point, outmode='stacked_traces')['seismic']
+
+        tmins = [tr.tmin for tr in syn_proc_traces]
+
+        at = copy.deepcopy(self.config.seismic_config.arrival_taper)
+
+        obs_proc_traces = heart.taper_filter_traces(
+            self.data_traces,
+            arrival_taper=at,
+            filterer=self.config.seismic_config.filterer,
+            tmins=tmins,
+            outmode='traces')
+
+        self.config.seismic_config.arrival_taper = None
+
+        syn_filt_traces = self.get_synthetics(
+            point, outmode='data')['seismic']
+
+        obs_filt_traces = heart.taper_filter_traces(
+            self.data_traces,
+            filterer=self.config.seismic_config.filterer,
+            outmode='traces')
+
+        factor = 2.
+        for i, (trs, tro) in enumerate(zip(syn_filt_traces, obs_filt_traces)):
+
+            trs.chop(tmin=tmins[i] - factor * at.fade,
+                     tmax=tmins[i] + factor * at.fade + at.duration)
+            tro.chop(tmin=tmins[i] - factor * at.fade,
+                     tmax=tmins[i] + factor * at.fade + at.duration)
+
+        self.config.seismic_config.arrival_taper = at
+
+        results = []
+        for i, obstr in enumerate(obs_proc_traces):
+            dtrace = obstr.copy()
+            dtrace.set_ydata(
+                (obstr.get_ydata() - syn_proc_traces[i].get_ydata()))
+
+            taper = trace.CosTaper(
+                tmins[i],
+                tmins[i] + at.fade,
+                tmins[i] + at.duration - at.fade,
+                tmins[i] + at.duration)
+            results.append(heart.SeismicResult(
+                    processed_obs=obstr,
+                    processed_syn=syn_proc_traces[i],
+                    processed_res=dtrace,
+                    filtered_obs=obs_filt_traces[i],
+                    filtered_syn=syn_filt_traces[i],
+                    taper=taper))
+
+        if reset_flag:
+            self._geodetic_flag = True
+
+        return results
 
 
 def sample(step, problem):
@@ -728,28 +816,75 @@ def load_model(project_dir, mode):
     return problem
 
 
-def load_stage(project_dir, stage_number, mode):
+class ATMCMCStage(object):
+    """
+    ATMCMC stage, containing sampling results and intermediate optimizer
+    parameters.
+    """
+
+    def __init__(self, number='final', path='./', step=None, updates=None,
+                 mtrace=None):
+        self.number = number
+        self.path = path
+        self.step = step
+        self.updates = updates
+        self.mtrace = mtrace
+
+
+def load_stage(problem, stage_number=None, load='trace'):
     """
     Load stage results from ATMIP sampling.
 
     Parameters
     ----------
-    project_dir : string
-        path to beat model directory
-    stage_number : int
-        number of stage to be loaded
-    mode : string
-        problem name to be loaded
+    problem : :class:`Problem`
+    stage_number : str
+        Number of stage to load
+    load : str
+        what to load and return 'full', 'trace', 'params'
 
     Returns
     -------
-    :class:`Problem`
-    :class:`atmcmc.ATMCMC`
-    :class:`pymc3.backend.base.MultiTrace`
+    dict
     """
 
-    problem = load_model(project_dir, mode)
-    params = utility.load_atmip_params(project_dir, stage_number, mode)
-    tracepath = os.path.join(project_dir, mode, 'stage_%i' % stage_number)
-    mtrace = backend.load(tracepath, model=problem.model)
-    return problem, params, mtrace
+    project_dir = problem.config.project_dir
+    mode = problem.config.problem_config.mode
+
+    if stage_number is None:
+        stage_number = 'final'
+
+    homepath = problem.outfolder
+    stagepath = os.path.join(homepath, 'stage_%s' % stage_number)
+
+    if os.path.exists(stagepath):
+        logger.info('Loading sampling results from: %s' % stagepath)
+    else:
+        stage_number = backend.get_highest_sampled_stage(
+            homepath, return_final=True)
+
+        if isinstance(stage_number, int):
+            stage_number -= 1
+
+        stage_number = str(stage_number)
+
+        logger.info(
+            'Stage results %s do not exist! Loading last completed'
+            ' stage %s' % (stagepath, stage_number))
+        stagepath = os.path.join(homepath, 'stage_%s' % stage_number)
+
+    if load == 'full':
+        to_load = ['params', 'trace']
+    else:
+        to_load = [load]
+
+    stage = ATMCMCStage(path=stagepath, number=stage_number)
+
+    if 'trace' in to_load:
+        stage.mtrace = backend.load(stagepath, model=problem.model)
+
+    if 'params' in to_load:
+        stage.step, stage.updates = utility.load_atmip_params(
+            project_dir, stage_number, mode)
+
+    return stage

@@ -525,6 +525,18 @@ def command_plot(args):
             help='Inversion problem to calculate GFs for; "geometry",'
                  '"static_dist", "kinematic_dist". Default: "geometry"')
 
+        parser.add_option('--post_llk', dest='post_llk',
+            choices=['max', 'min', 'mean'],
+            default='max',
+            help='Plot model with specified likelihood; "max", "min" or "mean"'
+                 'Default: "max"')
+
+        parser.add_option('--stage_number', dest='stage_number',
+            choices=['final', 'n'],
+            default=None,
+            help='String of the stage number "n" of the stage to be plotted.'
+                 ' Default: last complete stage')
+
         parser.add_option('--format', dest='format',
             choices=['display', 'pdf', 'png'],
             default='pdf',
@@ -545,7 +557,7 @@ def command_plot(args):
     plots_avail = plotting.available_plots()
 
     details = '''Available <plot types> are: %s or "all". Multiple plots can be
-        selected giving a comma seperated list''' % (
+selected giving a comma seperated list.''' % (
         ', '.join('"%s"' % plot for plot in plots_avail))
 
     parser, options, args = cl_parse('plot', args, setup, details)
@@ -559,6 +571,10 @@ def command_plot(args):
     else:
         plotnames = args[1].split(',')
 
+    for plot in plotnames:
+        if plot not in plots_avail:
+            raise Exception('Plot type %s not available!' % plots)
+
     os.chdir(options.main_path)
     main_path = os.getcwd()
     project_dir = os.path.join(main_path, args[0])
@@ -566,17 +582,20 @@ def command_plot(args):
     logger.info('Loading problem ...')
     problem = models.load_model(project_dir, options.mode)
 
-    if options.reference:
-        problem.reference = problem.model.test_point
-    else:
-        problem.reference = None
+    po = plotting.PlotOptions(
+        post_llk=options.post_llk,
+        load_stage=options.stage_number,
+        outformat=options.format,
+        force=options.force,
+        dpi=options.dpi)
 
-    for plots in plotnames:
-        plotting.plots_catalog[plots](
-            problem,
-            format=options.format,
-            force=options.force,
-            dpi=options.dpi)
+    if options.reference:
+        po.reference = problem.model.test_point
+    else:
+        po.reference = None
+
+    for plot in plotnames:
+        plotting.plots_catalog[plot](problem, po)
 
 
 if __name__ == '__main__':
