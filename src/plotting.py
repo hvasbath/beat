@@ -199,6 +199,8 @@ def correlation_plot_hist(mtrace, varnames=None,
     axs : subplot axis handles
     """
 
+    logger.info('Drawing correlation figure ...')
+
     if varnames is None:
         varnames = mtrace.varnames
 
@@ -381,21 +383,17 @@ def plot_dtrace(axes, tr, space, mi, ma, **kwargs):
         **kwargs)
 
 
-def seismic_fits(problem, plot_options):
+def seismic_fits(problem, stage, plot_options):
     """
     Modified from grond. Plot synthetic and data waveforms and the misfit for
-    the selcted posterior model.
+    the selected posterior model.
     """
-
-    logger.info('plotting waveforms ...')
 
     fontsize = 8
     fontsize_title = 10
 
     target_index = dict(
         (target, i) for (i, target) in enumerate(problem.stargets))
-
-    stage = load_stage(problem, load='full')
 
     po = plot_options
 
@@ -417,6 +415,7 @@ def seismic_fits(problem, plot_options):
     results = problem.assemble_seismic_results(out_point)
     source = problem.sources[0]
 
+    logger.info('Plotting waveforms ...')
     target_to_result = {}
     all_syn_trs = []
     dtraces = []
@@ -612,13 +611,15 @@ def seismic_fits(problem, plot_options):
                     axes2.plot(
                         [tmark, tmark], [-0.9, 0.1], color=tap_color_annot)
 
-                for tmark, text, ha in [
+                for tmark, text, ha, va in [
                         (tmarks[0],
                          '$\,$ ' + str_duration(tmarks[0] - source.time),
-                         'right'),
+                         'right',
+                         'bottom'),
                         (tmarks[1],
                          '$\Delta$ ' + str_duration(tmarks[1] - tmarks[0]),
-                         'left')]:
+                         'left',
+                         'top')]:
 
                     axes2.annotate(
                         text,
@@ -629,33 +630,30 @@ def seismic_fits(problem, plot_options):
                             fontsize * 0.2),
                         textcoords='offset points',
                         ha=ha,
-                        va='bottom',
+                        va=va,
                         color=tap_color_annot,
                         fontsize=fontsize)
 
-                rel_c = num.exp(gcms[itarget] - gcm_max)
+#                rel_c = num.exp(gcms[itarget] - gcm_max)
 
-                sw = 0.25
-                sh = 0.1
-                ph = 0.01
+#                sw = 0.25
+#                sh = 0.1
+#                ph = 0.01
 
-                for (ih, rw, facecolor, edgecolor) in [
-                        (1, rel_c,  light(misfit_color, 0.5), misfit_color)]:
+#                for (ih, rw, facecolor, edgecolor) in [
+#                        (1, rel_c,  light(misfit_color, 0.5), misfit_color)]:
 
-                    bar = patches.Rectangle(
-                        (1.0 - rw * sw, 1.0 - (ih + 1) * sh + ph),
-                        rw * sw,
-                        sh - 2 * ph,
-                        facecolor=facecolor, edgecolor=edgecolor,
-                        zorder=10,
-                        transform=axes.transAxes, clip_on=False)
+#                    bar = patches.Rectangle(
+#                        (1.0 - rw * sw, 1.0 - (ih + 1) * sh + ph),
+#                        rw * sw,
+#                        sh - 2 * ph,
+#                        facecolor=facecolor, edgecolor=edgecolor,
+#                        zorder=10,
+#                        transform=axes.transAxes, clip_on=False)
 
-                    axes.add_patch(bar)
+#                    axes.add_patch(bar)
 
                 scale_string = None
-
-                if target.misfit_config.domain == 'cc_max_norm':
-                    scale_string = 'Syn/obs scales differ!'
 
                 infos = []
                 if scale_string:
@@ -666,7 +664,7 @@ def seismic_fits(problem, plot_options):
                 azi = source.azibazi_to(target)[0]
                 infos.append(str_dist(dist))
                 infos.append(u'%.0f\u00B0' % azi)
-                infos.append('%.3g' % gcms[itarget])
+                infos.append('%.3f' % gcms[itarget])
                 axes2.annotate(
                     '\n'.join(infos),
                     xy=(0., 1.),
@@ -685,52 +683,31 @@ def seismic_fits(problem, plot_options):
 
             fig.suptitle(title, fontsize=fontsize_title)
 
-    outpath = os.path.join(
-        problem.config.project_dir,
-        mode, po.figure_dir, 'corr_hist_%s.%s' % (stage.number, po.outformat))
-
-    if not os.path.exists(outpath) or po.force:
-        fig, axs = correlation_plot_hist(
-            mtrace=stage.mtrace,
-            varnames=problem.config.problem_config.select_variables(),
-            transform=last_sample,
-            cmap=plt.cm.gist_earth_r,
-            point=po.reference,
-            point_size='8',
-            point_color='red')
-    else:
-        logger.info('correlation plot exists. Use force=True for replotting!')
-
-    if po.outformat == 'display':
-        plt.show()
-    else:
-        logger.info('saving figure to %s' % outpath)
-        fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
-
     return figs
 
 
 def draw_seismic_fits(problem, po):
+
+    stage = load_stage(problem, load='full')
+
+    mode = problem.config.problem_config.mode
 
     outpath = os.path.join(
         problem.config.project_dir,
         mode, po.figure_dir, 'waveforms_%s.%s' % (stage.number, po.outformat))
 
     if not os.path.exists(outpath) or po.force:
-        figs = seismic_fits(problem, po)
+        figs = seismic_fits(problem, stage, po)
     else:
         logger.info('waveform plots exist. Use force=True for replotting!')
 
     if po.outformat == 'display':
         plt.show()
     else:
+        logger.info('saving figures to %s' % outpath)
         with PdfPages(outpath) as opdf:
             for fig in figs:
                 opdf.savefig(fig)
-
-        opdf.close()
-        logger.info('saving figure to %s' % outpath)
-        fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
 def histplot_op(ax, data, alpha=.35, color=None, bins=None):

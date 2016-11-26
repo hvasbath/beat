@@ -571,6 +571,10 @@ selected giving a comma seperated list.''' % (
     else:
         plotnames = args[1].split(',')
 
+    for plot in plotnames:
+        if plot not in plots_avail:
+            raise Exception('Plot type %s not available!' % plots)
+
     os.chdir(options.main_path)
     main_path = os.getcwd()
     project_dir = os.path.join(main_path, args[0])
@@ -590,8 +594,8 @@ selected giving a comma seperated list.''' % (
     else:
         po.reference = None
 
-    for plots in plotnames:
-        plotting.plots_catalog[plots](problem, po)
+    for plot in plotnames:
+        plotting.plots_catalog[plot](problem, po)
 
 
 if __name__ == '__main__':

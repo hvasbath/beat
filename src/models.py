@@ -6,7 +6,7 @@ import pymc3 as pm
 
 from pymc3 import Metropolis
 
-from pyrocko import gf, util, model
+from pyrocko import gf, util, model, trace
 from pyrocko.guts import Object
 
 import numpy as num
@@ -682,12 +682,13 @@ class GeometryOptimizer(Problem):
             filterer=self.config.seismic_config.filterer,
             outmode='traces')
 
+        factor = 2.
         for i, (trs, tro) in enumerate(zip(syn_filt_traces, obs_filt_traces)):
 
-            trs.chop(tmin=tmins[i] - at.fade,
-                     tmax=tmins[i] + at.fade + at.duration)
-            tro.chop(tmin=tmins[i] - at.fade,
-                     tmax=tmins[i] + at.fade + at.duration)
+            trs.chop(tmin=tmins[i] - factor * at.fade,
+                     tmax=tmins[i] + factor * at.fade + at.duration)
+            tro.chop(tmin=tmins[i] - factor * at.fade,
+                     tmax=tmins[i] + factor * at.fade + at.duration)
 
         self.config.seismic_config.arrival_taper = at
 
@@ -697,13 +698,18 @@ class GeometryOptimizer(Problem):
             dtrace.set_ydata(
                 (obstr.get_ydata() - syn_proc_traces[i].get_ydata()))
 
+            taper = trace.CosTaper(
+                tmins[i],
+                tmins[i] + at.fade,
+                tmins[i] + at.duration - at.fade,
+                tmins[i] + at.duration)
             results.append(heart.SeismicResult(
                     processed_obs=obstr,
                     processed_syn=syn_proc_traces[i],
                     processed_res=dtrace,
                     filtered_obs=obs_filt_traces[i],
-                    filtered_syn=syn_filt_traces[i]),
-                    taper=at)
+                    filtered_syn=syn_filt_traces[i],
+                    taper=taper))
 
         if reset_flag:
             self._geodetic_flag = True
@@ -860,10 +866,12 @@ def load_stage(problem, stage_number=None, load='trace'):
         if isinstance(stage_number, int):
             stage_number -= 1
 
+        stage_number = str(stage_number)
+
         logger.info(
             'Stage results %s do not exist! Loading last completed'
-            ' stage %i' % (stagepath, stage_number))
-        stagepath = os.path.join(homepath, 'stage_%s' % str(stage_number))
+            ' stage %s' % (stagepath, stage_number))
+        stagepath = os.path.join(homepath, 'stage_%s' % stage_number)
 
     if load == 'full':
         to_load = ['params', 'trace']
