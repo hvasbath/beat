@@ -657,6 +657,8 @@ class GeometryOptimizer(Problem):
         if self._geodetic_flag:
             self._geodetic_flag = False
             reset_flag = True
+        else:
+            reset_flag = False
 
         syn_proc_traces = self.get_synthetics(
             point, outmode='stacked_traces')['seismic']
