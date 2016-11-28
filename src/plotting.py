@@ -536,6 +536,7 @@ def draw_geodetic_fits(problem, plot_options):
         figs = geodetic_fits(problem, stage, po)
     else:
         logger.info('scene plots exist. Use force=True for replotting!')
+        return
 
     if po.outformat == 'display':
         plt.show()
@@ -646,8 +647,6 @@ def seismic_fits(problem, stage, plot_options):
 
         nxx = (nx - 1) / nxmax + 1
         nyy = (ny - 1) / nymax + 1
-
-        # nz = nxx * nyy
 
         xs = num.arange(nx) / ((max(2, nx) - 1.0) / 2.)
         ys = num.arange(ny) / ((max(2, ny) - 1.0) / 2.)
@@ -890,7 +889,7 @@ def draw_seismic_fits(problem, po):
         figs = seismic_fits(problem, stage, po)
     else:
         logger.info('waveform plots exist. Use force=True for replotting!')
-        pass
+        return
 
     if po.outformat == 'display':
         plt.show()
@@ -1169,6 +1168,7 @@ def draw_correlation_hist(problem, plot_options):
             point_color='red')
     else:
         logger.info('correlation plot exists. Use force=True for replotting!')
+        return
 
     if po.outformat == 'display':
         plt.show()

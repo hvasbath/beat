@@ -586,7 +586,10 @@ class GeometryOptimizer(Problem):
 
         if len(hps) > 0:
             for hyper in hps.keys():
-                tpoint.pop(hyper)
+                if hyper in tpoint:
+                    tpoint.pop(hyper)
+                else:
+                    pass
 
         d = dict()
 
