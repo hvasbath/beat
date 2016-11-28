@@ -718,6 +718,45 @@ class GeometryOptimizer(Problem):
 
         return results
 
+    def assemble_geodetic_results(self, point):
+        """
+        Assemble geodetic data for given point in solution space.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters
+
+        Returns
+        -------
+        List with :class:`heart.GeodeticResult`
+        """
+        assert self._geodetic_flag
+
+        logger.info('Assembling geodetic data ...')
+
+        if self._seismic_flag:
+            self._seismic_flag = False
+            reset_flag = True
+        else:
+            reset_flag = False
+
+        processed_synts = self.get_synthetics(point)['geodetic']
+
+        results = []
+        for i, target in enumerate(self.gtargets):
+            res = target.displacement - processed_synts[i]
+
+            results.append(heart.GeodeticResult(
+                processed_obs=target.displacement,
+                processed_syn=processed_synts[i],
+                processed_res=res))
+
+        if reset_flag:
+            self._seismic_flag = True
+
+        return results
+
 
 def sample(step, problem):
     """

@@ -10,7 +10,6 @@ from beat.models import load_stage
 
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib import patches
 
 import numpy as num
 from pyrocko.guts import Object, String, Dict, Bool, Int
@@ -31,6 +30,9 @@ class PlotOptions(Object):
         default='max',
         help='Which model to plot on the specified plot; options:'
              ' "max", "min", "mean"')
+    plot_projection = String.T(
+        default='utm',
+        help='Projection to use for plotting geodetic data; options: "latlon"')
     load_stage = String.T(
         default='final',
         help='Which ATMCMC stage to select for plotting')
@@ -120,7 +122,7 @@ def correlation_plot(mtrace, varnames=None,
     nvar = len(varnames)
 
     if figsize is None:
-        figsize = (11.7, 8.2)   # A4 landscape
+        figsize = mpl_papersize('a4', 'landscape')
 
     fig, axs = plt.subplots(sharey='row', sharex='col',
         nrows=nvar - 1, ncols=nvar - 1, figsize=figsize)
@@ -207,7 +209,7 @@ def correlation_plot_hist(mtrace, varnames=None,
     nvar = len(varnames)
 
     if figsize is None:
-        figsize = (11.7, 8.2)   # A4 landscape
+        figsize = mpl_papersize('a4', 'landscape')
 
     fig, axs = plt.subplots(nrows=nvar, ncols=nvar, figsize=figsize,
             subplot_kw={'adjustable': 'box-forced'})
@@ -309,11 +311,38 @@ def get_fit_indexes(llk):
     return posterior_idxs
 
 
-def draw_geodetic_misfit_figures(problem, plot_options):
+def plot_scene(ax, target, data, scattersize, colim,
+               outmode='latlon', **kwargs):
+    if outmode == 'latlon':
+        x = target.lons
+        y = target.lats
+    elif outmode == 'utm':
+        x = target.utme / km
+        y = target.utmn / km
+    elif outmode == 'local':
+        x = target.locx / km
+        y = target.locy / km
+
+    return ax.scatter(
+        x, y, scattersize, data,
+        edgecolors='none', vmin=-colim, vmax=colim, **kwargs)
+
+
+def geodetic_fits(problem, stage, plot_options):
+    """
+    Plot geodetic data, synthetics and residuals.
+    """
+    scattersize = 16
+    fontsize = 10
+    fontsize_title = 12
+    ndmax = 3
+    nxmax = 3
+    cmap = plt.cm.jet
 
     po = plot_options
 
-    stage = load_stage(problem, load='full')
+    target_index = dict(
+        (target, i) for (i, target) in enumerate(problem.gtargets))
 
     figure_path = os.path.join(problem.outfolder, 'figures')
     util.ensuredir(figure_path)
@@ -324,39 +353,196 @@ def draw_geodetic_misfit_figures(problem, plot_options):
     idx = posterior_idxs[po.post_llk]
 
     out_point = population[idx]
+    results = problem.assemble_geodetic_results(out_point)
+    nrmax = len(results)
 
-    d = problem.get_synthetics(out_point)
+    target_to_result = {}
+    for target, result in zip(problem.gtargets, results):
+        target_to_result[target] = result
 
-    dd = d['geodetic']
+    nfigs = int(num.ceil(float(nrmax) / float(ndmax)))
 
-    outfigure = os.path.join(
-        figure_path, 'misfits_%s.%s' % (po.post_llk, po.format))
-    pdfp = PdfPages(outfigure)
+    figures = []
+    axes = []
 
-    for i, gt in enumerate(problem.gtargets):
-        f, axarr = plt.subplots(nrows=1, ncols=3, sharey=True)
-        colim = num.max([num.abs(gt.displacement), num.abs(dd[i])])
+    for f in range(nfigs):
+        fig, ax = plt.subplots(
+            nrows=ndmax, ncols=nxmax, figsize=mpl_papersize('a4', 'portrait'))
+        fig.tight_layout()
+        fig.subplots_adjust(
+                        left=0.08,
+                        right=1.0 - 0.03,
+                        bottom=0.06,
+                        top=1.0 - 0.06,
+                        wspace=0.,
+                        hspace=0.3)
+        figures.append(fig)
+        axes.append(ax)
 
-        im = axarr[0].scatter(
-            gt.lons, gt.lats, 20, gt.displacement,
-            edgecolors='none', vmin=-colim, vmax=colim)
-        plt.title(gt.track)
+    def axis_config(axes, po):
+        axes[1].get_yaxis().set_ticklabels([])
+        axes[2].get_yaxis().set_ticklabels([])
+        axes[1].get_xaxis().set_ticklabels([])
+        axes[2].get_xaxis().set_ticklabels([])
 
-        im = axarr[1].scatter(
-            gt.lons, gt.lats, 20, dd[i],
-            edgecolors='none', vmin=-colim, vmax=colim)
-        f.colorbar(im, ax=axarr[1])
+        if po.plot_projection == 'latlon':
+            ystr = 'Latitude [deg]'
+            xstr = 'Longitude [deg]'
+        elif po.plot_projection == 'utm':
+            ystr = 'UTM Northing [km]'
+            xstr = 'UTM Easting [km]'
+        elif po.plot_projection == 'local':
+            ystr = 'Distance [km]'
+            xstr = 'Distance [km]'
+        else:
+            raise Exception(
+                'Plot projection %s not available' % po.plot_projection)
 
-        im = axarr[2].scatter(
-            gt.lons, gt.lats, 20, gt.displacement - dd[i],
-            edgecolors='none', vmin=-colim, vmax=colim)
-        f.colorbar(im, ax=axarr[2])
+        axes[0].set_ylabel(ystr, fontsize=fontsize)
+        axes[0].set_xlabel(xstr, fontsize=fontsize)
 
-        plt.autoscale(enable=True, axis='both', tight=True)
-        plt.setp([a.get_xticklabels() for a in axarr], visible=False)
-        pdfp.savefig()
+    def cbtick(x):
+        rx = math.floor(x * 1000.) / 1000.
+        return [-rx, rx]
 
-    pdfp.close()
+    def str_title(track):
+        if track[0] == 'A':
+            orbit = 'ascending'
+        elif track[0] == 'D':
+            orbit = 'descending'
+
+        title = 'Orbit: ' + orbit
+        return title
+
+    orbits_to_targets = utility.gather(
+        problem.gtargets,
+        lambda t: t.track,
+        filter=lambda t: t in target_to_result)
+
+    ott = orbits_to_targets.keys()
+
+    colims = [num.max([
+        num.max(num.abs(r.processed_obs)),
+        num.max(num.abs(r.processed_syn))]) for r in results]
+    dcolims = [num.max(num.abs(r.processed_res)) for r in results]
+
+    for o in ott:
+        targets = orbits_to_targets[o]
+
+        for target in targets:
+            if po.plot_projection == 'local':
+                target.update_local_coords(problem.event)
+
+            result = target_to_result[target]
+            tidx = target_index[target]
+
+            figidx, rowidx = utility.mod_i(tidx, ndmax)
+
+            plot_scene(
+                axes[figidx][rowidx, 0],
+                target,
+                result.processed_obs,
+                scattersize,
+                colim=colims[tidx],
+                outmode=po.plot_projection,
+                cmap=cmap)
+
+            syn = plot_scene(
+                axes[figidx][rowidx, 1],
+                target,
+                result.processed_syn,
+                scattersize,
+                colim=colims[tidx],
+                outmode=po.plot_projection,
+                cmap=cmap)
+
+            res = plot_scene(
+                axes[figidx][rowidx, 2],
+                target,
+                result.processed_res,
+                scattersize,
+                colim=dcolims[tidx],
+                outmode=po.plot_projection,
+                cmap=cmap)
+
+            titley = 0.91
+            titlex = 0.16
+
+            axes[figidx][rowidx, 0].annotate(
+                o,
+                xy=(titlex, titley),
+                xycoords='axes fraction',
+                xytext=(2., 2.),
+                textcoords='offset points',
+                weight='bold',
+                fontsize=fontsize_title)
+
+            cbb = 0.68 - (0.3175 * rowidx)
+            cbl = 0.46
+            cbw = 0.15
+            cbh = 0.01
+
+            cbaxes = figures[figidx].add_axes([cbl, cbb, cbw, cbh])
+            dcbaxes = figures[figidx].add_axes([cbl + 0.3, cbb, cbw, cbh])
+
+            cblabel = 'LOS displacement [m]'
+            cbs = plt.colorbar(syn,
+                ax=axes[figidx][rowidx, 0],
+                ticks=cbtick(colims[tidx]),
+                cax=cbaxes,
+                orientation='horizontal',
+                cmap=cmap)
+            cbs.set_label(cblabel, fontsize=fontsize)
+
+            cbr = plt.colorbar(res,
+                ax=axes[figidx][rowidx, 2],
+                ticks=cbtick(dcolims[tidx]),
+                cax=dcbaxes,
+                orientation='horizontal',
+                cmap=cmap)
+            cbr.set_label(cblabel, fontsize=fontsize)
+
+            axis_config(axes[figidx][rowidx, :], po)
+
+            title = str_title(o)
+            figures[figidx].suptitle(
+                title, fontsize=fontsize_title, weight='bold')
+
+    nplots = ndmax * nfigs
+    for delidx in range(nrmax, nplots):
+        figidx, rowidx = utility.mod_i(delidx, ndmax)
+        for colidx in range(nxmax):
+            figures[figidx].delaxes(axes[figidx][rowidx, colidx])
+
+    return figures
+
+
+def draw_geodetic_fits(problem, stage, plot_options):
+
+    assert problem._geodetic_flag
+
+    po = plot_options
+
+    stage = load_stage(problem, stage_number=po.load_stage, load='full')
+
+    mode = problem.config.problem_config.mode
+
+    outpath = os.path.join(
+        problem.config.project_dir,
+        mode, po.figure_dir, 'scenes_%s.%s' % (stage.number, po.outformat))
+
+    if not os.path.exists(outpath) or po.force:
+        figs = geodetic_fits(problem, stage, po)
+    else:
+        logger.info('scene plots exist. Use force=True for replotting!')
+
+    if po.outformat == 'display':
+        plt.show()
+    else:
+        logger.info('saving figures to %s' % outpath)
+        with PdfPages(outpath) as opdf:
+            for fig in figs:
+                opdf.savefig(fig)
 
 
 def plot_trace(axes, tr, **kwargs):
@@ -688,7 +874,9 @@ def seismic_fits(problem, stage, plot_options):
 
 def draw_seismic_fits(problem, po):
 
-    stage = load_stage(problem, load='full')
+    assert problem._seismic_flag
+
+    stage = load_stage(problem, stage_number=po.load_stage, load='full')
 
     mode = problem.config.problem_config.mode
 
@@ -1041,6 +1229,7 @@ plots_catalog = {
     'correlation_hist': draw_correlation_hist,
     'stage_posteriors': draw_posteriors,
     'waveform_fits': draw_seismic_fits,
+    'scene_fits': draw_geodetic_fits,
             }
 
 

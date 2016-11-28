@@ -485,6 +485,8 @@ class IFG(GeodeticTarget):
     utme = Array.T(shape=(None,), dtype=num.float, optional=True)
     lats = Array.T(shape=(None,), dtype=num.float, optional=True)
     lons = Array.T(shape=(None,), dtype=num.float, optional=True)
+    locx = Array.T(shape=(None,), dtype=num.float, optional=True)
+    locy = Array.T(shape=(None,), dtype=num.float, optional=True)
     satellite = String.T(default='Envisat')
 
     def __str__(self):
@@ -518,6 +520,23 @@ class IFG(GeodeticTarget):
         self.los_vector = num.array([Sn, Se, Su], dtype=num.float).T
         return self.los_vector
 
+    def update_local_coords(self, loc):
+        """
+        Calculate local coordinates with respect to given Location.
+
+        Parameters
+        ----------
+        loc : :class:`pyrocko.gf.meta.Location`
+
+        Returns
+        -------
+        :class:`numpy.ndarray` (n_points, 3)
+        """
+
+        self.locy, self.locx = orthodrome.latlon_to_ne_numpy(
+            loc.lat, loc.lon, self.lats, self.lons)
+        return self.locy, self.locx
+
 
 class DiffIFG(IFG):
     """
@@ -540,6 +559,16 @@ class DiffIFG(IFG):
         help='Overlapping data weights, additional weight factor to the'
              'dataset for overlaps with other datasets',
         optional=True)
+
+
+class GeodeticResult(Object):
+    """
+    Result object assembling different geodetic data.
+    """
+    processed_obs = GeodeticTarget.T(optional=True)
+    processed_syn = GeodeticTarget.T(optional=True)
+    processed_res = GeodeticTarget.T(optional=True)
+    llk = Float.T(default=0., optional=True)
 
 
 def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0,
