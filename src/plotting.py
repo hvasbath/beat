@@ -869,7 +869,7 @@ def seismic_fits(problem, stage, plot_options):
 
             fig.suptitle(title, fontsize=fontsize_title)
 
-    return figures
+    return figs
 
 
 def draw_seismic_fits(problem, po):
@@ -888,6 +888,7 @@ def draw_seismic_fits(problem, po):
         figs = seismic_fits(problem, stage, po)
     else:
         logger.info('waveform plots exist. Use force=True for replotting!')
+        continue
 
     if po.outformat == 'display':
         plt.show()
