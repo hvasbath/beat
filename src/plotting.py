@@ -869,7 +869,7 @@ def seismic_fits(problem, stage, plot_options):
 
             fig.suptitle(title, fontsize=fontsize_title)
 
-    return figs
+    return figures
 
 
 def draw_seismic_fits(problem, po):
