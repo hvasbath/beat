@@ -504,7 +504,7 @@ def geodetic_fits(problem, stage, plot_options):
 
             axis_config(axes[figidx][rowidx, :], po)
 
-            title = str_title(o)
+            title = str_title(o) + ' Llk_' + po.post_llk
             figures[figidx].suptitle(
                 title, fontsize=fontsize_title, weight='bold')
 
@@ -517,7 +517,7 @@ def geodetic_fits(problem, stage, plot_options):
     return figures
 
 
-def draw_geodetic_fits(problem, stage, plot_options):
+def draw_geodetic_fits(problem, plot_options):
 
     assert problem._geodetic_flag
 
