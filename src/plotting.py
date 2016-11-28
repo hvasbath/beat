@@ -529,7 +529,8 @@ def draw_geodetic_fits(problem, plot_options):
 
     outpath = os.path.join(
         problem.config.project_dir,
-        mode, po.figure_dir, 'scenes_%s.%s' % (stage.number, po.outformat))
+        mode, po.figure_dir, 'scenes_%s_%s.%s' % (
+            stage.number, po.post_llk, po.outformat))
 
     if not os.path.exists(outpath) or po.force:
         figs = geodetic_fits(problem, stage, po)
@@ -882,13 +883,14 @@ def draw_seismic_fits(problem, po):
 
     outpath = os.path.join(
         problem.config.project_dir,
-        mode, po.figure_dir, 'waveforms_%s.%s' % (stage.number, po.outformat))
+        mode, po.figure_dir, 'waveforms_%s_%s.%s' % (
+            stage.number, po.post_llk, po.outformat))
 
     if not os.path.exists(outpath) or po.force:
         figs = seismic_fits(problem, stage, po)
     else:
         logger.info('waveform plots exist. Use force=True for replotting!')
-        continue
+        pass
 
     if po.outformat == 'display':
         plt.show()
