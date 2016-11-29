@@ -457,6 +457,34 @@ def utm_to_loc(utmx, utmy, zone, event):
     return locx, locy
 
 
+def lonlat_to_utm(lon, lat, zone):
+    """
+    Convert UTM[m] to local coordinates with reference to the
+    :class:`pyrocko.model.Event`
+
+    Parameters
+    ----------
+    utmx : :class:`numpy.ndarray`
+        with UTM easting
+    utmy : :class:`numpy.ndarray`
+        with UTM northing
+    zone : int
+        number with utm zone
+    event : :class:`pyrocko.model.Event`
+
+    Returns
+    -------
+    utme : :class:`numpy.ndarray`
+        Local coordinates [m] for x direction (East)
+    utmn : :class:`numpy.ndarray`
+        Local coordinates [m] for y direction (North)
+    """
+
+    p = Proj(proj='utm', zone=zone, ellps='WGS84')
+    utme, utmn = p(lon, lat)
+    return utme, utmn
+
+
 def utm_to_lonlat(utmx, utmy, zone):
     """
     Convert UTM[m] to Latitude and Longitude coordinates.
@@ -842,4 +870,3 @@ def gather(l, key, sort=None, filter=None):
             v.sort(key=sort)
 
     return d
-

@@ -4,6 +4,7 @@ from pymc3 import plots as pmp
 import math
 import os
 import logging
+import copy
 
 from beat import utility, backend
 from beat.models import load_stage
@@ -33,6 +34,10 @@ class PlotOptions(Object):
     plot_projection = String.T(
         default='utm',
         help='Projection to use for plotting geodetic data; options: "latlon"')
+    utm_zone = Int.T(
+        default=36,
+        optional=True,
+        help='Only relevant if plot_projection is "utm"')
     load_stage = String.T(
         default='final',
         help='Which ATMCMC stage to select for plotting')
@@ -341,6 +346,10 @@ def geodetic_fits(problem, stage, plot_options):
 
     po = plot_options
 
+    if po.reference is not None:
+        problem.get_synthetics(po.reference)
+        ref_sources = copy.deepcopy(problem.sources)
+
     target_index = dict(
         (target, i) for (i, target) in enumerate(problem.gtargets))
 
@@ -400,6 +409,22 @@ def geodetic_fits(problem, stage, plot_options):
 
         axes[0].set_ylabel(ystr, fontsize=fontsize)
         axes[0].set_xlabel(xstr, fontsize=fontsize)
+
+    def draw_sources(ax, sources, po, **kwargs):
+        for source in sources:
+            rf = source.patches(1, 1, 'seismic')[0]
+            if po.plot_projection == 'latlon':
+                outline = rf.outline(cs='lonlat')
+            elif po.plot_projection == 'utm':
+                outline = rf.outline(cs='lonlat')
+                utme, utmn = utility.lonlat_to_utm(
+                    lon=outline[:, 0], lat=outline[:, 1], zone=po.utm_zone)
+                outline = num.vstack([utme / km, utmn / km]).T
+            elif po.plot_projection == 'local':
+                outline = rf.outline(cs='xy')
+            ax.plot(outline[:, 0], outline[:, 1], '-', linewidth=1.0, **kwargs)
+            ax.plot(
+                outline[0:2, 0], outline[0:2, 1], '-k', linewidth=1.0)
 
     def cbtick(x):
         rx = math.floor(x * 1000.) / 1000.
@@ -476,6 +501,17 @@ def geodetic_fits(problem, stage, plot_options):
                 textcoords='offset points',
                 weight='bold',
                 fontsize=fontsize_title)
+
+            syn_color = scolor('plum1')
+            ref_color = scolor('aluminium3')
+
+            draw_sources(
+                axes[figidx][rowidx, 1], problem.sources, po, color=syn_color)
+
+            if po.reference is not None:
+                draw_sources(
+                    axes[figidx][rowidx, 1],
+                    ref_sources, po, color=ref_color)
 
             cbb = 0.68 - (0.3175 * rowidx)
             cbl = 0.46
