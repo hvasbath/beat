@@ -58,12 +58,15 @@ class Problem(Object):
         if 'geodetic' in pc.datasets:
             self._geodetic_flag = True
 
-    def init_sampler(self):
+    def init_sampler(self, hypers=False):
         """
         Initialise the Sampling algorithm as defined in the configuration file.
         """
 
-        sc = self.config.sampler_config
+        if hypers:
+            sc = self.config.hyper_sampler_config
+        else:
+            sc = self.config.sampler_config
 
         if self.model is None:
             raise Exception(
@@ -118,9 +121,6 @@ class GeometryOptimizer(Problem):
 
     def __init__(self, config):
         logger.info('... Initialising Geometry Optimizer ... \n')
-
-        self.outfolder = os.path.join(config.project_dir, 'geometry')
-        util.ensuredir(self.outfolder)
 
         pc = config.problem_config
 
@@ -208,7 +208,7 @@ class GeometryOptimizer(Problem):
             self.sweights = []
             for s_t in range(self.ns_t):
                 self.stargets[s_t].covariance.data = cov_ds_seismic[s_t]
-                icov = self.stargets[s_t].covariance.get_inverse()
+                icov = self.stargets[s_t].covariance.inverse
                 self.sweights.append(shared(icov))
 
             # syntetics generation
@@ -249,7 +249,7 @@ class GeometryOptimizer(Problem):
 
             self.gweights = []
             for g_t in range(self.ng_t):
-                icov = self.gtargets[g_t].covariance.get_inverse()
+                icov = self.gtargets[g_t].covariance.inverse
                 self.gweights.append(shared(icov))
 
             # merge geodetic data to call pscmp only once each forward model
@@ -346,10 +346,14 @@ class GeometryOptimizer(Problem):
     def built_model(self):
         """
         Initialise :class:`pymc3.Model` depending on configuration file,
-        geodetic and/or seismic data are included.
+        geodetic and/or seismic data are included. Estimates the fault(s)
+        geometry.
         """
 
         logger.info('... Building model ...\n')
+
+        self.outfolder = os.path.join(self.config.project_dir, 'geometry')
+        util.ensuredir(self.outfolder)
 
         with pm.Model() as self.model:
 
@@ -473,6 +477,113 @@ class GeometryOptimizer(Problem):
             llk = pm.Potential(self._like_name, like)
             logger.info('Model building was successful!')
 
+    def built_hyper_model(self):
+        """
+        Initialise :class:`pymc3.Model` depending on configuration file,
+        geodetic and/or seismic data are included. Estimates initial parameter
+        bounds for hyperparameters.
+        """
+
+        logger.info('... Building Hyper model ...\n')
+
+        self.outfolder = os.path.join(
+            self.config.project_dir, 'geometry', 'hypers')
+        util.ensuredir(self.outfolder)
+
+        pc = self.config.problem_config
+
+        point = {}
+        for param in pc.priors:
+            point[param.name] = param.testvalue
+
+        if self._seismic_flag:
+            sresults = self.assemble_seismic_results(point)
+
+            self._seis_llks = []
+            for k, result in enumerate(sresults):
+                icov = self.stargets[k].covariance.inverse
+                self._seis_llks.append(shared(
+                    result.processed_res.ydata.dot(
+                        icov).dot(result.processed_res.ydata.T)))
+
+        if self._geodetic_flag:
+            gresults = self.assemble_geodetic_results(point)
+
+            self._geo_llks = []
+            for k, result in enumerate(gresults):
+                icov = self.gtargets[k].covariance.inverse
+                self._geo_llks.append(shared(
+                    result.processed_res.dot(
+                        icov).dot(result.processed_res.T)))
+
+        with pm.Model() as self.model:
+            self.hyperparams = {}
+            n_hyp = len(pc.hyperparameters.keys())
+
+            logger.debug('Optimization for %i hyperparemeters', n_hyp)
+
+            for hyperpar in pc.hyperparameters.itervalues():
+                if not self._seismic_flag and n_hyp == 1:
+                    self.hyperparams[hyperpar.name] = 1.
+                else:
+                    self.hyperparams[hyperpar.name] = pm.Uniform(
+                        hyperpar.name,
+                        shape=hyperpar.dimension,
+                        lower=hyperpar.lower,
+                        upper=hyperpar.upper,
+                        testval=hyperpar.testvalue,
+                        transform=None)
+
+            total_llk = tt.zeros((1), tconfig.floatX)
+
+            if self._seismic_flag:
+
+                logpts_s = tt.zeros((self.ns_t), tconfig.floatX)
+
+                for k, target in enumerate(self.stargets):
+                    M = sresults[k].processed_res.ydata.size
+                    sfactor = target.covariance.log_norm_factor
+                    hp_name = bconfig.hyper_pars[target.codes[3]]
+
+                    logpts_s = tt.set_subtensor(logpts_s[k:k + 1],
+                        (-0.5) * (sfactor - \
+                        (M * 2 * self.hyperparams[hp_name]) + \
+                        tt.exp(self.hyperparams[hp_name] * 2) * \
+                            self._seis_llks[k]
+                                 )
+                                                )
+
+                seis_llk = pm.Deterministic(self._seis_like_name, logpts_s)
+
+                total_llk = total_llk + seis_llk.sum()
+
+            if self._geodetic_flag:
+
+                logpts_g = tt.zeros((self.ng_t), tconfig.floatX)
+
+                for l, target in enumerate(self.gtargets):
+                    M = target.displacement.size
+                    gfactor = target.covariance.log_norm_factor
+                    hp_name = bconfig.hyper_pars[target.typ]
+
+                    logpts_g = tt.set_subtensor(logpts_g[l:l + 1],
+                         (-0.5) * (gfactor - \
+                         (M * 2 * self.hyperparams[hp_name]) + \
+                         tt.exp(self.hyperparams[hp_name] * 2) * \
+                         self._geo_llks[l]
+                                  )
+                                               )
+
+                geo_llk = pm.Deterministic(self._geo_like_name, logpts_g)
+
+                total_llk = total_llk + geo_llk.sum()
+
+            like = pm.Deterministic(
+                self._like_name, total_llk)
+
+            llk = pm.Potential(self._like_name, like)
+            logger.info('Hyper model building was successful!')
+
     def update_weights(self, point, n_jobs=1, plot=False):
         """
         Calculate and update model prediction uncertainty covariances
@@ -540,7 +651,7 @@ class GeometryOptimizer(Problem):
                     index = j * len(self.stations) + i
 
                     self.stargets[index].covariance.pred_v = cov_pv
-                    icov = self.stargets[index].covariance.get_inverse()
+                    icov = self.stargets[index].covariance.inverse
                     self.sweights[index].set_value(icov)
 
         # geodetic
@@ -558,7 +669,7 @@ class GeometryOptimizer(Problem):
                 cov_pv = utility.ensure_cov_psd(cov_pv)
 
                 gtarget.covariance.pred_v = cov_pv
-                icov = gtarget.covariance.get_inverse()
+                icov = gtarget.covariance.inverse
                 self.gweights[i].set_value(icov)
 
     def get_synthetics(self, point, **kwargs):
@@ -761,7 +872,7 @@ class GeometryOptimizer(Problem):
         return results
 
 
-def sample(step, problem):
+def sample(step, problem, hypers=False):
     """
     Sample solution space with the previously initalised algorithm.
 
@@ -773,29 +884,46 @@ def sample(step, problem):
     problem : :class:`Problem` with characteristics of problem to solve
     """
 
-    sc = problem.config.sampler_config.parameters
+    if hypers:
+        sc = problem.config.hyper_sampler_config
 
-    if problem.config.sampler_config.name == 'Metropolis':
+    else:
+        sc = problem.config.sampler_config
+
+    pa = sc.parameters
+
+    if sc.name == 'Metropolis':
         logger.info('... Starting Metropolis ...\n')
-        pm.sample(draws=sc.n_steps, step=step, model=problem.model)
 
-    elif problem.config.sampler_config.name == 'ATMCMC':
+        name = os.path.join(problem.outfolder, 'stage_0')
+        util.ensuredir(name)
+
+        pm.sample(
+            draws=pa.n_steps,
+            step=step,
+            trace=pm.backends.Text(
+                name=name,
+                model=problem.model),
+            model=problem.model)
+
+    elif sc.name == 'ATMCMC':
         if sc.update_covariances:
             update = problem
         else:
             update = None
 
         logger.info('... Starting ATMIP ...\n')
+
         atmcmc.ATMIP_sample(
-            sc.n_steps,
+            pa.n_steps,
             step=step,
-            progressbar=True,
+            progressbar=False,
             model=problem.model,
-            n_jobs=sc.n_jobs,
-            stage=sc.stage,
+            n_jobs=pa.n_jobs,
+            stage=pa.stage,
             update=update,
             trace=problem.outfolder,
-            rm_flag=sc.rm_flag)
+            rm_flag=pa.rm_flag)
 
 
 def choose_proposal(proposal_dist):
@@ -830,7 +958,7 @@ def choose_proposal(proposal_dist):
     return distribution
 
 
-def load_model(project_dir, mode):
+def load_model(project_dir, mode, hypers=False):
     """
     Load config from project directory and return BEAT problem including model.
 
@@ -840,6 +968,8 @@ def load_model(project_dir, mode):
         path to beat model directory
     mode : string
         problem name to be loaded
+    hypers : boolean
+        flag to return hyper parameter estimation model instead of main model.
 
     Returns
     -------
@@ -856,7 +986,10 @@ def load_model(project_dir, mode):
         logger.error('Modeling problem %s not supported' % pc.mode)
         raise Exception('Model not supported')
 
-    problem.built_model()
+    if hypers:
+        problem.built_hyper_model()
+    else:
+        problem.built_model()
     return problem
 
 
@@ -877,7 +1010,7 @@ class ATMCMCStage(object):
 
 def load_stage(problem, stage_number=None, load='trace'):
     """
-    Load stage results from ATMIP sampling.
+    Load stage results from sampling.
 
     Parameters
     ----------

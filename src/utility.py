@@ -870,3 +870,22 @@ def gather(l, key, sort=None, filter=None):
             v.sort(key=sort)
 
     return d
+
+
+def check_hyper_flag(problem):
+    """
+    Check problem setup for type of model standard/hyperparameters.
+
+    Parameters
+    ----------
+    :class:`models.Problem`
+
+    Returns
+    -------
+    flag : boolean
+    """
+
+    if os.path.basename(problem.outfolder) == 'hypers':
+        return True
+    else:
+        return False

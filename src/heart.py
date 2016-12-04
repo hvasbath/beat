@@ -314,19 +314,22 @@ class Covariance(Object):
 
         return self.pred_g + self.pred_v
 
-    def get_inverse(self):
+    @property
+    def inverse(self):
         """
         Add and invert ALL uncertainty covariance Matrices.
         """
         return num.linalg.inv(self.p_total + self.data)
 
-    def get_inverse_p(self):
+    @property
+    def inverse_p(self):
         """
         Add and invert different MODEL uncertainty covariance Matrices.
         """
         return num.linalg.inv(self.p_total)
 
-    def get_inverse_d(self):
+    @property
+    def inverse_d(self):
         """
         Invert DATA covariance Matrix.
         """

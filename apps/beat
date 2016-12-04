@@ -163,8 +163,14 @@ def command_init(args):
 
         parser.add_option('--sampler', dest='sampler', type='string',
             default='ATMCMC',
-            help='Sampling algoruthm to sample the solution space;'
-                 '"ATMCMC", "Metropolis". Default: "ATMCMC"')
+            help='Sampling algoruthm to sample the solution space of the'
+                 ' general problem; "ATMCMC", "Metropolis". Default: "ATMCMC"')
+
+        parser.add_option('--hyper_sampler', dest='hyper_sampler',
+            type='string', default='Metropolis',
+            help='Sampling algoruthm to sample the solution space of the'
+                 ' hyperparameters only;'
+                 '"ATMCMC", "Metropolis". Default: "Metropolis"')
 
         parser.add_option('--use_custom', dest='use_custom',
             action='store_true',
@@ -187,6 +193,7 @@ def command_init(args):
                mode=options.mode,
                n_faults=options.n_faults,
                sampler=options.sampler,
+               hyper_sampler=options.hyper_sampler,
                use_custom=options.use_custom)
 
 
@@ -371,7 +378,7 @@ def command_sample(args):
 
     def setup(parser):
         parser.add_option('--mode', dest='mode',
-            choices=['geometry', 'static_dist', 'kinemtic_dist'],
+            choices=['geometry', 'static_dist', 'kinematic_dist'],
             default='geometry',
             help='Inversion problem to solve; "geometry", "static_dist",'
                  '"kinematic_dist". Default: "geometry"')
@@ -381,6 +388,9 @@ def command_sample(args):
             help='Main path (absolute) leading to folders of events that'
                  ' have been created by "init".'
                  ' Default: current directory: ./')
+
+        parser.add_option('--hypers', dest='hypers',
+                action='store_true', help='Sample hyperparameters only.')
 
     parser, options, args = cl_parse('sample', args, setup=setup)
 
@@ -394,11 +404,12 @@ def command_sample(args):
     main_path = os.getcwd()
     project_dir = os.path.join(main_path, name)
 
-    problem = models.load_model(project_dir, options.mode)
+    problem = models.load_model(
+        project_dir, options.mode, options.hypers)
 
-    step = problem.init_sampler()
+    step = problem.init_sampler(hypers=options.hypers)
 
-    models.sample(step, problem)
+    models.sample(step, problem, options.hypers)
 
 
 def command_build_gfs(args):
@@ -554,6 +565,9 @@ def command_plot(args):
         parser.add_option('--reference', dest='reference', action='store_true',
                 help='Plot reference (test_point) into stage posteriors.')
 
+        parser.add_option('--hypers', dest='hypers',
+            action='store_true', help='Plot hyperparameter results only.')
+
     plots_avail = plotting.available_plots()
 
     details = '''Available <plot types> are: %s or "all". Multiple plots can be
@@ -580,7 +594,7 @@ selected giving a comma seperated list.''' % (
     project_dir = os.path.join(main_path, args[0])
 
     logger.info('Loading problem ...')
-    problem = models.load_model(project_dir, options.mode)
+    problem = models.load_model(project_dir, options.mode, options.hypers)
 
     po = plotting.PlotOptions(
         post_llk=options.post_llk,
@@ -593,6 +607,9 @@ selected giving a comma seperated list.''' % (
         po.reference = problem.model.test_point
     else:
         po.reference = None
+
+    figure_path = os.path.join(problem.outfolder, po.figure_dir)
+    util.ensuredir(figure_path)
 
     for plot in plotnames:
         plotting.plots_catalog[plot](problem, po)

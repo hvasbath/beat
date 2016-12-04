@@ -277,10 +277,10 @@ class MetropolisConfig(SamplerParameters):
     """
     Config for optimization parameters of the Adaptive Metropolis algorithm.
     """
-    n_steps = Int.T(default=10000,
+    n_steps = Int.T(default=100000,
                     help='Number of steps for the MC chain.')
     tune_interval = Int.T(
-        default=10,
+        default=100,
         help='Tune interval for adaptive tuning of Metropolis step size.')
     proposal_dist = String.T(
         default='Normal',
@@ -374,6 +374,7 @@ class BEATconfig(Object):
     seismic_config = SeismicConfig.T(
         default=None, optional=True)
     sampler_config = SamplerConfig.T(default=SamplerConfig.D())
+    hyper_sampler_config = SamplerConfig.T(default=SamplerConfig.D())
 
     def update_hypers(self):
         """
@@ -409,7 +410,8 @@ class BEATconfig(Object):
 def init_config(name, date, min_magnitude=6.0, main_path='./',
                 datasets=['geodetic'],
                 mode='geometry', n_faults=1,
-                sampler='ATMCMC', use_custom=False):
+                sampler='ATMCMC', hyper_sampler='Metropolis',
+                use_custom=False):
     """
     Initialise BEATconfig File and write it main_path/name .
     Fine parameters have to be edited in the config file .yaml manually.
@@ -475,6 +477,9 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
         c.seismic_config = None
 
     c.sampler_config = SamplerConfig(name=sampler)
+    c.sampler_config.set_parameters()
+
+    c.sampler_config = SamplerConfig(name=hyper_sampler)
     c.sampler_config.set_parameters()
 
     c.update_hypers()

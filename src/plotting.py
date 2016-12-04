@@ -220,6 +220,7 @@ def correlation_plot_hist(mtrace, varnames=None,
             subplot_kw={'adjustable': 'box-forced'})
 
     d = dict()
+
     for var in varnames:
         d[var] = transform(mtrace.get_values(
                 var, combine=True, squeeze=True))
@@ -352,9 +353,6 @@ def geodetic_fits(problem, stage, plot_options):
 
     target_index = dict(
         (target, i) for (i, target) in enumerate(problem.gtargets))
-
-    figure_path = os.path.join(problem.outfolder, 'figures')
-    util.ensuredir(figure_path)
 
     population, _, llk = stage.step.select_end_points(stage.mtrace)
 
@@ -620,9 +618,6 @@ def seismic_fits(problem, stage, plot_options):
         (target, i) for (i, target) in enumerate(problem.stargets))
 
     po = plot_options
-
-    figure_path = os.path.join(problem.outfolder, po.figure_dir)
-    util.ensuredir(figure_path)
 
     population, _, llk = stage.step.select_end_points(stage.mtrace)
 
@@ -911,6 +906,7 @@ def seismic_fits(problem, stage, plot_options):
 def draw_seismic_fits(problem, po):
 
     assert problem._seismic_flag
+    assert po.sampler == 'ATMCMC'
 
     stage = load_stage(problem, stage_number=po.load_stage, load='full')
 
@@ -1177,27 +1173,43 @@ def draw_correlation_hist(problem, plot_options):
     Only feasible for 'geometry' problem.
     """
 
+    po = plot_options
     mode = problem.config.problem_config.mode
 
     assert mode == 'geometry'
+    hypers = utility.check_hyper_flag(problem)
 
-    def last_sample(x):
-        return x[(n_steps - 1)::n_steps].flatten()
+    if hypers:
+        sc = problem.config.hyper_sampler_config
+        varnames = problem.config.problem_config.hyperparameters.keys()
+        po.load_stage = '0'
+    else:
+        sc = problem.config.sampler_config
+        varnames = problem.config.problem_config.select_variables()
 
-    n_steps = problem.config.sampler_config.parameters.n_steps
+    if sc.name == 'ATMCMC':
+        def last_sample(x):
+            return x[(n_steps - 1)::n_steps].flatten()
 
-    po = plot_options
-    stage = load_stage(problem, po.load_stage, load='trace')
+        transform = last_sample
+    else:
+        def burn_sample(x):
+            return x[(n_steps / 2):n_steps:2]
+
+        transform = burn_sample
 
     outpath = os.path.join(
-        problem.config.project_dir,
-        mode, po.figure_dir, 'corr_hist_%s.%s' % (stage.number, po.outformat))
+        problem.outfolder, po.figure_dir, 'corr_hist.%s' % (po.outformat))
+
+    n_steps = sc.parameters.n_steps
+
+    stage = load_stage(problem, po.load_stage, load='trace')
 
     if not os.path.exists(outpath) or po.force:
         fig, axs = correlation_plot_hist(
             mtrace=stage.mtrace,
-            varnames=problem.config.problem_config.select_variables(),
-            transform=last_sample,
+            varnames=varnames,
+            transform=transform,
             cmap=plt.cm.gist_earth_r,
             point=po.reference,
             point_size='8',

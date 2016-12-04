@@ -156,7 +156,7 @@ class Text(BaseATMCMCTrace):
 
         self.flat_names = {v: ttab.create_flat_names(v, shape)
                            for v, shape in self.var_shapes.items()}
-
+        print self.flat_names
         self.filename = None
         self.df = None
         self.corrupted_flag = False
