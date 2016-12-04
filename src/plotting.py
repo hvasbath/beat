@@ -1194,16 +1194,17 @@ def draw_correlation_hist(problem, plot_options):
         transform = last_sample
     else:
         def burn_sample(x):
-            return x[(n_steps / 2):n_steps:2]
+            return x[(n_steps / 2):n_steps:2].flatten()
 
         transform = burn_sample
-
-    outpath = os.path.join(
-        problem.outfolder, po.figure_dir, 'corr_hist.%s' % (po.outformat))
 
     n_steps = sc.parameters.n_steps
 
     stage = load_stage(problem, po.load_stage, load='trace')
+
+    outpath = os.path.join(
+        problem.outfolder, po.figure_dir, 'corr_hist_%s.%s' % (
+        stage.number, po.outformat))
 
     if not os.path.exists(outpath) or po.force:
         fig, axs = correlation_plot_hist(

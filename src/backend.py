@@ -156,7 +156,6 @@ class Text(BaseATMCMCTrace):
 
         self.flat_names = {v: ttab.create_flat_names(v, shape)
                            for v, shape in self.var_shapes.items()}
-        print self.flat_names
         self.filename = None
         self.df = None
         self.corrupted_flag = False
@@ -241,7 +240,7 @@ class Text(BaseATMCMCTrace):
         varname : str
             Variable name for which values are to be retrieved.
         burn : int
-            Burn-in samples from trace. This is the number of samples to be 
+            Burn-in samples from trace. This is the number of samples to be
             thrown out from the start of the trace
         thin : int
             Nuber of thinning samples. Throw out every 'thin' sample of the
