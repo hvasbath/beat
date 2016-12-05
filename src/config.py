@@ -277,15 +277,26 @@ class MetropolisConfig(SamplerParameters):
     """
     Config for optimization parameters of the Adaptive Metropolis algorithm.
     """
-    n_steps = Int.T(default=100000,
+    n_steps = Int.T(default=25000,
                     help='Number of steps for the MC chain.')
     tune_interval = Int.T(
-        default=100,
+        default=50,
         help='Tune interval for adaptive tuning of Metropolis step size.')
     proposal_dist = String.T(
         default='Normal',
         help='Normal Proposal distribution, for Metropolis steps'
              'alternatives: Cauchy, Laplace, Poisson, MultivariateNormal')
+    update_covariances = Bool.T(
+        default=False,
+        help='Update model prediction covariance matrixes in transition '
+             'stages.')
+    n_jobs = Int.T(
+        default=1,
+        help='Number of processors to use, i.e. chains to sample in parallel.')
+    n_stages = Int.T(
+        default=10,
+        help='Number of stages to sample/ or points in solution spacce for'
+             ' hyperparameter estimation')
 
 
 class ATMCMCConfig(SamplerParameters):

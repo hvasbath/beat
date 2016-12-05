@@ -409,7 +409,10 @@ def command_sample(args):
 
     step = problem.init_sampler(hypers=options.hypers)
 
-    models.sample(step, problem, options.hypers)
+    if options.hypers:
+        models.estimate_hypers(step, problem)
+    else:
+        models.sample(step, problem)
 
 
 def command_build_gfs(args):

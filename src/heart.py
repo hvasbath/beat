@@ -39,25 +39,6 @@ lambda_sensors = {
     }
 
 
-class PickleableTrace(trace.Trace):
-    """
-    Class build on top of :class:`pyrocko.trace.Trace` to make them pickleable.
-    Obsolete as this has been implemented in pyrocko.
-    """
-    def __reduce__(self):
-        pickled_state = super(PickleableTrace, self).__reduce__()
-        if self.ydata is not None:
-            updated_state = pickled_state[2] + (self.ydata,)
-        else:
-            updated_state = pickled_state[2]
-
-        return (pickled_state[0], pickled_state[1], updated_state)
-
-    def __setstate__(self, state):
-        super(PickleableTrace, self).__setstate__(state[0:-1])
-        self.ydata = state[-1]
-
-
 class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
     """
     Source for rectangular fault that unifies the necessary different source
@@ -451,6 +432,17 @@ class Parameter(Object):
                     self.testvalue[i] < self.lower[i]:
                     raise Exception('the testvalue of parameter "%s" has to be'
                         'within the upper and lower bounds' % self.name)
+
+    def random(self):
+        """
+        Create random samples within the parameter bounds.
+
+        Returns
+        -------
+        :class:`numpy.ndarray` of size (n, m)
+        """
+        return (self.upper - self.lower) * num.random.rand(
+            self.dimension) + self.lower
 
     @property
     def dimension(self):

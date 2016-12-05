@@ -496,25 +496,7 @@ class GeometryOptimizer(Problem):
         for param in pc.priors:
             point[param.name] = param.testvalue
 
-        if self._seismic_flag:
-            sresults = self.assemble_seismic_results(point)
-
-            self._seis_llks = []
-            for k, result in enumerate(sresults):
-                icov = self.stargets[k].covariance.inverse
-                self._seis_llks.append(shared(
-                    result.processed_res.ydata.dot(
-                        icov).dot(result.processed_res.ydata.T)))
-
-        if self._geodetic_flag:
-            gresults = self.assemble_geodetic_results(point)
-
-            self._geo_llks = []
-            for k, result in enumerate(gresults):
-                icov = self.gtargets[k].covariance.inverse
-                self._geo_llks.append(shared(
-                    result.processed_res.dot(
-                        icov).dot(result.processed_res.T)))
+        self.update_llks(point)
 
         with pm.Model() as self.model:
             self.hyperparams = {}
@@ -539,9 +521,10 @@ class GeometryOptimizer(Problem):
             if self._seismic_flag:
 
                 logpts_s = tt.zeros((self.ns_t), tconfig.floatX)
+                sc = self.config.seismic_config
 
                 for k, target in enumerate(self.stargets):
-                    M = sresults[k].processed_res.ydata.size
+                    M = sc.arrival_taper.duration * sc.gf_config.sample_rate
                     sfactor = target.covariance.log_norm_factor
                     hp_name = bconfig.hyper_pars[target.codes[3]]
 
@@ -766,7 +749,7 @@ class GeometryOptimizer(Problem):
         """
         assert self._seismic_flag
 
-        logger.info('Assembling seismic waveforms ...')
+        logger.debug('Assembling seismic waveforms ...')
 
         if self._geodetic_flag:
             self._geodetic_flag = False
@@ -847,7 +830,7 @@ class GeometryOptimizer(Problem):
         """
         assert self._geodetic_flag
 
-        logger.info('Assembling geodetic data ...')
+        logger.debug('Assembling geodetic data ...')
 
         if self._seismic_flag:
             self._seismic_flag = False
@@ -871,8 +854,33 @@ class GeometryOptimizer(Problem):
 
         return results
 
+    def update_llks(self, point):
+        """
+        Calculate likelihood with respect to given point in the solution space.
+        """
 
-def sample(step, problem, hypers=False):
+        if self._seismic_flag:
+            sresults = self.assemble_seismic_results(point)
+
+            self._seis_llks = []
+            for k, result in enumerate(sresults):
+                icov = self.stargets[k].covariance.inverse
+                self._seis_llks.append(shared(
+                    result.processed_res.ydata.dot(
+                        icov).dot(result.processed_res.ydata.T)))
+
+        if self._geodetic_flag:
+            gresults = self.assemble_geodetic_results(point)
+
+            self._geo_llks = []
+            for k, result in enumerate(gresults):
+                icov = self.gtargets[k].covariance.inverse
+                self._geo_llks.append(shared(
+                    result.processed_res.dot(
+                        icov).dot(result.processed_res.T)))
+
+
+def sample(step, problem):
     """
     Sample solution space with the previously initalised algorithm.
 
@@ -884,18 +892,18 @@ def sample(step, problem, hypers=False):
     problem : :class:`Problem` with characteristics of problem to solve
     """
 
-    if hypers:
-        sc = problem.config.hyper_sampler_config
-
-    else:
-        sc = problem.config.sampler_config
-
+    sc = problem.config.sampler_config
     pa = sc.parameters
+
+    if pa.update_covariances:
+        update = problem
+    else:
+        update = None
 
     if sc.name == 'Metropolis':
         logger.info('... Starting Metropolis ...\n')
 
-        name = os.path.join(problem.outfolder, 'stage_0')
+        name = problem.outfolder
         util.ensuredir(name)
 
         pm.sample(
@@ -904,14 +912,11 @@ def sample(step, problem, hypers=False):
             trace=pm.backends.Text(
                 name=name,
                 model=problem.model),
-            model=problem.model)
+            model=problem.model,
+            n_jobs=pa.n_jobs,
+            update=update)
 
     elif sc.name == 'ATMCMC':
-        if sc.update_covariances:
-            update = problem
-        else:
-            update = None
-
         logger.info('... Starting ATMIP ...\n')
 
         atmcmc.ATMIP_sample(
@@ -924,6 +929,78 @@ def sample(step, problem, hypers=False):
             update=update,
             trace=problem.outfolder,
             rm_flag=pa.rm_flag)
+
+
+def estimate_hypers(step, problem):
+    """
+    Get initial estimates of the hyperparameters
+    """
+    logger.info('... Estimating hyperparameters ...')
+
+    pc = problem.config.problem_config
+    sc = problem.config.hyper_sampler_config
+    pa = sc.parameters
+
+    name = problem.outfolder
+    util.ensuredir(name)
+
+    mtraces = []
+    for stage in range(pa.n_stages):
+        logger.info('Metropolis stage %i' % stage)
+        point = {param.name: param.random() for param in pc.priors}
+        print point
+        problem.outfolder = os.path.join(name, 'stage_%i' % stage)
+
+        for g in problem._geo_llks:
+            print g.get_value()
+
+        if not os.path.exists(problem.outfolder):
+            logger.debug('Sampling ...')
+            problem.update_llks(point)
+            logger
+            with problem.model as model:
+                mtraces.append(pm.sample(
+                    draws=pa.n_steps,
+                    step=step,
+                    trace=pm.backends.Text(
+                        name=problem.outfolder,
+                        model=problem.model),
+                    model=model,
+                    chain=stage * pa.n_jobs,
+                    njobs=pa.n_jobs,
+                    ))
+
+        else:
+            logger.debug('Loading existing results!')
+            mtraces.append(pm.backends.text.load(
+                name=problem.outfolder, model=problem.model))
+
+    mtrace = pm.backends.base.merge_traces(mtraces)
+    outname = os.path.join(name, 'stage_final')
+
+    if not os.path.exists(outname):
+        util.ensuredir(outname)
+        pm.backends.text.dump(name=outname, trace=mtrace)
+
+    n_steps = pa.n_steps
+    varnames = pc.hyperparameters.keys()
+
+    def burn_sample(x):
+        return x[(n_steps / 2):n_steps:2]
+
+    for v in varnames:
+        d = burn_sample(mtrace.get_values(v, combine=True, squeeze=True))
+        lower = d.min(axis=0)
+        upper = d.max(axis=0)
+        pc.hyperparameters[v].lower = lower
+        pc.hyperparameters[v].upper = upper
+        pc.hyperparameters[v].testvalue = (upper + lower) / 2.
+
+    config_file_name = 'config_' + pc.mode + '.yaml'
+    conf_out = os.path.join(problem.config.project_dir, config_file_name)
+
+    problem.config.problem_config = pc
+    bconfig.dump(problem.config, filename=conf_out)
 
 
 def choose_proposal(proposal_dist):

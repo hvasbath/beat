@@ -1182,7 +1182,7 @@ def draw_correlation_hist(problem, plot_options):
     if hypers:
         sc = problem.config.hyper_sampler_config
         varnames = problem.config.problem_config.hyperparameters.keys()
-        po.load_stage = '0'
+        po.load_stage = 'final'
     else:
         sc = problem.config.sampler_config
         varnames = problem.config.problem_config.select_variables()
