@@ -948,11 +948,7 @@ def estimate_hypers(step, problem):
     for stage in range(pa.n_stages):
         logger.info('Metropolis stage %i' % stage)
         point = {param.name: param.random() for param in pc.priors}
-        print point
         problem.outfolder = os.path.join(name, 'stage_%i' % stage)
-
-        for g in problem._geo_llks:
-            print g.get_value()
 
         if not os.path.exists(problem.outfolder):
             logger.debug('Sampling ...')
@@ -983,15 +979,14 @@ def estimate_hypers(step, problem):
         pm.backends.text.dump(name=outname, trace=mtrace)
 
     n_steps = pa.n_steps
-    varnames = pc.hyperparameters.keys()
 
-    def burn_sample(x):
-        return x[(n_steps / 2):n_steps:2]
-
-    for v in varnames:
-        d = burn_sample(mtrace.get_values(v, combine=True, squeeze=True))
+    for v, i in pc.hyperparameters.iteritems():
+        d = mtrace.get_values(
+            v, combine=True, burn=(n_steps / 2.), thin=2., squeeze=True)
         lower = d.min(axis=0)
         upper = d.max(axis=0)
+        logger.info('Updating hyperparameter %s from %f, %f to %f, %f' % (
+            v, i.lower, i.upper, lower, upper))
         pc.hyperparameters[v].lower = lower
         pc.hyperparameters[v].upper = upper
         pc.hyperparameters[v].testvalue = (upper + lower) / 2.

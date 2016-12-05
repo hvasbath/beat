@@ -1194,7 +1194,14 @@ def draw_correlation_hist(problem, plot_options):
         transform = last_sample
     else:
         def burn_sample(x):
-            return x[(n_steps / 2):n_steps:2].flatten()
+            nchains = x.shape[0] / n_steps
+            xout = []
+            for i in range(nchains):
+                nstart = int((n_steps * i) + (n_steps / 2.))
+                nend = int(n_steps * (i + 1) - 1)
+                xout.append(x[nstart:nend:2])
+
+            return num.vstack(xout).flatten()
 
         transform = burn_sample
 
