@@ -1087,18 +1087,21 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     fig.tight_layout()
     return fig, axs, varbins
 
-def stage_posteriors(mtrace, n_steps, posterior=None, lines=None):
+
+def select_transform(sampler, n_steps):
     """
-    Plot variable posteriors from a certain stage of the ATMIP algorithm.
+    Select transform function to be applied after loading the sampling results.
+
     Parameters
     ----------
-    mtrace : :class:`pymc3.backend.base.MultiTrace`
+    sampler : str
+        Name of the sampler that has been used in sampling the posterior pdf
     n_steps : int
         Number of chains to select last samples of each trace.
-    posterior : str
-        To mark posterior value in distribution 'max', 'min', 'mean', 'all'
-    lines : dict
-        :func:pymc3.model.Point to draw vertical lines for reference
+
+    Returns
+    -------
+    func : instance
     """
 
     def last_sample(x):
@@ -1115,19 +1118,9 @@ def stage_posteriors(mtrace, n_steps, posterior=None, lines=None):
         return num.vstack(xout).flatten()
 
     if sampler == 'ATMCMC':
-        transform = last_sample
+        return last_sample
     elif sampler == 'Metropolis':
-        transform = burn_sample
-
-    fig, axs, varbins = traceplot(
-        mtrace,
-        varnames=varnames,
-        transform=last_sample,
-        combined=True,
-        lines=po.reference,
-        posterior='all')
-
-    return fig
+        return burn_sample
 
 
 def draw_posteriors(problem, plot_options):
@@ -1137,20 +1130,22 @@ def draw_posteriors(problem, plot_options):
         output format: 'display', 'png' or 'pdf'
     """
 
-    mode = problem.config.problem_config.mode
     hypers = utility.check_hyper_flag(problem)
     po = plot_options
 
-    stage = load_stage(problem, stage_number=po.load_stage, load='params')
-    step = stage.step
+    stage = load_stage(problem, stage_number=po.load_stage, load='trace')
 
     if po.load_stage is not None:
         list_indexes = [po.load_stage]
     else:
-        list_indexes = [str(i) for i in range(step.stage + 1)]
-
         if stage.number == 'final':
-            list_indexes = list_indexes + ['final']
+            stage_number = backend.get_highest_sampled_stage(
+                problem.outfolder, return_final=False)
+            list_indexes = [
+                str(i) for i in range(stage_number + 1)] + ['final']
+        else:
+            list_indexes = [
+                str(i) for i in range(stage.number + 1)]
 
     if hypers:
         sc = problem.config.hyper_sampler_config
@@ -1162,26 +1157,32 @@ def draw_posteriors(problem, plot_options):
     figs = []
 
     for s in list_indexes:
-        if s == '0':
+        if sc.name == 'ATMCMC' and s == '0':
             draws = 1
         else:
-            draws = step.n_steps
+            draws = sc.parameters.n_steps
+
+        transform = select_transform(sampler=sc.name, n_steps=draws)
 
         stage_path = os.path.join(
-            problem.config.project_dir, mode, 'stage_%s' % s)
+            problem.outfolder, 'stage_%s' % s)
 
         outpath = os.path.join(
-            problem.config.project_dir,
-            mode, po.figure_dir, 'stage_%s.%s' % (s, po.outformat))
+            problem.outfolder,
+            po.figure_dir,
+            'stage_%s.%s' % (s, po.outformat))
 
         if not os.path.exists(outpath) or po.force:
             logger.info('plotting stage: %s' % stage_path)
             mtrace = backend.load(stage_path, model=problem.model)
-            fig = stage_posteriors(
+
+            fig, _, _ = traceplot(
                 mtrace,
-                n_steps=draws,
-                posterior='all',
-                lines=po.reference)
+                varnames=varnames,
+                transform=transform,
+                combined=True,
+                lines=po.reference,
+                posterior='all')
 
             if not po.outformat == 'display':
                 logger.info('saving figure to %s' % outpath)
@@ -1216,12 +1217,7 @@ def draw_correlation_hist(problem, plot_options):
         sc = problem.config.sampler_config
         varnames = problem.config.problem_config.select_variables()
 
-    if sc.name == 'ATMCMC':
-        transform = last_sample
-    else:
-        transform = burn_sample
-
-    n_steps = sc.parameters.n_steps
+    transform = select_transform(sc.name, sc.parameters.n_steps)
 
     stage = load_stage(problem, po.load_stage, load='trace')
 

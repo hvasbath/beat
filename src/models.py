@@ -1070,9 +1070,9 @@ def load_model(project_dir, mode, hypers=False):
     return problem
 
 
-class ATMCMCStage(object):
+class Stage(object):
     """
-    ATMCMC stage, containing sampling results and intermediate optimizer
+    Stage, containing sampling results and intermediate sampler
     parameters.
     """
 
@@ -1132,7 +1132,7 @@ def load_stage(problem, stage_number=None, load='trace'):
     else:
         to_load = [load]
 
-    stage = ATMCMCStage(path=stagepath, number=stage_number)
+    stage = Stage(path=stagepath, number=stage_number)
 
     if 'trace' in to_load:
         stage.mtrace = backend.load(stagepath, model=problem.model)
