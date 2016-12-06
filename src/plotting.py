@@ -1087,11 +1087,9 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     fig.tight_layout()
     return fig, axs, varbins
 
-
 def stage_posteriors(mtrace, n_steps, posterior=None, lines=None):
     """
     Plot variable posteriors from a certain stage of the ATMIP algorithm.
-
     Parameters
     ----------
     mtrace : :class:`pymc3.backend.base.MultiTrace`
@@ -1106,8 +1104,28 @@ def stage_posteriors(mtrace, n_steps, posterior=None, lines=None):
     def last_sample(x):
         return x[(n_steps - 1)::n_steps].flatten()
 
-    fig, axs, varbins = traceplot(mtrace, transform=last_sample,
-        combined=True, lines=lines, posterior=posterior)
+    def burn_sample(x):
+        nchains = x.shape[0] / n_steps
+        xout = []
+        for i in range(nchains):
+            nstart = int((n_steps * i) + (n_steps / 2.))
+            nend = int(n_steps * (i + 1) - 1)
+            xout.append(x[nstart:nend:2])
+
+        return num.vstack(xout).flatten()
+
+    if sampler == 'ATMCMC':
+        transform = last_sample
+    elif sampler == 'Metropolis':
+        transform = burn_sample
+
+    fig, axs, varbins = traceplot(
+        mtrace,
+        varnames=varnames,
+        transform=last_sample,
+        combined=True,
+        lines=po.reference,
+        posterior='all')
 
     return fig
 
@@ -1120,6 +1138,7 @@ def draw_posteriors(problem, plot_options):
     """
 
     mode = problem.config.problem_config.mode
+    hypers = utility.check_hyper_flag(problem)
     po = plot_options
 
     stage = load_stage(problem, stage_number=po.load_stage, load='params')
@@ -1132,6 +1151,13 @@ def draw_posteriors(problem, plot_options):
 
         if stage.number == 'final':
             list_indexes = list_indexes + ['final']
+
+    if hypers:
+        sc = problem.config.hyper_sampler_config
+        varnames = problem.config.problem_config.hyperparameters.keys()
+    else:
+        sc = problem.config.sampler_config
+        varnames = problem.config.problem_config.select_variables()
 
     figs = []
 
@@ -1151,8 +1177,12 @@ def draw_posteriors(problem, plot_options):
         if not os.path.exists(outpath) or po.force:
             logger.info('plotting stage: %s' % stage_path)
             mtrace = backend.load(stage_path, model=problem.model)
-            fig = stage_posteriors(mtrace, n_steps=draws, posterior='all',
-                    lines=po.reference)
+            fig = stage_posteriors(
+                mtrace,
+                n_steps=draws,
+                posterior='all',
+                lines=po.reference)
+
             if not po.outformat == 'display':
                 logger.info('saving figure to %s' % outpath)
                 fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
@@ -1182,27 +1212,13 @@ def draw_correlation_hist(problem, plot_options):
     if hypers:
         sc = problem.config.hyper_sampler_config
         varnames = problem.config.problem_config.hyperparameters.keys()
-        po.load_stage = 'final'
     else:
         sc = problem.config.sampler_config
         varnames = problem.config.problem_config.select_variables()
 
     if sc.name == 'ATMCMC':
-        def last_sample(x):
-            return x[(n_steps - 1)::n_steps].flatten()
-
         transform = last_sample
     else:
-        def burn_sample(x):
-            nchains = x.shape[0] / n_steps
-            xout = []
-            for i in range(nchains):
-                nstart = int((n_steps * i) + (n_steps / 2.))
-                nend = int(n_steps * (i + 1) - 1)
-                xout.append(x[nstart:nend:2])
-
-            return num.vstack(xout).flatten()
-
         transform = burn_sample
 
     n_steps = sc.parameters.n_steps

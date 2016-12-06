@@ -947,7 +947,12 @@ def estimate_hypers(step, problem):
     mtraces = []
     for stage in range(pa.n_stages):
         logger.info('Metropolis stage %i' % stage)
-        point = {param.name: param.random() for param in pc.priors}
+
+        if stage == 0:
+            point = {param.name: param.testvalue for param in pc.priors}
+        else:
+            point = {param.name: param.random() for param in pc.priors}
+
         problem.outfolder = os.path.join(name, 'stage_%i' % stage)
 
         if not os.path.exists(problem.outfolder):

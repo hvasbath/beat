@@ -336,7 +336,8 @@ def command_clone(args):
             new_datasets = []
             for dataset in  options.datasets:
                 if dataset not in c.problem_config.datasets:
-                    logger.warn('Dataset to be cloned is not in config!')
+                    logger.warn(
+                        'Dataset %s to be cloned is not in config!' % dataset)
                 else:
                     new_datasets.append(dataset)
 
@@ -369,10 +370,18 @@ def command_clone(args):
                     idx = old_priors_name.index(prior)
                     c.problem_config.priors.append(old_priors[idx])
 
+            old_hypers = copy.deepcopy(c.problem_config.hyperparameters)
+
             c.update_hypers()
+            for hyper in c.problem_config.hyperparameters.keys()
+                c.problem_config.hyperparameters[hyper] = old_hypers[hyper]
+
             cloned_config_fn = os.path.join(
                 cloned_dir, 'config_' + mode + '.yaml')
             dump(c, filename=cloned_config_fn)
+
+        else:
+            raise Exception('Config file: %s does not exist!' % config_fn)
 
 def command_sample(args):
 
