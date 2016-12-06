@@ -954,6 +954,8 @@ def estimate_hypers(step, problem):
             point = {param.name: param.random() for param in pc.priors}
 
         problem.outfolder = os.path.join(name, 'stage_%i' % stage)
+        start = {param.name: param.random() for param in \
+                                            pc.hyperparameters.itervalues()}
 
         if not os.path.exists(problem.outfolder):
             logger.debug('Sampling ...')
@@ -966,6 +968,7 @@ def estimate_hypers(step, problem):
                     trace=pm.backends.Text(
                         name=problem.outfolder,
                         model=problem.model),
+                    start=start,
                     model=model,
                     chain=stage * pa.n_jobs,
                     njobs=pa.n_jobs,
