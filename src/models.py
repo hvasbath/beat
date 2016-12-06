@@ -991,8 +991,8 @@ def estimate_hypers(step, problem):
     for v, i in pc.hyperparameters.iteritems():
         d = mtrace.get_values(
             v, combine=True, burn=int(n_steps / 2.), thin=2, squeeze=True)
-        lower = d.min(axis=0)
-        upper = d.max(axis=0)
+        lower = num.floor(d.min(axis=0)) - 0.5
+        upper = num.ceil(d.max(axis=0)) + 0.5
         logger.info('Updating hyperparameter %s from %f, %f to %f, %f' % (
             v, i.lower, i.upper, lower, upper))
         pc.hyperparameters[v].lower = lower
