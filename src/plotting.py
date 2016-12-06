@@ -1038,6 +1038,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
     if axs is None:
         fig, axs = plt.subplots(nrow, ncol, figsize=figsize)
+        axs = num.atleast_2d(axs)
     elif axs.shape != (nrow, ncol):
         logger.warn('traceplot requires n*2 subplots')
         return None
