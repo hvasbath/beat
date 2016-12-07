@@ -15,7 +15,7 @@ import theano.tensor as tt
 from theano import config as tconfig
 from theano import shared
 
-from beat import theanof, heart, utility, atmcmc, backend
+from beat import theanof, heart, utility, atmcmc, backend, metropolis
 from beat import covariance as cov
 from beat import config as bconfig
 
@@ -891,7 +891,7 @@ def sample(step, problem):
         from problem.init_sampler()
     problem : :class:`Problem` with characteristics of problem to solve
     """
-
+    pc = problem.config.problem_config
     sc = problem.config.sampler_config
     pa = sc.parameters
 
@@ -906,12 +906,14 @@ def sample(step, problem):
         name = problem.outfolder
         util.ensuredir(name)
 
-        pm.sample(
-            draws=pa.n_steps,
+        metropolis.sample(
+            vars=[pc.select_variables() + pc.hyperparameters.keys()],
+            n_stages=pa.n_stages,
+            n_steps=pa.n_steps,
             step=step,
-            trace=pm.backends.Text(
-                name=name,
-                model=problem.model),
+            trace=problem.outfolder,
+            burn=pa.burn,
+            thin=pa.thin,
             model=problem.model,
             n_jobs=pa.n_jobs,
             update=update)
@@ -919,7 +921,7 @@ def sample(step, problem):
     elif sc.name == 'ATMCMC':
         logger.info('... Starting ATMIP ...\n')
 
-        atmcmc.ATMIP_sample(
+        atmcmc.sample(
             pa.n_steps,
             step=step,
             progressbar=False,
@@ -990,7 +992,8 @@ def estimate_hypers(step, problem):
 
     for v, i in pc.hyperparameters.iteritems():
         d = mtrace.get_values(
-            v, combine=True, burn=int(n_steps / 2.), thin=2, squeeze=True)
+            v, combine=True, burn=int(n_steps * pa.burn),
+            thin=pa.thin, squeeze=True)
         lower = num.floor(d.min(axis=0)) - 0.5
         upper = num.ceil(d.max(axis=0)) + 0.5
         logger.info('Updating hyperparameter %s from %f, %f to %f, %f' % (

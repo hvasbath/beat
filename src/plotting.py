@@ -1089,13 +1089,13 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     return fig, axs, varbins
 
 
-def select_transform(sampler, n_steps):
+def select_transform(sc, n_steps):
     """
     Select transform function to be applied after loading the sampling results.
 
     Parameters
     ----------
-    sampler : str
+    sc : :class:`config.SamplerConfig`
         Name of the sampler that has been used in sampling the posterior pdf
     n_steps : int
         Number of chains to select last samples of each trace.
@@ -1105,22 +1105,24 @@ def select_transform(sampler, n_steps):
     func : instance
     """
 
+    pa = sc.parameters
+
     def last_sample(x):
-        return x[(n_steps - 1)::n_steps].flatten()
+        return x[(pa.n_steps - 1)::pa.n_steps].flatten()
 
     def burn_sample(x):
         nchains = x.shape[0] / n_steps
         xout = []
         for i in range(nchains):
-            nstart = int((n_steps * i) + (n_steps / 2.))
-            nend = int(n_steps * (i + 1) - 1)
-            xout.append(x[nstart:nend:2])
+            nstart = int((pa.n_steps * i) + (pa.n_steps * pa.burn))
+            nend = int(pa.n_steps * (i + 1) - 1)
+            xout.append(x[nstart:nend:pa.thin])
 
         return num.vstack(xout).flatten()
 
-    if sampler == 'ATMCMC':
+    if sc.name == 'ATMCMC':
         return last_sample
-    elif sampler == 'Metropolis':
+    elif sc.name == 'Metropolis':
         return burn_sample
 
 
@@ -1146,7 +1148,7 @@ def draw_posteriors(problem, plot_options):
                 str(i) for i in range(stage_number + 1)] + ['final']
         else:
             list_indexes = [
-                str(i) for i in range(stage.number + 1)]
+                str(i) for i in range(int(stage.number) + 1)]
 
     if hypers:
         sc = problem.config.hyper_sampler_config

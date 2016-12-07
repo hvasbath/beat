@@ -555,10 +555,9 @@ def command_plot(args):
                  'Default: "max"')
 
         parser.add_option('--stage_number', dest='stage_number',
-            choices=['final', 'n'],
             default=None,
             help='String of the stage number "n" of the stage to be plotted.'
-                 ' Default: last complete stage')
+                 ' Default: all stages up to last complete stage')
 
         parser.add_option('--format', dest='format',
             choices=['display', 'pdf', 'png'],

@@ -290,6 +290,14 @@ class MetropolisConfig(SamplerParameters):
         default=False,
         help='Update model prediction covariance matrixes in transition '
              'stages.')
+    thin = Int.T(
+        default=2,
+        help='Thinning parameter of the sampled trace. Every "thin"th sample'
+             ' is taken.')
+    burn = Float.T(
+        default=0.5,
+        help='Burn-in parameter between 0. and 1. to discard fraction of'
+             ' samples from the beginning of the chain.')
     n_jobs = Int.T(
         default=1,
         help='Number of processors to use, i.e. chains to sample in parallel.')

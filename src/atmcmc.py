@@ -30,7 +30,7 @@ from numpy.random import seed
 
 from beat import backend, utility
 
-__all__ = ['ATMCMC', 'ATMIP_sample', 'logp_forw']
+__all__ = ['ATMCMC', 'sample', 'logp_forw']
 
 logger = logging.getLogger('ATMCMC')
 
@@ -430,7 +430,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         return outindx
 
 
-def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
+def sample(n_steps, step=None, start=None, trace=None, chain=0,
                   stage=None, n_jobs=1, tune=None, progressbar=False,
                   model=None, update=None, random_seed=None, rm_flag=False):
     """
