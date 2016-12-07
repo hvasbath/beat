@@ -3,7 +3,6 @@ import time
 import copy
 
 import pymc3 as pm
-
 from pymc3 import Metropolis
 
 from pyrocko import gf, util, model, trace
@@ -76,21 +75,33 @@ class Problem(Object):
             if sc.name == 'Metropolis':
                 logger.info(
                     '... Initiate Metropolis ... \n'
-                    'proposal_distribution %s, tune_interval=%i\n' % (
-                    sc.parameters.proposal_dist, sc.parameters.tune_interval))
+                    ' proposal_distribution %s, tune_interval=%i,'
+                    ' n_jobs=%i \n' % (
+                    sc.parameters.proposal_dist, sc.parameters.tune_interval,
+                    sc.parameters.n_jobs))
 
                 t1 = time.time()
-                step = Metropolis(
-                    tune_interval=sc.parameters.tune_interval,
-                    proposal_dist=choose_proposal(sc.parameters.proposal_dist))
+                if hypers:
+                    step = Metropolis(
+                        tune_interval=sc.parameters.tune_interval,
+                        proposal_dist=choose_proposal(
+                            sc.parameters.proposal_dist))
+                else:
+                    step = atmcmc.ATMCMC(
+                        n_chains=sc.parameters.n_jobs,
+                        tune_interval=sc.parameters.tune_interval,
+                        likelihood_name=self._like_name,
+                        proposal_dist=choose_proposal(
+                            sc.parameters.proposal_dist))
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
 
             elif sc.name == 'ATMCMC':
                 logger.info(
                     '... Initiate Adaptive Transitional Metropolis ... \n'
-                    ' n_chains=%i, tune_interval=%i\n' % (
-                        sc.parameters.n_chains, sc.parameters.tune_interval))
+                    ' n_chains=%i, tune_interval=%i, n_jobs=%i \n' % (
+                        sc.parameters.n_chains, sc.parameters.tune_interval,
+                        sc.parameters.n_jobs))
 
                 t1 = time.time()
                 step = atmcmc.ATMCMC(
@@ -891,7 +902,7 @@ def sample(step, problem):
         from problem.init_sampler()
     problem : :class:`Problem` with characteristics of problem to solve
     """
-    pc = problem.config.problem_config
+
     sc = problem.config.sampler_config
     pa = sc.parameters
 
@@ -906,22 +917,23 @@ def sample(step, problem):
         name = problem.outfolder
         util.ensuredir(name)
 
-        metropolis.sample(
-            vars=[pc.select_variables() + pc.hyperparameters.keys()],
+        metropolis.Metropolis_sample(
             n_stages=pa.n_stages,
             n_steps=pa.n_steps,
             step=step,
+            progressbar=False,
             trace=problem.outfolder,
             burn=pa.burn,
             thin=pa.thin,
             model=problem.model,
             n_jobs=pa.n_jobs,
-            update=update)
+            update=update,
+            rm_flag=pa.rm_flag)
 
     elif sc.name == 'ATMCMC':
         logger.info('... Starting ATMIP ...\n')
 
-        atmcmc.sample(
+        atmcmc.ATMIP_sample(
             pa.n_steps,
             step=step,
             progressbar=False,

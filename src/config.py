@@ -68,6 +68,8 @@ default_bounds = dict(
 seismic_data_name = 'seismic_data.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
 
+sample_p_outname = 'sample.params'
+
 km = 1000.
 
 
@@ -277,6 +279,13 @@ class MetropolisConfig(SamplerParameters):
     """
     Config for optimization parameters of the Adaptive Metropolis algorithm.
     """
+    n_jobs = Int.T(
+        default=1,
+        help='Number of processors to use, i.e. chains to sample in parallel.')
+    n_stages = Int.T(
+        default=10,
+        help='Number of stages to sample/ or points in solution spacce for'
+             ' hyperparameter estimation')
     n_steps = Int.T(default=25000,
                     help='Number of steps for the MC chain.')
     tune_interval = Int.T(
@@ -284,8 +293,8 @@ class MetropolisConfig(SamplerParameters):
         help='Tune interval for adaptive tuning of Metropolis step size.')
     proposal_dist = String.T(
         default='Normal',
-        help='Normal Proposal distribution, for Metropolis steps'
-             'alternatives: Cauchy, Laplace, Poisson, MultivariateNormal')
+        help='Normal Proposal distribution, for Metropolis steps;'
+             'Alternatives: Cauchy, Laplace, Poisson, MultivariateNormal')
     update_covariances = Bool.T(
         default=False,
         help='Update model prediction covariance matrixes in transition '
@@ -298,13 +307,8 @@ class MetropolisConfig(SamplerParameters):
         default=0.5,
         help='Burn-in parameter between 0. and 1. to discard fraction of'
              ' samples from the beginning of the chain.')
-    n_jobs = Int.T(
-        default=1,
-        help='Number of processors to use, i.e. chains to sample in parallel.')
-    n_stages = Int.T(
-        default=10,
-        help='Number of stages to sample/ or points in solution spacce for'
-             ' hyperparameter estimation')
+    rm_flag = Bool.T(default=False,
+                     help='Remove existing stage results prior to sampling.')
 
 
 class ATMCMCConfig(SamplerParameters):

@@ -26,11 +26,16 @@ from pymc3.vartypes import discrete_types
 from pymc3.theanof import inputvars
 from pymc3.theanof import make_shared_replacements, join_nonshared_inputs
 from pymc3.step_methods.metropolis import MultivariateNormalProposal as MvNPd
-from numpy.random import seed
 
 from beat import backend, utility
+from beat.config import sample_p_outname
 
-__all__ = ['ATMCMC', 'sample', 'logp_forw']
+__all__ = [
+    'ATMCMC',
+    'ATMIP_sample',
+    'init_stage',
+    'logp_forw',
+    '_iter_parallel_chains']
 
 logger = logging.getLogger('ATMCMC')
 
@@ -430,113 +435,11 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         return outindx
 
 
-def sample(n_steps, step=None, start=None, trace=None, chain=0,
-                  stage=None, n_jobs=1, tune=None, progressbar=False,
-                  model=None, update=None, random_seed=None, rm_flag=False):
+def init_stage(homepath, step, stage, model, n_jobs=1,
+         progressbar=False, update=None, rm_flag=False):
     """
-    (C)ATMIP sampling algorithm
-    (Cascading - (C) not always relevant)
-
-    Samples the solution space with n_chains of Metropolis chains, where each
-    chain has n_steps iterations. Once finished, the sampled traces are
-    evaluated:
-
-    (1) Based on the likelihoods of the final samples, chains are weighted
-    (2) the weighted covariance of the ensemble is calculated and set as new
-        proposal distribution
-    (3) the variation in the ensemble is calculated and the next tempering
-        parameter (beta) calculated
-    (4) New n_chains Metropolis chains are seeded on the traces with high
-        weight for n_steps iterations
-    (5) Repeat until beta > 1.
-
-    Parameters
-    ----------
-    n_steps : int
-        The number of samples to draw for each Markov-chain per stage
-    step : :class:`ATMCMC`
-        ATMCMC initialisation object
-    start : List of dictionaries
-        with length of (n_chains)
-        Starting points in parameter space (or partial point)
-        Defaults to random draws from variables (defaults to empty dict)
-    chain : int
-        Chain number used to store sample in backend. If `n_jobs` is
-        greater than one, chain numbers will start here.
-    stage : str
-        Stage where to start or continue the calculation. It is possible to
-        continue after completed stages (stage should be the number of the
-        completed stage + 1). If None the start will be at stage = 0.
-    n_jobs : int
-        The number of cores to be used in parallel. Be aware that theano has
-        internal parallelisation. Sometimes this is more efficient especially
-        for simple models.
-        step.n_chains / n_jobs has to be an integer number!
-    tune : int
-        Number of iterations to tune, if applicable (defaults to None)
-    trace : string
-        Result_folder for storing stages, will be created if not existing.
-    progressbar : bool
-        Flag for displaying a progress bar
-    model : :class:`pymc3.Model`
-        (optional if in `with` context) has to contain deterministic
-        variable name defined under step.likelihood_name' that contains the
-        model likelihood
-    update : :py:class:`models.Problem`
-        Problem object that contains all the observed data and (if applicable)
-        covariances to be updated each transition step.
-    random_seed : int or list of ints
-        A list is accepted, more if `n_jobs` is greater than one.
-    rm_flag : bool
-        If True existing stage result folders are being deleted prior to
-        sampling.
-
-    References
-    ----------
-    .. [Minson2013] Minson, S. E. and Simons, M. and Beck, J. L., (2013),
-        Bayesian inversion for finite fault earthquake source models
-        I- Theory and algorithm. Geophysical Journal International, 2013,
-        194(3), pp.1701-1726,
-        `link <https://gji.oxfordjournals.org/content/194/3/1701.full>`__
+    Examine starting point of sampling, reload stages and initialise steps.
     """
-
-    model = pm.modelcontext(model)
-    step.n_steps = int(n_steps)
-    seed(random_seed)
-
-    if n_steps < 1:
-        raise Exception('Argument `n_steps` should be above 0.', exc_info=1)
-
-    if step is None:
-        raise Exception('Argument `step` has to be a TMCMC step object.')
-
-    if trace is None:
-        raise Exception('Argument `trace` should be path to result_directory.')
-
-    if n_jobs > 1:
-        if not (step.n_chains / float(n_jobs)).is_integer():
-            raise Exception('n_chains / n_jobs has to be a whole number!')
-
-    if start is not None:
-        if len(start) != step.n_chains:
-            raise Exception('Argument `start` should have dicts equal the '
-                            'number of chains (step.N-chains)')
-        else:
-            step.population = start
-
-    if not any(
-            step.likelihood_name in var.name for var in model.deterministics):
-            raise Exception('Model (deterministic) variables need to contain '
-                            'a variable %s '
-                            'as defined in `step`.' % step.likelihood_name)
-
-    homepath = trace
-
-    util.ensuredir(homepath)
-
-    if progressbar and n_jobs > 1:
-        progressbar = False
-
     if stage is not None:
         if stage == '0':
             # continue or start initial stage
@@ -619,6 +522,122 @@ def sample(n_steps, step=None, start=None, trace=None, chain=0,
     else:
         raise Exception('stage has to be not None!')
 
+    return chains, step, update
+
+
+def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
+                  stage=None, n_jobs=1, tune=None, progressbar=False,
+                  model=None, update=None, random_seed=None, rm_flag=False):
+    """
+    (C)ATMIP sampling algorithm
+    (Cascading - (C) not always relevant)
+
+    Samples the solution space with n_chains of Metropolis chains, where each
+    chain has n_steps iterations. Once finished, the sampled traces are
+    evaluated:
+
+    (1) Based on the likelihoods of the final samples, chains are weighted
+    (2) the weighted covariance of the ensemble is calculated and set as new
+        proposal distribution
+    (3) the variation in the ensemble is calculated and the next tempering
+        parameter (beta) calculated
+    (4) New n_chains Metropolis chains are seeded on the traces with high
+        weight for n_steps iterations
+    (5) Repeat until beta > 1.
+
+    Parameters
+    ----------
+    n_steps : int
+        The number of samples to draw for each Markov-chain per stage
+    step : :class:`ATMCMC`
+        ATMCMC initialisation object
+    start : List of dictionaries
+        with length of (n_chains)
+        Starting points in parameter space (or partial point)
+        Defaults to random draws from variables (defaults to empty dict)
+    chain : int
+        Chain number used to store sample in backend. If `n_jobs` is
+        greater than one, chain numbers will start here.
+    stage : str
+        Stage where to start or continue the calculation. It is possible to
+        continue after completed stages (stage should be the number of the
+        completed stage + 1). If None the start will be at stage = 0.
+    n_jobs : int
+        The number of cores to be used in parallel. Be aware that theano has
+        internal parallelisation. Sometimes this is more efficient especially
+        for simple models.
+        step.n_chains / n_jobs has to be an integer number!
+    tune : int
+        Number of iterations to tune, if applicable (defaults to None)
+    trace : string
+        Result_folder for storing stages, will be created if not existing.
+    progressbar : bool
+        Flag for displaying a progress bar
+    model : :class:`pymc3.Model`
+        (optional if in `with` context) has to contain deterministic
+        variable name defined under step.likelihood_name' that contains the
+        model likelihood
+    update : :py:class:`models.Problem`
+        Problem object that contains all the observed data and (if applicable)
+        covariances to be updated each transition step.
+    rm_flag : bool
+        If True existing stage result folders are being deleted prior to
+        sampling.
+
+    References
+    ----------
+    .. [Minson2013] Minson, S. E. and Simons, M. and Beck, J. L., (2013),
+        Bayesian inversion for finite fault earthquake source models
+        I- Theory and algorithm. Geophysical Journal International, 2013,
+        194(3), pp.1701-1726,
+        `link <https://gji.oxfordjournals.org/content/194/3/1701.full>`__
+    """
+
+    model = pm.modelcontext(model)
+    step.n_steps = int(n_steps)
+
+    if n_steps < 1:
+        raise Exception('Argument `n_steps` should be above 0.', exc_info=1)
+
+    if step is None:
+        raise Exception('Argument `step` has to be a TMCMC step object.')
+
+    if trace is None:
+        raise Exception('Argument `trace` should be path to result_directory.')
+
+    if n_jobs > 1:
+        if not (step.n_chains / float(n_jobs)).is_integer():
+            raise Exception('n_chains / n_jobs has to be a whole number!')
+
+    if start is not None:
+        if len(start) != step.n_chains:
+            raise Exception('Argument `start` should have dicts equal the '
+                            'number of chains (step.N-chains)')
+        else:
+            step.population = start
+
+    if not any(
+            step.likelihood_name in var.name for var in model.deterministics):
+            raise Exception('Model (deterministic) variables need to contain '
+                            'a variable %s '
+                            'as defined in `step`.' % step.likelihood_name)
+
+    homepath = trace
+
+    util.ensuredir(homepath)
+
+    if progressbar and n_jobs > 1:
+        progressbar = False
+
+    chains, step, update = init_stage(
+        homepath=homepath,
+        step=step,
+        stage=stage,
+        n_jobs=n_jobs,
+        progressbar=progressbar,
+        update=update,
+        model=model)
+
     with model:
         while step.beta < 1.:
             if step.stage == 0:
@@ -663,7 +682,7 @@ def sample(n_steps, step=None, start=None, trace=None, chain=0,
             if step.beta > 1.:
                 logger.info('Beta > 1.: %f' % step.beta)
                 step.beta = 1.
-                outpath = os.path.join(stage_path, 'atmip.params')
+                outpath = os.path.join(stage_path, sample_p_outname)
                 outparam_list = [step, update]
                 utility.dump_objects(outpath, outparam_list)
                 if stage == 'final':
@@ -676,7 +695,7 @@ def sample(n_steps, step=None, start=None, trace=None, chain=0,
             step.proposal_dist = MvNPd(step.covariance)
             step.resampling_indexes = step.resample()
 
-            outpath = os.path.join(stage_path, 'atmip.params')
+            outpath = os.path.join(stage_path, sample_p_outname)
             outparam_list = [step, update]
             utility.dump_objects(outpath, outparam_list)
 
@@ -699,7 +718,7 @@ def sample(n_steps, step=None, start=None, trace=None, chain=0,
         sample_args['chains'] = chains
         _iter_parallel_chains(**sample_args)
 
-        outpath = os.path.join(stage_path, 'atmip.params')
+        outpath = os.path.join(stage_path, sample_p_outname)
         outparam_list = [step, update]
         utility.dump_objects(outpath, outparam_list)
 
@@ -724,7 +743,7 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
 
 
 def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
-                 model=None, random_seed=None):
+                 model=None):
     """
     Modified from :func:`pymc3.sampling._iter_sample` to be more efficient with
     the ATMCMC algorithm.
@@ -733,7 +752,7 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
     model = modelcontext(model)
 
     draws = int(draws)
-    seed(random_seed)
+
     if draws < 1:
         raise ValueError('Argument `draws` should be above 0.')
 
