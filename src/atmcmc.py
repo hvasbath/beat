@@ -25,10 +25,13 @@ from pymc3.model import modelcontext
 from pymc3.vartypes import discrete_types
 from pymc3.theanof import inputvars
 from pymc3.theanof import make_shared_replacements, join_nonshared_inputs
-from pymc3.step_methods.metropolis import MultivariateNormalProposal as MvNPd
 
 from beat import backend, utility
 from beat.config import sample_p_outname
+
+from numpy.random import normal, standard_cauchy, standard_exponential, \
+    poisson
+
 
 __all__ = [
     'ATMCMC',
@@ -38,6 +41,80 @@ __all__ = [
     '_iter_parallel_chains']
 
 logger = logging.getLogger('ATMCMC')
+
+
+class Proposal(object):
+    """
+    Proposal distributions modified from pymc3 to initially create all the
+    Proposal steps without repeated execution of the RNG- significant speedup!
+    """
+    def __init__(self, s):
+        self.s = np.atleast_1d(s)
+
+
+class NormalProposal(Proposal):
+    def __call__(self, num_draws=None):
+        size = (self.s.shape)
+        if num_draws:
+            size += (num_draws,)
+        return normal(scale=self.s[0], size=size).T
+
+
+class CauchyProposal(Proposal):
+    def __call__(self, num_draws=None):
+        size = (self.s.shape)
+        if num_draws:
+            size += (num_draws,)
+        return standard_cauchy(size=size).T * self.s
+
+
+class LaplaceProposal(Proposal):
+    def __call__(self, num_draws=None):
+        size = (self.s.shape)
+        if num_draws:
+            size += (num_draws,)
+        return (standard_exponential(size=size)
+              - standard_exponential(size=size)).T * self.s
+
+
+class PoissonProposal(Proposal):
+    def __call__(self, num_draws=None):
+        size = (self.s.shape)
+        if num_draws:
+            size += (num_draws,)
+        return poisson(lam=self.s, size=size).T - self.s
+
+
+class MultivariateNormalProposal(Proposal):
+    def __call__(self, num_draws=None):
+        return np.random.multivariate_normal(
+                mean=np.zeros(self.s.shape[0]), cov=self.s, size=num_draws)
+
+
+proposal_dists = {
+    'Cauchy': CauchyProposal,
+    'Poisson': PoissonProposal,
+    'Normal': NormalProposal,
+    'Laplace': LaplaceProposal,
+    'MultivariateNormal': MultivariateNormalProposal,
+        }
+
+
+def choose_proposal(proposal_name, scale=1.):
+    """
+    Initialises and selects proposal distribution.
+
+    Parameters
+    ----------
+    proposal_name : string
+        Name of the proposal distribution to initialise
+    scale : float or :class:`numpy.ndarray`
+
+    Returns
+    -------
+    class:`pymc3.Proposal` Object
+    """
+    return proposal_dists[proposal_name](scale)
 
 
 class ATMCMC(backend.ArrayStepSharedLLK):
@@ -97,9 +174,10 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
     default_blocked = True
 
-    def __init__(self, vars=None, out_vars=None, covariance=None, scaling=1.,
+    def __init__(self, vars=None, out_vars=None, covariance=None, scale=1.,
                  n_chains=100, tune=True, tune_interval=100, model=None,
-                 check_bound=True, likelihood_name='like', proposal_dist=MvNPd,
+                 check_bound=True, likelihood_name='like',
+                 proposal_name='MultivariateNormal',
                  coef_variation=1., **kwargs):
 
         model = modelcontext(model)
@@ -114,15 +192,21 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         out_varnames = [out_var.name for out_var in out_vars]
 
-        if covariance is None:
+        self.scaling = np.atleast_1d(scale)
+
+        if covariance is None and proposal_name == 'MvNPd':
             self.covariance = np.eye(sum(v.dsize for v in vars))
-        self.scaling = np.atleast_1d(scaling)
+            scale = self.covariance
+
         self.tune = tune
         self.check_bnd = check_bound
         self.tune_interval = tune_interval
         self.steps_until_tune = tune_interval
 
-        self.proposal_dist = proposal_dist(self.covariance)
+        self.proposal_name = proposal_name
+        self.proposal_dist = choose_proposal(
+            self.proposal_name, scale=scale)
+
         self.proposal_samples_array = self.proposal_dist(n_chains)
 
         self.stage_sample = 0
@@ -201,7 +285,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
                 if np.isfinite(varlogp):
                     l = self.logp_forw(q)
-
+                    print l, l0
                     q_new = pm.metropolis.metrop_select(
                         self.beta * (l[self._llk_index] - l0[self._llk_index]),
                         q, q0)
@@ -455,7 +539,7 @@ def init_stage(homepath, step, stage, model, n_jobs=1,
                 'Loading parameters from completed stage_%i' % last)
             project_dir = os.path.dirname(homepath)
             mode = os.path.basename(homepath)
-            step, updates = utility.load_atmip_params(
+            step, updates = backend.load_sampler_params(
                 project_dir, str(last), mode)
 
             if update is not None:
@@ -471,7 +555,7 @@ def init_stage(homepath, step, stage, model, n_jobs=1,
                 'Loading parameters from completed stage_%i' % (stage - 1))
             project_dir = os.path.dirname(homepath)
             mode = os.path.basename(homepath)
-            step, updates = utility.load_atmip_params(
+            step, updates = backend.load_sampler_params(
                 project_dir, str(stage - 1), mode)
 
             if update is not None:
@@ -494,7 +578,7 @@ def init_stage(homepath, step, stage, model, n_jobs=1,
                     # load incomplete stage results
                     logger.info('Reloading existing results ...')
                     mtrace = backend.load(stage_path, model=model)
-                    if len(mtrace) > 0:
+                    if len(mtrace.chains) > 0:
                         # continue sampling if traces exist
                         logger.info('Checking for corrupted files ...')
                         chains = backend.check_multitrace(
@@ -516,6 +600,10 @@ def init_stage(homepath, step, stage, model, n_jobs=1,
 
                             _iter_parallel_chains(**sample_args)
                             logger.info('Back to normal!')
+                    else:
+                        logger.info('Init new trace!')
+                        chains = None
+
                 else:
                     logger.info('Init new trace!')
                     chains = None
@@ -692,7 +780,8 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                 break
 
             step.covariance = step.calc_covariance()
-            step.proposal_dist = MvNPd(step.covariance)
+            step.proposal_dist = choose_proposal(
+                step.proposal_name, scale=step.covariance)
             step.resampling_indexes = step.resample()
 
             outpath = os.path.join(stage_path, sample_p_outname)
@@ -710,7 +799,8 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                            (step.likelihoods - step.likelihoods.max()))
         step.weights = temp / np.sum(temp)
         step.covariance = step.calc_covariance()
-        step.proposal_dist = MvNPd(step.covariance)
+        step.proposal_dist = choose_proposal(
+            step.proposal_name, scale=step.covariance)
         step.resampling_indexes = step.resample()
 
         sample_args['step'] = step
@@ -724,10 +814,10 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
 
 def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
-            progressbar=True, model=None, random_seed=None):
+            progressbar=True, model=None):
 
     sampling = _iter_sample(draws, step, start, trace, chain,
-                            tune, model, random_seed)
+                            tune, model)
 
     if progressbar:
         sampling = tqdm(sampling, total=draws)
@@ -850,12 +940,8 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
 
     trace_list = []
 
-    if progressbar and n_jobs > 1:
-        display = False
-
-    elif progressbar and n_jobs == 1:
+    if progressbar:
         display = True
-
     else:
         display = False
 

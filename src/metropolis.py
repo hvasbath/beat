@@ -8,8 +8,10 @@ import os
 import pymc3 as pm
 import logging
 
+import numpy as num
+
 from beat import backend, utility
-from beat.atmcmc import init_stage, _iter_parallel_chains
+from beat.atmcmc import init_stage, _iter_parallel_chains, choose_proposal
 from beat.config import sample_p_outname
 
 from pyrocko import util
@@ -20,7 +22,7 @@ logger = logging.getLogger('ATMCMC')
 
 
 def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
-            progressbar=False, stage=None,
+            progressbar=False, stage=None, rm_flag=False,
             step=None, model=None, n_jobs=1, update=None, burn=0.5, thin=2):
     """
     Execute Metropolis algorithm repeatedly depending on the number of stages.
@@ -71,18 +73,24 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
         n_jobs=n_jobs,
         progressbar=progressbar,
         update=update,
-        model=model)
+        model=model,
+        rm_flag=rm_flag)
 
+    print step.stage
     # set beta to 1 - standard Metropolis sampling
     step.beta = 1.
 
     with model:
 
-        draws = n_steps
-
         for stage in range(step.stage, n_stages):
 
             stage_path = os.path.join(homepath, 'stage_%i' % stage)
+            logger.info('Sampling stage %s' % stage_path)
+
+            if stage == 0:
+                draws = 1
+            else:
+                draws = n_steps
 
             if not os.path.exists(stage_path):
                 chains = None
@@ -105,20 +113,29 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
 
             step.chain_previous_lpoint = step.get_chain_previous_lpoint(mtrace)
 
-            if update is not None:
+            mean_pt, step.covariance = get_trace_stats(
+                mtrace, step, burn, thin)
+
+            if step.proposal_name == 'MultivariateNormal':
+                step.proposal_dist = choose_proposal(
+                    step.proposal_name, scale=step.covariance)
+
+            if update is not None and stage != 0:
                 logger.info('Updating Covariances ...')
-                mean_pt = get_mean_point(mtrace, n_steps, burn, thin)
+
                 update.update_weights(mean_pt, n_jobs=n_jobs)
                 print update.sweights[0].get_value()
 
+            elif update is not None and stage == 0 and update._seismic_flag:
+                update.engine.close_cashed_stores()
+
+            step.stage = stage
             outpath = os.path.join(stage_path, sample_p_outname)
             outparam_list = [step, update]
             utility.dump_objects(outpath, outparam_list)
 
-            step.stage += 1
 
-
-def get_mean_point(mtrace, n_steps=10000, burn=0.5, thin=2):
+def get_trace_stats(mtrace, step, burn=0.5, thin=2):
     """
     Get mean value of trace variables and return point.
 
@@ -126,17 +143,37 @@ def get_mean_point(mtrace, n_steps=10000, burn=0.5, thin=2):
     ----------
     mtrace : :class:`pymc3.backends.base.MultiTrace`
         Multitrace sampling result
-    n_steps : int
-        Number of steps in the Metropolis chain
+    step : initialised :class:`atmcmc.ATMCMC` sampler object
+    burn : float
+        Burn-in parameter to throw out samples from the beginning of the trace
+    thin : int
+        Thinning of samples in the trace
 
     Returns
     -------
     dict
     """
 
-    point = {}
-    for var in mtrace.varnames:
-        point[var] = mtrace.get_values(var, combine=True, squeeze=True,
-            burn=int(n_steps * burn), thin=thin).mean()
+    n_steps = len(mtrace)
 
-    return point
+    array_population = num.zeros((int(num.ceil(n_steps * (1 - burn) / thin)),
+                                  step.ordering.dimensions))
+
+    # collect end points of each chain and put into array
+    for var, slc, shp, _ in step.ordering.vmap:
+        if len(shp) == 0:
+            array_population[:, slc] = num.atleast_2d(
+                                mtrace.get_values(varname=var,
+                                            burn=int(burn * n_steps),
+                                            thin=thin,
+                                            combine=True)).T
+        else:
+            array_population[:, slc] = mtrace.get_values(
+                                                varname=var,
+                                                burn=int(burn * n_steps),
+                                                thin=thin,
+                                                combine=True)
+
+    point = step.bij.rmap(array_population.mean(axis=0))
+    cov = num.cov(array_population, bias=False, rowvar=0)
+    return point, cov

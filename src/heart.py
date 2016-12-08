@@ -1292,10 +1292,10 @@ def get_phase_taperer(engine, source, target, arrival_taper):
 
     arrival_time = get_phase_arrival_time(engine, source, target)
 
-    taperer = trace.CosTaper(arrival_time + arrival_taper.a,
-                             arrival_time + arrival_taper.b,
-                             arrival_time + arrival_taper.c,
-                             arrival_time + arrival_taper.d)
+    taperer = trace.CosTaper(float(arrival_time + arrival_taper.a),
+                             float(arrival_time + arrival_taper.b),
+                             float(arrival_time + arrival_taper.c),
+                             float(arrival_time + arrival_taper.d))
     return taperer
 
 

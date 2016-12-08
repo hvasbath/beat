@@ -22,8 +22,7 @@ import logging
 
 logger = logging.getLogger('models')
 
-__all__ = ['GeometryOptimizer', 'sample', 'load_model', 'load_stage',
-    'choose_proposal']
+__all__ = ['GeometryOptimizer', 'sample', 'load_model', 'load_stage']
 
 
 class Problem(Object):
@@ -84,15 +83,15 @@ class Problem(Object):
                 if hypers:
                     step = Metropolis(
                         tune_interval=sc.parameters.tune_interval,
-                        proposal_dist=choose_proposal(
+                        proposal_dist=metropolis.choose_proposal(
                             sc.parameters.proposal_dist))
                 else:
                     step = atmcmc.ATMCMC(
                         n_chains=sc.parameters.n_jobs,
                         tune_interval=sc.parameters.tune_interval,
                         likelihood_name=self._like_name,
-                        proposal_dist=choose_proposal(
-                            sc.parameters.proposal_dist))
+                        proposal_name=sc.parameters.proposal_dist,
+                        covariance=1.)
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
 
@@ -108,6 +107,7 @@ class Problem(Object):
                     n_chains=sc.parameters.n_chains,
                     tune_interval=sc.parameters.tune_interval,
                     coef_variation=sc.parameters.coef_variation,
+                    proposal_dist=sc.parameters.proposal_dist,
                     likelihood_name=self._like_name)
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
@@ -594,9 +594,10 @@ class GeometryOptimizer(Problem):
         plot : boolean
             Flag for opening the seismic waveforms in the snuffler
         """
+        tpoint = copy.deepcopy(point)
 
         # update sources
-        point = utility.adjust_point_units(point)
+        tpoint = utility.adjust_point_units(tpoint)
 
         # remove hyperparameters from point
         hps = self.config.problem_config.hyperparameters
@@ -606,9 +607,9 @@ class GeometryOptimizer(Problem):
                 point.pop(hyper)
 
         if self._seismic_flag:
-            point['time'] += self.event.time
+            tpoint['time'] += self.event.time
 
-        source_points = utility.split_point(point)
+        source_points = utility.split_point(tpoint)
 
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
@@ -920,8 +921,9 @@ def sample(step, problem):
         metropolis.Metropolis_sample(
             n_stages=pa.n_stages,
             n_steps=pa.n_steps,
+            stage=pa.stage,
             step=step,
-            progressbar=False,
+            progressbar=True,
             trace=problem.outfolder,
             burn=pa.burn,
             thin=pa.thin,
@@ -1019,38 +1021,6 @@ def estimate_hypers(step, problem):
 
     problem.config.problem_config = pc
     bconfig.dump(problem.config, filename=conf_out)
-
-
-def choose_proposal(proposal_dist):
-    """
-    Initialises and selects proposal distribution.
-
-    Parameters
-    ----------
-    proposal_dist : string
-        Name of the proposal distribution to initialise
-
-    Returns
-    -------
-    class:'pymc3.Proposal' Object
-    """
-
-    if proposal_dist == 'Cauchy':
-        distribution = pm.CauchyProposal
-
-    elif proposal_dist == 'Poisson':
-        distribution = pm.PoissonProposal
-
-    elif proposal_dist == 'Normal':
-        distribution = pm.NormalProposal
-
-    elif proposal_dist == 'Laplace':
-        distribution = pm.LaplaceProposal
-
-    elif proposal_dist == 'MultivariateNormal':
-        distribution = pm.MultivariateNormalProposal
-
-    return distribution
 
 
 def load_model(project_dir, mode, hypers=False):
@@ -1156,7 +1126,7 @@ def load_stage(problem, stage_number=None, load='trace'):
         stage.mtrace = backend.load(stagepath, model=problem.model)
 
     if 'params' in to_load:
-        stage.step, stage.updates = utility.load_atmip_params(
+        stage.step, stage.updates = backend.load_sampler_params(
             project_dir, stage_number, mode)
 
     return stage
