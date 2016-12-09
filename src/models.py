@@ -214,7 +214,7 @@ class GeometryOptimizer(Problem):
                     (num.abs(at.a) + at.d) * sc.gf_config.sample_rate))
 
                 for tr in self.data_traces:
-                    cov_ds_seismic.append(num.eye(n_samples))
+                    cov_ds_seismic.append(num.zeros(n_samples))
 
             self.sweights = []
             for s_t in range(self.ns_t):
@@ -257,6 +257,13 @@ class GeometryOptimizer(Problem):
             _odws_list = [self.gtargets[i].odw for i in range(self.ng_t)]
             _lv_list = [self.gtargets[i].update_los_vector()
                             for i in range(self.ng_t)]
+
+            if gc.calc_data_cov:
+                logger.info('Using data covariance!')
+            else:
+                logger.info('No data-covariance estimation ...\n')
+                for g_t in self.gtargets:
+                    g_t.covariance.data = num.zeros(g_t.lats.size)
 
             self.gweights = []
             for g_t in range(self.ng_t):
@@ -604,7 +611,7 @@ class GeometryOptimizer(Problem):
 
         if len(hps) > 0:
             for hyper in hps.keys():
-                point.pop(hyper)
+                tpoint.pop(hyper)
 
         if self._seismic_flag:
             tpoint['time'] += self.event.time

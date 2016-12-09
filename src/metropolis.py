@@ -95,6 +95,8 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
             if not os.path.exists(stage_path):
                 chains = None
 
+            step.stage = stage
+
             sample_args = {
                     'draws': draws,
                     'step': step,
@@ -129,7 +131,6 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
             elif update is not None and stage == 0 and update._seismic_flag:
                 update.engine.close_cashed_stores()
 
-            step.stage = stage
             outpath = os.path.join(stage_path, sample_p_outname)
             outparam_list = [step, update]
             utility.dump_objects(outpath, outparam_list)

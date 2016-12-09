@@ -290,8 +290,8 @@ class Covariance(Object):
         if self.pred_g is None:
             self.pred_g = num.zeros_like(self.data)
 
-        if self.pred_v is None:
-            self.pred_v = num.zeros_like(self.data)
+        if self.pred_v is None and self.data.sum() == 0.:
+            self.pred_v = num.eye(self.data.shape[0])
 
         return self.pred_g + self.pred_v
 

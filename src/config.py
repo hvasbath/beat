@@ -188,6 +188,10 @@ class GeodeticConfig(Object):
     types = List.T(
         default=['SAR'],
         help='Types of geodetic data, i.e. SAR, GPS, ...')
+    calc_data_cov = Bool.T(
+        default=True,
+        help='Flag for calculating the data covariance matrix based on the'
+             ' pre P arrival data trace noise.')
     gf_config = GeodeticGFConfig.T(default=GeodeticGFConfig.D())
 
 
