@@ -163,8 +163,14 @@ def command_init(args):
 
         parser.add_option('--sampler', dest='sampler', type='string',
             default='ATMCMC',
-            help='Sampling algoruthm to sample the solution space;'
-                 '"ATMCMC", "Metropolis". Default: "ATMCMC"')
+            help='Sampling algoruthm to sample the solution space of the'
+                 ' general problem; "ATMCMC", "Metropolis". Default: "ATMCMC"')
+
+        parser.add_option('--hyper_sampler', dest='hyper_sampler',
+            type='string', default='Metropolis',
+            help='Sampling algoruthm to sample the solution space of the'
+                 ' hyperparameters only;'
+                 '"ATMCMC", "Metropolis". Default: "Metropolis"')
 
         parser.add_option('--use_custom', dest='use_custom',
             action='store_true',
@@ -187,6 +193,7 @@ def command_init(args):
                mode=options.mode,
                n_faults=options.n_faults,
                sampler=options.sampler,
+               hyper_sampler=options.hyper_sampler,
                use_custom=options.use_custom)
 
 
@@ -329,7 +336,8 @@ def command_clone(args):
             new_datasets = []
             for dataset in  options.datasets:
                 if dataset not in c.problem_config.datasets:
-                    logger.warn('Dataset to be cloned is not in config!')
+                    logger.warn(
+                        'Dataset %s to be cloned is not in config!' % dataset)
                 else:
                     new_datasets.append(dataset)
 
@@ -362,16 +370,24 @@ def command_clone(args):
                     idx = old_priors_name.index(prior)
                     c.problem_config.priors.append(old_priors[idx])
 
+            old_hypers = copy.deepcopy(c.problem_config.hyperparameters)
+
             c.update_hypers()
+            for hyper in c.problem_config.hyperparameters.keys():
+                c.problem_config.hyperparameters[hyper] = old_hypers[hyper]
+
             cloned_config_fn = os.path.join(
                 cloned_dir, 'config_' + mode + '.yaml')
             dump(c, filename=cloned_config_fn)
+
+        else:
+            raise Exception('Config file: %s does not exist!' % config_fn)
 
 def command_sample(args):
 
     def setup(parser):
         parser.add_option('--mode', dest='mode',
-            choices=['geometry', 'static_dist', 'kinemtic_dist'],
+            choices=['geometry', 'static_dist', 'kinematic_dist'],
             default='geometry',
             help='Inversion problem to solve; "geometry", "static_dist",'
                  '"kinematic_dist". Default: "geometry"')
@@ -381,6 +397,9 @@ def command_sample(args):
             help='Main path (absolute) leading to folders of events that'
                  ' have been created by "init".'
                  ' Default: current directory: ./')
+
+        parser.add_option('--hypers', dest='hypers',
+                action='store_true', help='Sample hyperparameters only.')
 
     parser, options, args = cl_parse('sample', args, setup=setup)
 
@@ -394,11 +413,15 @@ def command_sample(args):
     main_path = os.getcwd()
     project_dir = os.path.join(main_path, name)
 
-    problem = models.load_model(project_dir, options.mode)
+    problem = models.load_model(
+        project_dir, options.mode, options.hypers)
 
-    step = problem.init_sampler()
+    step = problem.init_sampler(hypers=options.hypers)
 
-    models.sample(step, problem)
+    if options.hypers:
+        models.estimate_hypers(step, problem)
+    else:
+        models.sample(step, problem)
 
 
 def command_build_gfs(args):
@@ -532,10 +555,9 @@ def command_plot(args):
                  'Default: "max"')
 
         parser.add_option('--stage_number', dest='stage_number',
-            choices=['final', 'n'],
             default=None,
             help='String of the stage number "n" of the stage to be plotted.'
-                 ' Default: last complete stage')
+                 ' Default: all stages up to last complete stage')
 
         parser.add_option('--format', dest='format',
             choices=['display', 'pdf', 'png'],
@@ -553,6 +575,9 @@ def command_plot(args):
 
         parser.add_option('--reference', dest='reference', action='store_true',
                 help='Plot reference (test_point) into stage posteriors.')
+
+        parser.add_option('--hypers', dest='hypers',
+            action='store_true', help='Plot hyperparameter results only.')
 
     plots_avail = plotting.available_plots()
 
@@ -580,7 +605,7 @@ selected giving a comma seperated list.''' % (
     project_dir = os.path.join(main_path, args[0])
 
     logger.info('Loading problem ...')
-    problem = models.load_model(project_dir, options.mode)
+    problem = models.load_model(project_dir, options.mode, options.hypers)
 
     po = plotting.PlotOptions(
         post_llk=options.post_llk,
@@ -593,6 +618,9 @@ selected giving a comma seperated list.''' % (
         po.reference = problem.model.test_point
     else:
         po.reference = None
+
+    figure_path = os.path.join(problem.outfolder, po.figure_dir)
+    util.ensuredir(figure_path)
 
     for plot in plotnames:
         plotting.plots_catalog[plot](problem, po)

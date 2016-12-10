@@ -25,14 +25,96 @@ from pymc3.model import modelcontext
 from pymc3.vartypes import discrete_types
 from pymc3.theanof import inputvars
 from pymc3.theanof import make_shared_replacements, join_nonshared_inputs
-from pymc3.step_methods.metropolis import MultivariateNormalProposal as MvNPd
-from numpy.random import seed
 
 from beat import backend, utility
+from beat.config import sample_p_outname
 
-__all__ = ['ATMCMC', 'ATMIP_sample', 'logp_forw']
+from numpy.random import normal, standard_cauchy, standard_exponential, \
+    poisson
+
+
+__all__ = [
+    'ATMCMC',
+    'ATMIP_sample',
+    'init_stage',
+    'logp_forw',
+    '_iter_parallel_chains']
 
 logger = logging.getLogger('ATMCMC')
+
+
+class Proposal(object):
+    """
+    Proposal distributions modified from pymc3 to initially create all the
+    Proposal steps without repeated execution of the RNG- significant speedup!
+    """
+    def __init__(self, s):
+        self.s = np.atleast_1d(s)
+
+
+class NormalProposal(Proposal):
+    def __call__(self, num_draws=None):
+        size = (self.s.shape)
+        if num_draws:
+            size += (num_draws,)
+        return normal(scale=self.s[0], size=size).T
+
+
+class CauchyProposal(Proposal):
+    def __call__(self, num_draws=None):
+        size = (self.s.shape)
+        if num_draws:
+            size += (num_draws,)
+        return standard_cauchy(size=size).T * self.s
+
+
+class LaplaceProposal(Proposal):
+    def __call__(self, num_draws=None):
+        size = (self.s.shape)
+        if num_draws:
+            size += (num_draws,)
+        return (standard_exponential(size=size)
+              - standard_exponential(size=size)).T * self.s
+
+
+class PoissonProposal(Proposal):
+    def __call__(self, num_draws=None):
+        size = (self.s.shape)
+        if num_draws:
+            size += (num_draws,)
+        return poisson(lam=self.s, size=size).T - self.s
+
+
+class MultivariateNormalProposal(Proposal):
+    def __call__(self, num_draws=None):
+        return np.random.multivariate_normal(
+                mean=np.zeros(self.s.shape[0]), cov=self.s, size=num_draws)
+
+
+proposal_dists = {
+    'Cauchy': CauchyProposal,
+    'Poisson': PoissonProposal,
+    'Normal': NormalProposal,
+    'Laplace': LaplaceProposal,
+    'MultivariateNormal': MultivariateNormalProposal,
+        }
+
+
+def choose_proposal(proposal_name, scale=1.):
+    """
+    Initialises and selects proposal distribution.
+
+    Parameters
+    ----------
+    proposal_name : string
+        Name of the proposal distribution to initialise
+    scale : float or :class:`numpy.ndarray`
+
+    Returns
+    -------
+    class:`pymc3.Proposal` Object
+    """
+    return proposal_dists[proposal_name](scale)
 
 
 class ATMCMC(backend.ArrayStepSharedLLK):
@@ -92,9 +174,10 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
     default_blocked = True
 
-    def __init__(self, vars=None, out_vars=None, covariance=None, scaling=1.,
+    def __init__(self, vars=None, out_vars=None, covariance=None, scale=1.,
                  n_chains=100, tune=True, tune_interval=100, model=None,
-                 check_bound=True, likelihood_name='like', proposal_dist=MvNPd,
+                 check_bound=True, likelihood_name='like',
+                 proposal_name='MultivariateNormal',
                  coef_variation=1., **kwargs):
 
         model = modelcontext(model)
@@ -109,15 +192,21 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         out_varnames = [out_var.name for out_var in out_vars]
 
-        if covariance is None:
+        self.scaling = np.atleast_1d(scale)
+
+        if covariance is None and proposal_name == 'MvNPd':
             self.covariance = np.eye(sum(v.dsize for v in vars))
-        self.scaling = np.atleast_1d(scaling)
+            scale = self.covariance
+
         self.tune = tune
         self.check_bnd = check_bound
         self.tune_interval = tune_interval
         self.steps_until_tune = tune_interval
 
-        self.proposal_dist = proposal_dist(self.covariance)
+        self.proposal_name = proposal_name
+        self.proposal_dist = choose_proposal(
+            self.proposal_name, scale=scale)
+
         self.proposal_samples_array = self.proposal_dist(n_chains)
 
         self.stage_sample = 0
@@ -196,7 +285,6 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
                 if np.isfinite(varlogp):
                     l = self.logp_forw(q)
-
                     q_new = pm.metropolis.metrop_select(
                         self.beta * (l[self._llk_index] - l0[self._llk_index]),
                         q, q0)
@@ -430,6 +518,100 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         return outindx
 
 
+def init_stage(homepath, step, stage, model, n_jobs=1,
+         progressbar=False, update=None, rm_flag=False):
+    """
+    Examine starting point of sampling, reload stages and initialise steps.
+    """
+    if stage is not None:
+        if stage == '0':
+            # continue or start initial stage
+            step.stage = int(stage)
+            stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
+            draws = 1
+
+        elif stage == 'final':
+            # continue sampling final stage
+            last = backend.get_highest_sampled_stage(homepath)
+
+            logger.info(
+                'Loading parameters from completed stage_%i' % last)
+            project_dir = os.path.dirname(homepath)
+            mode = os.path.basename(homepath)
+            step, updates = backend.load_sampler_params(
+                project_dir, str(last), mode)
+
+            if update is not None:
+                update.apply(updates)
+
+            stage_path = os.path.join(homepath, 'stage_final')
+            draws = step.n_steps
+
+        else:
+            # continue sampling intermediate
+            stage = int(stage)
+            logger.info(
+                'Loading parameters from completed stage_%i' % (stage - 1))
+            project_dir = os.path.dirname(homepath)
+            mode = os.path.basename(homepath)
+            step, updates = backend.load_sampler_params(
+                project_dir, str(stage - 1), mode)
+
+            if update is not None:
+                update.apply(updates)
+
+            step.stage += 1
+
+            stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
+            draws = step.n_steps
+
+        if rm_flag:
+            chains = None
+            if os.path.exists(stage_path):
+                logger.info('Removing previous sampling results ... '
+                    '%s' % stage_path)
+                shutil.rmtree(stage_path)
+        else:
+            with model:
+                if os.path.exists(stage_path):
+                    # load incomplete stage results
+                    logger.info('Reloading existing results ...')
+                    mtrace = backend.load(stage_path, model=model)
+                    if len(mtrace.chains) > 0:
+                        # continue sampling if traces exist
+                        logger.info('Checking for corrupted files ...')
+                        chains = backend.check_multitrace(
+                            mtrace, draws=draws, n_chains=step.n_chains)
+                        rest = len(chains) % n_jobs
+
+                        if rest > 0.:
+                            logger.info('Fixing %i chains ...' % rest)
+                            rest_chains = utility.split_off_list(chains, rest)
+                            # process traces that are not a multiple of n_jobs
+                            sample_args = {
+                                'draws': draws,
+                                'step': step,
+                                'stage_path': stage_path,
+                                'progressbar': progressbar,
+                                'model': model,
+                                'n_jobs': rest,
+                                'chains': rest_chains}
+
+                            _iter_parallel_chains(**sample_args)
+                            logger.info('Back to normal!')
+                    else:
+                        logger.info('Init new trace!')
+                        chains = None
+
+                else:
+                    logger.info('Init new trace!')
+                    chains = None
+    else:
+        raise Exception('stage has to be not None!')
+
+    return chains, step, update
+
+
 def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                   stage=None, n_jobs=1, tune=None, progressbar=False,
                   model=None, update=None, random_seed=None, rm_flag=False):
@@ -485,8 +667,6 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
     update : :py:class:`models.Problem`
         Problem object that contains all the observed data and (if applicable)
         covariances to be updated each transition step.
-    random_seed : int or list of ints
-        A list is accepted, more if `n_jobs` is greater than one.
     rm_flag : bool
         If True existing stage result folders are being deleted prior to
         sampling.
@@ -502,7 +682,6 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
     model = pm.modelcontext(model)
     step.n_steps = int(n_steps)
-    seed(random_seed)
 
     if n_steps < 1:
         raise Exception('Argument `n_steps` should be above 0.', exc_info=1)
@@ -534,92 +713,17 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
     util.ensuredir(homepath)
 
-    figdirpath = os.path.join(homepath, 'figures')
-    util.ensuredir(figdirpath)
-
     if progressbar and n_jobs > 1:
         progressbar = False
 
-    if stage is not None:
-        if stage == '0':
-            # continue or start initial stage
-            step.stage = int(stage)
-            stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
-            draws = 1
-
-        elif stage == 'final':
-            # continue sampling final stage
-            last = backend.get_highest_sampled_stage(homepath)
-
-            logger.info(
-                'Loading parameters from completed stage_%i' % last)
-            project_dir = os.path.dirname(homepath)
-            mode = os.path.basename(homepath)
-            step, updates = utility.load_atmip_params(
-                project_dir, str(last), mode)
-
-            if update is not None:
-                update.apply(updates)
-
-            stage_path = os.path.join(homepath, 'stage_final')
-            draws = step.n_steps
-
-        else:
-            # continue sampling intermediate
-            stage = int(stage)
-            logger.info(
-                'Loading parameters from completed stage_%i' % (stage - 1))
-            project_dir = os.path.dirname(homepath)
-            mode = os.path.basename(homepath)
-            step, updates = utility.load_atmip_params(
-                project_dir, str(stage - 1), mode)
-
-            if update is not None:
-                update.apply(updates)
-
-            step.stage += 1
-
-            stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
-            draws = step.n_steps
-
-        if rm_flag:
-            chains = None
-            if os.path.exists(stage_path):
-                logger.info('Removing previous sampling results ... '
-                    '%s' % stage_path)
-                shutil.rmtree(stage_path)
-        else:
-            with model:
-                # load incomplete stage results
-                logger.info('Reloading existing results ...')
-                mtrace = backend.load(stage_path, model=model)
-                if len(mtrace) > 0:
-                    # continue sampling if traces exist
-                    logger.info('Checking for corrupted files ...')
-                    chains = backend.check_multitrace(
-                        mtrace, draws=draws, n_chains=step.n_chains)
-                    rest = len(chains) % n_jobs
-
-                    if rest > 0.:
-                        logger.info('Fixing %i chains ...' % rest)
-                        rest_chains = utility.split_off_list(chains, rest)
-                        # process traces that are not a multiple of n_jobs
-                        sample_args = {
-                            'draws': draws,
-                            'step': step,
-                            'stage_path': stage_path,
-                            'progressbar': progressbar,
-                            'model': model,
-                            'n_jobs': rest,
-                            'chains': rest_chains}
-
-                        _iter_parallel_chains(**sample_args)
-                        logger.info('Back to normal!')
-                else:
-                    logger.info('Init new trace!')
-                    chains = None
-    else:
-        raise Exception('stage has to be not None!')
+    chains, step, update = init_stage(
+        homepath=homepath,
+        step=step,
+        stage=stage,
+        n_jobs=n_jobs,
+        progressbar=progressbar,
+        update=update,
+        model=model)
 
     with model:
         while step.beta < 1.:
@@ -665,7 +769,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
             if step.beta > 1.:
                 logger.info('Beta > 1.: %f' % step.beta)
                 step.beta = 1.
-                outpath = os.path.join(stage_path, 'atmip.params')
+                outpath = os.path.join(stage_path, sample_p_outname)
                 outparam_list = [step, update]
                 utility.dump_objects(outpath, outparam_list)
                 if stage == 'final':
@@ -675,10 +779,11 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                 break
 
             step.covariance = step.calc_covariance()
-            step.proposal_dist = MvNPd(step.covariance)
+            step.proposal_dist = choose_proposal(
+                step.proposal_name, scale=step.covariance)
             step.resampling_indexes = step.resample()
 
-            outpath = os.path.join(stage_path, 'atmip.params')
+            outpath = os.path.join(stage_path, sample_p_outname)
             outparam_list = [step, update]
             utility.dump_objects(outpath, outparam_list)
 
@@ -693,7 +798,8 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                            (step.likelihoods - step.likelihoods.max()))
         step.weights = temp / np.sum(temp)
         step.covariance = step.calc_covariance()
-        step.proposal_dist = MvNPd(step.covariance)
+        step.proposal_dist = choose_proposal(
+            step.proposal_name, scale=step.covariance)
         step.resampling_indexes = step.resample()
 
         sample_args['step'] = step
@@ -701,16 +807,16 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
         sample_args['chains'] = chains
         _iter_parallel_chains(**sample_args)
 
-        outpath = os.path.join(stage_path, 'atmip.params')
+        outpath = os.path.join(stage_path, sample_p_outname)
         outparam_list = [step, update]
         utility.dump_objects(outpath, outparam_list)
 
 
 def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
-            progressbar=True, model=None, random_seed=None):
+            progressbar=True, model=None):
 
     sampling = _iter_sample(draws, step, start, trace, chain,
-                            tune, model, random_seed)
+                            tune, model)
 
     if progressbar:
         sampling = tqdm(sampling, total=draws)
@@ -726,7 +832,7 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
 
 
 def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
-                 model=None, random_seed=None):
+                 model=None):
     """
     Modified from :func:`pymc3.sampling._iter_sample` to be more efficient with
     the ATMCMC algorithm.
@@ -735,7 +841,7 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
     model = modelcontext(model)
 
     draws = int(draws)
-    seed(random_seed)
+
     if draws < 1:
         raise ValueError('Argument `draws` should be above 0.')
 
@@ -833,11 +939,10 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
 
     trace_list = []
 
-    if n_jobs > 1:
-        display = False
-
-    elif n_jobs == 1:
+    if progressbar:
         display = True
+    else:
+        display = False
 
     pack_pb = [progressbar for i in range(n_jobs - 1)] + [display]
     block_pb = []

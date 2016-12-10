@@ -3,7 +3,6 @@ import time
 import copy
 
 import pymc3 as pm
-
 from pymc3 import Metropolis
 
 from pyrocko import gf, util, model, trace
@@ -15,7 +14,7 @@ import theano.tensor as tt
 from theano import config as tconfig
 from theano import shared
 
-from beat import theanof, heart, utility, atmcmc, backend
+from beat import theanof, heart, utility, atmcmc, backend, metropolis
 from beat import covariance as cov
 from beat import config as bconfig
 
@@ -23,8 +22,7 @@ import logging
 
 logger = logging.getLogger('models')
 
-__all__ = ['GeometryOptimizer', 'sample', 'load_model', 'load_stage',
-    'choose_proposal']
+__all__ = ['GeometryOptimizer', 'sample', 'load_model', 'load_stage']
 
 
 class Problem(Object):
@@ -58,12 +56,15 @@ class Problem(Object):
         if 'geodetic' in pc.datasets:
             self._geodetic_flag = True
 
-    def init_sampler(self):
+    def init_sampler(self, hypers=False):
         """
         Initialise the Sampling algorithm as defined in the configuration file.
         """
 
-        sc = self.config.sampler_config
+        if hypers:
+            sc = self.config.hyper_sampler_config
+        else:
+            sc = self.config.sampler_config
 
         if self.model is None:
             raise Exception(
@@ -73,27 +74,40 @@ class Problem(Object):
             if sc.name == 'Metropolis':
                 logger.info(
                     '... Initiate Metropolis ... \n'
-                    'proposal_distribution %s, tune_interval=%i\n' % (
-                    sc.parameters.proposal_dist, sc.parameters.tune_interval))
+                    ' proposal_distribution %s, tune_interval=%i,'
+                    ' n_jobs=%i \n' % (
+                    sc.parameters.proposal_dist, sc.parameters.tune_interval,
+                    sc.parameters.n_jobs))
 
                 t1 = time.time()
-                step = Metropolis(
-                    tune_interval=sc.parameters.tune_interval,
-                    proposal_dist=choose_proposal(sc.parameters.proposal_dist))
+                if hypers:
+                    step = Metropolis(
+                        tune_interval=sc.parameters.tune_interval,
+                        proposal_dist=metropolis.choose_proposal(
+                            sc.parameters.proposal_dist))
+                else:
+                    step = atmcmc.ATMCMC(
+                        n_chains=sc.parameters.n_jobs,
+                        tune_interval=sc.parameters.tune_interval,
+                        likelihood_name=self._like_name,
+                        proposal_name=sc.parameters.proposal_dist,
+                        covariance=1.)
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
 
             elif sc.name == 'ATMCMC':
                 logger.info(
                     '... Initiate Adaptive Transitional Metropolis ... \n'
-                    ' n_chains=%i, tune_interval=%i\n' % (
-                        sc.parameters.n_chains, sc.parameters.tune_interval))
+                    ' n_chains=%i, tune_interval=%i, n_jobs=%i \n' % (
+                        sc.parameters.n_chains, sc.parameters.tune_interval,
+                        sc.parameters.n_jobs))
 
                 t1 = time.time()
                 step = atmcmc.ATMCMC(
                     n_chains=sc.parameters.n_chains,
                     tune_interval=sc.parameters.tune_interval,
                     coef_variation=sc.parameters.coef_variation,
+                    proposal_dist=sc.parameters.proposal_dist,
                     likelihood_name=self._like_name)
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
@@ -118,9 +132,6 @@ class GeometryOptimizer(Problem):
 
     def __init__(self, config):
         logger.info('... Initialising Geometry Optimizer ... \n')
-
-        self.outfolder = os.path.join(config.project_dir, 'geometry')
-        util.ensuredir(self.outfolder)
 
         pc = config.problem_config
 
@@ -203,12 +214,12 @@ class GeometryOptimizer(Problem):
                     (num.abs(at.a) + at.d) * sc.gf_config.sample_rate))
 
                 for tr in self.data_traces:
-                    cov_ds_seismic.append(num.eye(n_samples))
+                    cov_ds_seismic.append(num.zeros(n_samples))
 
             self.sweights = []
             for s_t in range(self.ns_t):
                 self.stargets[s_t].covariance.data = cov_ds_seismic[s_t]
-                icov = self.stargets[s_t].covariance.get_inverse()
+                icov = self.stargets[s_t].covariance.inverse
                 self.sweights.append(shared(icov))
 
             # syntetics generation
@@ -247,9 +258,16 @@ class GeometryOptimizer(Problem):
             _lv_list = [self.gtargets[i].update_los_vector()
                             for i in range(self.ng_t)]
 
+            if gc.calc_data_cov:
+                logger.info('Using data covariance!')
+            else:
+                logger.info('No data-covariance estimation ...\n')
+                for g_t in self.gtargets:
+                    g_t.covariance.data = num.zeros(g_t.lats.size)
+
             self.gweights = []
             for g_t in range(self.ng_t):
-                icov = self.gtargets[g_t].covariance.get_inverse()
+                icov = self.gtargets[g_t].covariance.inverse
                 self.gweights.append(shared(icov))
 
             # merge geodetic data to call pscmp only once each forward model
@@ -346,10 +364,14 @@ class GeometryOptimizer(Problem):
     def built_model(self):
         """
         Initialise :class:`pymc3.Model` depending on configuration file,
-        geodetic and/or seismic data are included.
+        geodetic and/or seismic data are included. Estimates the fault(s)
+        geometry.
         """
 
         logger.info('... Building model ...\n')
+
+        self.outfolder = os.path.join(self.config.project_dir, 'geometry')
+        util.ensuredir(self.outfolder)
 
         with pm.Model() as self.model:
 
@@ -473,6 +495,96 @@ class GeometryOptimizer(Problem):
             llk = pm.Potential(self._like_name, like)
             logger.info('Model building was successful!')
 
+    def built_hyper_model(self):
+        """
+        Initialise :class:`pymc3.Model` depending on configuration file,
+        geodetic and/or seismic data are included. Estimates initial parameter
+        bounds for hyperparameters.
+        """
+
+        logger.info('... Building Hyper model ...\n')
+
+        self.outfolder = os.path.join(
+            self.config.project_dir, 'geometry', 'hypers')
+        util.ensuredir(self.outfolder)
+
+        pc = self.config.problem_config
+
+        point = {}
+        for param in pc.priors:
+            point[param.name] = param.testvalue
+
+        self.update_llks(point)
+
+        with pm.Model() as self.model:
+            self.hyperparams = {}
+            n_hyp = len(pc.hyperparameters.keys())
+
+            logger.debug('Optimization for %i hyperparemeters', n_hyp)
+
+            for hyperpar in pc.hyperparameters.itervalues():
+                if not self._seismic_flag and n_hyp == 1:
+                    self.hyperparams[hyperpar.name] = 1.
+                else:
+                    self.hyperparams[hyperpar.name] = pm.Uniform(
+                        hyperpar.name,
+                        shape=hyperpar.dimension,
+                        lower=hyperpar.lower,
+                        upper=hyperpar.upper,
+                        testval=hyperpar.testvalue,
+                        transform=None)
+
+            total_llk = tt.zeros((1), tconfig.floatX)
+
+            if self._seismic_flag:
+
+                logpts_s = tt.zeros((self.ns_t), tconfig.floatX)
+                sc = self.config.seismic_config
+
+                for k, target in enumerate(self.stargets):
+                    M = sc.arrival_taper.duration * sc.gf_config.sample_rate
+                    sfactor = target.covariance.log_norm_factor
+                    hp_name = bconfig.hyper_pars[target.codes[3]]
+
+                    logpts_s = tt.set_subtensor(logpts_s[k:k + 1],
+                        (-0.5) * (sfactor - \
+                        (M * 2 * self.hyperparams[hp_name]) + \
+                        tt.exp(self.hyperparams[hp_name] * 2) * \
+                            self._seis_llks[k]
+                                 )
+                                                )
+
+                seis_llk = pm.Deterministic(self._seis_like_name, logpts_s)
+
+                total_llk = total_llk + seis_llk.sum()
+
+            if self._geodetic_flag:
+
+                logpts_g = tt.zeros((self.ng_t), tconfig.floatX)
+
+                for l, target in enumerate(self.gtargets):
+                    M = target.displacement.size
+                    gfactor = target.covariance.log_norm_factor
+                    hp_name = bconfig.hyper_pars[target.typ]
+
+                    logpts_g = tt.set_subtensor(logpts_g[l:l + 1],
+                         (-0.5) * (gfactor - \
+                         (M * 2 * self.hyperparams[hp_name]) + \
+                         tt.exp(self.hyperparams[hp_name] * 2) * \
+                         self._geo_llks[l]
+                                  )
+                                               )
+
+                geo_llk = pm.Deterministic(self._geo_like_name, logpts_g)
+
+                total_llk = total_llk + geo_llk.sum()
+
+            like = pm.Deterministic(
+                self._like_name, total_llk)
+
+            llk = pm.Potential(self._like_name, like)
+            logger.info('Hyper model building was successful!')
+
     def update_weights(self, point, n_jobs=1, plot=False):
         """
         Calculate and update model prediction uncertainty covariances
@@ -489,21 +601,22 @@ class GeometryOptimizer(Problem):
         plot : boolean
             Flag for opening the seismic waveforms in the snuffler
         """
+        tpoint = copy.deepcopy(point)
 
         # update sources
-        point = utility.adjust_point_units(point)
+        tpoint = utility.adjust_point_units(tpoint)
 
         # remove hyperparameters from point
         hps = self.config.problem_config.hyperparameters
 
         if len(hps) > 0:
             for hyper in hps.keys():
-                point.pop(hyper)
+                tpoint.pop(hyper)
 
         if self._seismic_flag:
-            point['time'] += self.event.time
+            tpoint['time'] += self.event.time
 
-        source_points = utility.split_point(point)
+        source_points = utility.split_point(tpoint)
 
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
@@ -540,7 +653,7 @@ class GeometryOptimizer(Problem):
                     index = j * len(self.stations) + i
 
                     self.stargets[index].covariance.pred_v = cov_pv
-                    icov = self.stargets[index].covariance.get_inverse()
+                    icov = self.stargets[index].covariance.inverse
                     self.sweights[index].set_value(icov)
 
         # geodetic
@@ -558,7 +671,7 @@ class GeometryOptimizer(Problem):
                 cov_pv = utility.ensure_cov_psd(cov_pv)
 
                 gtarget.covariance.pred_v = cov_pv
-                icov = gtarget.covariance.get_inverse()
+                icov = gtarget.covariance.inverse
                 self.gweights[i].set_value(icov)
 
     def get_synthetics(self, point, **kwargs):
@@ -655,7 +768,7 @@ class GeometryOptimizer(Problem):
         """
         assert self._seismic_flag
 
-        logger.info('Assembling seismic waveforms ...')
+        logger.debug('Assembling seismic waveforms ...')
 
         if self._geodetic_flag:
             self._geodetic_flag = False
@@ -736,7 +849,7 @@ class GeometryOptimizer(Problem):
         """
         assert self._geodetic_flag
 
-        logger.info('Assembling geodetic data ...')
+        logger.debug('Assembling geodetic data ...')
 
         if self._seismic_flag:
             self._seismic_flag = False
@@ -760,6 +873,31 @@ class GeometryOptimizer(Problem):
 
         return results
 
+    def update_llks(self, point):
+        """
+        Calculate likelihood with respect to given point in the solution space.
+        """
+
+        if self._seismic_flag:
+            sresults = self.assemble_seismic_results(point)
+
+            self._seis_llks = []
+            for k, result in enumerate(sresults):
+                icov = self.stargets[k].covariance.inverse
+                self._seis_llks.append(shared(
+                    result.processed_res.ydata.dot(
+                        icov).dot(result.processed_res.ydata.T)))
+
+        if self._geodetic_flag:
+            gresults = self.assemble_geodetic_results(point)
+
+            self._geo_llks = []
+            for k, result in enumerate(gresults):
+                icov = self.gtargets[k].covariance.inverse
+                self._geo_llks.append(shared(
+                    result.processed_res.dot(
+                        icov).dot(result.processed_res.T)))
+
 
 def sample(step, problem):
     """
@@ -773,64 +911,126 @@ def sample(step, problem):
     problem : :class:`Problem` with characteristics of problem to solve
     """
 
-    sc = problem.config.sampler_config.parameters
+    sc = problem.config.sampler_config
+    pa = sc.parameters
 
-    if problem.config.sampler_config.name == 'Metropolis':
+    if pa.update_covariances:
+        update = problem
+    else:
+        update = None
+
+    if sc.name == 'Metropolis':
         logger.info('... Starting Metropolis ...\n')
-        pm.sample(draws=sc.n_steps, step=step, model=problem.model)
 
-    elif problem.config.sampler_config.name == 'ATMCMC':
-        if sc.update_covariances:
-            update = problem
-        else:
-            update = None
+        name = problem.outfolder
+        util.ensuredir(name)
 
-        logger.info('... Starting ATMIP ...\n')
-        atmcmc.ATMIP_sample(
-            sc.n_steps,
+        metropolis.Metropolis_sample(
+            n_stages=pa.n_stages,
+            n_steps=pa.n_steps,
+            stage=pa.stage,
             step=step,
             progressbar=True,
+            trace=problem.outfolder,
+            burn=pa.burn,
+            thin=pa.thin,
             model=problem.model,
-            n_jobs=sc.n_jobs,
-            stage=sc.stage,
+            n_jobs=pa.n_jobs,
+            update=update,
+            rm_flag=pa.rm_flag)
+
+    elif sc.name == 'ATMCMC':
+        logger.info('... Starting ATMIP ...\n')
+
+        atmcmc.ATMIP_sample(
+            pa.n_steps,
+            step=step,
+            progressbar=False,
+            model=problem.model,
+            n_jobs=pa.n_jobs,
+            stage=pa.stage,
             update=update,
             trace=problem.outfolder,
-            rm_flag=sc.rm_flag)
+            rm_flag=pa.rm_flag)
 
 
-def choose_proposal(proposal_dist):
+def estimate_hypers(step, problem):
     """
-    Initialises and selects proposal distribution.
-
-    Parameters
-    ----------
-    proposal_dist : string
-        Name of the proposal distribution to initialise
-
-    Returns
-    -------
-    class:'pymc3.Proposal' Object
+    Get initial estimates of the hyperparameters
     """
+    logger.info('... Estimating hyperparameters ...')
 
-    if proposal_dist == 'Cauchy':
-        distribution = pm.CauchyProposal
+    pc = problem.config.problem_config
+    sc = problem.config.hyper_sampler_config
+    pa = sc.parameters
 
-    elif proposal_dist == 'Poisson':
-        distribution = pm.PoissonProposal
+    name = problem.outfolder
+    util.ensuredir(name)
 
-    elif proposal_dist == 'Normal':
-        distribution = pm.NormalProposal
+    mtraces = []
+    for stage in range(pa.n_stages):
+        logger.info('Metropolis stage %i' % stage)
 
-    elif proposal_dist == 'Laplace':
-        distribution = pm.LaplaceProposal
+        if stage == 0:
+            point = {param.name: param.testvalue for param in pc.priors}
+        else:
+            point = {param.name: param.random() for param in pc.priors}
 
-    elif proposal_dist == 'MultivariateNormal':
-        distribution = pm.MultivariateNormalProposal
+        problem.outfolder = os.path.join(name, 'stage_%i' % stage)
+        start = {param.name: param.random() for param in \
+                                            pc.hyperparameters.itervalues()}
 
-    return distribution
+        if not os.path.exists(problem.outfolder):
+            logger.debug('Sampling ...')
+            problem.update_llks(point)
+            logger
+            with problem.model as model:
+                mtraces.append(pm.sample(
+                    draws=pa.n_steps,
+                    step=step,
+                    trace=pm.backends.Text(
+                        name=problem.outfolder,
+                        model=problem.model),
+                    start=start,
+                    model=model,
+                    chain=stage * pa.n_jobs,
+                    njobs=pa.n_jobs,
+                    ))
+
+        else:
+            logger.debug('Loading existing results!')
+            mtraces.append(pm.backends.text.load(
+                name=problem.outfolder, model=problem.model))
+
+    mtrace = pm.backends.base.merge_traces(mtraces)
+    outname = os.path.join(name, 'stage_final')
+
+    if not os.path.exists(outname):
+        util.ensuredir(outname)
+        pm.backends.text.dump(name=outname, trace=mtrace)
+
+    n_steps = pa.n_steps
+
+    for v, i in pc.hyperparameters.iteritems():
+        d = mtrace.get_values(
+            v, combine=True, burn=int(n_steps * pa.burn),
+            thin=pa.thin, squeeze=True)
+        lower = num.floor(d.min(axis=0)) - 0.5
+        upper = num.ceil(d.max(axis=0)) + 0.5
+        logger.info('Updating hyperparameter %s from %f, %f to %f, %f' % (
+            v, i.lower, i.upper, lower, upper))
+        pc.hyperparameters[v].lower = lower
+        pc.hyperparameters[v].upper = upper
+        pc.hyperparameters[v].testvalue = (upper + lower) / 2.
+
+    config_file_name = 'config_' + pc.mode + '.yaml'
+    conf_out = os.path.join(problem.config.project_dir, config_file_name)
+
+    problem.config.problem_config = pc
+    bconfig.dump(problem.config, filename=conf_out)
 
 
-def load_model(project_dir, mode):
+def load_model(project_dir, mode, hypers=False):
     """
     Load config from project directory and return BEAT problem including model.
 
@@ -840,6 +1040,8 @@ def load_model(project_dir, mode):
         path to beat model directory
     mode : string
         problem name to be loaded
+    hypers : boolean
+        flag to return hyper parameter estimation model instead of main model.
 
     Returns
     -------
@@ -856,13 +1058,16 @@ def load_model(project_dir, mode):
         logger.error('Modeling problem %s not supported' % pc.mode)
         raise Exception('Model not supported')
 
-    problem.built_model()
+    if hypers:
+        problem.built_hyper_model()
+    else:
+        problem.built_model()
     return problem
 
 
-class ATMCMCStage(object):
+class Stage(object):
     """
-    ATMCMC stage, containing sampling results and intermediate optimizer
+    Stage, containing sampling results and intermediate sampler
     parameters.
     """
 
@@ -877,7 +1082,7 @@ class ATMCMCStage(object):
 
 def load_stage(problem, stage_number=None, load='trace'):
     """
-    Load stage results from ATMIP sampling.
+    Load stage results from sampling.
 
     Parameters
     ----------
@@ -922,13 +1127,13 @@ def load_stage(problem, stage_number=None, load='trace'):
     else:
         to_load = [load]
 
-    stage = ATMCMCStage(path=stagepath, number=stage_number)
+    stage = Stage(path=stagepath, number=stage_number)
 
     if 'trace' in to_load:
         stage.mtrace = backend.load(stagepath, model=problem.model)
 
     if 'params' in to_load:
-        stage.step, stage.updates = utility.load_atmip_params(
+        stage.step, stage.updates = backend.load_sampler_params(
             project_dir, stage_number, mode)
 
     return stage

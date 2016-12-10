@@ -220,6 +220,7 @@ def correlation_plot_hist(mtrace, varnames=None,
             subplot_kw={'adjustable': 'box-forced'})
 
     d = dict()
+
     for var in varnames:
         d[var] = transform(mtrace.get_values(
                 var, combine=True, squeeze=True))
@@ -352,9 +353,6 @@ def geodetic_fits(problem, stage, plot_options):
 
     target_index = dict(
         (target, i) for (i, target) in enumerate(problem.gtargets))
-
-    figure_path = os.path.join(problem.outfolder, 'figures')
-    util.ensuredir(figure_path)
 
     population, _, llk = stage.step.select_end_points(stage.mtrace)
 
@@ -620,9 +618,6 @@ def seismic_fits(problem, stage, plot_options):
         (target, i) for (i, target) in enumerate(problem.stargets))
 
     po = plot_options
-
-    figure_path = os.path.join(problem.outfolder, po.figure_dir)
-    util.ensuredir(figure_path)
 
     population, _, llk = stage.step.select_end_points(stage.mtrace)
 
@@ -911,6 +906,7 @@ def seismic_fits(problem, stage, plot_options):
 def draw_seismic_fits(problem, po):
 
     assert problem._seismic_flag
+    assert po.sampler == 'ATMCMC'
 
     stage = load_stage(problem, stage_number=po.load_stage, load='full')
 
@@ -1042,6 +1038,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
     if axs is None:
         fig, axs = plt.subplots(nrow, ncol, figsize=figsize)
+        axs = num.atleast_2d(axs)
     elif axs.shape != (nrow, ncol):
         logger.warn('traceplot requires n*2 subplots')
         return None
@@ -1092,28 +1089,41 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     return fig, axs, varbins
 
 
-def stage_posteriors(mtrace, n_steps, posterior=None, lines=None):
+def select_transform(sc, n_steps):
     """
-    Plot variable posteriors from a certain stage of the ATMIP algorithm.
+    Select transform function to be applied after loading the sampling results.
 
     Parameters
     ----------
-    mtrace : :class:`pymc3.backend.base.MultiTrace`
+    sc : :class:`config.SamplerConfig`
+        Name of the sampler that has been used in sampling the posterior pdf
     n_steps : int
         Number of chains to select last samples of each trace.
-    posterior : str
-        To mark posterior value in distribution 'max', 'min', 'mean', 'all'
-    lines : dict
-        :func:pymc3.model.Point to draw vertical lines for reference
+
+    Returns
+    -------
+    func : instance
     """
 
+    pa = sc.parameters
+
     def last_sample(x):
-        return x[(n_steps - 1)::n_steps].flatten()
+        return x[(pa.n_steps - 1)::pa.n_steps].flatten()
 
-    fig, axs, varbins = traceplot(mtrace, transform=last_sample,
-        combined=True, lines=lines, posterior=posterior)
+    def burn_sample(x):
+        nchains = x.shape[0] / n_steps
+        xout = []
+        for i in range(nchains):
+            nstart = int((pa.n_steps * i) + (pa.n_steps * pa.burn))
+            nend = int(pa.n_steps * (i + 1) - 1)
+            xout.append(x[nstart:nend:pa.thin])
 
-    return fig
+        return num.vstack(xout).flatten()
+
+    if sc.name == 'ATMCMC':
+        return last_sample
+    elif sc.name == 'Metropolis':
+        return burn_sample
 
 
 def draw_posteriors(problem, plot_options):
@@ -1123,40 +1133,60 @@ def draw_posteriors(problem, plot_options):
         output format: 'display', 'png' or 'pdf'
     """
 
-    mode = problem.config.problem_config.mode
+    hypers = utility.check_hyper_flag(problem)
     po = plot_options
 
-    stage = load_stage(problem, stage_number=po.load_stage, load='params')
-    step = stage.step
+    stage = load_stage(problem, stage_number=po.load_stage, load='trace')
 
     if po.load_stage is not None:
         list_indexes = [po.load_stage]
     else:
-        list_indexes = [str(i) for i in range(step.stage + 1)]
-
         if stage.number == 'final':
-            list_indexes = list_indexes + ['final']
+            stage_number = backend.get_highest_sampled_stage(
+                problem.outfolder, return_final=False)
+            list_indexes = [
+                str(i) for i in range(stage_number + 1)] + ['final']
+        else:
+            list_indexes = [
+                str(i) for i in range(int(stage.number) + 1)]
+
+    if hypers:
+        sc = problem.config.hyper_sampler_config
+        varnames = problem.config.problem_config.hyperparameters.keys()
+    else:
+        sc = problem.config.sampler_config
+        varnames = problem.config.problem_config.select_variables()
 
     figs = []
 
     for s in list_indexes:
-        if s == '0':
+        if sc.name == 'ATMCMC' and s == '0':
             draws = 1
         else:
-            draws = step.n_steps
+            draws = sc.parameters.n_steps
+
+        transform = select_transform(sampler=sc.name, n_steps=draws)
 
         stage_path = os.path.join(
-            problem.config.project_dir, mode, 'stage_%s' % s)
+            problem.outfolder, 'stage_%s' % s)
 
         outpath = os.path.join(
-            problem.config.project_dir,
-            mode, po.figure_dir, 'stage_%s.%s' % (s, po.outformat))
+            problem.outfolder,
+            po.figure_dir,
+            'stage_%s.%s' % (s, po.outformat))
 
         if not os.path.exists(outpath) or po.force:
             logger.info('plotting stage: %s' % stage_path)
             mtrace = backend.load(stage_path, model=problem.model)
-            fig = stage_posteriors(mtrace, n_steps=draws, posterior='all',
-                    lines=po.reference)
+
+            fig, _, _ = traceplot(
+                mtrace,
+                varnames=varnames,
+                transform=transform,
+                combined=True,
+                lines=po.reference,
+                posterior='all')
+
             if not po.outformat == 'display':
                 logger.info('saving figure to %s' % outpath)
                 fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
@@ -1177,27 +1207,32 @@ def draw_correlation_hist(problem, plot_options):
     Only feasible for 'geometry' problem.
     """
 
+    po = plot_options
     mode = problem.config.problem_config.mode
 
     assert mode == 'geometry'
+    hypers = utility.check_hyper_flag(problem)
 
-    def last_sample(x):
-        return x[(n_steps - 1)::n_steps].flatten()
+    if hypers:
+        sc = problem.config.hyper_sampler_config
+        varnames = problem.config.problem_config.hyperparameters.keys()
+    else:
+        sc = problem.config.sampler_config
+        varnames = problem.config.problem_config.select_variables()
 
-    n_steps = problem.config.sampler_config.parameters.n_steps
+    transform = select_transform(sc.name, sc.parameters.n_steps)
 
-    po = plot_options
     stage = load_stage(problem, po.load_stage, load='trace')
 
     outpath = os.path.join(
-        problem.config.project_dir,
-        mode, po.figure_dir, 'corr_hist_%s.%s' % (stage.number, po.outformat))
+        problem.outfolder, po.figure_dir, 'corr_hist_%s.%s' % (
+        stage.number, po.outformat))
 
     if not os.path.exists(outpath) or po.force:
         fig, axs = correlation_plot_hist(
             mtrace=stage.mtrace,
-            varnames=problem.config.problem_config.select_variables(),
-            transform=last_sample,
+            varnames=varnames,
+            transform=transform,
             cmap=plt.cm.gist_earth_r,
             point=po.reference,
             point_size='8',

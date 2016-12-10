@@ -29,7 +29,7 @@ from pymc3.backends import base, ndarray
 from pymc3.backends import tracetab as ttab
 from pymc3.blocking import DictToArrayBijection, ArrayOrdering
 
-from beat import utility
+from beat import utility, config
 
 logger = logging.getLogger('backend')
 
@@ -156,7 +156,6 @@ class Text(BaseATMCMCTrace):
 
         self.flat_names = {v: ttab.create_flat_names(v, shape)
                            for v, shape in self.var_shapes.items()}
-
         self.filename = None
         self.df = None
         self.corrupted_flag = False
@@ -241,7 +240,7 @@ class Text(BaseATMCMCTrace):
         varname : str
             Variable name for which values are to be retrieved.
         burn : int
-            Burn-in samples from trace. This is the number of samples to be 
+            Burn-in samples from trace. This is the number of samples to be
             thrown out from the start of the trace
         thin : int
             Nuber of thinning samples. Throw out every 'thin' sample of the
@@ -351,6 +350,26 @@ def check_multitrace(mtrace, draws, n_chains):
     corrupted_idx = [i for i, x in enumerate(flag_bool) if x]
 
     return corrupted_idx + not_sampled_idx
+
+
+def load_sampler_params(project_dir, stage_number, mode):
+    """
+    Load saved parameters from given ATMIP stage.
+
+    Parameters
+    ----------
+    project_dir : str
+        absolute path to directory of BEAT project
+    stage number : string
+        of stage number or 'final' for last stage
+    mode : str
+        problem mode that has been solved ('geometry', 'static', 'kinematic')
+    """
+
+    stage_path = os.path.join(project_dir, mode, 'stage_%s' % stage_number,
+        config.sample_p_outname)
+    step, update = utility.load_objects(stage_path)
+    return step, update
 
 
 def load(name, model=None):

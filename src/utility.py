@@ -544,26 +544,6 @@ def setup_logging(project_dir, levelname):
     logging.getLogger('').addHandler(console)
 
 
-def load_atmip_params(project_dir, stage_number, mode):
-    """
-    Load saved parameters from given ATMIP stage.
-
-    Parameters
-    ----------
-    project_dir : str
-        absolute path to directory of BEAT project
-    stage number : string
-        of stage number or 'final' for last stage
-    mode : str
-        problem mode that has been solved ('geometry', 'static', 'kinematic')
-    """
-
-    stage_path = os.path.join(project_dir, mode, 'stage_%s' % stage_number,
-        'atmip.params')
-    step, update = load_objects(stage_path)
-    return step, update
-
-
 def search_catalog(date, min_magnitude, dayrange=1.):
     """
     Search the gcmt catalog for the specified date (+- 1 day), filtering the
@@ -870,3 +850,22 @@ def gather(l, key, sort=None, filter=None):
             v.sort(key=sort)
 
     return d
+
+
+def check_hyper_flag(problem):
+    """
+    Check problem setup for type of model standard/hyperparameters.
+
+    Parameters
+    ----------
+    :class:`models.Problem`
+
+    Returns
+    -------
+    flag : boolean
+    """
+
+    if os.path.basename(problem.outfolder) == 'hypers':
+        return True
+    else:
+        return False

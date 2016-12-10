@@ -39,25 +39,6 @@ lambda_sensors = {
     }
 
 
-class PickleableTrace(trace.Trace):
-    """
-    Class build on top of :class:`pyrocko.trace.Trace` to make them pickleable.
-    Obsolete as this has been implemented in pyrocko.
-    """
-    def __reduce__(self):
-        pickled_state = super(PickleableTrace, self).__reduce__()
-        if self.ydata is not None:
-            updated_state = pickled_state[2] + (self.ydata,)
-        else:
-            updated_state = pickled_state[2]
-
-        return (pickled_state[0], pickled_state[1], updated_state)
-
-    def __setstate__(self, state):
-        super(PickleableTrace, self).__setstate__(state[0:-1])
-        self.ydata = state[-1]
-
-
 class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
     """
     Source for rectangular fault that unifies the necessary different source
@@ -314,22 +295,34 @@ class Covariance(Object):
 
         return self.pred_g + self.pred_v
 
-    def get_inverse(self):
+    @property
+    def inverse(self):
         """
         Add and invert ALL uncertainty covariance Matrices.
         """
-        return num.linalg.inv(self.p_total + self.data)
+        Cx = self.p_total + self.data
+        if Cx.sum() == 0:
+            logger.debug('No covariances given, using I matrix!')
+            return num.eye(Cx.shape[0])
+        else:
+            return num.linalg.inv(Cx)
 
-    def get_inverse_p(self):
+    @property
+    def inverse_p(self):
         """
         Add and invert different MODEL uncertainty covariance Matrices.
         """
+        if self.p_total.sum() == 0:
+            raise Exception('No model covariance defined!')
         return num.linalg.inv(self.p_total)
 
-    def get_inverse_d(self):
+    @property
+    def inverse_d(self):
         """
         Invert DATA covariance Matrix.
         """
+        if self.data is None:
+            raise Exception('No data covariance matrix defined!')
         return num.linalg.inv(self.data)
 
     @property
@@ -343,8 +336,11 @@ class Covariance(Object):
 
         if self.p_total.any():
             ldet_x = log_determinant(self.data + self.p_total)
-        else:
+        elif self.data.any():
             ldet_x = log_determinant(self.data)
+        else:
+            logger.debug('No covariance defined, using I matrix!')
+            ldet_x = 1.
 
         return (N * num.log(2 * num.pi)) + ldet_x
 
@@ -448,6 +444,17 @@ class Parameter(Object):
                     self.testvalue[i] < self.lower[i]:
                     raise Exception('the testvalue of parameter "%s" has to be'
                         'within the upper and lower bounds' % self.name)
+
+    def random(self):
+        """
+        Create random samples within the parameter bounds.
+
+        Returns
+        -------
+        :class:`numpy.ndarray` of size (n, m)
+        """
+        return (self.upper - self.lower) * num.random.rand(
+            self.dimension) + self.lower
 
     @property
     def dimension(self):
@@ -1297,10 +1304,10 @@ def get_phase_taperer(engine, source, target, arrival_taper):
 
     arrival_time = get_phase_arrival_time(engine, source, target)
 
-    taperer = trace.CosTaper(arrival_time + arrival_taper.a,
-                             arrival_time + arrival_taper.b,
-                             arrival_time + arrival_taper.c,
-                             arrival_time + arrival_taper.d)
+    taperer = trace.CosTaper(float(arrival_time + arrival_taper.a),
+                             float(arrival_time + arrival_taper.b),
+                             float(arrival_time + arrival_taper.c),
+                             float(arrival_time + arrival_taper.d))
     return taperer
 
 
