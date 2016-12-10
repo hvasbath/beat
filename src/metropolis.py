@@ -79,6 +79,7 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
     print step.stage
     # set beta to 1 - standard Metropolis sampling
     step.beta = 1.
+    step.n_jobs = n_jobs
 
     with model:
 
@@ -126,7 +127,6 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
                 logger.info('Updating Covariances ...')
 
                 update.update_weights(mean_pt, n_jobs=n_jobs)
-                print update.sweights[0].get_value()
 
             elif update is not None and stage == 0 and update._seismic_flag:
                 update.engine.close_cashed_stores()
@@ -157,8 +157,9 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2):
 
     n_steps = len(mtrace)
 
-    array_population = num.zeros((int(num.ceil(n_steps * (1 - burn) / thin)),
-                                  step.ordering.dimensions))
+    array_population = num.zeros((step.n_jobs * int(
+                                    num.ceil(n_steps * (1 - burn) / thin)),
+                                    step.ordering.dimensions))
 
     # collect end points of each chain and put into array
     for var, slc, shp, _ in step.ordering.vmap:

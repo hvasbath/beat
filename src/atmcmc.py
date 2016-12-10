@@ -285,7 +285,6 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
                 if np.isfinite(varlogp):
                     l = self.logp_forw(q)
-                    print l, l0
                     q_new = pm.metropolis.metrop_select(
                         self.beta * (l[self._llk_index] - l0[self._llk_index]),
                         q, q0)

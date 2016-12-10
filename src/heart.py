@@ -290,8 +290,8 @@ class Covariance(Object):
         if self.pred_g is None:
             self.pred_g = num.zeros_like(self.data)
 
-        if self.pred_v is None and self.data.sum() == 0.:
-            self.pred_v = num.eye(self.data.shape[0])
+        if self.pred_v is None:
+            self.pred_v = num.zeros_like(self.data)
 
         return self.pred_g + self.pred_v
 
@@ -300,13 +300,20 @@ class Covariance(Object):
         """
         Add and invert ALL uncertainty covariance Matrices.
         """
-        return num.linalg.inv(self.p_total + self.data)
+        Cx = self.p_total + self.data
+        if Cx.sum() == 0:
+            logger.debug('No covariances given, using I matrix!')
+            return num.eye(Cx.shape[0])
+        else:
+            return num.linalg.inv(Cx)
 
     @property
     def inverse_p(self):
         """
         Add and invert different MODEL uncertainty covariance Matrices.
         """
+        if self.p_total.sum() == 0:
+            raise Exception('No model covariance defined!')
         return num.linalg.inv(self.p_total)
 
     @property
@@ -314,6 +321,8 @@ class Covariance(Object):
         """
         Invert DATA covariance Matrix.
         """
+        if self.data is None:
+            raise Exception('No data covariance matrix defined!')
         return num.linalg.inv(self.data)
 
     @property
@@ -327,8 +336,11 @@ class Covariance(Object):
 
         if self.p_total.any():
             ldet_x = log_determinant(self.data + self.p_total)
-        else:
+        elif self.data.any():
             ldet_x = log_determinant(self.data)
+        else:
+            logger.debug('No covariance defined, using I matrix!')
+            ldet_x = 1.
 
         return (N * num.log(2 * num.pi)) + ldet_x
 
