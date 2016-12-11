@@ -236,6 +236,8 @@ class ATMCMC(backend.ArrayStepSharedLLK):
                                                             model=model)
             self.population.append(dummy)
 
+        self.population[0] = model.test_point
+
         self.chain_previous_lpoint = copy.deepcopy(self.population)
 
         shared = make_shared_replacements(vars, model)
@@ -305,9 +307,6 @@ class ATMCMC(backend.ArrayStepSharedLLK):
                 q_new = pm.metropolis.metrop_select(
                     self.beta * (l[self._llk_index] - l0[self._llk_index]),
                     q, q0)
-
-                self.chain_previous_lpoint[
-                    self.resampling_indexes[self.chain_index]] = l_new
 
                 if q_new is q:
                     self.accepted += 1
@@ -854,6 +853,8 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
         pass
 
     point = pm.Point(start, model=model)
+
+    step.chain_index = chain
 
     trace.setup(draws, chain)
     for i in range(draws):
