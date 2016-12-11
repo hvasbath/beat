@@ -522,14 +522,18 @@ class GeometryOptimizer(Problem):
 
             logger.debug('Optimization for %i hyperparemeters', n_hyp)
 
-            for hyperpar in pc.hyperparameters.itervalues():
-                self.hyperparams[hyperpar.name] = pm.Uniform(
-                    hyperpar.name,
-                    shape=hyperpar.dimension,
-                    lower=hyperpar.lower,
-                    upper=hyperpar.upper,
-                    testval=hyperpar.testvalue,
-                    transform=None)
+            for hp_name in bconfig.hyper_pars.values():
+                if hp_name in pc.hyperparameters:
+                    hyperpar = pc.hyperparameters[hp_name]
+                    self.hyperparams[hp_name] = pm.Uniform(
+                        hyperpar.name,
+                        shape=hyperpar.dimension,
+                        lower=hyperpar.lower,
+                        upper=hyperpar.upper,
+                        testval=hyperpar.testvalue,
+                        transform=None)
+                else:
+                    self.hyperparams[hp_name] = 0.
 
             total_llk = tt.zeros((1), tconfig.floatX)
 
