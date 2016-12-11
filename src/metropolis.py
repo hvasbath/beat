@@ -63,9 +63,6 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
 
     util.ensuredir(homepath)
 
-    if progressbar and n_jobs > 1:
-        progressbar = False
-
     chains, step, update = init_stage(
         homepath=homepath,
         step=step,
@@ -76,7 +73,6 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
         model=model,
         rm_flag=rm_flag)
 
-    print step.stage
     # set beta to 1 - standard Metropolis sampling
     step.beta = 1.
     step.n_jobs = n_jobs

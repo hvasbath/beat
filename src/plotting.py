@@ -1108,14 +1108,14 @@ def select_transform(sc, n_steps):
     pa = sc.parameters
 
     def last_sample(x):
-        return x[(pa.n_steps - 1)::pa.n_steps].flatten()
+        return x[(n_steps - 1)::n_steps].flatten()
 
     def burn_sample(x):
         nchains = x.shape[0] / n_steps
         xout = []
         for i in range(nchains):
-            nstart = int((pa.n_steps * i) + (pa.n_steps * pa.burn))
-            nend = int(pa.n_steps * (i + 1) - 1)
+            nstart = int((n_steps * i) + (n_steps * pa.burn))
+            nend = int(n_steps * (i + 1) - 1)
             xout.append(x[nstart:nend:pa.thin])
 
         return num.vstack(xout).flatten()
@@ -1165,7 +1165,7 @@ def draw_posteriors(problem, plot_options):
         else:
             draws = sc.parameters.n_steps
 
-        transform = select_transform(sampler=sc.name, n_steps=draws)
+        transform = select_transform(sc=sc, n_steps=draws)
 
         stage_path = os.path.join(
             problem.outfolder, 'stage_%s' % s)
@@ -1220,7 +1220,11 @@ def draw_correlation_hist(problem, plot_options):
         sc = problem.config.sampler_config
         varnames = problem.config.problem_config.select_variables()
 
-    transform = select_transform(sc.name, sc.parameters.n_steps)
+    if len(varnames) < 2:
+        raise Exception('Need at least two parameters to compare!'
+                        'Found only %i variables! ' % len(varnames))
+
+    transform = select_transform(sc=sc, n_steps=sc.parameters.n_steps)
 
     stage = load_stage(problem, po.load_stage, load='trace')
 

@@ -418,6 +418,9 @@ class BEATconfig(Object):
             for ch in self.seismic_config.channels:
                 hypernames.append(hyper_pars[ch])
 
+        # need one hyperparameter less than datasets, throw one out!
+        hypernames.pop(0)
+
         hypers = dict()
         for name in hypernames:
             hypers[name] = Parameter(
@@ -432,6 +435,11 @@ class BEATconfig(Object):
 
         self.problem_config.hyperparameters = hypers
         self.problem_config.validate_hypers()
+
+        n_hypers = len(hypers)
+        logger.info('Number of hyperparameters! %i' % n_hypers)
+        if n_hypers == 0:
+            self.hyper_sampler_config = None
 
 
 def init_config(name, date, min_magnitude=6.0, main_path='./',

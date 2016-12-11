@@ -194,7 +194,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         self.scaling = np.atleast_1d(scale)
 
-        if covariance is None and proposal_name == 'MvNPd':
+        if covariance is None and proposal_name == 'MultivariateNormal':
             self.covariance = np.eye(sum(v.dsize for v in vars))
             scale = self.covariance
 
@@ -945,7 +945,7 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
     else:
         display = False
 
-    pack_pb = [progressbar for i in range(n_jobs - 1)] + [display]
+    pack_pb = ['False' for i in range(n_jobs - 1)] + [display]
     block_pb = []
     list_pb = []
 

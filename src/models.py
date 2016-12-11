@@ -1,6 +1,7 @@
 import os
 import time
 import copy
+import shutil
 
 import pymc3 as pm
 from pymc3 import Metropolis
@@ -83,15 +84,14 @@ class Problem(Object):
                 if hypers:
                     step = Metropolis(
                         tune_interval=sc.parameters.tune_interval,
-                        proposal_dist=metropolis.choose_proposal(
-                            sc.parameters.proposal_dist))
+                        proposal_dist=atmcmc.proposal_dists[
+                            sc.parameters.proposal_dist])
                 else:
                     step = atmcmc.ATMCMC(
                         n_chains=sc.parameters.n_jobs,
                         tune_interval=sc.parameters.tune_interval,
                         likelihood_name=self._like_name,
-                        proposal_name=sc.parameters.proposal_dist,
-                        covariance=1.)
+                        proposal_name=sc.parameters.proposal_dist)
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
 
@@ -390,19 +390,19 @@ class GeometryOptimizer(Problem):
                     transform=None))
 
             self.hyperparams = {}
-            n_hyp = len(pc.hyperparameters.keys())
 
-            for hyperpar in pc.hyperparameters.itervalues():
-                if not self._seismic_flag and n_hyp == 1:
-                    self.hyperparams[hyperpar.name] = 1.
-                else:
-                    self.hyperparams[hyperpar.name] = pm.Uniform(
+            for hp_name in bconfig.hyper_pars.values():
+                if hp_name in pc.hyperparameters:
+                    hyperpar = pc.hyperparameters[hp_name]
+                    self.hyperparams[hp_name] = pm.Uniform(
                         hyperpar.name,
                         shape=hyperpar.dimension,
                         lower=hyperpar.lower,
                         upper=hyperpar.upper,
                         testval=hyperpar.testvalue,
                         transform=None)
+                else:
+                    self.hyperparams[hp_name] = 0.
 
             total_llk = tt.zeros((1), tconfig.floatX)
 
@@ -523,16 +523,13 @@ class GeometryOptimizer(Problem):
             logger.debug('Optimization for %i hyperparemeters', n_hyp)
 
             for hyperpar in pc.hyperparameters.itervalues():
-                if not self._seismic_flag and n_hyp == 1:
-                    self.hyperparams[hyperpar.name] = 1.
-                else:
-                    self.hyperparams[hyperpar.name] = pm.Uniform(
-                        hyperpar.name,
-                        shape=hyperpar.dimension,
-                        lower=hyperpar.lower,
-                        upper=hyperpar.upper,
-                        testval=hyperpar.testvalue,
-                        transform=None)
+                self.hyperparams[hyperpar.name] = pm.Uniform(
+                    hyperpar.name,
+                    shape=hyperpar.dimension,
+                    lower=hyperpar.lower,
+                    upper=hyperpar.upper,
+                    testval=hyperpar.testvalue,
+                    transform=None)
 
             total_llk = tt.zeros((1), tconfig.floatX)
 
@@ -980,6 +977,9 @@ def estimate_hypers(step, problem):
         start = {param.name: param.random() for param in \
                                             pc.hyperparameters.itervalues()}
 
+        if pa.rm_flag:
+            shutil.rmtree(problem.outfolder, ignore_errors=True)
+
         if not os.path.exists(problem.outfolder):
             logger.debug('Sampling ...')
             problem.update_llks(point)
@@ -1051,6 +1051,10 @@ def load_model(project_dir, mode, hypers=False):
     config = bconfig.load_config(project_dir, mode)
 
     pc = config.problem_config
+
+    if hypers and len(pc.hyperparameters) == 0:
+        raise Exception('No hyperparameters specified!'
+        ' option --hypers not applicable')
 
     if pc.mode == 'geometry':
         problem = GeometryOptimizer(config)
