@@ -110,8 +110,6 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
             step.population, step.array_population, step.likelihoods = \
                                     step.select_end_points(mtrace)
 
-            step.chain_previous_lpoint = step.get_chain_previous_lpoint(mtrace)
-
             mean_pt, step.covariance = get_trace_stats(
                 mtrace, step, burn, thin)
 
@@ -121,11 +119,30 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
 
             if update is not None and stage != 0:
                 logger.info('Updating Covariances ...')
-
                 update.update_weights(mean_pt, n_jobs=n_jobs)
+
+                logger.info('Updating last samples ...')
+                draws = 1
+                step.stage = 0
+                trans_stage_path = os.path.join(
+                    homepath, 'trans_stage_%i' % stage)
+                sample_args = {
+                    'draws': draws,
+                    'step': step,
+                    'stage_path': trans_stage_path,
+                    'progressbar': progressbar,
+                    'model': model,
+                    'n_jobs': n_jobs,
+                    'chains': chains}
+
+                _iter_parallel_chains(**sample_args)
+
+                mtrace = backend.load(trans_stage_path, model)
 
             elif update is not None and stage == 0 and update._seismic_flag:
                 update.engine.close_cashed_stores()
+
+            step.chain_previous_lpoint = step.get_chain_previous_lpoint(mtrace)
 
             outpath = os.path.join(stage_path, sample_p_outname)
             outparam_list = [step, update]

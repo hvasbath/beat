@@ -214,7 +214,7 @@ class GeometryOptimizer(Problem):
                     (num.abs(at.a) + at.d) * sc.gf_config.sample_rate))
 
                 for tr in self.data_traces:
-                    cov_ds_seismic.append(num.zeros(n_samples))
+                    cov_ds_seismic.append(num.zeros((n_samples, n_samples)))
 
             self.sweights = []
             for s_t in range(self.ns_t):
@@ -263,7 +263,8 @@ class GeometryOptimizer(Problem):
             else:
                 logger.info('No data-covariance estimation ...\n')
                 for g_t in self.gtargets:
-                    g_t.covariance.data = num.zeros(g_t.lats.size)
+                    g_t.covariance.data = num.zeros(
+                        (g_t.lats.size, g_t.lats.size))
 
             self.gweights = []
             for g_t in range(self.ng_t):
