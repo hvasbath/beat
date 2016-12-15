@@ -190,5 +190,5 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2):
                                                 combine=True)
 
     point = step.bij.rmap(array_population.mean(axis=0))
-    cov = num.cov(array_population, bias=False, rowvar=0)
+    cov = num.eye(step.ordering.dimensions) * array_population.std(axis=0)
     return point, cov

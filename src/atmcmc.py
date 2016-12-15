@@ -252,7 +252,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
             q_new = q0
 
         else:
-            if not self.stage_sample:
+            if self.stage_sample == 0:
                 self.proposal_samples_array = self.proposal_dist(self.n_steps)
 
             if not self.steps_until_tune and self.tune:
