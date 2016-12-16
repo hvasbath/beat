@@ -290,6 +290,17 @@ def plot(uwifg, point_size=20):
     plt.show()
 
 
+def plot_cov(gtarget, point_size=20):
+
+    ax = plt.axes()
+    im = ax.scatter(gtarget.lons, gtarget.lats, point_size,
+             num.array(gtarget.covariance.pred_v.sum(axis=0)).flatten(),
+             edgecolors='none')
+    plt.colorbar(im)
+    plt.title('Prediction Covariance [m2] %s' % gtarget.track)
+    plt.show()
+
+
 def plot_matrix(A):
     '''
     Very simple plot of a matrix for fast inspections.
