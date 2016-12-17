@@ -1122,14 +1122,17 @@ def select_transform(sc, n_steps):
         return x[(n_steps - 1)::n_steps].flatten()
 
     def burn_sample(x):
-        nchains = x.shape[0] / n_steps
-        xout = []
-        for i in range(nchains):
-            nstart = int((n_steps * i) + (n_steps * pa.burn))
-            nend = int(n_steps * (i + 1) - 1)
-            xout.append(x[nstart:nend:pa.thin])
+        if n_steps == 1:
+            return x
+        else:
+            nchains = x.shape[0] / n_steps
+            xout = []
+            for i in range(nchains):
+                nstart = int((n_steps * i) + (n_steps * pa.burn))
+                nend = int(n_steps * (i + 1) - 1)
+                xout.append(x[nstart:nend:pa.thin])
 
-        return num.vstack(xout).flatten()
+            return num.vstack(xout).flatten()
 
     if sc.name == 'ATMCMC':
         return last_sample
@@ -1171,7 +1174,7 @@ def draw_posteriors(problem, plot_options):
     figs = []
 
     for s in list_indexes:
-        if sc.name == 'ATMCMC' and s == '0':
+        if s == '0':
             draws = 1
         else:
             draws = sc.parameters.n_steps
