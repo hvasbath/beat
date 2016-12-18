@@ -65,6 +65,9 @@ default_bounds = dict(
     geo_S=(-20., 20.),
     geo_G=(-20., 20.))
 
+default_seis_std = 1.e-6
+default_geo_std = 1.e-3
+
 seismic_data_name = 'seismic_data.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
 
