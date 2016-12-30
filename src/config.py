@@ -421,9 +421,6 @@ class BEATconfig(Object):
             for ch in self.seismic_config.channels:
                 hypernames.append(hyper_pars[ch])
 
-        # need one hyperparameter less than datasets, throw one out!
-        hypernames.pop(0)
-
         hypers = dict()
         for name in hypernames:
             hypers[name] = Parameter(
@@ -556,7 +553,7 @@ def load_config(project_dir, mode):
     config = load(filename=config_fn)
 
     if config.problem_config.hyperparameters is None or \
-        len(config.problem_config.hyperparameters) == 0:
+        len(config.problem_config.hyperparameters.keys()) == 0:
         config.update_hypers()
         logger.info('Updated hyper parameters!')
         dump(config, filename=config_fn)
