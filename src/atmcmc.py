@@ -257,8 +257,10 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
             if not self.steps_until_tune and self.tune:
                 # Tune scaling parameter
-                self.scaling = tune(self.accepted /
-                                    float(self.tune_interval))
+                self.scaling = pm.metropolis.tune(
+                    self.scaling,
+                    self.accepted / float(self.tune_interval))
+
                 # Reset counter
                 self.steps_until_tune = self.tune_interval
                 self.accepted = 0
@@ -290,7 +292,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
                     q_new = pm.metropolis.metrop_select(
                         self.beta * (l[self._llk_index] - l0[self._llk_index]),
                         q, q0)
-
+                    
                     if q_new is q:
                         self.accepted += 1
                         l_new = l

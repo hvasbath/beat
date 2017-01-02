@@ -1169,7 +1169,8 @@ def draw_posteriors(problem, plot_options):
         varnames = problem.config.problem_config.hyperparameters.keys()
     else:
         sc = problem.config.sampler_config
-        varnames = problem.config.problem_config.select_variables()
+        varnames = problem.config.problem_config.select_variables() + \
+           problem.config.problem_config.hyperparameters.keys()
 
     figs = []
 

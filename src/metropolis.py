@@ -190,5 +190,9 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2):
                                                 combine=True)
 
     point = step.bij.rmap(array_population.mean(axis=0))
-    cov = num.eye(step.ordering.dimensions) * array_population.std(axis=0)
+    astd = array_population.std(axis=0)
+    if astd.sum() == 0.:
+        logger.warn('Trace std not valid not enough samples! Use 1.')
+        astd = 1.
+    cov = num.eye(step.ordering.dimensions) * astd
     return point, cov
