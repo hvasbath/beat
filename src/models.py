@@ -130,7 +130,7 @@ class GeometryOptimizer(Problem):
         boundaries, as well as the sampler parameters.
     """
 
-    def __init__(self, config):
+    def __init__(self, config, hypers=False):
         logger.info('... Initialising Geometry Optimizer ... \n')
 
         pc = config.problem_config
@@ -220,8 +220,10 @@ class GeometryOptimizer(Problem):
             for s_t in range(self.ns_t):
                 if self.stargets[s_t].covariance.data is None:
                     logger.debug(
-                        'No data covariance given. Seting default: sigma2 * I')
-                    self.stargets[s_t].covariance.data = cov_ds_seismic[s_t]
+                        'No data covariance given. Setting default: sigma2 * I')
+                    self.stargets[s_t].covariance.data = num.zeros_like(
+                        cov_ds_seismic[s_t])
+                    self.stargets[s_t].covariance.pred_v = cov_ds_seismic[s_t]
 
                 icov = self.stargets[s_t].covariance.inverse
                 self.sweights.append(shared(icov))
@@ -241,6 +243,11 @@ class GeometryOptimizer(Problem):
                 traces=self.data_traces,
                 arrival_taper=sc.arrival_taper,
                 filterer=sc.filterer)
+
+            if hypers:
+                self._seis_llks = []
+                for s_t in range(self.ns_t):
+                    self._seis_llks.append(shared(num.array([1.])))
 
         if self._geodetic_flag:
             logger.debug('Setting up geodetic structure ...\n')
@@ -267,7 +274,8 @@ class GeometryOptimizer(Problem):
             else:
                 logger.info('No data-covariance estimation ...\n')
                 for g_t in self.gtargets:
-                    g_t.covariance.data = num.eye(g_t.lats.size)
+                    g_t.covariance.data = num.zeros(g_t.lats.size)
+                    g_t.covariance.pred_v = num.eye(g_t.lats.size)
 
             self.gweights = []
             for g_t in range(self.ng_t):
@@ -296,6 +304,11 @@ class GeometryOptimizer(Problem):
                 store_superdir=gc.gf_config.store_superdir,
                 crust_ind=0,    # always reference model
                 sources=dsources['geodetic'])
+
+            if hypers:
+                self._geo_llks = []
+                for g_t in range(self.ng_t):
+                    self._geo_llks.append(shared(num.array([1.])))
 
         self.config = config
 
@@ -616,7 +629,8 @@ class GeometryOptimizer(Problem):
 
         if len(hps) > 0:
             for hyper in hps.keys():
-                tpoint.pop(hyper)
+                if hyper in tpoint:
+                    tpoint.pop(hyper)
 
         if self._seismic_flag:
             tpoint['time'] += self.event.time
@@ -885,24 +899,19 @@ class GeometryOptimizer(Problem):
 
         if self._seismic_flag:
             sresults = self.assemble_seismic_results(point)
-
-            self._seis_llks = []
             for k, result in enumerate(sresults):
                 icov = self.stargets[k].covariance.inverse
-                self._seis_llks.append(shared(
-                    result.processed_res.ydata.dot(
-                        icov).dot(result.processed_res.ydata.T)))
+                seis_llk = num.array(result.processed_res.ydata.dot(
+                    icov).dot(result.processed_res.ydata.T)).flatten()
+                self._seis_llks[k].set_value(seis_llk)
 
         if self._geodetic_flag:
             gresults = self.assemble_geodetic_results(point)
-
-            self._geo_llks = []
-            for k, result in enumerate(gresults):
-                icov = self.gtargets[k].covariance.inverse
-                self._geo_llks.append(shared(
-                    result.processed_res.dot(
-                        icov).dot(result.processed_res.T)))
-
+            for l, result in enumerate(gresults):
+                icov = self.gtargets[l].covariance.inverse
+                geo_llk = num.array(result.processed_res.dot(
+                    icov).dot(result.processed_res.T)).flatten()
+                self._geo_llks[l].set_value(geo_llk)
 
 def sample(step, problem):
     """
@@ -966,6 +975,7 @@ def estimate_hypers(step, problem):
     logger.info('... Estimating hyperparameters ...')
 
     pc = problem.config.problem_config
+    sc0 = problem.config.sampler_config
     sc = problem.config.hyper_sampler_config
     pa = sc.parameters
 
@@ -990,8 +1000,11 @@ def estimate_hypers(step, problem):
 
         if not os.path.exists(problem.outfolder):
             logger.debug('Sampling ...')
+            if sc0.parameters.update_covariances:
+                problem.update_weights(point)
+
             problem.update_llks(point)
-            logger
+            print problem._geo_llks[0].get_value()
             with problem.model as model:
                 mtraces.append(pm.sample(
                     draws=pa.n_steps,
@@ -1023,8 +1036,8 @@ def estimate_hypers(step, problem):
         d = mtrace.get_values(
             v, combine=True, burn=int(n_steps * pa.burn),
             thin=pa.thin, squeeze=True)
-        lower = num.floor(d.min(axis=0)) - 0.5
-        upper = num.ceil(d.max(axis=0)) + 0.5
+        lower = num.floor(d.min(axis=0)) - 1.
+        upper = num.ceil(d.max(axis=0)) + 1.
         logger.info('Updating hyperparameter %s from %f, %f to %f, %f' % (
             v, i.lower, i.upper, lower, upper))
         pc.hyperparameters[v].lower = lower
@@ -1065,7 +1078,7 @@ def load_model(project_dir, mode, hypers=False):
         ' option --hypers not applicable')
 
     if pc.mode == 'geometry':
-        problem = GeometryOptimizer(config)
+        problem = GeometryOptimizer(config, hypers)
     else:
         logger.error('Modeling problem %s not supported' % pc.mode)
         raise Exception('Model not supported')
