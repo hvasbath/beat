@@ -254,19 +254,20 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         else:
             if self.stage_sample == 0:
                 self.proposal_samples_array = self.proposal_dist(self.n_steps)
-                print self.proposal_samples_array.shape
+
             if not self.steps_until_tune and self.tune:
                 # Tune scaling parameter
-                self.scaling = tune(self.accepted /
-                                    float(self.tune_interval))
-                print self.scaling
+                self.scaling = pm.metropolis.tune(
+                    self.scaling,
+                    self.accepted / float(self.tune_interval))
+
                 # Reset counter
                 self.steps_until_tune = self.tune_interval
                 self.accepted = 0
 
             delta = self.proposal_samples_array[self.stage_sample, :] * \
                                                                 self.scaling
-            print delta
+
             if self.any_discrete:
                 if self.all_discrete:
                     delta = np.round(delta, 0)
@@ -291,7 +292,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
                     q_new = pm.metropolis.metrop_select(
                         self.beta * (l[self._llk_index] - l0[self._llk_index]),
                         q, q0)
-                    print l[self._llk_index], l0[self._llk_index]
+                    
                     if q_new is q:
                         self.accepted += 1
                         l_new = l
