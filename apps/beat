@@ -373,7 +373,7 @@ def command_clone(args):
             old_hypers = copy.deepcopy(c.problem_config.hyperparameters)
 
             c.update_hypers()
-            for hyper in c.problem_config.hyperparameters.keys():
+            for hyper in old_hypers.keys():
                 c.problem_config.hyperparameters[hyper] = old_hypers[hyper]
 
             cloned_config_fn = os.path.join(
