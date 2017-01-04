@@ -1004,7 +1004,6 @@ def estimate_hypers(step, problem):
                 problem.update_weights(point)
 
             problem.update_llks(point)
-            print problem._geo_llks[0].get_value()
             with problem.model as model:
                 mtraces.append(pm.sample(
                     draws=pa.n_steps,
