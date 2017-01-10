@@ -21,6 +21,30 @@ __all__ = ['Metropolis_sample']
 logger = logging.getLogger('ATMCMC')
 
 
+def get_final_stage(homepath, n_stages, model):
+    """
+    Combine Metropolis results into final stage to get one single chain for
+    plotting results.
+    """
+
+    util.ensuredir(homepath)
+
+    mtraces = []
+    for stage in range(n_stages):
+        logger.info('Loading Metropolis stage %i' % stage)
+        stage_outpath = os.path.join(homepath, 'stage_%i' % stage)
+
+        mtraces.append(backend.load(
+                name=stage_outpath, model=model))
+
+    ctrace = backend.concatenate_traces(mtraces)
+    outname = os.path.join(homepath, 'stage_final')
+
+    if not os.path.exists(outname):
+        util.ensuredir(outname)
+        pm.backends.text.dump(name=outname, trace=ctrace)
+
+
 def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
             progressbar=False, stage=None, rm_flag=False,
             step=None, model=None, n_jobs=1, update=None, burn=0.5, thin=2):
@@ -79,12 +103,12 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
 
     with model:
 
-        for stage in range(step.stage, n_stages):
+        for s in range(int(stage), n_stages):
 
-            stage_path = os.path.join(homepath, 'stage_%i' % stage)
+            stage_path = os.path.join(homepath, 'stage_%i' % s)
             logger.info('Sampling stage %s' % stage_path)
 
-            if stage == 0:
+            if s == 0:
                 draws = 1
             else:
                 draws = n_steps
@@ -92,7 +116,7 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
             if not os.path.exists(stage_path):
                 chains = None
 
-            step.stage = stage
+            step.stage = s
 
             sample_args = {
                     'draws': draws,
@@ -117,7 +141,7 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
                 step.proposal_dist = choose_proposal(
                     step.proposal_name, scale=step.covariance)
 
-            if update is not None and stage != 0:
+            if update is not None and s != 0:
                 logger.info('Updating Covariances ...')
                 update.update_weights(mean_pt, n_jobs=n_jobs)
 
@@ -147,6 +171,8 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
             outpath = os.path.join(stage_path, sample_p_outname)
             outparam_list = [step, update]
             utility.dump_objects(outpath, outparam_list)
+
+        get_final_stage(homepath, n_stages, model=model)
 
 
 def get_trace_stats(mtrace, step, burn=0.5, thin=2):

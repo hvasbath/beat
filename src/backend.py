@@ -19,6 +19,7 @@ shape of (3, 2).
 """
 from glob import glob
 
+import copy
 import os
 import pandas as pd
 import logging
@@ -398,6 +399,29 @@ def load(name, model=None):
         strace.filename = f
         straces.append(strace)
     return base.MultiTrace(straces)
+
+
+def concatenate_traces(mtraces):
+    """
+    Concatenate a List of MultiTraces with same chain indexes.
+    """
+    base_traces = copy.deepcopy(mtraces)
+    cat_trace = base_traces.pop(0)
+
+    cat_dfs = []
+    for chain in cat_trace.chains:
+        cat_trace._straces[chain]._load_df()
+        cat_dfs.append(cat_trace._straces[chain].df)
+
+    for mtrace in base_traces:
+        for chain in cat_trace.chains:
+            mtrace._straces[chain]._load_df()
+            cat_dfs[chain] = cat_dfs[chain].append(mtrace._straces[chain].df)
+
+    for chain in cat_trace.chains:
+        cat_trace._straces[chain].df = cat_dfs[chain]
+
+    return cat_trace
 
 
 def dump(name, trace, chains=None):

@@ -26,11 +26,10 @@ km = 1000.
 
 
 class PlotOptions(Object):
-
     post_llk = String.T(
         default='max',
-        help='Which model to plot on the specified plot; options:'
-             ' "max", "min", "mean"')
+        help='Which model to plot on the specified plot; Default: "max";'
+             ' Options: "max", "min", "mean", "all"')
     plot_projection = String.T(
         default='utm',
         help='Projection to use for plotting geodetic data; options: "latlon"')
@@ -40,7 +39,7 @@ class PlotOptions(Object):
         help='Only relevant if plot_projection is "utm"')
     load_stage = String.T(
         default='final',
-        help='Which ATMCMC stage to select for plotting')
+        help='Which stage to select for plotting')
     figure_dir = String.T(
         default='figures',
         help='Name of the output directory of plots')
@@ -169,7 +168,7 @@ def correlation_plot(mtrace, varnames=None,
 
 def correlation_plot_hist(mtrace, varnames=None,
         transform=lambda x: x, figsize=None, hist_color='orange', cmap=None,
-        grid=200, point=None,
+        grid=200, chains=None, point=None,
         point_style='.', point_color='red', point_size='8', alpha=0.35):
     """
     Plot 2d marginals (with kernel density estimation) showing the correlations
@@ -190,6 +189,8 @@ def correlation_plot_hist(mtrace, varnames=None,
     hist_color : str or tuple of 3
         color according to matplotlib convention
     grid : resolution of kernel density estimation
+    chains : int or list of ints
+        chain indexes to select from the trace
     point : dict
         Dictionary of variable name / value  to be overplotted as marker
         to the posteriors e.g. mean of posteriors, true values of a simulation
@@ -223,7 +224,7 @@ def correlation_plot_hist(mtrace, varnames=None,
 
     for var in varnames:
         d[var] = transform(mtrace.get_values(
-                var, combine=True, squeeze=True))
+                var, chains=chains, combine=True, squeeze=True))
 
     for k in range(nvar):
         a = d[varnames[k]]
@@ -962,7 +963,8 @@ def histplot_op(ax, data, alpha=.35, color=None, bins=None):
 
 
 def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
-              lines=None, combined=False, grid=False, varbins=None, nbins=40,
+              lines=None, chains=None, combined=False, grid=False,
+              varbins=None, nbins=40,
               alpha=0.35, priors=None, prior_alpha=1, prior_style='--',
               axs=None, posterior=None):
     """
@@ -986,6 +988,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         Dictionary of variable name / value  to be overplotted as vertical
         lines to the posteriors and horizontal lines on sample values
         e.g. mean of posteriors, true values of a simulation
+    chains : int or list of ints
+        chain indexes to select from the trace
     combined : bool
         Flag for combining multiple chains into a single chain. If False
         (default), chains will be plotted separately.
@@ -1017,7 +1021,6 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         idx = varnames.index(varname)
         varnames.pop(idx)
 
-    if varnames is None:
         varnames = [name for name in trace.varnames if not name.endswith('_')]
 
     if 'geo_like' in varnames:
@@ -1027,7 +1030,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         remove_var(varnames, varname='seis_like')
 
     if posterior:
-        llk = trace.get_values('like', combine=combined, squeeze=False)
+        llk = trace.get_values(
+            'like', combine=combined, chains=chains, squeeze=False)
         llk = num.squeeze(transform(llk[0]))
         llk = pmp.make_2d(llk)
 
@@ -1068,7 +1072,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         else:
             v = varnames[i]
 
-            for d in trace.get_values(v, combine=combined, squeeze=False):
+            for d in trace.get_values(
+                    v, combine=combined, chains=chains, squeeze=False):
                 d = num.squeeze(transform(d))
                 d = pmp.make_2d(d)
 
@@ -1091,10 +1096,14 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     except KeyError:
                         pass
 
-                if posterior:
+                if posterior == 'all':
                     for k, idx in posterior_idxs.iteritems():
                         axs[rowi, coli].axvline(
                             x=d[idx], color=colors[k], lw=1.5)
+                else:
+                    idx = posterior_idxs[posterior]
+                    axs[rowi, coli].axvline(
+                        x=d[idx], color=colors[posterior], lw=1.5)
 
     fig.tight_layout()
     return fig, axs, varbins
@@ -1140,6 +1149,19 @@ def select_transform(sc, n_steps):
         return burn_sample
 
 
+def select_metropolis_chains(problem, mtrace, po):
+    """
+    Select chains from Multitrace
+    """
+    draws = len(mtrace)
+
+    llks = num.array([mtrace.point(
+        draws - 1, chain)[
+            problem._like_name] for chain in mtrace.chains])
+    chain_idxs = get_fit_indexes(llks)
+    return chain_idxs[po.post_llk]
+
+
 def draw_posteriors(problem, plot_options):
     """
     Identify which stage is the last complete stage and plot posteriors up to
@@ -1177,6 +1199,8 @@ def draw_posteriors(problem, plot_options):
     for s in list_indexes:
         if s == '0':
             draws = 1
+        if s == 'final':
+            draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
         else:
             draws = sc.parameters.n_steps
 
@@ -1188,16 +1212,24 @@ def draw_posteriors(problem, plot_options):
         outpath = os.path.join(
             problem.outfolder,
             po.figure_dir,
-            'stage_%s.%s' % (s, po.outformat))
+            'stage_%s_%s.%s' % (s, po.post_llk, po.outformat))
 
         if not os.path.exists(outpath) or po.force:
             logger.info('plotting stage: %s' % stage_path)
             mtrace = backend.load(stage_path, model=problem.model)
 
+            if sc.name == 'Metropolis' and po.post_llk != 'all':
+                chains = select_metropolis_chains(problem, mtrace, po)
+                logger.info('plotting result: %s of Metropolis chain %i' % (
+                    po.post_llk, chains))
+            else:
+                chains = None
+
             fig, _, _ = traceplot(
                 mtrace,
                 varnames=varnames,
                 transform=transform,
+                chains=chains,
                 combined=True,
                 lines=po.reference,
                 posterior='all')
@@ -1226,6 +1258,8 @@ def draw_correlation_hist(problem, plot_options):
     mode = problem.config.problem_config.mode
 
     assert mode == 'geometry'
+    assert po.load_stage != 0
+
     hypers = utility.check_hyper_flag(problem)
 
     if hypers:
@@ -1243,9 +1277,16 @@ def draw_correlation_hist(problem, plot_options):
 
     stage = load_stage(problem, po.load_stage, load='trace')
 
+    if sc.name == 'Metropolis' and po.post_llk != 'all':
+        chains = select_metropolis_chains(problem, stage.mtrace, po)
+        logger.info('plotting result: %s of Metropolis chain %i' % (
+            po.post_llk, chains))
+    else:
+        chains = None
+
     outpath = os.path.join(
-        problem.outfolder, po.figure_dir, 'corr_hist_%s.%s' % (
-        stage.number, po.outformat))
+        problem.outfolder, po.figure_dir, 'corr_hist_%s_%s.%s' % (
+        stage.number, po.post_llk, po.outformat))
 
     if not os.path.exists(outpath) or po.force:
         fig, axs = correlation_plot_hist(
@@ -1253,6 +1294,7 @@ def draw_correlation_hist(problem, plot_options):
             varnames=varnames,
             transform=transform,
             cmap=plt.cm.gist_earth_r,
+            chains=chains,
             point=po.reference,
             point_size='8',
             point_color='red')
