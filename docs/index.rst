@@ -11,9 +11,9 @@ Contents:
 .. toctree::
    :maxdepth: 3
 
+   getting_started
    short_installation
    installation
-   getting_started
    api
 
 Indices and tables

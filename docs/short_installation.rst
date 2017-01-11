@@ -1,11 +1,10 @@
 .. short_installation:
 
-******************************
+*******************************
 Short Installation instructions
-******************************
+*******************************
 
-Without optimizing the numerics of your system, first install pyrocko
-following this webpage:
+First install pyrocko following this webpage:
 
  - `pyrocko <http://pyrocko.org/>`__
 
