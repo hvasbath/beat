@@ -16,7 +16,7 @@ from beat.config import sample_p_outname
 
 from pyrocko import util
 
-__all__ = ['Metropolis_sample']
+__all__ = ['Metropolis_sample', 'get_trace_stats', 'get_final_stage']
 
 logger = logging.getLogger('ATMCMC')
 

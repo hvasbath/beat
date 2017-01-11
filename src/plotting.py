@@ -1164,9 +1164,7 @@ def select_metropolis_chains(problem, mtrace, po):
 
 def draw_posteriors(problem, plot_options):
     """
-    Identify which stage is the last complete stage and plot posteriors up to
-    format : str
-        output format: 'display', 'png' or 'pdf'
+    Identify which stage is the last complete stage and plot posteriors.
     """
 
     hypers = utility.check_hyper_flag(problem)

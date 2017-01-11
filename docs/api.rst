@@ -32,6 +32,13 @@ The :mod:`backend` Module
    :members:
 
 
+The :mod:`metropolis` Module
+------------------------
+
+.. automodule:: metropolis
+   :members:
+
+
 The :mod:`models` Module
 ------------------------
 
