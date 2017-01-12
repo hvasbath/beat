@@ -159,7 +159,7 @@ class ListToArrayBijection(object):
         return a_list
 
 
-def weed_input_rvs(input_rvs, dataset):
+def weed_input_rvs(input_rvs, mode, dataset):
     """
     Throw out random variables (RV)s from input list that are not included by
     the respective synthetics generating functions.
@@ -169,6 +169,8 @@ def weed_input_rvs(input_rvs, dataset):
     input_rvs : list
         of :class:`pymc3.Distribution`
     mode : str
+        'geometry', 'static, 'kinematic' determining the discarded RVs
+    dataset : str
         'seismic' or 'geodetic' determining the discarded RVs
 
     Returns
@@ -180,10 +182,11 @@ def weed_input_rvs(input_rvs, dataset):
     name_order = [param.name for param in input_rvs]
     weeded_input_rvs = copy.copy(input_rvs)
 
-    if dataset == 'geodetic':
-        tobeweeded = ['time', 'duration']
-    elif dataset == 'seismic':
-        tobeweeded = ['opening']
+    if mode == 'geometry':
+        if dataset == 'geodetic':
+            tobeweeded = ['time', 'duration']
+        elif dataset == 'seismic':
+            tobeweeded = ['opening']
 
     indexes = []
     for burian in tobeweeded:

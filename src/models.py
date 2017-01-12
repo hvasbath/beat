@@ -26,36 +26,388 @@ logger = logging.getLogger('models')
 __all__ = ['GeometryOptimizer', 'sample', 'load_model', 'load_stage']
 
 
+def multivariate_normal(targets, weights, hyperparams, residuals):
+    """
+    Calculate posterior Likelihood of a Multivariate Normal distribution.
+    Can only be executed in a `with model context`
+
+    Parameters
+    ----------
+    targets : list
+        of :class:`heart.TeleseismicTarget` or :class:`heart.GeodeticTarget`
+    weights : list
+        of :class:`theano.shared`
+        Square matrix of the inverse of the covariance matrix as weights
+    hyperparams : dict
+        of :class:`theano.`
+    residual : list or array of model residuals
+
+    Returns
+    -------
+    array_like
+    """
+    n_t = len(targets)
+
+    logpts = tt.zeros((n_t), tconfig.floatX)
+
+    for l, target in enumerate(targets):
+        M = target.samples
+        factor = target.covariance.log_norm_factor
+        hp_name = bconfig.hyper_pars[target.typ]
+
+        logpts = tt.set_subtensor(logpts[l:l + 1],
+            (-0.5) * (factor - \
+            (M * 2 * hyperparams[hp_name]) + \
+            tt.exp(hyperparams[hp_name] * 2) * \
+            (residuals[l].dot(weights[l]).dot(residuals[l].T))
+                     )
+                                 )
+
+    return logpts
+
+
+def hyper_normal(targets, hyperparams, llks):
+    """
+    Calculate posterior Likelihood only dependent on hyperparameters
+    """
+    n_t = len(targets)
+
+    logpts = tt.zeros((n_t), tconfig.floatX)
+
+    for k, target in enumerate(targets):
+        M = targets.samples
+        factor = target.covariance.log_norm_factor
+        hp_name = bconfig.hyper_pars[target.typ]
+
+        logpts = tt.set_subtensor(logpts[k:k + 1],
+            (-0.5) * (factor - \
+            (M * 2 * hyperparams[hp_name]) + \
+            tt.exp(hyperparams[hp_name] * 2) * \
+                llks[k]
+                     )
+                                    )
+
+    return logpts
+
+
+class Composite(Object):
+    """
+    Class that comprises the rules to formulate the problem.
+    """
+    name = None
+    _like_name = None
+    config = None
+    weights = None
+
+
+class GeoGeometryOptimizer(Composite):
+    """
+    Comprises how to solve the geodetic forward model.
+    """
+
+    def __init__(self, gc, sources, hypers=False):
+        logger.debug('Setting up geodetic structure ...\n')
+        self.name = 'geodetic'
+        self._like_name = 'geo_like'
+
+        geodetic_data_path = os.path.join(
+!            config.project_dir, bconfig.geodetic_data_name)
+        self.targets = utility.load_objects(geodetic_data_path)
+
+        self.n_t = len(self.targets)
+        logger.info('Number of geodetic datasets: %i ' % self.n_t)
+
+        # geodetic data
+        _disp_list = [self.targets[i].displacement
+             for i in range(self.n_t)]
+        _lons_list = [self.targets[i].lons for i in range(self.n_t)]
+        _lats_list = [self.targets[i].lats for i in range(self.n_t)]
+        _odws_list = [self.targets[i].odw for i in range(self.n_t)]
+        _lv_list = [self.targets[i].update_los_vector()
+                        for i in range(self.n_t)]
+
+        if gc.calc_data_cov:
+            logger.info('Using data covariance!')
+        else:
+            logger.info('No data-covariance estimation ...\n')
+            for t in self.targets:
+                t.covariance.data = num.zeros(t.lats.size)
+                t.covariance.pred_v = num.eye(t.lats.size)
+
+        self.weights = []
+        for target in self.targets:
+            icov = self.target.covariance.inverse
+            self.weights.append(shared(icov))
+
+        # merge geodetic data to call pscmp only once each forward model
+        ordering = utility.ListArrayOrdering(_disp_list, intype='numpy')
+        self.Bij = utility.ListToArrayBijection(ordering, _disp_list)
+
+        odws = self.Bij.fmap(_odws_list)
+        lons = self.Bij.fmap(_lons_list)
+        lats = self.Bij.fmap(_lats_list)
+
+        logger.info('Number of geodetic data points: %i ' % lats.shape[0])
+
+        self.wdata = shared(self.Bij.fmap(_disp_list) * odws)
+        self.lv = shared(self.Bij.f3map(_lv_list))
+        self.odws = shared(odws)
+
+        # syntetics generation
+        logger.debug('Initialising synthetics functions ... \n')
+        self.get_synths = theanof.GeoLayerSynthesizerStatic(
+            lats=lats,
+            lons=lons,
+            store_superdir=gc.gf_config.store_superdir,
+            crust_ind=0,    # always reference model
+            sources=sources)
+
+        self.config = gc
+
+        if hypers:
+            self._llks = []
+            for t in range(self.n_t):
+                self._llks.append(shared(num.array([1.])))
+
+    def __getstate__(self):
+        outstate = (
+            self.config,
+            self.sources,
+            self.weights,
+            self.targets)
+
+        return outstate
+
+    def __setstate__(self, state):
+            self.config, \
+            self.sources, \
+            self.weights, \
+            self.targets = state
+
+    def get_formula(self, input_rvs, hyperparams):
+
+        names = [param.name for param in self.input_rvs]
+        logger.debug(
+            'Geodetic optimization on: \n '
+            '%s' % ', '.join(names))
+
+        t0 = time.time()
+        disp = self.get_synths(*self.input_rvs)
+        t1 = time.time()
+        logger.debug(
+            'Geodetic forward model on test model takes: %f' % \
+                (t1 - t0))
+
+        los = (disp[:, 0] * self.lv[:, 0] + \
+               disp[:, 1] * self.lv[:, 1] + \
+               disp[:, 2] * self.lv[:, 2]) * self.odws
+        residual = self.Bij.srmap(
+            tt.cast((self.wdata - los), tconfig.floatX))
+
+        logpts = multivariate_normal(
+            logpts, self.targets, self.weights, hyperparams, residual)
+
+        llk = pm.Deterministic(self._like_name, logpts)
+        return llk.sum()
+
+    def get_hyper_formula(self, hyperparams):
+
+        logpts = tt.zeros((self.n_t), tconfig.floatX)
+
+        for l, target in enumerate(self.targets):
+            M = target.displacement.size
+            factor = target.covariance.log_norm_factor
+            hp_name = bconfig.hyper_pars[target.typ]
+
+            logpts = tt.set_subtensor(logpts[l:l + 1],
+                 (-0.5) * (factor - \
+                 (M * 2 * self.hyperparams[hp_name]) + \
+                 tt.exp(self.hyperparams[hp_name] * 2) * \
+                 self._llks[l]
+                          )
+                                       )
+
+        llk = pm.Deterministic(self._like_name, logpts)
+
+        return llk.sum()
+
+
+class SeisGeometryOptimizer(Composite):
+    """
+    Comprises how to solve the seismic forward model.
+    """
+
+    def __init__(self, sc, sources, hypers=False):
+        logger.debug('Setting up seismic structure ...\n')
+        self.name = 'seismic'
+        self._like_name = 'seis_like'
+
+        self.engine = gf.LocalEngine(
+            store_superdirs=[sc.gf_config.store_superdir])
+
+        seismic_data_path = os.path.join(
+!            config.project_dir, bconfig.seismic_data_name)
+        stations, data_traces = utility.load_objects(
+            seismic_data_path)
+        stations = utility.apply_station_blacklist(stations, sc.blacklist)
+
+        self.stations = utility.weed_stations(
+!            stations, self.event, distances=sc.distances)
+
+        self.data_traces = utility.weed_data_traces(
+            data_traces, self.stations)
+
+        target_deltat = 1. / sc.gf_config.sample_rate
+
+        if self.data_traces[0].deltat != target_deltat:
+            utility.downsample_traces(
+                self.data_traces, deltat=target_deltat)
+
+        self.targets = heart.init_targets(
+            self.stations,
+            channels=sc.channels,
+            sample_rate=sc.gf_config.sample_rate,
+            crust_inds=[0],  # always reference model
+            interpolation='multilinear')
+
+        self.n_t = len(self.targets)
+        logger.info('Number of seismic datasets: %i ' % self.n_t)
+
+        if sc.calc_data_cov:
+            logger.info('Estimating seismic data-covariances ...\n')
+            cov_ds_seismic = cov.get_seismic_data_covariances(
+                data_traces=self.data_traces,
+                filterer=sc.filterer,
+                sample_rate=sc.gf_config.sample_rate,
+                arrival_taper=sc.arrival_taper,
+                engine=self.engine,
+!                event=self.event,
+                targets=self.targets)
+        else:
+            logger.info('No data-covariance estimation ...\n')
+            cov_ds_seismic = []
+            at = sc.arrival_taper
+            n_samples = int(num.ceil(
+                (num.abs(at.a) + at.d) * sc.gf_config.sample_rate))
+
+            for tr in self.data_traces:
+                cov_ds_seismic.append(num.eye(n_samples))
+
+        self.weights = []
+        for t, target in enumerate(self.targets):
+            if target.covariance.data is None:
+                logger.debug(
+                    'No data covariance given. Setting default: zero')
+                target.covariance.data = num.zeros_like(
+                    cov_ds_seismic[t])
+                target.covariance.pred_v = cov_ds_seismic[t]
+
+            icov = target.covariance.inverse
+            self.weights.append(shared(icov))
+
+        # syntetics generation
+        logger.debug('Initialising synthetics functions ... \n')
+        self.get_synths = theanof.SeisSynthesizer(
+            engine=self.engine,
+            sources=sources,
+            targets=self.targets,
+            event=self.event,
+            arrival_taper=sc.arrival_taper,
+            filterer=sc.filterer)
+
+        self.chop_traces = theanof.SeisDataChopper(
+            sample_rate=sc.gf_config.sample_rate,
+            traces=self.data_traces,
+            arrival_taper=sc.arrival_taper,
+            filterer=sc.filterer)
+
+        self.config = sc
+
+        if hypers:
+            self._llks = []
+            for t in range(self.n_t):
+                self._llks.append(shared(num.array([1.])))
+
+    def __getstate__(self):
+        outstate = (
+            self.config,
+            self.sources,
+            self.weights,
+            self.targets,
+            self.stations,
+            self.engine)
+
+        return outstate
+
+    def __setstate__(self, state):
+            self.config, \
+            self.sources, \
+            self.weights, \
+            self.targets, \
+            self.stations, \
+            self.engine = state
+
+    def get_formula(self, input_rvs, hyperparams):
+        self.input_rvs = input_rvs
+
+        names = [param.name for param in self.input_rvs]
+        logger.debug(
+            'Teleseismic optimization on: \n '
+            ' %s' % ', '.join(names))
+
+        t2 = time.time()
+        synths, tmins = self.get_synths(*self.input_rvs)
+        t3 = time.time()
+        logger.debug(
+            'Teleseismic forward model on test model takes: %f' % \
+                (t3 - t2))
+
+        data_trcs = self.chop_traces(tmins)
+
+        residual = data_trcs - synths
+
+        logpts = multivariate_normal(
+            logpts, self.targets, self.weights, hyperparams, residual)
+
+        llk = pm.Deterministic(self._like_name, logpts)
+        return llk.sum()
+
+    def get_hyper_formula(self, hyperparams):
+
+        logpts = 
+
+        llk = pm.Deterministic(self._like_name, logpts)
+
+        return llk.sum()
+
+
+geometry_composite_catalog = {
+    'seismic': SeisGeometryOptimizer
+    'geodetic': GeoGeometryOptimizer}
+
+
 class Problem(Object):
     """
     Overarching class for the optimization problems to be solved.
 
     Parameters
     ----------
-    pc : :class:`beat.ProblemConfig`
+    config : :class:`beat.BEATConfig`
         Configuration object that contains the problem definition.
     """
 
     event = None
     model = None
-    _seis_like_name = 'seis_like'
-    _seismic_flag = False
-
-    _geo_like_name = 'geo_like'
-    _geodetic_flag = False
-
     _like_name = 'like'
+    composites = {}
+    hyperparams = {}
 
-    def __init__(self, pc):
+    def __init__(self, config):
 
         logger.info('Analysing problem ...')
         logger.info('---------------------\n')
 
-        if 'seismic' in pc.datasets:
-            self._seismic_flag = True
-
-        if 'geodetic' in pc.datasets:
-            self._geodetic_flag = True
+        self.config = config
 
     def init_sampler(self, hypers=False):
         """
@@ -117,6 +469,113 @@ class Problem(Object):
 
         return step
 
+    def built_model(self):
+        """
+        Initialise :class:`pymc3.Model` depending on problem composites,
+        geodetic and/or seismic data are included. Composites also determine
+        the problem to be solved.
+        """
+
+        logger.info('... Building model ...\n')
+
+        mode = self.config.problem_config.mode
+
+        self.outfolder = os.path.join(self.config.project_dir, mode)
+        util.ensuredir(self.outfolder)
+
+        with pm.Model() as self.model:
+
+            logger.debug('Optimization for %i sources', len(self.sources))
+
+            pc = self.config.problem_config
+
+            rvs = []
+            for param in pc.priors:
+                rvs.append(pm.Uniform(
+                    param.name,
+                    shape=param.dimension,
+                    lower=param.lower,
+                    upper=param.upper,
+                    testval=param.testvalue,
+                    transform=None))
+
+            self.hyperparams = self.get_hyperparams()
+
+            total_llk = tt.zeros((1), tconfig.floatX)
+
+            for dataset, composite in self.composites.iteritems():
+                input_rvs = utility.weed_input_rvs(
+                    rvs, dataset=dataset)
+                total_llk += composite.get_formula(input_rvs, self.hyperparams)
+
+            like = pm.Deterministic(
+                self._like_name, total_llk)
+
+            llk = pm.Potential(self._like_name, like)
+            logger.info('Model building was successful!')
+
+    def built_hyper_model(self):
+        """
+        Initialise :class:`pymc3.Model` depending on configuration file,
+        geodetic and/or seismic data are included. Estimates initial parameter
+        bounds for hyperparameters.
+        """
+
+        logger.info('... Building Hyper model ...\n')
+
+        pc = self.config.problem_config
+
+        self.outfolder = os.path.join(
+            self.config.project_dir, pc.mode, 'hypers')
+        util.ensuredir(self.outfolder)
+
+        point = {}
+        for param in pc.priors:
+            point[param.name] = param.testvalue
+
+        self.update_llks(point)
+
+        with pm.Model() as self.model:
+
+            self.hyperparams = self.get_hyperparams()
+
+            total_llk = tt.zeros((1), tconfig.floatX)
+
+            for composite in self.composites.itervalues():
+                total_llk += composite.get_hyper_formula(self.hyperparams)
+
+            like = pm.Deterministic(self._like_name, total_llk)
+
+            llk = pm.Potential(self._like_name, like)
+            logger.info('Hyper model building was successful!')
+
+    def get_hyperparams(self):
+        """
+        Evaluate problem setup and return hyperparameter dictionary.
+        Has to be executed in a "with model context"!
+        """
+        pc = self.config.problem_config
+
+        hyperparams = {}
+        n_hyp = len(pc.hyperparameters.keys())
+
+        logger.debug('Optimization for %i hyperparemeters', n_hyp)
+
+        for hp_name in bconfig.hyper_pars.values():
+            if hp_name in pc.hyperparameters:
+                hyperpar = pc.hyperparameters[hp_name]
+                hyperparams[hp_name] = pm.Uniform(
+                    hyperpar.name,
+                    shape=hyperpar.dimension,
+                    lower=hyperpar.lower,
+                    upper=hyperpar.upper,
+                    testval=hyperpar.testvalue,
+                    transform=None)
+            else:
+                hyperparams[hp_name] = 0.
+
+        return hyperparams
+
 
 class GeometryOptimizer(Problem):
     """
@@ -162,206 +621,11 @@ class GeometryOptimizer(Problem):
 
         dsources = utility.transform_sources(self.sources, pc.datasets)
 
-        if self._seismic_flag:
-            logger.debug('Setting up seismic structure ...\n')
-            sc = config.seismic_config
-            self.engine = gf.LocalEngine(
-                store_superdirs=[sc.gf_config.store_superdir])
-
-            seismic_data_path = os.path.join(
-                config.project_dir, bconfig.seismic_data_name)
-            stations, data_traces = utility.load_objects(
-                seismic_data_path)
-            stations = utility.apply_station_blacklist(stations, sc.blacklist)
-
-            self.stations = utility.weed_stations(
-                stations, self.event, distances=sc.distances)
-
-            self.data_traces = utility.weed_data_traces(
-                data_traces, self.stations)
-
-            target_deltat = 1. / sc.gf_config.sample_rate
-
-            if self.data_traces[0].deltat != target_deltat:
-                utility.downsample_traces(
-                    self.data_traces, deltat=target_deltat)
-
-            self.stargets = heart.init_targets(
-                self.stations,
-                channels=sc.channels,
-                sample_rate=sc.gf_config.sample_rate,
-                crust_inds=[0],  # always reference model
-                interpolation='multilinear')
-
-            self.ns_t = len(self.stargets)
-            logger.info('Number of seismic datasets: %i ' % self.ns_t)
-
-            if sc.calc_data_cov:
-                logger.info('Estimating seismic data-covariances ...\n')
-                cov_ds_seismic = cov.get_seismic_data_covariances(
-                    data_traces=self.data_traces,
-                    filterer=sc.filterer,
-                    sample_rate=sc.gf_config.sample_rate,
-                    arrival_taper=sc.arrival_taper,
-                    engine=self.engine,
-                    event=self.event,
-                    targets=self.stargets)
-            else:
-                logger.info('No data-covariance estimation ...\n')
-                cov_ds_seismic = []
-                at = sc.arrival_taper
-                n_samples = int(num.ceil(
-                    (num.abs(at.a) + at.d) * sc.gf_config.sample_rate))
-
-                for tr in self.data_traces:
-                    cov_ds_seismic.append(num.eye(n_samples))
-
-            self.sweights = []
-            for s_t in range(self.ns_t):
-                if self.stargets[s_t].covariance.data is None:
-                    logger.debug(
-                        'No data covariance given. Setting default: sigma2 * I')
-                    self.stargets[s_t].covariance.data = num.zeros_like(
-                        cov_ds_seismic[s_t])
-                    self.stargets[s_t].covariance.pred_v = cov_ds_seismic[s_t]
-
-                icov = self.stargets[s_t].covariance.inverse
-                self.sweights.append(shared(icov))
-
-            # syntetics generation
-            logger.debug('Initialising synthetics functions ... \n')
-            self.get_seis_synths = theanof.SeisSynthesizer(
-                engine=self.engine,
-                sources=dsources['seismic'],
-                targets=self.stargets,
-                event=self.event,
-                arrival_taper=sc.arrival_taper,
-                filterer=sc.filterer)
-
-            self.chop_traces = theanof.SeisDataChopper(
-                sample_rate=sc.gf_config.sample_rate,
-                traces=self.data_traces,
-                arrival_taper=sc.arrival_taper,
-                filterer=sc.filterer)
-
-            if hypers:
-                self._seis_llks = []
-                for s_t in range(self.ns_t):
-                    self._seis_llks.append(shared(num.array([1.])))
-
-        if self._geodetic_flag:
-            logger.debug('Setting up geodetic structure ...\n')
-            gc = config.geodetic_config
-
-            geodetic_data_path = os.path.join(
-                config.project_dir, bconfig.geodetic_data_name)
-            self.gtargets = utility.load_objects(geodetic_data_path)
-
-            self.ng_t = len(self.gtargets)
-            logger.info('Number of geodetic datasets: %i ' % self.ng_t)
-
-            # geodetic data
-            _disp_list = [self.gtargets[i].displacement
-                 for i in range(self.ng_t)]
-            _lons_list = [self.gtargets[i].lons for i in range(self.ng_t)]
-            _lats_list = [self.gtargets[i].lats for i in range(self.ng_t)]
-            _odws_list = [self.gtargets[i].odw for i in range(self.ng_t)]
-            _lv_list = [self.gtargets[i].update_los_vector()
-                            for i in range(self.ng_t)]
-
-            if gc.calc_data_cov:
-                logger.info('Using data covariance!')
-            else:
-                logger.info('No data-covariance estimation ...\n')
-                for g_t in self.gtargets:
-                    g_t.covariance.data = num.zeros(g_t.lats.size)
-                    g_t.covariance.pred_v = num.eye(g_t.lats.size)
-
-            self.gweights = []
-            for g_t in range(self.ng_t):
-                icov = self.gtargets[g_t].covariance.inverse
-                self.gweights.append(shared(icov))
-
-            # merge geodetic data to call pscmp only once each forward model
-            ordering = utility.ListArrayOrdering(_disp_list, intype='numpy')
-            self.Bij = utility.ListToArrayBijection(ordering, _disp_list)
-
-            odws = self.Bij.fmap(_odws_list)
-            lons = self.Bij.fmap(_lons_list)
-            lats = self.Bij.fmap(_lats_list)
-
-            logger.info('Number of geodetic data points: %i ' % lats.shape[0])
-
-            self.wdata = shared(self.Bij.fmap(_disp_list) * odws)
-            self.lv = shared(self.Bij.f3map(_lv_list))
-            self.odws = shared(odws)
-
-            # syntetics generation
-            logger.debug('Initialising synthetics functions ... \n')
-            self.get_geo_synths = theanof.GeoLayerSynthesizerStatic(
-                lats=lats,
-                lons=lons,
-                store_superdir=gc.gf_config.store_superdir,
-                crust_ind=0,    # always reference model
-                sources=dsources['geodetic'])
-
-            if hypers:
-                self._geo_llks = []
-                for g_t in range(self.ng_t):
-                    self._geo_llks.append(shared(num.array([1.])))
+        for dataset in pc.datasets:
+            
+            self.composites[dataset] = dsources[dataset]
 
         self.config = config
-
-    def __getstate__(self):
-        outstate = (self.config, self.sources)
-
-        if self._seismic_flag:
-            outstate = outstate + (
-                self.sweights,
-                self.stargets,
-                self.stations,
-                self.engine)
-
-        if self._geodetic_flag:
-            outstate = outstate + (
-                self.gweights,
-                self.gtargets)
-
-        return outstate
-
-    def __setstate__(self, state):
-        c = state[0]
-
-        if 'geodetic' in c.problem_config.datasets:
-            self._geodetic_flag = True
-        else:
-            self._geodetic_flag = False
-
-        if 'seismic' in c.problem_config.datasets:
-            self._seismic_flag = True
-        else:
-            self._seismic_flag = False
-
-        if self._seismic_flag and self._geodetic_flag:
-            self.config, self.sources, \
-            self.sweights, \
-            self.stargets, \
-            self.stations, \
-            self.engine, \
-            self.gweights, \
-            self.gtargets = state
-
-        elif self._seismic_flag and not self._geodetic_flag:
-            self.config, self.sources, \
-            self.sweights, \
-            self.stargets, \
-            self.stations, \
-            self.engine = state
-
-        elif not self._seismic_flag and self._geodetic_flag:
-            self.config, self.sources, \
-            self.gweights, \
-            self.gtargets = state
 
     def apply(self, updates):
         """
@@ -378,230 +642,6 @@ class GeometryOptimizer(Problem):
                 B = gw.get_value()
                 self.gweights[j].set_value(B)
 
-    def built_model(self):
-        """
-        Initialise :class:`pymc3.Model` depending on configuration file,
-        geodetic and/or seismic data are included. Estimates the fault(s)
-        geometry.
-        """
-
-        logger.info('... Building model ...\n')
-
-        self.outfolder = os.path.join(self.config.project_dir, 'geometry')
-        util.ensuredir(self.outfolder)
-
-        with pm.Model() as self.model:
-
-            logger.debug('Optimization for %i sources', len(self.sources))
-
-            pc = self.config.problem_config
-
-            input_rvs = []
-            for param in pc.priors:
-                input_rvs.append(pm.Uniform(
-                    param.name,
-                    shape=param.dimension,
-                    lower=param.lower,
-                    upper=param.upper,
-                    testval=param.testvalue,
-                    transform=None))
-
-            self.hyperparams = {}
-
-            for hp_name in bconfig.hyper_pars.values():
-                if hp_name in pc.hyperparameters:
-                    hyperpar = pc.hyperparameters[hp_name]
-                    self.hyperparams[hp_name] = pm.Uniform(
-                        hyperpar.name,
-                        shape=hyperpar.dimension,
-                        lower=hyperpar.lower,
-                        upper=hyperpar.upper,
-                        testval=hyperpar.testvalue,
-                        transform=None)
-                else:
-                    self.hyperparams[hp_name] = 0.
-
-            total_llk = tt.zeros((1), tconfig.floatX)
-
-            if self._seismic_flag:
-                self.seis_input_rvs = utility.weed_input_rvs(
-                    input_rvs, dataset='seismic')
-                # seis
-                seis_names = [param.name for param in self.seis_input_rvs]
-                logger.debug(
-                    'Teleseismic optimization on: \n '
-                    ' %s' % ', '.join(seis_names))
-
-                t2 = time.time()
-                synths, tmins = self.get_seis_synths(*self.seis_input_rvs)
-                t3 = time.time()
-                logger.debug(
-                    'Teleseismic forward model on test model takes: %f' % \
-                        (t3 - t2))
-
-                data_trcs = self.chop_traces(tmins)
-
-                seis_res = data_trcs - synths
-
-                logpts_s = tt.zeros((self.ns_t), tconfig.floatX)
-                M = seis_res.shape[1]
-
-                for k, target in enumerate(self.stargets):
-                    sfactor = target.covariance.log_norm_factor
-                    hp_name = bconfig.hyper_pars[target.codes[3]]
-
-                    logpts_s = tt.set_subtensor(logpts_s[k:k + 1],
-                        (-0.5) * (sfactor - \
-                        (M * 2 * self.hyperparams[hp_name]) + \
-                        tt.exp(self.hyperparams[hp_name] * 2) * \
-                        (seis_res[k, :].dot(
-                            self.sweights[k]).dot(seis_res[k, :].T))
-                                 )
-                                                )
-
-                seis_llk = pm.Deterministic(self._seis_like_name, logpts_s)
-
-                total_llk = total_llk + seis_llk.sum()
-
-            if self._geodetic_flag:
-                self.geo_input_rvs = utility.weed_input_rvs(
-                    input_rvs, dataset='geodetic')
-
-                ## calc residuals
-                # geo
-                geo_names = [param.name for param in self.geo_input_rvs]
-                logger.debug(
-                    'Geodetic optimization on: \n '
-                    '%s' % ', '.join(geo_names))
-
-                t0 = time.time()
-                disp = self.get_geo_synths(*self.geo_input_rvs)
-                t1 = time.time()
-                logger.debug(
-                    'Geodetic forward model on test model takes: %f' % \
-                        (t1 - t0))
-
-                los = (disp[:, 0] * self.lv[:, 0] + \
-                       disp[:, 1] * self.lv[:, 1] + \
-                       disp[:, 2] * self.lv[:, 2]) * self.odws
-                geo_res = self.Bij.srmap(
-                    tt.cast((self.wdata - los), tconfig.floatX))
-
-                logpts_g = tt.zeros((self.ng_t), tconfig.floatX)
-
-                for l, target in enumerate(self.gtargets):
-                    M = target.displacement.size
-                    gfactor = target.covariance.log_norm_factor
-                    hp_name = bconfig.hyper_pars[target.typ]
-
-                    logpts_g = tt.set_subtensor(logpts_g[l:l + 1],
-                         (-0.5) * (gfactor - \
-                         (M * 2 * self.hyperparams[hp_name]) + \
-                         tt.exp(self.hyperparams[hp_name] * 2) * \
-                         (geo_res[l].dot(self.gweights[l]).dot(geo_res[l].T))
-                                  )
-                                               )
-
-                geo_llk = pm.Deterministic(self._geo_like_name, logpts_g)
-
-                total_llk = total_llk + geo_llk.sum()
-
-            like = pm.Deterministic(
-                self._like_name, total_llk)
-
-            llk = pm.Potential(self._like_name, like)
-            logger.info('Model building was successful!')
-
-    def built_hyper_model(self):
-        """
-        Initialise :class:`pymc3.Model` depending on configuration file,
-        geodetic and/or seismic data are included. Estimates initial parameter
-        bounds for hyperparameters.
-        """
-
-        logger.info('... Building Hyper model ...\n')
-
-        self.outfolder = os.path.join(
-            self.config.project_dir, 'geometry', 'hypers')
-        util.ensuredir(self.outfolder)
-
-        pc = self.config.problem_config
-
-        point = {}
-        for param in pc.priors:
-            point[param.name] = param.testvalue
-
-        self.update_llks(point)
-
-        with pm.Model() as self.model:
-            self.hyperparams = {}
-            n_hyp = len(pc.hyperparameters.keys())
-
-            logger.debug('Optimization for %i hyperparemeters', n_hyp)
-
-            for hp_name in bconfig.hyper_pars.values():
-                if hp_name in pc.hyperparameters:
-                    hyperpar = pc.hyperparameters[hp_name]
-                    self.hyperparams[hp_name] = pm.Uniform(
-                        hyperpar.name,
-                        shape=hyperpar.dimension,
-                        lower=hyperpar.lower,
-                        upper=hyperpar.upper,
-                        testval=hyperpar.testvalue,
-                        transform=None)
-                else:
-                    self.hyperparams[hp_name] = 0.
-
-            total_llk = tt.zeros((1), tconfig.floatX)
-
-            if self._seismic_flag:
-
-                logpts_s = tt.zeros((self.ns_t), tconfig.floatX)
-                sc = self.config.seismic_config
-
-                for k, target in enumerate(self.stargets):
-                    M = sc.arrival_taper.duration * sc.gf_config.sample_rate
-                    sfactor = target.covariance.log_norm_factor
-                    hp_name = bconfig.hyper_pars[target.codes[3]]
-
-                    logpts_s = tt.set_subtensor(logpts_s[k:k + 1],
-                        (-0.5) * (sfactor - \
-                        (M * 2 * self.hyperparams[hp_name]) + \
-                        tt.exp(self.hyperparams[hp_name] * 2) * \
-                            self._seis_llks[k]
-                                 )
-                                                )
-
-                seis_llk = pm.Deterministic(self._seis_like_name, logpts_s)
-
-                total_llk = total_llk + seis_llk.sum()
-
-            if self._geodetic_flag:
-
-                logpts_g = tt.zeros((self.ng_t), tconfig.floatX)
-
-                for l, target in enumerate(self.gtargets):
-                    M = target.displacement.size
-                    gfactor = target.covariance.log_norm_factor
-                    hp_name = bconfig.hyper_pars[target.typ]
-
-                    logpts_g = tt.set_subtensor(logpts_g[l:l + 1],
-                         (-0.5) * (gfactor - \
-                         (M * 2 * self.hyperparams[hp_name]) + \
-                         tt.exp(self.hyperparams[hp_name] * 2) * \
-                         self._geo_llks[l]
-                                  )
-                                               )
-
-                geo_llk = pm.Deterministic(self._geo_like_name, logpts_g)
-
-                total_llk = total_llk + geo_llk.sum()
-
-            like = pm.Deterministic(
-                self._like_name, total_llk)
-
-            llk = pm.Potential(self._like_name, like)
-            logger.info('Hyper model building was successful!')
 
     def update_weights(self, point, n_jobs=1, plot=False):
         """
@@ -912,6 +952,11 @@ class GeometryOptimizer(Problem):
                 geo_llk = num.array(result.processed_res.dot(
                     icov).dot(result.processed_res.T)).flatten()
                 self._geo_llks[l].set_value(geo_llk)
+
+
+problem_catalog = {
+    bconfig.modes[0]: GeometryOptimizer}
+
 
 def sample(step, problem):
     """

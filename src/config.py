@@ -25,7 +25,7 @@ guts_prefix = 'beat'
 
 logger = logging.getLogger('config')
 
-modes = ['geometry', 'static_dist', 'kinematic_dist']
+modes = ['geometry', 'static', 'kinematic']
 
 geo_vars_geometry = ['east_shift', 'north_shift', 'depth', 'strike', 'dip',
                          'rake', 'length', 'width', 'slip']
