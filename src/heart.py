@@ -357,6 +357,14 @@ class TeleseismicTarget(gf.Target):
         help=':py:class:`Covariance` that holds data'
              'and model prediction covariance matrixes')
 
+    @property
+    def typ(self):
+        return self.codes[3]
+
+    @property
+    def samples(self):
+        return self.covariance.data.shape[0]
+
 
 class ArrivalTaper(trace.Taper):
     """
@@ -543,6 +551,18 @@ class IFG(GeodeticTarget):
         self.locy, self.locx = orthodrome.latlon_to_ne_numpy(
             loc.lat, loc.lon, self.lats, self.lons)
         return self.locy, self.locx
+
+    @property
+    def samples(self):
+        if self.lats is not None:
+            n = self.lats.size
+        elif self.utmn is not None:
+            n = self.utmn.size
+        elif self.locy is not None:
+            n = self.locy.size
+        else:
+            raise Exception('No coordinates defined!')
+        return n
 
 
 class DiffIFG(IFG):
