@@ -102,12 +102,57 @@ class Composite(Object):
     config = None
     weights = None
 
-    def get_hyper_formula(self, hyperparams):
+    def point2sources(point):
+        """
+        Updates the composite source(s) (in place) with the point values.
+        """
+        tpoint = copy.deepcopy(point)
+        tpoint = utility.adjust_point_units(tpoint)
 
+        # remove hyperparameters from point
+        hps = bconfig.hyper_pars.values()
+
+        for hyper in hps:
+            if hyper in tpoint:
+                tpoint.pop(hyper)
+
+        source_params = self.sources[0].keys()
+        for param in tpoint.keys():
+            if param not in source_params:
+                tpoint.pop(param)
+
+        if 'time' in tpoint.keys():
+            tpoint['time'] += self.event.time
+
+        source_points = utility.split_point(tpoint)
+
+        for i, source in enumerate(self.sources):
+            utility.update_source(source, **source_points[i])
+            heart.adjust_fault_reference(source, input_depth='top')
+
+    def get_hyper_formula(self, hyperparams):
+        """
+        Get likelihood formula for the hyper model built. Has to be called
+        within a with model context.
+        """
         logpts = hyper_normal(self.targets, hyperparams, self._llks)
         llk = pm.Deterministic(self._like_name, logpts)
-
         return llk.sum()
+
+    def apply(composite):
+        """
+        Update composite weight matrixes (in place) with weights in given
+        composite.
+
+        Parameters
+        ----------
+        composite : :class:`Composite`
+            containing weight matrixes to use for updates
+        """
+
+        for i, weight in enumerate(updates.weights):
+            A = weight.get_value()
+            self.weights[i].set_value(A)
 
 
 class GeoGeometryComposite(Composite):
@@ -119,6 +164,7 @@ class GeoGeometryComposite(Composite):
         logger.debug('Setting up geodetic structure ...\n')
         self.name = 'geodetic'
         self._like_name = 'geo_like'
+        self.sources = sources
 
         geodetic_data_path = os.path.join(
 !            config.project_dir, bconfig.geodetic_data_name)
@@ -234,20 +280,34 @@ class GeoGeometryComposite(Composite):
         llk = pm.Deterministic(self._like_name, logpts)
         return llk.sum()
 
-    def get_synthetics():
-        gc = self.config.geodetic_config
+    def get_synthetics(point, **kwargs):
+        """
+        Get synthetics for given point in solution space.
 
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters
+        kwargs especially to change output of the forward model
+
+        Returns
+        -------
+        list with synthetics for each target
+        """
+        self.point2sources(point)
+
+        gc = self.config
         crust_inds = [0]
 
         geo_synths = []
         for crust_ind in crust_inds:
-            for gtarget in self.gtargets:
+            for target in self.targets:
                 disp = heart.geo_layer_synthetics(
                     gc.gf_config.store_superdir,
                     crust_ind,
-                    lons=gtarget.lons,
-                    lats=gtarget.lats,
-                    sources=dsources['geodetic'])
+                    lons=target.lons,
+                    lats=target.lats,
+                    sources=self.sources, **kwargs)
                 geo_synths.append((
                     disp[:, 0] * gtarget.los_vector[:, 0] + \
                     disp[:, 1] * gtarget.los_vector[:, 1] + \
@@ -271,7 +331,7 @@ class GeoGeometryComposite(Composite):
 
         logger.debug('Assembling geodetic data ...')
 
-!        processed_synts = self.get_synthetics(point)['geodetic']
+        processed_synts = self.get_synthetics(point)
 
         results = []
         for i, target in enumerate(self.targets):
@@ -284,10 +344,38 @@ class GeoGeometryComposite(Composite):
 
         return results
 
+    def update_weights(self, point, n_jobs=1, plot=False):
+        """
+        Updates weighting matrixes (in place) with respect to the point in the
+        solution space.
+
+        Parameters
+        ----------
+        point : dict
+            with numpy array-like items and variable name keys
+        """
+        gc = self.config
+
+        self.point2sources(point)
+
+        for i, target in enumerate(self.targets):
+            logger.debug('Track %s' % target.track)
+            cov_pv = cov.get_geo_cov_velocity_models(
+                store_superdir=gc.gf_config.store_superdir,
+                crust_inds=range(gc.gf_config.n_variations),
+                dataset=target,
+                sources=self.sources)
+
+            cov_pv = utility.ensure_cov_psd(cov_pv)
+
+            target.covariance.pred_v = cov_pv
+            icov = target.covariance.inverse
+            self.weights[i].set_value(icov)
+
     def update_llks(self, point):
         """
-        Update posterior likelihoods of the composite with respect to one point
-        in the solution space.
+        Update posterior likelihoods (in place) of the composite w.r.t.
+        one point in the solution space.
 
         Parameters
         ----------
@@ -312,6 +400,7 @@ class SeisGeometryComposite(Composite):
         self.name = 'seismic'
         self._like_name = 'seis_like'
 
+        self.sources = sources
         self.engine = gf.LocalEngine(
             store_superdirs=[sc.gf_config.store_superdir])
 
@@ -379,7 +468,7 @@ class SeisGeometryComposite(Composite):
         logger.debug('Initialising synthetics functions ... \n')
         self.get_synths = theanof.SeisSynthesizer(
             engine=self.engine,
-            sources=sources,
+            sources=self.sources,
             targets=self.targets,
             event=self.event,
             arrival_taper=sc.arrival_taper,
@@ -457,18 +546,32 @@ class SeisGeometryComposite(Composite):
         llk = pm.Deterministic(self._like_name, logpts)
         return llk.sum()
 
-    def get_synthetics():
+    def get_synthetics(point, **kwargs):
+        """
+        Get synthetics for given point in solution space.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters
+        kwargs especially to change output of seismic forward model
+            outmode = 'traces'/ 'array' / 'data'
+
+        Returns
+        -------
+        list of synthetics for each target
+        """
+        self.point2sources(point)
 
         sc = self.config
         synths, _ = heart.seis_synthetics(
             engine=self.engine,
-            sources=dsources['seismic'],
+            sources=self.sources,
             targets=self.stargets,
             arrival_taper=sc.arrival_taper,
             filterer=sc.filterer, **kwargs)
 
         return synths
-
 
     def assemble_results(self, point):
         """
@@ -486,8 +589,7 @@ class SeisGeometryComposite(Composite):
 
         logger.debug('Assembling seismic waveforms ...')
 
-!        syn_proc_traces = self.get_synthetics(
-            point, outmode='stacked_traces')['seismic']
+        syn_proc_traces = self.get_synthetics(point, outmode='stacked_traces')
 
         tmins = [tr.tmin for tr in syn_proc_traces]
 
@@ -502,8 +604,7 @@ class SeisGeometryComposite(Composite):
 
         self.config.seismic_config.arrival_taper = None
 
-!        syn_filt_traces = self.get_synthetics(
-            point, outmode='data')['seismic']
+        syn_filt_traces = self.get_synthetics(point, outmode='data')
 
         obs_filt_traces = heart.taper_filter_traces(
             self.data_traces,
@@ -541,6 +642,48 @@ class SeisGeometryComposite(Composite):
                     taper=taper))
 
         return results
+
+    def update_weights(self, point, n_jobs=1, plot=False):
+        """
+        Updates weighting matrixes (in place) with respect to the point in the
+        solution space.
+
+        Parameters
+        ----------
+        point : dict
+            with numpy array-like items and variable name keys
+        """
+        sc = self.config
+
+        self.point2sources(point)
+
+        for j, channel in enumerate(sc.channels):
+            for i, station in enumerate(self.stations):
+                logger.debug('Channel %s of Station %s ' % (
+                    channel, station.station))
+                crust_targets = heart.init_targets(
+                    stations=[station],
+                    channels=channel,
+                    sample_rate=sc.gf_config.sample_rate,
+                    crust_inds=range(sc.gf_config.n_variations))
+
+                cov_pv = cov.get_seis_cov_velocity_models(
+                    engine=self.engine,
+                    sources=self.sources,
+                    targets=crust_targets,
+                    arrival_taper=sc.arrival_taper,
+                    filterer=sc.filterer,
+                    plot=plot, n_jobs=n_jobs)
+
+                cov_pv = utility.ensure_cov_psd(cov_pv)
+
+                self.engine.close_cashed_stores()
+
+                index = j * len(self.stations) + i
+
+                self.targets[index].covariance.pred_v = cov_pv
+                icov = self.targets[index].covariance.inverse
+                self.weights[index].set_value(icov)
 
     def update_llk(self, point):
         """
@@ -643,7 +786,7 @@ class Problem(Object):
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
 
-        if self._seismic_flag:
+!        if self._seismic_flag:
             self.engine.close_cashed_stores()
 
         return step
@@ -764,6 +907,55 @@ class Problem(Object):
         for composite in self.composites.itervalues():
             composite.update_llks(point)
 
+    def apply(self, composites):
+        """
+        Update composites in problem object with given composites.
+        """
+        for composite in composites:
+            self.composites[composite.name].apply(composite)
+
+    def update_weights(self, point, n_jobs=1, plot=False):
+        """
+        Calculate and update model prediction uncertainty covariances of
+        composites due to uncertainty in the velocity model with respect to
+        one point in the solution space. Shared variables are updated in place.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters, for which the covariance matrixes
+            with respect to velocity model uncertainties are calculated
+        n_jobs : int
+            Number of processors to use for calculation of seismic covariances
+        plot : boolean
+            Flag for opening the seismic waveforms in the snuffler
+        """
+        for composite in self.composites.itervalues():
+            composite.update_weights(point, n_jobs=n_jobs)
+
+    def get_synthetics(self, point, **kwargs):
+        """
+        Get synthetics for given point in solution space.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters
+        kwargs especially to change output of seismic forward model
+            outmode = 'traces'/ 'array' / 'data'
+
+        Returns
+        -------
+        Dictionary with keys according to composites containing the synthetics
+        as lists.
+        """
+
+        d = dict()
+
+        for composite in self.composites.itervalues():
+            d[composite.name] = composite.get_synthetics(point, outmode='data')
+
+        return d
 
 class GeometryOptimizer(Problem):
     """
@@ -780,18 +972,11 @@ class GeometryOptimizer(Problem):
     def __init__(self, config, hypers=False):
         logger.info('... Initialising Geometry Optimizer ... \n')
 
-        pc = config.problem_config
-
-        super(GeometryOptimizer, self).__init__(pc)
+        super(GeometryOptimizer, self).__init__(config)
 
         # Load event
         if config.event is None:
-            if self._seismic_flag:
-                self.event = model.load_one_event(
-                    os.path.join(
-                        config.seismic_config.datadir, 'event.txt'))
-            else:
-                logger.warn('Found no event information!')
+            logger.warn('Found no event information!')
         else:
             self.event = config.event
 
@@ -807,170 +992,17 @@ class GeometryOptimizer(Problem):
 
             self.sources.append(source)
 
-        dsources = utility.transform_sources(self.sources, pc.datasets)
+        dsources = utility.transform_sources(
+            self.sources,
+            config.problem_config.datasets)
 
         for dataset in pc.datasets:
-            self.composites[dataset] = dsources[dataset]
+            self.composites[dataset] = geometry_composite_catalog[dataset](
+                config[dataset + '_config'],
+                dsources[dataset],
+                hypers)
 
         self.config = config
-
-    def apply(self, updates):
-        """
-        Update problem object with covariance matrixes
-        """
-
-        if self._seismic_flag:
-            for i, sw in enumerate(updates.sweights):
-                A = sw.get_value()
-                self.sweights[i].set_value(A)
-
-        if self._geodetic_flag:
-            for j, gw in enumerate(updates.gweights):
-                B = gw.get_value()
-                self.gweights[j].set_value(B)
-
-    def update_weights(self, point, n_jobs=1, plot=False):
-        """
-        Calculate and update model prediction uncertainty covariances
-        due to uncertainty in the velocity model with respect to one point
-        in the solution space. Shared variables are updated.
-
-        Parameters
-        ----------
-        point : :func:`pymc3.Point`
-            Dictionary with model parameters, for which the covariance matrixes
-            with respect to velocity model uncertainties are calculated
-        n_jobs : int
-            Number of processors to use for calculation of seismic covariances
-        plot : boolean
-            Flag for opening the seismic waveforms in the snuffler
-        """
-        tpoint = copy.deepcopy(point)
-
-        # update sources
-        tpoint = utility.adjust_point_units(tpoint)
-
-        # remove hyperparameters from point
-        hps = self.config.problem_config.hyperparameters
-
-        if len(hps) > 0:
-            for hyper in hps.keys():
-                if hyper in tpoint:
-                    tpoint.pop(hyper)
-
-        if self._seismic_flag:
-            tpoint['time'] += self.event.time
-
-        source_points = utility.split_point(tpoint)
-
-        for i, source in enumerate(self.sources):
-            utility.update_source(source, **source_points[i])
-
-        dsources = utility.transform_sources(
-            self.sources, self.config.problem_config.datasets)
-
-        # seismic
-        if self._seismic_flag:
-            sc = self.config.seismic_config
-
-            for j, channel in enumerate(sc.channels):
-                for i, station in enumerate(self.stations):
-                    logger.debug('Channel %s of Station %s ' % (
-                        channel, station.station))
-                    crust_targets = heart.init_targets(
-                        stations=[station],
-                        channels=channel,
-                        sample_rate=sc.gf_config.sample_rate,
-                        crust_inds=range(sc.gf_config.n_variations))
-
-                    cov_pv = cov.get_seis_cov_velocity_models(
-                        engine=self.engine,
-                        sources=dsources['seismic'],
-                        targets=crust_targets,
-                        arrival_taper=sc.arrival_taper,
-                        filterer=sc.filterer,
-                        plot=plot, n_jobs=n_jobs)
-
-                    cov_pv = utility.ensure_cov_psd(cov_pv)
-
-                    self.engine.close_cashed_stores()
-
-                    index = j * len(self.stations) + i
-
-                    self.stargets[index].covariance.pred_v = cov_pv
-                    icov = self.stargets[index].covariance.inverse
-                    self.sweights[index].set_value(icov)
-
-        # geodetic
-        if self._geodetic_flag:
-            gc = self.config.geodetic_config
-
-            for i, gtarget in enumerate(self.gtargets):
-                logger.debug('Track %s' % gtarget.track)
-                cov_pv = cov.get_geo_cov_velocity_models(
-                    store_superdir=gc.gf_config.store_superdir,
-                    crust_inds=range(gc.gf_config.n_variations),
-                    dataset=gtarget,
-                    sources=dsources['geodetic'])
-
-                cov_pv = utility.ensure_cov_psd(cov_pv)
-
-                gtarget.covariance.pred_v = cov_pv
-                icov = gtarget.covariance.inverse
-                self.gweights[i].set_value(icov)
-
-    def get_synthetics(self, point, **kwargs):
-        """
-        Get synthetics for given point in solution space.
-
-        Parameters
-        ----------
-        point : :func:`pymc3.Point`
-            Dictionary with model parameters
-        kwargs especially to change output of seismic forward model
-            outmode = 'traces'/ 'array' / 'data'
-
-        Returns
-        -------
-        Dictionary with keys according to datasets containing the synthetics
-        as lists.
-        """
-        tpoint = copy.deepcopy(point)
-        tpoint = utility.adjust_point_units(tpoint)
-
-        # remove hyperparameters from point
-        hps = self.config.problem_config.hyperparameters
-
-        if len(hps) > 0:
-            for hyper in hps.keys():
-                if hyper in tpoint:
-                    tpoint.pop(hyper)
-                else:
-                    pass
-
-        d = dict()
-
-        if self._seismic_flag:
-            tpoint['time'] += self.event.time
-
-        source_points = utility.split_point(tpoint)
-
-        for i, source in enumerate(self.sources):
-            utility.update_source(source, **source_points[i])
-
-        dsources = utility.transform_sources(
-            self.sources, self.config.problem_config.datasets)
-
-        # seismic
-        if self._seismic_flag:
-
-        # geodetic
-        if self._geodetic_flag:
-
-
-            d['geodetic'] = geo_synths
-
-        return d
 
 
 problem_catalog = {

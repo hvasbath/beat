@@ -406,6 +406,18 @@ class BEATconfig(Object):
     sampler_config = SamplerConfig.T(default=SamplerConfig.D())
     hyper_sampler_config = SamplerConfig.T(default=SamplerConfig.D())
 
+    def __getitem__(self, k):
+        if k not in self.keys():
+            raise KeyError(k)
+
+        return getattr(self, k)
+
+    def __setitem__(self, k, v):
+        if k not in self.keys():
+            raise KeyError(k)
+
+        return setattr(self, k, v)
+
     def update_hypers(self):
         """
         Evaluate the whole config and initialise necessary hyperparameters.
@@ -541,7 +553,7 @@ def load_config(project_dir, mode):
     project_dir : str
         path to the directory of the configuration file
     mode : str
-        type of optimization problem: 'Geometry' / 'Static'/ 'Kinematic'
+        type of optimization problem: 'geometry' / 'static'/ 'kinematic'
 
     Returns
     -------
