@@ -110,7 +110,7 @@ class Composite(Object):
         return llk.sum()
 
 
-class GeoGeometryOptimizer(Composite):
+class GeoGeometryComposite(Composite):
     """
     Comprises how to solve the geodetic forward model.
     """
@@ -229,10 +229,31 @@ class GeoGeometryOptimizer(Composite):
             tt.cast((self.wdata - los), tconfig.floatX))
 
         logpts = multivariate_normal(
-            logpts, self.targets, self.weights, hyperparams, residuals)
+            self.targets, self.weights, hyperparams, residuals)
 
         llk = pm.Deterministic(self._like_name, logpts)
         return llk.sum()
+
+    def get_synthetics():
+        gc = self.config.geodetic_config
+
+        crust_inds = [0]
+
+        geo_synths = []
+        for crust_ind in crust_inds:
+            for gtarget in self.gtargets:
+                disp = heart.geo_layer_synthetics(
+                    gc.gf_config.store_superdir,
+                    crust_ind,
+                    lons=gtarget.lons,
+                    lats=gtarget.lats,
+                    sources=dsources['geodetic'])
+                geo_synths.append((
+                    disp[:, 0] * gtarget.los_vector[:, 0] + \
+                    disp[:, 1] * gtarget.los_vector[:, 1] + \
+                    disp[:, 2] * gtarget.los_vector[:, 2]))
+
+        return synths
 
     def assemble_results(self, point):
         """
@@ -263,8 +284,25 @@ class GeoGeometryOptimizer(Composite):
 
         return results
 
+    def update_llks(self, point):
+        """
+        Update posterior likelihoods of the composite with respect to one point
+        in the solution space.
 
-class SeisGeometryOptimizer(Composite):
+        Parameters
+        ----------
+        point : dict
+            with numpy array-like items and variable name keys
+        """
+        results = self.assemble_results(point)
+        for l, result in enumerate(results):
+            icov = self.gtargets[l].covariance.inverse
+            llk = num.array(result.processed_res.dot(
+                icov).dot(result.processed_res.T)).flatten()
+            self._llks[l].set_value(llk)
+
+
+class SeisGeometryComposite(Composite):
     """
     Comprises how to solve the seismic forward model.
     """
@@ -381,7 +419,7 @@ class SeisGeometryOptimizer(Composite):
 
     def get_formula(self, input_rvs, hyperparams):
         """
-        Get geodetic likelihood formula for the model built. Has to be called
+        Get seismic likelihood formula for the model built. Has to be called
         within a with model context.
 
         Parameters
@@ -414,10 +452,23 @@ class SeisGeometryOptimizer(Composite):
         residuals = data_trcs - synths
 
         logpts = multivariate_normal(
-            logpts, self.targets, self.weights, hyperparams, residuals)
+            self.targets, self.weights, hyperparams, residuals)
 
         llk = pm.Deterministic(self._like_name, logpts)
         return llk.sum()
+
+    def get_synthetics():
+
+        sc = self.config
+        synths, _ = heart.seis_synthetics(
+            engine=self.engine,
+            sources=dsources['seismic'],
+            targets=self.stargets,
+            arrival_taper=sc.arrival_taper,
+            filterer=sc.filterer, **kwargs)
+
+        return synths
+
 
     def assemble_results(self, point):
         """
@@ -435,7 +486,7 @@ class SeisGeometryOptimizer(Composite):
 
         logger.debug('Assembling seismic waveforms ...')
 
-        syn_proc_traces = self.get_synthetics(
+!        syn_proc_traces = self.get_synthetics(
             point, outmode='stacked_traces')['seismic']
 
         tmins = [tr.tmin for tr in syn_proc_traces]
@@ -491,10 +542,27 @@ class SeisGeometryOptimizer(Composite):
 
         return results
 
+    def update_llk(self, point):
+        """
+        Update posterior likelihoods of the composite with respect to one point
+        in the solution space.
+
+        Parameters
+        ----------
+        point : dict
+            with numpy array-like items and variable name keys
+        """
+        results = self.assemble_results(point)
+        for k, result in enumerate(results):
+            icov = self.targets[k].covariance.inverse
+            _llk = num.array(result.processed_res.ydata.dot(
+                icov).dot(result.processed_res.ydata.T)).flatten()
+            self._llks[k].set_value(_llk)
+
 
 geometry_composite_catalog = {
-    'seismic': SeisGeometryOptimizer
-    'geodetic': GeoGeometryOptimizer}
+    'seismic': SeisGeometryComposite,
+    'geodetic': GeoGeometryComposite}
 
 
 class Problem(Object):
@@ -641,7 +709,7 @@ class Problem(Object):
         for param in pc.priors:
             point[param.name] = param.testvalue
 
-!        self.update_llks(point)
+        self.update_llks(point)
 
         with pm.Model() as self.model:
 
@@ -682,6 +750,19 @@ class Problem(Object):
                 hyperparams[hp_name] = 0.
 
         return hyperparams
+
+    def update_llks(self, point):
+        """
+        Update posterior likelihoods of each composite of the problem with
+        respect to one point in the solution space.
+
+        Parameters
+        ----------
+        point : dict
+            with numpy array-like items and variable name keys
+        """
+        for composite in self.composites.itervalues():
+            composite.update_llks(point)
 
 
 class GeometryOptimizer(Problem):
@@ -882,60 +963,14 @@ class GeometryOptimizer(Problem):
 
         # seismic
         if self._seismic_flag:
-            sc = self.config.seismic_config
-            seis_synths, _ = heart.seis_synthetics(
-                engine=self.engine,
-                sources=dsources['seismic'],
-                targets=self.stargets,
-                arrival_taper=sc.arrival_taper,
-                filterer=sc.filterer, **kwargs)
-
-            d['seismic'] = seis_synths
 
         # geodetic
         if self._geodetic_flag:
-            gc = self.config.geodetic_config
 
-            crust_inds = [0]
-
-            geo_synths = []
-            for crust_ind in crust_inds:
-                for gtarget in self.gtargets:
-                    disp = heart.geo_layer_synthetics(
-                        gc.gf_config.store_superdir,
-                        crust_ind,
-                        lons=gtarget.lons,
-                        lats=gtarget.lats,
-                        sources=dsources['geodetic'])
-                    geo_synths.append((
-                        disp[:, 0] * gtarget.los_vector[:, 0] + \
-                        disp[:, 1] * gtarget.los_vector[:, 1] + \
-                        disp[:, 2] * gtarget.los_vector[:, 2]))
 
             d['geodetic'] = geo_synths
 
         return d
-
-    def update_llks(self, point):
-        """
-        Calculate likelihood with respect to given point in the solution space.
-        """
-
-        if self._seismic_flag:
-!            sresults = self.assemble_seismic_results(point)
-            for k, result in enumerate(sresults):
-                icov = self.stargets[k].covariance.inverse
-                seis_llk = num.array(result.processed_res.ydata.dot(
-                    icov).dot(result.processed_res.ydata.T)).flatten()
-                self._seis_llks[k].set_value(seis_llk)
-
-        if self._geodetic_flag:
-!            gresults = self.assemble_geodetic_results(point)
-            for l, result in enumerate(gresults):
-                icov = self.gtargets[l].covariance.inverse
-                geo_llk = num.array(result.processed_res.dot(
-                    icov).dot(result.processed_res.T)).flatten()
-                self._geo_llks[l].set_value(geo_llk)
 
 
 problem_catalog = {
