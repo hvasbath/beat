@@ -159,8 +159,8 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
         Returns
         -------
         :class:`pscmp.PsCmpRectangularSource` or
-        :class:`pyrocko.gf.seismosizer.RectangularSource` depending on datatype
-        depth is being updated from top_depth to center_depth.
+        :class:`pyrocko.gf.seismosizer.RectangularSource` depending on
+        datatype. Depth is being updated from top_depth to center_depth.
         """
 
         length = self.length / float(n)

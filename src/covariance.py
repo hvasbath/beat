@@ -13,9 +13,19 @@ logger = logging.getLogger('covariance')
 def sub_data_covariance(n, dt, tzero):
     '''
     Calculate sub-covariance matrix without variance.
-    :param: n - length of trace/ samples of quadratic Covariance matrix
-    :param: dt - time step of samples
-    :param: tzero - shortest period of waves in trace
+
+    Parameters
+    ----------
+    n : int
+        length of trace/ samples of quadratic Covariance matrix
+    dt : float
+        time step of samples, sampling interval
+    tzero : float
+        shortest period of waves in trace
+
+    Returns
+    -------
+    :class:`numpy.ndarray`
     '''
     return num.exp(- num.abs(num.arange(n)[:, num.newaxis] - \
                               num.arange(n)[num.newaxis, :]) * dt / tzero)
@@ -28,6 +38,29 @@ def get_seismic_data_covariances(data_traces, engine, filterer, sample_rate,
     Duputel et al. 2012 GJI
     "Uncertainty estimations for seismic source inversions" p. 5
 
+    Parameters
+    ----------
+    data_traces : list
+        of :class:`pyrocko.trace.Trace` containing observed data
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+        processing object for synthetics calculation
+    filterer : :class:`heart.Filter`
+        determines the bandpass-filtering corner frequencies
+    sample_rate : float
+        sampling rate of data_traces and GreensFunction stores
+    arrival_taper : :class: `heart.ArrivalTaper`
+        determines tapering around phase Arrival
+    event : :class:`pyrocko.meta.Event`
+        reference event from catalog
+    targets : list
+        of :class:`pyrocko.gf.seismosizer.Targets`
+
+    Returns
+    -------
+    :class:`numpy.ndarray`
+
+    Notes
+    -----
     Cd(i,j) = (Variance of trace)*exp(-abs(ti-tj)/
                                      (shortest period T0 of waves))
 
@@ -188,10 +221,27 @@ def get_seis_cov_velocity_models(engine, sources, targets,
     '''
     Calculate model prediction uncertainty matrix with respect to uncertainties
     in the velocity model for station and channel.
-    Input:
-    :py:class:`gf.Engine` - contains synthetics generation machine
-    :py:class:`gf.Targets` - targets to be processed
-    :py:class: `heart.ArrivalTaper` - Determines Tapering around Phase Arrival
+
+    Parameters
+    ----------
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+        contains synthetics generation machine
+    sources : list
+        of :class:`pyrocko.gf.seismosizer.Source`
+    targets : list
+        of :class:`pyrocko.gf.seismosizer.Targets`
+    arrival_taper : :class: `heart.ArrivalTaper`
+        determines tapering around phase Arrival
+    filterer : :class:`heart.Filter`
+        determines the bandpass-filtering corner frequencies
+    plot : boolean
+        open snuffler and browse traces if True
+    n_jobs : int
+        number of processors to be used for calculation
+
+    Returns
+    -------
+    :class:`numpy.ndarray` with Covariance due to velocity model uncertainties
     '''
 
     ref_target = copy.deepcopy(targets[0])
@@ -211,28 +261,39 @@ def get_seis_cov_velocity_models(engine, sources, targets,
     return num.cov(synths, rowvar=0)
 
 
-def get_geo_cov_velocity_models(store_superdir, crust_inds, dataset, sources):
+def get_geo_cov_velocity_models(store_superdir, crust_inds, target, sources):
     '''
     Calculate model prediction uncertainty matrix with respect to uncertainties
-    in the velocity model for geodetic dateset.
-    Input:
-    store_superdir - geodetic GF directory
-    crust_inds - List of indices for respective GF stores
-    dataset - :py:class:`IFG`/`DiffIFG`
-    sources - List of :py:class:`PsCmpRectangularSource`
+    in the velocity model for geodetic targets.
+
+    Parameters
+    ----------
+    store_superdir : str
+        Absolute path to the geodetic GreensFunction directory
+    crust_inds : list
+        of int of indices for respective GreensFunction store indexes
+    target : :class:`heart.GeodeticTarget`
+        dataset and observation points to calculate covariance for
+    sources : list
+        of :py:class:`pscmp.PsCmpRectangularSource` determines the covariance
+        matrix
+
+    Returns
+    -------
+    :class:`numpy.ndarray` with Covariance due to velocity model uncertainties
     '''
 
-    synths = num.zeros((len(crust_inds), dataset.lons.size))
+    synths = num.zeros((len(crust_inds), target.samples))
     for crust_ind in crust_inds:
         disp = heart.geo_layer_synthetics(
             store_superdir, crust_ind,
-            lons=dataset.lons,
-            lats=dataset.lats,
+            lons=target.lons,
+            lats=target.lats,
             sources=sources)
         synths[crust_ind, :] = (
-            disp[:, 0] * dataset.los_vector[:, 0] + \
-            disp[:, 1] * dataset.los_vector[:, 1] + \
-            disp[:, 2] * dataset.los_vector[:, 2]) * \
-                dataset.odw
+            disp[:, 0] * target.los_vector[:, 0] + \
+            disp[:, 1] * target.los_vector[:, 1] + \
+            disp[:, 2] * target.los_vector[:, 2]) * \
+                target.odw
 
     return num.cov(synths, rowvar=0)
