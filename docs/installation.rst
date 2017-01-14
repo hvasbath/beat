@@ -1,10 +1,11 @@
 .. installation:
 
-*************************
-Installation instructions
-*************************
+**********************************
+Detailed Installation instructions
+**********************************
 
-BEAT can be installed on any Unix based system that supports its prerequisites.
+BEAT can be installed on any Unix based system with python2.7
+that supports its prerequisites.
 
 BEAT source
 -----------
@@ -339,9 +340,8 @@ Pyproj is the last package and also the most easy one to install::
     pip install pyproj
 
 
-
-BEAT source
------------
+BEAT
+----
 After these long and heavy installations, you can setup BEAT itself::
 
     cd ~/src/beat
