@@ -150,6 +150,10 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
                 step.stage = 0
                 trans_stage_path = os.path.join(
                     homepath, 'trans_stage_%i' % s)
+                logger.info('in %s' % trans_stage_path)
+                
+                chains = None
+
                 sample_args = {
                     'draws': draws,
                     'step': step,
