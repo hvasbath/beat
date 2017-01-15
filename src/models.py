@@ -6,7 +6,7 @@ import shutil
 import pymc3 as pm
 from pymc3 import Metropolis
 
-from pyrocko import gf, util, model, trace
+from pyrocko import gf, util, trace
 from pyrocko.guts import Object
 
 import numpy as num
@@ -49,9 +49,6 @@ def multivariate_normal(targets, weights, hyperparams, residuals):
     n_t = len(targets)
 
     logpts = tt.zeros((n_t), tconfig.floatX)
-
-    if isinstance(residuals, list):
-        switch = True
 
     for l, target in enumerate(targets):
         M = target.samples
@@ -102,7 +99,7 @@ class Composite(Object):
     config = None
     weights = None
 
-    def point2sources(point):
+    def point2sources(self, point):
         """
         Updates the composite source(s) (in place) with the point values.
         """
@@ -139,7 +136,7 @@ class Composite(Object):
         llk = pm.Deterministic(self._like_name, logpts)
         return llk.sum()
 
-    def apply(composite):
+    def apply(self, composite):
         """
         Update composite weight matrixes (in place) with weights in given
         composite.
@@ -150,7 +147,7 @@ class Composite(Object):
             containing weight matrixes to use for updates
         """
 
-        for i, weight in enumerate(updates.weights):
+        for i, weight in enumerate(composite.weights):
             A = weight.get_value()
             self.weights[i].set_value(A)
 
@@ -160,14 +157,15 @@ class GeoGeometryComposite(Composite):
     Comprises how to solve the geodetic forward model.
     """
 
-    def __init__(self, gc, sources, hypers=False):
+    def __init__(self, gc, project_dir, sources, event, hypers=False):
         logger.debug('Setting up geodetic structure ...\n')
         self.name = 'geodetic'
         self._like_name = 'geo_like'
-        self.sources = sources
 
+        self.event = event
+        self.sources = sources
         geodetic_data_path = os.path.join(
-!            config.project_dir, bconfig.geodetic_data_name)
+            project_dir, bconfig.geodetic_data_name)
         self.targets = utility.load_objects(geodetic_data_path)
 
         self.n_t = len(self.targets)
@@ -280,7 +278,7 @@ class GeoGeometryComposite(Composite):
         llk = pm.Deterministic(self._like_name, logpts)
         return llk.sum()
 
-    def get_synthetics(point, **kwargs):
+    def get_synthetics(self, point, **kwargs):
         """
         Get synthetics for given point in solution space.
 
@@ -299,7 +297,7 @@ class GeoGeometryComposite(Composite):
         gc = self.config
         crust_inds = [0]
 
-        geo_synths = []
+        synths = []
         for crust_ind in crust_inds:
             for target in self.targets:
                 disp = heart.geo_layer_synthetics(
@@ -308,10 +306,10 @@ class GeoGeometryComposite(Composite):
                     lons=target.lons,
                     lats=target.lats,
                     sources=self.sources, **kwargs)
-                geo_synths.append((
-                    disp[:, 0] * gtarget.los_vector[:, 0] + \
-                    disp[:, 1] * gtarget.los_vector[:, 1] + \
-                    disp[:, 2] * gtarget.los_vector[:, 2]))
+                synths.append((
+                    disp[:, 0] * target.los_vector[:, 0] + \
+                    disp[:, 1] * target.los_vector[:, 1] + \
+                    disp[:, 2] * target.los_vector[:, 2]))
 
         return synths
 
@@ -395,23 +393,24 @@ class SeisGeometryComposite(Composite):
     Comprises how to solve the seismic forward model.
     """
 
-    def __init__(self, sc, sources, hypers=False):
+    def __init__(self, sc, project_dir, sources, event, hypers=False):
         logger.debug('Setting up seismic structure ...\n')
         self.name = 'seismic'
         self._like_name = 'seis_like'
 
+        self.event = event
         self.sources = sources
         self.engine = gf.LocalEngine(
             store_superdirs=[sc.gf_config.store_superdir])
 
         seismic_data_path = os.path.join(
-!            config.project_dir, bconfig.seismic_data_name)
+            project_dir, bconfig.seismic_data_name)
         stations, data_traces = utility.load_objects(
             seismic_data_path)
         stations = utility.apply_station_blacklist(stations, sc.blacklist)
 
         self.stations = utility.weed_stations(
-!            stations, self.event, distances=sc.distances)
+            stations, self.event, distances=sc.distances)
 
         self.data_traces = utility.weed_data_traces(
             data_traces, self.stations)
@@ -440,7 +439,7 @@ class SeisGeometryComposite(Composite):
                 sample_rate=sc.gf_config.sample_rate,
                 arrival_taper=sc.arrival_taper,
                 engine=self.engine,
-!                event=self.event,
+                event=self.event,
                 targets=self.targets)
         else:
             logger.info('No data-covariance estimation ...\n')
@@ -546,7 +545,7 @@ class SeisGeometryComposite(Composite):
         llk = pm.Deterministic(self._like_name, logpts)
         return llk.sum()
 
-    def get_synthetics(point, **kwargs):
+    def get_synthetics(self, point, **kwargs):
         """
         Get synthetics for given point in solution space.
 
@@ -786,8 +785,9 @@ class Problem(Object):
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
 
-!        if self._seismic_flag:
-            self.engine.close_cashed_stores()
+        if 'seismic' in self.composites.keys():
+            composite = self.composites['seismic']
+            composite.engine.close_cashed_stores()
 
         return step
 
@@ -957,6 +957,7 @@ class Problem(Object):
 
         return d
 
+
 class GeometryOptimizer(Problem):
     """
     Defines the model setup to solve the non-linear fault geometry and
@@ -982,7 +983,7 @@ class GeometryOptimizer(Problem):
 
         # Init sources
         self.sources = []
-        for i in range(pc.n_faults):
+        for i in range(config.problem_config.n_faults):
             if self.event:
                 source = heart.RectangularSource.from_pyrocko_event(self.event)
                 # hardcoded inversion for hypocentral time
@@ -996,9 +997,10 @@ class GeometryOptimizer(Problem):
             self.sources,
             config.problem_config.datasets)
 
-        for dataset in pc.datasets:
+        for dataset in config.problem_config.datasets:
             self.composites[dataset] = geometry_composite_catalog[dataset](
                 config[dataset + '_config'],
+                config.project_dir,
                 dsources[dataset],
                 hypers)
 
@@ -1100,15 +1102,15 @@ def estimate_hypers(step, problem):
                 problem.update_weights(point)
 
             problem.update_llks(point)
-            with problem.model as model:
+            with problem.model as hmodel:
                 mtraces.append(pm.sample(
                     draws=pa.n_steps,
                     step=step,
                     trace=pm.backends.Text(
                         name=problem.outfolder,
-                        model=problem.model),
+                        model=hmodel),
                     start=start,
-                    model=model,
+                    model=hmodel,
                     chain=stage * pa.n_jobs,
                     njobs=pa.n_jobs,
                     ))
