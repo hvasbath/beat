@@ -473,7 +473,6 @@ def lonlat_to_utm(lon, lat, zone):
         with UTM northing
     zone : int
         number with utm zone
-    event : :class:`pyrocko.model.Event`
 
     Returns
     -------
