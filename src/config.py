@@ -15,6 +15,7 @@ from pyrocko.cake import load_model
 
 from pyrocko import trace, model, util
 from pyrocko.gf import Earthmodel1D
+from pyrocko.gf.seismosizer import Cloneable
 from beat.heart import Filter, ArrivalTaper, TeleseismicTarget, Parameter
 
 from beat import utility
@@ -386,7 +387,7 @@ class SamplerConfig(Object):
             self.parameters = ATMCMCConfig()
 
 
-class BEATconfig(Object):
+class BEATconfig(Object, Cloneable):
     """
     BEATconfig is the overarching configuration class, providing all the
     sub-configurations classes for the problem setup, Greens Function
@@ -405,18 +406,6 @@ class BEATconfig(Object):
         default=None, optional=True)
     sampler_config = SamplerConfig.T(default=SamplerConfig.D())
     hyper_sampler_config = SamplerConfig.T(default=SamplerConfig.D())
-
-    def __getitem__(self, k):
-        if k not in self.keys():
-            raise KeyError(k)
-
-        return getattr(self, k)
-
-    def __setitem__(self, k, v):
-        if k not in self.keys():
-            raise KeyError(k)
-
-        return setattr(self, k, v)
 
     def update_hypers(self):
         """

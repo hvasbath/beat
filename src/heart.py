@@ -1228,7 +1228,7 @@ def geo_construct_gf(
 
 
 def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
-                         keep_tmp=False):
+                         keep_tmp=False, outmode='data'):
     """
     Calculate synthetic displacements for a given Greens Function database
     sources and observation points on the earths surface.
@@ -1248,6 +1248,8 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
     keep_tmp : boolean
         Flag to keep directories (in '/tmp') where calculated synthetics are
         stored.
+    outmode : str
+        determines type of output
 
     Returns
     -------

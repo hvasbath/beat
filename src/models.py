@@ -113,7 +113,13 @@ class Composite(Object):
             if hyper in tpoint:
                 tpoint.pop(hyper)
 
-        source_params = self.sources[0].keys()
+        source = self.sources[0]
+
+        if 'stf' in source.keys():
+            source_params = source.stf.keys() + source.keys()
+        else:
+            source_params = source.keys()
+
         for param in tpoint.keys():
             if param not in source_params:
                 tpoint.pop(param)
@@ -190,7 +196,7 @@ class GeoGeometryComposite(Composite):
 
         self.weights = []
         for target in self.targets:
-            icov = self.target.covariance.inverse
+            icov = target.covariance.inverse
             self.weights.append(shared(icov))
 
         # merge geodetic data to call pscmp only once each forward model
@@ -254,6 +260,8 @@ class GeoGeometryComposite(Composite):
         -------
         posterior_llk : :class:`theano.tensor.Tensor`
         """
+        self.input_rvs = input_rvs
+
         names = [param.name for param in self.input_rvs]
         logger.debug(
             'Geodetic optimization on: \n '
@@ -361,7 +369,7 @@ class GeoGeometryComposite(Composite):
             cov_pv = cov.get_geo_cov_velocity_models(
                 store_superdir=gc.gf_config.store_superdir,
                 crust_inds=range(gc.gf_config.n_variations),
-                dataset=target,
+                target=target,
                 sources=self.sources)
 
             cov_pv = utility.ensure_cov_psd(cov_pv)
@@ -382,7 +390,7 @@ class GeoGeometryComposite(Composite):
         """
         results = self.assemble_results(point)
         for l, result in enumerate(results):
-            icov = self.gtargets[l].covariance.inverse
+            icov = self.targets[l].covariance.inverse
             llk = num.array(result.processed_res.dot(
                 icov).dot(result.processed_res.T)).flatten()
             self._llks[l].set_value(llk)
@@ -566,7 +574,7 @@ class SeisGeometryComposite(Composite):
         synths, _ = heart.seis_synthetics(
             engine=self.engine,
             sources=self.sources,
-            targets=self.stargets,
+            targets=self.targets,
             arrival_taper=sc.arrival_taper,
             filterer=sc.filterer, **kwargs)
 
@@ -707,7 +715,7 @@ geometry_composite_catalog = {
     'geodetic': GeoGeometryComposite}
 
 
-class Problem(Object):
+class Problem(object):
     """
     Overarching class for the optimization problems to be solved.
 
@@ -826,7 +834,7 @@ class Problem(Object):
             total_llk = tt.zeros((1), tconfig.floatX)
 
             for dataset, composite in self.composites.iteritems():
-                input_rvs = utility.weed_input_rvs(rvs, dataset=dataset)
+                input_rvs = utility.weed_input_rvs(rvs, mode, dataset=dataset)
                 total_llk += composite.get_formula(input_rvs, self.hyperparams)
 
             like = pm.Deterministic(self._like_name, total_llk)
@@ -866,6 +874,21 @@ class Problem(Object):
             like = pm.Deterministic(self._like_name, total_llk)
             llk = pm.Potential(self._like_name, like)
             logger.info('Hyper model building was successful!')
+
+    def get_random_point(self):
+        """
+        Get random point in solution space.
+        """
+        pc = self.config.problem_config
+
+        point = {param.name: param.random() for param in pc.priors}
+        hps = {param.name: param.random() \
+            for param in pc.hyperparameters.values()}
+
+        for k, v in hps.iteritems():
+            point[k] = v
+
+        return point
 
     def get_hyperparams(self):
         """
@@ -1002,6 +1025,7 @@ class GeometryOptimizer(Problem):
                 config[dataset + '_config'],
                 config.project_dir,
                 dsources[dataset],
+                self.event,
                 hypers)
 
         self.config = config
