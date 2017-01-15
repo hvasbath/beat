@@ -1174,8 +1174,8 @@ def load_model(project_dir, mode, hypers=False):
         raise Exception('No hyperparameters specified!'
         ' option --hypers not applicable')
 
-    if pc.mode == 'geometry':
-        problem = GeometryOptimizer(config, hypers)
+    if pc.mode in problem_catalog.keys():
+        problem = problem_catalog[pc.mode](config, hypers)
     else:
         logger.error('Modeling problem %s not supported' % pc.mode)
         raise Exception('Model not supported')

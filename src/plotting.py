@@ -359,12 +359,14 @@ def geodetic_fits(problem, stage, plot_options):
 
     po = plot_options
 
+    composite = problem.composites['geodetic']
+
     if po.reference is not None:
-        problem.get_synthetics(po.reference)
-        ref_sources = copy.deepcopy(problem.sources)
+        composite.point2sources(po.reference)
+        ref_sources = copy.deepcopy(composite.sources)
 
     target_index = dict(
-        (target, i) for (i, target) in enumerate(problem.gtargets))
+        (target, i) for (i, target) in enumerate(composite.targets))
 
     population, _, llk = stage.step.select_end_points(stage.mtrace)
 
@@ -372,11 +374,11 @@ def geodetic_fits(problem, stage, plot_options):
     idx = posterior_idxs[po.post_llk]
 
     out_point = population[idx]
-    results = problem.assemble_geodetic_results(out_point)
+    results = composite.assemble_results(out_point)
     nrmax = len(results)
 
     target_to_result = {}
-    for target, result in zip(problem.gtargets, results):
+    for target, result in zip(composite.targets, results):
         target_to_result[target] = result
 
     nfigs = int(num.ceil(float(nrmax) / float(ndmax)))
@@ -450,7 +452,7 @@ def geodetic_fits(problem, stage, plot_options):
         return title
 
     orbits_to_targets = utility.gather(
-        problem.gtargets,
+        composite.targets,
         lambda t: t.track,
         filter=lambda t: t in target_to_result)
 
@@ -466,7 +468,7 @@ def geodetic_fits(problem, stage, plot_options):
 
         for target in targets:
             if po.plot_projection == 'local':
-                target.update_local_coords(problem.event)
+                target.update_local_coords(composite.event)
 
             result = target_to_result[target]
             tidx = target_index[target]
@@ -516,7 +518,8 @@ def geodetic_fits(problem, stage, plot_options):
             ref_color = scolor('aluminium3')
 
             draw_sources(
-                axes[figidx][rowidx, 1], problem.sources, po, color=syn_color)
+                axes[figidx][rowidx, 1],
+                composite.sources, po, color=syn_color)
 
             if po.reference is not None:
                 draw_sources(
@@ -565,7 +568,8 @@ def geodetic_fits(problem, stage, plot_options):
 
 def draw_geodetic_fits(problem, plot_options):
 
-    assert problem._geodetic_flag
+    if 'geodetic' not in problem.composites.keys():
+        raise Exception('No geodetic composite defined in the problem!')
 
     po = plot_options
 
@@ -623,11 +627,13 @@ def seismic_fits(problem, stage, plot_options):
     the selected posterior model.
     """
 
+    composite = problem.composite['seismic']
+
     fontsize = 8
     fontsize_title = 10
 
     target_index = dict(
-        (target, i) for (i, target) in enumerate(problem.stargets))
+        (target, i) for (i, target) in enumerate(composite.targets))
 
     po = plot_options
 
@@ -643,14 +649,14 @@ def seismic_fits(problem, stage, plot_options):
 
     out_point = population[idx]
 
-    results = problem.assemble_seismic_results(out_point)
-    source = problem.sources[0]
+    results = composite.assemble_results(out_point)
+    source = composite.sources[0]
 
     logger.info('Plotting waveforms ...')
     target_to_result = {}
     all_syn_trs = []
     dtraces = []
-    for target in problem.stargets:
+    for target in composite.targets:
         i = target_index[target]
         target_to_result[target] = results[i]
 
@@ -668,7 +674,7 @@ def seismic_fits(problem, stage, plot_options):
             tr.ydata /= max(abs(dmin), abs(dmax))
 
     cg_to_targets = utility.gather(
-        problem.stargets,
+        composite.targets,
         lambda t: t.codes[3],
         filter=lambda t: t in target_to_result)
 
@@ -917,7 +923,9 @@ def seismic_fits(problem, stage, plot_options):
 
 def draw_seismic_fits(problem, po):
 
-    assert problem._seismic_flag
+    if 'seismic' not in problem.composites.keys():
+        raise Exception('No seismic composite defined for this problem!')
+
     assert po.sampler == 'ATMCMC'
 
     stage = load_stage(problem, stage_number=po.load_stage, load='full')
