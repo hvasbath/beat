@@ -435,10 +435,10 @@ def command_build_gfs(args):
                  ' Default: current directory: ./')
 
         parser.add_option('--mode', dest='mode',
-            choices=['geometry', 'static_dist', 'kinemtic_dist'],
+            choices=['geometry', 'static', 'kinematic'],
             default='geometry',
             help='Inversion problem to calculate GFs for; "geometry",'
-                 '"static_dist", "kinematic_dist". Default: "geometry"')
+                 '"static", "kinematic". Default: "geometry"')
 
         parser.add_option('--datasets',
             default='geodetic', type='string',
@@ -467,70 +467,77 @@ def command_build_gfs(args):
 
     c = config.load_config(project_dir, options.mode)
 
-    if 'geodetic' in options.datasets:
-        gf = c.geodetic_config.gf_config
+    if options.mode == 'geometry':
+        if 'geodetic' in options.datasets:
+            gf = c.geodetic_config.gf_config
 
-        for crust_ind in range(gf.n_variations + 1):
-            heart.geo_construct_gf(
-                event=c.event,
-                store_superdir=gf.store_superdir,
-                source_depth_min=gf.source_depth_min,
-                source_depth_max=gf.source_depth_max,
-                source_depth_spacing=gf.source_depth_spacing,
-                source_distance_min=gf.source_distance_min,
-                source_distance_max=gf.source_distance_max,
-                source_distance_spacing=gf.source_distance_spacing,
-                sampling_interval=gf.sampling_interval,
-                earth_model=gf.earth_model,
-                crust_ind=crust_ind,
-                use_crust2=gf.use_crust2,
-                custom_velocity_model=gf.custom_velocity_model,
-                replace_water=gf.replace_water,
-                execute=options.execute,
-                force=options.force)
-
-        if options.execute:
-            logger.info('Geodetic GF calculations successful!')
-
-    if 'seismic' in options.datasets:
-        sc = c.seismic_config
-        sf = sc.gf_config
-
-        seismic_data_path = os.path.join(
-            c.project_dir, config.seismic_data_name)
-
-        stations, data_traces = utility.load_objects(seismic_data_path)
-        stations = utility.apply_station_blacklist(stations, sc.blacklist)
-
-        for crust_ind in range(sf.n_variations + 1):
-            for station in stations:
-                heart.seis_construct_gf(
-                    station=station,
+            for crust_ind in range(gf.n_variations + 1):
+                heart.geo_construct_gf(
                     event=c.event,
-                    store_superdir=sf.store_superdir,
-                    code=sf.code,
-                    source_depth_min=sf.source_depth_min,
-                    source_depth_max=sf.source_depth_max,
-                    source_depth_spacing=sf.source_depth_spacing,
-                    sample_rate=sf.sample_rate,
-                    source_distance_radius=sf.source_distance_radius,
-                    source_distance_spacing=sf.source_distance_spacing,
-                    depth_limit_variation=sf.depth_limit_variation,
-                    earth_model=sf.earth_model,
+                    store_superdir=gf.store_superdir,
+                    source_depth_min=gf.source_depth_min,
+                    source_depth_max=gf.source_depth_max,
+                    source_depth_spacing=gf.source_depth_spacing,
+                    source_distance_min=gf.source_distance_min,
+                    source_distance_max=gf.source_distance_max,
+                    source_distance_spacing=gf.source_distance_spacing,
+                    sampling_interval=gf.sampling_interval,
+                    earth_model=gf.earth_model,
                     crust_ind=crust_ind,
-                    use_crust2=sf.use_crust2,
+                    use_crust2=gf.use_crust2,
+                    custom_velocity_model=gf.custom_velocity_model,
+                    replace_water=gf.replace_water,
                     execute=options.execute,
-                    rm_gfs=sf.rm_gfs,
-                    nworkers=sf.nworkers,
-                    custom_velocity_model=sf.custom_velocity_model,
                     force=options.force)
 
-        if not options.execute:
-            logger.info('Seismic GF store configs successfully created! '
-                        'To start calculations set e')
+            if options.execute:
+                logger.info('Geodetic GF calculations successful!')
 
-        if options.execute:
-            logger.info('Seismic GF calculations successful!')
+        if 'seismic' in options.datasets:
+            sc = c.seismic_config
+            sf = sc.gf_config
+
+            seismic_data_path = os.path.join(
+                c.project_dir, config.seismic_data_name)
+
+            stations, data_traces = utility.load_objects(seismic_data_path)
+            stations = utility.apply_station_blacklist(stations, sc.blacklist)
+
+            for crust_ind in range(sf.n_variations + 1):
+                for station in stations:
+                    heart.seis_construct_gf(
+                        station=station,
+                        event=c.event,
+                        store_superdir=sf.store_superdir,
+                        code=sf.code,
+                        source_depth_min=sf.source_depth_min,
+                        source_depth_max=sf.source_depth_max,
+                        source_depth_spacing=sf.source_depth_spacing,
+                        sample_rate=sf.sample_rate,
+                        source_distance_radius=sf.source_distance_radius,
+                        source_distance_spacing=sf.source_distance_spacing,
+                        depth_limit_variation=sf.depth_limit_variation,
+                        earth_model=sf.earth_model,
+                        crust_ind=crust_ind,
+                        use_crust2=sf.use_crust2,
+                        execute=options.execute,
+                        rm_gfs=sf.rm_gfs,
+                        nworkers=sf.nworkers,
+                        custom_velocity_model=sf.custom_velocity_model,
+                        force=options.force)
+
+            if not options.execute:
+                logger.info('Seismic GF store configs successfully created! '
+                            'To start calculations set e')
+
+            if options.execute:
+                logger.info('Seismic GF calculations successful!')
+
+    elif options.mode == 'static':
+        if 'geodetic' in options.datasets:
+            pass
+
+
 
 def command_plot(args):
 

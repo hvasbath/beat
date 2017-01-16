@@ -411,12 +411,6 @@ class GeoGeometryComposite(Composite):
             self._llks[l].set_value(llk)
 
 
-class GeoDistributorComposite(Composite):
-    """
-    Comprises how to solve the geodetic (static) linear forward model.
-    Distributed slip
-    """
-
 class SeisGeometryComposite(Composite):
     """
     Comprises how to solve the non-linear seismic forward model.
@@ -745,10 +739,43 @@ class SeisGeometryComposite(Composite):
             self._llks[k].set_value(_llk)
 
 
+
+class GeoDistributorComposite(Composite):
+    """
+    Comprises how to solve the geodetic (static) linear forward model.
+    Distributed slip
+    """
+
+    def __init__(self, gc, project_dir, hypers=False):
+        logger.debug('Setting up geodetic structure ...\n')
+        self.name = 'geodetic'
+        self._like_name = 'geo_like'
+
+    def get_formula(self, input_rvs, hyperparams):
+        m_perp = pm.Uniform('m_perp', lower=-0.3 , upper=4., shape=npatch, testval = 0.1*num.zeros([npatch], dtype=float), transform=None)
+        m_parr = pm.Uniform('m_parr', lower= 0, upper= 6., shape=npatch, testval = init_slips, transform=None)
+        logpts = num.ndarray(ndata,dtype=object)
+        #    logpts2 = num.ndarray(ndata,dtype=object)
+
+        #calculate cost
+        for i in range(ndata):
+            mu=tt.dot(shared(GFs_parr[i]),m_parr) + tt.dot(shared(GFs_perp[i]),m_perp)
+            residuals = shared(ODWs[i])*(shared(Displ[i]) - mu)
+
+        logpts = multivariate_normal(
+            self.targets, self.weights, hyperparams, residuals)
+
+        llk = pm.Deterministic(self._like_name, logpts)
+
+        return llk.sum()
+
 geometry_composite_catalog = {
     'seismic': SeisGeometryComposite,
     'geodetic': GeoGeometryComposite}
 
+distributor_composite_catalog = {
+    'geodetic': GeoDistributorComposite,
+    }
 
 class Problem(object):
     """
@@ -1066,8 +1093,34 @@ class GeometryOptimizer(Problem):
         self.config = config
 
 
+class DistributionOptimizer(Problem):
+    """
+    Defines the model setup to solve the linear slip-distribution and
+    returns the model object.
+
+    Parameters
+    ----------
+    config : :class:'config.BEATconfig'
+        Contains all the information about the model setup and optimization
+        boundaries, as well as the sampler parameters.
+    """
+
+    def __init__(self, config, hypers=False):
+        logger.info('... Initialising Distribution Optimizer ... \n')
+
+        super(DistributionOptimizer, self).__init__(config)
+
+        for dataset in config.problem_config.datasets:
+            self.composites[dataset] = distributor_composite_catalog[dataset](
+                config[dataset + '_config'],
+                config.project_dir,
+                hypers)
+
+        self.config = config
+
 problem_catalog = {
-    bconfig.modes[0]: GeometryOptimizer}
+    bconfig.modes[0]: GeometryOptimizer,
+    bconfig.modes[1]: DistributionOptimizer}
 
 
 def sample(step, problem):
