@@ -141,6 +141,7 @@ class SeisSynthesizer(theano.Op):
     '''
     Theano wrapper for a seismic forward model for given source, targets
 
+    Inputs have to be in order!
     Inputs Type: Numpy arrays:
                     Source parameters (RectangularSource)
     east_shifts, north_shifts, top_depths, strikes, dips, rakes,

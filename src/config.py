@@ -26,8 +26,6 @@ guts_prefix = 'beat'
 
 logger = logging.getLogger('config')
 
-modes = ['geometry', 'static', 'kinematic']
-
 geo_vars_geometry = ['east_shift', 'north_shift', 'depth', 'strike', 'dip',
                          'rake', 'length', 'width', 'slip']
 geo_vars_magma = geo_vars_geometry + ['opening']
@@ -43,6 +41,22 @@ kinematic_dist_vars = static_dist_vars + partial_kinematic_vars
 
 hyper_pars = {'Z': 'seis_Z', 'T': 'seis_T',
              'SAR': 'geo_S', 'GPS': 'geo_G'}
+
+geometry_catalog = {
+    'geodetic': geo_vars_geometry,
+    'seismic': joint_vars_geometry}
+
+static_catalog = {
+    'geodetic': static_dist_vars,
+    'seismic': static_dist_vars}
+
+kinematic_catalog = {
+    'seismic': kinematic_dist_vars}
+
+modes_catalog = {
+    'geometry': geometry_catalog,
+    'static': static_catalog,
+    'kinematic': kinematic_catalog}
 
 default_bounds = dict(
     east_shift=(-10., 10.),
@@ -213,7 +227,9 @@ class ProblemConfig(Object):
     priors = List.T(Parameter.T())
 
     def init_vars(self):
-
+        """
+        Initiate priors based on the problem mode and datasets.
+        """
         variables = self.select_variables()
 
         self.priors = []
@@ -234,27 +250,22 @@ class ProblemConfig(Object):
         Return model variables depending on problem config.
         """
 
-        if self.mode not in modes:
+        if self.mode not in modes_catalog.keys():
             raise ValueError('Problem mode %s not implemented' % self.mode)
 
-        if self.mode == 'geometry':
-            if 'geodetic' in self.datasets:
-                variables = geo_vars_geometry
-            if 'seismic' in self.datasets:
-                variables = joint_vars_geometry
+        vars_catalog = modes_catalog[self.mode]
 
-        elif self.mode == 'static':
-            variables = static_dist_vars
+        variables = []
+        for dataset in self.datasets:
+            if dataset in vars_catalog.keys():
+                variables += vars_catalog[dataset]
 
-        elif self.mode == 'kinematic':
-            variables = kinematic_dist_vars
-            if 'seismic' not in self.datasets:
-                logger.error('A kinematic model cannot be resolved with'
-                             'geodetic data only.')
-                raise Exception('Kinematic model not resolvable with only'
-                                'geodetic data!')
+        unique_variables = utility.unique_list(variables)
+        if len(unique_variables) == 0:
+            raise Exception('Mode and dataset combination not implemented'
+                ' or not resolvable with given datasets.')
 
-        return variables
+        return unique_variables
 
     def validate_priors(self):
         """

@@ -743,6 +743,24 @@ def repair_covariance(x, epsilon=num.finfo(num.float64).eps):
     return vec * num.diag(val) * vec.T
 
 
+def unique_list(l):
+    """
+    Find unique entries in list and return them in a list.
+    Keeps variable order.
+
+    Parameters
+    ----------
+    l : list
+
+    Returns
+    -------
+    list with only unique elements
+    """
+    used = []
+    return [x for x in l if x not in used and (
+        used.append(x) or True)]
+
+
 def join_models(global_model, crustal_model):
     """
     Replace the part of the 'global model' that is covered by 'crustal_model'.

@@ -1119,8 +1119,8 @@ class DistributionOptimizer(Problem):
         self.config = config
 
 problem_catalog = {
-    bconfig.modes[0]: GeometryOptimizer,
-    bconfig.modes[1]: DistributionOptimizer}
+    bconfig.modes_catalog.keys()[0]: GeometryOptimizer,
+    bconfig.modes_catalog.keys()[1]: DistributionOptimizer}
 
 
 def sample(step, problem):
