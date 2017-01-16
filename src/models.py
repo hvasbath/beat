@@ -964,7 +964,7 @@ class Problem(object):
         """
         Update composites in problem object with given composites.
         """
-        for composite in problem.composites:
+        for composite in problem.composites.values():
             self.composites[composite.name].apply(composite)
 
     def update_weights(self, point, n_jobs=1, plot=False):
