@@ -92,7 +92,8 @@ def hyper_normal(targets, hyperparams, llks):
 
 class Composite(Object):
     """
-    Class that comprises the rules to formulate the problem.
+    Class that comprises the rules to formulate the problem. Has to be
+    used by an overarching problem object.
     """
     name = None
     _like_name = None
@@ -160,8 +161,7 @@ class Composite(Object):
 
 class GeoGeometryComposite(Composite):
     """
-    Comprises how to solve the geodetic forward model. Has to be given to
-    an overarching problem object.
+    Comprises how to solve the non-linear geodetic forward model.
 
     Parameters
     ----------
@@ -411,10 +411,15 @@ class GeoGeometryComposite(Composite):
             self._llks[l].set_value(llk)
 
 
+class GeoDistributorComposite(Composite):
+    """
+    Comprises how to solve the geodetic (static) linear forward model.
+    Distributed slip
+    """
+
 class SeisGeometryComposite(Composite):
     """
-    Comprises how to solve the seismic forward model. Has to be used by
-    an overarching problem object.
+    Comprises how to solve the non-linear seismic forward model.
 
     Parameters
     ----------
