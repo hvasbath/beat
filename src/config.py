@@ -15,6 +15,7 @@ from pyrocko.cake import load_model
 
 from pyrocko import trace, model, util
 from pyrocko.gf import Earthmodel1D
+from pyrocko.gf.seismosizer import Cloneable
 from beat.heart import Filter, ArrivalTaper, TeleseismicTarget, Parameter
 
 from beat import utility
@@ -25,7 +26,7 @@ guts_prefix = 'beat'
 
 logger = logging.getLogger('config')
 
-modes = ['geometry', 'static_dist', 'kinematic_dist']
+modes = ['geometry', 'static', 'kinematic']
 
 geo_vars_geometry = ['east_shift', 'north_shift', 'depth', 'strike', 'dip',
                          'rake', 'length', 'width', 'slip']
@@ -386,7 +387,7 @@ class SamplerConfig(Object):
             self.parameters = ATMCMCConfig()
 
 
-class BEATconfig(Object):
+class BEATconfig(Object, Cloneable):
     """
     BEATconfig is the overarching configuration class, providing all the
     sub-configurations classes for the problem setup, Greens Function
@@ -541,7 +542,7 @@ def load_config(project_dir, mode):
     project_dir : str
         path to the directory of the configuration file
     mode : str
-        type of optimization problem: 'Geometry' / 'Static'/ 'Kinematic'
+        type of optimization problem: 'geometry' / 'static'/ 'kinematic'
 
     Returns
     -------
