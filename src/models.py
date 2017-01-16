@@ -75,7 +75,7 @@ def hyper_normal(targets, hyperparams, llks):
     logpts = tt.zeros((n_t), tconfig.floatX)
 
     for k, target in enumerate(targets):
-        M = targets.samples
+        M = target.samples
         factor = target.covariance.log_norm_factor
         hp_name = bconfig.hyper_pars[target.typ]
 
@@ -160,7 +160,22 @@ class Composite(Object):
 
 class GeoGeometryComposite(Composite):
     """
-    Comprises how to solve the geodetic forward model.
+    Comprises how to solve the geodetic forward model. Has to be given to
+    an overarching problem object.
+
+    Parameters
+    ----------
+    gc : :class:`config.GeodeticConfig`
+        configuration object containing seismic setup parameters
+    project_dir : str
+        directory of the model project, where to find the data
+    sources : list
+        of :class:`pyrocko.gf.seismosizer.Source`
+    event : :class:`pyrocko.model.Event`
+        contains information of reference event, coordinates of reference
+        point and source time
+    hypers : boolean
+        if true initialise object for hyper parameter optimization
     """
 
     def __init__(self, gc, project_dir, sources, event, hypers=False):
@@ -398,7 +413,22 @@ class GeoGeometryComposite(Composite):
 
 class SeisGeometryComposite(Composite):
     """
-    Comprises how to solve the seismic forward model.
+    Comprises how to solve the seismic forward model. Has to be used by
+    an overarching problem object.
+
+    Parameters
+    ----------
+    sc : :class:`config.SeismicConfig`
+        configuration object containing seismic setup parameters
+    project_dir : str
+        directory of the model project, where to find the data
+    sources : list
+        of :class:`pyrocko.gf.seismosizer.Source`
+    event : :class:`pyrocko.model.Event`
+        contains information of reference event, coordinates of reference
+        point and source time
+    hypers : boolean
+        if true initialise object for hyper parameter optimization
     """
 
     def __init__(self, sc, project_dir, sources, event, hypers=False):
@@ -600,22 +630,22 @@ class SeisGeometryComposite(Composite):
 
         tmins = [tr.tmin for tr in syn_proc_traces]
 
-        at = copy.deepcopy(self.config.seismic_config.arrival_taper)
+        at = copy.deepcopy(self.config.arrival_taper)
 
         obs_proc_traces = heart.taper_filter_traces(
             self.data_traces,
             arrival_taper=at,
-            filterer=self.config.seismic_config.filterer,
+            filterer=self.config.filterer,
             tmins=tmins,
             outmode='traces')
 
-        self.config.seismic_config.arrival_taper = None
+        self.config.arrival_taper = None
 
         syn_filt_traces = self.get_synthetics(point, outmode='data')
 
         obs_filt_traces = heart.taper_filter_traces(
             self.data_traces,
-            filterer=self.config.seismic_config.filterer,
+            filterer=self.config.filterer,
             outmode='traces')
 
         factor = 2.
@@ -626,7 +656,7 @@ class SeisGeometryComposite(Composite):
             tro.chop(tmin=tmins[i] - factor * at.fade,
                      tmax=tmins[i] + factor * at.fade + at.duration)
 
-        self.config.seismic_config.arrival_taper = at
+        self.config.arrival_taper = at
 
         results = []
         for i, obstr in enumerate(obs_proc_traces):
@@ -692,7 +722,7 @@ class SeisGeometryComposite(Composite):
                 icov = self.targets[index].covariance.inverse
                 self.weights[index].set_value(icov)
 
-    def update_llk(self, point):
+    def update_llks(self, point):
         """
         Update posterior likelihoods of the composite with respect to one point
         in the solution space.
@@ -930,11 +960,11 @@ class Problem(object):
         for composite in self.composites.itervalues():
             composite.update_llks(point)
 
-    def apply(self, composites):
+    def apply(self, problem):
         """
         Update composites in problem object with given composites.
         """
-        for composite in composites:
+        for composite in problem.composites:
             self.composites[composite.name].apply(composite)
 
     def update_weights(self, point, n_jobs=1, plot=False):
