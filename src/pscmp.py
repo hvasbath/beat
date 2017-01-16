@@ -12,7 +12,7 @@ from os.path import join as pjoin
 
 from pyrocko.guts import Float, Int, Tuple, List, Object, String
 from pyrocko import gf
-
+from pyrocko.orthodrome import ne_to_latlon
 
 km = 1000.
 
@@ -150,6 +150,27 @@ class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
     pos_s = Float.T(optional=True, default=None)
     pos_d = Float.T(optional=True, default=None)
     opening = Float.T(default=0.0)
+
+    def outline(self, cs='xyz'):
+        points = gf.seismosizer.outline_rect_source(
+            self.strike, self.dip, self.length, self.width)
+
+        points[:, 0] += self.north_shift
+        points[:, 1] += self.east_shift
+        points[:, 2] += self.depth
+        if cs == 'xyz':
+            return points
+        elif cs == 'xy':
+            return points[:, :2]
+        elif cs in ('latlon', 'lonlat'):
+            latlon = ne_to_latlon(
+                self.lat, self.lon, points[:, 0], points[:, 1])
+
+            latlon = num.array(latlon).T
+            if cs == 'latlon':
+                return latlon
+            else:
+                return latlon[:, ::-1]
 
     def update(self, **kwargs):
         '''Change some of the source models parameters.

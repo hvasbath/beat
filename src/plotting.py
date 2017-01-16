@@ -424,16 +424,15 @@ def geodetic_fits(problem, stage, plot_options):
 
     def draw_sources(ax, sources, po, **kwargs):
         for source in sources:
-            rf = source.patches(1, 1, 'seismic')[0]
             if po.plot_projection == 'latlon':
-                outline = rf.outline(cs='lonlat')
+                outline = source.outline(cs='lonlat')
             elif po.plot_projection == 'utm':
-                outline = rf.outline(cs='lonlat')
+                outline = source.outline(cs='lonlat')
                 utme, utmn = utility.lonlat_to_utm(
                     lon=outline[:, 0], lat=outline[:, 1], zone=po.utm_zone)
                 outline = num.vstack([utme / km, utmn / km]).T
             elif po.plot_projection == 'local':
-                outline = rf.outline(cs='xy')
+                outline = source.outline(cs='xy')
             ax.plot(outline[:, 0], outline[:, 1], '-', linewidth=1.0, **kwargs)
             ax.plot(
                 outline[0:2, 0], outline[0:2, 1], '-k', linewidth=1.0)
@@ -1142,6 +1141,7 @@ def select_transform(sc, n_steps):
         if n_steps == 1:
             return x
         else:
+            print n_steps, x.shape
             nchains = x.shape[0] / n_steps
             xout = []
             for i in range(nchains):
