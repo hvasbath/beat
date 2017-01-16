@@ -598,7 +598,8 @@ selected giving a comma seperated list.''' % (
 
     for plot in plotnames:
         if plot not in plots_avail:
-            raise Exception('Plot type %s not available!' % plots)
+            raise Exception('Plot type %s not available! Available plots are:'
+            ' %s' % (plot, plots_avail))
 
     os.chdir(options.main_path)
     main_path = os.getcwd()
