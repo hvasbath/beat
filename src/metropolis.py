@@ -181,7 +181,7 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
             utility.dump_objects(outpath, outparam_list)
 
         get_final_stage(homepath, n_stages, model=model)
-        outpath = os.path.join(homepath, 'stage_final')
+        outpath = os.path.join(homepath, 'stage_final', sample_p_outname)
         utility.dump_objects(outpath, outparam_list)
 
 def get_trace_stats(mtrace, step, burn=0.5, thin=2):

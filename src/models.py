@@ -51,8 +51,10 @@ def multivariate_normal(targets, weights, hyperparams, residuals):
     logpts = tt.zeros((n_t), tconfig.floatX)
 
     for l, target in enumerate(targets):
-        M = target.samples
-        factor = target.covariance.log_norm_factor
+        M = shared(target.samples.astype(tconfig.floatX), borrow=True)
+        factor = shared(
+            target.covariance.log_norm_factor.astype(tconfig.floatX),
+            borrow=True)
         hp_name = bconfig.hyper_pars[target.typ]
 
         logpts = tt.set_subtensor(logpts[l:l + 1],
@@ -335,7 +337,7 @@ class GeodeticGeometryComposite(GeodeticComposite):
 
         Returns
         -------
-        list with synthetics for each target
+        list with :class:`numpy.ndarray` synthetics for each target
         """
         self.point2sources(point)
 
@@ -814,22 +816,56 @@ class GeodeticDistributorComposite(GeodeticComposite):
     Distributed slip
     """
 
-    GFs = {}
+    gfs = {}
+    gf_names = {}
 
     def __init__(self, gc, project_dir, hypers=False):
 
         super(GeodeticGeometryComposite, self).__init__(
             gc, project_dir, hypers=hypers)
 
-        
+        self._mode = 'static'
+        self.gfpath = os.path.join(project_dir, self._mode)
+
+        self.data = [
+            shared(target.displacement.astype(tconfig.floatX), borrow=True) \
+            for target in self.targets]
+        self.odws = [
+            shared(target.odw.astype(tconfig.floatX), borrow=True) \
+            for target in self.targets]
+
+    def load_gfs(self, make_shared=True):
+        """
+        Load Greens Function matrixes for each variable to be inverted for.
+        Updates gfs and gf_names attributes.
+
+        Parameters
+        ----------
+        make_shared : bool
+            if True transforms gfs to :class:`theano.shared` variables
+        """
+
+        for param in self.config.priors.keys():
+            gfpath = os.path.join(self.gfpath, param + '_' + self.name + '.gf')
+            self.gfnames[param] = gfpath
+            gfs = utility.load_objects(gfpath)
+
+            if make_shared:
+                self.gfs[param] = [shared(
+                    gf.astype(tconfig.floatX), borrow=True) for gf in gfs]
+            else:
+                self.gfs = gfs
 
     def get_formula(self, input_rvs, hyperparams):
 
-        residuals = []
-        for i in range(ndata):
-            mu = tt.dot(shared(GFs_parr[i]), m_parr) + \
-                 tt.dot(shared(GFs_perp[i]), m_perp)
-            residuals = shared(ODWs[i]) * (shared(Displ[i]) - mu)
+        residuals = [None for i in range(self.n_t)]
+        for t in range(self.n_t):
+
+            mu = tt.zeros_like(self.data[t], tconfig.floatX)
+            for rv in input_rvs.items():
+                mu += tt.dot(self.gfs[rv], rv)
+
+            residuals[t] = self.odws[t] * (self.data[t] - mu)
 
         logpts = multivariate_normal(
             self.targets, self.weights, hyperparams, residuals)
@@ -837,6 +873,22 @@ class GeodeticDistributorComposite(GeodeticComposite):
         llk = pm.Deterministic(self._like_name, logpts)
 
         return llk.sum()
+
+    def get_synthetics(self, point, outmode='data'):
+        """
+        Get synthetics for given point in solution space.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters
+        kwargs especially to change output of the forward model
+
+        Returns
+        -------
+        list with :class:`numpy.ndarray` synthetics for each target
+        """
+        pass
 
 
 geometry_composite_catalog = {
@@ -992,7 +1044,7 @@ class Problem(object):
         util.ensuredir(self.outfolder)
 
         point = {}
-        for param in pc.priors:
+        for param in pc.priors.values():
             point[param.name] = param.testvalue
 
         self.update_llks(point)
@@ -1016,7 +1068,7 @@ class Problem(object):
         """
         pc = self.config.problem_config
 
-        point = {param.name: param.random() for param in pc.priors}
+        point = {param.name: param.random() for param in pc.priors.values()}
         hps = {param.name: param.random() \
             for param in pc.hyperparameters.values()}
 
@@ -1184,10 +1236,13 @@ class DistributionOptimizer(Problem):
         super(DistributionOptimizer, self).__init__(config)
 
         for dataset in config.problem_config.datasets:
-            self.composites[dataset] = distributor_composite_catalog[dataset](
+            composite = distributor_composite_catalog[dataset](
                 config[dataset + '_config'],
                 config.project_dir,
                 hypers)
+
+            composite.load_gfs()
+            self.composites[dataset] = composite
 
         self.config = config
 
@@ -1270,9 +1325,11 @@ def estimate_hypers(step, problem):
         logger.info('Metropolis stage %i' % stage)
 
         if stage == 0:
-            point = {param.name: param.testvalue for param in pc.priors}
+            point = {param.name: param.testvalue \
+                for param in pc.priors.values()}
         else:
-            point = {param.name: param.random() for param in pc.priors}
+            point = {param.name: param.random() \
+                for param in pc.priors.values()}
 
         problem.outfolder = os.path.join(name, 'stage_%i' % stage)
         start = {param.name: param.random() for param in \
