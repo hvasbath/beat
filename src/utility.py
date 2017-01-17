@@ -757,8 +757,7 @@ def unique_list(l):
     list with only unique elements
     """
     used = []
-    return [x for x in l if x not in used and (
-        used.append(x) or True)]
+    return [x for x in l if x not in used and (used.append(x) or True)]
 
 
 def join_models(global_model, crustal_model):

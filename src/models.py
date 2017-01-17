@@ -94,45 +94,24 @@ class Composite(Object):
     """
     Class that comprises the rules to formulate the problem. Has to be
     used by an overarching problem object.
+
+    Parameters
+    ----------
+    hypers : boolean
+        determines whether to initialise Composites with hyper parameter model
     """
+
     name = None
     _like_name = None
     config = None
     weights = None
 
-    def point2sources(self, point):
-        """
-        Updates the composite source(s) (in place) with the point values.
-        """
-        tpoint = copy.deepcopy(point)
-        tpoint = utility.adjust_point_units(tpoint)
+    def __init__(self, hypers=False):
 
-        # remove hyperparameters from point
-        hps = bconfig.hyper_pars.values()
-
-        for hyper in hps:
-            if hyper in tpoint:
-                tpoint.pop(hyper)
-
-        source = self.sources[0]
-
-        if 'stf' in source.keys():
-            source_params = source.stf.keys() + source.keys()
-        else:
-            source_params = source.keys()
-
-        for param in tpoint.keys():
-            if param not in source_params:
-                tpoint.pop(param)
-
-        if 'time' in tpoint.keys():
-            tpoint['time'] += self.event.time
-
-        source_points = utility.split_point(tpoint)
-
-        for i, source in enumerate(self.sources):
-            utility.update_source(source, **source_points[i])
-            heart.adjust_fault_reference(source, input_depth='top')
+        if hypers:
+            self._llks = []
+            for t in range(self.n_t):
+                self._llks.append(shared(num.array([1.])))
 
     def get_hyper_formula(self, hyperparams):
         """
@@ -159,7 +138,52 @@ class Composite(Object):
             self.weights[i].set_value(A)
 
 
-class GeoGeometryComposite(Composite):
+class GeodeticComposite(Composite):
+    """
+    Comprises data structure of the geodetic composite.
+
+    Parameters
+    ----------
+    gc : :class:`config.GeodeticConfig`
+        configuration object containing seismic setup parameters
+    project_dir : str
+        directory of the model project, where to find the data
+    hypers : boolean
+        if true initialise object for hyper parameter optimization
+    """
+
+    def __init__(self, gc, project_dir, hypers=False):
+
+        logger.debug('Setting up geodetic structure ...\n')
+        self.name = 'geodetic'
+        self._like_name = 'geo_like'
+
+        geodetic_data_path = os.path.join(
+            project_dir, bconfig.geodetic_data_name)
+        self.targets = utility.load_objects(geodetic_data_path)
+
+        self.n_t = len(self.targets)
+        logger.info('Number of geodetic datasets: %i ' % self.n_t)
+
+        if gc.calc_data_cov:
+            logger.info('Using data covariance!')
+        else:
+            logger.info('No data-covariance estimation ...\n')
+            for t in self.targets:
+                t.covariance.data = num.zeros(t.lats.size)
+                t.covariance.pred_v = num.eye(t.lats.size)
+
+        self.weights = []
+        for target in self.targets:
+            icov = target.covariance.inverse
+            self.weights.append(shared(icov))
+
+        self.config = gc
+
+        super(GeodeticComposite, self).__init__(hypers=hypers)
+
+
+class GeodeticGeometryComposite(GeodeticComposite):
     """
     Comprises how to solve the non-linear geodetic forward model.
 
@@ -179,40 +203,19 @@ class GeoGeometryComposite(Composite):
     """
 
     def __init__(self, gc, project_dir, sources, event, hypers=False):
-        logger.debug('Setting up geodetic structure ...\n')
-        self.name = 'geodetic'
-        self._like_name = 'geo_like'
+
+        super(GeodeticGeometryComposite, self).__init__(
+            gc, project_dir, hypers=hypers)
 
         self.event = event
         self.sources = sources
-        geodetic_data_path = os.path.join(
-            project_dir, bconfig.geodetic_data_name)
-        self.targets = utility.load_objects(geodetic_data_path)
 
-        self.n_t = len(self.targets)
-        logger.info('Number of geodetic datasets: %i ' % self.n_t)
-
-        # geodetic data
-        _disp_list = [self.targets[i].displacement
-             for i in range(self.n_t)]
+        _disp_list = [self.targets[i].displacement for i in range(self.n_t)]
         _lons_list = [self.targets[i].lons for i in range(self.n_t)]
         _lats_list = [self.targets[i].lats for i in range(self.n_t)]
         _odws_list = [self.targets[i].odw for i in range(self.n_t)]
         _lv_list = [self.targets[i].update_los_vector()
                         for i in range(self.n_t)]
-
-        if gc.calc_data_cov:
-            logger.info('Using data covariance!')
-        else:
-            logger.info('No data-covariance estimation ...\n')
-            for t in self.targets:
-                t.covariance.data = num.zeros(t.lats.size)
-                t.covariance.pred_v = num.eye(t.lats.size)
-
-        self.weights = []
-        for target in self.targets:
-            icov = target.covariance.inverse
-            self.weights.append(shared(icov))
 
         # merge geodetic data to call pscmp only once each forward model
         ordering = utility.ListArrayOrdering(_disp_list, intype='numpy')
@@ -237,13 +240,6 @@ class GeoGeometryComposite(Composite):
             crust_ind=0,    # always reference model
             sources=sources)
 
-        self.config = gc
-
-        if hypers:
-            self._llks = []
-            for t in range(self.n_t):
-                self._llks.append(shared(num.array([1.])))
-
     def __getstate__(self):
         outstate = (
             self.config,
@@ -258,6 +254,33 @@ class GeoGeometryComposite(Composite):
             self.sources, \
             self.weights, \
             self.targets = state
+
+    def point2sources(self, point):
+        """
+        Updates the composite source(s) (in place) with the point values.
+        """
+        tpoint = copy.deepcopy(point)
+        tpoint = utility.adjust_point_units(tpoint)
+
+        # remove hyperparameters from point
+        hps = bconfig.hyper_pars.values()
+
+        for hyper in hps:
+            if hyper in tpoint:
+                tpoint.pop(hyper)
+
+        source = self.sources[0]
+        source_params = source.keys()
+
+        for param in tpoint.keys():
+            if param not in source_params:
+                tpoint.pop(param)
+
+        source_points = utility.split_point(tpoint)
+
+        for i, source in enumerate(self.sources):
+            utility.update_source(source, **source_points[i])
+            heart.adjust_fault_reference(source, input_depth='top')
 
     def get_formula(self, input_rvs, hyperparams):
         """
@@ -411,7 +434,7 @@ class GeoGeometryComposite(Composite):
             self._llks[l].set_value(llk)
 
 
-class SeisGeometryComposite(Composite):
+class SeismicComposite(Composite):
     """
     Comprises how to solve the non-linear seismic forward model.
 
@@ -421,22 +444,16 @@ class SeisGeometryComposite(Composite):
         configuration object containing seismic setup parameters
     project_dir : str
         directory of the model project, where to find the data
-    sources : list
-        of :class:`pyrocko.gf.seismosizer.Source`
-    event : :class:`pyrocko.model.Event`
-        contains information of reference event, coordinates of reference
-        point and source time
     hypers : boolean
         if true initialise object for hyper parameter optimization
     """
 
-    def __init__(self, sc, project_dir, sources, event, hypers=False):
+    def __init__(self, sc, project_dir, hypers=False):
+
         logger.debug('Setting up seismic structure ...\n')
         self.name = 'seismic'
         self._like_name = 'seis_like'
 
-        self.event = event
-        self.sources = sources
         self.engine = gf.LocalEngine(
             store_superdirs=[sc.gf_config.store_superdir])
 
@@ -500,6 +517,36 @@ class SeisGeometryComposite(Composite):
             icov = target.covariance.inverse
             self.weights.append(shared(icov))
 
+        super(SeismicComposite, self).__init__(hypers=hypers)
+
+
+class SeismicGeometryComposite(SeismicComposite):
+    """
+    Comprises how to solve the non-linear seismic forward model.
+
+    Parameters
+    ----------
+    sc : :class:`config.SeismicConfig`
+        configuration object containing seismic setup parameters
+    project_dir : str
+        directory of the model project, where to find the data
+    sources : list
+        of :class:`pyrocko.gf.seismosizer.Source`
+    event : :class:`pyrocko.model.Event`
+        contains information of reference event, coordinates of reference
+        point and source time
+    hypers : boolean
+        if true initialise object for hyper parameter optimization
+    """
+
+    def __init__(self, sc, project_dir, sources, event, hypers=False):
+
+        super(SeismicGeometryComposite, self).__init__(
+            sc, project_dir, hypers=hypers)
+
+        self.event = event
+        self.sources = sources
+
         # syntetics generation
         logger.debug('Initialising synthetics functions ... \n')
         self.get_synths = theanof.SeisSynthesizer(
@@ -517,11 +564,6 @@ class SeisGeometryComposite(Composite):
             filterer=sc.filterer)
 
         self.config = sc
-
-        if hypers:
-            self._llks = []
-            for t in range(self.n_t):
-                self._llks.append(shared(num.array([1.])))
 
     def __getstate__(self):
         outstate = (
@@ -541,6 +583,35 @@ class SeisGeometryComposite(Composite):
             self.targets, \
             self.stations, \
             self.engine = state
+
+    def point2sources(self, point):
+        """
+        Updates the composite source(s) (in place) with the point values.
+        """
+        tpoint = copy.deepcopy(point)
+        tpoint = utility.adjust_point_units(tpoint)
+
+        # remove hyperparameters from point
+        hps = bconfig.hyper_pars.values()
+
+        for hyper in hps:
+            if hyper in tpoint:
+                tpoint.pop(hyper)
+
+        source = self.sources[0]
+        source_params = source.stf.keys() + source.keys()
+
+        for param in tpoint.keys():
+            if param not in source_params:
+                tpoint.pop(param)
+
+        tpoint['time'] += self.event.time
+
+        source_points = utility.split_point(tpoint)
+
+        for i, source in enumerate(self.sources):
+            utility.update_source(source, **source_points[i])
+            heart.adjust_fault_reference(source, input_depth='top')
 
     def get_formula(self, input_rvs, hyperparams):
         """
@@ -739,17 +810,18 @@ class SeisGeometryComposite(Composite):
             self._llks[k].set_value(_llk)
 
 
-
-class GeoDistributorComposite(Composite):
+class GeodeticDistributorComposite(GeodeticComposite):
     """
     Comprises how to solve the geodetic (static) linear forward model.
     Distributed slip
     """
 
     def __init__(self, gc, project_dir, hypers=False):
-        logger.debug('Setting up geodetic structure ...\n')
-        self.name = 'geodetic'
-        self._like_name = 'geo_like'
+
+        super(GeodeticGeometryComposite, self).__init__(
+            gc, project_dir, hypers=hypers)
+
+        
 
     def get_formula(self, input_rvs, hyperparams):
         m_perp = pm.Uniform('m_perp', lower=-0.3 , upper=4., shape=npatch, testval = 0.1*num.zeros([npatch], dtype=float), transform=None)
@@ -770,11 +842,11 @@ class GeoDistributorComposite(Composite):
         return llk.sum()
 
 geometry_composite_catalog = {
-    'seismic': SeisGeometryComposite,
-    'geodetic': GeoGeometryComposite}
+    'seismic': SeismicGeometryComposite,
+    'geodetic': GeodeticGeometryComposite}
 
 distributor_composite_catalog = {
-    'geodetic': GeoDistributorComposite,
+    'geodetic': GeodeticDistributorComposite,
     }
 
 class Problem(object):
