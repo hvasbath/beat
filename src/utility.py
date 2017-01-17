@@ -166,7 +166,7 @@ def weed_input_rvs(input_rvs, mode, dataset):
 
     Parameters
     ----------
-    input_rvs : list
+    input_rvs : dict
         of :class:`pymc3.Distribution`
     mode : str
         'geometry', 'static, 'kinematic' determining the discarded RVs
@@ -175,11 +175,10 @@ def weed_input_rvs(input_rvs, mode, dataset):
 
     Returns
     -------
-    weeded_input_rvs : list
+    weeded_input_rvs : dict
         of :class:`pymc3.Distribution`
     """
 
-    name_order = [param.name for param in input_rvs]
     weeded_input_rvs = copy.copy(input_rvs)
 
     if mode == 'geometry':
@@ -188,15 +187,9 @@ def weed_input_rvs(input_rvs, mode, dataset):
         elif dataset == 'seismic':
             tobeweeded = ['opening']
 
-    indexes = []
-    for burian in tobeweeded:
-        if burian in name_order:
-            indexes.append(name_order.index(burian))
-
-    indexes.sort(reverse=True)
-
-    for ind in indexes:
-        weeded_input_rvs.pop(ind)
+    for weed in tobeweeded:
+        if weed in weeded_input_rvs.keys():
+            weeded_input_rvs.pop(weed)
 
     return weeded_input_rvs
 

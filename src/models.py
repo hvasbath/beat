@@ -300,13 +300,12 @@ class GeodeticGeometryComposite(GeodeticComposite):
         """
         self.input_rvs = input_rvs
 
-        names = [param.name for param in self.input_rvs]
         logger.debug(
             'Geodetic optimization on: \n '
-            '%s' % ', '.join(names))
+            '%s' % ', '.join(self.input_rvs.keys()))
 
         t0 = time.time()
-        disp = self.get_synths(*self.input_rvs)
+        disp = self.get_synths(self.input_rvs)
         t1 = time.time()
         logger.debug(
             'Geodetic forward model on test model takes: %f' % \
@@ -631,13 +630,12 @@ class SeismicGeometryComposite(SeismicComposite):
         """
         self.input_rvs = input_rvs
 
-        names = [param.name for param in self.input_rvs]
         logger.debug(
             'Teleseismic optimization on: \n '
-            ' %s' % ', '.join(names))
+            ' %s' % ', '.join(self.input_rvs.keys()))
 
         t2 = time.time()
-        synths, tmins = self.get_synths(*self.input_rvs)
+        synths, tmins = self.get_synths(self.input_rvs)
         t3 = time.time()
         logger.debug(
             'Teleseismic forward model on test model takes: %f' % \
@@ -816,6 +814,8 @@ class GeodeticDistributorComposite(GeodeticComposite):
     Distributed slip
     """
 
+    GFs = {}
+
     def __init__(self, gc, project_dir, hypers=False):
 
         super(GeodeticGeometryComposite, self).__init__(
@@ -824,15 +824,12 @@ class GeodeticDistributorComposite(GeodeticComposite):
         
 
     def get_formula(self, input_rvs, hyperparams):
-        m_perp = pm.Uniform('m_perp', lower=-0.3 , upper=4., shape=npatch, testval = 0.1*num.zeros([npatch], dtype=float), transform=None)
-        m_parr = pm.Uniform('m_parr', lower= 0, upper= 6., shape=npatch, testval = init_slips, transform=None)
-        logpts = num.ndarray(ndata,dtype=object)
-        #    logpts2 = num.ndarray(ndata,dtype=object)
 
-        #calculate cost
+        residuals = []
         for i in range(ndata):
-            mu=tt.dot(shared(GFs_parr[i]),m_parr) + tt.dot(shared(GFs_perp[i]),m_perp)
-            residuals = shared(ODWs[i])*(shared(Displ[i]) - mu)
+            mu = tt.dot(shared(GFs_parr[i]), m_parr) + \
+                 tt.dot(shared(GFs_perp[i]), m_perp)
+            residuals = shared(ODWs[i]) * (shared(Displ[i]) - mu)
 
         logpts = multivariate_normal(
             self.targets, self.weights, hyperparams, residuals)
@@ -841,13 +838,16 @@ class GeodeticDistributorComposite(GeodeticComposite):
 
         return llk.sum()
 
+
 geometry_composite_catalog = {
     'seismic': SeismicGeometryComposite,
     'geodetic': GeodeticGeometryComposite}
 
+
 distributor_composite_catalog = {
     'geodetic': GeodeticDistributorComposite,
     }
+
 
 class Problem(object):
     """
@@ -953,15 +953,16 @@ class Problem(object):
 
             pc = self.config.problem_config
 
-            rvs = []
-            for param in pc.priors:
-                rvs.append(pm.Uniform(
+            rvs = dict()
+            for param in pc.priors.itervalues():
+                rvs[param.name] = pm.Uniform(
                     param.name,
                     shape=param.dimension,
                     lower=param.lower,
                     upper=param.upper,
                     testval=param.testvalue,
-                    transform=None))
+                    transform=None,
+                    dtype=tconfig.floatX)
 
             self.hyperparams = self.get_hyperparams()
 

@@ -301,7 +301,7 @@ def command_clone(args):
             help='Datasets to clone; "geodetic, seismic".')
 
         parser.add_option('--mode',
-            default=config.modes, type='string',
+            default=config.modes_catalog.keys(), type='string',
             action='callback', callback=list_callback,
             help='Inversion problem configs to clone if available;'
                  ' "geometry", "static", "kinematic". Default: all')

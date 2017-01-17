@@ -224,7 +224,8 @@ class ProblemConfig(Object):
     datasets = List.T(default=['geodetic'])
     hyperparameters = Dict.T(
         help='Hyperparameters to weight different types of datasets.')
-    priors = List.T(Parameter.T())
+    priors = Dict.T(
+        help='Priors of the variables in question.')
 
     def init_vars(self):
         """
@@ -232,9 +233,9 @@ class ProblemConfig(Object):
         """
         variables = self.select_variables()
 
-        self.priors = []
+        self.priors = {}
         for variable in variables:
-            self.priors.append(
+            self.priors[variable] = \
                 Parameter(
                     name=variable,
                     lower=num.ones(self.n_faults, dtype=num.float) * \
@@ -243,7 +244,6 @@ class ProblemConfig(Object):
                         default_bounds[variable][1],
                     testvalue=num.ones(self.n_faults, dtype=num.float) * \
                         num.mean(default_bounds[variable]))
-                               )
 
     def select_variables(self):
         """
@@ -271,7 +271,7 @@ class ProblemConfig(Object):
         """
         Check if priors and their test values do not contradict!
         """
-        for param in self.priors:
+        for param in self.priors.itervalues():
             param()
 
         logger.info('All parameter-priors ok!')
