@@ -17,6 +17,7 @@ from pyrocko import trace, model, util
 from pyrocko.gf import Earthmodel1D
 from pyrocko.gf.seismosizer import Cloneable
 from beat.heart import Filter, ArrivalTaper, TeleseismicTarget, Parameter
+from beat.heart import RectangularSource
 
 from beat import utility
 
@@ -93,15 +94,23 @@ km = 1000.
 
 class GFConfig(Object):
     """
-    Config for GreensFunction calculation parameters.
+    Base config for GreensFunction calculation parameters.
     """
     store_superdir = String.T(default='./')
+    n_variations = Int.T(default=0,
+                         help='Times to vary input velocity model.')
+
+
+class NonlinearGFConfig(GFConfig):
+    """
+    Config for non-linear GreensFunction calculation parameters.
+    """
+
     earth_model = String.T(default='ak135-f-average.m',
                            help='Name of the reference earthmodel, see '
                                 'pyrocko.cake.builtin_models() for '
                                 'alternatives.')
-    n_variations = Int.T(default=0,
-                         help='Times to vary input velocity model.')
+
     use_crust2 = Bool.T(
         default=True,
         help='Flag, for replacing the crust from the earthmodel'
@@ -121,13 +130,12 @@ class GFConfig(Object):
                                help='Maximum depth [km] for GF function grid.')
     source_depth_spacing = Float.T(default=1.,
                                help='Depth spacing [km] for GF function grid.')
-
     nworkers = Int.T(
         default=1,
         help='Number of processors to use for calculating the GFs')
 
 
-class SeismicGFConfig(GFConfig):
+class SeismicGFConfig(NonlinearGFConfig):
     """
     Seismic GF parameters for Layered Halfspace.
     """
@@ -151,7 +159,7 @@ class SeismicGFConfig(GFConfig):
         help='Distance spacing [km] for GF function grid.')
 
 
-class GeodeticGFConfig(GFConfig):
+class GeodeticGFConfig(NonlinearGFConfig):
     """
     Geodetic GF parameters for Layered Halfspace.
     """
@@ -171,6 +179,31 @@ class GeodeticGFConfig(GFConfig):
     source_distance_spacing = Float.T(
         default=1.,
         help='Distance spacing [km] for GF function grid.')
+
+
+class LinearGFConfig(GFConfig):
+    """
+    Config for linear GreensFunction calculation parameters.
+    """
+    reference_sources = List.T(RectangularSource.T(),
+        help='Geometry of the reference source(s) to fix')
+    patch_width = Float.T(
+        default=5. * km,
+        help='Patch width [m] to divide reference sources')
+    patch_length = Float.T(
+        default=5. * km,
+        help='Patch length [m] to divide reference sources')
+    extend_width = Float.T(
+        default=0.1,
+        help='Extend reference sources by this factor in each'
+             ' dip-direction. 0.1 means extension of the fault by 10% in each'
+             ' direction, i.e. 20% in total. If patches would intersect with'
+             ' the free surface they are constrained to end at the surface.')
+    extend_length = Float.T(
+        default=0.1,
+        help='Extend reference sources by this factor in each'
+             ' strike-direction. 0.1 means extension of the fault by 10% in'
+             ' each direction, i.e. 20% in total.')
 
 
 class SeismicConfig(Object):

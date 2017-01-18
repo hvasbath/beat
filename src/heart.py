@@ -19,6 +19,8 @@ from pyrocko import crust2x2, gf, cake, orthodrome, trace, util
 from pyrocko.cake import GradientLayer
 from pyrocko.fomosto import qseis
 from pyrocko.fomosto import qssp
+from pyrocko.gf.seismosizer import outline_rect_source
+from pyrocko.orthodrome import ne_to_latlon
 #from pyrocko.fomosto import qseis2d
 
 
@@ -44,6 +46,9 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
     Source for rectangular fault that unifies the necessary different source
     objects for teleseismic and geodetic computations.
     Reference point of the depth attribute is the top-center of the fault.
+
+    Many of the methods of the RectangularSource have been modified from
+    the HalfspaceTool from GertjanVanZwieten.
     """
 
     width = Float.T(help='width of the fault [m]',
@@ -55,10 +60,10 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
     opening = Float.T(help='opening of the fault [m]',
                     default=0.)
 
-    @staticmethod
-    def dipvector(dip, strike):
+    @property
+    def dipvector(self):
         """
-        Calculate 3 dimensional dip-vector of a planar fault.
+        Get 3 dimensional dip-vector of the planar fault.
 
         Parameters
         ----------
@@ -73,14 +78,14 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
         """
 
         return num.array(
-                [num.cos(dip * d2r) * num.cos(strike * d2r),
-                 -num.cos(dip * d2r) * num.sin(strike * d2r),
-                  num.sin(dip * d2r)])
+            [num.cos(self.dip * d2r) * num.cos(self.strike * d2r),
+             -num.cos(self.dip * d2r) * num.sin(self.strike * d2r),
+              num.sin(self.dip * d2r)])
 
-    @staticmethod
-    def strikevector(strike):
+    @property
+    def strikevector(self):
         """
-        Calculate 3 dimensional strike-vector of a planar fault.
+        Get 3 dimensional strike-vector of the planar fault.
 
         Parameters
         ----------
@@ -92,12 +97,12 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
         :class:`numpy.ndarray`
         """
 
-        return num.array([num.sin(strike * d2r),
-                          num.cos(strike * d2r),
-                          0.])
+        return num.array(
+            [num.sin(self.strike * d2r),
+             num.cos(self.strike * d2r),
+             0.])
 
-    @staticmethod
-    def center(top_depth, width, dipvector):
+    def center(self, width):
         """
         Get 3d fault center coordinates.
 
@@ -107,8 +112,6 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
             central, top depth [m] of the upper edge of the fault
         width : scalar, float
             width [m] of the fault (dip-direction)
-        dipvector : :class:`numpy.ndarray`
-            3d dip-vector of the fault, see also dipvector method
 
         Returns
         -------
@@ -116,10 +119,10 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
         fault
         """
 
-        return num.array([0., 0., top_depth]) + 0.5 * width * dipvector
+        return num.array([self.east_shift, self.north_shift, self.depth]) + \
+            0.5 * width * self.dipvector
 
-    @staticmethod
-    def top_depth(depth, width, dipvector):
+    def top_depth(self, depth):
         """
         Get top depth of the fault [m]. (Patches method needs input depth to
         be top_depth.)
@@ -128,24 +131,64 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
         ----------
         depth : scalar, float
             depth [m] of the center of the fault
-        width : scalar, float
-            width [m] of the fault (dip-direction)
-        dipvector : :class:`numpy.ndarray`
-            3d dip-vector of the fault, see also dipvector method
 
         Returns
         -------
-        :class:`numpy.ndarray` with x, y, z coordinates of the upper edge of
-        the fault
+        :class:`numpy.ndarray` with x, y, z coordinates of the central
+        upper edge of the fault
         """
 
-        return num.array([0., 0., depth]) - 0.5 * width * dipvector
+        return num.array([self.east_shift, self.north_shift, depth]) - \
+            0.5 * self.width * self.dipvector
+
+    def bottom_depth(self, depth):
+        """
+        Get bottom depth of the fault [m].
+        (Patches method needs input depth to be top_depth.)
+
+        Parameters
+        ----------
+        depth : scalar, float
+            depth [m] of the center of the fault
+
+        Returns
+        -------
+        :class:`numpy.ndarray` with x, y, z coordinates of the central
+        lower edge of the fault
+        """
+
+        return num.array([self.east_shift, self.north_shift, depth]) + \
+            0.5 * self.width * self.dipvector
+
+    def trace_center(self, depth):
+        """
+        Get trace central coordinates of the fault [m] at the surface of the
+        halfspace.
+
+        Parameters
+        ----------
+        depth : scalar, float
+            depth [m] of the center of the fault
+
+        Returns
+        -------
+        :class:`numpy.ndarray` with x, y, z coordinates of the central
+        lower edge of the fault
+        """
+
+        bd = self.bottom_depth(depth)
+        xtrace = bd[0] - \
+            (bd[2] * num.cos(d2r * self.strike) / num.tan(d2r * self.dip))
+        ytrace = bd[1] + \
+            (bd[2] * num.sin(d2r * self.strike) / num.tan(d2r * self.dip))
+        return num.array([xtrace, ytrace, 0.])
 
     def patches(self, n, m, datatype):
         """
         Cut source into n by m sub-faults and return n times m
         :class:`RectangularSource` Objects.
         Discretization starts at shallow depth going row-wise deeper.
+        REQUIRES: self.depth to be TOP DEPTH!!!
 
         Parameters
         ----------
@@ -167,12 +210,12 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
         width = self.width / float(m)
         patches = []
 
-        dip_vec = self.dipvector(self.dip, self.strike)
-        strike_vec = self.strikevector(self.strike)
+        dip_vec = self.dipvector
+        strike_vec = self.strikevector
 
         for j in range(m):
             for i in range(n):
-                sub_center = self.center(self.depth, width, dip_vec) + \
+                sub_center = self.center(width) + \
                             strike_vec * ((i + 0.5 - 0.5 * n) * length) + \
                             dip_vec * ((j + 0.5 - 0.5 * m) * width)
 
@@ -204,6 +247,27 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
 
         return patches
 
+    def outline(self, cs='xyz'):
+        points = outline_rect_source(self.strike, self.dip, self.length,
+                                     self.width)
+
+        points[:, 0] += self.north_shift
+        points[:, 1] += self.east_shift
+        points[:, 2] += self.depth
+        if cs == 'xyz':
+            return points
+        elif cs == 'xy':
+            return points[:, :2]
+        elif cs in ('latlon', 'lonlat'):
+            latlon = ne_to_latlon(
+                self.lat, self.lon, points[:, 0], points[:, 1])
+
+            latlon = num.array(latlon).T
+            if cs == 'latlon':
+                return latlon
+            else:
+                return latlon[:, ::-1]
+
 
 def adjust_fault_reference(source, input_depth='top'):
     """
@@ -223,19 +287,15 @@ def adjust_fault_reference(source, input_depth='top'):
     Updated input source object
     """
 
-    RF = RectangularSource
-
-    dip_vec = RF.dipvector(dip=source.dip, strike=source.strike)
+    RF = RectangularSource(dip=source.dip, strike=source.strike)
 
     if input_depth == 'top':
-        center = RF.center(top_depth=source.depth,
-                       width=source.width,
-                       dipvector=dip_vec)
+        center = RF.center(top_depth=source.depth, width=source.width)
     elif input_depth == 'center':
         center = num.array([0., 0., source.depth])
 
-    source.update(east_shift=float(center[0] + source.east_shift),
-                  north_shift=float(center[1] + source.north_shift),
+    source.update(east_shift=float(center[0]),
+                  north_shift=float(center[1]),
                   depth=float(center[2]))
 
 
@@ -1269,6 +1329,70 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
     runner.run(c)
     # returns list of displacements for each snapshot
     return runner.get_results(component='displ', flip_z=True)[0]
+
+
+def discretize_fault(source, extension_width, extension_length,
+                     patch_width, patch_length, dataset=['geodetic']):
+    """
+    Extend fault into all directions and discretize fault into patches.
+    Rounds dimensions to have no half-patches.
+
+    Parameters
+    ----------
+    source : :class:`RectangularSource`
+        Reference plane, which is being extended and
+    extension_width : float
+        factor to extend source in width (dip-direction)
+    extension_length : float
+        factor extend source in length (strike-direction)
+    patch_width : float
+        Width [m] of subpatch in dip-direction
+    patch_length : float
+        Length [m] of subpatch in strike-direction
+    """
+    s = copy.deepcopy(source)
+
+    l = s.length
+    w = s.width
+
+    new_length = num.ceil((l + (2. * l * extension_length) / km) * km
+    new_length = num.ceil((l + (2. * w * extension_length) / km) * km
+
+    npl = int(num.ceil(new_length / patch_length))
+    npw = int(num.ceil(new_width / patch_width))
+
+    new_length = npl * patch_sz_l
+    new_width = npw * patch_sz_w
+
+    orig_center = s.center(s.width)
+    s.update(length=new_length, width=new_width)
+    s.top_depth()
+    s.trace_center(s.depth)
+
+def geo_construct_gf_linear(store_superdir, crust_ind, lons, lats, sources):
+    """
+    Create geodetic Greens Function matrix for defined source geometry.
+
+    Parameters
+    ----------
+    store_superdir : str
+        main path to directory containing the different Greensfunction stores
+    crust_ind : int
+        index of Greens Function store to use
+    lons : List of floats
+        Longitudes [decimal deg] of observation points
+    lats : List of floats
+        Latitudes [decimal deg] of observation points
+    sources : List of :class:`pscmp.PsCmpRectangularSource`
+        Sources i.e. faults to calculate synthetics for
+    """
+
+    gfs = []
+    for source in sources:
+        gfs.append(geo_layer_synthetics(
+            store_superdir, crust_ind, lons, lats, [source], keep_tmp=False))
+
+    return gfs
 
 
 def get_phase_arrival_time(engine, source, target):
