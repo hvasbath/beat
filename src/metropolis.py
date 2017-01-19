@@ -14,6 +14,7 @@ import numpy as num
 from beat import backend, utility
 from beat.atmcmc import init_stage, _iter_parallel_chains, choose_proposal
 from beat.config import sample_p_outname
+from beat.plotting import get_fit_indexes
 
 from pyrocko import util
 
@@ -138,7 +139,7 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
             step.population, step.array_population, step.likelihoods = \
                                     step.select_end_points(mtrace)
 
-            mean_pt, step.covariance = get_trace_stats(
+            pdict, step.covariance = get_trace_stats(
                 mtrace, step, burn, thin)
 
             if step.proposal_name == 'MultivariateNormal':
@@ -147,7 +148,7 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
 
             if update is not None and s != 0:
                 logger.info('Updating Covariances ...')
-                update.update_weights(mean_pt, n_jobs=n_jobs)
+                update.update_weights(pdict['dist_mean'], n_jobs=n_jobs)
 
                 logger.info('Updating last samples ...')
                 draws = 1
@@ -184,6 +185,7 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
         outpath = os.path.join(homepath, 'stage_final', sample_p_outname)
         utility.dump_objects(outpath, outparam_list)
 
+
 def get_trace_stats(mtrace, step, burn=0.5, thin=2):
     """
     Get mean value of trace variables and return point.
@@ -200,7 +202,7 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2):
 
     Returns
     -------
-    dict
+    dict with points, covariance matrix
     """
 
     n_steps = len(mtrace)
@@ -224,10 +226,21 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2):
                                                 thin=thin,
                                                 combine=True)
 
-    point = step.bij.rmap(array_population.mean(axis=0))
+    llks = mtrace.get_values(
+        varname=step.likelihood_name,
+        burn=int(burn * n_steps),
+        thin=thin,
+        combine=True)
+
+    posterior_idxs = get_fit_indexes(llks)
+    d = {}
+    for k, v in posterior_idxs:
+        d[k] = step.bij.rmap(array_population[v, :])
+
+    d['dist_mean'] = step.bij.rmap(array_population.mean(axis=0))
     astd = array_population.std(axis=0)
     if astd.sum() == 0.:
         logger.warn('Trace std not valid not enough samples! Use 1.')
         astd = 1.
     cov = num.eye(step.ordering.dimensions) * astd
-    return point, cov
+    return d, cov

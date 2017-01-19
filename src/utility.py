@@ -864,6 +864,31 @@ def gather(l, key, sort=None, filter=None):
     return d
 
 
+def get_fit_indexes(llk):
+    """
+    Find indexes of various likelihoods in a likelihood distribution.
+
+    Parameters
+    ----------
+    llk : :class:`numpy.ndarray`
+
+    Returns
+    -------
+    dict with array indexes
+    """
+
+    mean_idx = (num.abs(llk - llk.mean())).argmin()
+    min_idx = (num.abs(llk - llk.min())).argmin()
+    max_idx = (num.abs(llk - llk.max())).argmin()
+
+    posterior_idxs = {
+        'mean': mean_idx,
+        'min': min_idx,
+        'max': max_idx}
+
+    return posterior_idxs
+
+
 def check_hyper_flag(problem):
     """
     Check problem setup for type of model standard/hyperparameters.

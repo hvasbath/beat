@@ -87,6 +87,9 @@ default_geo_std = 1.e-3
 seismic_data_name = 'seismic_data.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
 
+geodetic_static_linear_gf_name = 'linear_geodetic_gfs.pkl'
+seismic_static_linear_gf_name = 'linear_seismic_gfs.pkl'
+
 sample_p_outname = 'sample.params'
 
 km = 1000.
@@ -536,10 +539,6 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
             c.event = model.Event()
             c.date = 'dummy'
 
-        c.problem_config = ProblemConfig(
-            n_faults=n_faults, datasets=datasets, mode=mode)
-        c.problem_config.init_vars()
-
         if 'geodetic' in datasets:
             c.geodetic_config = GeodeticConfig()
             if use_custom:
@@ -563,21 +562,37 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                 c.seismic_config.gf_config.replace_water = False
         else:
             c.seismic_config = None
+
     elif mode == 'static':
-        prev_mode = 'geometry'
+
         gc = load_config(c.project_dir, 'geometry')
 
         if gc is not None:
             logger.info('Taking information from geometry_config ...')
+            n_faults = gc.problem_config.n_faults
+            point = {k: v.testvalue \
+                for k, v in gc.problem_config.priors.iteritems()}
+            source_points = utility.split_point(point)
+            reference_sources = [RectangularSource(
+                **source_points[i]) for i in range(n_faults)]
+
             c.date = gc.date
             c.geodetic_config = gc.geodetic_config
             c.geodetic_config.gf_config = LinearGFConfig(
                 store_superdir=gc.geodetic_config.gf_config.store_superdir,
-                n_variations=gc.geodetic_config.gf_config.n_variations)
+                n_variations=gc.geodetic_config.gf_config.n_variations,
+                reference_sources=reference_sources)
         else:
             logger.info('Found no geometry setup, init blank ...')
             c.geodetic_config = GeodeticConfig(gf_config=LinearGFConfig())
             c.date = 'dummy'
+        logger.info(
+            'Problem config has to be updated. After deciding on the patch'
+            ' dimensions and extension factors please run: import_data')
+
+    c.problem_config = ProblemConfig(
+        n_faults=n_faults, datasets=datasets, mode=mode)
+    c.problem_config.init_vars()
 
     c.sampler_config = SamplerConfig(name=sampler)
     c.sampler_config.set_parameters()
@@ -594,10 +609,21 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
     logger.info('Project_directory: %s \n' % c.project_dir)
     util.ensuredir(c.project_dir)
 
-    config_file_name = 'config_' + mode + '.yaml'
-    conf_out = os.path.join(c.project_dir, config_file_name)
-    dump(c, filename=conf_out)
+    dump_config(c)
     return c
+
+
+def dump_config(config):
+    """
+    Load configuration file.
+
+    Parameters
+    ----------
+    config : :class:`BEATConfig`
+    """
+    config_file_name = 'config_' + config.problem_config.mode + '.yaml'
+    conf_out = os.path.join(config.project_dir, config_file_name)
+    dump(config, filename=conf_out)
 
 
 def load_config(project_dir, mode):

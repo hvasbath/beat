@@ -8,6 +8,7 @@ import copy
 
 from beat import utility, backend
 from beat.models import load_stage
+from beat.metropolis import get_trace_stats
 
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -303,30 +304,42 @@ def plot_cov(target, point_size=20):
 
 
 def plot_matrix(A):
-    '''
+    """
     Very simple plot of a matrix for fast inspections.
-    '''
+    """
     ax = plt.axes()
     im = ax.matshow(A)
     plt.colorbar(im)
     plt.show()
 
 
-def get_fit_indexes(llk):
+def get_result_point(stage, config, point_llk='max'):
     """
-    Find indexes of various likelihoods in a likelihood distribution.
+    Return point of a given stage result.
+
+    Parameters
+    ----------
+    stage : :class:`models.Stage`
+    config : :class:`config.BEATConfig`
+    point_llk : str
+        with specified llk(max, mean, min).
+
+    Returns
+    -------
+    dict
     """
+    if config.sampler_config.name == 'Metropolis':
+        sc = config.sampler_config.parameters
+        pdict, _ = get_trace_stats(
+            stage.mtrace, stage.step, sc.burn, sc.thin)
+        point = pdict[point_llk]
 
-    mean_idx = (num.abs(llk - llk.mean())).argmin()
-    min_idx = (num.abs(llk - llk.min())).argmin()
-    max_idx = (num.abs(llk - llk.max())).argmin()
+    elif config.sampler_config.name == 'ATMCMC':
+        population, _, llk = stage.step.select_end_points(stage.mtrace)
+        posterior_idxs = utility.get_fit_indexes(llk)
+        point = population[posterior_idxs[point_llk]]
 
-    posterior_idxs = {
-        'mean': mean_idx,
-        'min': min_idx,
-        'max': max_idx}
-
-    return posterior_idxs
+    return point
 
 
 def plot_scene(ax, target, data, scattersize, colim,
@@ -1042,7 +1055,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         llk = num.squeeze(transform(llk[0]))
         llk = pmp.make_2d(llk)
 
-        posterior_idxs = get_fit_indexes(llk)
+        posterior_idxs = utility.get_fit_indexes(llk)
 
         colors = {
             'mean': scolor('orange1'),
@@ -1166,7 +1179,7 @@ def select_metropolis_chains(problem, mtrace, po):
     llks = num.array([mtrace.point(
         draws - 1, chain)[
             problem._like_name] for chain in mtrace.chains])
-    chain_idxs = get_fit_indexes(llks)
+    chain_idxs = utility.get_fit_indexes(llks)
     return chain_idxs[po.post_llk]
 
 

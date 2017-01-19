@@ -934,13 +934,14 @@ def ensemble_earthmodel(ref_earthmod, num_vary=10, err_depth=0.1,
     return earthmods
 
 
-def seis_construct_gf(station, event, store_superdir, code='qssp',
-        source_depth_min=0., source_depth_max=10., source_depth_spacing=1.,
-        source_distance_radius=10., source_distance_spacing=1.,
-        sample_rate=2., depth_limit_variation=600,
-        earth_model='ak135-f-average.m', crust_ind=0,
-        execute=False, rm_gfs=True, nworkers=1, use_crust2=True,
-        replace_water=True, custom_velocity_model=None, force=False):
+def seis_construct_gf(
+    station, event, store_superdir, code='qssp',
+    source_depth_min=0., source_depth_max=10., source_depth_spacing=1.,
+    source_distance_radius=10., source_distance_spacing=1.,
+    sample_rate=2., depth_limit_variation=600,
+    earth_model='ak135-f-average.m', crust_ind=0,
+    execute=False, rm_gfs=True, nworkers=1, use_crust2=True,
+    replace_water=True, custom_velocity_model=None, force=False):
     """
     Calculate seismic Greens Functions (GFs) and create a repository 'store'
     that is being used later on repeatetly to calculate the synthetic
@@ -1204,14 +1205,14 @@ def seis_construct_gf(station, event, store_superdir, code='qssp',
 
 
 def geo_construct_gf(
-        event, store_superdir,
-        source_distance_min=0., source_distance_max=100.,
-        source_depth_min=0., source_depth_max=40.,
-        source_distance_spacing=5., source_depth_spacing=0.5,
-        sampling_interval=1.,
-        earth_model='ak135-f-average.m', crust_ind=0,
-        replace_water=True, use_crust2=True, custom_velocity_model=None,
-        execute=True, force=False):
+    event, store_superdir,
+    source_distance_min=0., source_distance_max=100.,
+    source_depth_min=0., source_depth_max=40.,
+    source_distance_spacing=5., source_depth_spacing=0.5,
+    sampling_interval=1.,
+    earth_model='ak135-f-average.m', crust_ind=0,
+    replace_water=True, use_crust2=True, custom_velocity_model=None,
+    execute=True, force=False):
     """
     Calculate geodetic Greens Functions (GFs) and create a repository 'store'
     that is being used later on repeatetly to calculate the synthetic
@@ -1385,15 +1386,16 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
     return runner.get_results(component='displ', flip_z=True)[0]
 
 
-def discretize_source(source, extension_width, extension_length,
-                     patch_width, patch_length, datasets=['geodetic']):
+def discretize_sources(
+    sources, extension_width=0.1, extension_length=0.1,
+    patch_width=5000., patch_length=5000., datasets=['geodetic']):
     """
-    Extend source into all directions and discretize source into patches.
+    Extend sources into all directions and discretize sources into patches.
     Rounds dimensions to have no half-patches.
 
     Parameters
     ----------
-    source : :class:`RectangularSource`
+    sources : :class:`RectangularSource`
         Reference plane, which is being extended and
     extension_width : float
         factor to extend source in width (dip-direction)
@@ -1409,16 +1411,25 @@ def discretize_source(source, extension_width, extension_length,
     dict with list of :class:`pscmp.PsCmpRectangularSource` or
         :class:`pyrocko.gf.seismosizer.RectangularSource`
     """
-    s = copy.deepcopy(source)
-    ext_s = s.extent_source(
-        extension_width, extension_length, patch_width, patch_length)
+    ext_sources = []
+    npls = []
+    npws = []
+    for source in sources:
+        s = copy.deepcopy(source)
+        ext_source = s.extent_source(
+            extension_width, extension_length, patch_width, patch_length)
 
-    npl = int(num.ceil(ext_s.length / patch_length))
-    npw = int(num.ceil(ext_s.width / patch_width))
+        npls.append(int(num.ceil(ext_source.length / patch_length)))
+        npws.append(int(num.ceil(ext_source.width / patch_width)))
+        ext_sources.append(ext_source)
 
     d = {}
     for dataset in datasets:
-        d[dataset] = ext_s.patches(nl=npl, nw=npw, dataset=dataset)
+        patches = []
+        for source, npl, npw in zip(ext_sources, npls, npws):
+            patches += source.patches(nl=npl, nw=npw, dataset=dataset)
+
+        d[dataset] = patches
 
     return d
 
@@ -1446,7 +1457,7 @@ def geo_construct_gf_linear(store_superdir, crust_ind, lons, lats, sources):
         gfs.append(geo_layer_synthetics(
             store_superdir, crust_ind, lons, lats, [source], keep_tmp=False))
 
-    return gfs
+    return num.hstack(gfs)
 
 
 def get_phase_arrival_time(engine, source, target):
