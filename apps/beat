@@ -152,10 +152,10 @@ def command_init(args):
             help='Datasets to include in the setup; "geodetic, seismic".')
 
         parser.add_option('--mode', dest='mode',
-            choices=['geometry', 'static_dist', 'kinemtic_dist'],
+            choices=['geometry', 'static', 'kinematic'],
             default='geometry',
-            help='Inversion problem to solve; "geometry", "static_dist",'
-                 '"kinematic_dist". Default: "geometry"')
+            help='Inversion problem to solve; "geometry", "static",'
+                 '"kinematic". Default: "geometry"')
 
         parser.add_option('--n_faults', dest='n_faults', type='int',
             default=1,
@@ -179,12 +179,20 @@ def command_init(args):
 
     parser, options, args = cl_parse('init', args, setup=setup)
 
-    if len(args) != 2:
+    l = len(args)
+
+    if l > 2 or l < 1:
         logger.error('Wrong number of input arguments!')
         parser.print_help()
         sys.exit(1)
 
-    name, date = args
+    if l == 2:
+        name, date = args
+    elif l == 1:
+        logger.info(
+            'Doing no catalog search for event information!')
+        name = args[0]
+        date = None
 
     return config.init_config(name, date,
                min_magnitude=options.min_mag,

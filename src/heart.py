@@ -1385,10 +1385,10 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
     return runner.get_results(component='displ', flip_z=True)[0]
 
 
-def discretize_fault(source, extension_width, extension_length,
+def discretize_source(source, extension_width, extension_length,
                      patch_width, patch_length, datasets=['geodetic']):
     """
-    Extend fault into all directions and discretize fault into patches.
+    Extend source into all directions and discretize source into patches.
     Rounds dimensions to have no half-patches.
 
     Parameters

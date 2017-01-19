@@ -226,7 +226,7 @@ class SeismicConfig(Object):
                 help='Taper a,b/c,d time [s] before/after wave arrival')
     filterer = Filter.T(default=Filter.D())
     targets = List.T(TeleseismicTarget.T(), optional=True)
-    gf_config = SeismicGFConfig.T(default=SeismicGFConfig.D())
+    gf_config = GFConfig.T(default=SeismicGFConfig.D())
 
 
 class GeodeticConfig(Object):
@@ -243,7 +243,7 @@ class GeodeticConfig(Object):
         default=True,
         help='Flag for calculating the data covariance matrix based on the'
              ' pre P arrival data trace noise.')
-    gf_config = GeodeticGFConfig.T(default=GeodeticGFConfig.D())
+    gf_config = GFConfig.T(default=GeodeticGFConfig.D())
 
 
 class ProblemConfig(Object):
@@ -487,7 +487,7 @@ class BEATconfig(Object, Cloneable):
             self.hyper_sampler_config = None
 
 
-def init_config(name, date, min_magnitude=6.0, main_path='./',
+def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                 datasets=['geodetic'],
                 mode='geometry', n_faults=1,
                 sampler='ATMCMC', hyper_sampler='Metropolis',
@@ -523,38 +523,61 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
     """
 
     c = BEATconfig(name=name, date=date)
-
-    c.event = utility.search_catalog(date=date, min_magnitude=min_magnitude)
-
     c.project_dir = os.path.join(os.path.abspath(main_path), name)
 
-    c.problem_config = ProblemConfig(
-        n_faults=n_faults, datasets=datasets, mode=mode)
-    c.problem_config.init_vars()
+    if mode == 'geometry':
+        if date is not None:
+            c.event = utility.search_catalog(
+                date=date, min_magnitude=min_magnitude)
+        else:
+            logger.warn('No given date! Using dummy event!'
+                ' Updating reference coordinates (spatial & temporal)'
+                ' necessary!')
+            c.event = model.Event()
+            c.date = 'dummy'
 
-    if 'geodetic' in datasets:
-        c.geodetic_config = GeodeticConfig()
-        if use_custom:
-            logger.info('use_custom flag set! The velocity model in the'
-                        ' geodetic GF configuration has to be updated!')
-            c.geodetic_config.gf_config.custom_velocity_model = \
-                load_model().extract(depth_max=100. * km)
-            c.geodetic_config.gf_config.use_crust2 = False
-            c.geodetic_config.gf_config.replace_water = False
-    else:
-        c.geodetic_config = None
+        c.problem_config = ProblemConfig(
+            n_faults=n_faults, datasets=datasets, mode=mode)
+        c.problem_config.init_vars()
 
-    if 'seismic' in datasets:
-        c.seismic_config = SeismicConfig()
-        if use_custom:
-            logger.info('use_custom flag set! The velocity model in the'
-                        ' seismic GF configuration has to be updated!')
-            c.seismic_config.gf_config.custom_velocity_model = \
-                load_model().extract(depth_max=100. * km)
-            c.seismic_config.gf_config.use_crust2 = False
-            c.seismic_config.gf_config.replace_water = False
-    else:
-        c.seismic_config = None
+        if 'geodetic' in datasets:
+            c.geodetic_config = GeodeticConfig()
+            if use_custom:
+                logger.info('use_custom flag set! The velocity model in the'
+                            ' geodetic GF configuration has to be updated!')
+                c.geodetic_config.gf_config.custom_velocity_model = \
+                    load_model().extract(depth_max=100. * km)
+                c.geodetic_config.gf_config.use_crust2 = False
+                c.geodetic_config.gf_config.replace_water = False
+        else:
+            c.geodetic_config = None
+
+        if 'seismic' in datasets:
+            c.seismic_config = SeismicConfig()
+            if use_custom:
+                logger.info('use_custom flag set! The velocity model in the'
+                            ' seismic GF configuration has to be updated!')
+                c.seismic_config.gf_config.custom_velocity_model = \
+                    load_model().extract(depth_max=100. * km)
+                c.seismic_config.gf_config.use_crust2 = False
+                c.seismic_config.gf_config.replace_water = False
+        else:
+            c.seismic_config = None
+    elif mode == 'static':
+        prev_mode = 'geometry'
+        gc = load_config(c.project_dir, 'geometry')
+
+        if gc is not None:
+            logger.info('Taking information from geometry_config ...')
+            c.date = gc.date
+            c.geodetic_config = gc.geodetic_config
+            c.geodetic_config.gf_config = LinearGFConfig(
+                store_superdir=gc.geodetic_config.gf_config.store_superdir,
+                n_variations=gc.geodetic_config.gf_config.n_variations)
+        else:
+            logger.info('Found no geometry setup, init blank ...')
+            c.geodetic_config = GeodeticConfig(gf_config=LinearGFConfig())
+            c.date = 'dummy'
 
     c.sampler_config = SamplerConfig(name=sampler)
     c.sampler_config.set_parameters()
@@ -595,7 +618,12 @@ def load_config(project_dir, mode):
     config_file_name = 'config_' + mode + '.yaml'
 
     config_fn = os.path.join(project_dir, config_file_name)
-    config = load(filename=config_fn)
+
+    try:
+        config = load(filename=config_fn)
+    except IOError:
+        logger.info('File %s does not exist! Returning None.' % config_fn)
+        return None
 
     if config.problem_config.hyperparameters is None or \
         len(config.problem_config.hyperparameters.keys()) == 0:
