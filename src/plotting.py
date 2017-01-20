@@ -25,6 +25,10 @@ logger = logging.getLogger('plotting')
 
 km = 1000.
 
+__all__ = ['PlotOptions', 'correlation_plot', 'correlation_plot_hist',
+    'get_result_point', 'seismic_fits', 'geodetic_fits', 'traceplot',
+    'select_transform']
+
 
 class PlotOptions(Object):
     post_llk = String.T(
@@ -335,9 +339,12 @@ def get_result_point(stage, config, point_llk='max'):
         point = pdict[point_llk]
 
     elif config.sampler_config.name == 'ATMCMC':
-        population, _, llk = stage.step.select_end_points(stage.mtrace)
+        _, _, llk = stage.step.select_end_points(stage.mtrace)
         posterior_idxs = utility.get_fit_indexes(llk)
-        point = population[posterior_idxs[point_llk]]
+
+        n_steps = config.sampler_config.parameters.n_steps - 1
+        point = stage.mtrace.point(
+            idx=n_steps, chain=posterior_idxs[point_llk])
 
     return point
 
@@ -381,13 +388,9 @@ def geodetic_fits(problem, stage, plot_options):
     target_index = dict(
         (target, i) for (i, target) in enumerate(composite.targets))
 
-    population, _, llk = stage.step.select_end_points(stage.mtrace)
+    point = get_result_point(stage, problem.config, po.post_llk)
 
-    posterior_idxs = get_fit_indexes(llk)
-    idx = posterior_idxs[po.post_llk]
-
-    out_point = population[idx]
-    results = composite.assemble_results(out_point)
+    results = composite.assemble_results(point)
     nrmax = len(results)
 
     target_to_result = {}
@@ -649,19 +652,12 @@ def seismic_fits(problem, stage, plot_options):
 
     po = plot_options
 
-    population, _, llk = stage.step.select_end_points(stage.mtrace)
+    point = get_result_point(stage, problem.config, po.post_llk)
 
-    posterior_idxs = get_fit_indexes(llk)
-    idx = posterior_idxs[po.post_llk]
+    gcms = point['seis_like']
+    # gcm_max = d['like']
 
-    n_steps = problem.config.sampler_config.parameters.n_steps - 1
-    d = stage.mtrace.point(idx=n_steps, chain=idx)
-    gcms = d['seis_like']
-    gcm_max = d['like']
-
-    out_point = population[idx]
-
-    results = composite.assemble_results(out_point)
+    results = composite.assemble_results(point)
     source = composite.sources[0]
 
     logger.info('Plotting waveforms ...')

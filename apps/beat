@@ -20,22 +20,18 @@ def d2u(d):
 
 subcommand_descriptions = {
         'init':           'create a new EQ model project',
-        'import_data':    'import data from external format',
+        'import':         'import data or results, from external format or '
+                          'modeling results, respectively',
         'sample':         'sample the solution space of the problem',
         'build_gfs':      'build GF stores',
         'clone':          'clone EQ model project into new directory',
         'plot':           'plot specified setups or results'
     }
 
-#        'sample_slip_s':    'sample static pdf',
-#        'roll_slip_k':    'sample kinematic pdf',
-#        'plot':           'plot output of any previous step',
-#    }
-
 subcommand_usages = {
         'init':          'init <event_name> <event_date "YYYY-MM-DD"> '
                          '[options]',
-        'import_data':   'import_data <event_name> [options]',
+        'import':        'import <event_name> [options]',
         'sample':        'sample <event_name> [options]',
         'build_gfs':     'build <event_name> [options]',
         'clone':         'clone <event_name> <cloned_event_name> [options]',
@@ -56,7 +52,7 @@ Subcommands:
 
     init            %(init)s
     clone           %(clone)s
-    import_data     %(import_data)s
+    import          %(import)s
     build_gfs       %(build_gfs)s
     sample          %(sample)s
     plot            %(plot)s
@@ -206,7 +202,7 @@ def command_init(args):
                use_custom=options.use_custom)
 
 
-def command_import_data(args):
+def command_import(args):
 
     def setup(parser):
 
@@ -215,6 +211,9 @@ def command_import_data(args):
             help='Main path (absolute) leading to folders of events that'
                  ' have been created by "init".'
                  ' Default: current directory: ./')
+
+        parser.add_option('--results', dest='results', action='store_true',
+                help='Import results from previous modeling step.')
 
         parser.add_option('--datasets',
             default=['geodetic'], type='string',
@@ -237,7 +236,7 @@ def command_import_data(args):
             help='Inversion problem to solve; "geometry", "static",'
                  '"kinematic". Default: "geometry"')
 
-    parser, options, args = cl_parse('import_data', args, setup=setup)
+    parser, options, args = cl_parse('import', args, setup=setup)
 
     try:
         name = args.pop()
@@ -252,62 +251,71 @@ def command_import_data(args):
 
     pc = c.problem_config
 
-    if options.mode == 'geometry':
-        if 'seismic' in options.datasets:
-            sc = c.seismic_config
-            logger.info('Importing seismic data from %s' % sc.datadir)
+    if not options.results:
+        if options.mode == 'geometry':
+            if 'seismic' in options.datasets:
+                sc = c.seismic_config
+                logger.info('Importing seismic data from %s' % sc.datadir)
 
-            if options.seismic_format == 'autokiwi':
+                if options.seismic_format == 'autokiwi':
 
-                stations = model.load_stations(
-                    os.path.join(sc.datadir,'stations.txt'))
+                    stations = model.load_stations(
+                        os.path.join(sc.datadir,'stations.txt'))
 
-                data_traces = inputf.load_data_traces(
-                    datadir=sc.datadir,
-                    stations=stations,
-                    channels=sc.channels)
+                    data_traces = inputf.load_data_traces(
+                        datadir=sc.datadir,
+                        stations=stations,
+                        channels=sc.channels)
 
-                seismic_outpath = os.path.join(
-                    c.project_dir, config.seismic_data_name)
+                    seismic_outpath = os.path.join(
+                        c.project_dir, config.seismic_data_name)
 
-                logger.info('Pickle seismic data to %s' % seismic_outpath)
-                utility.dump_objects(seismic_outpath,
-                    outlist=[stations, data_traces])
+                    logger.info('Pickle seismic data to %s' % seismic_outpath)
+                    utility.dump_objects(seismic_outpath,
+                        outlist=[stations, data_traces])
 
-            else:
-                raise Exception(
-                    'Format: %s not implemented yet.' % options.seismic_format)
+                else:
+                    raise Exception(
+                        'Format: %s not implemented yet.' % \
+                        options.seismic_format)
 
-        if 'geodetic' in options.datasets:
-            gc = c.geodetic_config
-            logger.info('Importing geodetic data from %s' % gc.datadir)
+            if 'geodetic' in options.datasets:
+                gc = c.geodetic_config
+                logger.info('Importing geodetic data from %s' % gc.datadir)
 
-            if options.geodetic_format == 'matlab':
-                gtargets = inputf.load_SAR_data(gc.datadir, gc.tracks)
+                if options.geodetic_format == 'matlab':
+                    gtargets = inputf.load_SAR_data(gc.datadir, gc.tracks)
 
-                geodetic_outpath = os.path.join(
-                    c.project_dir, config.geodetic_data_name)
+                    geodetic_outpath = os.path.join(
+                        c.project_dir, config.geodetic_data_name)
 
-                logger.info('Pickle geodetic data to %s' % geodetic_outpath)
-                utility.dump_objects(geodetic_outpath, outlist=gtargets)
-            else:
-                raise Exception(
-                    'Format: %s not implemented yet.' % \
-                    options.geodetic_format)
+                    logger.info('Pickle geodetic data to %s' % geodetic_outpath)
+                    utility.dump_objects(geodetic_outpath, outlist=gtargets)
+                else:
+                    raise Exception(
+                        'Format: %s not implemented yet.' % \
+                        options.geodetic_format)
 
-    elif options.mode == 'static':
+    else:
+        if options.mode == 'geometry':
+            logger.warn('No previous modeling results to be imported!')
 
-        problem = models.load_problem(c.project_dir, 'geometry', hypers=False)
-        stage = models.load_stage(problem, stage_number='final', load='full')
+        elif options.mode == 'static':
+            logger.info('Importing non-linear modeling results, i.e.'
+                ' maximum likelihood result for source geometry.')
+            problem = models.load_problem(
+                c.project_dir, 'geometry', hypers=False)
+            stage = models.load_stage(
+                problem, stage_number='final', load='full')
 
-        point = plotting.get_result_point(stage, c, 'max')
+            point = plotting.get_result_point(stage, c, 'max')
 
-        source_points = utility.split_point(point)
-        reference_sources = [RectangularSource(
-                **source_points[i]) for i in range(n_faults)]
+            source_points = utility.split_point(point)
+            reference_sources = [RectangularSource(
+                    **source_points[i]) for i in range(n_faults)]
 
-        c.geodetic_config.gf_config.reference_sources=reference_sources
-        config.dump_config(c)
+            c.geodetic_config.gf_config.reference_sources=reference_sources
+            config.dump_config(c)
 
 def command_clone(args):
 
@@ -568,32 +576,42 @@ def command_build_gfs(args):
                 patch_length=gf.patch_length,
                 datasets=[geo])
 
-            geodetic_data_path = os.path.join(
-                c.project_dir, config.geodetic_data_name)
+            n_faults = len(dsources[geo])
 
-            targets = utility.load_objects(geodetic_data_path)
+            if options.execute:
+                outpath = os.path.join(
+                    c.project_dir, options.mode, str(n_faults) + '_' +
+                    config.geodetic_static_linear_gf_name)
 
-            gfs = []
-            for target in targets:
-                logger.info('Target %s' % target.name)
-                for crust_ind in range(gf.n_variations + 1):
-                    logger.debug('crust_ind %i' % crust_ind)
-                    gfs.append(heart.geo_construct_gf_linear(
-                        store_superdir=gf.store_superdir,
-                        crust_ind=crust_ind,
-                        lons=target.lons,
-                        lats=target.lats,
-                        sources=dsources[geo]))
-                    print gfs[-1].shape
+                if os.path.exists(outpath) and not options.force:
+                    logger.info("Green's Functions exist! Use --force to"
+                        " overwrite!")
+                    sys.exit(1)
+                else:
+                    logger.info("Calculating linear Green's Functions...")
+                    geodetic_data_path = os.path.join(
+                        c.project_dir, config.geodetic_data_name)
 
-            outpath = os.path.join(
-                c.project_dir, options.mode,
-                config.geodetic_static_linear_gf_name)
-            logger.info("Dumping Green's Functions to %s" % outpath)
-            utility.dump_objects(outpath, gfs)
+                    targets = utility.load_objects(geodetic_data_path)
+
+                    gfs = []
+                    for target in targets:
+                        logger.info('Target %s' % target.name)
+                        for crust_ind in range(gf.n_variations + 1):
+                            logger.debug('crust_ind %i' % crust_ind)
+                            gfs.append(heart.geo_construct_gf_linear(
+                                store_superdir=gf.store_superdir,
+                                crust_ind=crust_ind,
+                                lons=target.lons,
+                                lats=target.lats,
+                                sources=dsources[geo]))
+                            print gfs[-1].shape
+
+                    logger.info("Dumping Green's Functions to %s" % outpath)
+                    utility.dump_objects(outpath, gfs)
 
             logger.info('Updating problem_config:')
-            n_faults = len(dsources[geo])
+
             logger.info(
                 'Number of source-sub-patches: %i' % n_faults)
             c.problem_config.n_faults = n_faults
