@@ -42,6 +42,7 @@ def get_final_stage(homepath, n_stages, model):
     outname = os.path.join(homepath, 'stage_final')
 
     if os.path.exists(outname):
+        logger.info('Removing existing previous final stage!')
         shutil.rmtree(outname)
 
     util.ensuredir(outname)
