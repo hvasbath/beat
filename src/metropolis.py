@@ -14,7 +14,6 @@ import numpy as num
 from beat import backend, utility
 from beat.atmcmc import init_stage, _iter_parallel_chains, choose_proposal
 from beat.config import sample_p_outname
-from beat.plotting import get_fit_indexes
 
 from pyrocko import util
 
@@ -232,9 +231,9 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2):
         thin=thin,
         combine=True)
 
-    posterior_idxs = get_fit_indexes(llks)
+    posterior_idxs = utility.get_fit_indexes(llks)
     d = {}
-    for k, v in posterior_idxs:
+    for k, v in posterior_idxs.iteritems():
         d[k] = step.bij.rmap(array_population[v, :])
 
     d['dist_mean'] = step.bij.rmap(array_population.mean(axis=0))

@@ -196,13 +196,13 @@ class LinearGFConfig(GFConfig):
     patch_length = Float.T(
         default=5. * km,
         help='Patch length [m] to divide reference sources')
-    extend_width = Float.T(
+    extension_width = Float.T(
         default=0.1,
         help='Extend reference sources by this factor in each'
              ' dip-direction. 0.1 means extension of the fault by 10% in each'
              ' direction, i.e. 20% in total. If patches would intersect with'
              ' the free surface they are constrained to end at the surface.')
-    extend_length = Float.T(
+    extension_length = Float.T(
         default=0.1,
         help='Extend reference sources by this factor in each'
              ' strike-direction. 0.1 means extension of the fault by 10% in'
@@ -393,7 +393,7 @@ class ATMCMCConfig(SamplerParameters):
                   help='Stage where to start/continue the sampling. Has to'
                        ' be int or "final"')
     proposal_dist = String.T(
-        default='MvNPd',
+        default='MultivariateNormal',
         help='Multivariate Normal Proposal distribution, for Metropolis steps'
              'alternatives need to be implemented')
     check_bnd = Bool.T(
@@ -588,7 +588,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
             c.date = 'dummy'
         logger.info(
             'Problem config has to be updated. After deciding on the patch'
-            ' dimensions and extension factors please run: import_data')
+            ' dimensions and extension factors please run: import')
 
     c.problem_config = ProblemConfig(
         n_faults=n_faults, datasets=datasets, mode=mode)

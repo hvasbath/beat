@@ -303,19 +303,27 @@ def command_import(args):
         elif options.mode == 'static':
             logger.info('Importing non-linear modeling results, i.e.'
                 ' maximum likelihood result for source geometry.')
-            problem = models.load_problem(
+            problem = models.load_model(
                 c.project_dir, 'geometry', hypers=False)
             stage = models.load_stage(
                 problem, stage_number='final', load='full')
 
-            point = plotting.get_result_point(stage, c, 'max')
+            point = plotting.get_result_point(stage, problem.config, 'max')
+            n_faults = problem.config.problem_config.n_faults
 
+            source_params = config.geo_vars_geometry
+            for param in point.keys():
+                if param not in source_params:
+                    point.pop(param)
+
+            point = utility.adjust_point_units(point)
             source_points = utility.split_point(point)
-            reference_sources = [RectangularSource(
+            reference_sources = [heart.RectangularSource(
                     **source_points[i]) for i in range(n_faults)]
 
             c.geodetic_config.gf_config.reference_sources=reference_sources
             config.dump_config(c)
+            logger.info('Successfully updated config file!')
 
 def command_clone(args):
 
@@ -596,7 +604,7 @@ def command_build_gfs(args):
 
                     gfs = []
                     for target in targets:
-                        logger.info('Target %s' % target.name)
+                        logger.info('Target %s' % target.__str__())
                         for crust_ind in range(gf.n_variations + 1):
                             logger.debug('crust_ind %i' % crust_ind)
                             gfs.append(heart.geo_construct_gf_linear(
@@ -609,6 +617,8 @@ def command_build_gfs(args):
 
                     logger.info("Dumping Green's Functions to %s" % outpath)
                     utility.dump_objects(outpath, gfs)
+            else:
+                logger.info('Did not run GF calculation.')
 
             logger.info('Updating problem_config:')
 

@@ -619,7 +619,7 @@ class IFG(GeodeticTarget):
     satellite = String.T(default='Envisat')
 
     def __str__(self):
-        s = 'IFG Acquisition Track: %s\n' % self.track
+        s = 'IFG\n Acquisition Track: %s\n' % self.track
         s += '  timerange: %s - %s\n' % (self.master, self.slave)
         if self.lats is not None:
             s += '  number of pixels: %i\n' % self.lats.size
@@ -1422,6 +1422,7 @@ def discretize_sources(
         npls.append(int(num.ceil(ext_source.length / patch_length)))
         npws.append(int(num.ceil(ext_source.width / patch_width)))
         ext_sources.append(ext_source)
+        logger.info('Extended fault(s): %s' % ext_source.__str__())
 
     d = {}
     for dataset in datasets:

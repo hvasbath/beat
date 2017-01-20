@@ -51,10 +51,9 @@ def multivariate_normal(targets, weights, hyperparams, residuals):
     logpts = tt.zeros((n_t), tconfig.floatX)
 
     for l, target in enumerate(targets):
-        M = shared(target.samples.astype(tconfig.floatX), borrow=True)
-        factor = shared(
-            target.covariance.log_norm_factor.astype(tconfig.floatX),
-            borrow=True)
+        M = tt.cast(shared(target.samples, borrow=True), 'int16')
+        factor = tt.cast(shared(
+            target.covariance.log_norm_factor, borrow=True), tconfig.floatX)
         hp_name = bconfig.hyper_pars[target.typ]
 
         logpts = tt.set_subtensor(logpts[l:l + 1],
