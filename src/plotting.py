@@ -34,6 +34,7 @@ __all__ = ['PlotOptions', 'correlation_plot', 'correlation_plot_hist',
 u_km = '[km]'
 u_deg = '[deg]'
 u_m = '[m]'
+u_s = '[s]'
 u_hyp = ''
 
 plot_units = {
@@ -46,6 +47,8 @@ plot_units = {
     'strike': u_deg,
     'rake': u_deg,
     'slip': u_m,
+    'time': u_s,
+    'duration': u_s,
     'geo_S': u_hyp,
     'geo_G': u_hyp,
     'seis_Z': u_hyp,
