@@ -682,10 +682,10 @@ def command_plot(args):
                  '"static", "kinematic". Default: "geometry"')
 
         parser.add_option('--post_llk', dest='post_llk',
-            choices=['max', 'min', 'mean'],
+            choices=['max', 'min', 'mean', 'all'],
             default='max',
-            help='Plot model with specified likelihood; "max", "min" or "mean"'
-                 'Default: "max"')
+            help='Plot model with specified likelihood; "max", "min", "mean"'
+                 ' or "all"; Default: "max"')
 
         parser.add_option('--stage_number', dest='stage_number',
             default=None,

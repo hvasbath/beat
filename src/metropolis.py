@@ -8,6 +8,7 @@ import shutil
 import os
 import pymc3 as pm
 import logging
+import shutil
 
 import numpy as num
 
@@ -47,6 +48,7 @@ def get_final_stage(homepath, n_stages, model):
 
     util.ensuredir(outname)
     logger.info('Creating final Metropolis stage')
+
     pm.backends.text.dump(name=outname, trace=ctrace)
 
 

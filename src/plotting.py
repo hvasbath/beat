@@ -6,7 +6,7 @@ import os
 import logging
 import copy
 
-from beat import utility, backend
+from beat import utility, backend, config
 from beat.models import load_stage
 from beat.metropolis import get_trace_stats
 from beat.heart import init_targets
@@ -26,9 +26,31 @@ logger = logging.getLogger('plotting')
 
 km = 1000.
 
+
 __all__ = ['PlotOptions', 'correlation_plot', 'correlation_plot_hist',
     'get_result_point', 'seismic_fits', 'geodetic_fits', 'traceplot',
     'select_transform']
+
+u_km = '[km]'
+u_deg = '[deg]'
+u_m = '[m]'
+u_hyp = ''
+
+plot_units = {
+    'east_shift': u_km,
+    'north_shift': u_km,
+    'depth': u_km,
+    'width': u_km,
+    'length': u_km,
+    'dip': u_deg,
+    'strike': u_deg,
+    'rake': u_deg,
+    'slip': u_m,
+    'geo_S': u_hyp,
+    'geo_G': u_hyp,
+    'seis_Z': u_hyp,
+    'seis_T': u_hyp,
+            }
 
 
 class PlotOptions(Object):
@@ -959,7 +981,20 @@ def draw_seismic_fits(problem, po):
                 opdf.savefig(fig)
 
 
-def histplot_op(ax, data, alpha=.35, color=None, bins=None):
+def choose_round_digit(twosigma):
+    if twosigma < 0.01:
+        return 3
+    elif twosigma < 0.1:
+        return 2
+    elif twosigma < 1.:
+        return 1
+    elif twosigma < 10.:
+        return 0
+    elif twosigma < 100.:
+        return -1
+
+
+def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None):
     """
     Modified from pymc3. Additional color argument.
     """
@@ -968,13 +1003,32 @@ def histplot_op(ax, data, alpha=.35, color=None, bins=None):
 
         mind = num.min(d)
         maxd = num.max(d)
+
+        if reference is not None:
+            mind = num.minimum(mind, reference)
+            maxd = num.maximum(maxd, reference)
+
+        tstd = 2 * num.std(d)
         step = (maxd - mind) / 40.
 
         if bins is None:
             bins = int(num.ceil((maxd - mind) / step))
 
         ax.hist(d, bins=bins, alpha=alpha, align='left', color=color)
-        ax.set_xlim(mind - .5, maxd + .5)
+
+        leftb = mind - tstd
+        rightb = maxd + tstd
+
+        digits = choose_round_digit(tstd)
+
+        xticklabels = num.round(
+            num.linspace(leftb, rightb, 5), digits).tolist()
+
+        ax.set_xlim(leftb, rightb)
+#        ax.get_yaxis().set_ticklabels([])
+        xax = ax.get_xaxis()
+        xax.set_ticklabels(xticklabels)
+        xax.set_ticks(xticklabels)
 
 
 def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
@@ -1098,12 +1152,23 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                 else:
                     varbin = varbins[i]
 
+                if lines:
+                    if v in config.hyper_pars.values():
+                        reference = None
+                    else:
+                        reference = lines[v]
+                else:
+                    reference = None
+
                 histplot_op(
-                    axs[rowi, coli], d, bins=varbin, alpha=alpha,
-                    color=scolor('aluminium3'))
-                axs[rowi, coli].set_title(str(v))
+                    axs[rowi, coli], d, reference=reference,
+                    bins=varbin, alpha=alpha, color=scolor('aluminium3'))
+
+                axs[rowi, coli].set_title(str(v) + ' ' + plot_units[v])
                 axs[rowi, coli].grid(grid)
-                axs[rowi, coli].set_ylabel("Frequency")
+                axs[rowi, coli].set_yticks([])
+                axs[rowi, coli].set_yticklabels([])
+#                axs[rowi, coli].set_ylabel("Frequency")
 
                 if lines:
                     try:
@@ -1246,7 +1311,7 @@ def draw_posteriors(problem, plot_options):
                 chains=chains,
                 combined=True,
                 lines=po.reference,
-                posterior='all')
+                posterior='max')
 
             if not po.outformat == 'display':
                 logger.info('saving figure to %s' % outpath)
