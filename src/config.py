@@ -577,6 +577,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                 **source_points[i]) for i in range(n_faults)]
 
             c.date = gc.date
+            c.event = gc.event
             c.geodetic_config = gc.geodetic_config
             c.geodetic_config.gf_config = LinearGFConfig(
                 store_superdir=gc.geodetic_config.gf_config.store_superdir,

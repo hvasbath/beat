@@ -1378,6 +1378,7 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
 
     # only coseismic displacement
     c.times_snapshots = [0]
+    print sources
     c.rectangular_source_patches = sources
 
     runner = pscmp.PsCmpRunner(keep_tmp=keep_tmp)
@@ -1455,8 +1456,9 @@ def geo_construct_gf_linear(store_superdir, crust_ind, lons, lats, sources):
 
     gfs = []
     for source in sources:
+        print 'here', source
         gfs.append(geo_layer_synthetics(
-            store_superdir, crust_ind, lons, lats, [source], keep_tmp=False))
+            store_superdir, crust_ind, lons, lats, [source], keep_tmp=True))
 
     return num.hstack(gfs)
 

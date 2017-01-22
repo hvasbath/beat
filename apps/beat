@@ -575,9 +575,13 @@ def command_build_gfs(args):
         geo = 'geodetic'
         if geo in options.datasets:
             gf = c.geodetic_config.gf_config
+            reference_sources = [
+                source.update(lat=c.event.lat, lon=c.event.lon)
+                for source in gf.reference_sources]
+
             logger.info('Discretizing %i sources' % len(gf.reference_sources))
             dsources = heart.discretize_sources(
-                sources=gf.reference_sources,
+                sources=reference_sources,
                 extension_width=gf.extension_width,
                 extension_length=gf.extension_length,
                 patch_width=gf.patch_width,
