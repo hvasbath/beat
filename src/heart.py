@@ -211,7 +211,7 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
         patches = []
         for j in range(nw):
             for i in range(nl):
-                sub_center = self.center(width) + \
+                sub_center = self.center(self.width) + \
                     self.strikevector * ((i + 0.5 - 0.5 * nl) * length) + \
                     self.dipvector * ((j + 0.5 - 0.5 * nw) * width)
 
@@ -1425,7 +1425,6 @@ def discretize_sources(
     npls = []
     npws = []
 
-    print sources, len(sources)
     data_dict = {}
 
     for dataset in datasets:
@@ -1436,7 +1435,7 @@ def discretize_sources(
             param_mod = copy.deepcopy(slip_directions[var])
 
             for source in sources:
-                print source
+
                 s = copy.deepcopy(source)
                 param_mod['rake'] += s.rake
                 s.update(**param_mod)
@@ -1444,7 +1443,6 @@ def discretize_sources(
                 ext_source = s.extent_source(
                     extension_width, extension_length,
                     patch_width, patch_length)
-                print ext_source
 
                 npls.append(int(num.ceil(ext_source.length / patch_length)))
                 npws.append(int(num.ceil(ext_source.width / patch_width)))
@@ -1465,7 +1463,7 @@ def discretize_sources(
 def geo_construct_gf_linear(
     store_superdir, outpath, crust_ind=0,
     targets=None, dsources=None, varnames=[''],
-    execute=False, force=False):
+    force=False):
     """
     Create geodetic Greens Function matrix for defined source geometry.
 
@@ -1491,15 +1489,12 @@ def geo_construct_gf_linear(
         logger.info("Green's Functions exist! Use --force to"
             " overwrite!")
     else:
-        logger.info("Calculating linear Green's Functions...")
-
         out_gfs = {}
         for var in varnames:
-            logger.info('For slip component: %s' % var)
+            logger.debug('For slip component: %s' % var)
             gfs_target = []
             for target in targets:
-                logger.info('Target %s' % target.__str__())
-                logger.debug('crust_ind %i' % crust_ind)
+                logger.debug('Target %s' % target.__str__())
 
                 gfs = []
                 for source in dsources['geodetic'][var]:
@@ -1509,7 +1504,8 @@ def geo_construct_gf_linear(
                             crust_ind=crust_ind,
                             lons=target.lons,
                             lats=target.lats,
-                            sources=[source])
+                            sources=[source],
+                            keep_tmp=False)
                               )
 
             gfs_target.append(num.hstack(gfs))

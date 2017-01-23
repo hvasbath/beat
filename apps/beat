@@ -586,7 +586,7 @@ def command_build_gfs(args):
         geo = 'geodetic'
         if geo in options.datasets:
             gf = c.geodetic_config.gf_config
-            print gf
+
             geodetic_data_path = os.path.join(
                 c.project_dir, config.geodetic_data_name)
 
@@ -598,8 +598,6 @@ def command_build_gfs(args):
 
             for source in gf.reference_sources:
                 source.update(lat=c.event.lat, lon=c.event.lon)
-
-            print gf.reference_sources[0], len(gf.reference_sources)
 
             varnames = [varname for varname in c.problem_config.priors.keys()]
 
@@ -623,7 +621,7 @@ def command_build_gfs(args):
                     'Storing discretized fault geometry to: %s' % dsourcepath)
                 utility.dump_objects(dsourcepath, [dsources])
 
-                n_faults = len(dsources[geo].values())
+                n_faults = len(dsources[geo][varnames[0]])
 
                 logger.info('Updating problem_config:')
                 logger.info(
@@ -633,18 +631,23 @@ def command_build_gfs(args):
                 config.dump_config(c)
 
             if options.execute:
-                outpath = os.path.join(outdir,
-                    str(crust_ind) + '_' + \
-                    config.geodetic_static_linear_gf_name)
-
+                logger.info("Calculating linear Green's Functions...")
                 for crust_ind in range(gf.n_variations + 1):
-                    geo_construct_gf_linear(
-                        store_superdir, outpath, crust_ind=0,
-                        targets=None, dsources=None, varnames=[''],
-                        execute=False, force=False)
+                    outpath = os.path.join(outdir,
+                        str(crust_ind) + '_' + \
+                        config.geodetic_static_linear_gf_name)
+                    logger.info('crust_ind %i' % crust_ind)
+                    heart.geo_construct_gf_linear(
+                        store_superdir=gf.store_superdir,
+                        outpath=outpath,
+                        crust_ind=crust_ind,
+                        targets=targets,
+                        dsources=dsources,
+                        varnames=varnames,
+                        force=options.force)
 
             else:
-                logger.info('Did not run GF calculation.')
+                logger.info('Did not run GF calculation. Use --execute!')
 
 
 def command_plot(args):
