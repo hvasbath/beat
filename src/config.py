@@ -87,6 +87,8 @@ default_geo_std = 1.e-3
 seismic_data_name = 'seismic_data.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
 
+linear_gf_dir_name = 'linear_gfs'
+fault_geometry_name = 'fault_geometry.pkl'
 geodetic_static_linear_gf_name = 'linear_geodetic_gfs.pkl'
 seismic_static_linear_gf_name = 'linear_seismic_gfs.pkl'
 
@@ -263,11 +265,17 @@ class ProblemConfig(Object):
     priors = Dict.T(
         help='Priors of the variables in question.')
 
-    def init_vars(self):
+    def init_vars(self, variables=None):
         """
         Initiate priors based on the problem mode and datasets.
+
+        Parameters
+        ----------
+        variables : list
+            of str of variable names to initialise
         """
-        variables = self.select_variables()
+        if variables is None:
+            variables = self.select_variables()
 
         self.priors = {}
         for variable in variables:

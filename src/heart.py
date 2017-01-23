@@ -542,7 +542,7 @@ class Parameter(Object):
     Optimization parameter determines the bounds of the search space.
     """
 
-    name = String.T(default='lon')
+    name = String.T(default='depth')
     form = String.T(default='Uniform',
                     help='Type of prior distribution to use. Options:'
                          ' "Uniform", ...')
@@ -1378,7 +1378,6 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
 
     # only coseismic displacement
     c.times_snapshots = [0]
-    print sources
     c.rectangular_source_patches = sources
 
     runner = pscmp.PsCmpRunner(keep_tmp=keep_tmp)
@@ -1387,9 +1386,16 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
     return runner.get_results(component='displ', flip_z=True)[0]
 
 
+slip_directions = {
+    'Uparr': {'slip': 1., 'rake': 0.},
+    'Uperp': {'slip': 1., 'rake': -90.},
+    'Utensile': {'slip': 0., 'rake': 0., 'opening': 1.}}
+
+
 def discretize_sources(
-    sources, extension_width=0.1, extension_length=0.1,
-    patch_width=5000., patch_length=5000., datasets=['geodetic']):
+    sources=None, extension_width=0.1, extension_length=0.1,
+    patch_width=5000., patch_length=5000., datasets=['geodetic'],
+    varnames=['']):
     """
     Extend sources into all directions and discretize sources into patches.
     Rounds dimensions to have no half-patches.
@@ -1406,37 +1412,60 @@ def discretize_sources(
         Width [m] of subpatch in dip-direction
     patch_length : float
         Length [m] of subpatch in strike-direction
+    varnames : list
+        of str with variable names that are being optimized for
 
     Returns
     -------
-    dict with list of :class:`pscmp.PsCmpRectangularSource` or
+    dict with dict of varnames with list of:
+        :class:`pscmp.PsCmpRectangularSource` or
         :class:`pyrocko.gf.seismosizer.RectangularSource`
     """
     ext_sources = []
     npls = []
     npws = []
-    for source in sources:
-        s = copy.deepcopy(source)
-        ext_source = s.extent_source(
-            extension_width, extension_length, patch_width, patch_length)
 
-        npls.append(int(num.ceil(ext_source.length / patch_length)))
-        npws.append(int(num.ceil(ext_source.width / patch_width)))
-        ext_sources.append(ext_source)
-        logger.info('Extended fault(s): %s' % ext_source.__str__())
+    print sources, len(sources)
+    data_dict = {}
 
-    d = {}
     for dataset in datasets:
-        patches = []
-        for source, npl, npw in zip(ext_sources, npls, npws):
-            patches += source.patches(nl=npl, nw=npw, dataset=dataset)
+        source_dict = {}
+        logger.info('Discretizing %s source(s)' % dataset)
+        for var in varnames:
+            logger.info('%s slip component' % var)
+            param_mod = copy.deepcopy(slip_directions[var])
 
-        d[dataset] = patches
+            for source in sources:
+                print source
+                s = copy.deepcopy(source)
+                param_mod['rake'] += s.rake
+                s.update(**param_mod)
 
-    return d
+                ext_source = s.extent_source(
+                    extension_width, extension_length,
+                    patch_width, patch_length)
+                print ext_source
+
+                npls.append(int(num.ceil(ext_source.length / patch_length)))
+                npws.append(int(num.ceil(ext_source.width / patch_width)))
+                ext_sources.append(ext_source)
+                logger.info('Extended fault(s): %s' % ext_source.__str__())
+
+                patches = []
+                for source, npl, npw in zip(ext_sources, npls, npws):
+                    patches += source.patches(nl=npl, nw=npw, dataset=dataset)
+
+            source_dict[var] = patches
+
+        data_dict[dataset] = source_dict
+
+    return data_dict
 
 
-def geo_construct_gf_linear(store_superdir, crust_ind, lons, lats, sources):
+def geo_construct_gf_linear(
+    store_superdir, outpath, crust_ind=0,
+    targets=None, dsources=None, varnames=[''],
+    execute=False, force=False):
     """
     Create geodetic Greens Function matrix for defined source geometry.
 
@@ -1444,23 +1473,52 @@ def geo_construct_gf_linear(store_superdir, crust_ind, lons, lats, sources):
     ----------
     store_superdir : str
         main path to directory containing the different Greensfunction stores
+    outpath : str
+        absolute path to the directory and filename where to store the
+        Green's Functions
     crust_ind : int
-        index of Greens Function store to use
-    lons : List of floats
-        Longitudes [decimal deg] of observation points
-    lats : List of floats
-        Latitudes [decimal deg] of observation points
-    sources : List of :class:`pscmp.PsCmpRectangularSource`
+        of index of Greens Function store to use
+    targets : list
+        of :class:`heart.GeodeticTarget`
+    dsources : dict
+        discretized sources of :class:`pscmp.PsCmpRectangularSource`
         Sources i.e. faults to calculate synthetics for
+    varnames : list
+        of str with variable names that are being optimized for
     """
 
-    gfs = []
-    for source in sources:
-        print 'here', source
-        gfs.append(geo_layer_synthetics(
-            store_superdir, crust_ind, lons, lats, [source], keep_tmp=True))
+    if os.path.exists(outpath) and not force:
+        logger.info("Green's Functions exist! Use --force to"
+            " overwrite!")
+    else:
+        logger.info("Calculating linear Green's Functions...")
 
-    return num.hstack(gfs)
+        out_gfs = {}
+        for var in varnames:
+            logger.info('For slip component: %s' % var)
+            gfs_target = []
+            for target in targets:
+                logger.info('Target %s' % target.__str__())
+                logger.debug('crust_ind %i' % crust_ind)
+
+                gfs = []
+                for source in dsources['geodetic'][var]:
+                    gfs.append(
+                        geo_layer_synthetics(
+                            store_superdir=store_superdir,
+                            crust_ind=crust_ind,
+                            lons=target.lons,
+                            lats=target.lats,
+                            sources=[source])
+                              )
+
+            gfs_target.append(num.hstack(gfs))
+
+            print gfs_target[-1].shape
+
+        out_gfs[var] = gfs_target
+        logger.info("Dumping Green's Functions to %s" % outpath)
+        utility.dump_objects(outpath, [out_gfs])
 
 
 def get_phase_arrival_time(engine, source, target):
