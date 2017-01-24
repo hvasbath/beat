@@ -47,6 +47,10 @@ class Proposal(object):
     """
     Proposal distributions modified from pymc3 to initially create all the
     Proposal steps without repeated execution of the RNG- significant speedup!
+
+    Parameters
+    ----------
+    s : :class:`numpy.ndarray`
     """
     def __init__(self, s):
         self.s = np.atleast_1d(s)
@@ -137,7 +141,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         Factor applied to the proposal distribution i.e. the step size of the
         Markov Chain
     covariance : :class:`numpy.ndarray`
-        (n_chains x n_chains)
+        (n_chains x n_chains) for MutlivariateNormal, otherwise (n_chains)
         Initial Covariance matrix for proposal distribution,
         if None - identity matrix taken
     likelihood_name : string
@@ -197,6 +201,10 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         if covariance is None and proposal_name == 'MultivariateNormal':
             self.covariance = np.eye(sum(v.dsize for v in vars))
             scale = self.covariance
+        elif covariance is None:
+            scale = np.ones(sum(v.dsize for v in vars))
+        else:
+            scale = covariance
 
         self.tune = tune
         self.check_bnd = check_bound
@@ -292,7 +300,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
                     q_new = pm.metropolis.metrop_select(
                         self.beta * (l[self._llk_index] - l0[self._llk_index]),
                         q, q0)
-                    
+
                     if q_new is q:
                         self.accepted += 1
                         l_new = l
