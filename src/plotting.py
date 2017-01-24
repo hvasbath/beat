@@ -1214,7 +1214,7 @@ def draw_posteriors(problem, plot_options):
     for s in list_indexes:
         if s == '0':
             draws = 1
-        elif s == 'final':
+        elif s == 'final' and not hypers and sc.name == 'Metropolis':
             draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
         else:
             draws = sc.parameters.n_steps

@@ -89,7 +89,7 @@ geodetic_data_name = 'geodetic_data.pkl'
 
 linear_gf_dir_name = 'linear_gfs'
 fault_geometry_name = 'fault_geometry.pkl'
-geodetic_static_linear_gf_name = 'linear_geodetic_gfs.pkl'
+geodetic_linear_gf_name = 'linear_geodetic_gfs.pkl'
 seismic_static_linear_gf_name = 'linear_seismic_gfs.pkl'
 
 sample_p_outname = 'sample.params'

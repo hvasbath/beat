@@ -591,6 +591,9 @@ def command_build_gfs(args):
                 c.project_dir, config.geodetic_data_name)
 
             targets = utility.load_objects(geodetic_data_path)
+            for target in targets:
+                if target.los_vector is None:
+                    target.update_los_vector()
 
             outdir = os.path.join(
                 c.project_dir, options.mode, config.linear_gf_dir_name)
@@ -635,7 +638,7 @@ def command_build_gfs(args):
                 for crust_ind in range(gf.n_variations + 1):
                     outpath = os.path.join(outdir,
                         str(crust_ind) + '_' + \
-                        config.geodetic_static_linear_gf_name)
+                        config.geodetic_linear_gf_name)
                     logger.info('crust_ind %i' % crust_ind)
                     heart.geo_construct_gf_linear(
                         store_superdir=gf.store_superdir,

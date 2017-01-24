@@ -187,6 +187,9 @@ def weed_input_rvs(input_rvs, mode, dataset):
         elif dataset == 'seismic':
             tobeweeded = ['opening']
 
+    else:
+        tobeweeded = []
+
     for weed in tobeweeded:
         if weed in weeded_input_rvs.keys():
             weeded_input_rvs.pop(weed)

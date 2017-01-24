@@ -183,6 +183,52 @@ class GeodeticComposite(Composite):
 
         super(GeodeticComposite, self).__init__(hypers=hypers)
 
+    def assemble_results(self, point):
+        """
+        Assemble geodetic data for given point in solution space.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters
+
+        Returns
+        -------
+        List with :class:`heart.GeodeticResult`
+        """
+
+        logger.debug('Assembling geodetic data ...')
+
+        processed_synts = self.get_synthetics(point)
+
+        results = []
+        for i, target in enumerate(self.targets):
+            res = target.displacement - processed_synts[i]
+
+            results.append(heart.GeodeticResult(
+                processed_obs=target.displacement,
+                processed_syn=processed_synts[i],
+                processed_res=res))
+
+        return results
+
+    def update_llks(self, point):
+        """
+        Update posterior likelihoods (in place) of the composite w.r.t.
+        one point in the solution space.
+
+        Parameters
+        ----------
+        point : dict
+            with numpy array-like items and variable name keys
+        """
+        results = self.assemble_results(point)
+        for l, result in enumerate(results):
+            icov = self.targets[l].covariance.inverse
+            llk = num.array(result.processed_res.dot(
+                icov).dot(result.processed_res.T)).flatten()
+            self._llks[l].set_value(llk)
+
 
 class GeodeticGeometryComposite(GeodeticComposite):
     """
@@ -359,35 +405,6 @@ class GeodeticGeometryComposite(GeodeticComposite):
 
         return synths
 
-    def assemble_results(self, point):
-        """
-        Assemble geodetic data for given point in solution space.
-
-        Parameters
-        ----------
-        point : :func:`pymc3.Point`
-            Dictionary with model parameters
-
-        Returns
-        -------
-        List with :class:`heart.GeodeticResult`
-        """
-
-        logger.debug('Assembling geodetic data ...')
-
-        processed_synts = self.get_synthetics(point)
-
-        results = []
-        for i, target in enumerate(self.targets):
-            res = target.displacement - processed_synts[i]
-
-            results.append(heart.GeodeticResult(
-                processed_obs=target.displacement,
-                processed_syn=processed_synts[i],
-                processed_res=res))
-
-        return results
-
     def update_weights(self, point, n_jobs=1, plot=False):
         """
         Updates weighting matrixes (in place) with respect to the point in the
@@ -415,23 +432,6 @@ class GeodeticGeometryComposite(GeodeticComposite):
             target.covariance.pred_v = cov_pv
             icov = target.covariance.inverse
             self.weights[i].set_value(icov)
-
-    def update_llks(self, point):
-        """
-        Update posterior likelihoods (in place) of the composite w.r.t.
-        one point in the solution space.
-
-        Parameters
-        ----------
-        point : dict
-            with numpy array-like items and variable name keys
-        """
-        results = self.assemble_results(point)
-        for l, result in enumerate(results):
-            icov = self.targets[l].covariance.inverse
-            llk = num.array(result.processed_res.dot(
-                icov).dot(result.processed_res.T)).flatten()
-            self._llks[l].set_value(llk)
 
 
 class SeismicComposite(Composite):
@@ -518,6 +518,93 @@ class SeismicComposite(Composite):
             self.weights.append(shared(icov))
 
         super(SeismicComposite, self).__init__(hypers=hypers)
+
+    def assemble_results(self, point):
+        """
+        Assemble seismic traces for given point in solution space.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters
+
+        Returns
+        -------
+        List with :class:`heart.SeismicResult`
+        """
+
+        logger.debug('Assembling seismic waveforms ...')
+
+        syn_proc_traces = self.get_synthetics(point, outmode='stacked_traces')
+
+        tmins = [tr.tmin for tr in syn_proc_traces]
+
+        at = copy.deepcopy(self.config.arrival_taper)
+
+        obs_proc_traces = heart.taper_filter_traces(
+            self.data_traces,
+            arrival_taper=at,
+            filterer=self.config.filterer,
+            tmins=tmins,
+            outmode='traces')
+
+        self.config.arrival_taper = None
+
+        syn_filt_traces = self.get_synthetics(point, outmode='data')
+
+        obs_filt_traces = heart.taper_filter_traces(
+            self.data_traces,
+            filterer=self.config.filterer,
+            outmode='traces')
+
+        factor = 2.
+        for i, (trs, tro) in enumerate(zip(syn_filt_traces, obs_filt_traces)):
+
+            trs.chop(tmin=tmins[i] - factor * at.fade,
+                     tmax=tmins[i] + factor * at.fade + at.duration)
+            tro.chop(tmin=tmins[i] - factor * at.fade,
+                     tmax=tmins[i] + factor * at.fade + at.duration)
+
+        self.config.arrival_taper = at
+
+        results = []
+        for i, obstr in enumerate(obs_proc_traces):
+            dtrace = obstr.copy()
+            dtrace.set_ydata(
+                (obstr.get_ydata() - syn_proc_traces[i].get_ydata()))
+
+            taper = trace.CosTaper(
+                tmins[i],
+                tmins[i] + at.fade,
+                tmins[i] + at.duration - at.fade,
+                tmins[i] + at.duration)
+
+            results.append(heart.SeismicResult(
+                    processed_obs=obstr,
+                    processed_syn=syn_proc_traces[i],
+                    processed_res=dtrace,
+                    filtered_obs=obs_filt_traces[i],
+                    filtered_syn=syn_filt_traces[i],
+                    taper=taper))
+
+        return results
+
+    def update_llks(self, point):
+        """
+        Update posterior likelihoods of the composite with respect to one point
+        in the solution space.
+
+        Parameters
+        ----------
+        point : dict
+            with numpy array-like items and variable name keys
+        """
+        results = self.assemble_results(point)
+        for k, result in enumerate(results):
+            icov = self.targets[k].covariance.inverse
+            _llk = num.array(result.processed_res.ydata.dot(
+                icov).dot(result.processed_res.ydata.T)).flatten()
+            self._llks[k].set_value(_llk)
 
 
 class SeismicGeometryComposite(SeismicComposite):
@@ -679,76 +766,6 @@ class SeismicGeometryComposite(SeismicComposite):
 
         return synths
 
-    def assemble_results(self, point):
-        """
-        Assemble seismic traces for given point in solution space.
-
-        Parameters
-        ----------
-        point : :func:`pymc3.Point`
-            Dictionary with model parameters
-
-        Returns
-        -------
-        List with :class:`heart.SeismicResult`
-        """
-
-        logger.debug('Assembling seismic waveforms ...')
-
-        syn_proc_traces = self.get_synthetics(point, outmode='stacked_traces')
-
-        tmins = [tr.tmin for tr in syn_proc_traces]
-
-        at = copy.deepcopy(self.config.arrival_taper)
-
-        obs_proc_traces = heart.taper_filter_traces(
-            self.data_traces,
-            arrival_taper=at,
-            filterer=self.config.filterer,
-            tmins=tmins,
-            outmode='traces')
-
-        self.config.arrival_taper = None
-
-        syn_filt_traces = self.get_synthetics(point, outmode='data')
-
-        obs_filt_traces = heart.taper_filter_traces(
-            self.data_traces,
-            filterer=self.config.filterer,
-            outmode='traces')
-
-        factor = 2.
-        for i, (trs, tro) in enumerate(zip(syn_filt_traces, obs_filt_traces)):
-
-            trs.chop(tmin=tmins[i] - factor * at.fade,
-                     tmax=tmins[i] + factor * at.fade + at.duration)
-            tro.chop(tmin=tmins[i] - factor * at.fade,
-                     tmax=tmins[i] + factor * at.fade + at.duration)
-
-        self.config.arrival_taper = at
-
-        results = []
-        for i, obstr in enumerate(obs_proc_traces):
-            dtrace = obstr.copy()
-            dtrace.set_ydata(
-                (obstr.get_ydata() - syn_proc_traces[i].get_ydata()))
-
-            taper = trace.CosTaper(
-                tmins[i],
-                tmins[i] + at.fade,
-                tmins[i] + at.duration - at.fade,
-                tmins[i] + at.duration)
-
-            results.append(heart.SeismicResult(
-                    processed_obs=obstr,
-                    processed_syn=syn_proc_traces[i],
-                    processed_res=dtrace,
-                    filtered_obs=obs_filt_traces[i],
-                    filtered_syn=syn_filt_traces[i],
-                    taper=taper))
-
-        return results
-
     def update_weights(self, point, n_jobs=1, plot=False):
         """
         Updates weighting matrixes (in place) with respect to the point in the
@@ -791,23 +808,6 @@ class SeismicGeometryComposite(SeismicComposite):
                 icov = self.targets[index].covariance.inverse
                 self.weights[index].set_value(icov)
 
-    def update_llks(self, point):
-        """
-        Update posterior likelihoods of the composite with respect to one point
-        in the solution space.
-
-        Parameters
-        ----------
-        point : dict
-            with numpy array-like items and variable name keys
-        """
-        results = self.assemble_results(point)
-        for k, result in enumerate(results):
-            icov = self.targets[k].covariance.inverse
-            _llk = num.array(result.processed_res.ydata.dot(
-                icov).dot(result.processed_res.ydata.T)).flatten()
-            self._llks[k].set_value(_llk)
-
 
 class GeodeticDistributorComposite(GeodeticComposite):
     """
@@ -816,15 +816,17 @@ class GeodeticDistributorComposite(GeodeticComposite):
     """
 
     gfs = {}
+    sgfs = {}
     gf_names = {}
 
     def __init__(self, gc, project_dir, hypers=False):
 
-        super(GeodeticGeometryComposite, self).__init__(
+        super(GeodeticDistributorComposite, self).__init__(
             gc, project_dir, hypers=hypers)
 
         self._mode = 'static'
-        self.gfpath = os.path.join(project_dir, self._mode)
+        self.gfpath = os.path.join(project_dir, self._mode,
+                         bconfig.linear_gf_dir_name)
 
         self.data = [
             shared(target.displacement.astype(tconfig.floatX), borrow=True) \
@@ -833,27 +835,36 @@ class GeodeticDistributorComposite(GeodeticComposite):
             shared(target.odw.astype(tconfig.floatX), borrow=True) \
             for target in self.targets]
 
-    def load_gfs(self, make_shared=True):
+    def load_gfs(self, crust_inds=None, make_shared=True):
         """
         Load Greens Function matrixes for each variable to be inverted for.
         Updates gfs and gf_names attributes.
 
         Parameters
         ----------
+        crust_inds : list
+            of int to indexes of Green's Functions
         make_shared : bool
             if True transforms gfs to :class:`theano.shared` variables
         """
 
-        for param in self.config.priors.keys():
-            gfpath = os.path.join(self.gfpath, param + '_' + self.name + '.gf')
-            self.gfnames[param] = gfpath
-            gfs = utility.load_objects(gfpath)
+        if crust_inds is None:
+            crust_inds = range(self.gc.gf_config.n_variations + 1)
+
+        for crust_ind in crust_inds:
+            gfpath = os.path.join(self.gfpath,
+                str(crust_ind) + '_' + bconfig.geodetic_linear_gf_name)
+
+            self.gf_names[crust_ind] = gfpath
+            gfs = utility.load_objects(gfpath)[0]
 
             if make_shared:
-                self.gfs[param] = [shared(
-                    gf.astype(tconfig.floatX), borrow=True) for gf in gfs]
+                self.sgfs[crust_ind] = {param: [
+                    shared(gf.astype(tconfig.floatX), borrow=True) \
+                        for gf in gfs[param]] \
+                            for param in gfs.keys()}
             else:
-                self.gfs = gfs
+                self.gfs[crust_ind] = gfs
 
     def get_formula(self, input_rvs, hyperparams):
 
@@ -861,8 +872,8 @@ class GeodeticDistributorComposite(GeodeticComposite):
         for t in range(self.n_t):
 
             mu = tt.zeros_like(self.data[t], tconfig.floatX)
-            for rv in input_rvs.items():
-                mu += tt.dot(self.gfs[rv], rv)
+            for var, rv in input_rvs.iteritems():
+                mu += tt.dot(self.sgfs[0][var][t], rv)
 
             residuals[t] = self.odws[t] * (self.data[t] - mu)
 
@@ -887,7 +898,32 @@ class GeodeticDistributorComposite(GeodeticComposite):
         -------
         list with :class:`numpy.ndarray` synthetics for each target
         """
-        pass
+        if len(self.gfs.keys()) == 0:
+            self.load_gfs(crust_inds=[0], make_shared=False)
+
+        tpoint = copy.deepcopy(point)
+
+        hps = bconfig.hyper_pars.values()
+
+        for hyper in hps:
+            if hyper in tpoint:
+                tpoint.pop(hyper)
+
+        gf_params = self.gfs[0].keys()
+
+        for param in tpoint.keys():
+            if param not in gf_params:
+                tpoint.pop(param)
+
+        synthetics = []
+        for i, target in enumerate(self.targets):
+
+            mu = num.zeros_like(target.displacement)
+            for var, rv in tpoint.iteritems():
+                mu += num.dot(self.gfs[0][var][i], rv)
+                synthetics.append(mu)
+
+        return synthetics
 
 
 geometry_composite_catalog = {
@@ -1000,9 +1036,9 @@ class Problem(object):
 
         with pm.Model() as self.model:
 
-            logger.debug('Optimization for %i sources', len(self.sources))
-
             pc = self.config.problem_config
+
+            logger.debug('Optimization for %i sources', pc.n_faults)
 
             rvs = dict()
             for param in pc.priors.itervalues():
@@ -1240,10 +1276,13 @@ class DistributionOptimizer(Problem):
                 config.project_dir,
                 hypers)
 
-            composite.load_gfs()
+            # do the optimization only on the reference velocity model
+            logger.info("Loading %s Green's Functions" % dataset)
+            composite.load_gfs(crust_inds=[0])
             self.composites[dataset] = composite
 
         self.config = config
+
 
 problem_catalog = {
     bconfig.modes_catalog.keys()[0]: GeometryOptimizer,
@@ -1404,7 +1443,7 @@ def load_model(project_dir, mode, hypers=False):
 
     Returns
     -------
-    :class:`Problem`
+    problem : :class:`Problem`
     """
 
     config = bconfig.load_config(project_dir, mode)

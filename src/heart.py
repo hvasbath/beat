@@ -639,7 +639,7 @@ class IFG(GeodeticTarget):
         """
 
         if self.incidence.all() and self.heading.all() is None:
-            Exception('Incidence and Heading need to be provided!')
+            raise Exception('Incidence and Heading need to be provided!')
 
         Su = num.cos(num.deg2rad(self.incidence))
         Sn = - num.sin(num.deg2rad(self.incidence)) * \
@@ -1447,7 +1447,7 @@ def discretize_sources(
                 npls.append(int(num.ceil(ext_source.length / patch_length)))
                 npws.append(int(num.ceil(ext_source.width / patch_width)))
                 ext_sources.append(ext_source)
-                logger.info('Extended fault(s): %s' % ext_source.__str__())
+                logger.info('Extended fault(s): \n %s' % ext_source.__str__())
 
                 patches = []
                 for source, npl, npw in zip(ext_sources, npls, npws):
@@ -1498,19 +1498,21 @@ def geo_construct_gf_linear(
 
                 gfs = []
                 for source in dsources['geodetic'][var]:
-                    gfs.append(
-                        geo_layer_synthetics(
+                        disp = geo_layer_synthetics(
                             store_superdir=store_superdir,
                             crust_ind=crust_ind,
                             lons=target.lons,
                             lats=target.lats,
                             sources=[source],
                             keep_tmp=False)
-                              )
 
-            gfs_target.append(num.hstack(gfs))
+                        gfs.append((
+                            disp[:, 0] * target.los_vector[:, 0] + \
+                            disp[:, 1] * target.los_vector[:, 1] + \
+                            disp[:, 2] * target.los_vector[:, 2]) * \
+                                target.odw)
 
-            print gfs_target[-1].shape
+                gfs_target.append(num.vstack(gfs).T)
 
         out_gfs[var] = gfs_target
         logger.info("Dumping Green's Functions to %s" % outpath)
