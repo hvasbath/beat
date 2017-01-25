@@ -166,7 +166,7 @@ def weed_input_rvs(input_rvs, mode, dataset):
 
     Parameters
     ----------
-    input_rvs : list
+    input_rvs : dict
         of :class:`pymc3.Distribution`
     mode : str
         'geometry', 'static, 'kinematic' determining the discarded RVs
@@ -175,11 +175,10 @@ def weed_input_rvs(input_rvs, mode, dataset):
 
     Returns
     -------
-    weeded_input_rvs : list
+    weeded_input_rvs : dict
         of :class:`pymc3.Distribution`
     """
 
-    name_order = [param.name for param in input_rvs]
     weeded_input_rvs = copy.copy(input_rvs)
 
     if mode == 'geometry':
@@ -188,15 +187,12 @@ def weed_input_rvs(input_rvs, mode, dataset):
         elif dataset == 'seismic':
             tobeweeded = ['opening']
 
-    indexes = []
-    for burian in tobeweeded:
-        if burian in name_order:
-            indexes.append(name_order.index(burian))
+    else:
+        tobeweeded = []
 
-    indexes.sort(reverse=True)
-
-    for ind in indexes:
-        weeded_input_rvs.pop(ind)
+    for weed in tobeweeded:
+        if weed in weeded_input_rvs.keys():
+            weeded_input_rvs.pop(weed)
 
     return weeded_input_rvs
 
@@ -743,6 +739,23 @@ def repair_covariance(x, epsilon=num.finfo(num.float64).eps):
     return vec * num.diag(val) * vec.T
 
 
+def unique_list(l):
+    """
+    Find unique entries in list and return them in a list.
+    Keeps variable order.
+
+    Parameters
+    ----------
+    l : list
+
+    Returns
+    -------
+    list with only unique elements
+    """
+    used = []
+    return [x for x in l if x not in used and (used.append(x) or True)]
+
+
 def join_models(global_model, crustal_model):
     """
     Replace the part of the 'global model' that is covered by 'crustal_model'.
@@ -852,6 +865,31 @@ def gather(l, key, sort=None, filter=None):
             v.sort(key=sort)
 
     return d
+
+
+def get_fit_indexes(llk):
+    """
+    Find indexes of various likelihoods in a likelihood distribution.
+
+    Parameters
+    ----------
+    llk : :class:`numpy.ndarray`
+
+    Returns
+    -------
+    dict with array indexes
+    """
+
+    mean_idx = (num.abs(llk - llk.mean())).argmin()
+    min_idx = (num.abs(llk - llk.min())).argmin()
+    max_idx = (num.abs(llk - llk.max())).argmin()
+
+    posterior_idxs = {
+        'mean': mean_idx,
+        'min': min_idx,
+        'max': max_idx}
+
+    return posterior_idxs
 
 
 def check_hyper_flag(problem):

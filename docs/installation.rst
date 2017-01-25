@@ -179,8 +179,8 @@ For Linux based systems if you have admin rights (with $ROOT=/usr) do ::
 
     tar -xvfz amdlibm-3.1-lin64.tar.gz
     cd amdlibm-3.1-lin64
-    cp /lib/*/* $ROOT/lib64/
-    cp /include/amdlibm.h $ROOT/include/
+    cp lib/*/* $ROOT/lib64/
+    cp include/amdlibm.h $ROOT/include/
 
 If you do not want to install the library to your system libraries ergo
 $ROOT = /custom_path/ you need to add this path again to your environment

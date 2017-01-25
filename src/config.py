@@ -17,6 +17,7 @@ from pyrocko import trace, model, util
 from pyrocko.gf import Earthmodel1D
 from pyrocko.gf.seismosizer import Cloneable
 from beat.heart import Filter, ArrivalTaper, TeleseismicTarget, Parameter
+from beat.heart import RectangularSource
 
 from beat import utility
 
@@ -25,8 +26,6 @@ import numpy as num
 guts_prefix = 'beat'
 
 logger = logging.getLogger('config')
-
-modes = ['geometry', 'static', 'kinematic']
 
 geo_vars_geometry = ['east_shift', 'north_shift', 'depth', 'strike', 'dip',
                          'rake', 'length', 'width', 'slip']
@@ -43,6 +42,22 @@ kinematic_dist_vars = static_dist_vars + partial_kinematic_vars
 
 hyper_pars = {'Z': 'seis_Z', 'T': 'seis_T',
              'SAR': 'geo_S', 'GPS': 'geo_G'}
+
+geometry_catalog = {
+    'geodetic': geo_vars_geometry,
+    'seismic': joint_vars_geometry}
+
+static_catalog = {
+    'geodetic': static_dist_vars,
+    'seismic': static_dist_vars}
+
+kinematic_catalog = {
+    'seismic': kinematic_dist_vars}
+
+modes_catalog = {
+    'geometry': geometry_catalog,
+    'static': static_catalog,
+    'kinematic': kinematic_catalog}
 
 default_bounds = dict(
     east_shift=(-10., 10.),
@@ -72,6 +87,11 @@ default_geo_std = 1.e-3
 seismic_data_name = 'seismic_data.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
 
+linear_gf_dir_name = 'linear_gfs'
+fault_geometry_name = 'fault_geometry.pkl'
+geodetic_linear_gf_name = 'linear_geodetic_gfs.pkl'
+seismic_static_linear_gf_name = 'linear_seismic_gfs.pkl'
+
 sample_p_outname = 'sample.params'
 
 km = 1000.
@@ -79,15 +99,23 @@ km = 1000.
 
 class GFConfig(Object):
     """
-    Config for GreensFunction calculation parameters.
+    Base config for GreensFunction calculation parameters.
     """
     store_superdir = String.T(default='./')
+    n_variations = Int.T(default=0,
+                         help='Times to vary input velocity model.')
+
+
+class NonlinearGFConfig(GFConfig):
+    """
+    Config for non-linear GreensFunction calculation parameters.
+    """
+
     earth_model = String.T(default='ak135-f-average.m',
                            help='Name of the reference earthmodel, see '
                                 'pyrocko.cake.builtin_models() for '
                                 'alternatives.')
-    n_variations = Int.T(default=0,
-                         help='Times to vary input velocity model.')
+
     use_crust2 = Bool.T(
         default=True,
         help='Flag, for replacing the crust from the earthmodel'
@@ -107,13 +135,12 @@ class GFConfig(Object):
                                help='Maximum depth [km] for GF function grid.')
     source_depth_spacing = Float.T(default=1.,
                                help='Depth spacing [km] for GF function grid.')
-
     nworkers = Int.T(
         default=1,
         help='Number of processors to use for calculating the GFs')
 
 
-class SeismicGFConfig(GFConfig):
+class SeismicGFConfig(NonlinearGFConfig):
     """
     Seismic GF parameters for Layered Halfspace.
     """
@@ -137,7 +164,7 @@ class SeismicGFConfig(GFConfig):
         help='Distance spacing [km] for GF function grid.')
 
 
-class GeodeticGFConfig(GFConfig):
+class GeodeticGFConfig(NonlinearGFConfig):
     """
     Geodetic GF parameters for Layered Halfspace.
     """
@@ -157,6 +184,31 @@ class GeodeticGFConfig(GFConfig):
     source_distance_spacing = Float.T(
         default=1.,
         help='Distance spacing [km] for GF function grid.')
+
+
+class LinearGFConfig(GFConfig):
+    """
+    Config for linear GreensFunction calculation parameters.
+    """
+    reference_sources = List.T(RectangularSource.T(),
+        help='Geometry of the reference source(s) to fix')
+    patch_width = Float.T(
+        default=5. * km,
+        help='Patch width [m] to divide reference sources')
+    patch_length = Float.T(
+        default=5. * km,
+        help='Patch length [m] to divide reference sources')
+    extension_width = Float.T(
+        default=0.1,
+        help='Extend reference sources by this factor in each'
+             ' dip-direction. 0.1 means extension of the fault by 10% in each'
+             ' direction, i.e. 20% in total. If patches would intersect with'
+             ' the free surface they are constrained to end at the surface.')
+    extension_length = Float.T(
+        default=0.1,
+        help='Extend reference sources by this factor in each'
+             ' strike-direction. 0.1 means extension of the fault by 10% in'
+             ' each direction, i.e. 20% in total.')
 
 
 class SeismicConfig(Object):
@@ -179,7 +231,7 @@ class SeismicConfig(Object):
                 help='Taper a,b/c,d time [s] before/after wave arrival')
     filterer = Filter.T(default=Filter.D())
     targets = List.T(TeleseismicTarget.T(), optional=True)
-    gf_config = SeismicGFConfig.T(default=SeismicGFConfig.D())
+    gf_config = GFConfig.T(default=SeismicGFConfig.D())
 
 
 class GeodeticConfig(Object):
@@ -196,7 +248,7 @@ class GeodeticConfig(Object):
         default=True,
         help='Flag for calculating the data covariance matrix based on the'
              ' pre P arrival data trace noise.')
-    gf_config = GeodeticGFConfig.T(default=GeodeticGFConfig.D())
+    gf_config = GFConfig.T(default=GeodeticGFConfig.D())
 
 
 class ProblemConfig(Object):
@@ -210,15 +262,24 @@ class ProblemConfig(Object):
     datasets = List.T(default=['geodetic'])
     hyperparameters = Dict.T(
         help='Hyperparameters to weight different types of datasets.')
-    priors = List.T(Parameter.T())
+    priors = Dict.T(
+        help='Priors of the variables in question.')
 
-    def init_vars(self):
+    def init_vars(self, variables=None):
+        """
+        Initiate priors based on the problem mode and datasets.
 
-        variables = self.select_variables()
+        Parameters
+        ----------
+        variables : list
+            of str of variable names to initialise
+        """
+        if variables is None:
+            variables = self.select_variables()
 
-        self.priors = []
+        self.priors = {}
         for variable in variables:
-            self.priors.append(
+            self.priors[variable] = \
                 Parameter(
                     name=variable,
                     lower=num.ones(self.n_faults, dtype=num.float) * \
@@ -227,40 +288,34 @@ class ProblemConfig(Object):
                         default_bounds[variable][1],
                     testvalue=num.ones(self.n_faults, dtype=num.float) * \
                         num.mean(default_bounds[variable]))
-                               )
 
     def select_variables(self):
         """
         Return model variables depending on problem config.
         """
 
-        if self.mode not in modes:
+        if self.mode not in modes_catalog.keys():
             raise ValueError('Problem mode %s not implemented' % self.mode)
 
-        if self.mode == 'geometry':
-            if 'geodetic' in self.datasets:
-                variables = geo_vars_geometry
-            if 'seismic' in self.datasets:
-                variables = joint_vars_geometry
+        vars_catalog = modes_catalog[self.mode]
 
-        elif self.mode == 'static':
-            variables = static_dist_vars
+        variables = []
+        for dataset in self.datasets:
+            if dataset in vars_catalog.keys():
+                variables += vars_catalog[dataset]
 
-        elif self.mode == 'kinematic':
-            variables = kinematic_dist_vars
-            if 'seismic' not in self.datasets:
-                logger.error('A kinematic model cannot be resolved with'
-                             'geodetic data only.')
-                raise Exception('Kinematic model not resolvable with only'
-                                'geodetic data!')
+        unique_variables = utility.unique_list(variables)
+        if len(unique_variables) == 0:
+            raise Exception('Mode and dataset combination not implemented'
+                ' or not resolvable with given datasets.')
 
-        return variables
+        return unique_variables
 
     def validate_priors(self):
         """
         Check if priors and their test values do not contradict!
         """
-        for param in self.priors:
+        for param in self.priors.itervalues():
             param()
 
         logger.info('All parameter-priors ok!')
@@ -346,7 +401,7 @@ class ATMCMCConfig(SamplerParameters):
                   help='Stage where to start/continue the sampling. Has to'
                        ' be int or "final"')
     proposal_dist = String.T(
-        default='MvNPd',
+        default='MultivariateNormal',
         help='Multivariate Normal Proposal distribution, for Metropolis steps'
              'alternatives need to be implemented')
     check_bnd = Bool.T(
@@ -443,7 +498,7 @@ class BEATconfig(Object, Cloneable):
             self.hyper_sampler_config = None
 
 
-def init_config(name, date, min_magnitude=6.0, main_path='./',
+def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                 datasets=['geodetic'],
                 mode='geometry', n_faults=1,
                 sampler='ATMCMC', hyper_sampler='Metropolis',
@@ -479,38 +534,74 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
     """
 
     c = BEATconfig(name=name, date=date)
-
-    c.event = utility.search_catalog(date=date, min_magnitude=min_magnitude)
-
     c.project_dir = os.path.join(os.path.abspath(main_path), name)
+
+    if mode == 'geometry':
+        if date is not None:
+            c.event = utility.search_catalog(
+                date=date, min_magnitude=min_magnitude)
+        else:
+            logger.warn('No given date! Using dummy event!'
+                ' Updating reference coordinates (spatial & temporal)'
+                ' necessary!')
+            c.event = model.Event()
+            c.date = 'dummy'
+
+        if 'geodetic' in datasets:
+            c.geodetic_config = GeodeticConfig()
+            if use_custom:
+                logger.info('use_custom flag set! The velocity model in the'
+                            ' geodetic GF configuration has to be updated!')
+                c.geodetic_config.gf_config.custom_velocity_model = \
+                    load_model().extract(depth_max=100. * km)
+                c.geodetic_config.gf_config.use_crust2 = False
+                c.geodetic_config.gf_config.replace_water = False
+        else:
+            c.geodetic_config = None
+
+        if 'seismic' in datasets:
+            c.seismic_config = SeismicConfig()
+            if use_custom:
+                logger.info('use_custom flag set! The velocity model in the'
+                            ' seismic GF configuration has to be updated!')
+                c.seismic_config.gf_config.custom_velocity_model = \
+                    load_model().extract(depth_max=100. * km)
+                c.seismic_config.gf_config.use_crust2 = False
+                c.seismic_config.gf_config.replace_water = False
+        else:
+            c.seismic_config = None
+
+    elif mode == 'static':
+
+        gc = load_config(c.project_dir, 'geometry')
+
+        if gc is not None:
+            logger.info('Taking information from geometry_config ...')
+            n_faults = gc.problem_config.n_faults
+            point = {k: v.testvalue \
+                for k, v in gc.problem_config.priors.iteritems()}
+            source_points = utility.split_point(point)
+            reference_sources = [RectangularSource(
+                **source_points[i]) for i in range(n_faults)]
+
+            c.date = gc.date
+            c.event = gc.event
+            c.geodetic_config = gc.geodetic_config
+            c.geodetic_config.gf_config = LinearGFConfig(
+                store_superdir=gc.geodetic_config.gf_config.store_superdir,
+                n_variations=gc.geodetic_config.gf_config.n_variations,
+                reference_sources=reference_sources)
+        else:
+            logger.info('Found no geometry setup, init blank ...')
+            c.geodetic_config = GeodeticConfig(gf_config=LinearGFConfig())
+            c.date = 'dummy'
+        logger.info(
+            'Problem config has to be updated. After deciding on the patch'
+            ' dimensions and extension factors please run: import')
 
     c.problem_config = ProblemConfig(
         n_faults=n_faults, datasets=datasets, mode=mode)
     c.problem_config.init_vars()
-
-    if 'geodetic' in datasets:
-        c.geodetic_config = GeodeticConfig()
-        if use_custom:
-            logger.info('use_custom flag set! The velocity model in the'
-                        ' geodetic GF configuration has to be updated!')
-            c.geodetic_config.gf_config.custom_velocity_model = \
-                load_model().extract(depth_max=100. * km)
-            c.geodetic_config.gf_config.use_crust2 = False
-            c.geodetic_config.gf_config.replace_water = False
-    else:
-        c.geodetic_config = None
-
-    if 'seismic' in datasets:
-        c.seismic_config = SeismicConfig()
-        if use_custom:
-            logger.info('use_custom flag set! The velocity model in the'
-                        ' seismic GF configuration has to be updated!')
-            c.seismic_config.gf_config.custom_velocity_model = \
-                load_model().extract(depth_max=100. * km)
-            c.seismic_config.gf_config.use_crust2 = False
-            c.seismic_config.gf_config.replace_water = False
-    else:
-        c.seismic_config = None
 
     c.sampler_config = SamplerConfig(name=sampler)
     c.sampler_config.set_parameters()
@@ -527,10 +618,21 @@ def init_config(name, date, min_magnitude=6.0, main_path='./',
     logger.info('Project_directory: %s \n' % c.project_dir)
     util.ensuredir(c.project_dir)
 
-    config_file_name = 'config_' + mode + '.yaml'
-    conf_out = os.path.join(c.project_dir, config_file_name)
-    dump(c, filename=conf_out)
+    dump_config(c)
     return c
+
+
+def dump_config(config):
+    """
+    Load configuration file.
+
+    Parameters
+    ----------
+    config : :class:`BEATConfig`
+    """
+    config_file_name = 'config_' + config.problem_config.mode + '.yaml'
+    conf_out = os.path.join(config.project_dir, config_file_name)
+    dump(config, filename=conf_out)
 
 
 def load_config(project_dir, mode):
@@ -551,7 +653,12 @@ def load_config(project_dir, mode):
     config_file_name = 'config_' + mode + '.yaml'
 
     config_fn = os.path.join(project_dir, config_file_name)
-    config = load(filename=config_fn)
+
+    try:
+        config = load(filename=config_fn)
+    except IOError:
+        logger.info('File %s does not exist! Returning None.' % config_fn)
+        return None
 
     if config.problem_config.hyperparameters is None or \
         len(config.problem_config.hyperparameters.keys()) == 0:

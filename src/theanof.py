@@ -76,16 +76,24 @@ class GeoLayerSynthesizerFree(theano.Op):
 
 
 class GeoLayerSynthesizerStatic(theano.Op):
-    '''
+    """
     Theano wrapper for a geodetic forward model for static observation
     points.
+    Input order does not matter anymore! Did in previous version.
 
-    Inputs have to be in order!
-    Type Numpy arrays:
-                    Source parameters (RectangularSource)
-    east_shifts, north_shifts, top_depths, strikes, dips, rakes,
-    lengths, widths, slips
-    '''
+    Parameters
+    ----------
+    lats : n x 1 :class:`numpy.ndarray`
+        with latitudes of observation points
+    lons : n x 1 :class:`numpy.ndarray`
+        with longitudes of observation points
+    store_superdir : str
+        with absolute path to the GF store super directory
+    crust_ind : int
+        with the index to the GF store
+    sources : :class:`pscmp.RectangularSource`
+        to be used in generating the synthetic displacements
+    """
 
     __props__ = ('lats', 'lons', 'store_superdir', 'crust_ind', 'sources')
 
@@ -102,9 +110,22 @@ class GeoLayerSynthesizerStatic(theano.Op):
     def __setstate__(self, state):
         self.__dict__.update(state)
 
-    def make_node(self, *inputs):
+    def make_node(self, inputs):
+        """
+        Transforms theano tensors to node and allocates variables accordingly.
+
+        Parameters
+        ----------
+        inputs : dict
+            keys being strings of source attributes of the
+            :class:`pscmp.RectangularSource` that was used to initialise
+            the Operator
+            values are :class:`theano.tensor.Tensor`
+        """
         inlist = []
-        for i in inputs:
+        self.varnames = inputs.keys()
+
+        for i in inputs.values():
             inlist.append(tt.as_tensor_variable(i))
 
         out = tt.as_tensor_variable(num.zeros((2, 2)))
@@ -112,11 +133,19 @@ class GeoLayerSynthesizerStatic(theano.Op):
         return theano.Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
+        """
+        Perform method of the Operator to calculate synthetic displacements.
 
+        Parameters
+        ----------
+        inputs : list
+            of :class:`numpy.ndarray`
+        output : list
+            of synthetic displacements of :class:`numpy.ndarray` (n x 1)
+        """
         z = output[0]
 
-        point = {var: inp for var, inp in zip(
-                    config.geo_vars_geometry, inputs)}
+        point = {vname: i for vname, i in zip(self.varnames, inputs)}
 
         point = utility.adjust_point_units(point)
 
@@ -138,14 +167,21 @@ class GeoLayerSynthesizerStatic(theano.Op):
 
 
 class SeisSynthesizer(theano.Op):
-    '''
-    Theano wrapper for a seismic forward model for given source, targets
+    """
+    Theano wrapper for a seismic forward model with synthetic waveforms.
+    Input order does not matter anymore! Did in previous version.
 
-    Inputs Type: Numpy arrays:
-                    Source parameters (RectangularSource)
-    east_shifts, north_shifts, top_depths, strikes, dips, rakes,
-    lengths, widths, slips
-    '''
+    Parameters
+    ----------
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+    sources : List
+        containing :class:`pyrocko.gf.seismosizer.Source` Objects
+    targets : List
+        containing :class:`pyrocko.gf.seismosizer.Target` Objects
+
+    arrival_taper : :class:`heart.ArrivalTaper`
+    filterer : :class:`heart.Filterer`
+    """
 
     __props__ = ('engine', 'sources', 'targets', 'event',
                  'arrival_taper', 'filterer')
@@ -165,9 +201,23 @@ class SeisSynthesizer(theano.Op):
     def __setstate__(self, state):
         self.__dict__.update(state)
 
-    def make_node(self, *inputs):
+    def make_node(self, inputs):
+        """
+        Transforms theano tensors to node and allocates variables accordingly.
+
+        Parameters
+        ----------
+        inputs : dict
+            keys being strings of source attributes of the
+            :class:`pscmp.RectangularSource` that was used to initialise
+            the Operator
+            values are :class:`theano.tensor.Tensor`
+        """
         inlist = []
-        for i in inputs:
+
+        self.varnames = inputs.keys()
+
+        for i in inputs.values():
             inlist.append(tt.as_tensor_variable(i))
 
         outm = tt.as_tensor_variable(num.zeros((2, 2)))
@@ -176,12 +226,24 @@ class SeisSynthesizer(theano.Op):
         return theano.Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
+        """
+        Perform method of the Operator to calculate synthetic displacements.
 
+        Parameters
+        ----------
+        inputs : list
+            of :class:`numpy.ndarray`
+        output : list
+            1) of synthetic waveforms of :class:`numpy.ndarray`
+               (n x nsamples)
+            2) of start times of the first waveform samples 
+               :class:`numpy.ndarray` (n x 1)
+        """
         synths = output[0]
         tmins = output[1]
 
-        point = {var: inp for var, inp in zip(
-                    config.joint_vars_geometry, inputs)}
+        point = {vname: i for vname, i in zip(
+                    self.varnames, inputs)}
 
         mpoint = utility.adjust_point_units(point)
 
