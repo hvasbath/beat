@@ -1100,6 +1100,11 @@ def seis_construct_gf(
             id='any_S',
             definition='s,S,s\\,S\\')]
 
+    distance_min = distance - (source_distance_radius * km)
+    if distance_min < 0.:
+        logger.warn('Minimum grid distance is below zero. Setting it to zero!')
+        distance_min = 0.
+
     # fill config files for fomosto
     fom_conf = gf.ConfigTypeA(
         id='%s_%s_%.3fHz_%s' % (station.station,
@@ -1112,7 +1117,7 @@ def seis_construct_gf(
         source_depth_min=source_depth_min * km,
         source_depth_max=source_depth_max * km,
         source_depth_delta=source_depth_spacing * km,
-        distance_min=distance - (source_distance_radius * km),
+        distance_min=distance_min,
         distance_max=distance + (source_distance_radius * km),
         distance_delta=source_distance_spacing * km,
         tabulated_phases=tabulated_phases)
@@ -1164,7 +1169,7 @@ def seis_construct_gf(
         source_model = copy.deepcopy(receiver_model)
         receiver_model = None
         model_code_id = code
-        version = '2010beta'
+        version = '2010'
         conf = qssp.QSSPConfig(
             qssp_version=version,
             slowness_max=float(num.max(slowness_taper)),
