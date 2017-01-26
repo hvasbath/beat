@@ -722,8 +722,10 @@ class GeodeticResult(Object):
     llk = Float.T(default=0., optional=True)
 
 
-def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0,
-                 crust_inds=[0], interpolation='multilinear'):
+def init_targets(stations, earth_model='ak135-f-average.m',
+                 channels=['T', 'Z'], sample_rate=1.0,
+                 crust_inds=[0], interpolation='multilinear',
+                 reference_location=None):
     """
     Initiate a list of target objects given a list of indexes to the
     respective GF store velocity model variation index (crust_inds).
@@ -732,6 +734,8 @@ def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0,
     ----------
     stations : List of :class:`pyrocko.model.Station`
         List of station objects for which the targets are being initialised
+    earth_model = str
+        Name of the earth model that has been used for GF calculation.
     channels : List of str
         Components of the traces to be optimized for if rotated:
         T - transversal, Z - vertical, R - radial
@@ -744,11 +748,23 @@ def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0,
     interpolation : str
         Method of interpolation for the Greens Functions, can be 'multilinear'
         or 'nearest_neighbor'
+    reference_location : :class:`ReferenceLocation` or
+        :class:`pyrocko.model.Station`
+        if given, targets are initialised with this reference location
 
     Returns
     -------
     List of :class:`pyrocko.gf.seismosizer.Target`
     """
+
+    if reference_location is None:
+        store_prefixes = [copy.deepcopy(station.station) \
+             for station in stations]
+    else:
+        store_prefixes = [copy.deepcopy(reference_location.station) \
+             for station in stations]
+
+    em_name = earth_model.split('-')[0].split('.')[0]
 
     targets = [TeleseismicTarget(
         quantity='displacement',
@@ -760,8 +776,8 @@ def init_targets(stations, channels=['T', 'Z'], sample_rate=1.0,
         azimuth=stations[sta_num].get_channel(channel).azimuth,
         dip=stations[sta_num].get_channel(channel).dip,
         interpolation=interpolation,
-        store_id='%s_ak135_%.3fHz_%s' % (stations[sta_num].station,
-                                                sample_rate, crust_ind))
+        store_id='%s_%s_%.3fHz_%s' % (
+            store_prefixes[sta_num], em_name, sample_rate, crust_ind))
 
         for channel in channels
             for crust_ind in crust_inds

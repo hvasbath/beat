@@ -574,6 +574,8 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
             if not individual_gfs:
                 c.seismic_config.gf_config.reference_location = \
                     ReferenceLocation(lat=10.0, lon=10.0)
+            else:
+                c.seismic_config.gf_config.reference_location = None
 
             if use_custom:
                 logger.info('use_custom flag set! The velocity model in the'

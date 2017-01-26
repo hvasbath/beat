@@ -477,10 +477,12 @@ class SeismicComposite(Composite):
 
         self.targets = heart.init_targets(
             self.stations,
+            earth_model=sc.gf_config.earth_model,
             channels=sc.channels,
             sample_rate=sc.gf_config.sample_rate,
             crust_inds=[0],  # always reference model
-            interpolation='multilinear')
+            interpolation='multilinear',
+            reference_location=sc.reference_location)
 
         self.n_t = len(self.targets)
         logger.info('Number of seismic datasets: %i ' % self.n_t)
@@ -786,9 +788,11 @@ class SeismicGeometryComposite(SeismicComposite):
                     channel, station.station))
                 crust_targets = heart.init_targets(
                     stations=[station],
+                    earth_model=sc.gf_config.earth_model,
                     channels=channel,
                     sample_rate=sc.gf_config.sample_rate,
-                    crust_inds=range(sc.gf_config.n_variations + 1))
+                    crust_inds=range(sc.gf_config.n_variations + 1),
+                    reference_location=sc.gf_config.reference_location)
 
                 cov_pv = cov.get_seis_cov_velocity_models(
                     engine=self.engine,
