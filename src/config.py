@@ -27,13 +27,25 @@ guts_prefix = 'beat'
 
 logger = logging.getLogger('config')
 
-geo_vars_geometry = ['east_shift', 'north_shift', 'depth', 'strike', 'dip',
-                         'rake', 'length', 'width', 'slip']
-geo_vars_magma = geo_vars_geometry + ['opening']
+geo_vars = ['east_shift', 'north_shift', 'depth', 'strike', 'dip',
+            'rake', 'slip']
 
-seis_vars_geometry = ['time', 'duration']
+seis_vars = ['time', 'duration']
 
-joint_vars_geometry = geo_vars_geometry + seis_vars_geometry
+rfs = 'RectangularSource'
+dcs = 'DoubleCoupleSource'
+
+geo_vars_geometry = {
+    rfs: geo_vars + ['length', 'width'],
+    dcs: geo_vars}
+
+seis_vars_geometry = {
+    rfs: seis_vars,
+    dcs: seis_vars}
+
+joint_vars_geometry = {
+    rfs: seis_vars + geo_vars + ['length', 'width'],
+    dcs: seis_vars + geo_vars}
 
 static_dist_vars = ['Uparr', 'Uperp']
 partial_kinematic_vars = ['nuc_x', 'nuc_y', 'duration', 'velocity']
@@ -262,6 +274,10 @@ class ProblemConfig(Object):
     """
     mode = String.T(default='geometry',
                     help='Problem to solve: "geometry", "static","kinematic"')
+    source_type = String.T(
+        default='RectangularSource',
+        help='Source type to invert for. Options: RectangularSource or'
+             ' DoubleCoupleSource')
     n_sources = Int.T(default=1,
                      help='Number of Sub-sources to solve for')
     datasets = List.T(default=['geodetic'])
@@ -307,7 +323,16 @@ class ProblemConfig(Object):
         variables = []
         for dataset in self.datasets:
             if dataset in vars_catalog.keys():
-                variables += vars_catalog[dataset]
+                if self.mode == 'geometry':
+                    if self.source_type in vars_catalog[dataset].keys():
+                        variables += vars_catalog[dataset][self.source_type]
+                    else:
+                        raise ValueError('Source Type not supported for type'
+                            ' of problem, and dataset!')
+                else:
+                    variables += vars_catalog[dataset]
+            else:
+                raise ValueError('Dataset not supported for type of problem!')
 
         unique_variables = utility.unique_list(variables)
         if len(unique_variables) == 0:
