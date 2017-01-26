@@ -1038,7 +1038,7 @@ class Problem(object):
 
             pc = self.config.problem_config
 
-            logger.debug('Optimization for %i sources', pc.n_faults)
+            logger.debug('Optimization for %i sources', pc.n_sources)
 
             rvs = dict()
             for param in pc.priors.itervalues():
@@ -1228,7 +1228,7 @@ class GeometryOptimizer(Problem):
 
         # Init sources
         self.sources = []
-        for i in range(config.problem_config.n_faults):
+        for i in range(config.problem_config.n_sources):
             if self.event:
                 source = heart.RectangularSource.from_pyrocko_event(self.event)
                 # hardcoded inversion for hypocentral time

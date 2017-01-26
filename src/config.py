@@ -17,7 +17,7 @@ from pyrocko import trace, model, util
 from pyrocko.gf import Earthmodel1D
 from pyrocko.gf.seismosizer import Cloneable
 from beat.heart import Filter, ArrivalTaper, TeleseismicTarget, Parameter
-from beat.heart import RectangularSource
+from beat.heart import RectangularSource, ReferenceLocation
 
 from beat import utility
 
@@ -144,6 +144,10 @@ class SeismicGFConfig(NonlinearGFConfig):
     """
     Seismic GF parameters for Layered Halfspace.
     """
+    reference_location = ReferenceLocation.T(ReferenceLocation.D(),
+        help="Reference location for the midpoint of the Green's Function "
+             "grid.",
+        optional=True)
     code = String.T(default='qssp',
                   help='Modeling code to use. (qssp, qseis, comming soon: '
                        'qseis2d)')
@@ -161,7 +165,8 @@ class SeismicGFConfig(NonlinearGFConfig):
              'reference event.')
     source_distance_spacing = Float.T(
         default=1.,
-        help='Distance spacing [km] for GF function grid.')
+        help='Distance spacing [km] for GF function grid w.r.t'
+             ' reference_location.')
 
 
 class GeodeticGFConfig(NonlinearGFConfig):
@@ -257,8 +262,8 @@ class ProblemConfig(Object):
     """
     mode = String.T(default='geometry',
                     help='Problem to solve: "geometry", "static","kinematic"')
-    n_faults = Int.T(default=1,
-                     help='Number of Sub-faults to solve for')
+    n_sources = Int.T(default=1,
+                     help='Number of Sub-sources to solve for')
     datasets = List.T(default=['geodetic'])
     hyperparameters = Dict.T(
         help='Hyperparameters to weight different types of datasets.')
@@ -282,11 +287,11 @@ class ProblemConfig(Object):
             self.priors[variable] = \
                 Parameter(
                     name=variable,
-                    lower=num.ones(self.n_faults, dtype=num.float) * \
+                    lower=num.ones(self.n_sources, dtype=num.float) * \
                         default_bounds[variable][0],
-                    upper=num.ones(self.n_faults, dtype=num.float) * \
+                    upper=num.ones(self.n_sources, dtype=num.float) * \
                         default_bounds[variable][1],
-                    testvalue=num.ones(self.n_faults, dtype=num.float) * \
+                    testvalue=num.ones(self.n_sources, dtype=num.float) * \
                         num.mean(default_bounds[variable]))
 
     def select_variables(self):
@@ -500,9 +505,9 @@ class BEATconfig(Object, Cloneable):
 
 def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                 datasets=['geodetic'],
-                mode='geometry', n_faults=1,
+                mode='geometry', n_sources=1,
                 sampler='ATMCMC', hyper_sampler='Metropolis',
-                use_custom=False):
+                use_custom=False, individual_gfs=False):
     """
     Initialise BEATconfig File and write it main_path/name .
     Fine parameters have to be edited in the config file .yaml manually.
@@ -520,13 +525,18 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
         'seismic'
     mode : str
         type of optimization problem: 'Geometry' / 'Static'/ 'Kinematic'
-    n_faults : int
-        number of faults to solve for / discretize depending on mode parameter
+    n_sources : int
+        number of sources to solve for / discretize depending on mode parameter
     sampler : str
         Optimization algorithm to use to sample the solution space
         Options: 'ATMCMC', 'Metropolis'
     use_custom : boolean
         Flag to setup manually a custom velocity model.
+    individual_gfs : boolean
+        Flag to use individual Green's Functions for each specific station.
+        If false a reference location will be initialised in the config file.
+        If true the reference locations will be taken from the imported station
+        objects.
 
     Returns
     -------
@@ -561,6 +571,10 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
 
         if 'seismic' in datasets:
             c.seismic_config = SeismicConfig()
+            if not individual_gfs:
+                c.seismic_config.gf_config.reference_location = \
+                    ReferenceLocation(lat=10.0, lon=10.0)
+
             if use_custom:
                 logger.info('use_custom flag set! The velocity model in the'
                             ' seismic GF configuration has to be updated!')
@@ -577,12 +591,12 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
 
         if gc is not None:
             logger.info('Taking information from geometry_config ...')
-            n_faults = gc.problem_config.n_faults
+            n_sources = gc.problem_config.n_sources
             point = {k: v.testvalue \
                 for k, v in gc.problem_config.priors.iteritems()}
             source_points = utility.split_point(point)
             reference_sources = [RectangularSource(
-                **source_points[i]) for i in range(n_faults)]
+                **source_points[i]) for i in range(n_sources)]
 
             c.date = gc.date
             c.event = gc.event
@@ -600,7 +614,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
             ' dimensions and extension factors please run: import')
 
     c.problem_config = ProblemConfig(
-        n_faults=n_faults, datasets=datasets, mode=mode)
+        n_sources=n_sources, datasets=datasets, mode=mode)
     c.problem_config.init_vars()
 
     c.sampler_config = SamplerConfig(name=sampler)

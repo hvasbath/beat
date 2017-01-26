@@ -33,7 +33,7 @@ subcommand_usages = {
                          '[options]',
         'import':        'import <event_name> [options]',
         'sample':        'sample <event_name> [options]',
-        'build_gfs':     'build <event_name> [options]',
+        'build_gfs':     'build_gfs <event_name> [options]',
         'clone':         'clone <event_name> <cloned_event_name> [options]',
         'plot':          'plot <event_name> <plot_type> [options]',
     }
@@ -154,18 +154,18 @@ def command_init(args):
             help='Inversion problem to solve; "geometry", "static",'
                  '"kinematic". Default: "geometry"')
 
-        parser.add_option('--n_faults', dest='n_faults', type='int',
+        parser.add_option('--n_sources', dest='n_sources', type='int',
             default=1,
-            help='Integer Number of faults to invert for. Default: 1' )
+            help='Integer Number of sources to invert for. Default: 1' )
 
         parser.add_option('--sampler', dest='sampler', type='string',
             default='ATMCMC',
-            help='Sampling algoruthm to sample the solution space of the'
+            help='Sampling algorithm to sample the solution space of the'
                  ' general problem; "ATMCMC", "Metropolis". Default: "ATMCMC"')
 
         parser.add_option('--hyper_sampler', dest='hyper_sampler',
             type='string', default='Metropolis',
-            help='Sampling algoruthm to sample the solution space of the'
+            help='Sampling algorithm to sample the solution space of the'
                  ' hyperparameters only;'
                  '"ATMCMC", "Metropolis". Default: "Metropolis"')
 
@@ -173,6 +173,11 @@ def command_init(args):
             action='store_true',
             help='If set, a slot for a custom velocity model is being created'
                  ' in the configuration file.')
+
+        parser.add_option('--individual_gfs', dest='individual_gfs',
+            action='store_true',
+            help="If set, Green's Function stores will be created individually"
+                 " for each station!")
 
     parser, options, args = cl_parse('init', args, setup=setup)
 
@@ -196,10 +201,11 @@ def command_init(args):
                main_path=options.main_path,
                datasets=options.datasets,
                mode=options.mode,
-               n_faults=options.n_faults,
+               n_sources=options.n_sources,
                sampler=options.sampler,
                hyper_sampler=options.hyper_sampler,
-               use_custom=options.use_custom)
+               use_custom=options.use_custom,
+               individual_gfs=options.individual_gfs)
 
 
 def command_import(args):
@@ -320,7 +326,7 @@ def command_import(args):
                 problem, stage_number='final', load='full')
 
             point = plotting.get_result_point(stage, problem.config, 'max')
-            n_faults = problem.config.problem_config.n_faults
+            n_sources = problem.config.problem_config.n_sources
 
             source_params = config.geo_vars_geometry
             for param in point.keys():
@@ -330,7 +336,7 @@ def command_import(args):
             point = utility.adjust_point_units(point)
             source_points = utility.split_point(point)
             reference_sources = [heart.RectangularSource(
-                    **source_points[i]) for i in range(n_faults)]
+                    **source_points[i]) for i in range(n_sources)]
 
             c.geodetic_config.gf_config.reference_sources=reference_sources
             config.dump_config(c)
@@ -546,11 +552,21 @@ def command_build_gfs(args):
             sc = c.seismic_config
             sf = sc.gf_config
 
-            seismic_data_path = os.path.join(
-                c.project_dir, config.seismic_data_name)
+            if sf.reference_location is None:
+                logger.info("Creating Green's Function stores individually"
+                    " for each station!")
+                seismic_data_path = os.path.join(
+                    c.project_dir, config.seismic_data_name)
 
-            stations, data_traces = utility.load_objects(seismic_data_path)
-            stations = utility.apply_station_blacklist(stations, sc.blacklist)
+                stations, _ = utility.load_objects(seismic_data_path)
+                stations = utility.apply_station_blacklist(
+                    stations, sc.blacklist)
+            else:
+                logger.info(
+                    "Creating one global Green's Function store, which is "
+                    "being used by all stations!")
+                stations = [sf.reference_location]
+                logger.info('Store name: %s' % sf.reference_location.station)
 
             for crust_ind in range(sf.n_variations + 1):
                 for station in stations:
@@ -577,7 +593,7 @@ def command_build_gfs(args):
 
             if not options.execute:
                 logger.info('Seismic GF store configs successfully created! '
-                            'To start calculations set e')
+                            'To start calculations set --execute!')
 
             if options.execute:
                 logger.info('Seismic GF calculations successful!')
@@ -624,12 +640,12 @@ def command_build_gfs(args):
                     'Storing discretized fault geometry to: %s' % dsourcepath)
                 utility.dump_objects(dsourcepath, [dsources])
 
-                n_faults = len(dsources[geo][varnames[0]])
+                n_sources = len(dsources[geo][varnames[0]])
 
                 logger.info('Updating problem_config:')
                 logger.info(
-                    'Number of source-sub-patches: %i' % n_faults)
-                c.problem_config.n_faults = n_faults
+                    'Number of source-sub-patches: %i' % n_sources)
+                c.problem_config.n_sources = n_sources
                 c.problem_config.init_vars(varnames)
                 config.dump_config(c)
 

@@ -380,6 +380,16 @@ def log_determinant(A, inverse=False):
     return num.log(num.diag(cholesky)).sum()
 
 
+class ReferenceLocation(gf.Location):
+    """
+    Reference Location for Green's Function store calculations!
+    """
+    station = String.T(
+        default='Store_Name',
+        help='This mimics the station.station attribute which determines the'
+             ' store name!')
+
+
 class Covariance(Object):
     """
     Covariance of an observation. Holds data and model prediction uncertainties
@@ -1359,7 +1369,7 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
     lats : List of floats
         Latitudes [decimal deg] of observation points
     sources : List of :class:`pscmp.PsCmpRectangularSource`
-        Sources i.e. faults to calculate synthetics for
+        Sources to calculate synthetics for
     keep_tmp : boolean
         Flag to keep directories (in '/tmp') where calculated synthetics are
         stored.
@@ -1480,7 +1490,7 @@ def geo_construct_gf_linear(
         of :class:`heart.GeodeticTarget`
     dsources : dict
         discretized sources of :class:`pscmp.PsCmpRectangularSource`
-        Sources i.e. faults to calculate synthetics for
+        Sources i.e. sources to calculate synthetics for
     varnames : list
         of str with variable names that are being optimized for
     """
