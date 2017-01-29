@@ -28,7 +28,7 @@ guts_prefix = 'beat'
 logger = logging.getLogger('config')
 
 geo_vars = ['east_shift', 'north_shift', 'depth', 'strike', 'dip',
-            'rake', 'slip']
+            'rake']
 
 seis_vars = ['time', 'duration']
 
@@ -36,16 +36,17 @@ rfs = 'RectangularSource'
 dcs = 'DoubleCoupleSource'
 
 geo_vars_geometry = {
-    rfs: geo_vars + ['length', 'width'],
-    dcs: geo_vars}
+    rfs: geo_vars + ['length', 'width', 'slip'],
+    dcs: geo_vars + ['magnitude']}
 
 seis_vars_geometry = {
     rfs: seis_vars,
     dcs: seis_vars}
 
-joint_vars_geometry = {
-    rfs: seis_vars + geo_vars + ['length', 'width'],
-    dcs: seis_vars + geo_vars}
+joint_vars_geometry = {}
+for source_type in geo_vars_geometry.keys():
+    joint_vars_geometry[source_type] = geo_vars_geometry[source_type] + \
+                                       seis_vars_geometry[source_type]
 
 static_dist_vars = ['Uparr', 'Uperp']
 partial_kinematic_vars = ['nuc_x', 'nuc_y', 'duration', 'velocity']

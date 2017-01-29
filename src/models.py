@@ -331,8 +331,7 @@ class GeodeticGeometryComposite(GeodeticComposite):
         source_points = utility.split_point(tpoint)
 
         for i, source in enumerate(self.sources):
-            utility.update_source(source, **source_points[i])
-            heart.adjust_fault_reference(source, input_depth='top')
+            source.update(**source_points[i])
 
     def get_formula(self, input_rvs, hyperparams):
         """
@@ -661,6 +660,7 @@ class SeismicGeometryComposite(SeismicComposite):
         self.config = sc
 
     def __getstate__(self):
+
         outstate = (
             self.config,
             self.sources,
@@ -706,7 +706,6 @@ class SeismicGeometryComposite(SeismicComposite):
 
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
-            heart.adjust_fault_reference(source, input_depth='top')
 
     def get_formula(self, input_rvs, hyperparams):
         """
@@ -1023,10 +1022,6 @@ class Problem(object):
                     likelihood_name=self._like_name)
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
-
-        if 'seismic' in self.composites.keys():
-            composite = self.composites['seismic']
-            composite.engine.close_cashed_stores()
 
         return step
 

@@ -6,6 +6,7 @@ import cPickle as pickle
 
 from pyrocko import util, orthodrome, catalog
 from pyrocko.cake import m2d
+from pyrocko.gf.seismosizer import RectangularSource
 
 import numpy as num
 
@@ -425,6 +426,9 @@ def update_source(source, **kwargs):
         else:
             source[k] = v
 
+    if isinstance(source, RectangularSource):
+        adjust_fault_reference(source, input_depth='Top')
+
 
 def utm_to_loc(utmx, utmy, zone, event):
     """
@@ -590,6 +594,35 @@ def search_catalog(date, min_magnitude, dayrange=1.):
         event = events[0]
 
     return event
+
+
+def adjust_fault_reference(source, input_depth='top'):
+    """
+    Adjusts source depth and east/north-shifts variables of fault according to
+    input_depth mode 'top/center'.
+
+    Parameters
+    ----------
+    source : :class:`RectangularSource` or :class:`pscmp.RectangularSource` or
+        :class:`pyrocko.gf.seismosizer.RectangularSource`
+    input_depth : string
+        if 'top' the depth in the source is interpreted as top depth
+        if 'center' the depth in the source is interpreted as center depth
+
+    Returns
+    -------
+    Updated input source object
+    """
+
+    if input_depth == 'top':
+        center = source.center(width=source.width)
+    elif input_depth == 'center':
+        center = num.array(
+            [source.east_shift, source.north_shift, source.depth])
+
+    source.update(east_shift=float(center[0]),
+                  north_shift=float(center[1]),
+                  depth=float(center[2]))
 
 
 def dump_objects(outpath, outlist):
