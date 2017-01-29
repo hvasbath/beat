@@ -1329,11 +1329,8 @@ def n_model_plot(models, axes=None):
     Plot cake layered earth models.
     '''
     if axes is None:
-        from matplotlib import pyplot as plt
-        cp.mpl_init()
-        axes = plt.gca()
-    else:
-        plt = None
+        fig, axes = plt.subplots(
+            nrows=1, ncols=1, figsize=mpl_papersize('a5', 'portrait'))
 
     cp.labelspace(axes)
     cp.labels_model(axes=axes)
@@ -1361,8 +1358,7 @@ def n_model_plot(models, axes=None):
     mx = (xmax - xmin) * 0.2
     axes.set_ylim(ymax + my, ymin - my)
     axes.set_xlim(xmin, xmax + mx)
-    if plt:
-        plt.show()
+    return fig, axes
 
 
 def load_earthmodels(engine, targets, depth_max='cmb'):
@@ -1375,12 +1371,52 @@ def load_earthmodels(engine, targets, depth_max='cmb'):
     return earthmodels
 
 
+def draw_earthmodels(problem, plot_options):
+
+    po = plot_options
+
+    for dataset, composite in problem.composites.iteritems():
+        outpath = os.path.join(
+            problem.outfolder, po.figure_dir, '%s_velocity_models.%s' % (
+            dataset, po.outformat))
+
+        if not os.path.exists(outpath) or po.force:
+            if dataset == 'seismic':
+                sc = problem.config.seismic_config
+                models = load_earthmodels(
+                    composite.engine, composite.targets,
+                    depth_max=sc.gf_config.depth_limit_variation)
+            elif dataset == 'geodetic':
+                gc = problem.config.geodetic_config
+                .gf_config.store_superdir
+                psgrnpath = 
+                t=num.loadtxt(psgrnpath, skiprows=136)
+
+
+            else:
+                raise Exception(
+                    'Plot for dataset %s not (yet) supported' % dataset)
+
+            fig, axes = n_model_plot(models, axes=None)
+
+        else:
+            logger.info('earthmodel plot exists. Use force=True for replotting!')
+            return
+
+        if po.outformat == 'display':
+            plt.show()
+        else:
+            logger.info('saving figure to %s' % outpath)
+            fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
+
+
 plots_catalog = {
     'correlation_hist': draw_correlation_hist,
     'stage_posteriors': draw_posteriors,
     'waveform_fits': draw_seismic_fits,
     'scene_fits': draw_geodetic_fits,
-            }
+    'velocity_models': draw_earthmodels,
+                }
 
 
 def available_plots():
