@@ -1,11 +1,12 @@
 import logging
 import os
+import re
 import collections
 import copy
 import cPickle as pickle
 
 from pyrocko import util, orthodrome, catalog
-from pyrocko.cake import m2d
+from pyrocko.cake import m2d, LayeredModel, read_nd_model_str
 
 import numpy as num
 
@@ -909,3 +910,26 @@ def check_hyper_flag(problem):
         return True
     else:
         return False
+
+
+def PsGrnArray2LayeredModel(psgrn_input_path):
+    """
+    Read PsGrn Input file and return velocity model.
+
+    Parameters
+    ----------
+    psgrn_input_path : str
+        Absolute path to the psgrn input file.
+
+    Returns
+    -------
+    :class:`LayeredModel`
+    """
+    a = num.loadtxt(psgrn_input_path, skiprows=136)
+    b = a[:, 1: -1]
+    b[:, 3] /= 1000.
+    return LayeredModel.from_scanlines(
+        read_nd_model_str(
+            re.sub('[\[\]]', '', num.array2string(
+                b, precision=4,
+                    formatter={'float_kind': lambda x: "%.3f" % x}))))

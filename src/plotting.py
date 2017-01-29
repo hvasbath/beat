@@ -1386,12 +1386,18 @@ def draw_earthmodels(problem, plot_options):
                 models = load_earthmodels(
                     composite.engine, composite.targets,
                     depth_max=sc.gf_config.depth_limit_variation)
+
             elif dataset == 'geodetic':
                 gc = problem.config.geodetic_config
-                .gf_config.store_superdir
-                psgrnpath = 
-                t=num.loadtxt(psgrnpath, skiprows=136)
 
+                models = []
+                for crust_ind in range(gc.gf_config.n_variations + 1):
+                    psgrn_input_path = os.path.join(
+                        gc.gf_config.store_superdir,
+                        'psgrn_green_' + str(crust_ind),
+                        'input')
+                    models.append(
+                        utility.PsGrnArray2LayeredModel(psgrn_input_path))
 
             else:
                 raise Exception(
@@ -1400,7 +1406,8 @@ def draw_earthmodels(problem, plot_options):
             fig, axes = n_model_plot(models, axes=None)
 
         else:
-            logger.info('earthmodel plot exists. Use force=True for replotting!')
+            logger.info(
+                'earthmodel plot exists. Use force=True for replotting!')
             return
 
         if po.outformat == 'display':
