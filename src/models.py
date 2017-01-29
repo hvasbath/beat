@@ -1243,7 +1243,7 @@ class GeometryOptimizer(Problem):
                 # hardcoded inversion for hypocentral time
                 source.stf.anchor = -1.
             else:
-                source = source_catalog[pc.source_type]
+                source = source_catalog[pc.source_type]()
 
             self.sources.append(source)
 

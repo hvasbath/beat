@@ -33,15 +33,17 @@ geo_vars = ['east_shift', 'north_shift', 'depth', 'strike', 'dip',
 seis_vars = ['time', 'duration']
 
 rfs = 'RectangularSource'
-dcs = 'DoubleCoupleSource'
+dcs = 'DCSource'
 
 geo_vars_geometry = {
     rfs: geo_vars + ['length', 'width', 'slip'],
-    dcs: geo_vars + ['magnitude']}
+                    }
+
+#    dcs: geo_vars + ['magnitude']}
 
 seis_vars_geometry = {
     rfs: seis_vars,
-    dcs: seis_vars}
+    dcs: seis_vars + geo_vars}
 
 joint_vars_geometry = {}
 for source_type in geo_vars_geometry.keys():
@@ -58,7 +60,7 @@ hyper_pars = {'Z': 'seis_Z', 'T': 'seis_T',
 
 geometry_catalog = {
     'geodetic': geo_vars_geometry,
-    'seismic': joint_vars_geometry}
+    'seismic': seis_vars_geometry}
 
 static_catalog = {
     'geodetic': static_dist_vars,
@@ -82,6 +84,7 @@ default_bounds = dict(
     length=(5., 30.),
     width=(5., 20.),
     slip=(0.1, 8.),
+    magnitude=(4.5, 8.0),
     time=(-3., 3.),
     duration=(0., 20.),
     Uparr=(-0.3, 6.),
@@ -278,7 +281,7 @@ class ProblemConfig(Object):
     source_type = String.T(
         default='RectangularSource',
         help='Source type to invert for. Options: RectangularSource or'
-             ' DoubleCoupleSource')
+             ' DCSource')
     n_sources = Int.T(default=1,
                      help='Number of Sub-sources to solve for')
     datasets = List.T(default=['geodetic'])
@@ -394,6 +397,7 @@ class MetropolisConfig(SamplerParameters):
              'Alternatives: Cauchy, Laplace, Poisson, MultivariateNormal')
     update_covariances = Bool.T(
         default=False,
+        optional=True,
         help='Update model prediction covariance matrixes in transition '
              'stages.')
     thin = Int.T(
@@ -440,7 +444,8 @@ class ATMCMCConfig(SamplerParameters):
         help='Flag for checking whether proposed step lies within'
              ' variable bounds.')
     update_covariances = Bool.T(
-        default=False,
+        default=True,
+        optional=True,
         help='Update model prediction covariance matrixes in transition '
              'stages.')
     rm_flag = Bool.T(default=False,
@@ -460,17 +465,17 @@ class SamplerConfig(Object):
         optional=True,
         help='Sampler dependend Parameters')
 
-    def set_parameters(self):
+    def set_parameters(self, **kwargs):
 
         if self.name == None:
             logger.info('Sampler not defined, using default sampler: ATMCMC')
             self.name = 'ATMCMC'
 
         if self.name == 'Metropolis':
-            self.parameters = MetropolisConfig()
+            self.parameters = MetropolisConfig(**kwargs)
 
         if self.name == 'ATMCMC':
-            self.parameters = ATMCMCConfig()
+            self.parameters = ATMCMCConfig(**kwargs)
 
 
 class BEATconfig(Object, Cloneable):
@@ -531,7 +536,7 @@ class BEATconfig(Object, Cloneable):
 
 def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                 datasets=['geodetic'],
-                mode='geometry', n_sources=1,
+                mode='geometry', source_type='RectangularSource', n_sources=1,
                 sampler='ATMCMC', hyper_sampler='Metropolis',
                 use_custom=False, individual_gfs=False):
     """
@@ -580,7 +585,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
             logger.warn('No given date! Using dummy event!'
                 ' Updating reference coordinates (spatial & temporal)'
                 ' necessary!')
-            c.event = model.Event()
+            c.event = model.Event(duration=1.)
             c.date = 'dummy'
 
         if 'geodetic' in datasets:
@@ -642,14 +647,15 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
             ' dimensions and extension factors please run: import')
 
     c.problem_config = ProblemConfig(
-        n_sources=n_sources, datasets=datasets, mode=mode)
+        n_sources=n_sources, datasets=datasets, mode=mode,
+        source_type=source_type)
     c.problem_config.init_vars()
 
     c.sampler_config = SamplerConfig(name=sampler)
-    c.sampler_config.set_parameters()
+    c.sampler_config.set_parameters(update_covariances=False)
 
-    c.sampler_config = SamplerConfig(name=hyper_sampler)
-    c.sampler_config.set_parameters()
+    c.hyper_sampler_config = SamplerConfig(name=hyper_sampler)
+    c.hyper_sampler_config.set_parameters(update_covariances=None)
 
     c.update_hypers()
 

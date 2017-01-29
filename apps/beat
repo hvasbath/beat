@@ -154,6 +154,12 @@ def command_init(args):
             help='Inversion problem to solve; "geometry", "static",'
                  '"kinematic". Default: "geometry"')
 
+        parser.add_option('--source_type', dest='source_type',
+            choices=['DCSource', 'RectangularFault'],
+            default='RectangularFault',
+            help='Source type to solve for; "DCSource", "RectangularFault"'
+                 '. Default: "RectangularFault"')
+
         parser.add_option('--n_sources', dest='n_sources', type='int',
             default=1,
             help='Integer Number of sources to invert for. Default: 1' )
@@ -201,6 +207,7 @@ def command_init(args):
                main_path=options.main_path,
                datasets=options.datasets,
                mode=options.mode,
+               source_type=options.source_type,
                n_sources=options.n_sources,
                sampler=options.sampler,
                hyper_sampler=options.hyper_sampler,
@@ -415,8 +422,6 @@ def command_clone(args):
             for prior in new_priors:
                 if prior in old_priors.keys():
                     c.problem_config.priors[prior] = old_priors[prior]
-
-            
 
             old_hypers = copy.deepcopy(c.problem_config.hyperparameters)
 
