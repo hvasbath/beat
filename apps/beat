@@ -407,25 +407,16 @@ def command_clone(args):
                             cloned_dir, dataset + '_data.pkl')
                         shutil.copyfile(data_path, cloned_data_path)
 
+            old_priors = copy.deepcopy(c.problem_config.priors)
+
             c.problem_config.datasets = new_datasets
-
-            if 'seismic' not in new_datasets:
-                c.seismic_config = None
-                new_priors = config.geo_vars_geometry
-            elif 'geodetic' not in new_datasets:
-                c.geodetic_config = None
-                new_priors = config.joint_vars_geometry
-            else:
-                new_priors = config.joint_vars_geometry
-
-            old_priors_name = [prior.name for prior in c.problem_config.priors]
-            old_priors = c.problem_config.priors
-            c.problem_config.priors = []
+            new_priors = c.problem_config.select_variables()
 
             for prior in new_priors:
-                if prior in old_priors_name:
-                    idx = old_priors_name.index(prior)
-                    c.problem_config.priors.append(old_priors[idx])
+                if prior in old_priors.keys():
+                    c.problem_config.priors[prior] = old_priors[prior]
+
+            
 
             old_hypers = copy.deepcopy(c.problem_config.hyperparameters)
 
