@@ -622,9 +622,9 @@ def adjust_fault_reference(source, input_depth='top'):
         center = num.array(
             [source.east_shift, source.north_shift, source.depth])
 
-    source.update(east_shift=float(center[0]),
-                  north_shift=float(center[1]),
-                  depth=float(center[2]))
+    source.east_shift = float(center[0])
+    source.north_shift = float(center[1])
+    source.depth = float(center[2])
 
 
 def dump_objects(outpath, outlist):
@@ -661,7 +661,7 @@ def load_objects(loadpath):
         objects = pickle.load(open(loadpath, 'rb'))
     except IOError:
         raise Exception(
-            'File %s does not exist! Data already imported?' % loadpath)
+            'File %s does not exist!' % loadpath)
     return objects
 
 

@@ -1343,14 +1343,14 @@ def n_model_plot(models, axes=None):
         z = mod.profile('z')
         vp = mod.profile('vp')
         vs = mod.profile('vs')
-        axes.plot(vp, z, color=cp.colors[0], lw=1.)
-        axes.plot(vs, z, color=cp.colors[2], lw=1.)
+        axes.plot(vp, z, color=scolor('scarletred1'), lw=0.5)
+        axes.plot(vs, z, color=scolor('skyblue1'), lw=0.5)
 
     z = ref.profile('z')
     vp = ref.profile('vp')
     vs = ref.profile('vs')
-    axes.plot(vp, z, color=cp.colors[10], lw=2.)
-    axes.plot(vs, z, color=cp.colors[12], lw=2.)
+    axes.plot(vp, z, color=scolor('aluminium6'), lw=0.5)
+    axes.plot(vs, z, color=scolor('aluminium1'), lw=0.5)
 
     ymin, ymax = axes.get_ylim()
     xmin, xmax = axes.get_xlim()
@@ -1397,14 +1397,14 @@ def draw_earthmodels(problem, plot_options):
                     targets = init_targets(
                         [station],
                         earth_model=sc.gf_config.earth_model,
-                        channels=sc.channels[0],
+                        channels=[sc.channels[0]],
                         sample_rate=sc.gf_config.sample_rate,
-                        crust_inds=[range(sc.gf_config.n_variations + 1)],
+                        crust_inds=range(sc.gf_config.n_variations + 1),
                         interpolation='multilinear')
 
                     models = load_earthmodels(
                         composite.engine, targets,
-                        depth_max=sc.gf_config.depth_limit_variation)
+                        depth_max=sc.gf_config.depth_limit_variation * km)
                     models_dict[outpath] = models
 
                 else:
@@ -1444,18 +1444,18 @@ def draw_earthmodels(problem, plot_options):
             raise Exception(
                 'Plot for dataset %s not (yet) supported' % dataset)
 
-            figs = []
-            axes = []
-            for models in models_dict.itervalues():
-                fig, axs = n_model_plot(models, axes=None)
-                figs.append(fig)
-                axes.append(axs)
+        figs = []
+        axes = []
+        for models in models_dict.itervalues():
+            fig, axs = n_model_plot(models, axes=None)
+            figs.append(fig)
+            axes.append(axs)
 
         if po.outformat == 'display':
             plt.show()
         else:
-            logger.info('saving figure to %s' % outpath)
-            for fig in figs:
+            for fig, outpath in zip(figs, models_dict.keys()):
+                logger.info('saving figure to %s' % outpath)
                 fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
