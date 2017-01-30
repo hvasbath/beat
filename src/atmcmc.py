@@ -571,7 +571,7 @@ def init_stage(homepath, step, stage, model, n_jobs=1,
 
             step.stage += 1
 
-            stage_path = os.path.join(homepath, 'stage_%i' % step.stage)
+            stage_path = os.path.join(homepath, 'stage_%i' % stage)
             draws = step.n_steps
 
         if rm_flag:
