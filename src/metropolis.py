@@ -172,7 +172,7 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
 
                 mtrace = backend.load(trans_stage_path, model)
 
-            elif update is not None and stage == 0 and update._seismic_flag:
+            elif update is not None and stage == 0:
                 update.engine.close_cashed_stores()
 
             step.chain_previous_lpoint = step.get_chain_previous_lpoint(mtrace)

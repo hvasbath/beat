@@ -26,6 +26,11 @@ logger = logging.getLogger('models')
 __all__ = ['GeometryOptimizer', 'sample', 'load_model', 'load_stage']
 
 
+source_catalog = {
+    bconfig.rfs: heart.RectangularSource,
+    bconfig.dcs: gf.DCSource}
+
+
 def multivariate_normal(targets, weights, hyperparams, residuals):
     """
     Calculate posterior Likelihood of a Multivariate Normal distribution.
@@ -326,8 +331,7 @@ class GeodeticGeometryComposite(GeodeticComposite):
         source_points = utility.split_point(tpoint)
 
         for i, source in enumerate(self.sources):
-            utility.update_source(source, **source_points[i])
-            heart.adjust_fault_reference(source, input_depth='top')
+            source.update(**source_points[i])
 
     def get_formula(self, input_rvs, hyperparams):
         """
@@ -442,6 +446,7 @@ class SeismicComposite(Composite):
     ----------
     sc : :class:`config.SeismicConfig`
         configuration object containing seismic setup parameters
+    event: :class:`pyrocko.model.Event`
     project_dir : str
         directory of the model project, where to find the data
     hypers : boolean
@@ -655,6 +660,7 @@ class SeismicGeometryComposite(SeismicComposite):
         self.config = sc
 
     def __getstate__(self):
+
         outstate = (
             self.config,
             self.sources,
@@ -700,7 +706,6 @@ class SeismicGeometryComposite(SeismicComposite):
 
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
-            heart.adjust_fault_reference(source, input_depth='top')
 
     def get_formula(self, input_rvs, hyperparams):
         """
@@ -1018,10 +1023,6 @@ class Problem(object):
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
 
-        if 'seismic' in self.composites.keys():
-            composite = self.composites['seismic']
-            composite.engine.close_cashed_stores()
-
         return step
 
     def built_model(self):
@@ -1224,6 +1225,8 @@ class GeometryOptimizer(Problem):
 
         super(GeometryOptimizer, self).__init__(config)
 
+        pc = config.problem_config
+
         # Load event
         if config.event is None:
             logger.warn('Found no event information!')
@@ -1232,21 +1235,28 @@ class GeometryOptimizer(Problem):
 
         # Init sources
         self.sources = []
-        for i in range(config.problem_config.n_sources):
+        for i in range(pc.n_sources):
             if self.event:
-                source = heart.RectangularSource.from_pyrocko_event(self.event)
+                source = source_catalog[pc.source_type].from_pyrocko_event(
+                    self.event)
+
                 # hardcoded inversion for hypocentral time
                 source.stf.anchor = -1.
             else:
-                source = heart.RectangularSource()
+                source = source_catalog[pc.source_type]()
 
             self.sources.append(source)
 
-        dsources = utility.transform_sources(
-            self.sources,
-            config.problem_config.datasets)
+        if pc.source_type == 'RectangularSource':
+            dsources = utility.transform_sources(
+                self.sources,
+                pc.datasets)
+        else:
+            dsources = {}
+            for dataset in pc.datasets:
+                dsources[dataset] = copy.deepcopy(self.sources)
 
-        for dataset in config.problem_config.datasets:
+        for dataset in pc.datasets:
             self.composites[dataset] = geometry_composite_catalog[dataset](
                 config[dataset + '_config'],
                 config.project_dir,

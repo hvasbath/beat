@@ -153,7 +153,6 @@ class GeoLayerSynthesizerStatic(theano.Op):
 
         for i, source in enumerate(self.sources):
             source.update(**source_points[i])
-            heart.adjust_fault_reference(source, input_depth='top')
 
         z[0] = heart.geo_layer_synthetics(
             store_superdir=self.store_superdir,
@@ -196,6 +195,7 @@ class SeisSynthesizer(theano.Op):
         self.filterer = filterer
 
     def __getstate__(self):
+        self.engine.close_cashed_stores()
         return self.__dict__
 
     def __setstate__(self, state):
@@ -236,7 +236,7 @@ class SeisSynthesizer(theano.Op):
         output : list
             1) of synthetic waveforms of :class:`numpy.ndarray`
                (n x nsamples)
-            2) of start times of the first waveform samples 
+            2) of start times of the first waveform samples
                :class:`numpy.ndarray` (n x 1)
         """
         synths = output[0]
@@ -252,7 +252,6 @@ class SeisSynthesizer(theano.Op):
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
             source.time += self.event.time
-            heart.adjust_fault_reference(source, input_depth='top')
 
         synths[0], tmins[0] = heart.seis_synthetics(
                 self.engine, self.sources,

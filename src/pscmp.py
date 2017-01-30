@@ -6,6 +6,8 @@ import shutil
 import signal
 import copy
 
+from beat.utility import adjust_fault_reference
+
 from tempfile import mkdtemp, TemporaryFile
 from subprocess import Popen, PIPE
 from os.path import join as pjoin
@@ -15,6 +17,7 @@ from pyrocko import gf
 from pyrocko.orthodrome import ne_to_latlon
 
 km = 1000.
+d2r = num.pi / 180.
 
 guts_prefix = 'pf'
 
@@ -151,6 +154,66 @@ class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
     pos_d = Float.T(optional=True, default=None)
     opening = Float.T(default=0.0)
 
+    @property
+    def dipvector(self):
+        """
+        Get 3 dimensional dip-vector of the planar fault.
+
+        Parameters
+        ----------
+        dip : scalar, float
+            dip-angle [deg] of the fault
+        strike : scalar, float
+            strike-abgle [deg] of the fault
+
+        Returns
+        -------
+        :class:`numpy.ndarray`
+        """
+
+        return num.array(
+            [num.cos(self.dip * d2r) * num.cos(self.strike * d2r),
+             -num.cos(self.dip * d2r) * num.sin(self.strike * d2r),
+              num.sin(self.dip * d2r)])
+
+    @property
+    def strikevector(self):
+        """
+        Get 3 dimensional strike-vector of the planar fault.
+
+        Parameters
+        ----------
+        strike : scalar, float
+            strike-abgle [deg] of the fault
+
+        Returns
+        -------
+        :class:`numpy.ndarray`
+        """
+
+        return num.array(
+            [num.sin(self.strike * d2r),
+             num.cos(self.strike * d2r),
+             0.])
+
+    def center(self, width):
+        """
+        Get 3d fault center coordinates. Depth attribute is top depth!
+
+        Parameters
+        ----------
+        width : scalar, float
+            width [m] of the fault (dip-direction)
+
+        Returns
+        -------
+        :class:`numpy.ndarray` with x, y, z coordinates of the center of the
+        fault
+        """
+
+        return num.array([self.east_shift, self.north_shift, self.depth]) + \
+            0.5 * width * self.dipvector
+
     def outline(self, cs='xyz'):
         points = gf.seismosizer.outline_rect_source(
             self.strike, self.dip, self.length, self.width)
@@ -172,8 +235,9 @@ class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
             else:
                 return latlon[:, ::-1]
 
-    def update(self, **kwargs):
+    def update(self, top_depth=True, **kwargs):
         '''Change some of the source models parameters.
+            Input update depth per default: Top depth!
 
         Example::
 
@@ -190,8 +254,12 @@ class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
           rake: 0.0
 
         '''
+
         for (k, v) in kwargs.iteritems():
             self[k] = v
+
+        if top_depth:
+            adjust_fault_reference(self, input_depth='top')
 
     @property
     def dip_slip(self):

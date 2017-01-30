@@ -322,37 +322,6 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
         return s
 
 
-def adjust_fault_reference(source, input_depth='top'):
-    """
-    Adjusts source depth and east/north-shifts variables of fault according to
-    input_depth mode 'top/center'.
-
-    Parameters
-    ----------
-    source : :class:`RectangularSource` or :class:`pscmp.RectangularSource` or
-        :class:`pyrocko.gf.seismosizer.RectangularSource`
-    input_depth : string
-        if 'top' the depth in the source is interpreted as top depth
-        if 'center' the depth in the source is interpreted as center depth
-
-    Returns
-    -------
-    Updated input source object
-    """
-
-    RF = RectangularSource(dip=source.dip, strike=source.strike)
-
-    if input_depth == 'top':
-        center = RF.center(width=source.width)
-    elif input_depth == 'center':
-        center = num.array(
-            [source.east_shift, source.north_shift, source.depth])
-
-    source.update(east_shift=float(center[0]),
-                  north_shift=float(center[1]),
-                  depth=float(center[2]))
-
-
 def log_determinant(A, inverse=False):
     """
     Calculates the natural logarithm of a determinant of the given matrix '
