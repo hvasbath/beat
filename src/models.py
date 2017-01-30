@@ -448,12 +448,13 @@ class SeismicComposite(Composite):
         if true initialise object for hyper parameter optimization
     """
 
-    def __init__(self, sc, project_dir, hypers=False):
+    def __init__(self, sc, event, project_dir, hypers=False):
 
         logger.debug('Setting up seismic structure ...\n')
         self.name = 'seismic'
         self._like_name = 'seis_like'
 
+        self.event = event
         self.engine = gf.LocalEngine(
             store_superdirs=[sc.gf_config.store_superdir])
 
@@ -482,7 +483,7 @@ class SeismicComposite(Composite):
             sample_rate=sc.gf_config.sample_rate,
             crust_inds=[0],  # always reference model
             interpolation='multilinear',
-            reference_location=sc.reference_location)
+            reference_location=sc.gf_config.reference_location)
 
         self.n_t = len(self.targets)
         logger.info('Number of seismic datasets: %i ' % self.n_t)
@@ -631,9 +632,8 @@ class SeismicGeometryComposite(SeismicComposite):
     def __init__(self, sc, project_dir, sources, event, hypers=False):
 
         super(SeismicGeometryComposite, self).__init__(
-            sc, project_dir, hypers=hypers)
+            sc, event, project_dir, hypers=hypers)
 
-        self.event = event
         self.sources = sources
 
         # syntetics generation

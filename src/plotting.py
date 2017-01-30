@@ -9,6 +9,7 @@ import copy
 from beat import utility, backend
 from beat.models import load_stage
 from beat.metropolis import get_trace_stats
+from beat.heart import init_targets
 
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -1376,21 +1377,53 @@ def draw_earthmodels(problem, plot_options):
     po = plot_options
 
     for dataset, composite in problem.composites.iteritems():
-        outpath = os.path.join(
-            problem.outfolder, po.figure_dir, '%s_velocity_models.%s' % (
-            dataset, po.outformat))
 
-        if not os.path.exists(outpath) or po.force:
-            if dataset == 'seismic':
-                sc = problem.config.seismic_config
-                models = load_earthmodels(
-                    composite.engine, composite.targets,
-                    depth_max=sc.gf_config.depth_limit_variation)
+        if dataset == 'seismic':
+            models_dict = {}
+            sc = problem.config.seismic_config
 
-            elif dataset == 'geodetic':
-                gc = problem.config.geodetic_config
+            if sc.gf_config.reference_location is None:
+                plot_stations = composite.stations
+            else:
+                plot_stations = [sc.gf_config.reference_location]
 
-                models = []
+            for station in plot_stations:
+                outpath = os.path.join(
+                    problem.outfolder, po.figure_dir,
+                    '%s_%s_velocity_models.%s' % (
+                        dataset, station.station, po.outformat))
+
+                if not os.path.exists(outpath) or po.force:
+                    targets = init_targets(
+                        [station],
+                        earth_model=sc.gf_config.earth_model,
+                        channels=sc.channels[0],
+                        sample_rate=sc.gf_config.sample_rate,
+                        crust_inds=[range(sc.gf_config.n_variations + 1)],
+                        interpolation='multilinear')
+
+                    models = load_earthmodels(
+                        composite.engine, targets,
+                        depth_max=sc.gf_config.depth_limit_variation)
+                    models_dict[outpath] = models
+
+                else:
+                    logger.info(
+                        '%s earthmodel plot for station %s exists. Use '
+                        'force=True for replotting!' % (
+                            dataset, station.station))
+
+        elif dataset == 'geodetic':
+            gc = problem.config.geodetic_config
+
+            models_dict = {}
+            models = []
+            outpath = os.path.join(
+                problem.outfolder, po.figure_dir,
+                '%s_%s_velocity_models.%s' % (
+                    dataset, 'psgrn', po.outformat))
+
+            if not os.path.exists(outpath) or po.force:
                 for crust_ind in range(gc.gf_config.n_variations + 1):
                     psgrn_input_path = os.path.join(
                         gc.gf_config.store_superdir,
@@ -1399,22 +1432,31 @@ def draw_earthmodels(problem, plot_options):
                     models.append(
                         utility.PsGrnArray2LayeredModel(psgrn_input_path))
 
-            else:
-                raise Exception(
-                    'Plot for dataset %s not (yet) supported' % dataset)
+                models_dict[outpath] = models
 
-            fig, axes = n_model_plot(models, axes=None)
+            else:
+                logger.info(
+                    '%s earthmodel plot exists. Use force=True for'
+                    ' replotting!' % dataset)
+                return
 
         else:
-            logger.info(
-                'earthmodel plot exists. Use force=True for replotting!')
-            return
+            raise Exception(
+                'Plot for dataset %s not (yet) supported' % dataset)
+
+            figs = []
+            axes = []
+            for models in models_dict.itervalues():
+                fig, axs = n_model_plot(models, axes=None)
+                figs.append(fig)
+                axes.append(axs)
 
         if po.outformat == 'display':
             plt.show()
         else:
             logger.info('saving figure to %s' % outpath)
-            fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
+            for fig in figs:
+                fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
 plots_catalog = {

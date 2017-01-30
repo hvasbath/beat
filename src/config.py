@@ -144,7 +144,8 @@ class SeismicGFConfig(NonlinearGFConfig):
     """
     Seismic GF parameters for Layered Halfspace.
     """
-    reference_location = ReferenceLocation.T(ReferenceLocation.D(),
+    reference_location = ReferenceLocation.T(
+        default=None,
         help="Reference location for the midpoint of the Green's Function "
              "grid.",
         optional=True)
