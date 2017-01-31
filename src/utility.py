@@ -655,6 +655,7 @@ def RS_dipvector(source):
           num.sin(source.dip * d2r)])
 
 
+<<<<<<< HEAD
 def strike_vector(strike, order='ENZ'):
     if order == 'ENZ':
         return num.array(
