@@ -1931,9 +1931,37 @@ def get_phase_taperer(engine, source, target, arrival_taper):
     return taperer
 
 
+def update_targets_times(targets, source, taperers):
+    """
+    Update the target attributes tmin and tmax to do the stacking
+    only in this interval. Adds twice taper fade in time to each taper side.
+
+    Parameters
+    ----------
+    targets : list
+        containing :class:`pyrocko.gf.seismosizer.Target` Objects
+    taperers : list
+        of :class:`pyrocko.trace.CosTaper`
+
+    Returns
+    -------
+    list containing :class:`pyrocko.gf.seismosizer.Target` Objects
+    """
+
+    utargets = []
+    for t, taper in zip(targets, taperers):
+        tolerance = 2 * (taper.b - taper.a)
+        ct = copy.deepcopy(t)
+        ct.tmin = taper.a - tolerance - source.time
+        ct.tmax = taper.d + tolerance - source.time
+        utargets.append(ct)
+
+    return utargets
+
+
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     filterer=None, reference_taperer=None, plot=False,
-                    nprocs=1, outmode='array', inplace=True, chop=True):
+                    nprocs=1, outmode='array', pre_sum_cut=True):
     """
     Calculate synthetic seismograms of combination of targets and sources,
     filtering and tapering afterwards (filterer)
@@ -1943,9 +1971,10 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     Parameters
     ----------
     engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
-    sources : List
+    sources : list
         containing :class:`pyrocko.gf.seismosizer.Source` Objects
-    targets : List
+        reference source is the first in the list!!!
+    targets : list
         containing :class:`pyrocko.gf.seismosizer.Target` Objects
     arrival_taper : :class:`ArrivalTaper`
     filterer : :class:`Filterer`
@@ -1958,6 +1987,10 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     outmode : string
         output format of synthetics can be 'array', 'stacked_traces',
         'full' returns traces unstacked including post-processing
+    pre_sum_cut : boolean
+        flag to decide wheather prior to stacking the GreensFunction traces
+        should be cutted according to the phase arival time and the defined
+        taper
 
     Returns
     -------
@@ -1965,29 +1998,39 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
          with data each row-one target
     """
 
+    taperers = []
+    for target in targets:
+        if arrival_taper is not None:
+            if reference_taperer is None:
+                taperers.append(get_phase_taperer(
+                    engine=engine,
+                    source=sources[0],
+                    target=target,
+                    arrival_taper=arrival_taper))
+            else:
+                taperers.append(reference_taperer)
+
+    if pre_sum_cut and arrival_taper is not None:
+        targets = update_targets_times(
+            targets, sources[0], taperers)
+        if outmode == 'data':
+            logger.warn('data traces will be very short! pre_sum_flag set!')
+
     response = engine.process(sources=sources,
                               targets=targets, nprocs=nprocs)
 
     synt_trcs = []
-    for source, target, tr in response.iter_results():
+    for i, (source, target, tr) in enumerate(response.iter_results()):
         if arrival_taper is not None:
-            if reference_taperer is None:
-                taperer = get_phase_taperer(
-                    engine,
-                    sources[0],
-                    target,
-                    arrival_taper)
-            else:
-                taperer = reference_taperer
-
-            # cut traces
-            tr.taper(taperer, inplace=inplace, chop=chop)
+            tr.taper(taperers[i], inplace=True)
 
         if filterer is not None:
             # filter traces
             tr.bandpass(corner_hp=filterer.lower_corner,
                     corner_lp=filterer.upper_corner,
                     order=filterer.order)
+
+        tr.chop(tmin=taperers[i].a, tmax=taperers[i].d)
 
         synt_trcs.append(tr)
 
