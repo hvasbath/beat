@@ -429,7 +429,7 @@ def update_source(source, **kwargs):
             source[k] = v
 
     if isinstance(source, RectangularSource):
-        adjust_fault_reference(source, input_depth='Top')
+        adjust_fault_reference(source, input_depth='top')
 
 
 def utm_to_loc(utmx, utmy, zone, event):
