@@ -26,6 +26,7 @@ seconds_str = '00:00:00'
 sphr = 3600.
 hrpd = 24.
 
+d2r = num.pi / 180.
 km = 1000.
 
 
@@ -598,6 +599,62 @@ def search_catalog(date, min_magnitude, dayrange=1.):
     return event
 
 
+def RS_dipvector(source):
+    """
+    Get 3 dimensional dip-vector of a planar fault.
+
+    Parameters
+    ----------
+    source : RectangularSource
+
+    Returns
+    -------
+    :class:`numpy.ndarray`
+    """
+
+    return num.array(
+        [num.cos(source.dip * d2r) * num.cos(source.strike * d2r),
+         -num.cos(source.dip * d2r) * num.sin(source.strike * d2r),
+          num.sin(source.dip * d2r)])
+
+
+def RS_strikevector(source):
+    """
+    Get 3 dimensional strike-vector of a planar fault.
+
+    Parameters
+    ----------
+    source : RedctangularSource
+
+    Returns
+    -------
+    :class:`numpy.ndarray`
+    """
+
+    return num.array(
+        [num.sin(source.strike * d2r),
+         num.cos(source.strike * d2r),
+         0.])
+
+
+def RS_center(source):
+    """
+    Get 3d fault center coordinates. Depth attribute is top depth!
+
+    Parameters
+    ----------
+    source : RedctangularSource
+
+    Returns
+    -------
+    :class:`numpy.ndarray` with x, y, z coordinates of the center of the
+    fault
+    """
+
+    return num.array([source.east_shift, source.north_shift, source.depth]) + \
+        0.5 * source.width * RS_dipvector(source)
+
+
 def adjust_fault_reference(source, input_depth='top'):
     """
     Adjusts source depth and east/north-shifts variables of fault according to
@@ -617,7 +674,7 @@ def adjust_fault_reference(source, input_depth='top'):
     """
 
     if input_depth == 'top':
-        center = source.center(width=source.width)
+        center = RS_center(source)
     elif input_depth == 'center':
         center = num.array(
             [source.east_shift, source.north_shift, source.depth])

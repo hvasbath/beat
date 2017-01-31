@@ -17,7 +17,6 @@ from pyrocko import gf
 from pyrocko.orthodrome import ne_to_latlon
 
 km = 1000.
-d2r = num.pi / 180.
 
 guts_prefix = 'pf'
 
@@ -153,66 +152,6 @@ class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
     pos_s = Float.T(optional=True, default=None)
     pos_d = Float.T(optional=True, default=None)
     opening = Float.T(default=0.0)
-
-    @property
-    def dipvector(self):
-        """
-        Get 3 dimensional dip-vector of the planar fault.
-
-        Parameters
-        ----------
-        dip : scalar, float
-            dip-angle [deg] of the fault
-        strike : scalar, float
-            strike-abgle [deg] of the fault
-
-        Returns
-        -------
-        :class:`numpy.ndarray`
-        """
-
-        return num.array(
-            [num.cos(self.dip * d2r) * num.cos(self.strike * d2r),
-             -num.cos(self.dip * d2r) * num.sin(self.strike * d2r),
-              num.sin(self.dip * d2r)])
-
-    @property
-    def strikevector(self):
-        """
-        Get 3 dimensional strike-vector of the planar fault.
-
-        Parameters
-        ----------
-        strike : scalar, float
-            strike-abgle [deg] of the fault
-
-        Returns
-        -------
-        :class:`numpy.ndarray`
-        """
-
-        return num.array(
-            [num.sin(self.strike * d2r),
-             num.cos(self.strike * d2r),
-             0.])
-
-    def center(self, width):
-        """
-        Get 3d fault center coordinates. Depth attribute is top depth!
-
-        Parameters
-        ----------
-        width : scalar, float
-            width [m] of the fault (dip-direction)
-
-        Returns
-        -------
-        :class:`numpy.ndarray` with x, y, z coordinates of the center of the
-        fault
-        """
-
-        return num.array([self.east_shift, self.north_shift, self.depth]) + \
-            0.5 * width * self.dipvector
 
     def outline(self, cs='xyz'):
         points = gf.seismosizer.outline_rect_source(
