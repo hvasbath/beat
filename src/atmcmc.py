@@ -732,7 +732,8 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
         n_jobs=n_jobs,
         progressbar=progressbar,
         update=update,
-        model=model)
+        model=model,
+        rm_flag=rm_flag)
 
     with model:
         while step.beta < 1.:
