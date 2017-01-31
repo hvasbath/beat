@@ -155,10 +155,10 @@ def command_init(args):
                  '"kinematic". Default: "geometry"')
 
         parser.add_option('--source_type', dest='source_type',
-            choices=['DCSource', 'RectangularFault'],
-            default='RectangularFault',
-            help='Source type to solve for; "DCSource", "RectangularFault"'
-                 '. Default: "RectangularFault"')
+            choices=['DCSource', 'RectangularSource'],
+            default='RectangularSource',
+            help='Source type to solve for; "DCSource", "RectangularSource"'
+                 '. Default: "RectangularSource"')
 
         parser.add_option('--n_sources', dest='n_sources', type='int',
             default=1,
