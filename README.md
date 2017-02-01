@@ -2,6 +2,9 @@
 
 Bayesian Earthquake Analysis Tool, based on pyrocko, theano and pymc3
 
+Documentation (under construction) can be found here: 
+https://hvasbath.github.io/beat/ .
+
 This repository is very much work in progress!
 Please dont expect anything to work smoothly!
 
