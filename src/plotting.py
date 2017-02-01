@@ -643,7 +643,7 @@ def seismic_fits(problem, stage, plot_options):
     the selected posterior model.
     """
 
-    composite = problem.composite['seismic']
+    composite = problem.composites['seismic']
 
     fontsize = 8
     fontsize_title = 10
