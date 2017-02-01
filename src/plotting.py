@@ -935,8 +935,6 @@ def draw_seismic_fits(problem, po):
     if 'seismic' not in problem.composites.keys():
         raise Exception('No seismic composite defined for this problem!')
 
-    assert po.sampler == 'ATMCMC'
-
     stage = load_stage(problem, stage_number=po.load_stage, load='full')
 
     mode = problem.config.problem_config.mode
