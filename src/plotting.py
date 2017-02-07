@@ -221,7 +221,7 @@ def correlation_plot(mtrace, varnames=None,
 
 def correlation_plot_hist(mtrace, varnames=None,
         transform=lambda x: x, figsize=None, hist_color='orange', cmap=None,
-        grid=50, chains=None, ntickmarks=3, point=None,
+        grid=50, chains=None, ntickmarks=2, point=None,
         point_style='.', point_color='red', point_size='6', alpha=0.35):
     """
     Plot 2d marginals (with kernel density estimation) showing the correlations
