@@ -116,6 +116,28 @@ def str_duration(t):
         return s + '%.1f d' % (t / (24. * 3600.))
 
 
+def choose_round_digit(twosigma):
+    if twosigma < 0.01:
+        return 3
+    elif twosigma < 0.1:
+        return 2
+    elif twosigma < 1.:
+        return 1
+    elif twosigma < 10.:
+        return 0
+    elif twosigma < 100.:
+        return -1
+
+
+def get_tickmarks(leftb, rightb, ntickmarks=5):
+    """
+    Get tickmarks according to range of given values and number of tickmarks!
+    """
+    digits = choose_round_digit((rightb - leftb) / ntickmarks)
+    return num.round(
+            num.linspace(leftb, rightb, ntickmarks), digits).tolist()
+
+
 def correlation_plot(mtrace, varnames=None,
         transform=lambda x: x, figsize=None, cmap=None, grid=200, point=None,
         point_style='.', point_color='white', point_size='8'):
@@ -199,8 +221,8 @@ def correlation_plot(mtrace, varnames=None,
 
 def correlation_plot_hist(mtrace, varnames=None,
         transform=lambda x: x, figsize=None, hist_color='orange', cmap=None,
-        grid=100, chains=None, point=None,
-        point_style='.', point_color='red', point_size='8', alpha=0.35):
+        grid=50, chains=None, ntickmarks=3, point=None,
+        point_style='.', point_color='red', point_size='6', alpha=0.35):
     """
     Plot 2d marginals (with kernel density estimation) showing the correlations
     of the model parameters. In the main diagonal is shown the parameter
@@ -222,6 +244,8 @@ def correlation_plot_hist(mtrace, varnames=None,
     grid : resolution of kernel density estimation
     chains : int or list of ints
         chain indexes to select from the trace
+    ntickmarks : int
+        number of ticks at the axis labels
     point : dict
         Dictionary of variable name / value  to be overplotted as marker
         to the posteriors e.g. mean of posteriors, true values of a simulation
@@ -263,25 +287,38 @@ def correlation_plot_hist(mtrace, varnames=None,
         for l in range(k, nvar):
             logger.debug('%s, %s' % (varnames[k], varnames[l]))
             if l == k:
+                if point is not None:
+                    reference = point[varnames[k]]
+                    axs[l, k].axvline(
+                        x=reference, color=point_color,
+                        lw=int(point_size) / 4.)
+
                 histplot_op(
-                    axs[l, k], pmp.make_2d(a), alpha=alpha, color='orange')
-                axs[l, k].set_xbound(a.min(), a.max())
+                    axs[l, k], pmp.make_2d(a), alpha=alpha, color='orange',
+                    tstd=0., reference=reference, ntickmarks=ntickmarks)
                 axs[l, k].get_yaxis().set_visible(False)
 
-                if point is not None:
-                    axs[l, k].axvline(
-                        x=point[varnames[k]], color=point_color,
-                        lw=int(point_size) / 4.)
+                xticks = axs[l, k].get_xticks()
             else:
                 b = d[varnames[l]]
 
                 pmp.kde2plot(
                     a, b, grid=grid, ax=axs[l, k], cmap=cmap, aspect='auto')
 
+                bmin = b.min()
+                bmax = b.max()
+
                 if point is not None:
                     axs[l, k].plot(point[varnames[k]], point[varnames[l]],
                         color=point_color, marker=point_style,
                         markersize=point_size)
+
+                    bmin = num.minimum(bmin, point[varnames[l]])
+                    bmax = num.maximum(bmax, point[varnames[l]])
+
+                ytickmarks = get_tickmarks(bmin, bmax, ntickmarks=ntickmarks)
+                axs[l, k].set_xticks(xticks)
+                axs[l, k].set_yticks(ytickmarks)
 
             if l != nvar - 1:
                 axs[l, k].get_xaxis().set_ticklabels([])
@@ -984,20 +1021,8 @@ def draw_seismic_fits(problem, po):
                 opdf.savefig(fig)
 
 
-def choose_round_digit(twosigma):
-    if twosigma < 0.01:
-        return 3
-    elif twosigma < 0.1:
-        return 2
-    elif twosigma < 1.:
-        return 1
-    elif twosigma < 10.:
-        return 0
-    elif twosigma < 100.:
-        return -1
-
-
-def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None):
+def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None,
+            ntickmarks=5, tstd=None):
     """
     Modified from pymc3. Additional color argument.
     """
@@ -1011,14 +1036,16 @@ def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None):
             mind = num.minimum(mind, reference)
             maxd = num.maximum(maxd, reference)
 
-        tstd = num.std(d)
+        if tstd is None:
+            tstd = num.std(d)
+
         step = (maxd - mind) / 40.
 
         if bins is None:
             bins = int(num.ceil((maxd - mind) / step))
 
-        ax.hist(d, bins=bins, normed=True, stacked=True, alpha=alpha, align='left', color=color,
-            edgecolor=color)
+        ax.hist(d, bins=bins, normed=True, stacked=True, alpha=alpha,
+            align='left', color=color, edgecolor=color)
 
         leftb = mind - tstd
         rightb = maxd + tstd
@@ -1028,11 +1055,7 @@ def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None):
             leftb = num.minimum(leftb, l)
             rightb = num.maximum(rightb, r)
 
-        ntickmarks = 5
-        digits = choose_round_digit((rightb - leftb) / ntickmarks)
-
-        xticklabels = num.round(
-            num.linspace(leftb, rightb, ntickmarks), digits).tolist()
+        xticklabels = get_tickmarks(leftb, rightb, ntickmarks=ntickmarks)
 
         ax.set_xlim(leftb, rightb)
 #        ax.get_yaxis().set_ticklabels([])
@@ -1372,7 +1395,12 @@ def draw_correlation_hist(problem, plot_options):
         raise Exception('Need at least two parameters to compare!'
                         'Found only %i variables! ' % len(varnames))
 
-    transform = select_transform(sc=sc, n_steps=sc.parameters.n_steps)
+    if po.load_stage is None and not hypers:
+        draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
+    else:
+        draws = sc.parameters.n_steps
+
+    transform = select_transform(sc=sc, n_steps=draws)
 
     stage = load_stage(problem, po.load_stage, load='trace')
 
