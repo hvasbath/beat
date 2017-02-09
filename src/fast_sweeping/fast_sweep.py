@@ -173,31 +173,29 @@ def get_rupture_times_theano(slownesses, patch_size, nuc_x, nuc_y):
     just with symbolic variable input and output for theano graph
     implementation optimization.
     """
-
     [step_dip_max, step_str_max] = slownesses.shape
-    StartTimes = num.ones((step_dip_max, step_str_max)) * 1e8
-    StartTimes[nuc_y, nuc_x] = 0
-    StartTimes = theano.shared(StartTimes)
+    StartTimes = tt.ones((step_dip_max, step_str_max)) * 1e8
+    StartTimes = tt.set_subtensor(StartTimes[nuc_y, nuc_x], 0)
 
     # Stopping check var
     epsilon = theano.shared(0.1)
     err_val = theano.shared(1e6)
 
     # Iterator matrixes
-    dip1 = num.repeat(range(step_dip_max), step_str_max)
-    str1 = num.tile(range(step_str_max), step_dip_max)
+    dip1 = tt.repeat(tt.arange(step_dip_max), step_str_max)
+    str1 = tt.tile(tt.arange(step_str_max), step_dip_max)
 
-    dip2 = num.repeat(range(step_dip_max), step_str_max)
-    str2 = num.tile(range(step_str_max - 1, - 1, - 1), step_dip_max)
+    dip2 = tt.repeat(tt.arange(step_dip_max), step_str_max)
+    str2 = tt.tile(tt.arange(step_str_max - 1, - 1, - 1), step_dip_max)
 
-    dip3 = num.repeat(range(step_dip_max - 1, - 1, - 1), step_str_max)
-    str3 = num.tile(range(step_str_max - 1, - 1, - 1), step_dip_max)
+    dip3 = tt.repeat(tt.arange(step_dip_max - 1, - 1, - 1), step_str_max)
+    str3 = tt.tile(tt.arange(step_str_max - 1, - 1, - 1), step_dip_max)
 
-    dip4 = num.repeat(range(step_dip_max - 1, - 1, - 1), step_str_max)
-    str4 = num.tile(range(step_str_max), step_dip_max)
+    dip4 = tt.repeat(tt.arange(step_dip_max - 1, - 1, - 1), step_str_max)
+    str4 = tt.tile(tt.arange(step_str_max), step_dip_max)
 
-    DIP = theano.shared(num.hstack([dip1, dip2, dip3, dip4]))
-    STR = theano.shared(num.hstack([str1, str2, str3, str4]))
+    DIP = tt.concatenate([dip1, dip2, dip3, dip4])
+    STR = tt.concatenate([str1, str2, str3, str4])
 
     ### Upwind scheme ###
     def upwind(dip_ind, str_ind, StartTimes, slownesses, patch_size):

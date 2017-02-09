@@ -237,7 +237,7 @@ static PyMethodDef FastSweepExtMethods[] = {
     {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
-PyMODINIT_FUNC init_fast_sweep_ext(void){
+PyMODINIT_FUNC initfast_sweep_ext(void){
     PyObject* m;
 
     m = Py_InitModule("fast_sweep_ext", FastSweepExtMethods);
