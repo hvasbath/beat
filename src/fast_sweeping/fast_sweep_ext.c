@@ -202,7 +202,7 @@ PyObject* w_fast_sweep(PyObject *dummy, PyObject *args){
     PyObject *slowness_arr;
     PyArrayObject *c_slowness_arr, *tzero_arr;
 
-    float_t64 patch_size, *slowness, *tzero
+    float_t64 patch_size, *slowness, *tzero;
     npy_intp hyp_in_strike, hyp_in_dip, num_in_strike, num_in_dip, arr_size[1];
 
     if (!PyArg_ParseTuple(args, 'OdIIII', &slowness_arr, &patch_size, &h_strk, &h_dip, &num_strk, &num_dip)){
@@ -216,14 +216,16 @@ PyObject* w_fast_sweep(PyObject *dummy, PyObject *args){
         return NULL;
     }
 
-    c_slowness_arr = PyArray_GETCONTIGUOUS((PyArrayObject*) slowness_arr)
+    c_slowness_arr = PyArray_GETCONTIGUOUS((PyArrayObject*) slowness_arr);
 
-    tzero_arr = (PyArrayObject*) PyArray_EMPTY(1, arr_size, NPY_FLOAT64, 0)
+    tzero_arr = (PyArrayObject*) PyArray_EMPTY(1, arr_size, NPY_FLOAT64, 0);
 
-    slowness = PyArray_DATA(c_slowness_arr)
-    tzero = PyArray_DATA(tzero_arr)
+    slowness = PyArray_DATA(c_slowness_arr);
+    tzero = PyArray_DATA(tzero_arr);
 
-    fast_sweep(slowness, tzero, patch_size, h_strk, h_dip, num_strk, num_dip)
+    fast_sweep(slowness, tzero, patch_size, h_strk, h_dip, num_strk, num_dip);
+
+    Py_DECREF(c_slowness_arr);
 
     return (PyObject*) tzero_arr;
 }
@@ -253,8 +255,7 @@ tzero : :py:class:`numpy.NdArray` \n"},
 };
 
 PyMODINIT_FUNC
-init_fast_sweep_ext(void)
-{
+init_fast_sweep_ext(void){
     PyObject* m;
 
     m = Py_InitModule("fast_sweep_ext", FastSweepExtMethods);
@@ -263,6 +264,6 @@ init_fast_sweep_ext(void)
 
     FastSweepExtError = PyErr_NewException("fast_sweep_ext.error", NULL, NULL);
     Py_INCREF(FastSweepExtError);
-    PyModule_ADDObject(m, "FastSweepExtError", FastSweepExtError);
+    PyModule_AddObject(m, "FastSweepExtError", FastSweepExtError);
 }
 
