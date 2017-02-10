@@ -20,10 +20,10 @@ class FastSweepingTestCase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.patch_size = 10.0 * km
-        self.nuc_x = 8
+        self.nuc_x = 3
         self.nuc_y = 3
-        self.n_patch_strike = 20
-        self.n_patch_dip = 8
+        self.n_patch_strike = 6
+        self.n_patch_dip = 6
 
     def get_slownesses(self):
         velo1 = num.ones((self.n_patch_dip, self.n_patch_strike / 2))
@@ -68,24 +68,27 @@ class FastSweepingTestCase(unittest.TestCase):
         logger.info('done theano fast_sweeping in %f' % (t2 - t1))
         return theano_start_times
 
-#    def _c_implementation(self):
-#        slownesses = self.get_slownesses()
+    def _c_implementation(self):
+        slownesses = self.get_slownesses().T
 
-#        t0 = time()
-#        self.c_start_times = fast_sweep.get_rupture_times_c(
-#            slownesses, self.patch_size / km,
-#            self.n_patch_strike, self.n_patch_dip,
-#            self.nuc_x, self.nuc_y)
-#        t1 = time()
+        t0 = time()
+        c_start_times = fast_sweep.get_rupture_times_c(
+            slownesses, self.patch_size / km,
+            self.n_patch_strike, self.n_patch_dip,
+            self.nuc_x, self.nuc_y)
+        t1 = time()
 
-#        logger.info('done c fast_sweeping in %f' % (t1 - t0))
-
-#        print 'C', self.c_start_times
+        logger.info('done c fast_sweeping in %f' % (t1 - t0))
+        return c_start_times
 
     def test_differences(self):
-        npi = self._numpy_implementation()
-        thi = self._theano_implementation().reshape
-        num.testing.assert_allclose(npi, thi, rtol=0., atol=1e-6)
+        np_i = self._numpy_implementation()
+        print np_i
+#        t_i = self._theano_implementation()[0]
+        c_i = self._c_implementation()
+        print c_i
+        print c_i.__class__
+        num.testing.assert_allclose(np_i, c_i, rtol=0., atol=1e-6)
 
 if __name__ == '__main__':
     util.setup_logging('test_fast_sweeping', 'info')
