@@ -1282,7 +1282,7 @@ def select_metropolis_chains(problem, mtrace, post_llk):
         draws - 1, chain)[
             problem._like_name] for chain in mtrace.chains])
 
-    chain_idxs = get_fit_indexes(llks)
+    chain_idxs = utility.get_fit_indexes(llks)
     return chain_idxs[post_llk]
 
 
