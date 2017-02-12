@@ -20,9 +20,9 @@ class FastSweepingTestCase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.patch_size = 10.0 * km
-        self.nuc_x = 3
+        self.nuc_x = 2
         self.nuc_y = 3
-        self.n_patch_strike = 6
+        self.n_patch_strike = 4
         self.n_patch_dip = 6
 
     def get_slownesses(self):
@@ -69,7 +69,7 @@ class FastSweepingTestCase(unittest.TestCase):
         return theano_start_times
 
     def _c_implementation(self):
-        slownesses = self.get_slownesses().T
+        slownesses = self.get_slownesses()
 
         t0 = time()
         c_start_times = fast_sweep.get_rupture_times_c(
@@ -83,11 +83,10 @@ class FastSweepingTestCase(unittest.TestCase):
 
     def test_differences(self):
         np_i = self._numpy_implementation()
-        print np_i
-#        t_i = self._theano_implementation()[0]
+        t_i = self._theano_implementation()[0]
         c_i = self._c_implementation()
-        print c_i
-        print c_i.__class__
+
+        num.testing.assert_allclose(np_i, t_i, rtol=0., atol=1e-6)
         num.testing.assert_allclose(np_i, c_i, rtol=0., atol=1e-6)
 
 if __name__ == '__main__':

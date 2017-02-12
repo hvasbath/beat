@@ -28,10 +28,11 @@ def get_rupture_times_c(
 
     Slowness array has to be a flat array (1d).
     """
-    
-    print nuc_x, nuc_y, n_patch_strike, n_patch_dip
     return fast_sweep_ext.fast_sweep(
-        Slowness.flatten(), patch_size, nuc_x, nuc_y, n_patch_strike, n_patch_dip).reshape(n_patch_dip, n_patch_strike)
+        Slowness.flatten('F'), patch_size,
+        nuc_x, nuc_y,
+        n_patch_strike, n_patch_dip).reshape(
+            n_patch_dip, n_patch_strike, order='F')
 
 
 def get_rupture_times_numpy(
@@ -64,7 +65,7 @@ def get_rupture_times_numpy(
     """
 
     StartTimes = num.ones((Slowness.shape)) * 1e8
-    StartTimes[nuc_y - 1, nuc_x - 1] = 0
+    StartTimes[nuc_y, nuc_x] = 0
 
     ### Upwind scheme ###
     def upwind(dip_ind, str_ind, StartTimes, Slowness,

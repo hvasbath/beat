@@ -13,42 +13,41 @@ static PyObject *FastSweepExtError;
 
 int good_array(PyObject* o, int typenum, npy_intp size_want, int ndim_want, npy_intp* shape_want){
     int i;
-    printf("Hereg0\n");
+
     if (!PyArray_Check(o)) {
         PyErr_SetString(FastSweepExtError, "not a NumPy array" );
         return 0;
     }
-    printf("Hereg1\n");
+
     if (PyArray_TYPE((PyArrayObject*)o) != typenum) {
         PyErr_SetString(FastSweepExtError, "array of unexpected type");
         return 0;
     }
-    printf("Hereg2\n");
+
     if (!PyArray_ISCARRAY((PyArrayObject*)o)) {
         PyErr_SetString(FastSweepExtError, "array is not contiguous or not well behaved");
         return 0;
     }
-    printf("Hereg3\n");
+
     if (size_want != -1 && size_want != PyArray_SIZE((PyArrayObject*)o)) {
         PyErr_SetString(FastSweepExtError, "array is of unexpected size");
         return 0;
     }
-    printf("Hereg4\n");
+
     if (ndim_want != -1 && ndim_want != PyArray_NDIM((PyArrayObject*)o)) {
         PyErr_SetString(FastSweepExtError, "array is of unexpected ndim");
         return 0;
     }
-    printf("Hereg5\n");
+
     if (ndim_want != -1 && shape_want != NULL) {
         for (i=0; i<ndim_want; i++) {
-            printf("Hereg51\n");
             if (shape_want[i] != -1 && shape_want[i] != PyArray_DIMS((PyArrayObject*)o)[i]) {
                 PyErr_SetString(FastSweepExtError, "array is of unexpected shape");
             return 0;
             }
         }
     }
-    printf("Hereg6\n");
+
     return 1;
 }
 
@@ -120,7 +119,6 @@ void fast_sweep(float64_t *Slowness, float64_t *StartTime, float64_t PatchSize, 
     npy_intp PatchNum;
     npy_intp VectPos[1];
 
-    printf("FS0\n");
     float64_t epsilon  = 0.1;
     float64_t err      = 1.0E+6; //high dummy value;
     float64_t NewVal[1];
@@ -133,8 +131,7 @@ void fast_sweep(float64_t *Slowness, float64_t *StartTime, float64_t PatchSize, 
     Time_old = (float64_t *) malloc((size_t) ((PatchNum)*sizeof(float64_t)));
 
     int cnt = 0;
-    printf("%lu\n", NumInStk);
-    printf("%lu\n", NumInDip);
+
     for (i = 0; i < NumInStk; i++){
         for (j = 0; j < NumInDip; j++){
             Vect_from_Mat(VectPos, i, j, NumInDip);
@@ -199,7 +196,6 @@ void fast_sweep(float64_t *Slowness, float64_t *StartTime, float64_t PatchSize, 
         }
         num_iter++;
     }
-    printf("FSend\n");
 
     return;
 }
@@ -212,19 +208,15 @@ PyObject* w_fast_sweep(PyObject *dummy, PyObject *args){
     npy_intp h_strk, h_dip, num_strk, num_dip, arr_size[1];
 
     (void) dummy;
-    printf("Here-2\n");
+
     if (!PyArg_ParseTuple(args, "Odkkkk", &slowness_arr, &patch_size, &h_strk, &h_dip, &num_strk, &num_dip)){
         PyErr_SetString(FastSweepExtError, "Invalid call to fast_sweep! \n usage: fast_sweep(slowness_arr, patch_size, h_strk, h_dip, num_strk, num_dip)");
         return NULL;
     }
-    printf("Here-1 %lu\n", num_dip);
-    printf("Here-1 %lu\n", num_strk);
-    printf("Here-1 %lu\n", h_dip);
-    printf("Here-1 %lu\n", h_strk);
-    printf("Here-1 %f\n", patch_size);
+
     arr_size[0] = PyArray_SIZE((PyArrayObject*) slowness_arr);
-    printf("size matrix: %lu\n", PyArray_SIZE((PyArrayObject*) slowness_arr));
-    printf("ndim matrix: %i\n", PyArray_NDIM((PyArrayObject*) slowness_arr));
+//    printf("size matrix: %lu\n", PyArray_SIZE((PyArrayObject*) slowness_arr));
+//    printf("ndim matrix: %i\n", PyArray_NDIM((PyArrayObject*) slowness_arr));
     if (!good_array(slowness_arr, NPY_FLOAT64, arr_size[0], -1, NULL)){
         return NULL;
     }
