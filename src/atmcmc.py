@@ -36,6 +36,7 @@ from numpy.random import normal, standard_cauchy, standard_exponential, \
 __all__ = [
     'ATMCMC',
     'ATMIP_sample',
+    'update_last_sample',
     'init_stage',
     'logp_forw',
     '_iter_parallel_chains']
@@ -625,6 +626,42 @@ def init_stage(homepath, step, stage, model, n_jobs=1,
     return chains, step, update
 
 
+def update_last_samples(homepath, step, progressbar, model, n_jobs):
+    """
+    Resampling the last stage samples with the updated covariances and
+    accept the new sample.
+
+    Return
+    ------
+    mtrace : multitrace
+    """
+
+    tmp_stage = copy.deepcopy(step.stage)
+    logger.info('Updating last samples ...')
+    draws = 1
+    step.stage = 0
+    trans_stage_path = os.path.join(
+        homepath, 'trans_stage_%i' % tmp_stage)
+    logger.info('in %s' % trans_stage_path)
+
+    chains = None
+
+    sample_args = {
+        'draws': draws,
+        'step': step,
+        'stage_path': trans_stage_path,
+        'progressbar': progressbar,
+        'model': model,
+        'n_jobs': n_jobs,
+        'chains': chains}
+
+    _iter_parallel_chains(**sample_args)
+
+    step.stage = tmp_stage
+
+    return backend.load(trans_stage_path, model)
+
+
 def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
                   stage=None, n_jobs=1, tune=None, progressbar=False,
                   model=None, update=None, random_seed=None, rm_flag=False):
@@ -771,14 +808,19 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
             step.population, step.array_population, step.likelihoods = \
                                     step.select_end_points(mtrace)
-            step.beta, step.old_beta, step.weights = step.calc_beta()
-
-            step.chain_previous_lpoint = step.get_chain_previous_lpoint(mtrace)
 
             if update is not None:
                 logger.info('Updating Covariances ...')
                 mean_pt = step.mean_end_points()
                 update.update_weights(mean_pt, n_jobs=n_jobs)
+                mtrace = update_last_samples(
+                    homepath, step, progressbar, model, n_jobs)
+                step.population, step.array_population, step.likelihoods = \
+                                    step.select_end_points(mtrace)
+
+            step.beta, step.old_beta, step.weights = step.calc_beta()
+
+            step.chain_previous_lpoint = step.get_chain_previous_lpoint(mtrace)
 
             if step.beta > 1.:
                 logger.info('Beta > 1.: %f' % step.beta)

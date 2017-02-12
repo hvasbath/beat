@@ -13,6 +13,7 @@ import numpy as num
 
 from beat import backend, utility
 from beat.atmcmc import init_stage, _iter_parallel_chains, choose_proposal
+from beat.atmcmc import update_last_samples
 from beat.config import sample_p_outname
 
 from pyrocko import util
@@ -151,27 +152,8 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
                 logger.info('Updating Covariances ...')
                 update.update_weights(pdict['dist_mean'], n_jobs=n_jobs)
 
-                logger.info('Updating last samples ...')
-                draws = 1
-                step.stage = 0
-                trans_stage_path = os.path.join(
-                    homepath, 'trans_stage_%i' % s)
-                logger.info('in %s' % trans_stage_path)
-
-                chains = None
-
-                sample_args = {
-                    'draws': draws,
-                    'step': step,
-                    'stage_path': trans_stage_path,
-                    'progressbar': progressbar,
-                    'model': model,
-                    'n_jobs': n_jobs,
-                    'chains': chains}
-
-                _iter_parallel_chains(**sample_args)
-
-                mtrace = backend.load(trans_stage_path, model)
+                mtrace = update_last_samples(
+                    homepath, step, progressbar, model, n_jobs)
 
             elif update is not None and stage == 0:
                 update.engine.close_cashed_stores()
