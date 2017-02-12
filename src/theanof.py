@@ -6,6 +6,7 @@ Far future:
     gradient based optimization algorithms
 """
 from beat import heart, utility, config
+from beat.fast_sweeping import fast_sweep
 
 import theano.tensor as tt
 import theano
@@ -299,3 +300,47 @@ class SeisDataChopper(theano.Op):
         ncol = int(num.ceil(self.sample_rate * \
                 (self.arrival_taper.d + num.abs(self.arrival_taper.a))))
         return [(nrow, ncol)]
+
+
+class Sweeper(theano.Op):
+    """
+    Theano Op for C implementation of the fast sweep algorithm.
+
+    Parameters
+    ----------
+    patch_size : float
+        size of fault patches [km]
+    n_patch_strike : int
+        number of patches in strike direction
+    n_patch_dip : int
+        number of patches in dip-direction
+    """
+
+    __props__ = ('patch_size', 'n_patch_dip', 'n_patch_strike')
+
+    def __init__(self, patch_size, n_patch_strike, n_patch_dip):
+        self.patch_size = num.float64(patch_size)
+        self.n_patch_dip = n_patch_dip
+        self.n_patch_strike = n_patch_strike
+
+    def make_node(self, *inputs):
+        inlist = []
+        for i in inputs:
+            inlist.append(tt.as_tensor_variable(i))
+
+        outv = tt.as_tensor_variable(num.zeros((2)))
+        outlist = [outv.type()]
+        return theano.Apply(self, inlist, outlist)
+
+    def perform(self, node, inputs, output):
+        slownesses, nuc_strike, nuc_dip = inputs
+
+        z = output[0]
+
+        z[0] = fast_sweep.fast_sweep_ext.fast_sweep(
+            slownesses, self.patch_size,
+            int(nuc_strike), int(nuc_dip),
+            self.n_patch_strike, self.n_patch_dip)
+
+    def infer_shape(self, node, input_shapes):
+        return [(self.n_patch_dip * self.n_patch_strike, )]
