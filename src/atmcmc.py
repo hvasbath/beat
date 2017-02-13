@@ -792,6 +792,8 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
             if not os.path.exists(stage_path):
                 chains = None
+            elif os.path.exists(stage_path) and rm_flag:
+                shutil.rmtree(stage_path)
 
             sample_args = {
                     'draws': draws,
