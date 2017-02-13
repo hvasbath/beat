@@ -11,6 +11,8 @@ Various significant updates July, August 2016
 """
 
 import numpy as np
+from numpy.random import seed, randint
+
 import pymc3 as pm
 from tqdm import tqdm
 
@@ -875,10 +877,10 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
 
 
 def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
-            progressbar=True, model=None):
+            progressbar=True, model=None, random_seed=-1):
 
     sampling = _iter_sample(draws, step, start, trace, chain,
-                            tune, model)
+                            tune, model, random_seed)
 
     if progressbar:
         sampling = tqdm(sampling, total=draws)
@@ -894,7 +896,7 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
 
 
 def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
-                 model=None):
+                 model=None, random_seed=-1):
     """
     Modified from :func:`pymc3.sampling._iter_sample` to be more efficient with
     the ATMCMC algorithm.
@@ -909,6 +911,9 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
 
     if start is None:
         start = {}
+
+    if random_seed != -1:
+        seed(random_seed)
 
     try:
         step = pm.step_methods.CompoundStep(step)
@@ -954,12 +959,13 @@ def work_chain(work, pshared=None):
         trace_list = pshared['trace_list']
         model = pshared['model']
 
-    step, chain, idx, start = work
+    step, chain, idx, start, rseed = work
 
     progressbar = progressbars[idx]
     trace = trace_list[idx]
 
-    return _sample(draws, step, start, trace, chain, tune, progressbar, model)
+    return _sample(
+        draws, step, start, trace, chain, tune, progressbar, model, rseed)
 
 
 def _iter_serial_chains(draws, step=None, stage_path=None,
@@ -1021,6 +1027,9 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
     for chain in chains:
         trace_list.append(backend.Text(stage_path, model=model))
 
+    max_int = np.iinfo(np.int32).max
+    random_seeds = [randint(max_int) for _ in range(len(chains))]
+
     logger.info('Sampling ...')
 
     pshared = dict(
@@ -1030,8 +1039,9 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
         tune=None,
         model=model)
 
-    work = [(step, chain, idx, step.population[step.resampling_indexes[chain]])
-             for chain, idx in zip(chains, idxs)]
+    work = [(step, chain, idx,
+                 step.population[step.resampling_indexes[chain]], rseed)
+             for chain, idx, rseed in zip(chains, idxs, random_seeds)]
 
     for chain in tqdm(parimap.parimap(
                         work_chain, work, pshared=pshared, nprocs=n_jobs),
