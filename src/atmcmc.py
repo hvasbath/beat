@@ -28,7 +28,7 @@ from pymc3.vartypes import discrete_types
 from pymc3.theanof import inputvars
 from pymc3.theanof import make_shared_replacements, join_nonshared_inputs
 
-from beat import backend, utility
+from beat import backend, utility, paripool
 from beat.config import sample_p_outname
 
 from numpy.random import normal, standard_cauchy, standard_exponential, \
@@ -531,6 +531,12 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         return outindx
 
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
 
 def init_stage(homepath, step, stage, model, n_jobs=1,
          progressbar=False, update=None, rm_flag=False):
@@ -935,7 +941,7 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
         yield trace
 
 
-def work_chain(work, pshared=None):
+def work_chain(work):
     """
     Wrapper function for parallel execution of _sample i.e. the Markov Chains.
 
@@ -952,6 +958,8 @@ def work_chain(work, pshared=None):
         Index of chain that has been sampled
     """
 
+    step, chain, idx, start, rseed, pshared = work
+
     if pshared is not None:
         draws = pshared['draws']
         progressbars = pshared['progressbars']
@@ -959,11 +967,9 @@ def work_chain(work, pshared=None):
         trace_list = pshared['trace_list']
         model = pshared['model']
 
-    step, chain, idx, start, rseed = work
-
     progressbar = progressbars[idx]
     trace = trace_list[idx]
-
+    print 'Here work_chain'
     return _sample(
         draws, step, start, trace, chain, tune, progressbar, model, rseed)
 
@@ -1040,13 +1046,17 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
         model=model)
 
     work = [(step, chain, idx,
-                 step.population[step.resampling_indexes[chain]], rseed)
+                 step.population[step.resampling_indexes[chain]], rseed, pshared)
              for chain, idx, rseed in zip(chains, idxs, random_seeds)]
-
-    for chain in tqdm(parimap.parimap(
-                        work_chain, work, pshared=pshared, nprocs=n_jobs),
-                        total=len(chains)):
-        pass
+    print 'Length work', len(work)
+    if draws > 10:
+        for chain in parimap.parimap(
+                            work_chain, work, pshared=pshared, nprocs=n_jobs):
+            pass
+    else:
+        print 'before pool'
+        for chain in paripool.paripool(work_chain, work, nprocs=n_jobs):
+            pass
 
 
 def tune(acc_rate):
