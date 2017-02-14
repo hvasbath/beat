@@ -20,7 +20,7 @@ def start_message():
 
 
 def paripool(function, work, **kwargs):
-    print 'In Pool'
+
     nprocs = kwargs.get('nprocs', None)
     initmessage = kwargs.get('initmessage', False)
     pshared = kwargs.get('pshared', None)
@@ -45,11 +45,7 @@ def paripool(function, work, **kwargs):
                                 initializer=start_message)
 
     try:
-        for _ in tqdm(
-            pool.imap_unordered(function, work, chunksize=nprocs),
-            total=len(work)):
-            pass
-
+        result = pool.imap_unordered(function, work, chunksize=nprocs)
         pool.close()
         pool.join()
     except KeyboardInterrupt:

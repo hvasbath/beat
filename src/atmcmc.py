@@ -969,7 +969,7 @@ def work_chain(work):
 
     progressbar = progressbars[idx]
     trace = trace_list[idx]
-    print 'Here work_chain'
+
     return _sample(
         draws, step, start, trace, chain, tune, progressbar, model, rseed)
 
@@ -1048,15 +1048,16 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
     work = [(step, chain, idx,
                  step.population[step.resampling_indexes[chain]], rseed, pshared)
              for chain, idx, rseed in zip(chains, idxs, random_seeds)]
-    print 'Length work', len(work)
+
     if draws > 10:
         for chain in parimap.parimap(
                             work_chain, work, pshared=pshared, nprocs=n_jobs):
             pass
     else:
-        print 'before pool'
-        for chain in paripool.paripool(work_chain, work, nprocs=n_jobs):
-            pass
+
+        with tqdm(total=len(chains)) as pbar:
+            for chain in paripool.paripool(work_chain, work, nprocs=n_jobs):
+                pbar.update()
 
 
 def tune(acc_rate):
