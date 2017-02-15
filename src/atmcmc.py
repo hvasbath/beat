@@ -22,7 +22,7 @@ import shutil
 import theano
 import copy
 
-from pyrocko import util, parimap
+from pyrocko import util
 from pymc3.model import modelcontext
 from pymc3.vartypes import discrete_types
 from pymc3.theanof import inputvars
@@ -941,7 +941,7 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
         yield trace
 
 
-def work_chain(work):
+def _work_chain(work):
     """
     Wrapper function for parallel execution of _sample i.e. the Markov Chains.
 
@@ -958,46 +958,7 @@ def work_chain(work):
         Index of chain that has been sampled
     """
 
-    step, chain, idx, start, rseed, pshared = work
-
-    if pshared is not None:
-        draws = pshared['draws']
-        progressbars = pshared['progressbars']
-        tune = pshared['tune']
-        trace_list = pshared['trace_list']
-        model = pshared['model']
-
-    progressbar = progressbars[idx]
-    trace = trace_list[idx]
-
-    return _sample(
-        draws, step, start, trace, chain, tune, progressbar, model, rseed)
-
-
-def _iter_serial_chains(draws, step=None, stage_path=None,
-                        progressbar=True, model=None):
-    """
-    Do Metropolis sampling over all the chains with each chain being
-    sampled 'draws' times. Serial execution one after another.
-    Deprecated function- maybe worth to revive at some point.
-    """
-    mtraces = []
-    progress = pm.progressbar.progress_bar(step.n_chains)
-    for chain in range(step.n_chains):
-        if progressbar:
-            progress.update(chain)
-        trace = backend.Text(stage_path, model=model)
-        strace, chain = _sample(
-                draws=draws,
-                step=step,
-                chain=chain,
-                trace=trace,
-                model=model,
-                progressbar=False,
-                start=step.population[step.resampling_indexes[chain]])
-        mtraces.append(strace)
-
-    return pm.sampling.merge_traces(mtraces)
+    return _sample(*work)
 
 
 def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
@@ -1009,9 +970,6 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
 
     if chains is None:
         chains = list(range(step.n_chains))
-        idxs = chains
-    else:
-        idxs = list(range(len(chains)))
 
     trace_list = []
 
@@ -1038,26 +996,21 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
 
     logger.info('Sampling ...')
 
-    pshared = dict(
-        draws=draws,
-        trace_list=trace_list,
-        progressbars=list_pb,
-        tune=None,
-        model=model)
+    work = [(draws, step, step.population[step.resampling_indexes[chain]],
+        trace, chain, None, progressbar, model, rseed)
+            for chain, rseed, trace, progressbar in zip(
+                chains, random_seeds, trace_list, list_pb)]
 
-    work = [(step, chain, idx,
-                 step.population[step.resampling_indexes[chain]], rseed, pshared)
-             for chain, idx, rseed in zip(chains, idxs, random_seeds)]
-
-    if draws > 10:
-        for chain in parimap.parimap(
-                            work_chain, work, pshared=pshared, nprocs=n_jobs):
-            pass
+    if draws < 10:
+        chunksize = n_jobs
     else:
+        chunksize = 1
 
-        with tqdm(total=len(chains)) as pbar:
-            for chain in paripool.paripool(work_chain, work, nprocs=n_jobs):
-                pbar.update()
+    with tqdm(total=len(chains)) as pbar:
+        for i in paripool.paripool(
+            _work_chain, work, chunksize=chunksize, nprocs=n_jobs):
+
+            pbar.update(i)
 
 
 def tune(acc_rate):

@@ -1,19 +1,9 @@
 import multiprocessing
 import logging
-from tqdm import tqdm
-import itertools
+
 
 logger = logging.getLogger('paripool')
 
-
-def workbench(function, work, pshared):
-    kwargs = {}
-    if pshared is not None:
-        kwargs['pshared'] = pshared
-
-    print 'On workbench'
-    result = function(*work, **kwargs)
-    return result
 
 def start_message():
     logger.info('Starting', multiprocessing.current_process().name)
@@ -23,13 +13,16 @@ def paripool(function, work, **kwargs):
 
     nprocs = kwargs.get('nprocs', None)
     initmessage = kwargs.get('initmessage', False)
-    pshared = kwargs.get('pshared', None)
+    chunksize = kwargs.get('chunksize', None)
 
     if not initmessage:
         start_message = None
 
+    if chunksize is None:
+        chunksize = 1
+
     if nprocs == 1:
-        iterables = map(iter, iterables)
+        iterables = map(iter, work)
         kwargs = {}
 
         while True:
@@ -45,7 +38,7 @@ def paripool(function, work, **kwargs):
                                 initializer=start_message)
 
     try:
-        result = pool.imap_unordered(function, work, chunksize=nprocs)
+        result = pool.imap_unordered(function, work, chunksize=chunksize)
         pool.close()
         pool.join()
     except KeyboardInterrupt:
