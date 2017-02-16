@@ -182,11 +182,31 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
             (bd[2] * num.sin(d2r * self.strike) / num.tan(d2r * self.dip))
         return num.array([xtrace, ytrace, 0.])
 
+    def get_n_patches(self, patch_size=1000., dimension='length'):
+        """
+        Return number of patches along dimension of the fault.
+
+        Parameters
+        ----------
+        patch_size : float
+            patch size [m] of desired sub-patches
+        dimension : str
+
+        Returns
+        -------
+        int
+        """
+        if dimension not in ['length', 'width']:
+            raise Exception('Invalid dimension!')
+
+        return int(num.ceil(self[dimension] / patch_size))
+
     def patches(self, nl, nw, dataset):
         """
         Cut source into n by m sub-faults and return n times m
         :class:`RectangularSource` Objects.
-        Discretization starts at shallow depth going row-wise deeper.
+        Discretization starts at shallow depth (upper left) going along strike.
+        Once fault end reached next dip cell discretized.
         REQUIRES: self.depth to be TOP DEPTH!!!
 
         Parameters
@@ -1444,8 +1464,10 @@ def discretize_sources(
                     extension_width, extension_length,
                     patch_width, patch_length)
 
-                npls.append(int(num.ceil(ext_source.length / patch_length)))
-                npws.append(int(num.ceil(ext_source.width / patch_width)))
+                npls.append(
+                    ext_source.get_n_patches(patch_length, 'length'))
+                npws.append(
+                    ext_source.get_n_patches(patch_width, 'width'))
                 ext_sources.append(ext_source)
                 logger.info('Extended fault(s): \n %s' % ext_source.__str__())
 
