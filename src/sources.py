@@ -245,6 +245,25 @@ class RectangularSource(gf.DCSource, Cloneable):
             else:
                 return latlon[:, ::-1]
 
+    def get_n_patches(self, patch_size=1000., dimension='length'):
+        """
+        Return number of patches along dimension of the fault.
+
+        Parameters
+        ----------
+        patch_size : float
+            patch size [m] of desired sub-patches
+        dimension : str
+
+        Returns
+        -------
+        int
+        """
+        if dimension not in ['length', 'width']:
+            raise Exception('Invalid dimension!')
+
+        return int(num.ceil(self[dimension] / patch_size))
+
     def extent_source(self, extension_width, extension_length,
                      patch_width, patch_length):
         """
