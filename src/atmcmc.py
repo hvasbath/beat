@@ -196,7 +196,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         out_varnames = [out_var.name for out_var in out_vars]
 
-        self.scaling = np.atleast_1d(scale)
+        self.scaling = utility.scalar2floatX(np.atleast_1d(scale))
 
         if covariance is None and proposal_name == 'MultivariateNormal':
             self.covariance = np.eye(sum(v.dsize for v in vars))
@@ -261,13 +261,15 @@ class ATMCMC(backend.ArrayStepSharedLLK):
 
         else:
             if self.stage_sample == 0:
-                self.proposal_samples_array = self.proposal_dist(self.n_steps)
+                self.proposal_samples_array = self.proposal_dist(
+                    self.n_steps).astype(theano.config.floatX)
 
             if not self.steps_until_tune and self.tune:
                 # Tune scaling parameter
-                self.scaling = pm.metropolis.tune(
-                    self.scaling,
-                    self.accepted / float(self.tune_interval))
+                self.scaling = utility.scalar2floatX(
+                    pm.metropolis.tune(
+                        self.scaling,
+                        self.accepted / float(self.tune_interval)))
 
                 # Reset counter
                 self.steps_until_tune = self.tune_interval
@@ -287,12 +289,14 @@ class ATMCMC(backend.ArrayStepSharedLLK):
                     q = q0 + delta
                     q = q[self.discrete].astype(int)
             else:
+
                 q = q0 + delta
 
             l0 = self.chain_previous_lpoint[
                             self.resampling_indexes[self.chain_index]]
 
             if self.check_bnd:
+
                 varlogp = self.check_bnd(q)
 
                 if np.isfinite(varlogp):

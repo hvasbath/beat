@@ -1138,6 +1138,7 @@ class Problem(object):
                     lower=hyperpar.lower,
                     upper=hyperpar.upper,
                     testval=hyperpar.testvalue,
+                    dtype=tconfig.floatX,
                     transform=None)
             else:
                 hyperparams[hp_name] = 0.

@@ -11,6 +11,7 @@ from pyrocko.cake import m2d, LayeredModel, read_nd_model_str
 from pyrocko.gf.seismosizer import RectangularSource
 
 import numpy as num
+from theano import config as tconfig
 
 from pyproj import Proj
 
@@ -1001,6 +1002,13 @@ def check_hyper_flag(problem):
         return True
     else:
         return False
+
+
+def scalar2floatX(a, floatX=tconfig.floatX):
+    if floatX == 'float32':
+        return num.float32(a)
+    elif floatX == 'float64':
+        return num.float64(a)
 
 
 def PsGrnArray2LayeredModel(psgrn_input_path):

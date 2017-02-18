@@ -10,6 +10,7 @@ import copy
 
 from beat import psgrn, pscmp, utility
 
+from theano import config as tconfig
 import numpy as num
 
 from pyrocko.guts import Object, String, Float, Int, Tuple
@@ -366,25 +367,25 @@ class Covariance(Object):
     """
 
     data = Array.T(shape=(None, None),
-                    dtype=num.float,
+                    dtype=tconfig.floatX,
                     help='Data covariance matrix',
                     optional=True)
     pred_g = Array.T(shape=(None, None),
-                    dtype=num.float,
+                    dtype=tconfig.floatX,
                     help='Model prediction covariance matrix, fault geometry',
                     optional=True)
     pred_v = Array.T(shape=(None, None),
-                    dtype=num.float,
+                    dtype=tconfig.floatX,
                     help='Model prediction covariance matrix, velocity model',
                     optional=True)
 
     @property
     def p_total(self):
         if self.pred_g is None:
-            self.pred_g = num.zeros_like(self.data)
+            self.pred_g = num.zeros_like(self.data, dtype=tconfig.floatX)
 
         if self.pred_v is None:
-            self.pred_v = num.zeros_like(self.data)
+            self.pred_v = num.zeros_like(self.data, dtype=tconfig.floatX)
 
         return self.pred_g + self.pred_v
 
@@ -396,9 +397,9 @@ class Covariance(Object):
         Cx = self.p_total + self.data
         if Cx.sum() == 0:
             logger.debug('No covariances given, using I matrix!')
-            return num.eye(Cx.shape[0])
+            return num.eye(Cx.shape[0]).astype(tconfig.floatX)
         else:
-            return num.linalg.inv(Cx)
+            return num.linalg.inv(Cx).astype(tconfig.floatX)
 
     @property
     def inverse_p(self):
@@ -407,7 +408,7 @@ class Covariance(Object):
         """
         if self.p_total.sum() == 0:
             raise Exception('No model covariance defined!')
-        return num.linalg.inv(self.p_total)
+        return num.linalg.inv(self.p_total).astype(tconfig.floatX)
 
     @property
     def inverse_d(self):
@@ -416,7 +417,7 @@ class Covariance(Object):
         """
         if self.data is None:
             raise Exception('No data covariance matrix defined!')
-        return num.linalg.inv(self.data)
+        return num.linalg.inv(self.data).astype(tconfig.floatX)
 
     @property
     def log_norm_factor(self):
@@ -435,7 +436,7 @@ class Covariance(Object):
             logger.debug('No covariance defined, using I matrix!')
             ldet_x = 1.
 
-        return (N * num.log(2 * num.pi)) + ldet_x
+        return utility.scalar2floatX((N * num.log(2 * num.pi)) + ldet_x)
 
 
 class TeleseismicTarget(gf.Target):
@@ -526,17 +527,17 @@ class Parameter(Object):
                     help='Type of prior distribution to use. Options:'
                          ' "Uniform", ...')
     lower = Array.T(shape=(None,),
-                    dtype=num.float,
+                    dtype=tconfig.floatX,
                     serialize_as='list',
-                    default=num.array([0., 0.]))
+                    default=num.array([0., 0.], dtype=tconfig.floatX))
     upper = Array.T(shape=(None,),
-                    dtype=num.float,
+                    dtype=tconfig.floatX,
                     serialize_as='list',
-                    default=num.array([1., 1.]))
+                    default=num.array([1., 1.], dtype=tconfig.floatX))
     testvalue = Array.T(shape=(None,),
-                        dtype=num.float,
+                        dtype=tconfig.floatX,
                         serialize_as='list',
-                        default=num.array([0.5, 0.5]))
+                        default=num.array([0.5, 0.5], dtype=tconfig.floatX))
 
     def __call__(self):
         if self.lower is not None:
