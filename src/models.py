@@ -57,8 +57,8 @@ def multivariate_normal(targets, weights, hyperparams, residuals):
 
     for l, target in enumerate(targets):
         M = tt.cast(shared(target.samples, borrow=True), 'int16')
-        factor = tt.cast(shared(
-            target.covariance.log_norm_factor, borrow=True), tconfig.floatX)
+        factor = shared(
+            target.covariance.log_norm_factor, borrow=True)
         hp_name = bconfig.hyper_pars[target.typ]
 
         logpts = tt.set_subtensor(logpts[l:l + 1],
@@ -117,7 +117,7 @@ class Composite(Object):
         if hypers:
             self._llks = []
             for t in range(self.n_t):
-                self._llks.append(shared(num.array([1.])))
+                self._llks.append(shared(num.array([1.]), borrow=True))
 
     def get_hyper_formula(self, hyperparams):
         """
@@ -182,7 +182,7 @@ class GeodeticComposite(Composite):
         self.weights = []
         for target in self.targets:
             icov = target.covariance.inverse
-            self.weights.append(shared(icov))
+            self.weights.append(shared(icov, borrow=True))
 
         self.config = gc
 
@@ -279,9 +279,9 @@ class GeodeticGeometryComposite(GeodeticComposite):
 
         logger.info('Number of geodetic data points: %i ' % lats.shape[0])
 
-        self.wdata = shared(self.Bij.fmap(_disp_list) * odws)
-        self.lv = shared(self.Bij.f3map(_lv_list))
-        self.odws = shared(odws)
+        self.wdata = shared(self.Bij.fmap(_disp_list) * odws, borrow=True)
+        self.lv = shared(self.Bij.f3map(_lv_list), borrow=True)
+        self.odws = shared(odws, borrow=True)
 
         # syntetics generation
         logger.debug('Initialising synthetics functions ... \n')
@@ -523,7 +523,7 @@ class SeismicComposite(Composite):
                 target.covariance.pred_v = cov_ds_seismic[t]
 
             icov = target.covariance.inverse
-            self.weights.append(shared(icov))
+            self.weights.append(shared(icov), borrow=True)
 
         super(SeismicComposite, self).__init__(hypers=hypers)
 
