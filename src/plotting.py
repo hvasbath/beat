@@ -294,6 +294,8 @@ def correlation_plot_hist(mtrace, varnames=None,
                     axs[l, k].axvline(
                         x=reference, color=point_color,
                         lw=int(point_size) / 4.)
+                else:
+                    reference = None
 
                 histplot_op(
                     axs[l, k], pmp.make_2d(a), alpha=alpha, color='orange',
@@ -1196,6 +1198,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         reference = None
                         if v in lines.keys():
                             lines.pop(v)
+
                     else:
                         reference = lines[v]
                 else:
@@ -1398,7 +1401,7 @@ def draw_correlation_hist(problem, plot_options):
         raise Exception('Need at least two parameters to compare!'
                         'Found only %i variables! ' % len(varnames))
 
-    if po.load_stage is None and not hypers:
+    if po.load_stage is None and not hypers and not sc.name == 'ATMCMC':
         draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
     else:
         draws = sc.parameters.n_steps
