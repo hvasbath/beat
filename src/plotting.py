@@ -1347,8 +1347,8 @@ def n_model_plot(models, axes=None):
     z = ref.profile('z')
     vp = ref.profile('vp')
     vs = ref.profile('vs')
-    axes.plot(vp, z, color=scolor('aluminium6'), lw=0.5)
-    axes.plot(vs, z, color=scolor('aluminium1'), lw=0.5)
+    axes.plot(vp, z, color=scolor('aluminium6'), lw=1.5)
+    axes.plot(vs, z, color=scolor('aluminium3'), lw=1.5)
 
     ymin, ymax = axes.get_ylim()
     xmin, xmax = axes.get_xlim()
