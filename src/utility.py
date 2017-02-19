@@ -431,7 +431,7 @@ def update_source(source, **kwargs):
             source[k] = v
 
     if isinstance(source, RectangularSource):
-        adjust_fault_reference(source, input_depth='Top')
+        adjust_fault_reference(source, input_depth='top')
 
 
 def utm_to_loc(utmx, utmy, zone, event):
@@ -679,6 +679,8 @@ def adjust_fault_reference(source, input_depth='top'):
     elif input_depth == 'center':
         center = num.array(
             [source.east_shift, source.north_shift, source.depth])
+    else:
+        raise Exception('input_depth %s not supported!' % input_depth)
 
     source.east_shift = float(center[0])
     source.north_shift = float(center[1])

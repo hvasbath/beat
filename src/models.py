@@ -523,7 +523,7 @@ class SeismicComposite(Composite):
                 target.covariance.pred_v = cov_ds_seismic[t]
 
             icov = target.covariance.inverse
-            self.weights.append(shared(icov), borrow=True)
+            self.weights.append(shared(icov, borrow=True))
 
         super(SeismicComposite, self).__init__(hypers=hypers)
 
