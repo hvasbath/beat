@@ -53,6 +53,7 @@ plot_units = {
     'geo_G': u_hyp,
     'seis_Z': u_hyp,
     'seis_T': u_hyp,
+    'like': u_hyp,
             }
 
 
@@ -127,6 +128,12 @@ def choose_round_digit(twosigma):
         return 0
     elif twosigma < 100.:
         return -1
+    elif twosigma < 1000.:
+        return -2
+    elif twosigma < 10000.:
+        return -3
+    else:
+        return -4
 
 
 def get_tickmarks(leftb, rightb, ntickmarks=5):
@@ -1198,9 +1205,10 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         reference = None
                         if v in lines.keys():
                             lines.pop(v)
-
-                    else:
+                    elif v in lines:
                         reference = lines[v]
+                    else:
+                        reference = None
                 else:
                     reference = None
 
@@ -1301,6 +1309,7 @@ def draw_posteriors(problem, plot_options):
     po = plot_options
 
     stage = load_stage(problem, stage_number=po.load_stage, load='trace')
+    pc = problem.config.problem_config
 
     if po.load_stage is not None:
         list_indexes = [po.load_stage]
@@ -1316,11 +1325,10 @@ def draw_posteriors(problem, plot_options):
 
     if hypers:
         sc = problem.config.hyper_sampler_config
-        varnames = problem.config.problem_config.hyperparameters.keys()
+        varnames = pc.hyperparameters.keys() + ['like']
     else:
         sc = problem.config.sampler_config
-        varnames = problem.config.problem_config.select_variables() + \
-           problem.config.problem_config.hyperparameters.keys()
+        varnames = pc.select_variables() + pc.hyperparameters.keys() + ['like']
 
     figs = []
 
