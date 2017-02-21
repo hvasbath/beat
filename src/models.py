@@ -62,9 +62,9 @@ def multivariate_normal(targets, weights, hyperparams, residuals):
         hp_name = bconfig.hyper_pars[target.typ]
 
         logpts = tt.set_subtensor(logpts[l:l + 1],
-            (-0.5) * (factor - \
+            (-0.5) * (factor + \
             (M * 2 * hyperparams[hp_name]) + \
-            tt.exp(hyperparams[hp_name] * 2) * \
+            (1 / tt.exp(hyperparams[hp_name] * 2)) * \
             (residuals[l].dot(weights[l]).dot(residuals[l].T))
                      )
                                  )
@@ -86,9 +86,9 @@ def hyper_normal(targets, hyperparams, llks):
         hp_name = bconfig.hyper_pars[target.typ]
 
         logpts = tt.set_subtensor(logpts[k:k + 1],
-            (-0.5) * (factor - \
+            (-0.5) * (factor + \
             (M * 2 * hyperparams[hp_name]) + \
-            tt.exp(hyperparams[hp_name] * 2) * \
+            (1 / tt.exp(hyperparams[hp_name] * 2)) * \
                 llks[k]
                      )
                                  )
