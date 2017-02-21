@@ -42,7 +42,7 @@ geo_vars_geometry = {
 #    dcs: geo_vars + ['magnitude']}
 
 seis_vars_geometry = {
-    rfs: seis_vars,
+    rfs: seis_vars + geo_vars + ['length', 'width', 'slip'],
     dcs: seis_vars + geo_vars}
 
 joint_vars_geometry = {}
