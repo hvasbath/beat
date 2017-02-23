@@ -515,12 +515,11 @@ class SeismicComposite(Composite):
 
         self.weights = []
         for t, target in enumerate(self.targets):
-            if target.covariance.data is None:
-                logger.debug(
-                    'No data covariance given. Setting default: zero')
-                target.covariance.data = num.zeros_like(
-                    cov_ds_seismic[t])
-                target.covariance.pred_v = cov_ds_seismic[t]
+            if target.covariance.data is None and not sc.calc_data_cov:
+                logger.warn(
+                    'No data covariance given/estimated! '
+                    'Setting default: eye')
+            target.covariance.data = cov_ds_seismic[t]
 
             icov = target.covariance.inverse
             self.weights.append(shared(icov, borrow=True))
