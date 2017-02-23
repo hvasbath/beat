@@ -1270,7 +1270,6 @@ def select_transform(sc, n_steps):
         if n_steps == 1:
             return x
         else:
-            print n_steps, x.shape
             nchains = x.shape[0] / n_steps
             xout = []
             for i in range(nchains):
