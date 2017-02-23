@@ -337,7 +337,9 @@ class ProblemConfig(Object):
                 else:
                     variables += vars_catalog[dataset]
             else:
-                raise ValueError('Dataset not supported for type of problem!')
+                raise ValueError('Dataset %s not supported for type of problem! '
+                    'Supported datasets are: %s' % (
+                    dataset, ', '.join('"%s"' % d for d in vars_catalog.keys())))
 
         unique_variables = utility.unique_list(variables)
         if len(unique_variables) == 0:
