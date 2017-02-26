@@ -880,6 +880,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
         outpath = os.path.join(stage_path, sample_p_outname)
         outparam_list = [step, update]
         utility.dump_objects(outpath, outparam_list)
+        logger.info('Finished sampling!')
 
 
 def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
