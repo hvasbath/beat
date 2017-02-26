@@ -1393,6 +1393,7 @@ def estimate_hypers(step, problem):
         if not os.path.exists(problem.outfolder):
             logger.debug('Sampling ...')
             if sc0.parameters.update_covariances:
+                logger.info('Updating Covariances ...')
                 problem.update_weights(point)
 
             problem.update_llks(point)
