@@ -1,6 +1,6 @@
 """
 Text file trace backend modified from pymc3 to work efficiently with
-ATMCMC
+SMC
 
 Store sampling values as CSV files.
 
@@ -79,8 +79,8 @@ class ArrayStepSharedLLK(pymc3.arraystep.BlockedStep):
         return self.bij.rmap(apoint), alist
 
 
-class BaseATMCMCTrace(object):
-    """Base ATMCMC trace object
+class BaseSMCTrace(object):
+    """Base SMC trace object
 
     Parameters
     ----------
@@ -134,7 +134,7 @@ class BaseATMCMCTrace(object):
         self.__dict__.update(state)
 
 
-class Text(BaseATMCMCTrace):
+class Text(BaseSMCTrace):
     """
     Text trace object
 

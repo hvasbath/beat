@@ -165,15 +165,15 @@ def command_init(args):
             help='Integer Number of sources to invert for. Default: 1' )
 
         parser.add_option('--sampler', dest='sampler', type='string',
-            default='ATMCMC',
+            default='SMC',
             help='Sampling algorithm to sample the solution space of the'
-                 ' general problem; "ATMCMC", "Metropolis". Default: "ATMCMC"')
+                 ' general problem; "SMC", "Metropolis". Default: "SMC"')
 
         parser.add_option('--hyper_sampler', dest='hyper_sampler',
             type='string', default='Metropolis',
             help='Sampling algorithm to sample the solution space of the'
                  ' hyperparameters only;'
-                 '"ATMCMC", "Metropolis". Default: "Metropolis"')
+                 '"SMC", "Metropolis". Default: "Metropolis"')
 
         parser.add_option('--use_custom', dest='use_custom',
             action='store_true',

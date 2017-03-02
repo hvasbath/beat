@@ -270,6 +270,10 @@ class GeodeticConfig(Object):
         default=True,
         help='Flag for calculating the data covariance matrix based on the'
              ' pre P arrival data trace noise.')
+    fit_plane = Bool.T(
+        default=False,
+        help='Flag for inverting for additional plane parameters on each'
+            ' geodetic dataset')
     gf_config = GFConfig.T(default=GeodeticGFConfig.D())
 
 
@@ -337,9 +341,10 @@ class ProblemConfig(Object):
                 else:
                     variables += vars_catalog[dataset]
             else:
-                raise ValueError('Dataset %s not supported for type of problem! '
-                    'Supported datasets are: %s' % (
-                    dataset, ', '.join('"%s"' % d for d in vars_catalog.keys())))
+                raise ValueError('Dataset %s not supported for type of'
+                    ' problem! Supported datasets are: %s' % (
+                        dataset, ', '.join(
+                            '"%s"' % d for d in vars_catalog.keys())))
 
         unique_variables = utility.unique_list(variables)
         if len(unique_variables) == 0:
@@ -415,9 +420,9 @@ class MetropolisConfig(SamplerParameters):
                      help='Remove existing stage results prior to sampling.')
 
 
-class ATMCMCConfig(SamplerParameters):
+class SMCConfig(SamplerParameters):
     """
-    Config for optimization parameters of the ATMCMC algorithm.
+    Config for optimization parameters of the SMC algorithm.
     """
     n_chains = Int.T(default=1000,
                      help='Number of Metropolis chains for sampling.')
@@ -460,25 +465,25 @@ class SamplerConfig(Object):
     Config for the sampler specific parameters.
     """
 
-    name = String.T(default='ATMCMC',
+    name = String.T(default='SMC',
                     help='Sampler to use for sampling the solution space.'
-                         'Metropolis/ ATMCMC coming soon: ADVI')
+                         'Metropolis/ SMC')
     parameters = SamplerParameters.T(
-        default=ATMCMCConfig.D(),
+        default=SMCConfig.D(),
         optional=True,
         help='Sampler dependend Parameters')
 
     def set_parameters(self, **kwargs):
 
         if self.name == None:
-            logger.info('Sampler not defined, using default sampler: ATMCMC')
-            self.name = 'ATMCMC'
+            logger.info('Sampler not defined, using default sampler: SMC')
+            self.name = 'SMC'
 
         if self.name == 'Metropolis':
             self.parameters = MetropolisConfig(**kwargs)
 
-        if self.name == 'ATMCMC':
-            self.parameters = ATMCMCConfig(**kwargs)
+        if self.name == 'SMC':
+            self.parameters = SMCConfig(**kwargs)
 
 
 class BEATconfig(Object, Cloneable):
@@ -540,7 +545,7 @@ class BEATconfig(Object, Cloneable):
 def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                 datasets=['geodetic'],
                 mode='geometry', source_type='RectangularSource', n_sources=1,
-                sampler='ATMCMC', hyper_sampler='Metropolis',
+                sampler='SMC', hyper_sampler='Metropolis',
                 use_custom=False, individual_gfs=False):
     """
     Initialise BEATconfig File and write it main_path/name .
@@ -563,7 +568,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
         number of sources to solve for / discretize depending on mode parameter
     sampler : str
         Optimization algorithm to use to sample the solution space
-        Options: 'ATMCMC', 'Metropolis'
+        Options: 'SMC', 'Metropolis'
     use_custom : boolean
         Flag to setup manually a custom velocity model.
     individual_gfs : boolean

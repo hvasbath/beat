@@ -15,7 +15,7 @@ import theano.tensor as tt
 from theano import config as tconfig
 from theano import shared
 
-from beat import theanof, heart, utility, atmcmc, backend, metropolis
+from beat import theanof, heart, utility, smc, backend, metropolis
 from beat import covariance as cov
 from beat import config as bconfig
 
@@ -994,10 +994,10 @@ class Problem(object):
                 if hypers:
                     step = Metropolis(
                         tune_interval=sc.parameters.tune_interval,
-                        proposal_dist=atmcmc.proposal_dists[
+                        proposal_dist=smc.proposal_dists[
                             sc.parameters.proposal_dist])
                 else:
-                    step = atmcmc.ATMCMC(
+                    step = smc.SMC(
                         n_chains=sc.parameters.n_jobs,
                         tune_interval=sc.parameters.tune_interval,
                         likelihood_name=self._like_name,
@@ -1005,7 +1005,7 @@ class Problem(object):
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
 
-            elif sc.name == 'ATMCMC':
+            elif sc.name == 'SMC':
                 logger.info(
                     '... Initiate Adaptive Transitional Metropolis ... \n'
                     ' n_chains=%i, tune_interval=%i, n_jobs=%i \n' % (
@@ -1013,7 +1013,7 @@ class Problem(object):
                         sc.parameters.n_jobs))
 
                 t1 = time.time()
-                step = atmcmc.ATMCMC(
+                step = smc.SMC(
                     n_chains=sc.parameters.n_chains,
                     tune_interval=sc.parameters.tune_interval,
                     coef_variation=sc.parameters.coef_variation,
@@ -1310,7 +1310,7 @@ def sample(step, problem):
     Parameters
     ----------
 
-    step : :class:`ATMCMC` or :class:`pymc3.metropolis.Metropolis`
+    step : :class:`SMC` or :class:`pymc3.metropolis.Metropolis`
         from problem.init_sampler()
     problem : :class:`Problem` with characteristics of problem to solve
     """
@@ -1343,10 +1343,10 @@ def sample(step, problem):
             update=update,
             rm_flag=pa.rm_flag)
 
-    elif sc.name == 'ATMCMC':
+    elif sc.name == 'SMC':
         logger.info('... Starting ATMIP ...\n')
 
-        atmcmc.ATMIP_sample(
+        smc.ATMIP_sample(
             pa.n_steps,
             step=step,
             progressbar=False,

@@ -412,7 +412,7 @@ def get_result_point(stage, config, point_llk='max'):
             stage.mtrace, stage.step, sc.burn, sc.thin)
         point = pdict[point_llk]
 
-    elif config.sampler_config.name == 'ATMCMC':
+    elif config.sampler_config.name == 'SMC':
         _, _, llk = stage.step.select_end_points(stage.mtrace)
         posterior_idxs = utility.get_fit_indexes(llk)
 
@@ -1282,7 +1282,7 @@ def select_transform(sc, n_steps):
 
             return num.vstack(xout).flatten()
 
-    if sc.name == 'ATMCMC':
+    if sc.name == 'SMC':
         return last_sample
     elif sc.name == 'Metropolis':
         return burn_sample
@@ -1411,7 +1411,7 @@ def draw_correlation_hist(problem, plot_options):
         raise Exception('Need at least two parameters to compare!'
                         'Found only %i variables! ' % len(varnames))
 
-    if po.load_stage is None and not hypers and not sc.name == 'ATMCMC':
+    if po.load_stage is None and not hypers and not sc.name == 'SMC':
         draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
     else:
         draws = sc.parameters.n_steps

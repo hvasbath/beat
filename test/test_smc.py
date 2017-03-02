@@ -1,6 +1,6 @@
 import pymc3 as pm
 import numpy as np
-from beat import atmcmc, utility
+from beat import smc, utility
 from tempfile import mkdtemp
 import shutil
 import theano.tensor as tt
@@ -8,7 +8,7 @@ import multiprocessing as mp
 import unittest
 
 
-class TestATMCMC(unittest.TestCase):
+class TestSMC(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
@@ -57,12 +57,12 @@ class TestATMCMC(unittest.TestCase):
             llk = pm.Potential('like', like)
 
         with ATMIP_test:
-            step = atmcmc.ATMCMC(
+            step = smc.SMC(
                 n_chains=n_chains,
                 tune_interval=tune_interval,
                 likelihood_name=ATMIP_test.deterministics[0].name)
 
-        mtrace = atmcmc.ATMIP_sample(
+        mtrace = smc.ATMIP_sample(
             n_steps=n_steps,
             step=step,
             n_jobs=n_jobs,

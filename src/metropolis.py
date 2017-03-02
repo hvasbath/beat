@@ -12,15 +12,15 @@ import logging
 import numpy as num
 
 from beat import backend, utility
-from beat.atmcmc import init_stage, _iter_parallel_chains, choose_proposal
-from beat.atmcmc import update_last_samples
+from beat.smc import init_stage, _iter_parallel_chains, choose_proposal
+from beat.smc import update_last_samples
 from beat.config import sample_p_outname
 
 from pyrocko import util
 
 __all__ = ['Metropolis_sample', 'get_trace_stats', 'get_final_stage']
 
-logger = logging.getLogger('ATMCMC')
+logger = logging.getLogger('metropolis')
 
 
 def get_final_stage(homepath, n_stages, model):
@@ -177,7 +177,7 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2):
     ----------
     mtrace : :class:`pymc3.backends.base.MultiTrace`
         Multitrace sampling result
-    step : initialised :class:`atmcmc.ATMCMC` sampler object
+    step : initialised :class:`smc.SMC` sampler object
     burn : float
         Burn-in parameter to throw out samples from the beginning of the trace
     thin : int

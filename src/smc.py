@@ -1,4 +1,6 @@
 """
+Sequential Monte Carlo Sampler module;
+in geosciences also known as
 Adaptive Transitional Marcov Chain Monte Carlo sampler module.
 
 Runs on any pymc3 model.
@@ -36,14 +38,14 @@ from numpy.random import normal, standard_cauchy, standard_exponential, \
 
 
 __all__ = [
-    'ATMCMC',
+    'SMC',
     'ATMIP_sample',
     'update_last_samples',
     'init_stage',
     'logp_forw',
     '_iter_parallel_chains']
 
-logger = logging.getLogger('ATMCMC')
+logger = logging.getLogger('smc')
 
 
 class Proposal(object):
@@ -124,7 +126,7 @@ def choose_proposal(proposal_name, scale=1.):
     return proposal_dists[proposal_name](scale)
 
 
-class ATMCMC(backend.ArrayStepSharedLLK):
+class SMC(backend.ArrayStepSharedLLK):
     """
     Adaptive Transitional Markov-Chain Monte-Carlo sampler class.
 
@@ -255,7 +257,7 @@ class ATMCMC(backend.ArrayStepSharedLLK):
         self.logp_forw = logp_forw(out_vars, vars, shared)
         self.check_bnd = logp_forw([model.varlogpt], vars, shared)
 
-        super(ATMCMC, self).__init__(vars, out_vars, shared)
+        super(SMC, self).__init__(vars, out_vars, shared)
 
     def astep(self, q0):
         if self.stage == 0:
@@ -698,8 +700,8 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
     ----------
     n_steps : int
         The number of samples to draw for each Markov-chain per stage
-    step : :class:`ATMCMC`
-        ATMCMC initialisation object
+    step : :class:`SMC`
+        SMC initialisation object
     start : List of dictionaries
         with length of (n_chains)
         Starting points in parameter space (or partial point)
@@ -906,7 +908,7 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
                  model=None, random_seed=-1):
     """
     Modified from :func:`pymc3.sampling._iter_sample` to be more efficient with
-    the ATMCMC algorithm.
+    the SMC algorithm.
     """
 
     model = modelcontext(model)
@@ -950,7 +952,7 @@ def _work_chain(work):
     ----------
     work : List
         Containing all the information that is unique for each Markov Chain
-        i.e. [:class:'ATMCMC', chain_number(int),
+        i.e. [:class:'SMC', chain_number(int),
         sampling index(int), start_point(dictionary)]
 
     Returns
