@@ -21,6 +21,10 @@ from beat import config as bconfig
 
 import logging
 
+
+km = 1000.
+
+
 logger = logging.getLogger('models')
 
 __all__ = ['GeometryOptimizer', 'sample', 'load_model', 'load_stage']
@@ -96,6 +100,14 @@ def hyper_normal(targets, hyperparams, llks):
     return logpts
 
 
+def get_plane(slocx, slocy, az, ra):
+    """
+    Get synthetic residual plane in azimuth and range direction of the
+    satellite.
+    """
+    return slocy * az + slocx * ra
+
+
 class Composite(Object):
     """
     Class that comprises the rules to formulate the problem. Has to be
@@ -158,7 +170,9 @@ class GeodeticComposite(Composite):
         if true initialise object for hyper parameter optimization
     """
 
-    def __init__(self, gc, project_dir, hypers=False):
+    def __init__(self, gc, project_dir, event, hypers=False):
+
+        self.event = event
 
         logger.debug('Setting up geodetic structure ...\n')
         self.name = 'geodetic'
@@ -183,6 +197,16 @@ class GeodeticComposite(Composite):
         for target in self.targets:
             icov = target.covariance.inverse
             self.weights.append(shared(icov, borrow=True))
+
+        self._slocx = []
+        self._slocy = []
+        if gc.fit_plane:
+            for target in self.targets:
+                locy, locx = target.update_local_coords(self.event)
+                self._slocx = shared(
+                    locx.astype(tconfig.floatX) / km, borrow=True)
+                self._slocy = shared(
+                    locy.astype(tconfig.floatX) / km, borrow=True)
 
         self.config = gc
 
@@ -216,6 +240,27 @@ class GeodeticComposite(Composite):
                 processed_res=res))
 
         return results
+
+    def remove_ramps(self, residuals):
+        """
+        Remove an orbital ramp from the residual displacements
+        """
+        self.plane_params = {}
+
+        for i, target in enumerate(self.targets):
+            ramp = pm.Uniform(
+                    target.track + '_ramp',
+                    shape=(2,),
+                    lower=bconfig.default_bounds['ramp'][0],
+                    upper=bconfig.default_bounds['ramp'][1],
+                    testval=0.,
+                    transform=None,
+                    dtype=tconfig.floatX)
+
+            self.plane_params[target.track] = ramp
+            residuals[i] -= get_plane(self._slocx[i], self._slocy[i], ramp)
+
+        return residuals
 
     def update_llks(self, point):
         """
@@ -257,7 +302,7 @@ class GeodeticGeometryComposite(GeodeticComposite):
     def __init__(self, gc, project_dir, sources, event, hypers=False):
 
         super(GeodeticGeometryComposite, self).__init__(
-            gc, project_dir, hypers=hypers)
+            gc, project_dir, event, hypers=hypers)
 
         self.event = event
         self.sources = sources
@@ -367,6 +412,9 @@ class GeodeticGeometryComposite(GeodeticComposite):
                disp[:, 2] * self.lv[:, 2]) * self.odws
         residuals = self.Bij.srmap(
             tt.cast((self.wdata - los), tconfig.floatX))
+
+        if self.config.fit_plane:
+            residuals = self.remove_ramps(residuals)
 
         logpts = multivariate_normal(
             self.targets, self.weights, hyperparams, residuals)
@@ -884,6 +932,9 @@ class GeodeticDistributorComposite(GeodeticComposite):
                 mu += tt.dot(self.sgfs[0][var][t], rv)
 
             residuals[t] = self.odws[t] * (self.data[t] - mu)
+
+        if self.config.fit_plane:
+            residuals = self.remove_ramps(residuals)
 
         logpts = multivariate_normal(
             self.targets, self.weights, hyperparams, residuals)

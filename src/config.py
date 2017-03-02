@@ -95,7 +95,8 @@ default_bounds = dict(
     seis_Z=(-20., 20.),
     seis_T=(-20., 20.),
     geo_S=(-20., 20.),
-    geo_G=(-20., 20.))
+    geo_G=(-20., 20.),
+    ramp=(-0.005, 0.005))
 
 default_seis_std = 1.e-6
 default_geo_std = 1.e-3
