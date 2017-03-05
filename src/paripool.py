@@ -10,6 +10,24 @@ def start_message():
 
 
 def paripool(function, work, **kwargs):
+    """
+    Initialises a pool of workers and executes a function in parallel by
+    forking the process. Does forking once during initialisation.
+
+    Parameters
+    ----------
+    function : function
+        python function to be executed in parallel
+    work : list
+        of iterables that are to be looped over/ executed in parallel usually
+        these objects are different for each task.
+    nprocs : int
+        number of processors to be used in paralell process
+    initmessage : bool
+        log status message during initialisation, default: false
+    chunksize : int
+        number of work packages to throw at workers in each instance
+    """
 
     nprocs = kwargs.get('nprocs', None)
     initmessage = kwargs.get('initmessage', False)
