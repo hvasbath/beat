@@ -22,8 +22,11 @@ def paripool(function, work, **kwargs):
         chunksize = 1
 
     if nprocs == 1:
-        iterables = map(iter, work)
-        kwargs = {}
+        def pack_one_worker(*work):
+            iterables = map(iter, work)
+            return iterables
+
+        iterables = pack_one_worker(work)
 
         while True:
             args = [next(it) for it in iterables]

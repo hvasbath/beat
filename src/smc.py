@@ -479,7 +479,7 @@ class SMC(backend.ArrayStepSharedLLK):
 
         chain_previous_lpoint = []
 
-        # map end array_endpoints to list lpoints and appyl resampling
+        # map end array_endpoints to list lpoints and apply resampling
         for r_idx in self.resampling_indexes:
             chain_previous_lpoint.append(
                 self.lij.rmap(array_population[r_idx, :]))
