@@ -14,6 +14,8 @@ from beat.heart import init_targets
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
+from scipy.ndimage.interpolation import rotate
+
 import numpy as num
 from pyrocko.guts import Object, String, Dict, Bool, Int
 from pyrocko import util, trace
@@ -1453,9 +1455,9 @@ def draw_correlation_hist(problem, plot_options):
 
 
 def n_model_plot(models, axes=None):
-    '''
+    """
     Plot cake layered earth models.
-    '''
+    """
     if axes is None:
         fig, axes = plt.subplots(
             nrows=1, ncols=1, figsize=mpl_papersize('a5', 'portrait'))
@@ -1586,12 +1588,61 @@ def draw_earthmodels(problem, plot_options):
                 fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
+def fault_slip_distribution(patches, ):
+    """
+    Draw discretized fault geometry rotated to the 2-d view of the foot-wall
+    of the fault.
+
+    Parameters
+    ----------
+    patches : list
+        of RectangularSources
+    """
+
+    fig, axes = plt.subplots(
+            nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
+
+    for patch in patches:
+        rot_coords = rotate(matrix, angle, rotationaxes=())
+
+
+    return figs, axs
+
+
+def draw_static_dist(problem, plot_options):
+
+
+    if 'geodetic' not in problem.composites.keys():
+        raise Exception('No geodetic composite defined for this problem!')
+
+    gc = problem.composites['geodetic']
+
+    dsources = gc.load_fault_geometry()
+    patches = dsources[problem.config.problem_config.priors.keys()[0]]
+
+    figs, axs = fault_slip_distribution(patches, )
+
+    outpaths = []
+    for i in range(len(figs)):
+        outpaths.append(os.path.join(
+                problem.outfolder, po.figure_dir,
+                'static_slip_dist_%i.%s' % (i, po.outformat)))
+
+    if po.outformat == 'display':
+        plt.show()
+    else:
+        for fig, outpath in zip(figs, problem.outpath keys()):
+            logger.info('saving figure to %s' % outpath)
+            fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
+
+
 plots_catalog = {
     'correlation_hist': draw_correlation_hist,
     'stage_posteriors': draw_posteriors,
     'waveform_fits': draw_seismic_fits,
     'scene_fits': draw_geodetic_fits,
     'velocity_models': draw_earthmodels,
+    'static_slip_dist' : draw_static_dist,
                 }
 
 

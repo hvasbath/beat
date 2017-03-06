@@ -932,6 +932,18 @@ class GeodeticDistributerComposite(GeodeticComposite):
             else:
                 self.gfs[crust_ind] = gfs
 
+    def load_fault_geometry(self):
+        """
+        Load fault-geometry, i.e. discretized patches.
+
+        Returns
+        -------
+        dict of slip components with lists of
+            :class:`pscmp.PsCmpRectangularSource`
+        """
+        return utility.load_objects(
+            os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
+
     def get_formula(self, input_rvs, hyperparams):
         """
         Formulation of the distribution problem for the model built. Has to be
