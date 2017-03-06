@@ -27,7 +27,8 @@ km = 1000.
 
 logger = logging.getLogger('models')
 
-__all__ = ['GeometryOptimizer', 'sample', 'load_model', 'load_stage']
+__all__ = ['GeometryOptimizer', 'DistributionOptimizer',
+           'sample', 'load_model', 'load_stage']
 
 
 source_catalog = {
@@ -100,12 +101,21 @@ def hyper_normal(targets, hyperparams, llks):
     return logpts
 
 
-def get_plane(slocx, slocy, az, ra):
+def get_ramp_displacement(slocx, slocy, ramp):
     """
     Get synthetic residual plane in azimuth and range direction of the
     satellite.
+
+    Parameters
+    ----------
+    slocx : shared array-like :class:`numpy.ndarray`
+        local coordinates [km] in east direction
+    slocy : shared array-like :class:`numpy.ndarray`
+        local coordinates [km] in north direction
+    ramp : :class:`theano.tensor.Tensor`
+        vector of 2 variables with ramp parameters in azimuth[0] & range[1]
     """
-    return slocy * az + slocx * ra
+    return slocy * ramp[0] + slocx * ramp[1]
 
 
 class Composite(Object):
@@ -198,9 +208,9 @@ class GeodeticComposite(Composite):
             icov = target.covariance.inverse
             self.weights.append(shared(icov, borrow=True))
 
-        self._slocx = []
-        self._slocy = []
         if gc.fit_plane:
+            self._slocx = []
+            self._slocy = []
             for target in self.targets:
                 locy, locx = target.update_local_coords(self.event)
                 self._slocx = shared(
@@ -245,10 +255,10 @@ class GeodeticComposite(Composite):
         """
         Remove an orbital ramp from the residual displacements
         """
-        self.plane_params = {}
+        self.ramp_params = {}
 
         for i, target in enumerate(self.targets):
-            ramp = pm.Uniform(
+            self.ramp_params[target.track] = pm.Uniform(
                     target.track + '_ramp',
                     shape=(2,),
                     lower=bconfig.default_bounds['ramp'][0],
@@ -257,8 +267,8 @@ class GeodeticComposite(Composite):
                     transform=None,
                     dtype=tconfig.floatX)
 
-            self.plane_params[target.track] = ramp
-            residuals[i] -= get_plane(self._slocx[i], self._slocy[i], ramp)
+            residuals[i] -= get_ramp_displacement(
+                self._slocx[i], self._slocy[i], self.ramp_params[target.track])
 
         return residuals
 
@@ -865,7 +875,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 self.weights[index].set_value(icov)
 
 
-class GeodeticDistributorComposite(GeodeticComposite):
+class GeodeticDistributerComposite(GeodeticComposite):
     """
     Comprises how to solve the geodetic (static) linear forward model.
     Distributed slip
@@ -875,10 +885,10 @@ class GeodeticDistributorComposite(GeodeticComposite):
     sgfs = {}
     gf_names = {}
 
-    def __init__(self, gc, project_dir, hypers=False):
+    def __init__(self, gc, project_dir, event, hypers=False):
 
-        super(GeodeticDistributorComposite, self).__init__(
-            gc, project_dir, hypers=hypers)
+        super(GeodeticDistributerComposite, self).__init__(
+            gc, project_dir, event, hypers=hypers)
 
         self._mode = 'static'
         self.gfpath = os.path.join(project_dir, self._mode,
@@ -923,7 +933,22 @@ class GeodeticDistributorComposite(GeodeticComposite):
                 self.gfs[crust_ind] = gfs
 
     def get_formula(self, input_rvs, hyperparams):
+        """
+        Formulation of the distribution problem for the model built. Has to be
+        called within a with-model-context.
 
+        Parameters
+        ----------
+        input_rvs : list
+            of :class:`pymc3.distribution.Distribution`
+        hyperparams : dict
+            of :class:`pymc3.distribution.Distribution`
+
+        Returns
+        -------
+        llk : :class:`theano.tensor.Tensor`
+            log-likelihood for the distributed slip
+        """
         residuals = [None for i in range(self.n_t)]
         for t in range(self.n_t):
 
@@ -990,8 +1015,8 @@ geometry_composite_catalog = {
     'geodetic': GeodeticGeometryComposite}
 
 
-distributor_composite_catalog = {
-    'geodetic': GeodeticDistributorComposite,
+distributer_composite_catalog = {
+    'geodetic': GeodeticDistributerComposite,
     }
 
 
@@ -1336,9 +1361,10 @@ class DistributionOptimizer(Problem):
         super(DistributionOptimizer, self).__init__(config)
 
         for dataset in config.problem_config.datasets:
-            composite = distributor_composite_catalog[dataset](
+            composite = distributer_composite_catalog[dataset](
                 config[dataset + '_config'],
                 config.project_dir,
+                self.event,
                 hypers)
 
             # do the optimization only on the reference velocity model
