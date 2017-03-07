@@ -1034,3 +1034,51 @@ def PsGrnArray2LayeredModel(psgrn_input_path):
             re.sub('[\[\]]', '', num.array2string(
                 b, precision=4,
                     formatter={'float_kind': lambda x: "%.3f" % x}))))
+
+
+def get_rotation_matrix(axis):
+    """
+    Return a function for 3-d rotation matrix for a specified axis.
+
+    Parameters
+    ----------
+    axis : str or list of str
+        x, y or z for the axis
+
+    Returns
+    -------
+    func that takes an angle
+    """
+
+    def rotx(angle):
+        angle *= num.pi / 180.
+        return num.array(
+            [[1, 0, 0],
+             [0, num.cos(angle), -num.sin(angle)],
+             [0, num.sin(angle), -num.cos(angle)]])
+
+    def roty(angle):
+        angle *= num.pi / 180.
+        return num.array(
+            [[num.cos(angle), 0, num.sin(angle)],
+             [0, 1, 0],
+             [-num.sin(angle), 0, num.cos(angle)]])
+
+    def rotz(angle):
+        angle *= num.pi / 180.
+        return num.array(
+            [[num.cos(angle), -num.sin(angle), 0],
+             [num.sin(angle), num.cos(angle), 0],
+             [0, 0, 1]])
+
+    R = {'x': rotx,
+         'y': roty,
+         'z': rotz}
+
+    if isinstance(axis, list):
+        return [R[a] for a in axis]
+    elif isinstance(axis, str):
+        return R[axis]
+    else:
+        raise Exception('axis has to be either string or list of strings!')
+

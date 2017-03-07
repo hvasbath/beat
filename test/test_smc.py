@@ -1,11 +1,12 @@
 import pymc3 as pm
-import numpy as np
+import numpy as num
 from beat import smc, utility
 from tempfile import mkdtemp
 import shutil
 import theano.tensor as tt
 import multiprocessing as mp
 import unittest
+from pyrocko import util
 
 
 class TestSMC(unittest.TestCase):
@@ -23,13 +24,13 @@ class TestSMC(unittest.TestCase):
 
         n = 4
 
-        mu1 = np.ones(n) * (1. / 2)
+        mu1 = num.ones(n) * (1. / 2)
         mu2 = -mu1
 
         stdev = 0.1
-        sigma = np.power(stdev, 2) * np.eye(n)
-        isigma = np.linalg.inv(sigma)
-        dsigma = np.linalg.det(sigma)
+        sigma = num.power(stdev, 2) * num.eye(n)
+        isigma = num.linalg.inv(sigma)
+        dsigma = num.linalg.det(sigma)
 
         w1 = stdev
         w2 = (1 - stdev)
@@ -38,10 +39,10 @@ class TestSMC(unittest.TestCase):
             return x[(n_steps - 1)::n_steps]
 
         def two_gaussians(x):
-            log_like1 = - 0.5 * n * tt.log(2 * np.pi) \
+            log_like1 = - 0.5 * n * tt.log(2 * num.pi) \
                         - 0.5 * tt.log(dsigma) \
                         - 0.5 * (x - mu1).T.dot(isigma).dot(x - mu1)
-            log_like2 = - 0.5 * n * tt.log(2 * np.pi) \
+            log_like2 = - 0.5 * n * tt.log(2 * num.pi) \
                         - 0.5 * tt.log(dsigma) \
                         - 0.5 * (x - mu2).T.dot(isigma).dot(x - mu2)
             return tt.log(w1 * tt.exp(log_like1) + w2 * tt.exp(log_like2))
@@ -49,9 +50,9 @@ class TestSMC(unittest.TestCase):
         with pm.Model() as ATMIP_test:
             X = pm.Uniform('X',
                            shape=n,
-                           lower=-2. * np.ones_like(mu1),
-                           upper=2. * np.ones_like(mu1),
-                           testval=-1. * np.ones_like(mu1),
+                           lower=-2. * num.ones_like(mu1),
+                           upper=2. * num.ones_like(mu1),
+                           testval=-1. * num.ones_like(mu1),
                            transform=None)
             like = pm.Deterministic('like', two_gaussians(X))
             llk = pm.Potential('like', like)
@@ -74,9 +75,13 @@ class TestSMC(unittest.TestCase):
 
         d = mtrace.get_values('X', combine=True, squeeze=True)
         x = last_sample(d)
-        mu1d = np.abs(x).mean(axis=0)
+        mu1d = num.abs(x).mean(axis=0)
 
-        np.testing.assert_allclose(mu1, mu1d, rtol=0., atol=0.03)
+        num.testing.assert_allclose(mu1, mu1d, rtol=0., atol=0.03)
 
     def tearDown(self):
         shutil.rmtree(self.test_folder)
+
+if __name__ == '__main__':
+    util.setup_logging('test_smc', 'info')
+    unittest.main()
