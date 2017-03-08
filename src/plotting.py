@@ -14,14 +14,13 @@ from beat.heart import init_targets
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
-from scipy.ndimage.interpolation import rotate
-
 import numpy as num
 from pyrocko.guts import Object, String, Dict, Bool, Int
 from pyrocko import util, trace
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.cake_plot import light
 
+import pyrocko.moment_tensor as mt
 from pyrocko.plot import mpl_papersize
 
 logger = logging.getLogger('plotting')
@@ -1602,8 +1601,11 @@ def fault_slip_distribution(patches, ):
     fig, axes = plt.subplots(
             nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
 
+    rotmat = mt.euler_to_matrix(p0.dip * mt.d2r, p0.strike * mt.d2r, 0.0)
+
     for patch in patches:
-        rot_coords = rotate(matrix, angle, rotationaxes=())
+        patch.outline().dit(rotmat.T)
+
 
 
     return figs, axs
