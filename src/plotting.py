@@ -12,7 +12,10 @@ from beat.metropolis import get_trace_stats
 from beat.heart import init_targets
 
 from matplotlib import pyplot as plt
+from matplotlib.patches import Rectangle
+from matplotlib.colelctions import PatchCollection
 from matplotlib.backends.backend_pdf import PdfPages
+from colormap import slip_colormap
 
 import numpy as num
 from pyrocko.guts import Object, String, Dict, Bool, Int
@@ -1587,7 +1590,7 @@ def draw_earthmodels(problem, plot_options):
                 fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
-def fault_slip_distribution(patches, ):
+def fault_slip_distribution(patches, slip, alpha=0.9):
     """
     Draw discretized fault geometry rotated to the 2-d view of the foot-wall
     of the fault.
@@ -1601,18 +1604,46 @@ def fault_slip_distribution(patches, ):
     fig, axes = plt.subplots(
             nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
 
+    p0 = patches[0]
     rotmat = mt.euler_to_matrix(p0.dip * mt.d2r, p0.strike * mt.d2r, 0.0)
+    r0 = p0.outline().dot(rotmat.T)
+    width = num.abs((r0[0, 0] - r0[1, 0]) / km)
+    height = num.abs((r0[1, 1] - r0[2, 1]) / km)
 
+    draw_patches = []
+    lls = []
     for patch in patches:
-        patch.outline().dit(rotmat.T)
+        rotcoord = num.array(patch.outline().dot(rotmat.T)) / km
+        ll = rotcoord[0, :-1].flatten()
+        draw_patches.append(
+            Rectangle(ll, width=width, height=height))
+        lls.append(ll)
+
+    llsa = num.vstack(lls)
+    lower = llsa.min(axis=0)
+    upper = llsa.max(axis=0)
+    xlim = [lower[0], upper[0] + width]
+    ylim = [lower[1], upper[1] + height]
+    np_w = num.abs(xlim).sum() / width
+    np_h = num.abs(ylim).sum() / height
+    print np_w, np_h
+    axes.set_xlim(*xlim)
+    axes.set_ylim(*ylim)
+    axes.set_xlabel('strike-direction [km]')
+    axes.set_ylabel('dip-direction [km]')
+    axes.set_xticklabels(range(int(np_w)) * width)
+    axes.set_yticklabels(range(int(np_h), 0, -1) * height)
+
+    scm = slip_colormap(100)
+    pa_col = PatchCollection(draw_patches, alpha=alpha)
+    pa_col.set(array=slip, cmap=scm)
+
+    axes.add_collection(pa_col)
+    fig.colorbar(pa_col)
+    return fig, axes
 
 
-
-    return figs, axs
-
-
-def draw_static_dist(problem, plot_options):
-
+def draw_static_dist(problem, po):
 
     if 'geodetic' not in problem.composites.keys():
         raise Exception('No geodetic composite defined for this problem!')
@@ -1633,7 +1664,7 @@ def draw_static_dist(problem, plot_options):
     if po.outformat == 'display':
         plt.show()
     else:
-        for fig, outpath in zip(figs, problem.outpath keys()):
+        for fig, outpath in zip(figs, outpaths):
             logger.info('saving figure to %s' % outpath)
             fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
@@ -1644,9 +1675,10 @@ plots_catalog = {
     'waveform_fits': draw_seismic_fits,
     'scene_fits': draw_geodetic_fits,
     'velocity_models': draw_earthmodels,
-    'static_slip_dist' : draw_static_dist,
+    'static_slip_dist': draw_static_dist,
                 }
 
 
 def available_plots():
     return list(plots_catalog.keys())
+
