@@ -1624,15 +1624,18 @@ def fault_slip_distribution(patches, slip, alpha=0.9):
     upper = llsa.max(axis=0)
     xlim = [lower[0], upper[0] + width]
     ylim = [lower[1], upper[1] + height]
-    np_w = num.abs(xlim).sum() / width
-    np_h = num.abs(ylim).sum() / height
+    np_w = int((xlim[1] - xlim[0]) / width)
+    np_h = int((ylim[1] - ylim[0]) / height)
     print np_w, np_h
+    xticklabels = num.arange(np_w) * width
+    yticklabels = num.arange(np_h) * height
+    print xticklabels, yticklabels
     axes.set_xlim(*xlim)
     axes.set_ylim(*ylim)
     axes.set_xlabel('strike-direction [km]')
     axes.set_ylabel('dip-direction [km]')
-    axes.set_xticklabels(range(int(np_w)) * width)
-    axes.set_yticklabels(range(int(np_h), 0, -1) * height)
+    axes.set_xticklabels(xticklabels)
+    axes.set_yticklabels(yticklabels)
 
     scm = slip_colormap(100)
     pa_col = PatchCollection(draw_patches, alpha=alpha)
