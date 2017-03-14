@@ -13,7 +13,7 @@ from beat.heart import init_targets
 
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
-from matplotlib.colelctions import PatchCollection
+from matplotlib.collections import PatchCollection
 from matplotlib.backends.backend_pdf import PdfPages
 from colormap import slip_colormap
 
