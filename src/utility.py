@@ -19,6 +19,8 @@ from pyproj import Proj
 logger = logging.getLogger('utility')
 
 DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype')
+PatchMap = collections.namedtuple(
+    'PatchMap', 'count, slc, shp, npatches')
 
 kmtypes = set(['east_shift', 'north_shift', 'length', 'width', 'depth'])
 
@@ -29,6 +31,37 @@ hrpd = 24.
 
 d2r = num.pi / 180.
 km = 1000.
+
+
+class FaultOrdering(object):
+    """
+    A mapping of source patches to the arrays of optimization results.
+
+    Parameters
+    ----------
+    sources : list
+        of extended reference source objects
+    npls : list
+        of number of patches in strike-direction
+    npws : list
+        of number of patches in dip-direction
+    """
+
+    def __init__(self, npls, npws):
+
+        self.vmap = []
+        dim = 0
+        count = 0
+
+        for npl, npw in zip(npls, npws):
+            npatches = npl * npw
+            slc = slice(dim, dim + npatches)
+            shp = tuple(npw, npl)
+            self.vmap.append(PatchMap(count, slc, shp, npatches))
+            dim += npatches
+            count += 1
+
+        self.npatches = dim
 
 
 class ListArrayOrdering(object):

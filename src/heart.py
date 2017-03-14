@@ -1393,6 +1393,76 @@ slip_directions = {
     'Utensile': {'slip': 0., 'rake': 0., 'opening': 1.}}
 
 
+class FaultGeometry(gf.Cloneable):
+
+    def __init__(self, ordering):
+        self.datasets = []
+        self.components = []
+        self._patches = {}
+        self._ext_sources = {}
+        self.ordering = ordering
+
+    def _record_dataset(self, dataset):
+        if dataset not in self.datasets:
+            self.datasets.append(dataset)
+
+    def _record_component(self, component):
+        if component not in self.components:
+            self.components.append(component)
+
+    def get_subfault_key(self, dataset, component, nfault):
+
+        if dataset is None:
+            dataset = self.datasets[0]
+
+        if component is None:
+            component = self.components[0]
+
+        return dataset + '_' + component + '_' + nfault
+
+    def record_setup(self, dataset, component, ext_sources, patches,
+            replace=False):
+
+        self._record_dataset(dataset)
+        self._record_component(component)
+
+        if len(ext_sources) != self.nsubfaults or \
+            len(patches) != self.ordering.npatches:
+                raise Exception('Setup does not match fault ordering!')
+
+        for i, source in enumerate(ext_sources):
+            source_key = self.get_subfault_key(dataset, component, i)
+            if source not in self._ext_sources[source_key] or replace:
+                self._ext_sources[source_key] = source
+            else:
+                raise Exception('Subfault already specified in geometry!')
+
+            slc = self.ordering.vmap[i].slc
+            self._patches[source_key] = patches[slc.start:slc.stop]
+
+    def get_subfault_patches(self, index, dataset=None, component=None):
+
+        source_key = self.get_subfault_key(dataset, component, index)
+
+        if source_key in self._patches.keys():
+            return self._patches[source_key]
+        else:
+            raise Exception('Requested subfault not defined!')
+
+    def get_subfault(self, index, dataset=None, component=None):
+
+        source_key = self.get_subfault_key(dataset, component, index)
+
+        if source_key in self._ext_sources.keys():
+            return self._ext_sources[source_key]
+        else:
+            raise Exception('Requested subfault not defined!')
+
+    @property
+    def nsubfaults(self):
+        return len(self.ordering.vmap)
+
+
 def discretize_sources(
     sources=None, extension_width=0.1, extension_length=0.1,
     patch_width=5000., patch_length=5000., datasets=['geodetic'],
@@ -1422,19 +1492,20 @@ def discretize_sources(
         :class:`pscmp.PsCmpRectangularSource` or
         :class:`pyrocko.gf.seismosizer.RectangularSource`
     """
-    ext_sources = []
-    npls = []
-    npws = []
 
     data_dict = {}
 
     for dataset in datasets:
         source_dict = {}
         logger.info('Discretizing %s source(s)' % dataset)
+
         for var in varnames:
             logger.info('%s slip component' % var)
             param_mod = copy.deepcopy(slip_directions[var])
 
+            ext_sources = []
+            npls = []
+            npws = []
             for source in sources:
 
                 s = copy.deepcopy(source)
@@ -1450,11 +1521,12 @@ def discretize_sources(
                 ext_sources.append(ext_source)
                 logger.info('Extended fault(s): \n %s' % ext_source.__str__())
 
-                patches = []
-                for source, npl, npw in zip(ext_sources, npls, npws):
-                    patches += source.patches(nl=npl, nw=npw, dataset=dataset)
+            patches = []
+            for source, npl, npw in zip(ext_sources, npls, npws):
+                patches += source.patches(nl=npl, nw=npw, dataset=dataset)
 
-            source_dict[var] = patches
+            ordering = utility.FaultOrdering(npls, npws)
+            source_dict[var] = patches, ordering
 
         data_dict[dataset] = source_dict
 
@@ -1499,19 +1571,19 @@ def geo_construct_gf_linear(
 
                 gfs = []
                 for source in dsources['geodetic'][var]:
-                        disp = geo_layer_synthetics(
-                            store_superdir=store_superdir,
-                            crust_ind=crust_ind,
-                            lons=target.lons,
-                            lats=target.lats,
-                            sources=[source],
-                            keep_tmp=False)
+                    disp = geo_layer_synthetics(
+                        store_superdir=store_superdir,
+                        crust_ind=crust_ind,
+                        lons=target.lons,
+                        lats=target.lats,
+                        sources=[source],
+                        keep_tmp=False)
 
-                        gfs.append((
-                            disp[:, 0] * target.los_vector[:, 0] + \
-                            disp[:, 1] * target.los_vector[:, 1] + \
-                            disp[:, 2] * target.los_vector[:, 2]) * \
-                                target.odw)
+                    gfs.append((
+                        disp[:, 0] * target.los_vector[:, 0] + \
+                        disp[:, 1] * target.los_vector[:, 1] + \
+                        disp[:, 2] * target.los_vector[:, 2]) * \
+                            target.odw)
 
                 gfs_target.append(num.vstack(gfs).T)
 

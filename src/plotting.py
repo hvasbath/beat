@@ -10,12 +10,12 @@ from beat import utility, backend, config
 from beat.models import load_stage
 from beat.metropolis import get_trace_stats
 from beat.heart import init_targets
+from beat.colormap import slip_colormap
 
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.collections import PatchCollection
 from matplotlib.backends.backend_pdf import PdfPages
-from colormap import slip_colormap
 
 import numpy as num
 from pyrocko.guts import Object, String, Dict, Bool, Int
@@ -1615,8 +1615,9 @@ def fault_slip_distribution(patches, slip, alpha=0.9):
     for patch in patches:
         rotcoord = num.array(patch.outline().dot(rotmat.T)) / km
         ll = rotcoord[0, :-1].flatten()
+        ll[-1] *= -1
         draw_patches.append(
-            Rectangle(ll, width=width, height=height))
+            Rectangle(ll, width=width, height=height, edgecolor='black'))
         lls.append(ll)
 
     llsa = num.vstack(lls)
@@ -1624,39 +1625,59 @@ def fault_slip_distribution(patches, slip, alpha=0.9):
     upper = llsa.max(axis=0)
     xlim = [lower[0], upper[0] + width]
     ylim = [lower[1], upper[1] + height]
-    np_w = int((xlim[1] - xlim[0]) / width)
-    np_h = int((ylim[1] - ylim[0]) / height)
-    print np_w, np_h
-    xticklabels = num.arange(np_w) * width
-    yticklabels = num.arange(np_h) * height
-    print xticklabels, yticklabels
+
+    np_w = int(num.round((xlim[1] - xlim[0]) / width))
+    np_h = int(num.round((ylim[1] - ylim[0]) / height))
+
+    xticklabels = num.arange(np_w + 1) * width
+    yticklabels = num.arange(np_h, -1, -1) * height
+
     axes.set_xlim(*xlim)
     axes.set_ylim(*ylim)
     axes.set_xlabel('strike-direction [km]')
     axes.set_ylabel('dip-direction [km]')
+    axes.set_xticks(num.arange(xlim[0], xlim[1] + width, width))
+    axes.set_yticks(num.arange(ylim[0], ylim[1] + height, height))
     axes.set_xticklabels(xticklabels)
     axes.set_yticklabels(yticklabels)
 
     scm = slip_colormap(100)
-    pa_col = PatchCollection(draw_patches, alpha=alpha)
+    pa_col = PatchCollection(draw_patches, alpha=alpha, match_original=True)
     pa_col.set(array=slip, cmap=scm)
 
     axes.add_collection(pa_col)
-    fig.colorbar(pa_col)
+    cb = fig.colorbar(pa_col)
+    cb.set_label('slip [m]')
     return fig, axes
 
 
 def draw_static_dist(problem, po):
 
-    if 'geodetic' not in problem.composites.keys():
+    dataset = 'geodetic'
+
+    if dataset not in problem.composites.keys():
         raise Exception('No geodetic composite defined for this problem!')
 
-    gc = problem.composites['geodetic']
+    gc = problem.composites[dataset]
 
     dsources = gc.load_fault_geometry()
-    patches = dsources[problem.config.problem_config.priors.keys()[0]]
+    priorvars = problem.config.problem_config.priors.keys()
+    patches, ordering = dsources[dataset][priorvars[0]]
 
-    figs, axs = fault_slip_distribution(patches, )
+    if po.reference is not None:
+        print po.reference.values()
+        tmp = num.zeros_like(po.reference[priorvars[0]])
+        print tmp.shape
+        for v in priorvars:
+            print v
+            tmp += num.power(po.reference[v], 2)
+
+        slip = num.sqrt(tmp)
+
+    figs = []
+    for patches, slip in zip(group_patches):
+        fig, axs = fault_slip_distribution(patches, slip)
+        figs.append(fig)
 
     outpaths = []
     for i in range(len(figs)):
