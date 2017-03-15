@@ -634,12 +634,12 @@ def command_build_gfs(args):
             else:
                 logger.info(
                     'Storing discretized fault geometry to: %s' % faultpath)
-                utility.dump_objects(dsourcepath, [fault])
+                utility.dump_objects(faultpath, [fault])
 
                 logger.info('Updating problem_config:')
                 logger.info(
                     'Number of source-sub-patches: %i' % fault.nsubpatches)
-                c.problem_config.n_sources = n_sources
+                c.problem_config.n_sources = fault.nsubpatches
                 c.problem_config.init_vars(varnames)
                 config.dump_config(c)
 

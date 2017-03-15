@@ -54,7 +54,7 @@ class FaultOrdering(object):
         for npl, npw in zip(npls, npws):
             npatches = npl * npw
             slc = slice(dim, dim + npatches)
-            shp = tuple(npw, npl)
+            shp = (npw, npl)
             self.vmap.append(PatchMap(count, slc, shp, npatches))
             dim += npatches
             count += 1

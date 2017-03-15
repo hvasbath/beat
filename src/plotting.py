@@ -1664,14 +1664,14 @@ def draw_static_dist(problem, po):
     priorvars = problem.config.problem_config.priors.keys()
 
     if po.reference is not None:
-        print po.reference.values()
         tmp = num.zeros_like(po.reference[priorvars[0]])
-        print tmp.shape
         for v in priorvars:
-            print v
             tmp += num.power(po.reference[v], 2)
 
         slip = num.sqrt(tmp)
+    else:
+        raise Exception('Not implemented yet!')
+        # todo load inversion results
 
     figs = []
     outpaths = []

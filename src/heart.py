@@ -20,7 +20,7 @@ from pyrocko import crust2x2, gf, cake, orthodrome, trace, util
 from pyrocko.cake import GradientLayer
 from pyrocko.fomosto import qseis
 from pyrocko.fomosto import qssp
-from pyrocko.gf.seismosizer import outline_rect_source
+from pyrocko.gf.seismosizer import outline_rect_source, Cloneable
 from pyrocko.orthodrome import ne_to_latlon
 #from pyrocko.fomosto import qseis2d
 
@@ -42,7 +42,7 @@ lambda_sensors = {
     }
 
 
-class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
+class RectangularSource(gf.DCSource, Cloneable):
     """
     Source for rectangular fault that unifies the necessary different source
     objects for teleseismic and geodetic computations.
@@ -1393,7 +1393,7 @@ slip_directions = {
     'Utensile': {'slip': 0., 'rake': 0., 'opening': 1.}}
 
 
-class FaultGeometry(gf.Cloneable):
+class FaultGeometry(gf.seismosizer.Cloneable):
     """
     Object to construct complex fault-geometries with several subfaults.
     Stores information for subfault geometries and
@@ -1434,12 +1434,12 @@ class FaultGeometry(gf.Cloneable):
         if dataset is not None:
             self._check_dataset(dataset)
         else:
-            dataset = self.dataset[0]
+            dataset = self.datasets[0]
 
         if component is not None:
             self._check_component(component)
         else:
-            component = self.component[0]
+            component = self.components[0]
 
         self._check_index(index)
 
@@ -1456,7 +1456,7 @@ class FaultGeometry(gf.Cloneable):
         for i, source in enumerate(ext_sources):
             source_key = self.get_subfault_key(i, dataset, component)
 
-            if source not in self._ext_sources[source_key] or replace:
+            if source_key not in self._ext_sources.keys() or replace:
                 self._ext_sources[source_key] = copy.deepcopy(source)
             else:
                 raise Exception('Subfault already specified in geometry!')
@@ -1483,7 +1483,7 @@ class FaultGeometry(gf.Cloneable):
     def get_all_patches(self, dataset=None, component=None):
 
         patches = []
-        for i in range(self.nsubfault):
+        for i in range(self.nsubfaults):
             patches += self.get_subfault_patches(
                 i, dataset=dataset, component=component)
 
