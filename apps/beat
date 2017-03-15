@@ -617,7 +617,7 @@ def command_build_gfs(args):
             varnames = [varname for varname in c.problem_config.priors.keys()]
 
             logger.info('Discretizing reference sources ...')
-            dsources = heart.discretize_sources(
+            fault = heart.discretize_sources(
                 varnames=varnames,
                 sources=gf.reference_sources,
                 extension_width=gf.extension_width,
@@ -634,13 +634,11 @@ def command_build_gfs(args):
             else:
                 logger.info(
                     'Storing discretized fault geometry to: %s' % dsourcepath)
-                utility.dump_objects(dsourcepath, [dsources])
-
-                n_sources = len(dsources[geo][varnames[0]])
+                utility.dump_objects(dsourcepath, [fault])
 
                 logger.info('Updating problem_config:')
                 logger.info(
-                    'Number of source-sub-patches: %i' % n_sources)
+                    'Number of source-sub-patches: %i' % fault.nsubpatches)
                 c.problem_config.n_sources = n_sources
                 c.problem_config.init_vars(varnames)
                 config.dump_config(c)

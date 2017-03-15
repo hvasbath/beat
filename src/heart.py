@@ -1394,21 +1394,36 @@ slip_directions = {
 
 
 class FaultGeometry(gf.Cloneable):
+    """
+    Object to construct complex fault geometries with several subfaults.
+    Stores information for subfault geometries,
+    inversion variables (e.g. slip-components).
+    Yields patch objects for requested subfault, dataset and component.
 
-    def __init__(self, ordering):
-        self.datasets = []
-        self.components = []
-        self._patches = {}
+    Parameters
+    ----------
+    datasets : list
+        of str of potential dataset fault geometries to be stored
+    components : list
+        of str of potential inversion variables (e.g. slip-components) to
+        be stored
+    ordering : :class:`FaultOrdering`
+        comprises patch information related to subfaults
+    """
+
+    def __init__(self, datasets, components, ordering):
+        self.datasets = datasets
+        self.components = components
         self._ext_sources = {}
         self.ordering = ordering
 
     def _record_dataset(self, dataset):
         if dataset not in self.datasets:
-            self.datasets.append(dataset)
+            raise Exception('Dataset not included in FaultGeometry')
 
     def _record_component(self, component):
         if component not in self.components:
-            self.components.append(component)
+            raise Exception('Component not included in FaultGeometry')
 
     def get_subfault_key(self, dataset, component, nfault):
 
@@ -1420,34 +1435,32 @@ class FaultGeometry(gf.Cloneable):
 
         return dataset + '_' + component + '_' + nfault
 
-    def record_setup(self, dataset, component, ext_sources, patches,
-            replace=False):
+    def setup_subfaults(self, dataset, component, ext_sources, replace=False):
 
         self._record_dataset(dataset)
         self._record_component(component)
 
-        if len(ext_sources) != self.nsubfaults or \
-            len(patches) != self.ordering.npatches:
-                raise Exception('Setup does not match fault ordering!')
+        if len(ext_sources) != self.nsubfaults:
+            raise Exception('Setup does not match fault ordering!')
 
         for i, source in enumerate(ext_sources):
             source_key = self.get_subfault_key(dataset, component, i)
+
             if source not in self._ext_sources[source_key] or replace:
-                self._ext_sources[source_key] = source
+                self._ext_sources[source_key] = copy.deepcopy(source)
             else:
                 raise Exception('Subfault already specified in geometry!')
 
-            slc = self.ordering.vmap[i].slc
-            self._patches[source_key] = patches[slc.start:slc.stop]
-
     def get_subfault_patches(self, index, dataset=None, component=None):
 
-        source_key = self.get_subfault_key(dataset, component, index)
+        if index > self.nsubfaults - 1:
+            raise Exception('Subfault not defined!')
 
-        if source_key in self._patches.keys():
-            return self._patches[source_key]
-        else:
-            raise Exception('Requested subfault not defined!')
+        subfault = self.get_subfault(
+            index, dataset=dataset, component=component)
+        npw, npl = self.ordering.vmap[index].shp
+
+        return subfault.patches(nl=npl, nw=npw, dataset=dataset)
 
     def get_subfault(self, index, dataset=None, component=None):
 
@@ -1461,6 +1474,10 @@ class FaultGeometry(gf.Cloneable):
     @property
     def nsubfaults(self):
         return len(self.ordering.vmap)
+
+    @property
+    def nsubpatches(self):
+        return self.ordering.npatches
 
 
 def discretize_sources(
@@ -1493,10 +1510,22 @@ def discretize_sources(
         :class:`pyrocko.gf.seismosizer.RectangularSource`
     """
 
-    data_dict = {}
+    npls = []
+    npws = []
+    for source in sources:
+        s = copy.deepcopy(source)
+        ext_source = s.extent_source(
+            extension_width, extension_length,
+            patch_width, patch_length)
+
+        npls.append(int(num.ceil(ext_source.length / patch_length)))
+        npws.append(int(num.ceil(ext_source.width / patch_width)))
+
+    ordering = utility.FaultOrdering(npls, npws)
+
+    fault = FaultGeometry(datasets, varnames, ordering)
 
     for dataset in datasets:
-        source_dict = {}
         logger.info('Discretizing %s source(s)' % dataset)
 
         for var in varnames:
@@ -1504,8 +1533,6 @@ def discretize_sources(
             param_mod = copy.deepcopy(slip_directions[var])
 
             ext_sources = []
-            npls = []
-            npws = []
             for source in sources:
 
                 s = copy.deepcopy(source)
@@ -1516,21 +1543,11 @@ def discretize_sources(
                     extension_width, extension_length,
                     patch_width, patch_length)
 
-                npls.append(int(num.ceil(ext_source.length / patch_length)))
-                npws.append(int(num.ceil(ext_source.width / patch_width)))
                 ext_sources.append(ext_source)
                 logger.info('Extended fault(s): \n %s' % ext_source.__str__())
+                fault.setup_subfaults(dataset, var, ext_sources)
 
-            patches = []
-            for source, npl, npw in zip(ext_sources, npls, npws):
-                patches += source.patches(nl=npl, nw=npw, dataset=dataset)
-
-            ordering = utility.FaultOrdering(npls, npws)
-            source_dict[var] = patches, ordering
-
-        data_dict[dataset] = source_dict
-
-    return data_dict
+    return fault
 
 
 def geo_construct_gf_linear(

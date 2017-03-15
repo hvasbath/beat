@@ -39,8 +39,6 @@ class FaultOrdering(object):
 
     Parameters
     ----------
-    sources : list
-        of extended reference source objects
     npls : list
         of number of patches in strike-direction
     npws : list
