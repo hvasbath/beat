@@ -1185,7 +1185,10 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         coli, rowi = utility.mod_i(i, nrow)
 
         if i > len(varnames) - 1:
-            fig.delaxes(axs[rowi, coli])
+            try:
+                fig.delaxes(axs[rowi, coli])
+            except KeyError:
+                pass
         else:
             v = varnames[i]
 
