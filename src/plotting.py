@@ -1660,9 +1660,8 @@ def draw_static_dist(problem, po):
 
     gc = problem.composites[dataset]
 
-    dsources = gc.load_fault_geometry()
+    fault = gc.load_fault_geometry()
     priorvars = problem.config.problem_config.priors.keys()
-    patches, ordering = dsources[dataset][priorvars[0]]
 
     if po.reference is not None:
         print po.reference.values()
@@ -1675,15 +1674,15 @@ def draw_static_dist(problem, po):
         slip = num.sqrt(tmp)
 
     figs = []
-    for patches, slip in zip(group_patches):
-        fig, axs = fault_slip_distribution(patches, slip)
-        figs.append(fig)
-
     outpaths = []
-    for i in range(len(figs)):
+    for i in range(fault.nsubfaults):
+        patches = fault.get_subfault_patches(i, dataset)
+        slc = fault.get_patch_indexes(i)
+        fig, axs = fault_slip_distribution(patches, slip[slc])
+        figs.append(fig)
         outpaths.append(os.path.join(
                 problem.outfolder, po.figure_dir,
-                'static_slip_dist_%i.%s' % (i, po.outformat)))
+                'static_slip_dist_subfault_%i.%s' % (i, po.outformat)))
 
     if po.outformat == 'display':
         plt.show()
@@ -1705,4 +1704,3 @@ plots_catalog = {
 
 def available_plots():
     return list(plots_catalog.keys())
-

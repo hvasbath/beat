@@ -626,14 +626,14 @@ def command_build_gfs(args):
                 patch_length=gf.patch_length,
                 datasets=[geo])
 
-            dsourcepath = os.path.join(outdir, config.fault_geometry_name)
-            if os.path.exists(dsourcepath) and not options.force:
+            faultpath = os.path.join(outdir, config.fault_geometry_name)
+            if os.path.exists(faultpath) and not options.force:
                 logger.info("Discretized fault geometry exists! Use --force to"
                             " overwrite!")
                 sys.exit(1)
             else:
                 logger.info(
-                    'Storing discretized fault geometry to: %s' % dsourcepath)
+                    'Storing discretized fault geometry to: %s' % faultpath)
                 utility.dump_objects(dsourcepath, [fault])
 
                 logger.info('Updating problem_config:')
@@ -655,7 +655,7 @@ def command_build_gfs(args):
                         outpath=outpath,
                         crust_ind=crust_ind,
                         targets=targets,
-                        dsources=dsources,
+                        fault=fault,
                         varnames=varnames,
                         force=options.force)
 

@@ -938,8 +938,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
 
         Returns
         -------
-        dict of slip components with lists of
-            :class:`pscmp.PsCmpRectangularSource`
+        :class:`heart.FaultGeometry`
         """
         return utility.load_objects(
             os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]

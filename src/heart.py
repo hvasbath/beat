@@ -1395,8 +1395,8 @@ slip_directions = {
 
 class FaultGeometry(gf.Cloneable):
     """
-    Object to construct complex fault geometries with several subfaults.
-    Stores information for subfault geometries,
+    Object to construct complex fault-geometries with several subfaults.
+    Stores information for subfault geometries and
     inversion variables (e.g. slip-components).
     Yields patch objects for requested subfault, dataset and component.
 
@@ -1417,44 +1417,62 @@ class FaultGeometry(gf.Cloneable):
         self._ext_sources = {}
         self.ordering = ordering
 
-    def _record_dataset(self, dataset):
+    def _check_dataset(self, dataset):
         if dataset not in self.datasets:
             raise Exception('Dataset not included in FaultGeometry')
 
-    def _record_component(self, component):
+    def _check_component(self, component):
         if component not in self.components:
             raise Exception('Component not included in FaultGeometry')
 
-    def get_subfault_key(self, dataset, component, nfault):
+    def _check_index(self, index):
+        if index > self.nsubfaults - 1:
+            raise Exception('Subfault not defined!')
 
-        if dataset is None:
-            dataset = self.datasets[0]
+    def get_subfault_key(self, index, dataset, component):
 
-        if component is None:
-            component = self.components[0]
+        if dataset is not None:
+            self._check_dataset(dataset)
+        else:
+            dataset = self.dataset[0]
 
-        return dataset + '_' + component + '_' + nfault
+        if component is not None:
+            self._check_component(component)
+        else:
+            component = self.component[0]
+
+        self._check_index(index)
+
+        return dataset + '_' + component + '_' + str(index)
 
     def setup_subfaults(self, dataset, component, ext_sources, replace=False):
 
-        self._record_dataset(dataset)
-        self._record_component(component)
+        self._check_dataset(dataset)
+        self._check_component(component)
 
         if len(ext_sources) != self.nsubfaults:
             raise Exception('Setup does not match fault ordering!')
 
         for i, source in enumerate(ext_sources):
-            source_key = self.get_subfault_key(dataset, component, i)
+            source_key = self.get_subfault_key(i, dataset, component)
 
             if source not in self._ext_sources[source_key] or replace:
                 self._ext_sources[source_key] = copy.deepcopy(source)
             else:
                 raise Exception('Subfault already specified in geometry!')
 
+    def get_subfault(self, index, dataset=None, component=None):
+
+        source_key = self.get_subfault_key(index, dataset, component)
+
+        if source_key in self._ext_sources.keys():
+            return self._ext_sources[source_key]
+        else:
+            raise Exception('Requested subfault not defined!')
+
     def get_subfault_patches(self, index, dataset=None, component=None):
 
-        if index > self.nsubfaults - 1:
-            raise Exception('Subfault not defined!')
+        self._check_index(index)
 
         subfault = self.get_subfault(
             index, dataset=dataset, component=component)
@@ -1462,14 +1480,33 @@ class FaultGeometry(gf.Cloneable):
 
         return subfault.patches(nl=npl, nw=npw, dataset=dataset)
 
-    def get_subfault(self, index, dataset=None, component=None):
+    def get_all_patches(self, dataset=None, component=None):
 
-        source_key = self.get_subfault_key(dataset, component, index)
+        patches = []
+        for i in range(self.nsubfault):
+            patches += self.get_subfault_patches(
+                i, dataset=dataset, component=component)
 
-        if source_key in self._ext_sources.keys():
-            return self._ext_sources[source_key]
-        else:
-            raise Exception('Requested subfault not defined!')
+        return patches
+
+    def get_patch_indexes(self, index):
+        """
+        Return indexes for sub-fault patches that translate to the solution
+        array.
+
+        Parameters
+        ----------
+        index : int
+            to the sub-fault
+
+        Returns
+        -------
+        slice : slice
+            to the solution array that is being extracted from the related
+            :class:`pymc3.backends.base.MultiTrace`
+        """
+        self._check_index(index)
+        return self.ordering.vmap[index].slc
 
     @property
     def nsubfaults(self):
@@ -1534,7 +1571,6 @@ def discretize_sources(
 
             ext_sources = []
             for source in sources:
-
                 s = copy.deepcopy(source)
                 param_mod['rake'] += s.rake
                 s.update(**param_mod)
@@ -1545,14 +1581,15 @@ def discretize_sources(
 
                 ext_sources.append(ext_source)
                 logger.info('Extended fault(s): \n %s' % ext_source.__str__())
-                fault.setup_subfaults(dataset, var, ext_sources)
+
+            fault.setup_subfaults(dataset, var, ext_sources)
 
     return fault
 
 
 def geo_construct_gf_linear(
     store_superdir, outpath, crust_ind=0,
-    targets=None, dsources=None, varnames=[''],
+    targets=None, fault=None, varnames=[''],
     force=False):
     """
     Create geodetic Greens Function matrix for defined source geometry.
@@ -1568,9 +1605,9 @@ def geo_construct_gf_linear(
         of index of Greens Function store to use
     targets : list
         of :class:`heart.GeodeticTarget`
-    dsources : dict
-        discretized sources of :class:`pscmp.PsCmpRectangularSource`
-        Sources i.e. sources to calculate synthetics for
+    fault : :class:`FaultGeometry`
+        fault object that may comprise of several sub-faults. thus forming a
+        complex fault-geometry
     varnames : list
         of str with variable names that are being optimized for
     """
@@ -1587,7 +1624,7 @@ def geo_construct_gf_linear(
                 logger.debug('Target %s' % target.__str__())
 
                 gfs = []
-                for source in dsources['geodetic'][var]:
+                for source in fault.get_all_patches('geodetic', var):
                     disp = geo_layer_synthetics(
                         store_superdir=store_superdir,
                         crust_ind=crust_ind,
