@@ -930,14 +930,202 @@ def ensemble_earthmodel(ref_earthmod, num_vary=10, err_depth=0.1,
     return earthmods
 
 
+def get_velocity_model(
+    location, earth_model_name, use_crust2=True, replace_water=True,
+    custom_model=None):
+    """
+    Get velocity model at the specified location, combines given or crustal
+    models with the global model.
+
+    Parameters
+    ----------
+    location : :class:`pyrocko.meta.Location`
+    earth_model : str
+        Name of the base earth model to be used, check
+        :func:`pyrocko.cake.builtin_models` for alternatives,
+        default ak135 with medium resolution
+    replace_water : boolean
+        Flag to remove water layers from the crust2.0 profile
+    use_crust2 : boolean
+        Flag to use the crust2.0 model for the crustal earth model
+    custom_velocity_model : :class:`pyrocko.cake.LayeredModel`
+        If the implemented velocity models should not be used, a custom
+        velocity model can be given here
+
+    Returns
+    -------
+    :class:`pyrocko.cake.LayeredEarthModel`
+    """
+
+    if use_crust2:
+        # load velocity profile from CRUST2x2 and check for water layer
+        profile = crust2x2.get_profile(location.lat, location.lon)
+
+        if replace_water:
+            thickness_lwater = profile.get_layer(crust2x2.LWATER)[0]
+            if thickness_lwater > 0.0:
+                logger.info('Water layer %f in CRUST model!'
+                    ' Remove and add to lower crust' % thickness_lwater)
+                thickness_llowercrust = profile.get_layer(
+                                                crust2x2.LLOWERCRUST)[0]
+                thickness_lsoftsed = profile.get_layer(
+                    crust2x2.LSOFTSED)[0]
+
+                profile.set_layer_thickness(crust2x2.LWATER, 0.0)
+                profile.set_layer_thickness(crust2x2.LSOFTSED,
+                        num.ceil(thickness_lsoftsed / 3))
+                profile.set_layer_thickness(crust2x2.LLOWERCRUST,
+                        thickness_llowercrust + \
+                        thickness_lwater + \
+                        (thickness_lsoftsed - num.ceil(thickness_lsoftsed / 3))
+                        )
+                profile._elevation = 0.0
+                logger.info('New Lower crust layer thickness %f' % \
+                    profile.get_layer(crust2x2.LLOWERCRUST)[0])
+
+        #extract model for source region
+    elif custom_model:
+        global_model = cake.load_model(earth_model_name)
+        return utility.join_models(
+            global_model, custom_model)
+    else:
+        profile = None
+
+    return cake.load_model(earth_model_name, crust2_profile=profile)
+
+
+def get_slowness_taper(fomosto_config, velocity_model):
+    """
+    Calculate slowness taper for backends that determine wavefield based
+    on the velociy model.
+
+    Returns
+    -------
+    tuple of slownesses
+    """
+
+    fc = fomosto_config
+
+    phases = [fc.tabulated_phases[i].phases
+        for i in range(len(fc.tabulated_phases))]
+
+    all_phases = []
+    map(all_phases.extend, phases)
+
+    mean_source_depth = num.mean(
+        (fc.source_depth_min, fc.source_depth_max)) / km
+
+    distances = num.linspace(
+        fc.distance_min, fc.distance_max, 100) * cake.m2d
+
+    arrivals = velocity_model.arrivals(
+        phases=all_phases,
+        distances=distances,
+        zstart=mean_source_depth)
+
+    ps = num.array([arrivals[i].p for i in range(len(arrivals))])
+
+    slownesses = ps / (cake.r2d * cake.d2m / km)
+    smax = slownesses.max()
+
+    return (0.0, 0.0, 1.1 * float(smax), 1.3 * float(smax))
+
+
+def get_fomosto_baseconfig(
+    seismic_gfconfig, event, station, channels, crust_ind):
+    """
+    Initialise fomosto config.
+    """
+    sf = seismic_gfconfig
+
+    # define phases
+    tabulated_phases = []
+    if 'Z' in channels:
+        tabulated_phases.append(gf.TPDef(
+            id='any_P',
+            definition='p,P,p\\,P\\'))
+    if 'T' in channels:
+        tabulated_phases.append(gf.TPDef(
+            id='any_S',
+            definition='s,S,s\\,S\\'))
+
+    # calculate event-station distance [m]
+    distance = orthodrome.distance_accurate50m(event, station)
+    distance_min = distance - (sf.source_distance_radius * km)
+
+    if distance_min < 0.:
+        logger.warn('Minimum grid distance is below zero. Setting it to zero!')
+        distance_min = 0.
+
+    return gf.ConfigTypeA(
+        id='%s_%s_%.3fHz_%s' % (station.station,
+                        sf.earth_model.split('-')[0].split('.')[0],
+                        sf.sample_rate,
+                        crust_ind),
+        ncomponents=10,
+        sample_rate=sf.sample_rate,
+        receiver_depth=0. * km,
+        source_depth_min=sf.source_depth_min * km,
+        source_depth_max=sf.source_depth_max * km,
+        source_depth_delta=sf.source_depth_spacing * km,
+        distance_min=distance_min,
+        distance_max=distance + (sf.source_distance_radius * km),
+        distance_delta=sf.source_distance_spacing * km,
+        tabulated_phases=tabulated_phases)
+
+
+def get_backend_config(code, source_model, receiver_model):
+    """
+    Get backend related config
+    """
+    
+    if code == 'qseis':
+        from pyrocko.fomosto.qseis import build
+        receiver_model = receiver_model.extract(depth_max=200 * km)
+        model_code_id = code
+        version = '2006a'
+        conf = qseis.QSeisConfig(
+            filter_shallow_paths=0,
+            slowness_window=slowness_taper,
+            wavelet_duration_samples=0.001,
+            sw_flat_earth_transform=1,
+            sw_algorithm=1,
+            qseis_version=version)
+
+    elif code == 'qssp':
+        from pyrocko.fomosto.qssp import build
+        source_model = copy.deepcopy(receiver_model)
+        receiver_model = None
+        model_code_id = code
+        version = '2010'
+        conf = qssp.QSSPConfig(
+            qssp_version=version,
+            slowness_max=float(num.max(slowness_taper)),
+            toroidal_modes=True,
+            spheroidal_modes=True,
+            source_patch_radius=(fom_conf.distance_delta - \
+                                 fom_conf.distance_delta * 0.05) / km)
+
+    elif code == 'QSEIS2d':
+        from pyrocko.fomosto.qseis2d import build
+        model_code_id = 'qseis2d'
+        version = '2014'
+        conf = qseis2d.QSeis2dConfig()
+        conf.qseis_s_config.slowness_window = slowness_taper
+        conf.qseis_s_config.calc_slowness_window = 0
+        conf.qseis_s_config.receiver_max_distance = 
+        conf.qseis_s_config.receiver_basement_depth = 
+        conf.qseis_s_config.sw_flat_earth_transform = 1
+        # extract method still buggy!!!
+        receiver_model = receiver_model.extract(
+            depth_max=conf.qseis_s_config.receiver_basement_depth * km)
+
+    return conf, build
+
+
 def seis_construct_gf(
-    station, event, store_superdir, code='qssp',
-    source_depth_min=0., source_depth_max=10., source_depth_spacing=1.,
-    source_distance_radius=10., source_distance_spacing=1.,
-    sample_rate=2., depth_limit_variation=600,
-    earth_model='ak135-f-average.m', crust_ind=0,
-    execute=False, rm_gfs=True, nworkers=1, use_crust2=True,
-    replace_water=True, custom_velocity_model=None, force=False):
+    stations, event, seismic_gfconfig, channels,
+    crust_ind=0, execute=False, force=False):
     """
     Calculate seismic Greens Functions (GFs) and create a repository 'store'
     that is being used later on repeatetly to calculate the synthetic
@@ -945,7 +1133,8 @@ def seis_construct_gf(
 
     Parameters
     ----------
-    station : :class:`pyrocko.model.Station`
+    stations : list
+        of :class:`pyrocko.model.Station`
         Station object that defines the distance from the event for which the
         GFs are being calculated
     event : :class:`pyrocko.model.Event`
@@ -980,76 +1169,22 @@ def seis_construct_gf(
         indexes > 0 use reference model and vary its parameters by a Gaussian
     depth_limit_variation : scalar, float
         depth threshold [m], layers with depth > than this limit are not varied
-    earth_model : str
-        Name of the base earth model to be used, check
-        :func:`pyrocko.cake.builtin_models` for alternatives,
-        default ak135 with medium resolution
     nworkers : int
         Number of processors to use for computations
     rm_gfs : boolean
         Valid if qssp or qseis2d are being used, remove the intermediate
         files after finishing the computation
-    replace_water : boolean
-        Flag to remove water layers from the crust2.0 profile
-    use_crust2 : boolean
-        Flag to use the crust2.0 model for the crustal earth model
-    custom_velocity_model : :class:`pyrocko.cake.LayeredModel`
-        If the implemented velocity models should not be used, a custom
-        velocity model can be given here
     execute : boolean
         Flag to execute the calculation, if False just setup tested
     force : boolean
         Flag to overwrite existing GF stores
     """
 
-    # calculate distance to station [m]
-    distance = orthodrome.distance_accurate50m(event, station)
-    logger.info('Station %s' % station.station)
-    logger.info('---------------------')
+    sf = seismic_gfconfig
 
-    if use_crust2:
-        # load velocity profile from CRUST2x2 and check for water layer
-        profile_station = crust2x2.get_profile(station.lat, station.lon)
-
-        if replace_water:
-            thickness_lwater = profile_station.get_layer(crust2x2.LWATER)[0]
-            if thickness_lwater > 0.0:
-                logger.info('Water layer %f in CRUST model!'
-                    ' Remove and add to lower crust' % thickness_lwater)
-                thickness_llowercrust = profile_station.get_layer(
-                                                crust2x2.LLOWERCRUST)[0]
-                thickness_lsoftsed = profile_station.get_layer(
-                    crust2x2.LSOFTSED)[0]
-
-                profile_station.set_layer_thickness(crust2x2.LWATER, 0.0)
-                profile_station.set_layer_thickness(crust2x2.LSOFTSED,
-                        num.ceil(thickness_lsoftsed / 3))
-                profile_station.set_layer_thickness(crust2x2.LLOWERCRUST,
-                        thickness_llowercrust + \
-                        thickness_lwater + \
-                        (thickness_lsoftsed - num.ceil(thickness_lsoftsed / 3))
-                        )
-                profile_station._elevation = 0.0
-                logger.info('New Lower crust layer thickness %f' % \
-                    profile_station.get_layer(crust2x2.LLOWERCRUST)[0])
-
-        profile_event = crust2x2.get_profile(event.lat, event.lon)
-
-        #extract model for source region
-        source_model = cake.load_model(
-            earth_model, crust2_profile=profile_event)
-
-        # extract model for receiver stations,
-        # lowest layer has to be as well in source layer structure!
-        receiver_model = cake.load_model(
-            earth_model, crust2_profile=profile_station)
-
-    else:
-        global_model = cake.load_model(earth_model)
-        source_model = utility.join_models(
-            global_model, custom_velocity_model)
-
-        receiver_model = copy.deepcopy(source_model)
+    source_model = get_velocity_model(
+        event, earth_model_name=sf.earth_model_name, use_crust2=sf.use_crust2,
+        replace_water=sf.replace_water, custom_model=sf.custom_model)
 
     # randomly vary receiver site crustal model
     if crust_ind > 0:
@@ -1061,106 +1196,15 @@ def seis_construct_gf(
             err_velocities=err_velocities,
             depth_limit_variation=depth_limit_variation * km)[0]
 
-    # define phases
-    tabulated_phases = [
-        gf.TPDef(
-            id='any_P',
-            definition='p,P,p\\,P\\'),
-        gf.TPDef(
-            id='any_S',
-            definition='s,S,s\\,S\\')]
+    for station in stations:
+        logger.info('Station %s' % station.station)
+        logger.info('---------------------')
 
-    distance_min = distance - (source_distance_radius * km)
-    if distance_min < 0.:
-        logger.warn('Minimum grid distance is below zero. Setting it to zero!')
-        distance_min = 0.
+        fomosto_config = get_fomosto_baseconfig(
+            sf, event, station, channels, crust_ind)
+        slowness_taper = get_slowness_taper(fomosto_config, velocity_model)
 
-    # fill config files for fomosto
-    fom_conf = gf.ConfigTypeA(
-        id='%s_%s_%.3fHz_%s' % (station.station,
-                        earth_model.split('-')[0].split('.')[0],
-                        sample_rate,
-                        crust_ind),
-        ncomponents=10,
-        sample_rate=sample_rate,
-        receiver_depth=0. * km,
-        source_depth_min=source_depth_min * km,
-        source_depth_max=source_depth_max * km,
-        source_depth_delta=source_depth_spacing * km,
-        distance_min=distance_min,
-        distance_max=distance + (source_distance_radius * km),
-        distance_delta=source_distance_spacing * km,
-        tabulated_phases=tabulated_phases)
 
-   # slowness taper
-    phases = [
-        fom_conf.tabulated_phases[i].phases
-        for i in range(len(
-            fom_conf.tabulated_phases))]
-
-    all_phases = []
-    map(all_phases.extend, phases)
-
-    mean_source_depth = num.mean((source_depth_min, source_depth_max))
-    distances = num.linspace(fom_conf.distance_min,
-                             fom_conf.distance_max,
-                             100) * cake.m2d
-
-    arrivals = receiver_model.arrivals(
-                            phases=all_phases,
-                            distances=distances,
-                            zstart=mean_source_depth)
-
-    ps = num.array(
-        [arrivals[i].p for i in range(len(arrivals))])
-
-    slownesses = ps / (cake.r2d * cake.d2m / km)
-
-    slowness_taper = (0.0,
-                      0.0,
-                      1.1 * float(slownesses.max()),
-                      1.3 * float(slownesses.max()))
-
-    if code == 'qseis':
-        from pyrocko.fomosto.qseis import build
-        receiver_model = receiver_model.extract(depth_max=200 * km)
-        model_code_id = code
-        version = '2006a'
-        conf = qseis.QSeisConfig(
-            filter_shallow_paths=0,
-            slowness_window=slowness_taper,
-            wavelet_duration_samples=0.001,
-            sw_flat_earth_transform=1,
-            sw_algorithm=1,
-            qseis_version=version)
-
-    elif code == 'qssp':
-        from pyrocko.fomosto.qssp import build
-        source_model = copy.deepcopy(receiver_model)
-        receiver_model = None
-        model_code_id = code
-        version = '2010'
-        conf = qssp.QSSPConfig(
-            qssp_version=version,
-            slowness_max=float(num.max(slowness_taper)),
-            toroidal_modes=True,
-            spheroidal_modes=True,
-            source_patch_radius=(fom_conf.distance_delta - \
-                                 fom_conf.distance_delta * 0.05) / km)
-
-    ## elif code == 'QSEIS2d':
-    ##     from pyrocko.fomosto.qseis2d import build
-    ##     model_code_id = 'qseis2d'
-    ##     version = '2014'
-    ##     conf = qseis2d.QSeis2dConfig()
-    ##     conf.qseis_s_config.slowness_window = slowness_taper
-    ##     conf.qseis_s_config.calc_slowness_window = 0
-    ##     conf.qseis_s_config.receiver_max_distance = 11000.
-    ##     conf.qseis_s_config.receiver_basement_depth = 35.
-    ##     conf.qseis_s_config.sw_flat_earth_transform = 1
-    ##     # extract method still buggy!!!
-    ##     receiver_model = receiver_model.extract(
-    ##             depth_max=conf.qseis_s_config.receiver_basement_depth * km)
 
     # fill remaining fomosto params
     fom_conf.earthmodel_1d = source_model.extract(depth_max='cmb')

@@ -565,27 +565,14 @@ def command_build_gfs(args):
                 logger.info('Store name: %s' % sf.reference_location.station)
 
             for crust_ind in range(sf.n_variations + 1):
-                for station in stations:
-                    heart.seis_construct_gf(
-                        station=station,
-                        event=c.event,
-                        store_superdir=sf.store_superdir,
-                        code=sf.code,
-                        source_depth_min=sf.source_depth_min,
-                        source_depth_max=sf.source_depth_max,
-                        source_depth_spacing=sf.source_depth_spacing,
-                        sample_rate=sf.sample_rate,
-                        source_distance_radius=sf.source_distance_radius,
-                        source_distance_spacing=sf.source_distance_spacing,
-                        depth_limit_variation=sf.depth_limit_variation,
-                        earth_model=sf.earth_model,
-                        crust_ind=crust_ind,
-                        use_crust2=sf.use_crust2,
-                        execute=options.execute,
-                        rm_gfs=sf.rm_gfs,
-                        nworkers=sf.nworkers,
-                        custom_velocity_model=sf.custom_velocity_model,
-                        force=options.force)
+                heart.seis_construct_gf(
+                    stations=stations,
+                    event=c.event,
+                    seismic_gfconfig=sf,
+                    channels=sc.channels,
+                    crust_ind=crust_ind,
+                    execute=options.execute,
+                    force=options.force)
 
             if not options.execute:
                 logger.info('Seismic GF store configs successfully created! '
