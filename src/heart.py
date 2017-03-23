@@ -18,8 +18,8 @@ from pyrocko.guts_array import Array
 
 from pyrocko import crust2x2, gf, cake, orthodrome, trace, util
 from pyrocko.cake import GradientLayer
-from pyrocko.fomosto import qseis
-from pyrocko.fomosto import qssp
+from pyrocko.fomosto import qseis, qseis2d, qssp
+
 from pyrocko.gf.seismosizer import outline_rect_source, Cloneable
 from pyrocko.orthodrome import ne_to_latlon
 #from pyrocko.fomosto import qseis2d
@@ -30,8 +30,6 @@ logger = logging.getLogger('heart')
 c = 299792458.  # [m/s]
 km = 1000.
 d2r = num.pi / 180.
-err_depth = 0.1
-err_velocities = 0.05
 
 lambda_sensors = {
     'Envisat': 0.056,       # needs updating- no ressource file
@@ -756,7 +754,7 @@ def init_targets(stations, earth_model='ak135-f-average.m',
     return targets
 
 
-def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
+def vary_model(earthmod, error_depth=0.1, error_velocities=0.1,
         depth_limit_variation=600 * km):
     """
     Vary depths and velocities in the given source model by Gaussians with
@@ -769,9 +767,9 @@ def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
     ----------
     earthmod : :class:`pyrocko.cake.LayeredModel`
         Earthmodel defining layers, depth, velocities, densities
-    err_depth : scalar, float
+    error_depth : scalar, float
         2 sigma error in percent of the depth for the respective layers
-    err_velocities : scalar, float
+    error_velocities : scalar, float
         2 sigma error in percent of the velocities for the respective layers
     depth_limit_variations : scalar, float
         depth threshold [m], layers with depth > than this are not varied
@@ -793,13 +791,17 @@ def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
     deltaz = 0
 
     # uncertainties in discontinuity depth after Shearer 1991
-    discont_unc = {'410': 3 * km,
-                   '520': 4 * km,
-                   '660': 8 * km}
+    discont_unc = {
+        '410': 3 * km,
+        '520': 4 * km,
+        '660': 8 * km}
 
     # uncertainties in velocity for upper and lower mantle from Woodward 1991
-    mantle_vel_unc = {'200': 0.02,     # above 200
-                      '400': 0.01}     # above 400
+    # and Mooney 1989
+    mantle_vel_unc = {
+        '100': 0.05,     # above 100
+        '200': 0.03,     # above 200
+        '400': 0.01}     # above 400
 
     for layer in layers:
         # stop if depth_limit_variation is reached
@@ -824,11 +826,11 @@ def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
             # check for layer depth and use hardcoded uncertainties
             for l_depth, vel_unc in mantle_vel_unc.items():
                 if float(l_depth) * km < layer.ztop:
-                    err_velocities = vel_unc
-                    logger.debug('Velocity error: %f ', err_velocities)
+                    error_velocities = vel_unc
+                    logger.debug('Velocity error: %f ', error_velocities)
 
             deltavp = float(num.random.normal(
-                        0, layer.mtop.vp * err_velocities / 3., 1))
+                        0, layer.mtop.vp * error_velocities / 3., 1))
 
             if layer.ztop == 0:
                 layer.mtop.vp += deltavp
@@ -868,7 +870,7 @@ def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
         if '%i' % (layer.zbot / km) in discont_unc:
             factor_d = discont_unc['%i' % (layer.zbot / km)] / layer.zbot
         else:
-            factor_d = err_depth
+            factor_d = error_depth
 
         while repeat:
             # ensure that bottom of layer is not shallower than the top
@@ -887,8 +889,8 @@ def vary_model(earthmod, err_depth=0.1, err_velocities=0.1,
     return new_earthmod, cost
 
 
-def ensemble_earthmodel(ref_earthmod, num_vary=10, err_depth=0.1,
-                        err_velocities=0.1, depth_limit_variation=600 * km):
+def ensemble_earthmodel(ref_earthmod, num_vary=10, error_depth=0.1,
+                        error_velocities=0.1, depth_limit_variation=600 * km):
     """
     Create ensemble of earthmodels that vary around a given input earth model
     by a Gaussian of 2 sigma (in Percent 0.1 = 10%) for the depth layers
@@ -900,11 +902,11 @@ def ensemble_earthmodel(ref_earthmod, num_vary=10, err_depth=0.1,
         Reference earthmodel defining layers, depth, velocities, densities
     num_vary : scalar, int
         Number of variation realisations
-    err_depth : scalar, float
-        2 sigma error in percent of the depth for the respective layers
-    err_velocities : scalar, float
-        2 sigma error in percent of the velocities for the respective layers
-    depth_limit_variations : scalar, float
+    error_depth : scalar, float
+        3 sigma error in percent of the depth for the respective layers
+    error_velocities : scalar, float
+        3 sigma error in percent of the velocities for the respective layers
+    depth_limit_variation : scalar, float
         depth threshold [m], layers with depth > than this are not varied
 
     Returns
@@ -917,8 +919,8 @@ def ensemble_earthmodel(ref_earthmod, num_vary=10, err_depth=0.1,
     while i < num_vary:
         new_model, cost = vary_model(
             ref_earthmod,
-            err_depth,
-            err_velocities,
+            error_depth,
+            error_velocities,
             depth_limit_variation)
 
         if cost > 20:
@@ -931,8 +933,9 @@ def ensemble_earthmodel(ref_earthmod, num_vary=10, err_depth=0.1,
 
 
 def get_velocity_model(
-    location, earth_model_name, use_crust2=True, replace_water=True,
-    custom_model=None):
+    location, earth_model_name, crust_ind=0, use_crust2=True,
+    replace_water=True, custom_model=None, error_velocities=0.1,
+    error_depth=0.1, depth_limit_variation=600.):
     """
     Get velocity model at the specified location, combines given or crustal
     models with the global model.
@@ -940,21 +943,30 @@ def get_velocity_model(
     Parameters
     ----------
     location : :class:`pyrocko.meta.Location`
-    earth_model : str
+    earth_model_name : str
         Name of the base earth model to be used, check
         :func:`pyrocko.cake.builtin_models` for alternatives,
         default ak135 with medium resolution
-    replace_water : boolean
-        Flag to remove water layers from the crust2.0 profile
+    crust_ind : int
+        Index to set to the Greens Function store, 0 is reference store
+        indexes > 0 use reference model and vary its parameters by a Gaussian
     use_crust2 : boolean
         Flag to use the crust2.0 model for the crustal earth model
+    replace_water : boolean
+        Flag to remove water layers from the crust2.0 profile
     custom_velocity_model : :class:`pyrocko.cake.LayeredModel`
         If the implemented velocity models should not be used, a custom
         velocity model can be given here
+    error_depth : scalar, float
+        3 sigma error in percent of the depth for the respective layers
+    error_velocities : scalar, float
+        3 sigma error in percent of the velocities for the respective layers
+    depth_limit_variations : scalar, float
+        depth threshold [m], layers with depth > than this are not varied
 
     Returns
     -------
-    :class:`pyrocko.cake.LayeredEarthModel`
+    :class:`pyrocko.cake.LayeredModel`
     """
 
     if use_crust2:
@@ -967,37 +979,53 @@ def get_velocity_model(
                 logger.info('Water layer %f in CRUST model!'
                     ' Remove and add to lower crust' % thickness_lwater)
                 thickness_llowercrust = profile.get_layer(
-                                                crust2x2.LLOWERCRUST)[0]
+                    crust2x2.LLOWERCRUST)[0]
                 thickness_lsoftsed = profile.get_layer(
                     crust2x2.LSOFTSED)[0]
 
                 profile.set_layer_thickness(crust2x2.LWATER, 0.0)
                 profile.set_layer_thickness(crust2x2.LSOFTSED,
                         num.ceil(thickness_lsoftsed / 3))
-                profile.set_layer_thickness(crust2x2.LLOWERCRUST,
-                        thickness_llowercrust + \
-                        thickness_lwater + \
-                        (thickness_lsoftsed - num.ceil(thickness_lsoftsed / 3))
-                        )
+                profile.set_layer_thickness(
+                    crust2x2.LLOWERCRUST,
+                    thickness_llowercrust + \
+                    thickness_lwater + \
+                    (thickness_lsoftsed - num.ceil(thickness_lsoftsed / 3))
+                                            )
                 profile._elevation = 0.0
                 logger.info('New Lower crust layer thickness %f' % \
                     profile.get_layer(crust2x2.LLOWERCRUST)[0])
+        source_model = cake.load_model(
+            earth_model_name, crust2_profile=profile)
 
-        #extract model for source region
     elif custom_model:
+        logger.info('Using custom model from config file')
         global_model = cake.load_model(earth_model_name)
-        return utility.join_models(
+        source_model = utility.join_models(
             global_model, custom_model)
     else:
-        profile = None
+        source_model = cake.load_model(earth_model_name)
 
-    return cake.load_model(earth_model_name, crust2_profile=profile)
+    if crust_ind > 0:
+        source_model = ensemble_earthmodel(
+            source_model,
+            num_vary=1,
+            error_depth=error_depth,
+            error_velocities=error_velocities,
+            depth_limit_variation=depth_limit_variation * km)[0]
+
+    return source_model
 
 
 def get_slowness_taper(fomosto_config, velocity_model):
     """
     Calculate slowness taper for backends that determine wavefield based
     on the velociy model.
+
+    Parameters
+    ----------
+    fomosto_config : :class:`pyrocko.meta.Config`
+    velocity_model : :class:`pyrocko.cake.LayeredModel`
 
     Returns
     -------
@@ -1074,15 +1102,18 @@ def get_fomosto_baseconfig(
         tabulated_phases=tabulated_phases)
 
 
-def get_backend_config(code, source_model, receiver_model):
+def get_backend_config(
+    code, source_model, receiver_model, slowness_taper, distances):
     """
-    Get backend related config
+    Get backend related config.
     """
-    
+
+    receiver_basement_depth = 100 * km
+
     if code == 'qseis':
         from pyrocko.fomosto.qseis import build
-        receiver_model = receiver_model.extract(depth_max=200 * km)
-        model_code_id = code
+        receiver_model = receiver_model.extract(
+            depth_max=receiver_basement_depth)
         version = '2006a'
         conf = qseis.QSeisConfig(
             filter_shallow_paths=0,
@@ -1096,7 +1127,6 @@ def get_backend_config(code, source_model, receiver_model):
         from pyrocko.fomosto.qssp import build
         source_model = copy.deepcopy(receiver_model)
         receiver_model = None
-        model_code_id = code
         version = '2010'
         conf = qssp.QSSPConfig(
             qssp_version=version,
@@ -1106,25 +1136,27 @@ def get_backend_config(code, source_model, receiver_model):
             source_patch_radius=(fom_conf.distance_delta - \
                                  fom_conf.distance_delta * 0.05) / km)
 
-    elif code == 'QSEIS2d':
+    elif code == 'qseis2d':
         from pyrocko.fomosto.qseis2d import build
-        model_code_id = 'qseis2d'
         version = '2014'
-        conf = qseis2d.QSeis2dConfig()
+        conf = qseis2d.QSeis2dConfig(qseis2d_version = version)
         conf.qseis_s_config.slowness_window = slowness_taper
         conf.qseis_s_config.calc_slowness_window = 0
-        conf.qseis_s_config.receiver_max_distance = 
-        conf.qseis_s_config.receiver_basement_depth = 
+        conf.qseis_s_config.receiver_max_distance = \
+            distances[1] * cake.d2m / km
+        # hardcode common basement depth
+        conf.qseis_s_config.receiver_basement_depth = \
+            receiver_basement_depth / km
         conf.qseis_s_config.sw_flat_earth_transform = 1
-        # extract method still buggy!!!
+
         receiver_model = receiver_model.extract(
-            depth_max=conf.qseis_s_config.receiver_basement_depth * km)
+            depth_max=receiver_basement_depth)
 
     return conf, build
 
 
 def seis_construct_gf(
-    stations, event, seismic_gfconfig, channels,
+    stations, event, seismic_config, channels,
     crust_ind=0, execute=False, force=False):
     """
     Calculate seismic Greens Functions (GFs) and create a repository 'store'
@@ -1180,36 +1212,39 @@ def seis_construct_gf(
         Flag to overwrite existing GF stores
     """
 
-    sf = seismic_gfconfig
+    sf = seismic_config.gfconfig
 
     source_model = get_velocity_model(
-        event, earth_model_name=sf.earth_model_name, use_crust2=sf.use_crust2,
-        replace_water=sf.replace_water, custom_model=sf.custom_model)
-
-    # randomly vary receiver site crustal model
-    if crust_ind > 0:
-        #moho_depth = receiver_model.discontinuity('moho').z
-        receiver_model = ensemble_earthmodel(
-            receiver_model,
-            num_vary=1,
-            err_depth=err_depth,
-            err_velocities=err_velocities,
-            depth_limit_variation=depth_limit_variation * km)[0]
+        event, earth_model_name=sf.earth_model_name, crust_ind=crust_ind,
+        use_crust2=sf.use_crust2, replace_water=sf.replace_water,
+        custom_model=sf.custom_model, error_depth=sf.error_depth,
+        error_velocities=sf.error_velocity,
+        depth_limit_variation=sf.depth_limit_variation)
 
     for station in stations:
         logger.info('Station %s' % station.station)
         logger.info('---------------------')
 
-        fomosto_config = get_fomosto_baseconfig(
-            sf, event, station, channels, crust_ind)
         slowness_taper = get_slowness_taper(fomosto_config, velocity_model)
 
+        receiver_model = get_velocity_model(
+            event, earth_model_name=sf.earth_model_name, crust_ind=crust_ind,
+            use_crust2=sf.use_crust2, replace_water=sf.replace_water,
+            custom_model=sf.custom_model, error_depth=sf.error_depth,
+            error_velocities=sf.error_velocity,
+            depth_limit_variation=sf.depth_limit_variation)
 
+        fomosto_config = get_fomosto_baseconfig(
+            sf, event, station, channels, crust_ind)
+
+        conf = get_backend_config(
+            code, source_model, receiver_model,
+            slowness_taper, seismic_config.distances)
 
     # fill remaining fomosto params
     fom_conf.earthmodel_1d = source_model.extract(depth_max='cmb')
     fom_conf.earthmodel_receiver_1d = receiver_model
-    fom_conf.modelling_code_id = model_code_id + '.' + version
+    fom_conf.modelling_code_id = code + '.' + conf[code]version
 
     window_extension = 60.   # [s]
 
@@ -1325,40 +1360,11 @@ def geo_construct_gf(
     c.sampling_interval = sampling_interval
 
     # extract source crustal profile and check for water layer
-    if use_crust2:
-        source_profile = crust2x2.get_profile(event.lat, event.lon)
-
-        if replace_water:
-            thickness_lwater = source_profile.get_layer(crust2x2.LWATER)[0]
-
-            if thickness_lwater > 0.0:
-                logger.info('Water layer %f in CRUST model! '
-                        'Remove and add to lower crust' % thickness_lwater)
-
-                thickness_llowercrust = source_profile.get_layer(
-                                        crust2x2.LLOWERCRUST)[0]
-
-                source_profile.set_layer_thickness(crust2x2.LWATER, 0.0)
-                source_profile.set_layer_thickness(
-                    crust2x2.LLOWERCRUST,
-                    thickness_llowercrust + thickness_lwater)
-
-                source_profile._elevation = 0.0
-
-                logger.info('New Lower crust layer thickness %f' % \
-                    source_profile.get_layer(crust2x2.LLOWERCRUST)[0])
-
-        source_model = cake.load_model(
-            earth_model,
-            crust2_profile=source_profile).extract(
-                depth_max=source_depth_max * km)
-
-    else:
-        if custom_velocity_model is None:
-            raise Exception('custom velocity model not given!')
-
-        logger.info('Using custom model from config file')
-        source_model = custom_velocity_model
+    source_model = get_velocity_model(
+        location, earth_model_name, use_crust2=use_crust2,
+        replace_water=replace_water,
+        custom_model=custom_velocity_model).extract(
+            depth_max=source_depth_max * km)
 
     # potentially vary source model
     if crust_ind > 0:

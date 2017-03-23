@@ -568,7 +568,7 @@ def command_build_gfs(args):
                 heart.seis_construct_gf(
                     stations=stations,
                     event=c.event,
-                    seismic_gfconfig=sf,
+                    seismic_config=sc,
                     channels=sc.channels,
                     crust_ind=crust_ind,
                     execute=options.execute,

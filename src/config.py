@@ -119,8 +119,15 @@ class GFConfig(Object):
     Base config for GreensFunction calculation parameters.
     """
     store_superdir = String.T(default='./')
-    n_variations = Int.T(default=0,
-                         help='Times to vary input velocity model.')
+    n_variations = Int.T(
+        default=0,
+        help='Times to vary input velocity model.')
+    error_depth = Float.T(
+        default=0.1,
+        help='3sigma [%/100] in velocity model layer depth.')
+    error_velocities = Float.T(
+        default=0.1,
+        help='3sigma [%/100] in velocity model layer wave-velocities.')
 
 
 class NonlinearGFConfig(GFConfig):
