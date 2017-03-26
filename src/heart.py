@@ -1098,7 +1098,7 @@ def choose_backend(
     """
 
     fc = fomosto_config
-    receiver_basement_depth = 100 * km
+    receiver_basement_depth = 150 * km
 
     if code == 'qseis':
         build = qseis.build
@@ -1142,14 +1142,16 @@ def choose_backend(
         conf.qseis_s_config.calc_slowness_window = 0
         conf.qseis_s_config.receiver_max_distance = \
             distances[1] * cake.d2m / km
-        # hardcode common basement depth
+        # find common basement layer
+        l = source_model.layer(receiver_basement_depth)
         conf.qseis_s_config.receiver_basement_depth = \
-            receiver_basement_depth / km
+            l.ztop / km
         conf.qseis_s_config.sw_flat_earth_transform = 1
         conf.gf_directory = gf_directory
 
         receiver_model = receiver_model.extract(
-            depth_max=receiver_basement_depth)
+            depth_max=l.ztop)
+        receiver_model.append(l)
 
     else:
         raise Exception('Backend not supported: %s' % code)
@@ -1182,7 +1184,7 @@ def choose_backend(
 
 
 def seis_construct_gf(
-    station, event, seismic_config, crust_ind=0, execute=False, force=False):
+    stations, event, seismic_config, crust_ind=0, execute=False, force=False):
     """
     Calculate seismic Greens Functions (GFs) and create a repository 'store'
     that is being used later on repeatetly to calculate the synthetic
@@ -1190,7 +1192,8 @@ def seis_construct_gf(
 
     Parameters
     ----------
-    station : :class:`pyrocko.model.Station`
+    stations : list
+        of :class:`pyrocko.model.Station`
         Station object that defines the distance from the event for which the
         GFs are being calculated
     event : :class:`pyrocko.model.Event`
@@ -1212,43 +1215,45 @@ def seis_construct_gf(
         event, earth_model_name=sf.earth_model_name, crust_ind=crust_ind,
         gf_config=sf)
 
-    logger.info('Station %s' % station.station)
-    logger.info('---------------------')
+    for station in stations:
+        logger.info('Station %s' % station.station)
+        logger.info('---------------------')
 
-    receiver_model = get_velocity_model(
-        station, earth_model_name=sf.earth_model_name, crust_ind=crust_ind,
-        gf_config=sf)
+        receiver_model = get_velocity_model(
+       	    station, earth_model_name=sf.earth_model_name,
+            crust_ind=crust_ind, gf_config=sf)
 
-    fomosto_config = get_fomosto_baseconfig(
-        sf, event, station, seismic_config.channels, crust_ind)
+        fomosto_config = get_fomosto_baseconfig(
+            sf, event, station, seismic_config.channels, crust_ind)
 
-    gf_directory = os.path.join(sf.store_superdir, 'base_gfs_%i' % crust_ind)
+        gf_directory = os.path.join(
+            sf.store_superdir, 'base_gfs_%i' % crust_ind)
 
-    conf, build = choose_backend(
-        fomosto_config, sf.code, source_model, receiver_model,
-        seismic_config.distances, gf_directory)
+        conf, build = choose_backend(
+            fomosto_config, sf.code, source_model, receiver_model,
+            seismic_config.distances, gf_directory)
 
-    fomosto_config.validate()
-    conf.validate()
+        fomosto_config.validate()
+        conf.validate()
 
-    store_dir = sf.store_superdir + fomosto_config.id
-    logger.info('Creating Store at %s' % store_dir)
+        store_dir = sf.store_superdir + fomosto_config.id
+        logger.info('Creating Store at %s' % store_dir)
 
-    gf.Store.create_editables(
-        store_dir,
-        config=fomosto_config,
-        extra={sf.code: conf},
-        force=force)
+        gf.Store.create_editables(
+            store_dir,
+            config=fomosto_config,
+            extra={sf.code: conf},
+            force=force)
 
-    if execute:
-        store = gf.Store(store_dir, 'r')
-        store.make_ttt(force=force)
-        store.close()
-        build(store_dir, nworkers=sf.nworkers, force=force)
-        if sf.rm_gfs and sf.code == 'qssp':
-            gf_dir = os.path.join(store_dir, 'qssp_green')
-            logger.info('Removing QSSP Greens Functions!')
-            shutil.rmtree(gf_dir)
+        if execute:
+            store = gf.Store(store_dir, 'r')
+            store.make_ttt(force=force)
+            store.close()
+            build(store_dir, nworkers=sf.nworkers, force=force)
+            if sf.rm_gfs and sf.code == 'qssp':
+                gf_dir = os.path.join(store_dir, 'qssp_green')
+                logger.info('Removing QSSP Greens Functions!')
+                shutil.rmtree(gf_dir)
 
 
 def geo_construct_gf(

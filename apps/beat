@@ -557,14 +557,13 @@ def command_build_gfs(args):
                 logger.info('Store name: %s' % sf.reference_location.station)
 
             for crust_ind in range(sf.n_variations + 1):
-                for station in stations:
-                    heart.seis_construct_gf(
-                        station=station,
-                        event=c.event,
-                        seismic_config=sc,
-                        crust_ind=crust_ind,
-                        execute=options.execute,
-                        force=options.force)
+                heart.seis_construct_gf(
+                    stations=stations,
+                    event=c.event,
+                    seismic_config=sc,
+                    crust_ind=crust_ind,
+                    execute=options.execute,
+                    force=options.force)
 
             if not options.execute:
                 logger.info('Seismic GF store configs successfully created! '
