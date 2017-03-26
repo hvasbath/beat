@@ -8,7 +8,7 @@ import logging
 import shutil
 import copy
 
-from beat import psgrn, pscmp, utility, qseis2d
+from beat import psgrn, pscmp, utility
 
 from theano import config as tconfig
 import numpy as num
@@ -1133,7 +1133,7 @@ def choose_backend(
                                  fc.distance_delta * 0.05) / km)
 
     elif code == 'qseis2d':
-        from pyrocko.fomosto.qseis2d import build
+        from beat.qseis2d import build
         version = '2014'
         slowness_taper = get_slowness_taper(fc, source_model, distances)
 
