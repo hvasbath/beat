@@ -8,7 +8,7 @@ import logging
 import shutil
 import copy
 
-from beat import psgrn, pscmp, utility
+from beat import psgrn, pscmp, utility, qseis2d
 
 from theano import config as tconfig
 import numpy as num
@@ -1101,7 +1101,7 @@ def choose_backend(
     receiver_basement_depth = 100 * km
 
     if code == 'qseis':
-        from pyrocko.fomosto.qseis import build
+        build = qseis.build
         receiver_model = receiver_model.extract(
             depth_max=receiver_basement_depth)
         version = '2006a'
@@ -1117,7 +1117,7 @@ def choose_backend(
             qseis_version=version)
 
     elif code == 'qssp':
-        from pyrocko.fomosto.qssp import build
+        build = qssp.build
         source_model = copy.deepcopy(receiver_model)
         receiver_model = None
         version = '2010'
@@ -1133,7 +1133,7 @@ def choose_backend(
                                  fc.distance_delta * 0.05) / km)
 
     elif code == 'qseis2d':
-        from beat.qseis2d import build
+        build = qseis2d.build
         version = '2014'
         slowness_taper = get_slowness_taper(fc, source_model, distances)
 
