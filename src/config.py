@@ -135,7 +135,7 @@ class NonlinearGFConfig(GFConfig):
     Config for non-linear GreensFunction calculation parameters.
     """
 
-    earth_model = String.T(default='ak135-f-average.m',
+    earth_model_name = String.T(default='ak135-f-average.m',
                            help='Name of the reference earthmodel, see '
                                 'pyrocko.cake.builtin_models() for '
                                 'alternatives.')

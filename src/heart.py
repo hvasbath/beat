@@ -985,11 +985,11 @@ def get_velocity_model(
         source_model = cake.load_model(
             earth_model_name, crust2_profile=profile)
 
-    elif gfc.custom_model:
+    elif gfc.custom_velocity_model:
         logger.info('Using custom model from config file')
         global_model = cake.load_model(earth_model_name)
         source_model = utility.join_models(
-            global_model, gfc.custom_model)
+            global_model, gfc.custom_velocity_model)
     else:
         source_model = cake.load_model(earth_model_name)
 
@@ -1075,7 +1075,7 @@ def get_fomosto_baseconfig(
 
     return gf.ConfigTypeA(
         id='%s_%s_%.3fHz_%s' % (station.station,
-                        sf.earth_model.split('-')[0].split('.')[0],
+                        sf.earth_model_name.split('-')[0].split('.')[0],
                         sf.sample_rate,
                         crust_ind),
         ncomponents=10,
@@ -1121,7 +1121,7 @@ def choose_backend(
         source_model = copy.deepcopy(receiver_model)
         receiver_model = None
         version = '2010'
-        distances = (fc.distance_min, fc.distance_max) * cake.m2d
+        distances = num.array([fc.distance_min, fc.distance_max]) * cake.m2d
         slowness_taper = get_slowness_taper(fc, source_model, distances)
 
         conf = qssp.QSSPConfig(
@@ -1137,7 +1137,7 @@ def choose_backend(
         version = '2014'
         slowness_taper = get_slowness_taper(fc, source_model, distances)
 
-        conf = qseis2d.QSeis2dConfig(qseis2d_version = version)
+        conf = qseis2d.QSeis2dConfig(qseis2d_version=version)
         conf.qseis_s_config.slowness_window = slowness_taper
         conf.qseis_s_config.calc_slowness_window = 0
         conf.qseis_s_config.receiver_max_distance = \
@@ -1182,8 +1182,7 @@ def choose_backend(
 
 
 def seis_construct_gf(
-    station, event, seismic_config, channels,
-    crust_ind=0, execute=False, force=False):
+    station, event, seismic_config, crust_ind=0, execute=False, force=False):
     """
     Calculate seismic Greens Functions (GFs) and create a repository 'store'
     that is being used later on repeatetly to calculate the synthetic
@@ -1197,72 +1196,42 @@ def seis_construct_gf(
     event : :class:`pyrocko.model.Event`
         The event is used as a reference point for all the calculations
         According to the its location the earth model is being built
-    store_superdir : str
-        Path to the main directory where all the GF stores are stored
-    code : str
-        Modeling code to use for the calculation of waveforms.
-        implemented so far: `qseis`, `qssp`, coming soon `qseis2d`
-        QSSP does calculations on a circle thus it is recommended to use it for
-        teleseismic distances. QSEIS does calculations on a cylinder and is
-        more accurate for near-field seismic waveforms, QSEIS2d is a
-        significantly, computationally more efficient version of QSEIS, outputs
-        are almost identical
-    source_distance_min : scalar, float
-        Lower bound [km] for the source-distance grid of GFs to calculate
-    source_distance_max : scalar, float
-        Upper bound [km] for the source-distance grid of GFs to calculate
-    source_distance_spacing : scalar, float
-        Spacing [km] for the source-distance grid of GFs to calculate
-    source_depth_min : scalar, float
-        Lower bound [km] for the source-depth grid of GFs to calculate
-    source_depth_max : scalar, float
-        Upper bound [km] for the source-depth grid of GFs to calculate
-    source_depth_spacing : scalar, float
-        Spacing [km] for the source-depth grid of GFs to calculate
-    sample_rate : scalar, float
-        Temporal sampling rate [Hz] of seismic waveforms
+    seismic_config : :class:`config.SeismicConfig`
     crust_ind : int
         Index to set to the Greens Function store, 0 is reference store
         indexes > 0 use reference model and vary its parameters by a Gaussian
-    depth_limit_variation : scalar, float
-        depth threshold [m], layers with depth > than this limit are not varied
-    nworkers : int
-        Number of processors to use for computations
-    rm_gfs : boolean
-        Valid if qssp or qseis2d are being used, remove the intermediate
-        files after finishing the computation
     execute : boolean
         Flag to execute the calculation, if False just setup tested
     force : boolean
         Flag to overwrite existing GF stores
     """
 
-    sf = seismic_config.gfconfig
+    sf = seismic_config.gf_config
 
     source_model = get_velocity_model(
         event, earth_model_name=sf.earth_model_name, crust_ind=crust_ind,
-        gfconfig=sf)
+        gf_config=sf)
 
     logger.info('Station %s' % station.station)
     logger.info('---------------------')
 
     receiver_model = get_velocity_model(
-        station, earth_model_name=sf.earth_model, crust_ind=crust_ind,
-        gfconfig=sf)
+        station, earth_model_name=sf.earth_model_name, crust_ind=crust_ind,
+        gf_config=sf)
 
     fomosto_config = get_fomosto_baseconfig(
-        sf, event, station, channels, crust_ind)
+        sf, event, station, seismic_config.channels, crust_ind)
 
-    gf_directory = os.path.join(store_superdir, 'qseisSgfs_%i' % crust_ind)
+    gf_directory = os.path.join(sf.store_superdir, 'base_gfs_%i' % crust_ind)
 
     conf, build = choose_backend(
-        code, source_model, receiver_model,
+        fomosto_config, sf.code, source_model, receiver_model,
         seismic_config.distances, gf_directory)
 
     fomosto_config.validate()
     conf.validate()
 
-    store_dir = store_superdir + fomosto_config.id
+    store_dir = sf.store_superdir + fomosto_config.id
     logger.info('Creating Store at %s' % store_dir)
 
     gf.Store.create_editables(
@@ -1275,22 +1244,15 @@ def seis_construct_gf(
         store = gf.Store(store_dir, 'r')
         store.make_ttt(force=force)
         store.close()
-        build(store_dir, nworkers=nworkers, force=force)
-        if rm_gfs and code == 'qssp':
+        build(store_dir, nworkers=sf.nworkers, force=force)
+        if sf.rm_gfs and sf.code == 'qssp':
             gf_dir = os.path.join(store_dir, 'qssp_green')
             logger.info('Removing QSSP Greens Functions!')
             shutil.rmtree(gf_dir)
 
 
 def geo_construct_gf(
-    event, store_superdir,
-    source_distance_min=0., source_distance_max=100.,
-    source_depth_min=0., source_depth_max=40.,
-    source_distance_spacing=5., source_depth_spacing=0.5,
-    sampling_interval=1.,
-    earth_model='ak135-f-average.m', crust_ind=0,
-    replace_water=True, use_crust2=True, custom_velocity_model=None,
-    execute=True, force=False):
+    event, geodetic_config, crust_ind=0, execute=True, force=False):
     """
     Calculate geodetic Greens Functions (GFs) and create a repository 'store'
     that is being used later on repeatetly to calculate the synthetic
@@ -1301,80 +1263,53 @@ def geo_construct_gf(
     event : :class:`pyrocko.model.Event`
         The event is used as a reference point for all the calculations
         According to the its location the earth model is being built
-    store_superdir : str
-        Path to the main directory where all the GF stores are stored
-    source_distance_min : scalar, float
-        Lower bound [km] for the source-distance grid of GFs to calculate
-    source_distance_max : scalar, float
-        Upper bound [km] for the source-distance grid of GFs to calculate
-    source_distance_spacing : scalar, float
-        Spacing [km] for the source-distance grid of GFs to calculate
-    source_depth_min : scalar, float
-        Lower bound [km] for the source-depth grid of GFs to calculate
-    source_depth_max : scalar, float
-        Upper bound [km] for the source-depth grid of GFs to calculate
-    source_depth_spacing : scalar, float
-        Spacing [km] for the source-depth grid of GFs to calculate
-    sampling_interval : scalar, float >= 1.
-        Source-distance dependend sampling density of grid points, if == 1
-        linear distance sampling, if > 1. exponentially decreasing sampling
-        with increasing distance
-    earth_model : str
-        Name of the base earth model to be used, check
-        :func:`pyrocko.cake.builtin_models` for alternatives,
-        default ak135 with medium resolution
+    geodetic_config : :class:`config.GeodeticConfig`
     crust_ind : int
         Index to set to the Greens Function store
-    replace_water : boolean
-        Flag to remove water layers from the crust2.0 profile
-    use_crust2 : boolean
-        Flag to use the crust2.0 model for the crustal earth model
-    custom_velocity_model : :class:`pyrocko.cake.LayeredModel`
-        If the implemented velocity models should not be used, a custom
-        velocity model can be given here
     execute : boolean
         Flag to execute the calculation, if False just setup tested
     force : boolean
         Flag to overwrite existing GF stores
     """
 
+    gf = geodetic_config.gf_config
+
     c = psgrn.PsGrnConfigFull()
 
-    n_steps_depth = int((source_depth_max - source_depth_min) / \
-        source_depth_spacing) + 1
-    n_steps_distance = int((source_distance_max - source_distance_min) / \
-        source_distance_spacing) + 1
+    n_steps_depth = int((gf.source_depth_max - gf.source_depth_min) / \
+        gf.source_depth_spacing) + 1
+    n_steps_distance = int(
+        (gf.source_distance_max - gf.source_distance_min) / \
+        gf.source_distance_spacing) + 1
 
     c.distance_grid = psgrn.PsGrnSpatialSampling(
         n_steps=n_steps_distance,
-        start_distance=source_distance_min,
-        end_distance=source_distance_max)
+        start_distance=gf.source_distance_min,
+        end_distance=gf.source_distance_max)
 
     c.depth_grid = psgrn.PsGrnSpatialSampling(
         n_steps=n_steps_depth,
-        start_distance=source_depth_min,
-        end_distance=source_depth_max)
+        start_distance=gf.source_depth_min,
+        end_distance=gf.source_depth_max)
 
-    c.sampling_interval = sampling_interval
+    c.sampling_interval = gf.sampling_interval
 
     # extract source crustal profile and check for water layer
     source_model = get_velocity_model(
-        location, earth_model_name, use_crust2=use_crust2,
-        replace_water=replace_water,
-        custom_model=custom_velocity_model).extract(
-            depth_max=source_depth_max * km)
+        event, earth_model_name=gf.earth_model_name, crust_ind=crust_ind,
+        gf_config=gf).extract(depth_max=gf.source_depth_max * km)
 
     # potentially vary source model
     if crust_ind > 0:
         source_model = ensemble_earthmodel(
             source_model,
             num_vary=1,
-            err_depth=err_depth,
-            err_velocities=err_velocities)[0]
+            error_depth=gf.error_depth,
+            error_velocities=gf.error_velocities)[0]
 
     c.earthmodel_1d = source_model
     c.psgrn_outdir = os.path.join(
-        store_superdir, 'psgrn_green_%i' % (crust_ind))
+        gf.store_superdir, 'psgrn_green_%i' % (crust_ind))
     c.validate()
 
     util.ensuredir(c.psgrn_outdir)
@@ -1713,7 +1648,6 @@ def get_phase_arrival_time(engine, source, target):
     -------
     scalar, float of the arrival time of the wave
     """
-
     store = engine.get_store(target.store_id)
     dist = target.distance_to(source)
     depth = source.depth

@@ -18,7 +18,7 @@ from matplotlib.collections import PatchCollection
 from matplotlib.backends.backend_pdf import PdfPages
 
 import numpy as num
-from pyrocko.guts import Object, String, Dict, Bool, Int
+from pyrocko.guts import Object, String, Dict, Bool, Int, load
 from pyrocko import util, trace
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.cake_plot import light
@@ -1494,13 +1494,19 @@ def n_model_plot(models, axes=None):
 
 
 def load_earthmodels(engine, targets, depth_max='cmb'):
-    earthmodels = []
-    for t in targets:
-        store = engine.get_store(t.store_id)
-        em = store.config.earthmodel_1d.extract(depth_max=depth_max)
-        earthmodels.append(em)
 
-    return earthmodels
+    ems = []
+    emr = []
+    for t in targets:
+        path = os.path.join(engine.store_superdirs[0], t.store_id, 'config')
+        config = load(filename=path)
+        em = config.earthmodel_1d.extract(depth_max=depth_max)
+        ems.append(em)
+
+        if config.earthmodel_receiver_1d is not None:
+            emr.append(config.earthmodel_receiver_1d)
+
+    return [ems, emr]
 
 
 def draw_earthmodels(problem, plot_options):
@@ -1519,15 +1525,15 @@ def draw_earthmodels(problem, plot_options):
                 plot_stations = [sc.gf_config.reference_location]
 
             for station in plot_stations:
-                outpath = os.path.join(
+                outbasepath = os.path.join(
                     problem.outfolder, po.figure_dir,
-                    '%s_%s_velocity_models.%s' % (
-                        dataset, station.station, po.outformat))
+                    '%s_%s_velocity_model' % (
+                        dataset, station.station))
 
-                if not os.path.exists(outpath) or po.force:
+                if not os.path.exists(outbasepath) or po.force:
                     targets = init_targets(
                         [station],
-                        earth_model=sc.gf_config.earth_model,
+                        earth_model=sc.gf_config.earth_model_name,
                         channels=[sc.channels[0]],
                         sample_rate=sc.gf_config.sample_rate,
                         crust_inds=range(sc.gf_config.n_variations + 1),
@@ -1536,7 +1542,17 @@ def draw_earthmodels(problem, plot_options):
                     models = load_earthmodels(
                         composite.engine, targets,
                         depth_max=sc.gf_config.depth_limit_variation * km)
-                    models_dict[outpath] = models
+
+                    for i, mods in enumerate(models):
+                        if i == 0:
+                            site = 'source'
+                        elif i == 1:
+                            site = 'receiver'
+
+                        outpath = outbasepath + \
+                            '_%s.%s' % (site, po.outformat)
+
+                        models_dict[outpath] = mods
 
                 else:
                     logger.info(
@@ -1551,7 +1567,7 @@ def draw_earthmodels(problem, plot_options):
             models = []
             outpath = os.path.join(
                 problem.outfolder, po.figure_dir,
-                '%s_%s_velocity_models.%s' % (
+                '%s_%s_velocity_model.%s' % (
                     dataset, 'psgrn', po.outformat))
 
             if not os.path.exists(outpath) or po.force:
@@ -1577,10 +1593,17 @@ def draw_earthmodels(problem, plot_options):
 
         figs = []
         axes = []
-        for models in models_dict.itervalues():
-            fig, axs = n_model_plot(models, axes=None)
-            figs.append(fig)
-            axes.append(axs)
+        tobepopped = []
+        for path, models in models_dict.iteritems():
+            if len(models) > 0:
+                fig, axs = n_model_plot(models, axes=None)
+                figs.append(fig)
+                axes.append(axs)
+            else:
+                tobepopped.append(path)
+
+        for entry in tobepopped:
+            models_dict.pop(entry)
 
         if po.outformat == 'display':
             plt.show()

@@ -541,7 +541,7 @@ class SeismicComposite(Composite):
 
         self.targets = heart.init_targets(
             self.stations,
-            earth_model=sc.gf_config.earth_model,
+            earth_model=sc.gf_config.earth_model_name,
             channels=sc.channels,
             sample_rate=sc.gf_config.sample_rate,
             crust_inds=[0],  # always reference model
@@ -850,7 +850,7 @@ class SeismicGeometryComposite(SeismicComposite):
                     channel, station.station))
                 crust_targets = heart.init_targets(
                     stations=[station],
-                    earth_model=sc.gf_config.earth_model,
+                    earth_model=sc.gf_config.earth_model_name,
                     channels=channel,
                     sample_rate=sc.gf_config.sample_rate,
                     crust_inds=range(sc.gf_config.n_variations + 1),
@@ -1047,12 +1047,22 @@ class Problem(object):
     composites = {}
     hyperparams = {}
 
-    def __init__(self, config):
+    def __init__(self, config, hypers=False):
 
         logger.info('Analysing problem ...')
         logger.info('---------------------\n')
 
         self.config = config
+
+        mode = self.config.problem_config.mode
+
+        outfolder = os.path.join(self.config.project_dir, mode)
+
+        if hypers:
+            outfolder = os.path.join(outfolder, 'hypers')
+
+        self.outfolder = outfolder
+        util.ensuredir(self.outfolder)
 
     def init_sampler(self, hypers=False):
         """
@@ -1122,9 +1132,6 @@ class Problem(object):
 
         mode = self.config.problem_config.mode
 
-        self.outfolder = os.path.join(self.config.project_dir, mode)
-        util.ensuredir(self.outfolder)
-
         with pm.Model() as self.model:
 
             pc = self.config.problem_config
@@ -1164,10 +1171,6 @@ class Problem(object):
         logger.info('... Building Hyper model ...\n')
 
         pc = self.config.problem_config
-
-        self.outfolder = os.path.join(
-            self.config.project_dir, pc.mode, 'hypers')
-        util.ensuredir(self.outfolder)
 
         point = {}
         for param in pc.priors.values():
@@ -1310,7 +1313,7 @@ class GeometryOptimizer(Problem):
     def __init__(self, config, hypers=False):
         logger.info('... Initialising Geometry Optimizer ... \n')
 
-        super(GeometryOptimizer, self).__init__(config)
+        super(GeometryOptimizer, self).__init__(config, hypers)
 
         pc = config.problem_config
 
@@ -1369,7 +1372,7 @@ class DistributionOptimizer(Problem):
     def __init__(self, config, hypers=False):
         logger.info('... Initialising Distribution Optimizer ... \n')
 
-        super(DistributionOptimizer, self).__init__(config)
+        super(DistributionOptimizer, self).__init__(config, hypers)
 
         for dataset in config.problem_config.datasets:
             composite = distributer_composite_catalog[dataset](
@@ -1531,7 +1534,7 @@ def estimate_hypers(step, problem):
     bconfig.dump(problem.config, filename=conf_out)
 
 
-def load_model(project_dir, mode, hypers=False):
+def load_model(project_dir, mode, hypers=False, nobuild=True):
     """
     Load config from project directory and return BEAT problem including model.
 
@@ -1543,6 +1546,8 @@ def load_model(project_dir, mode, hypers=False):
         problem name to be loaded
     hypers : boolean
         flag to return hyper parameter estimation model instead of main model.
+    built : boolean
+        flag to do not build models
 
     Returns
     -------
@@ -1563,10 +1568,12 @@ def load_model(project_dir, mode, hypers=False):
         logger.error('Modeling problem %s not supported' % pc.mode)
         raise Exception('Model not supported')
 
-    if hypers:
-        problem.built_hyper_model()
-    else:
-        problem.built_model()
+    if not nobuild:
+        if hypers:
+            problem.built_hyper_model()
+        else:
+            problem.built_model()
+
     return problem
 
 

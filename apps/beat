@@ -520,24 +520,14 @@ def command_build_gfs(args):
 
     if options.mode == 'geometry':
         if 'geodetic' in options.datasets:
+            gc = c.geodetic_config
             gf = c.geodetic_config.gf_config
 
             for crust_ind in range(gf.n_variations + 1):
                 heart.geo_construct_gf(
                     event=c.event,
-                    store_superdir=gf.store_superdir,
-                    source_depth_min=gf.source_depth_min,
-                    source_depth_max=gf.source_depth_max,
-                    source_depth_spacing=gf.source_depth_spacing,
-                    source_distance_min=gf.source_distance_min,
-                    source_distance_max=gf.source_distance_max,
-                    source_distance_spacing=gf.source_distance_spacing,
-                    sampling_interval=gf.sampling_interval,
-                    earth_model=gf.earth_model,
+                    geodetic_config=gc,
                     crust_ind=crust_ind,
-                    use_crust2=gf.use_crust2,
-                    custom_velocity_model=gf.custom_velocity_model,
-                    replace_water=gf.replace_water,
                     execute=options.execute,
                     force=options.force)
 
@@ -557,6 +547,8 @@ def command_build_gfs(args):
                 stations, _ = utility.load_objects(seismic_data_path)
                 stations = utility.apply_station_blacklist(
                     stations, sc.blacklist)
+                stations = utility.weed_stations(
+                    stations, c.event, distances=sc.distances)
             else:
                 logger.info(
                     "Creating one global Green's Function store, which is "
@@ -570,7 +562,6 @@ def command_build_gfs(args):
                         station=station,
                         event=c.event,
                         seismic_config=sc,
-                        channels=sc.channels,
                         crust_ind=crust_ind,
                         execute=options.execute,
                         force=options.force)
@@ -698,6 +689,9 @@ def command_plot(args):
         parser.add_option('--hypers', dest='hypers',
             action='store_true', help='Plot hyperparameter results only.')
 
+        parser.add_option('--nobuild', dest='nobuild',
+            action='store_true', help='Dont build models during problem init.')
+
     plots_avail = plotting.available_plots()
 
     details = '''Available <plot types> are: %s or "all". Multiple plots can be
@@ -725,7 +719,8 @@ selected giving a comma seperated list.''' % (
     project_dir = os.path.join(main_path, args[0])
 
     logger.info('Loading problem ...')
-    problem = models.load_model(project_dir, options.mode, options.hypers)
+    problem = models.load_model(
+        project_dir, options.mode, options.hypers, options.nobuild)
 
     po = plotting.PlotOptions(
         post_llk=options.post_llk,
