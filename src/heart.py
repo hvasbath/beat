@@ -1137,7 +1137,7 @@ def choose_backend(
         version = '2014'
         slowness_taper = get_slowness_taper(fc, source_model, distances)
 
-        conf = qseis2d.QSeis2dConfig(qseis2d_version=version)
+        conf = qseis2d.QSeis2dConfig()
         conf.qseis_s_config.slowness_window = slowness_taper
         conf.qseis_s_config.calc_slowness_window = 0
         conf.qseis_s_config.receiver_max_distance = \
@@ -1237,7 +1237,7 @@ def seis_construct_gf(
     gf.Store.create_editables(
         store_dir,
         config=fomosto_config,
-        extra={fomosto_config.modelling_code_id: conf},
+        extra={sf.code: conf},
         force=force)
 
     if execute:
