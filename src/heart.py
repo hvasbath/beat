@@ -1145,7 +1145,7 @@ def choose_backend(
         # find common basement layer
         l = source_model.layer(receiver_basement_depth)
         conf.qseis_s_config.receiver_basement_depth = \
-            l.ztop / km
+            round(l.zbot / km, 1)
         conf.qseis_s_config.sw_flat_earth_transform = 1
         conf.gf_directory = gf_directory
 

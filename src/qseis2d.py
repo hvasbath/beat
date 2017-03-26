@@ -127,6 +127,7 @@ class QSeisSConfig(Object):
 
     qseiss_version = String.T(default='2014')
 
+    receiver_basement_depth = Float.T(default=35.0)  # [km]
     calc_slowness_window = Int.T(default=1)
     slowness_window = Tuple.T(4, optional=True)
     wavenumber_sampling = Float.T(default=2.5)
@@ -152,7 +153,6 @@ class QSeisSConfigFull(QSeisSConfig):
 
     source_depth = Float.T(default=10.0)
 
-    receiver_basement_depth = Float.T(default=35.0)  # [km]
     receiver_min_distance = Float.T(default=1000.0)  # [km]
     receiver_max_distance = Float.T(default=10000.0)  # [km]
     nsamples = Int.T(default=256)
