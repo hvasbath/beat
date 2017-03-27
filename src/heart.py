@@ -1102,8 +1102,12 @@ def choose_backend(
 
     if code == 'qseis':
         build = qseis.build
+        # find common basement layer
+        l = source_model.layer(receiver_basement_depth)
         receiver_model = receiver_model.extract(
-            depth_max=receiver_basement_depth)
+            depth_max=l.ztop)
+        receiver_model.append(l)
+
         version = '2006a'
         distances = (fc.distance_min, fc.distance_max) * cake.m2d
         slowness_taper = get_slowness_taper(fc, source_model, distances)
@@ -1142,13 +1146,13 @@ def choose_backend(
         conf.qseis_s_config.calc_slowness_window = 0
         conf.qseis_s_config.receiver_max_distance = \
             distances[1] * cake.d2m / km
+        conf.qseis_s_config.sw_flat_earth_transform = 1
+        conf.gf_directory = gf_directory
+
         # find common basement layer
         l = source_model.layer(receiver_basement_depth)
         conf.qseis_s_config.receiver_basement_depth = \
             round(l.zbot / km, 1)
-        conf.qseis_s_config.sw_flat_earth_transform = 1
-        conf.gf_directory = gf_directory
-
         receiver_model = receiver_model.extract(
             depth_max=l.ztop)
         receiver_model.append(l)
