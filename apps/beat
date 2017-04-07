@@ -82,6 +82,19 @@ def process_common_options(options, name):
     utility.setup_logging(project_dir, options.loglevel)
 
 
+def get_project_directory(args, nargs=1):
+
+    l = len(args)
+
+    if l == nargs - 1:
+        project_dir = os.getcwd()
+    elif l == nargs:
+        name = args.pop(0)
+        project_dir = os.path.join(options.main_path, name)
+
+    return project_dir
+
+
 def die(message, err=''):
     sys.exit('%s: error: %s \n %s' % (program_name, message, err))
 
@@ -254,14 +267,7 @@ def command_import(args):
 
     parser, options, args = cl_parse('import', args, setup=setup)
 
-    try:
-        name = args.pop()
-    except:
-        parser.error('cannot get <event_name> argument')
-        parser.print_help()
-
-    main_path = os.getcwd()
-    project_dir = os.path.join(main_path, name)
+    project_dir = get_project_directory(args)
 
     c = config.load_config(project_dir, options.mode)
 
@@ -454,15 +460,7 @@ def command_sample(args):
 
     parser, options, args = cl_parse('sample', args, setup=setup)
 
-    try:
-        name = args.pop()
-    except:
-        parser.error('cannot get <event_name> argument')
-        parser.print_help()
-
-    os.chdir(options.main_path)
-    main_path = os.getcwd()
-    project_dir = os.path.join(main_path, name)
+    project_dir = get_project_directory(args)
 
     problem = models.load_model(
         project_dir, options.mode, options.hypers)
@@ -506,15 +504,7 @@ def command_build_gfs(args):
 
     parser, options, args = cl_parse('build_gfs', args, setup=setup)
 
-    try:
-        name = args.pop()
-    except:
-        parser.error('cannot get <event_name> argument')
-        parser.print_help()
-
-    os.chdir(options.main_path)
-    main_path = os.getcwd()
-    project_dir = os.path.join(main_path, name)
+    project_dir = get_project_directory(args)
 
     c = config.load_config(project_dir, options.mode)
 
@@ -699,23 +689,17 @@ selected giving a comma seperated list.''' % (
 
     parser, options, args = cl_parse('plot', args, setup, details)
 
-    if len(args) != 2:
-        parser.print_help()
-        sys.exit(1)
+    project_dir = get_project_directory(args, nargs=2)
 
-    if args[1] == 'all':
+    if args[0] == 'all':
         plotnames = plots_avail
     else:
-        plotnames = args[1].split(',')
+        plotnames = args[0].split(',')
 
     for plot in plotnames:
         if plot not in plots_avail:
             raise Exception('Plot type %s not available! Available plots are:'
             ' %s' % (plot, plots_avail))
-
-    os.chdir(options.main_path)
-    main_path = os.getcwd()
-    project_dir = os.path.join(main_path, args[0])
 
     logger.info('Loading problem ...')
     problem = models.load_model(
