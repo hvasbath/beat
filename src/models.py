@@ -485,7 +485,7 @@ class GeodeticGeometryComposite(GeodeticComposite):
             logger.debug('Track %s' % target.track)
             cov_pv = cov.get_geo_cov_velocity_models(
                 store_superdir=gc.gf_config.store_superdir,
-                crust_inds=range(gc.gf_config.n_variations + 1),
+                crust_inds=range(*gc.gf_config.n_variations),
                 target=target,
                 sources=self.sources)
 
@@ -853,7 +853,7 @@ class SeismicGeometryComposite(SeismicComposite):
                     earth_model=sc.gf_config.earth_model_name,
                     channels=channel,
                     sample_rate=sc.gf_config.sample_rate,
-                    crust_inds=range(sc.gf_config.n_variations + 1),
+                    crust_inds=range(*sc.gf_config.n_variations),
                     reference_location=sc.gf_config.reference_location)
 
                 cov_pv = cov.get_seis_cov_velocity_models(
@@ -915,7 +915,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
         """
 
         if crust_inds is None:
-            crust_inds = range(self.gc.gf_config.n_variations + 1)
+            crust_inds = range(*self.gc.gf_config.n_variations)
 
         for crust_ind in crust_inds:
             gfpath = os.path.join(self.gfpath,

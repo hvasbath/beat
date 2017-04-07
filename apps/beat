@@ -523,7 +523,7 @@ def command_build_gfs(args):
             gc = c.geodetic_config
             gf = c.geodetic_config.gf_config
 
-            for crust_ind in range(gf.n_variations + 1):
+            for crust_ind in range(*gf.n_variations):
                 heart.geo_construct_gf(
                     event=c.event,
                     geodetic_config=gc,
@@ -556,7 +556,7 @@ def command_build_gfs(args):
                 stations = [sf.reference_location]
                 logger.info('Store name: %s' % sf.reference_location.station)
 
-            for crust_ind in range(sf.n_variations + 1):
+            for crust_ind in range(*sf.n_variations):
                 heart.seis_construct_gf(
                     stations=stations,
                     event=c.event,
@@ -623,7 +623,7 @@ def command_build_gfs(args):
 
             if options.execute:
                 logger.info("Calculating linear Green's Functions...")
-                for crust_ind in range(gf.n_variations + 1):
+                for crust_ind in range(*gf.n_variations):
                     outpath = os.path.join(outdir,
                         str(crust_ind) + '_' + \
                         config.geodetic_linear_gf_name)

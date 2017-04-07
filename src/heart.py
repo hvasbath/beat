@@ -933,7 +933,7 @@ def ensemble_earthmodel(ref_earthmod, num_vary=10, error_depth=0.1,
 
 
 def get_velocity_model(
-    location, earth_model_name, crust_ind=0, gf_config=None):
+    location, earth_model_name, crust_ind=0, gf_config=None, custom_velocity_model=None):
     """
     Get velocity model at the specified location, combines given or crustal
     models with the global model.
@@ -949,6 +949,7 @@ def get_velocity_model(
         Index to set to the Greens Function store, 0 is reference store
         indexes > 0 use reference model and vary its parameters by a Gaussian
     gf_config : :class:`beat.config.GFConfig`
+    custom_velocity_model : :class:`pyrocko.cake.LayeredModel`    
 
     Returns
     -------
@@ -985,11 +986,11 @@ def get_velocity_model(
         source_model = cake.load_model(
             earth_model_name, crust2_profile=profile)
 
-    elif gfc.custom_velocity_model:
+    elif custom_velocity_model is not None:
         logger.info('Using custom model from config file')
         global_model = cake.load_model(earth_model_name)
         source_model = utility.join_models(
-            global_model, gfc.custom_velocity_model)
+            global_model, custom_velocity_model)
     else:
         source_model = cake.load_model(earth_model_name)
 
@@ -1217,7 +1218,7 @@ def seis_construct_gf(
 
     source_model = get_velocity_model(
         event, earth_model_name=sf.earth_model_name, crust_ind=crust_ind,
-        gf_config=sf)
+        gf_config=sf, custom_velocity_model=sf.custom_velocity_model)
 
     for station in stations:
         logger.info('Station %s' % station.station)
@@ -1306,7 +1307,8 @@ def geo_construct_gf(
     # extract source crustal profile and check for water layer
     source_model = get_velocity_model(
         event, earth_model_name=gf.earth_model_name, crust_ind=crust_ind,
-        gf_config=gf).extract(depth_max=gf.source_depth_max * km)
+        gf_config=gf, custom_velocity_model=gf.custom_velocity_model).extract(
+            depth_max=gf.source_depth_max * km)
 
     # potentially vary source model
     if crust_ind > 0:
