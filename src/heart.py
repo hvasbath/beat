@@ -957,7 +957,13 @@ def get_velocity_model(
     """
     gfc = gf_config
 
-    if gfc.use_crust2:
+    if custom_velocity_model is not None:
+        logger.info('Using custom model from config file')
+        global_model = cake.load_model(earth_model_name)
+        source_model = utility.join_models(
+            global_model, custom_velocity_model)
+
+    elif gfc.use_crust2:
         # load velocity profile from CRUST2x2 and check for water layer
         profile = crust2x2.get_profile(location.lat, location.lon)
 
@@ -986,11 +992,6 @@ def get_velocity_model(
         source_model = cake.load_model(
             earth_model_name, crust2_profile=profile)
 
-    elif custom_velocity_model is not None:
-        logger.info('Using custom model from config file')
-        global_model = cake.load_model(earth_model_name)
-        source_model = utility.join_models(
-            global_model, custom_velocity_model)
     else:
         source_model = cake.load_model(earth_model_name)
 
@@ -1110,7 +1111,7 @@ def choose_backend(
         receiver_model.append(l)
 
         version = '2006a'
-        distances = (fc.distance_min, fc.distance_max) * cake.m2d
+        distances = num.array([fc.distance_min, fc.distance_max]) * cake.m2d
         slowness_taper = get_slowness_taper(fc, source_model, distances)
 
         conf = qseis.QSeisConfig(
