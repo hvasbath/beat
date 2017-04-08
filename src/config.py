@@ -130,6 +130,9 @@ class GFConfig(Object):
     error_velocities = Float.T(
         default=0.1,
         help='3sigma [%/100] in velocity model layer wave-velocities.')
+    depth_limit_variation = Float.T(
+        default=600.,
+        help='Depth limit [km] for varying the velocity model.')
 
 
 class NonlinearGFConfig(GFConfig):
@@ -141,7 +144,6 @@ class NonlinearGFConfig(GFConfig):
                            help='Name of the reference earthmodel, see '
                                 'pyrocko.cake.builtin_models() for '
                                 'alternatives.')
-
     use_crust2 = Bool.T(
         default=True,
         help='Flag, for replacing the crust from the earthmodel'
@@ -180,9 +182,6 @@ class SeismicGFConfig(NonlinearGFConfig):
                        'qseis2d)')
     sample_rate = Float.T(default=2.,
                           help='Sample rate for the Greens Functions.')
-    depth_limit_variation = Float.T(
-        default=600.,
-        help='Depth limit [km] for varying the velocity model.')
     rm_gfs = Bool.T(default=True,
                     help='Flag for removing modeling module GF files after'
                          ' completion.')

@@ -64,6 +64,16 @@ To get further help and a list of available options for any subcommand run:
 ''' % d2u(subcommand_descriptions)
 
 
+nargs_dict = {
+   'init': 2,
+   'clone': 2,
+   'plot': 2,
+   'import': 1,
+   'build_gfs': 1,
+   'sample': 1,
+   }
+
+
 def add_common_options(parser):
     parser.add_option('--loglevel',
         action = 'store',
@@ -76,23 +86,25 @@ def add_common_options(parser):
               'Default is "%default".')
 
 
-def process_common_options(options, name):
-    project_dir = os.path.join(options.main_path, name)
-    util.ensuredir(project_dir)
-    utility.setup_logging(project_dir, options.loglevel)
-
-
-def get_project_directory(args, nargs=1):
+def get_project_directory(args, options, nargs=1, popflag=False):
 
     l = len(args)
 
     if l == nargs - 1:
         project_dir = os.getcwd()
     elif l == nargs:
-        name = args.pop(0)
-        project_dir = os.path.join(options.main_path, name)
+        if popflag:
+            name = args.pop(0)
+        else:
+            name = args[0]
+        project_dir = os.path.join(os.path.abspath(options.main_path), name)
 
     return project_dir
+
+
+def process_common_options(options, project_dir):
+    util.ensuredir(project_dir)
+    utility.setup_logging(project_dir, options.loglevel)
 
 
 def die(message, err=''):
@@ -122,7 +134,8 @@ def cl_parse(command, args, setup=None, details=None):
 
     add_common_options(parser)
     (options, args) = parser.parse_args(args)
-    process_common_options(options, name=args[0])
+    project_dir = get_project_directory(args, options, nargs_dict[command])
+    process_common_options(options, project_dir)
     return parser, options, args
 
 
@@ -230,6 +243,8 @@ def command_init(args):
 
 def command_import(args):
 
+    command_str = 'import'
+
     def setup(parser):
 
         parser.add_option('--main_path', dest='main_path', type='string',
@@ -265,9 +280,10 @@ def command_import(args):
         parser.add_option('--force', dest='force', action='store_true',
                 help='Overwrite existing files')
 
-    parser, options, args = cl_parse('import', args, setup=setup)
+    parser, options, args = cl_parse(command_str, args, setup=setup)
 
-    project_dir = get_project_directory(args)
+    project_dir = get_project_directory(
+        args, options, nargs_dict[command_str])
 
     c = config.load_config(project_dir, options.mode)
 
@@ -389,9 +405,8 @@ def command_clone(args):
 
     name, cloned_name = args
 
-    main_path = os.getcwd()
-    project_dir = os.path.join(main_path, name)
-    cloned_dir = os.path.join(main_path, cloned_name)
+    project_dir = os.path.join(options.main_path, name)
+    cloned_dir = os.path.join(options.main_path, cloned_name)
 
     util.ensuredir(cloned_dir)
 
@@ -442,6 +457,8 @@ def command_clone(args):
 
 def command_sample(args):
 
+    command_str = 'sample'
+
     def setup(parser):
         parser.add_option('--mode', dest='mode',
             choices=['geometry', 'static', 'kinematic'],
@@ -458,9 +475,10 @@ def command_sample(args):
         parser.add_option('--hypers', dest='hypers',
                 action='store_true', help='Sample hyperparameters only.')
 
-    parser, options, args = cl_parse('sample', args, setup=setup)
+    parser, options, args = cl_parse(command_str, args, setup=setup)
 
-    project_dir = get_project_directory(args)
+    project_dir = get_project_directory(
+        args, options, nargs_dict[command_str])
 
     problem = models.load_model(
         project_dir, options.mode, options.hypers)
@@ -474,6 +492,8 @@ def command_sample(args):
 
 
 def command_build_gfs(args):
+
+    command_str = 'build_gfs'
 
     def setup(parser):
 
@@ -502,9 +522,10 @@ def command_build_gfs(args):
                 help='Start actual GF calculations. If not set only'
                      ' configuration files are being created')
 
-    parser, options, args = cl_parse('build_gfs', args, setup=setup)
+    parser, options, args = cl_parse(command_str, args, setup=setup)
 
-    project_dir = get_project_directory(args)
+    project_dir = get_project_directory(
+        args, options, nargs_dict[command_str])
 
     c = config.load_config(project_dir, options.mode)
 
@@ -633,6 +654,8 @@ def command_build_gfs(args):
 
 def command_plot(args):
 
+    command_str = 'plot'
+
     def setup(parser):
 
         parser.add_option('--main_path', dest='main_path', type='string',
@@ -687,9 +710,14 @@ def command_plot(args):
 selected giving a comma seperated list.''' % (
         ', '.join('"%s"' % plot for plot in plots_avail))
 
-    parser, options, args = cl_parse('plot', args, setup, details)
+    parser, options, args = cl_parse(command_str, args, setup, details)
 
-    project_dir = get_project_directory(args, nargs=2)
+    if len(args) < 1:
+        parser.error('plot needs at least one argument!')
+        parser.help()
+
+    project_dir = get_project_directory(
+        args, options, nargs_dict[command_str], popflag=True)
 
     if args[0] == 'all':
         plotnames = plots_avail
