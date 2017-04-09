@@ -1093,6 +1093,13 @@ def get_fomosto_baseconfig(
         tabulated_phases=tabulated_phases)
 
 
+backend_builders = {
+    'qseis': qseis.build,
+    'qssp': qssp.build,
+    'qseis2d': qseis2d.build
+                 }
+
+
 def choose_backend(
     fomosto_config, code, source_model, receiver_model, distances,
     gf_directory='qseis2d_green'):
@@ -1104,7 +1111,6 @@ def choose_backend(
     receiver_basement_depth = 150 * km
 
     if code == 'qseis':
-        build = qseis.build
         # find common basement layer
         l = source_model.layer(receiver_basement_depth)
         receiver_model = receiver_model.extract(
@@ -1124,7 +1130,6 @@ def choose_backend(
             qseis_version=version)
 
     elif code == 'qssp':
-        build = qssp.build
         source_model = copy.deepcopy(receiver_model)
         receiver_model = None
         version = '2010'
@@ -1140,7 +1145,6 @@ def choose_backend(
                                  fc.distance_delta * 0.05) / km)
 
     elif code == 'qseis2d':
-        build = qseis2d.build
         version = '2014'
         slowness_taper = get_slowness_taper(fc, source_model, distances)
 
@@ -1187,7 +1191,7 @@ def choose_backend(
         gf.Timing(tp[1].id + '+%s' % (1.5 * window_extension)),
         gf.Timing(tp[1].id + '+%s' % (1.6 * window_extension)))
 
-    return conf, build
+    return conf
 
 
 def seis_construct_gf(
@@ -1253,19 +1257,26 @@ def seis_construct_gf(
                 config=fomosto_config,
                 extra={sf.code: conf},
                 force=force)
-
-            if execute:
-                store = gf.Store(store_dir, 'r')
-                store.make_ttt(force=force)
-                store.close()
-                build(store_dir, nworkers=sf.nworkers, force=force)
-                if sf.rm_gfs and sf.code == 'qssp':
-                    gf_dir = os.path.join(store_dir, 'qssp_green')
-                    logger.info('Removing QSSP Greens Functions!')
-                    shutil.rmtree(gf_dir)
         else:
             logger.info(
-                'Store %s exists! Use force=True to overwrite!' % store_path)
+                'Store %s exists! Use force=True to overwrite!' % store_dir)
+
+        traces_path = os.path.join(store_dir, 'traces')
+
+        if execute and not os.path.exists(traces_path):
+            logger.info('Filling store ...')
+            store = gf.Store(store_dir, 'r')
+            store.make_ttt(force=force)
+            store.close()
+            backend_builders[sf.code](
+                store_dir, nworkers=sf.nworkers, force=force)
+
+            if sf.rm_gfs and sf.code == 'qssp':
+                gf_dir = os.path.join(store_dir, 'qssp_green')
+                logger.info('Removing QSSP Greens Functions!')
+                shutil.rmtree(gf_dir)
+        else:
+            logger.info('Traces exists use force=True to overwrite!')
 
 
 def geo_construct_gf(
