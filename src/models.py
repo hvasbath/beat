@@ -290,7 +290,7 @@ class GeodeticComposite(Composite):
             self._llks[l].set_value(llk)
 
 
-class GeodeticGeometryComposite(GeodeticComposite):
+class GeodeticSourceComposite(GeodeticComposite):
     """
     Comprises how to solve the non-linear geodetic forward model.
 
@@ -311,7 +311,7 @@ class GeodeticGeometryComposite(GeodeticComposite):
 
     def __init__(self, gc, project_dir, sources, event, hypers=False):
 
-        super(GeodeticGeometryComposite, self).__init__(
+        super(GeodeticSourceComposite, self).__init__(
             gc, project_dir, event, hypers=hypers)
 
         self.event = event
@@ -388,9 +388,10 @@ class GeodeticGeometryComposite(GeodeticComposite):
         for i, source in enumerate(self.sources):
             source.update(**source_points[i])
 
-    def get_source_term(self, input_rvs):
+    def source_term(self, input_rvs):
         """
-        Get displacements for the deformation sources.
+        Get line-of-sight displacements for the deformation sources.
+        Part of the pymc3 model.
 
         Parameters
         ----------
@@ -418,40 +419,9 @@ class GeodeticGeometryComposite(GeodeticComposite):
                disp[:, 1] * self.lv[:, 1] + \
                disp[:, 2] * self.lv[:, 2]) * self.odws
 
-    def get_formula(self, input_rvs, hyperparams):
+    def get_source_synthetics(self, point, **kwargs):
         """
-        Get geodetic likelihood formula for the model built. Has to be called
-        within a with model context.
-
-        Parameters
-        ----------
-        input_rvs : list
-            of :class:`pymc3.distribution.Distribution`
-        hyperparams : dict
-            of :class:`pymc3.distribution.Distribution`
-
-        Returns
-        -------
-        posterior_llk : :class:`theano.tensor.Tensor`
-        """
-
-        los = self.get_source_term(input_rvs)
-
-        residuals = self.Bij.srmap(
-            tt.cast((self.wdata - los), tconfig.floatX))
-
-        if self.config.fit_plane:
-            residuals = self.remove_ramps(residuals)
-
-        logpts = multivariate_normal(
-            self.targets, self.weights, hyperparams, residuals)
-
-        llk = pm.Deterministic(self._like_name, logpts)
-        return llk.sum()
-
-    def get_synthetics(self, point, **kwargs):
-        """
-        Get synthetics for given point in solution space.
+        Get synthetics for given point in solution space for sources.
 
         Parameters
         ----------
@@ -484,6 +454,62 @@ class GeodeticGeometryComposite(GeodeticComposite):
 
         return synths
 
+
+class GeodeticGeometryComposite(GeodeticSourceComposite):
+
+    def __init__(self, gc, project_dir, sources, event, hypers=False):
+
+        super(GeodeticGeometryComposite, self).__init__(
+            gc, project_dir, sources, event, hypers=hypers)
+
+    def get_formula(self, input_rvs, hyperparams):
+        """
+        Get geodetic likelihood formula for the model built. Has to be called
+        within a with model context.
+        Part of the pymc3 model.
+
+        Parameters
+        ----------
+        input_rvs : list
+            of :class:`pymc3.distribution.Distribution`
+        hyperparams : dict
+            of :class:`pymc3.distribution.Distribution`
+
+        Returns
+        -------
+        posterior_llk : :class:`theano.tensor.Tensor`
+        """
+
+        los = self.source_term(input_rvs)
+
+        residuals = self.Bij.srmap(
+            tt.cast((self.wdata - los), tconfig.floatX))
+
+        if self.config.fit_plane:
+            residuals = self.remove_ramps(residuals)
+
+        logpts = multivariate_normal(
+            self.targets, self.weights, hyperparams, residuals)
+
+        llk = pm.Deterministic(self._like_name, logpts)
+        return llk.sum()
+
+    def get_synthetics(self, point, **kwargs):
+        """
+        Get synthetics for given point in solution space.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters
+        kwargs especially to change output of the forward model
+
+        Returns
+        -------
+        list with :class:`numpy.ndarray` synthetics for each target
+        """
+        return self.get_source_synthetics(point, **kwargs)
+
     def update_weights(self, point, n_jobs=1, plot=False):
         """
         Updates weighting matrixes (in place) with respect to the point in the
@@ -511,6 +537,88 @@ class GeodeticGeometryComposite(GeodeticComposite):
             target.covariance.pred_v = cov_pv
             icov = target.covariance.inverse
             self.weights[i].set_value(icov)
+
+
+class GeodeticInterseismicComposite(GeodeticSourceComposite):
+
+    def __init__(self, gc, project_dir, sources, event, hypers=False):
+
+        super(GeodeticInterseismicComposite, self).__init__(
+            gc, project_dir, sources, event, hypers=hypers)
+
+    def get_block_synthetics(self, ):
+        
+        return 
+
+    def block_term(self, input_rvs):
+        """
+        Get line-of-sight displacements for the block interseismic model.
+        Part of the pymc3 model.
+
+        Parameters
+        ----------
+        input_rvs : list
+            of :class:`pymc3.distribution.Distribution`
+
+        Returns
+        -------
+        los : synthetic displacements in los
+        """
+
+        return 
+
+    def get_formula(self, input_rvs, hyperparams):
+        """
+        Get geodetic likelihood formula for the model built. Has to be called
+        within a with model context.
+
+        Parameters
+        ----------
+        input_rvs : list
+            of :class:`pymc3.distribution.Distribution`
+        hyperparams : dict
+            of :class:`pymc3.distribution.Distribution`
+
+        Returns
+        -------
+        posterior_llk : :class:`theano.tensor.Tensor`
+        """
+
+        slos = self.source_term(input_rvs)
+        blos = self.block_term(input_rvs)
+
+        los = slos + blos
+
+        residuals = self.Bij.srmap(
+            tt.cast((self.wdata - los), tconfig.floatX))
+
+        if self.config.fit_plane:
+            residuals = self.remove_ramps(residuals)
+
+        logpts = multivariate_normal(
+            self.targets, self.weights, hyperparams, residuals)
+
+        llk = pm.Deterministic(self._like_name, logpts)
+        return llk.sum()
+
+    def get_synthetics(self, point, **kwargs):
+        """
+        Get synthetics for given point in solution space.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters
+        kwargs especially to change output of the forward model
+
+        Returns
+        -------
+        list with :class:`numpy.ndarray` synthetics for each target
+        """
+        list_slos = self.get_source_synthetics(point, **kwargs)
+        list_blos = self.get_block_synthetics(point, **kwargs)
+
+        return [slos + blos for slos, blos in zip(list_slos, list_blos)]
 
 
 class SeismicComposite(Composite):
@@ -1047,6 +1155,10 @@ distributer_composite_catalog = {
     'geodetic': GeodeticDistributerComposite,
     }
 
+interseismic_composite_catalog = {
+    'geodetic': GeodeticInterseismicComposite,
+    }
+
 
 class Problem(object):
     """
@@ -1315,10 +1427,9 @@ class Problem(object):
         return d
 
 
-class GeometryOptimizer(Problem):
+class SourceOptimizer(Problem):
     """
-    Defines the model setup to solve the non-linear fault geometry and
-    returns the model object.
+    Defines the base-class setup involving non-linear fault geometry.
 
     Parameters
     ----------
@@ -1328,9 +1439,8 @@ class GeometryOptimizer(Problem):
     """
 
     def __init__(self, config, hypers=False):
-        logger.info('... Initialising Geometry Optimizer ... \n')
 
-        super(GeometryOptimizer, self).__init__(config, hypers)
+        super(SourceOptimizer, self).__init__(config, hypers)
 
         pc = config.problem_config
 
@@ -1354,6 +1464,25 @@ class GeometryOptimizer(Problem):
 
             self.sources.append(source)
 
+
+class GeometryOptimizer(SourceOptimizer):
+    """
+    Defines the model setup to solve for the non-linear fault geometry.
+
+    Parameters
+    ----------
+    config : :class:'config.BEATconfig'
+        Contains all the information about the model setup and optimization
+        boundaries, as well as the sampler parameters.
+    """
+
+    def __init__(self, config, hypers=False):
+        logger.info('... Initialising Geometry Optimizer ... \n')
+
+        super(GeometryOptimizer, self).__init__(config, hypers)
+
+        pc = config.problem_config
+
         if pc.source_type == 'RectangularSource':
             dsources = utility.transform_sources(
                 self.sources,
@@ -1365,6 +1494,45 @@ class GeometryOptimizer(Problem):
 
         for dataset in pc.datasets:
             self.composites[dataset] = geometry_composite_catalog[dataset](
+                config[dataset + '_config'],
+                config.project_dir,
+                dsources[dataset],
+                self.event,
+                hypers)
+
+        self.config = config
+
+
+class InterseismicOptimizer(SourceOptimizer):
+    """
+    Uses the backslip-model in combination with the blockmodel to formulate an
+    interseismic model.
+
+    Parameters
+    ----------
+    config : :class:'config.BEATconfig'
+        Contains all the information about the model setup and optimization
+        boundaries, as well as the sampler parameters.
+    """
+
+    def __init__(self, config, hypers=False):
+        logger.info('... Initialising Interseismic Optimizer ... \n')
+
+        super(SourceOptimizer, self).__init__(config, hypers)
+
+        pc = config.problem_config
+
+        if pc.source_type == 'RectangularSource':
+            dsources = utility.transform_sources(
+                self.sources,
+                pc.datasets)
+        else:
+            dsources = {}
+            for dataset in pc.datasets:
+                dsources[dataset] = copy.deepcopy(self.sources)
+
+        for dataset in pc.datasets:
+            self.composites[dataset] = interseismic_composite_catalog[dataset](
                 config[dataset + '_config'],
                 config.project_dir,
                 dsources[dataset],
@@ -1408,7 +1576,8 @@ class DistributionOptimizer(Problem):
 
 problem_catalog = {
     bconfig.modes_catalog.keys()[0]: GeometryOptimizer,
-    bconfig.modes_catalog.keys()[1]: DistributionOptimizer}
+    bconfig.modes_catalog.keys()[1]: DistributionOptimizer,
+    bconfig.modes_catalog.keys()[3]: InterseismicOptimizer}
 
 
 def sample(step, problem):

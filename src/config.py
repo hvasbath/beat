@@ -77,10 +77,10 @@ kinematic_catalog = {
     'seismic': kinematic_dist_vars}
 
 modes_catalog = {
-    'interseismic': interseismic_catalog,
     'geometry': geometry_catalog,
     'static': static_catalog,
-    'kinematic': kinematic_catalog}
+    'kinematic': kinematic_catalog,
+    'interseismic': interseismic_catalog}
 
 default_bounds = dict(
     east_shift=(-10., 10.),
