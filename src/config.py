@@ -29,6 +29,9 @@ logger = logging.getLogger('config')
 
 geo_vars = ['east_shift', 'north_shift', 'depth', 'strike', 'dip',
             'rake']
+geo_vars_complete = geo_vars + ['length', 'width', 'slip']
+
+block_vars = ['azimuth', 'amplitude']
 
 seis_vars = ['time', 'duration']
 
@@ -36,19 +39,20 @@ rfs = 'RectangularSource'
 dcs = 'DCSource'
 
 geo_vars_geometry = {
-    rfs: geo_vars + ['length', 'width', 'slip'],
+    rfs: geo_vars_complete,
                     }
-
 #    dcs: geo_vars + ['magnitude']}
 
 seis_vars_geometry = {
-    rfs: seis_vars + geo_vars + ['length', 'width', 'slip'],
+    rfs: seis_vars + geo_vars_complete,
     dcs: seis_vars + geo_vars}
 
 joint_vars_geometry = {}
 for source_type in geo_vars_geometry.keys():
     joint_vars_geometry[source_type] = geo_vars_geometry[source_type] + \
                                        seis_vars_geometry[source_type]
+
+interseismic_vars = geo_vars_complete + block_vars
 
 static_dist_vars = ['Uparr', 'Uperp']
 partial_kinematic_vars = ['nuc_x', 'nuc_y', 'duration', 'velocity']
@@ -57,6 +61,9 @@ kinematic_dist_vars = static_dist_vars + partial_kinematic_vars
 
 hyper_pars = {'Z': 'seis_Z', 'T': 'seis_T',
              'SAR': 'geo_S', 'GPS': 'geo_G'}
+
+interseismic_catalog = {
+    'geodetic': interseismic_vars}
 
 geometry_catalog = {
     'geodetic': geo_vars_geometry,
@@ -70,6 +77,7 @@ kinematic_catalog = {
     'seismic': kinematic_dist_vars}
 
 modes_catalog = {
+    'interseismic': interseismic_catalog,
     'geometry': geometry_catalog,
     'static': static_catalog,
     'kinematic': kinematic_catalog}
@@ -92,6 +100,8 @@ default_bounds = dict(
     nuc_x=(0., 10.),
     nuc_y=(0., 7.),
     velocity=(0.5, 4.2),
+    azimuth=(0, 180),
+    amplitude=(-0.1, 0.1),
     seis_Z=(-20., 20.),
     seis_T=(-20., 20.),
     geo_S=(-20., 20.),
@@ -290,8 +300,10 @@ class ProblemConfig(Object):
     """
     Config for inversion problem to setup.
     """
-    mode = String.T(default='geometry',
-                    help='Problem to solve: "geometry", "static","kinematic"')
+    mode = String.T(
+        default='geometry',
+        help='Problem to solve: "geometry", "static", "kinematic",'
+             ' "interseismic"',)
     source_type = String.T(
         default='RectangularSource',
         help='Source type to invert for. Options: RectangularSource or'
@@ -318,14 +330,19 @@ class ProblemConfig(Object):
 
         self.priors = {}
         for variable in variables:
+            if variable in block_vars:
+                nvars = 1
+            else:
+                nvars = self.n_sources
+
             self.priors[variable] = \
                 Parameter(
                     name=variable,
-                    lower=num.ones(self.n_sources, dtype=num.float) * \
+                    lower=num.ones(nvars, dtype=num.float) * \
                         default_bounds[variable][0],
-                    upper=num.ones(self.n_sources, dtype=num.float) * \
+                    upper=num.ones(nvars, dtype=num.float) * \
                         default_bounds[variable][1],
-                    testvalue=num.ones(self.n_sources, dtype=num.float) * \
+                    testvalue=num.ones(nvars, dtype=num.float) * \
                         num.mean(default_bounds[variable]))
 
     def select_variables(self):

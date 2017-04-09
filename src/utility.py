@@ -222,7 +222,9 @@ def weed_input_rvs(input_rvs, mode, dataset):
             tobeweeded = ['time', 'duration']
         elif dataset == 'seismic':
             tobeweeded = ['opening']
-
+    elif mode == 'interseismic':
+        if dataset == 'geodetic':
+            tobeweeded = ['amplitude', 'azimuth']
     else:
         tobeweeded = []
 

@@ -388,6 +388,36 @@ class GeodeticGeometryComposite(GeodeticComposite):
         for i, source in enumerate(self.sources):
             source.update(**source_points[i])
 
+    def get_source_term(self, input_rvs):
+        """
+        Get displacements for the deformation sources.
+
+        Parameters
+        ----------
+        input_rvs : list
+            of :class:`pymc3.distribution.Distribution`
+
+        Returns
+        -------
+        los : synthetic displacements in los
+        """
+        self.input_rvs = input_rvs
+
+        logger.debug(
+            'Geodetic optimization on: \n '
+            '%s' % ', '.join(self.input_rvs.keys()))
+
+        t0 = time.time()
+        disp = self.get_synths(self.input_rvs)
+        t1 = time.time()
+        logger.debug(
+            'Geodetic forward model on test model takes: %f' % \
+                (t1 - t0))
+
+        return (disp[:, 0] * self.lv[:, 0] + \
+               disp[:, 1] * self.lv[:, 1] + \
+               disp[:, 2] * self.lv[:, 2]) * self.odws
+
     def get_formula(self, input_rvs, hyperparams):
         """
         Get geodetic likelihood formula for the model built. Has to be called
@@ -404,22 +434,9 @@ class GeodeticGeometryComposite(GeodeticComposite):
         -------
         posterior_llk : :class:`theano.tensor.Tensor`
         """
-        self.input_rvs = input_rvs
 
-        logger.debug(
-            'Geodetic optimization on: \n '
-            '%s' % ', '.join(self.input_rvs.keys()))
+        los = self.get_source_term(input_rvs)
 
-        t0 = time.time()
-        disp = self.get_synths(self.input_rvs)
-        t1 = time.time()
-        logger.debug(
-            'Geodetic forward model on test model takes: %f' % \
-                (t1 - t0))
-
-        los = (disp[:, 0] * self.lv[:, 0] + \
-               disp[:, 1] * self.lv[:, 1] + \
-               disp[:, 2] * self.lv[:, 2]) * self.odws
         residuals = self.Bij.srmap(
             tt.cast((self.wdata - los), tconfig.floatX))
 
