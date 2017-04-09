@@ -1076,10 +1076,11 @@ def get_fomosto_baseconfig(
         distance_min = 0.
 
     return gf.ConfigTypeA(
-        id='%s_%s_%.3fHz_%s' % (station.station,
-                        sf.earth_model_name.split('-')[0].split('.')[0],
-                        sf.sample_rate,
-                        crust_ind),
+        id='%s_%s_%.3fHz_%s' % (
+            station.station,
+            sf.earth_model_name.split('-')[0].split('.')[0],
+            sf.sample_rate,
+            crust_ind),
         ncomponents=10,
         sample_rate=sf.sample_rate,
         receiver_depth=0. * km,
@@ -1225,41 +1226,46 @@ def seis_construct_gf(
         logger.info('Station %s' % station.station)
         logger.info('---------------------')
 
-        receiver_model = get_velocity_model(
-       	    station, earth_model_name=sf.earth_model_name,
-            crust_ind=crust_ind, gf_config=sf)
-
         fomosto_config = get_fomosto_baseconfig(
             sf, event, station, seismic_config.channels, crust_ind)
 
-        gf_directory = os.path.join(
-            sf.store_superdir, 'base_gfs_%i' % crust_ind)
-
-        conf, build = choose_backend(
-            fomosto_config, sf.code, source_model, receiver_model,
-            seismic_config.distances, gf_directory)
-
-        fomosto_config.validate()
-        conf.validate()
-
         store_dir = sf.store_superdir + fomosto_config.id
-        logger.info('Creating Store at %s' % store_dir)
 
-        gf.Store.create_editables(
-            store_dir,
-            config=fomosto_config,
-            extra={sf.code: conf},
-            force=force)
+        if not os.path.exists(store_dir) or force:
+            logger.info('Creating Store at %s' % store_dir)
 
-        if execute:
-            store = gf.Store(store_dir, 'r')
-            store.make_ttt(force=force)
-            store.close()
-            build(store_dir, nworkers=sf.nworkers, force=force)
-            if sf.rm_gfs and sf.code == 'qssp':
-                gf_dir = os.path.join(store_dir, 'qssp_green')
-                logger.info('Removing QSSP Greens Functions!')
-                shutil.rmtree(gf_dir)
+            receiver_model = get_velocity_model(
+       	        station, earth_model_name=sf.earth_model_name,
+                crust_ind=crust_ind, gf_config=sf)
+
+            gf_directory = os.path.join(
+                sf.store_superdir, 'base_gfs_%i' % crust_ind)
+
+            conf, build = choose_backend(
+                fomosto_config, sf.code, source_model, receiver_model,
+                seismic_config.distances, gf_directory)
+
+            fomosto_config.validate()
+            conf.validate()
+
+            gf.Store.create_editables(
+                store_dir,
+                config=fomosto_config,
+                extra={sf.code: conf},
+                force=force)
+
+            if execute:
+                store = gf.Store(store_dir, 'r')
+                store.make_ttt(force=force)
+                store.close()
+                build(store_dir, nworkers=sf.nworkers, force=force)
+                if sf.rm_gfs and sf.code == 'qssp':
+                    gf_dir = os.path.join(store_dir, 'qssp_green')
+                    logger.info('Removing QSSP Greens Functions!')
+                    shutil.rmtree(gf_dir)
+        else:
+            logger.info(
+                'Store %s exists! Use force=True to overwrite!' % store_path)
 
 
 def geo_construct_gf(
