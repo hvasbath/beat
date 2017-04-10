@@ -166,6 +166,14 @@ class GeoLayerSynthesizerStatic(theano.Op):
         return [(len(self.lats), 3)]
 
 
+class InterseismicTransformer(theano.Op):
+    """
+    Theano wrapper to transform the parameters of block model to
+    parameters of a fault.
+    """
+    pass
+
+
 class SeisSynthesizer(theano.Op):
     """
     Theano wrapper for a seismic forward model with synthetic waveforms.

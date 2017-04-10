@@ -652,6 +652,13 @@ def RS_dipvector(source):
           num.sin(source.dip * d2r)])
 
 
+def strike_vector(strike):
+    return num.array(
+        [num.sin(strike * d2r),
+         num.cos(strike * d2r),
+         0.])
+
+
 def RS_strikevector(source):
     """
     Get 3 dimensional strike-vector of a planar fault.
@@ -665,10 +672,7 @@ def RS_strikevector(source):
     :class:`numpy.ndarray`
     """
 
-    return num.array(
-        [num.sin(source.strike * d2r),
-         num.cos(source.strike * d2r),
-         0.])
+    return strike_vector(source.strike)
 
 
 def RS_center(source):

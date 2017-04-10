@@ -52,7 +52,9 @@ for source_type in geo_vars_geometry.keys():
     joint_vars_geometry[source_type] = geo_vars_geometry[source_type] + \
                                        seis_vars_geometry[source_type]
 
-interseismic_vars = geo_vars_complete + block_vars
+interseismic_vars = [
+    'east_shift', 'north_shift', 'strike', 'dip', 'length',
+    'locking_depth'] + block_vars
 
 static_dist_vars = ['Uparr', 'Uperp']
 partial_kinematic_vars = ['nuc_x', 'nuc_y', 'duration', 'velocity']
@@ -102,6 +104,7 @@ default_bounds = dict(
     velocity=(0.5, 4.2),
     azimuth=(0, 180),
     amplitude=(-0.1, 0.1),
+    locking_depth=(1., 10.),
     seis_Z=(-20., 20.),
     seis_T=(-20., 20.),
     geo_S=(-20., 20.),

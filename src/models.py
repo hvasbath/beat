@@ -547,8 +547,7 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
             gc, project_dir, sources, event, hypers=hypers)
 
     def get_block_synthetics(self, ):
-        
-        return 
+        pass
 
     def block_term(self, input_rvs):
         """
@@ -564,8 +563,22 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         -------
         los : synthetic displacements in los
         """
+        pass
 
-        return 
+    def point2sourceparams(self, point):
+        """
+        Transform point to input parameters to the source model.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters
+
+        Returns
+        -------
+        list with :class:`numpy.ndarray` synthetics for each target
+        """
+        pass
 
     def get_formula(self, input_rvs, hyperparams):
         """
@@ -584,8 +597,11 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         posterior_llk : :class:`theano.tensor.Tensor`
         """
 
-        slos = self.source_term(input_rvs)
         blos = self.block_term(input_rvs)
+
+        source_point = heart.backslip_params()
+
+        slos = self.source_term(source_point)
 
         los = slos + blos
 

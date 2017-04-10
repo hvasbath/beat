@@ -25,5 +25,5 @@ class TestUtility(unittest.TestCase):
         num.testing.assert_allclose(self.Ry(90).dot(C), A, rtol=0., atol=1e-6)
 
 if __name__ == '__main__':
-    util.setup_logging('test_utility', 'info')
+    util.setup_logging('test_utility', 'warning')
     unittest.main()

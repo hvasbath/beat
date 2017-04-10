@@ -30,6 +30,7 @@ logger = logging.getLogger('heart')
 c = 299792458.  # [m/s]
 km = 1000.
 d2r = num.pi / 180.
+r2d = 180. / num.pi
 
 lambda_sensors = {
     'Envisat': 0.056,       # needs updating- no ressource file
@@ -319,6 +320,55 @@ class RectangularSource(gf.DCSource, Cloneable):
                      depth=float(top_center[2]))
 
         return s
+
+
+def backslip_params(azimuth, strike, dip, amplitude, locking_depth):
+    """
+    Transforms the interseismic blockmodel parameters to fault input parameters
+    for the backslip model.
+
+    Parameters
+    ----------
+    azimuth : float
+        azimuth [deg] of the block-motion towards the North
+    strike : float
+        strike-angle[deg] of the backslipping fault
+    dip : float
+        dip-angle[deg] of the back-slipping fault
+    amplitude : float
+        slip rate of the blockmodel [m/yr]
+    locking_depth : float
+        locking depth [km] of the fault
+
+    Returns
+    -------
+    dict of parameters for the back-slipping RectangularSource
+    """
+    if dip == 0.:
+        raise ValueError('Dip must not be zero!')
+
+    az_vec = utility.strike_vector(azimuth)
+    strike_vec = utility.strike_vector(strike)
+    alpha = num.arccos(az_vec.dot(strike_vec))
+    alphad = alpha * r2d
+
+    sdip = num.sin(dip * d2r)
+
+    # assuming dip-slip is zero --> strike slip = slip
+    slip = num.abs(amplitude * num.cos(alpha))
+    opening = amplitude * num.sin(alpha) * sdip
+
+    if alphad < 90. and alphad >= 0.:
+        rake = 0.
+    elif alphad >= 90. and alphad <= 180.:
+        rake = 180.
+    else:
+        raise Exception('Angle between vectors inconsistent!')
+
+    width = locking_depth * km / sdip
+
+    return dict(
+        slip=slip, opening=opening, width=width, depth=0., rake=rake)
 
 
 def log_determinant(A, inverse=False):
@@ -933,7 +983,8 @@ def ensemble_earthmodel(ref_earthmod, num_vary=10, error_depth=0.1,
 
 
 def get_velocity_model(
-    location, earth_model_name, crust_ind=0, gf_config=None, custom_velocity_model=None):
+    location, earth_model_name, crust_ind=0, gf_config=None,
+    custom_velocity_model=None):
     """
     Get velocity model at the specified location, combines given or crustal
     models with the global model.
@@ -949,7 +1000,7 @@ def get_velocity_model(
         Index to set to the Greens Function store, 0 is reference store
         indexes > 0 use reference model and vary its parameters by a Gaussian
     gf_config : :class:`beat.config.GFConfig`
-    custom_velocity_model : :class:`pyrocko.cake.LayeredModel`    
+    custom_velocity_model : :class:`pyrocko.cake.LayeredModel`
 
     Returns
     -------
@@ -1239,7 +1290,7 @@ def seis_construct_gf(
             logger.info('Creating Store at %s' % store_dir)
 
             receiver_model = get_velocity_model(
-       	        station, earth_model_name=sf.earth_model_name,
+                station, earth_model_name=sf.earth_model_name,
                 crust_ind=crust_ind, gf_config=sf)
 
             gf_directory = os.path.join(
