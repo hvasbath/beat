@@ -3,8 +3,11 @@ Module for interseismic models. Block-backslip model.
 """
 
 from beat import utility
+
 import numpy as num
 import logging
+
+from pyrocko import orthodrome
 
 
 logger = logging.getLogger('interseismic')
@@ -14,30 +17,50 @@ d2r = num.pi / 180.
 r2d = 180. / num.pi
 
 
-def block_mask(x, y, strike):
+def block_mask(easts, norths, strike, east_ref, north_ref):
     """
     Determine stable and moving observation points dependend on the input
     fault orientation.
 
     Parameters
     ----------
-    x : :class:`numpy.array`
+    easts : :class:`numpy.array`
         east - local coordinates [m]
-    y : :class:`numpy.array`
+    norths : :class:`numpy.array`
         north - local coordinates [m]
     strike : float
         fault strike [deg]
+    east_ref : float
+        east local coordinate [m] of stable reference
+    north_ref : float
+        north local coordinate [m] of stable reference
 
     Returns
     -------
     :class:`numpy.array` with zeros at stable points, ones at moving points
     """
     sv = utility.strike_vector(strike)[0:2]
-    C = num.vstack([y.flatten(), x.flatten()]).T
-    dots = num.dot(C, sv)
-    dots[dots < 0.] = 0.
-    dots[dots > 0.] = 1.
-    return dots
+    nes = num.vstack([norths.flatten(), easts.flatten()]).T
+
+    ref_ne = num.array([north_ref, east_ref])
+
+    reference = num.dot(ref_ne, sv)
+    mask = num.dot(nes, sv)
+
+    if reference < 0:
+        mask[mask < 0.] = 0.
+        mask[mask > 0.] = 1.
+    elif reference > 0:
+        mask[mask > 0.] = 0.
+        mask[mask < 0.] = 1.
+    else:
+        logger.warn(
+            'The stable reference location lies on the prolongation of a fault'
+            'ambiguous stability! Assuming stable! Re-check necessary!')
+        mask[mask < 0.] = 0.
+        mask[mask > 0.] = 1.
+
+    return mask
 
 
 def block_geometry(lons, lats, sources, reference):
@@ -53,10 +76,25 @@ def block_geometry(lons, lats, sources, reference):
         Latitudes [deg] of observation points
     sources : list
         of RectangularFault objects
-    reference : ::class:`heart.ReferenceLocation`
+    reference : :class:`heart.ReferenceLocation`
         reference location that determines the stable block
+
+    Returns
+    -------
+    :class:`num.array`
+        mask with zeros/ones for stable/moving observation points, respectively
     """
 
+    bmask = num.zeros_like(lons)
+    for source in sources:
+        norths, easts = orthodrome.latlon_to_ne_numpy(
+            source.lat, source.lon, lats, lons)
+        north_ref, east_ref = orthodrome.latlon_to_ne(source, reference)
+        bmask += block_mask(easts, norths, source.strike, east_ref, north_ref)
+
+    # reset points that are moving to one
+    bmask[bmask > 0] = 1
+    return bmask
 
 
 def block_movement(bmask, amplitude, azimuth):
@@ -83,8 +121,36 @@ def block_movement(bmask, amplitude, azimuth):
         utility.strike_vector(azimuth)
 
 
-def geo_block_forward(lons, lats, sources, amplitude, azimuth, reference):
-    return
+def geo_block_synthetics(lons, lats, sources, amplitude, azimuth, reference):
+    """
+    Block model: forward model for synthetic displacements(n,e,d) [m] caused by
+    a rigid moving block defined by the bounding geometry of rectangular
+    faults. The reference location determines the stable regions.
+    The amplitude and azimuth determines the amount and direction of the
+    moving block.
+
+    Parameters
+    ----------
+    lons : :class:`num.array`
+        Longitudes [deg] of observation points
+    lats : :class:`num.array`
+        Latitudes [deg] of observation points
+    sources : list
+        of RectangularFault objects
+    amplitude : float
+        slip [m] of the moving block
+    azimuth : float
+        azimuth-angle[deg] ergo direction of moving block towards North
+    reference : :class:`heart.ReferenceLocation`
+        reference location that determines the stable block
+
+    Returns
+    -------
+    :class:`numpy.array`
+         (n x 3) [North, East, Down] displacements [m]
+    """
+    bmask = block_geometry(lons, lats, sources, reference)
+    return block_movement(bmask, amplitude, azimuth)
 
 
 def backslip_params(azimuth, strike, dip, amplitude, locking_depth):
