@@ -322,55 +322,6 @@ class RectangularSource(gf.DCSource, Cloneable):
         return s
 
 
-def backslip_params(azimuth, strike, dip, amplitude, locking_depth):
-    """
-    Transforms the interseismic blockmodel parameters to fault input parameters
-    for the backslip model.
-
-    Parameters
-    ----------
-    azimuth : float
-        azimuth [deg] of the block-motion towards the North
-    strike : float
-        strike-angle[deg] of the backslipping fault
-    dip : float
-        dip-angle[deg] of the back-slipping fault
-    amplitude : float
-        slip rate of the blockmodel [m/yr]
-    locking_depth : float
-        locking depth [km] of the fault
-
-    Returns
-    -------
-    dict of parameters for the back-slipping RectangularSource
-    """
-    if dip == 0.:
-        raise ValueError('Dip must not be zero!')
-
-    az_vec = utility.strike_vector(azimuth)
-    strike_vec = utility.strike_vector(strike)
-    alpha = num.arccos(az_vec.dot(strike_vec))
-    alphad = alpha * r2d
-
-    sdip = num.sin(dip * d2r)
-
-    # assuming dip-slip is zero --> strike slip = slip
-    slip = num.abs(amplitude * num.cos(alpha))
-    opening = amplitude * num.sin(alpha) * sdip
-
-    if alphad < 90. and alphad >= 0.:
-        rake = 0.
-    elif alphad >= 90. and alphad <= 180.:
-        rake = 180.
-    else:
-        raise Exception('Angle between vectors inconsistent!')
-
-    width = locking_depth * km / sdip
-
-    return dict(
-        slip=slip, opening=opening, width=width, depth=0., rake=rake)
-
-
 def log_determinant(A, inverse=False):
     """
     Calculates the natural logarithm of a determinant of the given matrix '
