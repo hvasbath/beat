@@ -1383,7 +1383,7 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
 
     Returns
     -------
-    :class:`numpy.ndarray` (n_observations; ux, uy, uz)
+    :class:`numpy.ndarray` (n_observations; ux-North, uy-East, uz-Down)
     """
 
     c = pscmp.PsCmpConfigFull()

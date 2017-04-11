@@ -653,11 +653,19 @@ def RS_dipvector(source):
           num.sin(source.dip * d2r)])
 
 
-def strike_vector(strike):
-    return num.array(
-        [num.sin(strike * d2r),
-         num.cos(strike * d2r),
-         0.])
+def strike_vector(strike, order='ENZ'):
+    if order == 'ENZ':
+        return num.array(
+            [num.sin(strike * d2r),
+             num.cos(strike * d2r),
+             0.])
+    elif order == 'NEZ':
+        return num.array(
+            [num.cos(strike * d2r),
+             num.sin(strike * d2r),
+             0.])
+    else:
+        raise Exception('Order %s not implemented!' % order)
 
 
 def RS_strikevector(source):

@@ -40,7 +40,7 @@ def block_mask(easts, norths, strike, east_ref, north_ref):
     -------
     :class:`numpy.array` with zeros at stable points, ones at moving points
     """
-    sv = utility.strike_vector(strike)[0:2]
+    sv = utility.strike_vector(-strike)[0:2]
     nes = num.vstack([norths.flatten(), easts.flatten()]).T
 
     ref_ne = num.array([north_ref, east_ref])
@@ -119,7 +119,7 @@ def block_movement(bmask, amplitude, azimuth):
     """
     return num.repeat(
         bmask * 2. * amplitude, 3).reshape((bmask.shape[0], 3)) * \
-        utility.strike_vector(azimuth)
+        utility.strike_vector(azimuth, order='NEZ')
 
 
 def geo_block_synthetics(lons, lats, sources, amplitude, azimuth, reference):
@@ -188,7 +188,7 @@ def backslip_params(azimuth, strike, dip, amplitude, locking_depth):
 
     # assuming dip-slip is zero --> strike slip = slip
     slip = num.abs(amplitude * num.cos(alpha))
-    opening = amplitude * num.sin(alpha) * sdip
+    opening = -amplitude * num.sin(alpha) * sdip
 
     if alphad < 90. and alphad >= 0.:
         rake = 0.
@@ -200,7 +200,8 @@ def backslip_params(azimuth, strike, dip, amplitude, locking_depth):
     width = locking_depth * km / sdip
 
     return dict(
-        slip=slip, opening=opening, width=width, depth=0., rake=rake)
+        slip=float(slip), opening=float(opening), width=float(width),
+        depth=0., rake=float(rake))
 
 
 def geo_backslip_synthetics(
@@ -249,9 +250,8 @@ def geo_backslip_synthetics(
             azimuth=azimuth, amplitude=amplitude, locking_depth=locking_depth,
             strike=source.strike, dip=source.dip)
         source.update(**source_params)
-        print source
 
-    disp_block -= heart.geo_layer_synthetics(
+    disp_block += heart.geo_layer_synthetics(
         store_superdir, crust_ind, lons, lats, sources)
 
     return disp_block
