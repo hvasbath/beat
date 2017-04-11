@@ -166,12 +166,81 @@ class GeoLayerSynthesizerStatic(theano.Op):
         return [(len(self.lats), 3)]
 
 
-class InterseismicTransformer(theano.Op):
+class GeoInterseismicSynthesizer(theano.Op):
     """
     Theano wrapper to transform the parameters of block model to
     parameters of a fault.
     """
-    pass
+    __props__ = ('lats', 'lons', 'store_superdir', 'crust_ind', 'sources')
+
+    def __init__(self, lats, lons, store_superdir, crust_ind, sources):
+        self.lats = tuple(lats)
+        self.lons = tuple(lons)
+        self.store_superdir = store_superdir
+        self.crust_ind = crust_ind
+        self.sources = tuple(sources)
+
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+    def make_node(self, inputs):
+        """
+        Transforms theano tensors to node and allocates variables accordingly.
+
+        Parameters
+        ----------
+        inputs : dict
+            keys being strings of source attributes of the
+            :class:`pscmp.RectangularSource` that was used to initialise
+            the Operator
+            values are :class:`theano.tensor.Tensor`
+        """
+        inlist = []
+        self.varnames = inputs.keys()
+
+        for i in inputs.values():
+            inlist.append(tt.as_tensor_variable(i))
+
+        out = tt.as_tensor_variable(num.zeros((2, 2)))
+        outlist = [out.type()]
+        return theano.Apply(self, inlist, outlist)
+
+    def perform(self, node, inputs, output):
+        """
+        Perform method of the Operator to calculate synthetic displacements.
+
+        Parameters
+        ----------
+        inputs : list
+            of :class:`numpy.ndarray`
+        output : list
+            of synthetic displacements of :class:`numpy.ndarray` (n x 1)
+        """
+        z = output[0]
+
+!        point = {vname: i for vname, i in zip(self.varnames, inputs)}
+
+        point = utility.adjust_point_units(point)
+
+        source_points = utility.split_point(point)
+
+        for i, source in enumerate(self.sources):
+            source.update(**source_points[i])
+
+        z[0] = interseismic.geo_backslip_synthetics(
+            store_superdir=self.store_superdir,
+            crust_ind=self.crust_ind,
+            sources=self.sources,
+            lons=self.lons,
+            lats=self.lats,
+!            reference= reference,
+            amplitude, azimuth, locking_depths)
+
+    def infer_shape(self, node, input_shapes):
+        return [(len(self.lats), 3)]
 
 
 class SeisSynthesizer(theano.Op):

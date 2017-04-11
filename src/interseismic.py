@@ -3,7 +3,7 @@ Module for interseismic models. Block-backslip model.
 """
 
 from beat import utility
-from beat import heart
+from beat.heart import geo_layer_synthetics
 
 import numpy as num
 import logging
@@ -206,7 +206,7 @@ def backslip_params(azimuth, strike, dip, amplitude, locking_depth):
 
 def geo_backslip_synthetics(
     store_superdir, crust_ind, sources, lons, lats, reference,
-    amplitude, azimuth, locking_depth):
+    amplitude, azimuth, locking_depths):
     """
     Interseismic backslip model: forward model for synthetic
     displacements(n,e,d) [m] caused by a rigid moving block defined by the
@@ -233,6 +233,8 @@ def geo_backslip_synthetics(
         slip [m] of the moving block
     azimuth : float
         azimuth-angle[deg] ergo direction of moving block towards North
+    locking_depths : :class:`numpy.array`
+        locking_depth [km] of the fault below there is no movement
     reference : :class:`heart.ReferenceLocation`
         reference location that determines the stable block
 
@@ -245,13 +247,13 @@ def geo_backslip_synthetics(
     disp_block = geo_block_synthetics(
         lons, lats, sources, amplitude, azimuth, reference)
 
-    for source in sources:
+    for source, locking_depth in zip(sources, locking_depths):
         source_params = backslip_params(
             azimuth=azimuth, amplitude=amplitude, locking_depth=locking_depth,
             strike=source.strike, dip=source.dip)
         source.update(**source_params)
 
-    disp_block += heart.geo_layer_synthetics(
+    disp_block += geo_layer_synthetics(
         store_superdir, crust_ind, lons, lats, sources)
 
     return disp_block

@@ -338,15 +338,6 @@ class GeodeticSourceComposite(GeodeticComposite):
         self.lv = shared(self.Bij.f3map(_lv_list), borrow=True)
         self.odws = shared(odws, borrow=True)
 
-        # syntetics generation
-        logger.debug('Initialising synthetics functions ... \n')
-        self.get_synths = theanof.GeoLayerSynthesizerStatic(
-            lats=lats,
-            lons=lons,
-            store_superdir=gc.gf_config.store_superdir,
-            crust_ind=0,    # always reference model
-            sources=sources)
-
     def __getstate__(self):
         outstate = (
             self.config,
@@ -388,19 +379,22 @@ class GeodeticSourceComposite(GeodeticComposite):
         for i, source in enumerate(self.sources):
             source.update(**source_points[i])
 
-    def source_term(self, input_rvs):
+    def get_formula(self, input_rvs, hyperparams):
         """
-        Get line-of-sight displacements for the deformation sources.
+        Get geodetic likelihood formula for the model built. Has to be called
+        within a with model context.
         Part of the pymc3 model.
 
         Parameters
         ----------
         input_rvs : list
             of :class:`pymc3.distribution.Distribution`
+        hyperparams : dict
+            of :class:`pymc3.distribution.Distribution`
 
         Returns
         -------
-        los : synthetic displacements in los
+        posterior_llk : :class:`theano.tensor.Tensor`
         """
         self.input_rvs = input_rvs
 
@@ -415,13 +409,42 @@ class GeodeticSourceComposite(GeodeticComposite):
             'Geodetic forward model on test model takes: %f' % \
                 (t1 - t0))
 
-        return (disp[:, 0] * self.lv[:, 0] + \
+!        los = (disp[:, 0] * self.lv[:, 0] + \
                disp[:, 1] * self.lv[:, 1] + \
                disp[:, 2] * self.lv[:, 2]) * self.odws
 
-    def get_source_synthetics(self, point, **kwargs):
+!        residuals = self.Bij.srmap(
+            tt.cast((self.wdata - los), tconfig.floatX))
+
+        if self.config.fit_plane:
+            residuals = self.remove_ramps(residuals)
+
+        logpts = multivariate_normal(
+            self.targets, self.weights, hyperparams, residuals)
+
+        llk = pm.Deterministic(self._like_name, logpts)
+        return llk.sum()
+
+
+class GeodeticGeometryComposite(GeodeticSourceComposite):
+
+    def __init__(self, gc, project_dir, sources, event, hypers=False):
+
+        super(GeodeticGeometryComposite, self).__init__(
+            gc, project_dir, sources, event, hypers=hypers)
+
+        # syntetics generation
+        logger.debug('Initialising synthetics functions ... \n')
+        self.get_synths = theanof.GeoLayerSynthesizerStatic(
+!            lats=lats,
+!            lons=lons,
+            store_superdir=gc.gf_config.store_superdir,
+            crust_ind=0,    # always reference model
+            sources=sources)
+
+    def get_synthetics(self, point, **kwargs):
         """
-        Get synthetics for given point in solution space for sources.
+        Get synthetics for given point in solution space.
 
         Parameters
         ----------
@@ -453,62 +476,6 @@ class GeodeticSourceComposite(GeodeticComposite):
                     disp[:, 2] * target.los_vector[:, 2]))
 
         return synths
-
-
-class GeodeticGeometryComposite(GeodeticSourceComposite):
-
-    def __init__(self, gc, project_dir, sources, event, hypers=False):
-
-        super(GeodeticGeometryComposite, self).__init__(
-            gc, project_dir, sources, event, hypers=hypers)
-
-    def get_formula(self, input_rvs, hyperparams):
-        """
-        Get geodetic likelihood formula for the model built. Has to be called
-        within a with model context.
-        Part of the pymc3 model.
-
-        Parameters
-        ----------
-        input_rvs : list
-            of :class:`pymc3.distribution.Distribution`
-        hyperparams : dict
-            of :class:`pymc3.distribution.Distribution`
-
-        Returns
-        -------
-        posterior_llk : :class:`theano.tensor.Tensor`
-        """
-
-        los = self.source_term(input_rvs)
-
-        residuals = self.Bij.srmap(
-            tt.cast((self.wdata - los), tconfig.floatX))
-
-        if self.config.fit_plane:
-            residuals = self.remove_ramps(residuals)
-
-        logpts = multivariate_normal(
-            self.targets, self.weights, hyperparams, residuals)
-
-        llk = pm.Deterministic(self._like_name, logpts)
-        return llk.sum()
-
-    def get_synthetics(self, point, **kwargs):
-        """
-        Get synthetics for given point in solution space.
-
-        Parameters
-        ----------
-        point : :func:`pymc3.Point`
-            Dictionary with model parameters
-        kwargs especially to change output of the forward model
-
-        Returns
-        -------
-        list with :class:`numpy.ndarray` synthetics for each target
-        """
-        return self.get_source_synthetics(point, **kwargs)
 
     def update_weights(self, point, n_jobs=1, plot=False):
         """
@@ -546,61 +513,7 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         super(GeodeticInterseismicComposite, self).__init__(
             gc, project_dir, sources, event, hypers=hypers)
 
-    def get_block_synthetics(self, ):
-        pass
-
-    def block_term(self, input_rvs):
-        """
-        Get line-of-sight displacements for the block interseismic model.
-        Part of the pymc3 model.
-
-        Parameters
-        ----------
-        input_rvs : list
-            of :class:`pymc3.distribution.Distribution`
-
-        Returns
-        -------
-        los : synthetic displacements in los
-        """
-        pass
-
-    def get_formula(self, input_rvs, hyperparams):
-        """
-        Get geodetic likelihood formula for the model built. Has to be called
-        within a with model context.
-
-        Parameters
-        ----------
-        input_rvs : list
-            of :class:`pymc3.distribution.Distribution`
-        hyperparams : dict
-            of :class:`pymc3.distribution.Distribution`
-
-        Returns
-        -------
-        posterior_llk : :class:`theano.tensor.Tensor`
-        """
-
-        blos = self.block_term(input_rvs)
-
-        source_point = backslip_params(azimuth, strike, dip, amplitude, locking_depth)
-
-        slos = self.source_term(source_point)
-
-        los = slos + blos
-
-        residuals = self.Bij.srmap(
-            tt.cast((self.wdata - los), tconfig.floatX))
-
-        if self.config.fit_plane:
-            residuals = self.remove_ramps(residuals)
-
-        logpts = multivariate_normal(
-            self.targets, self.weights, hyperparams, residuals)
-
-        llk = pm.Deterministic(self._like_name, logpts)
-        return llk.sum()
+        self.get_synths = theano.
 
     def get_synthetics(self, point, **kwargs):
         """
@@ -616,14 +529,15 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         -------
         list with :class:`numpy.ndarray` synthetics for each target
         """
-        backslip_params(azimuth, strike, dip, amplitude, locking_depth)
-        
+!        disp = geo_backslip_synthetics(
+            store_superdir, crust_ind, sources, lons, lats, reference,
+            amplitude, azimuth, locking_depths)
 
+        return disp
 
-        list_slos = self.get_source_synthetics(point, **kwargs)
-        list_blos = self.get_block_synthetics(point, **kwargs)
-
-        return [slos + blos for slos, blos in zip(list_slos, list_blos)]
+    def update_weights(point, n_jobs=1, plot=False):
+        logger.warning('Not implemented yet!')
+        raise Exception('Not implemented yet!')
 
 
 class SeismicComposite(Composite):
