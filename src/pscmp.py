@@ -139,6 +139,8 @@ class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
     [m] for fault dimensions and source depth. The default shift of the
     origin (pos_s, pos_d) with respect to the reference coordinates
     (lat, lon) is zero.
+    The depth parameter can be either top edge or center can be modified
+    by using the update method (use flag: top_depth=(True)/False).
     '''
     length = Float.T(default=6.0 * km)
     width = Float.T(default=5.0 * km)

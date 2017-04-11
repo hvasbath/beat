@@ -3,6 +3,7 @@ Module for interseismic models. Block-backslip model.
 """
 
 from beat import utility
+from beat import heart
 
 import numpy as num
 import logging
@@ -200,3 +201,57 @@ def backslip_params(azimuth, strike, dip, amplitude, locking_depth):
 
     return dict(
         slip=slip, opening=opening, width=width, depth=0., rake=rake)
+
+
+def geo_backslip_synthetics(
+    store_superdir, crust_ind, sources, lons, lats, reference,
+    amplitude, azimuth, locking_depth):
+    """
+    Interseismic backslip model: forward model for synthetic
+    displacements(n,e,d) [m] caused by a rigid moving block defined by the
+    bounding geometry of rectangular faults. The reference location determines
+    the stable regions. The amplitude and azimuth determines the amount and
+    direction of the moving block.
+    Based on this block-movement the upper part of the crust that is not locked
+    is assumed to slip back. Thus the final synthetics are the superposition
+    of the block-movement and the backslip.
+
+    Parameters
+    ----------
+    store_superdir : str
+        main path to directory containing the different Greensfunction stores
+    crust_ind : int
+        index of Greens Function store to use
+    lons : List of floats
+        Longitudes [decimal deg] of observation points
+    lats : List of floats
+        Latitudes [decimal deg] of observation points
+    sources : List of :class:`pscmp.PsCmpRectangularSource`
+        Sources to calculate synthetics for
+    amplitude : float
+        slip [m] of the moving block
+    azimuth : float
+        azimuth-angle[deg] ergo direction of moving block towards North
+    reference : :class:`heart.ReferenceLocation`
+        reference location that determines the stable block
+
+    Returns
+    -------
+    :class:`numpy.array`
+         (n x 3) [North, East, Down] displacements [m]
+    """
+
+    disp_block = geo_block_synthetics(
+        lons, lats, sources, amplitude, azimuth, reference)
+
+    for source in sources:
+        source_params = backslip_params(
+            azimuth=azimuth, amplitude=amplitude, locking_depth=locking_depth,
+            strike=source.strike, dip=source.dip)
+        source.update(**source_params)
+        print source
+
+    disp_block -= heart.geo_layer_synthetics(
+        store_superdir, crust_ind, lons, lats, sources)
+
+    return disp_block

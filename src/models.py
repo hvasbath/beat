@@ -565,21 +565,6 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         """
         pass
 
-    def point2sourceparams(self, point):
-        """
-        Transform point to input parameters to the source model.
-
-        Parameters
-        ----------
-        point : :func:`pymc3.Point`
-            Dictionary with model parameters
-
-        Returns
-        -------
-        list with :class:`numpy.ndarray` synthetics for each target
-        """
-        pass
-
     def get_formula(self, input_rvs, hyperparams):
         """
         Get geodetic likelihood formula for the model built. Has to be called
@@ -599,7 +584,7 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
 
         blos = self.block_term(input_rvs)
 
-        source_point = heart.backslip_params()
+        source_point = backslip_params(azimuth, strike, dip, amplitude, locking_depth)
 
         slos = self.source_term(source_point)
 
@@ -631,6 +616,10 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         -------
         list with :class:`numpy.ndarray` synthetics for each target
         """
+        backslip_params(azimuth, strike, dip, amplitude, locking_depth)
+        
+
+
         list_slos = self.get_source_synthetics(point, **kwargs)
         list_blos = self.get_block_synthetics(point, **kwargs)
 
