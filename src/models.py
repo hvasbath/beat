@@ -209,14 +209,20 @@ class GeodeticComposite(Composite):
             self.weights.append(shared(icov, borrow=True))
 
         if gc.fit_plane:
+            logger.info('Fit residual ramp selected!')
             self._slocx = []
             self._slocy = []
             for target in self.targets:
-                locy, locx = target.update_local_coords(self.event)
-                self._slocx = shared(
-                    locx.astype(tconfig.floatX) / km, borrow=True)
-                self._slocy = shared(
-                    locy.astype(tconfig.floatX) / km, borrow=True)
+                if isinstance(target, heart.DiffIFG):
+                    locy, locx = target.update_local_coords(self.event)
+                    self._slocx.append(shared(
+                        locx.astype(tconfig.floatX) / km, borrow=True))
+                    self._slocy.append(shared(
+                        locy.astype(tconfig.floatX) / km, borrow=True))
+                else:
+                    logger.debug('Appending placeholder for non-SAR data!')
+                    self._slocx.append(None)
+                    self._slocy.append(None)
 
         self.config = gc
 
@@ -258,8 +264,9 @@ class GeodeticComposite(Composite):
         self.ramp_params = {}
 
         for i, target in enumerate(self.targets):
-            self.ramp_params[target.track] = pm.Uniform(
-                    target.track + '_ramp',
+            if isinstance(target, heart.DiffIFG):
+                self.ramp_params[target.name] = pm.Uniform(
+                    target.name + '_ramp',
                     shape=(2,),
                     lower=bconfig.default_bounds['ramp'][0],
                     upper=bconfig.default_bounds['ramp'][1],
@@ -267,8 +274,9 @@ class GeodeticComposite(Composite):
                     transform=None,
                     dtype=tconfig.floatX)
 
-            residuals[i] -= get_ramp_displacement(
-                self._slocx[i], self._slocy[i], self.ramp_params[target.track])
+                residuals[i] -= get_ramp_displacement(
+                    self._slocx[i], self._slocy[i],
+                    self.ramp_params[target.name])
 
         return residuals
 
@@ -329,8 +337,8 @@ class GeodeticSourceComposite(GeodeticComposite):
         self.Bij = utility.ListToArrayBijection(ordering, _disp_list)
 
         odws = self.Bij.fmap(_odws_list)
-        lons = self.Bij.fmap(_lons_list)
-        lats = self.Bij.fmap(_lats_list)
+        self._lons = self.Bij.fmap(_lons_list)
+        self._lats = self.Bij.fmap(_lats_list)
 
         logger.info('Number of geodetic data points: %i ' % lats.shape[0])
 
@@ -409,11 +417,11 @@ class GeodeticSourceComposite(GeodeticComposite):
             'Geodetic forward model on test model takes: %f' % \
                 (t1 - t0))
 
-!        los = (disp[:, 0] * self.lv[:, 0] + \
+        los = (disp[:, 0] * self.lv[:, 0] + \
                disp[:, 1] * self.lv[:, 1] + \
                disp[:, 2] * self.lv[:, 2]) * self.odws
 
-!        residuals = self.Bij.srmap(
+        residuals = self.Bij.srmap(
             tt.cast((self.wdata - los), tconfig.floatX))
 
         if self.config.fit_plane:
@@ -436,8 +444,8 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
         # syntetics generation
         logger.debug('Initialising synthetics functions ... \n')
         self.get_synths = theanof.GeoLayerSynthesizerStatic(
-!            lats=lats,
-!            lons=lons,
+            lats=self._lats,
+            lons=self._lons,
             store_superdir=gc.gf_config.store_superdir,
             crust_ind=0,    # always reference model
             sources=sources)
@@ -465,8 +473,8 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
         for crust_ind in crust_inds:
             for target in self.targets:
                 disp = heart.geo_layer_synthetics(
-                    gc.gf_config.store_superdir,
-                    crust_ind,
+                    store_superdir=gc.gf_config.store_superdir,
+                    crust_ind=crust_ind,
                     lons=target.lons,
                     lats=target.lats,
                     sources=self.sources, **kwargs)
@@ -492,7 +500,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
         self.point2sources(point)
 
         for i, target in enumerate(self.targets):
-            logger.debug('Track %s' % target.track)
+            logger.debug('Track %s' % target.name)
             cov_pv = cov.get_geo_cov_velocity_models(
                 store_superdir=gc.gf_config.store_superdir,
                 crust_inds=range(*gc.gf_config.n_variations),
@@ -513,7 +521,13 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         super(GeodeticInterseismicComposite, self).__init__(
             gc, project_dir, sources, event, hypers=hypers)
 
-        self.get_synths = theano.
+        self.get_synths = theano.GeoInterseismicSynthesizer(
+            lats=self._lats,
+            lons=self._lons,
+            store_superdir=gc.gf_config.store_superdir,
+            crust_ind=0,
+            sources=sources,
+!            reference=)
 
     def get_synthetics(self, point, **kwargs):
         """
@@ -529,11 +543,30 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         -------
         list with :class:`numpy.ndarray` synthetics for each target
         """
-!        disp = geo_backslip_synthetics(
-            store_superdir, crust_ind, sources, lons, lats, reference,
-            amplitude, azimuth, locking_depths)
+        spoint, bpoint = interseismic.seperate_point(point)
 
-        return disp
+        self.point2sources(spoint)
+
+        gc = self.config
+        crust_inds = [0]
+
+        synths = []
+        for crust_ind in crust_inds:
+            for target in self.targets:
+                disp = geo_backslip_synthetics(
+                    store_superdir=gc.gf_config.store_superdir,
+                    crust_ind=crust_ind,
+                    sources=self.sources,
+                    lons=target.lon,
+                    lats=target.lat,
+!                    reference=,
+                    **bpoint)
+                synths.append((
+                    disp[:, 0] * target.los_vector[:, 0] + \
+                    disp[:, 1] * target.los_vector[:, 1] + \
+                    disp[:, 2] * target.los_vector[:, 2]))
+
+        return synths
 
     def update_weights(point, n_jobs=1, plot=False):
         logger.warning('Not implemented yet!')

@@ -439,8 +439,8 @@ def plot_scene(ax, target, data, scattersize, colim,
         x = target.utme / km
         y = target.utmn / km
     elif outmode == 'local':
-        x = target.locx / km
-        y = target.locy / km
+        x = target.east_shifts / km
+        y = target.north_shifts / km
 
     return ax.scatter(
         x, y, scattersize, data,

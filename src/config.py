@@ -295,7 +295,12 @@ class GeodeticConfig(Object):
     fit_plane = Bool.T(
         default=False,
         help='Flag for inverting for additional plane parameters on each'
-            ' geodetic dataset')
+            ' SAR dataset')
+    block_reference = ReferenceLocation.T(
+        default=ReferenceLocation.D(),
+        optional=True,
+        help='Reference location for the stable block in the interseismic'
+             ' backslip model')
     gf_config = GFConfig.T(default=GeodeticGFConfig.D())
 
 

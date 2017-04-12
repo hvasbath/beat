@@ -7,6 +7,7 @@ from beat.heart import geo_layer_synthetics
 
 import numpy as num
 import logging
+import copy
 
 from pyrocko import orthodrome
 
@@ -16,6 +17,8 @@ logger = logging.getLogger('interseismic')
 km = 1000.
 d2r = num.pi / 180.
 r2d = 180. / num.pi
+
+non_source = set(['amplitude', 'azimuth', 'locking_depth'])
 
 
 def block_mask(easts, norths, strike, east_ref, north_ref):
@@ -206,7 +209,7 @@ def backslip_params(azimuth, strike, dip, amplitude, locking_depth):
 
 def geo_backslip_synthetics(
     store_superdir, crust_ind, sources, lons, lats, reference,
-    amplitude, azimuth, locking_depths):
+    amplitude, azimuth, locking_depth):
     """
     Interseismic backslip model: forward model for synthetic
     displacements(n,e,d) [m] caused by a rigid moving block defined by the
@@ -233,8 +236,8 @@ def geo_backslip_synthetics(
         slip [m] of the moving block
     azimuth : float
         azimuth-angle[deg] ergo direction of moving block towards North
-    locking_depths : :class:`numpy.array`
-        locking_depth [km] of the fault below there is no movement
+    locking_depth : :class:`numpy.array`
+        locking_depth [km] of the fault(s) below there is no movement
     reference : :class:`heart.ReferenceLocation`
         reference location that determines the stable block
 
@@ -247,9 +250,9 @@ def geo_backslip_synthetics(
     disp_block = geo_block_synthetics(
         lons, lats, sources, amplitude, azimuth, reference)
 
-    for source, locking_depth in zip(sources, locking_depths):
+    for source, ld in zip(sources, locking_depth):
         source_params = backslip_params(
-            azimuth=azimuth, amplitude=amplitude, locking_depth=locking_depth,
+            azimuth=azimuth, amplitude=amplitude, locking_depth=ld,
             strike=source.strike, dip=source.dip)
         source.update(**source_params)
 
@@ -257,3 +260,17 @@ def geo_backslip_synthetics(
         store_superdir, crust_ind, lons, lats, sources)
 
     return disp_block
+
+
+def seperate_point(point):
+    """
+    Seperate point into source object related components and the rest.
+    """
+    tpoint = copy.deepcopy(point)
+
+    interseismic_point = {}
+    for var in non_source:
+        if var in tpoint.keys():
+            interseismic_point[var] = tpoint.pop(var)
+
+    return tpoint, interseismic_point

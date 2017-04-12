@@ -33,7 +33,7 @@ def load_SAR_data(datadir, tracks):
         covariance = heart.Covariance(data=covs['Cov'])
 
         DIFFGs.append(heart.DiffIFG(
-                 track=k,
+                 name=k,
                  displacement=data['sqval'],
                  utme=utmx,
                  utmn=utmy,

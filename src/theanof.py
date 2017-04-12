@@ -171,14 +171,17 @@ class GeoInterseismicSynthesizer(theano.Op):
     Theano wrapper to transform the parameters of block model to
     parameters of a fault.
     """
-    __props__ = ('lats', 'lons', 'store_superdir', 'crust_ind', 'sources')
+    __props__ = (
+        'lats', 'lons', 'store_superdir', 'crust_ind', 'sources', 'reference')
 
-    def __init__(self, lats, lons, store_superdir, crust_ind, sources):
+    def __init__(
+        self, lats, lons, store_superdir, crust_ind, sources, reference):
         self.lats = tuple(lats)
         self.lons = tuple(lons)
         self.store_superdir = store_superdir
         self.crust_ind = crust_ind
         self.sources = tuple(sources)
+        self.reference = reference
 
     def __getstate__(self):
         return self.__dict__
@@ -224,8 +227,9 @@ class GeoInterseismicSynthesizer(theano.Op):
 !        point = {vname: i for vname, i in zip(self.varnames, inputs)}
 
         point = utility.adjust_point_units(point)
+        spoint, bpoint = interseismic.seperate_point(point)
 
-        source_points = utility.split_point(point)
+        source_points = utility.split_point(spoint)
 
         for i, source in enumerate(self.sources):
             source.update(**source_points[i])
@@ -236,11 +240,11 @@ class GeoInterseismicSynthesizer(theano.Op):
             sources=self.sources,
             lons=self.lons,
             lats=self.lats,
-!            reference= reference,
-            amplitude, azimuth, locking_depths)
+            reference= self.reference,
+            **bpoint)
 
-    def infer_shape(self, node, input_shapes):
-        return [(len(self.lats), 3)]
+        def infer_shape(self, node, input_shapes):
+            return [(len(self.lats), 3)]
 
 
 class SeisSynthesizer(theano.Op):

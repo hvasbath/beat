@@ -566,67 +566,17 @@ class Parameter(Object):
                          dtype=num.float)
 
 
-class GeodeticTarget(Object):
+class GeodeticTarget(gf.meta.MutliLocation):
     """
     Overall geodetic data set class
     """
 
-    typ = String.T(default='SAR')
-
-
-class IFG(GeodeticTarget):
-    """
-    Interferogram class as a dataset in the optimization.
-    """
-
-    track = String.T(default='A')
-    master = String.T(optional=True,
-                      help='Acquisition time of master image YYYY-MM-DD')
-    slave = String.T(optional=True,
-                      help='Acquisition time of slave image YYYY-MM-DD')
-    amplitude = Array.T(shape=(None,), dtype=num.float, optional=True)
-    wrapped_phase = Array.T(shape=(None,), dtype=num.float, optional=True)
-    incidence = Array.T(shape=(None,), dtype=num.float, optional=True)
-    heading = Array.T(shape=(None,), dtype=num.float, optional=True)
-    los_vector = Array.T(shape=(None, 3), dtype=num.float, optional=True)
-    utmn = Array.T(shape=(None,), dtype=num.float, optional=True)
-    utme = Array.T(shape=(None,), dtype=num.float, optional=True)
-    lats = Array.T(shape=(None,), dtype=num.float, optional=True)
-    lons = Array.T(shape=(None,), dtype=num.float, optional=True)
-    locx = Array.T(shape=(None,), dtype=num.float, optional=True)
-    locy = Array.T(shape=(None,), dtype=num.float, optional=True)
-    satellite = String.T(default='Envisat')
-
-    def __str__(self):
-        s = 'IFG\n Acquisition Track: %s\n' % self.track
-        s += '  timerange: %s - %s\n' % (self.master, self.slave)
-        if self.lats is not None:
-            s += '  number of pixels: %i\n' % self.lats.size
-        return s
-
-    @property
-    def wavelength(self):
-        return lambda_sensors[self.satellite]
-
-    def update_los_vector(self):
-        """
-        Calculate LOS vector for given attributes incidence and heading angles.
-
-        Returns
-        -------
-        :class:`numpy.ndarray` (n_points, 3)
-        """
-
-        if self.incidence.all() and self.heading.all() is None:
-            raise Exception('Incidence and Heading need to be provided!')
-
-        Su = num.cos(num.deg2rad(self.incidence))
-        Sn = - num.sin(num.deg2rad(self.incidence)) * \
-             num.cos(num.deg2rad(self.heading - 270))
-        Se = - num.sin(num.deg2rad(self.incidence)) * \
-             num.sin(num.deg2rad(self.heading - 270))
-        self.los_vector = num.array([Sn, Se, Su], dtype=num.float).T
-        return self.los_vector
+    typ = String.T(
+        default='SAR',
+        help='Type of geodetic data, e.g. SAR, GPS, ...')
+    name = String.T(
+        default='A',
+        help='e.g. GPS station name or InSAR satellite track ')
 
     def update_local_coords(self, loc):
         """
@@ -656,6 +606,129 @@ class IFG(GeodeticTarget):
         else:
             raise Exception('No coordinates defined!')
         return n
+
+
+class GPScomponent(gf.Location):
+    """
+    Object holding the GPS data for a single station.
+    """
+    component = String.T(default='E', help='direction of measurement, E/N/U')
+    v = Float.T(help='Average velocity in [m / yr]')
+    2sigma = Float.T(help='2-sigma measurement error')
+
+
+
+class CompoundGPS(GeodeticTarget):
+    """
+    Collecting many GPS station datasets and merging them into arrays.
+    Make synthetics generation more efficient.
+    """
+    los_vector = Array.T(shape=(None, 3), dtype=num.float, optional=True)
+    displacement = Array.T(shape=(None,), dtype=num.float, optional=True)
+    component = String.T(default='E', help='direction of measurement, E/N/U')
+    covariance = Covariance.T(
+        optional=True,
+        help=':py:class:`Covariance` that holds data'
+             'and model prediction covariance matrixes')
+    odw = Array.T(
+        shape=(None,),
+        dtype=num.float,
+        help='Overlapping data weights, additional weight factor to the'
+             'dataset for overlaps with other datasets',
+        optional=True)
+
+    def update_los_vector(self):
+        if self.component == 'E':
+            c = num.array([0, 1, 0])
+        elif self.component == 'N':
+            c = num.array([1, 0, 0])
+        elif self.component == 'U':
+            c = num.array([0, 0, 1])
+        else:
+            raise Exception('Component %s not supported' % self.component)
+
+        self.los_vector = num.tile(c, self.samples).reshape(self.samples, 3)
+        return self.los_vector
+
+    def __str__(self):
+        s = 'GPS\n Station: %s\n' % self.name
+        s += '  component: %s\n' % self.component
+        if self.lats is not None:
+            s += '  number of stationcs: %i\n' % self.samples
+        return s
+
+
+class GPSdataset(Object):
+
+    def __init__(self):
+        self.stations = {}
+
+    def add_station(self, data):
+        if not isinstance(data, GPScomponent):
+            raise Exception(
+                'Input object is not a valid measurement of'
+                ' class: %s' % GPScomponent)
+
+        self.stations[data.name] = data
+
+    def get_compounds(self):
+        lats = num.array([st.lat for st in self.stations])
+        lons = num.array([st.lat for st in self.stations])
+        ves = num.array([st.ve for st in self.stations])
+        vns = num.array([st.vn for st in self.stations])
+        vus = num.array([st.vu for st in self.stations])
+
+
+        CompoundGPS()
+
+class IFG(GeodeticTarget):
+    """
+    Interferogram class as a dataset in the optimization.
+    """
+
+    master = String.T(optional=True,
+                      help='Acquisition time of master image YYYY-MM-DD')
+    slave = String.T(optional=True,
+                      help='Acquisition time of slave image YYYY-MM-DD')
+    amplitude = Array.T(shape=(None,), dtype=num.float, optional=True)
+    wrapped_phase = Array.T(shape=(None,), dtype=num.float, optional=True)
+    incidence = Array.T(shape=(None,), dtype=num.float, optional=True)
+    heading = Array.T(shape=(None,), dtype=num.float, optional=True)
+    los_vector = Array.T(shape=(None, 3), dtype=num.float, optional=True)
+    utmn = Array.T(shape=(None,), dtype=num.float, optional=True)
+    utme = Array.T(shape=(None,), dtype=num.float, optional=True)
+    satellite = String.T(default='Envisat')
+
+    def __str__(self):
+        s = 'IFG\n Acquisition Track: %s\n' % self.name
+        s += '  timerange: %s - %s\n' % (self.master, self.slave)
+        if self.lats is not None:
+            s += '  number of pixels: %i\n' % self.samples
+        return s
+
+    @property
+    def wavelength(self):
+        return lambda_sensors[self.satellite]
+
+    def update_los_vector(self):
+        """
+        Calculate LOS vector for given attributes incidence and heading angles.
+
+        Returns
+        -------
+        :class:`numpy.ndarray` (n_points, 3)
+        """
+
+        if self.incidence.all() and self.heading.all() is None:
+            raise Exception('Incidence and Heading need to be provided!')
+
+        Su = num.cos(num.deg2rad(self.incidence))
+        Sn = - num.sin(num.deg2rad(self.incidence)) * \
+             num.cos(num.deg2rad(self.heading - 270))
+        Se = - num.sin(num.deg2rad(self.incidence)) * \
+             num.sin(num.deg2rad(self.heading - 270))
+        self.los_vector = num.array([Sn, Se, Su], dtype=num.float).T
+        return self.los_vector
 
 
 class DiffIFG(IFG):
