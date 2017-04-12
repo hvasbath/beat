@@ -18,6 +18,7 @@ from theano import shared
 from beat import theanof, heart, utility, smc, backend, metropolis
 from beat import covariance as cov
 from beat import config as bconfig
+from beat.interseismic import geo_backslip_synthetics, seperate_point
 
 import logging
 
@@ -340,7 +341,8 @@ class GeodeticSourceComposite(GeodeticComposite):
         self._lons = self.Bij.fmap(_lons_list)
         self._lats = self.Bij.fmap(_lats_list)
 
-        logger.info('Number of geodetic data points: %i ' % lats.shape[0])
+        logger.info(
+            'Number of geodetic data points: %i ' % self._lats.shape[0])
 
         self.wdata = shared(self.Bij.fmap(_disp_list) * odws, borrow=True)
         self.lv = shared(self.Bij.f3map(_lv_list), borrow=True)
@@ -521,13 +523,13 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         super(GeodeticInterseismicComposite, self).__init__(
             gc, project_dir, sources, event, hypers=hypers)
 
-        self.get_synths = theano.GeoInterseismicSynthesizer(
+        self.get_synths = theanof.GeoInterseismicSynthesizer(
             lats=self._lats,
             lons=self._lons,
             store_superdir=gc.gf_config.store_superdir,
             crust_ind=0,
             sources=sources,
-!            reference=)
+            reference=event)
 
     def get_synthetics(self, point, **kwargs):
         """
@@ -543,7 +545,7 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         -------
         list with :class:`numpy.ndarray` synthetics for each target
         """
-        spoint, bpoint = interseismic.seperate_point(point)
+        spoint, bpoint = seperate_point(point)
 
         self.point2sources(spoint)
 
@@ -559,7 +561,7 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
                     sources=self.sources,
                     lons=target.lon,
                     lats=target.lat,
-!                    reference=,
+                    reference=self.event,
                     **bpoint)
                 synths.append((
                     disp[:, 0] * target.los_vector[:, 0] + \
@@ -1125,6 +1127,7 @@ class Problem(object):
     event = None
     model = None
     _like_name = 'like'
+    _fixed_values = False
     composites = {}
     hyperparams = {}
 
@@ -1221,14 +1224,20 @@ class Problem(object):
 
             rvs = dict()
             for param in pc.priors.itervalues():
-                rvs[param.name] = pm.Uniform(
-                    param.name,
-                    shape=param.dimension,
-                    lower=param.lower,
-                    upper=param.upper,
-                    testval=param.testvalue,
-                    transform=None,
-                    dtype=tconfig.floatX)
+                if param.lower != param.upper:
+                    rvs[param.name] = pm.Uniform(
+                        param.name,
+                        shape=param.dimension,
+                        lower=param.lower,
+                        upper=param.upper,
+                        testval=param.testvalue,
+                        transform=None,
+                        dtype=tconfig.floatX)
+                else:
+                    logger.info(
+                        'not solving for %s, it got fixed at %f' % (
+                        param.name, param.lower))
+                    self.fixed_values = True
 
             self.hyperparams = self.get_hyperparams()
 
@@ -1335,6 +1344,19 @@ class Problem(object):
         for composite in problem.composites.values():
             self.composites[composite.name].apply(composite)
 
+    def point2sources(self, point):
+        """
+        Update composite sources(in place) with values from given point.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters, for which the covariance matrixes
+            with respect to velocity model uncertainties are calculated
+        """
+        for composite in self.composites.values():
+            self.composites[composite.name].point2sources(point)
+
     def update_weights(self, point, n_jobs=1, plot=False):
         """
         Calculate and update model prediction uncertainty covariances of
@@ -1410,7 +1432,8 @@ class SourceOptimizer(Problem):
                     self.event)
 
                 # hardcoded inversion for hypocentral time
-                source.stf.anchor = -1.
+                if source.stf is not None:
+                    source.stf.anchor = -1.
             else:
                 source = source_catalog[pc.source_type]()
 
@@ -1454,6 +1477,11 @@ class GeometryOptimizer(SourceOptimizer):
 
         self.config = config
 
+        # updating source objects with fixed values
+        if self._fixed_values:
+            point = self.get_random_point()
+            self.point2sources(point)
+
 
 class InterseismicOptimizer(SourceOptimizer):
     """
@@ -1492,6 +1520,11 @@ class InterseismicOptimizer(SourceOptimizer):
                 hypers)
 
         self.config = config
+
+        # updating source objects with fixed values
+        if self._fixed_values:
+            point = self.get_random_point()
+            self.point2sources(point)
 
 
 class DistributionOptimizer(Problem):

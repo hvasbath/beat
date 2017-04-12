@@ -613,9 +613,8 @@ class GPScomponent(gf.Location):
     Object holding the GPS data for a single station.
     """
     component = String.T(default='E', help='direction of measurement, E/N/U')
-    v = Float.T(help='Average velocity in [m / yr]')
-    2sigma = Float.T(help='2-sigma measurement error')
-
+    v = Float.T(help='Average velocity in [m/yr]')
+    sigma = Float.T(help='2-sigma measurement error [m/yr]')
 
 
 class CompoundGPS(GeodeticTarget):
@@ -674,12 +673,10 @@ class GPSdataset(Object):
     def get_compounds(self):
         lats = num.array([st.lat for st in self.stations])
         lons = num.array([st.lat for st in self.stations])
-        ves = num.array([st.ve for st in self.stations])
-        vns = num.array([st.vn for st in self.stations])
-        vus = num.array([st.vu for st in self.stations])
 
 
         CompoundGPS()
+
 
 class IFG(GeodeticTarget):
     """

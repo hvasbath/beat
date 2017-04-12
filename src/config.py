@@ -296,11 +296,6 @@ class GeodeticConfig(Object):
         default=False,
         help='Flag for inverting for additional plane parameters on each'
             ' SAR dataset')
-    block_reference = ReferenceLocation.T(
-        default=ReferenceLocation.D(),
-        optional=True,
-        help='Reference location for the stable block in the interseismic'
-             ' backslip model')
     gf_config = GFConfig.T(default=GeodeticGFConfig.D())
 
 
@@ -619,10 +614,13 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
     c = BEATconfig(name=name, date=date)
     c.project_dir = os.path.join(os.path.abspath(main_path), name)
 
-    if mode == 'geometry':
-        if date is not None:
+    if mode == 'geometry' or mode == 'interseismic':
+        if date is not None and not mode == 'interseismic':
             c.event = utility.search_catalog(
                 date=date, min_magnitude=min_magnitude)
+        elif mode == 'interseismic':
+            c.event = ReferenceLocation(
+                lat=10.0, lon=10.0, station='block_reference')
         else:
             logger.warn('No given date! Using dummy event!'
                 ' Updating reference coordinates (spatial & temporal)'
