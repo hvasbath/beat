@@ -1,7 +1,10 @@
 import scipy.io
+import numpy as num
+
 from beat import heart, utility
 from pyrocko import model, io
 
+import os
 import logging
 
 logger = logging.getLogger('beat')
@@ -11,10 +14,10 @@ m = 0.000000001
 
 
 def load_SAR_data(datadir, tracks):
-    '''
+    """
     Load SAR data in given directory and tracks.
     Returns Diff_IFG objects.
-    '''
+    """
     DIFFGs = []
 
     for k in tracks:
@@ -45,6 +48,38 @@ def load_SAR_data(datadir, tracks):
                  odw=data['ODW_sub']))
 
     return DIFFGs
+
+
+def load_ascii_gps(filedir, filename):
+    """
+    Load ascii file columns containing:
+    station name, Lon, Lat, ve, vn, vu, sigma_ve, sigma_vn, sigma_vu
+    location [decimal deg]
+    measurement unit [mm/yr]
+
+    Returns
+    -------
+    :class:`heart.GPSDataset`
+    """
+    filepath = os.path.join(filedir, filename)
+    names = num.loadtxt(filepath, usecols=0, dtype='string')
+    d = num.loadtxt(filepath, usecols=range(1, 9), dtype='float')
+
+    if names.size != d.shape[0]:
+        raise Exception('Number of stations and available data differs!')
+
+    data = heart.GPSDataset()
+    for i, name in enumerate(names):
+        gps_station = heart.GPSStation(lon=d[i, 1], lat=d[i, 2])
+        for j, comp in enumerate('ENU'):
+            gps_station.add_component(
+                heart.GPSComponent(
+                    name=comp,
+                    v=d[i, j + 3] / km,
+                    sigma=d[i, j + 6] / km))
+        data.add_station(gps_station)
+
+    return data
 
 
 def load_and_blacklist_stations(datadir, blacklist):
@@ -93,5 +128,3 @@ def load_data_traces(datadir, stations, channels):
                 logger.warn('Unable to open file: ' + trace_name)
 
     return data_trcs
-
-

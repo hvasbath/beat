@@ -13,12 +13,13 @@ from beat import psgrn, pscmp, utility, qseis2d
 from theano import config as tconfig
 import numpy as num
 
-from pyrocko.guts import Object, String, Float, Int, Tuple
+from pyrocko.guts import Object, String, Float, Int, Tuple, List
 from pyrocko.guts_array import Array
 
 from pyrocko import crust2x2, gf, cake, orthodrome, trace, util
 from pyrocko.cake import GradientLayer
 from pyrocko.fomosto import qseis, qssp
+from pyrocko.model import Station
 
 from pyrocko.gf.seismosizer import outline_rect_source, Cloneable
 from pyrocko.orthodrome import ne_to_latlon
@@ -608,23 +609,58 @@ class GeodeticTarget(gf.meta.MutliLocation):
         return n
 
 
-class GPScomponent(gf.Location):
+class GPSComponent(gf.Location):
     """
     Object holding the GPS data for a single station.
     """
-    component = String.T(default='E', help='direction of measurement, E/N/U')
-    v = Float.T(help='Average velocity in [m/yr]')
-    sigma = Float.T(help='2-sigma measurement error [m/yr]')
+    name = String.T(default='E', help='direction of measurement, E/N/U')
+    v = Float.T(default=0.1, help='Average velocity in [m/yr]')
+    twosigma = Float.T(default=0.01, help='2-sigma measurement error [m/yr]')
 
 
-class CompoundGPS(GeodeticTarget):
+class GPSStation(Station):
     """
-    Collecting many GPS station datasets and merging them into arrays.
+    GPS station object, holds the displacment components and has all pyrocko
+    station functionality.
+    """
+
+    components = List.T(GPSComponent.T())
+
+    def set_components(self, components):
+        self.components = []
+        for c in components:
+            self.add_component(c)
+
+    def get_components(self):
+        return list(self.components)
+
+    def get_component_names(self):
+        return set(c.name for c in self.components)
+
+    def remove_component_by_name(self, name):
+        todel = [c for c in self.components if c.name == name]
+        for c in todel:
+            self.components.remove(c)
+
+    def add_component(self, component):
+        self.remove_component_by_name(component.name)
+        self.components.append(component)
+        self.components.sort(key=lambda c: c.name)
+
+    def get_component(self, name):
+        for c in self.components:
+            if c.name == name:
+                return c
+
+
+class GPSCompoundComponent(GeodeticTarget):
+    """
+    Collecting many GPS components and merging them into arrays.
     Make synthetics generation more efficient.
     """
     los_vector = Array.T(shape=(None, 3), dtype=num.float, optional=True)
     displacement = Array.T(shape=(None,), dtype=num.float, optional=True)
-    component = String.T(default='E', help='direction of measurement, E/N/U')
+    name = String.T(default='E', help='direction of measurement, E/N/U')
     covariance = Covariance.T(
         optional=True,
         help=':py:class:`Covariance` that holds data'
@@ -637,11 +673,11 @@ class CompoundGPS(GeodeticTarget):
         optional=True)
 
     def update_los_vector(self):
-        if self.component == 'E':
+        if self.name == 'E':
             c = num.array([0, 1, 0])
-        elif self.component == 'N':
+        elif self.name == 'N':
             c = num.array([1, 0, 0])
-        elif self.component == 'U':
+        elif self.name == 'U':
             c = num.array([0, 0, 1])
         else:
             raise Exception('Component %s not supported' % self.component)
@@ -650,32 +686,62 @@ class CompoundGPS(GeodeticTarget):
         return self.los_vector
 
     def __str__(self):
-        s = 'GPS\n Station: %s\n' % self.name
-        s += '  component: %s\n' % self.component
+        s = 'GPS\n compound: \n'
+        s += '  component: %s\n' % self.name
         if self.lats is not None:
-            s += '  number of stationcs: %i\n' % self.samples
+            s += '  number of stations: %i\n' % self.samples
         return s
 
 
-class GPSdataset(Object):
+class GPSDataset(object):
+    """
+    Collecting many GPS stations into one object. Easy managing and assessing
+    single stations and also merging all the stations components into compound
+    components for fast and easy modeling.
+    """
 
-    def __init__(self):
+    def __init__(self, name= None, stations=None):
         self.stations = {}
+        self.name = name
 
-    def add_station(self, data):
-        if not isinstance(data, GPScomponent):
+        if stations is not None:
+            for station in stations:
+                self.stations[station.name] = station
+
+    def add_station(self, station):
+        if not isinstance(station, GPSStation):
             raise Exception(
-                'Input object is not a valid measurement of'
-                ' class: %s' % GPScomponent)
+                'Input object is not a valid station of'
+                ' class: %s' % GPSStation)
 
-        self.stations[data.name] = data
+        self.stations[station.name] = station
 
-    def get_compounds(self):
-        lats = num.array([st.lat for st in self.stations])
-        lons = num.array([st.lat for st in self.stations])
+    def get_station(self, name):
+        return self.stations[name]
 
+    def get_compound(self, name):
+        stations = self.stations.values()
 
-        CompoundGPS()
+        comps = set([st.get_component_names() for st in stations])
+
+        if name in comps:
+            stations_comps = [st.get_component(name) for st in stations]
+            lats = num.array([st.lat for st in stations])
+            lons = num.array([st.lat for st in stations])
+
+            vs = num.array([c.v for c in stations_comps])
+            variances = num.power(
+                (num.array([c.twosigma for c in stations_comps]) / 2.), 2)
+
+        return GPSCompoundComponent(
+            displacment=vs,
+            covariance=num.eye(lats.size) * variances,
+            lats=lats,
+            lons=lons,
+            name=name)
+
+    def iter_stations(self):
+        return self.stations.iteritems()
 
 
 class IFG(GeodeticTarget):
