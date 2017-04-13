@@ -7,35 +7,48 @@ from pyrocko import model, io
 import os
 import logging
 
-logger = logging.getLogger('beat')
+logger = logging.getLogger('inputf')
 
 km = 1000.
 m = 0.000000001
 
 
-def load_SAR_data(datadir, tracks):
+def load_matfile(datapath, **kwargs):
+    try:
+        return scipy.io.loadmat(datapath, **kwargs)
+    except IOError:
+        logger.warn('File %s does not exist.' % datapath)
+        return None
+
+
+def load_SAR_data(datadir, names):
     """
-    Load SAR data in given directory and tracks.
+    Load SAR data in given directory and filenames.
     Returns Diff_IFG objects.
     """
-    DIFFGs = []
+    diffgs = []
 
-    for k in tracks:
+    for k in names:
         # open matlab.mat files
-        data = scipy.io.loadmat(datadir + 'quad_' + k + '.mat',
-                                squeeze_me=True,
-                                struct_as_record=False)
-        covs = scipy.io.loadmat(datadir + 'CovMatrix_' + k + '.mat',
-                                squeeze_me=True,
-                                struct_as_record=False)
 
-        utmx = data['cfoc'][:, 0]
-        utmy = data['cfoc'][:, 1]
-        lons, lats = utility.utm_to_lonlat(utmx, utmy, 36)
-        Lv = data['lvQT']
-        covariance = heart.Covariance(data=covs['Cov'])
+        data = load_matfile(
+            datadir + 'quad_' + k + '.mat',
+            squeeze_me=True,
+            struct_as_record=False)
 
-        DIFFGs.append(heart.DiffIFG(
+        covs = load_matfile(
+            datadir + 'CovMatrix_' + k + '.mat',
+            squeeze_me=True,
+            struct_as_record=False)
+
+        if data is not None and covs is not None:
+            utmx = data['cfoc'][:, 0]
+            utmy = data['cfoc'][:, 1]
+            lons, lats = utility.utm_to_lonlat(utmx, utmy, 36)
+            Lv = data['lvQT']
+            covariance = heart.Covariance(data=covs['Cov'])
+
+            diffgs.append(heart.DiffIFG(
                  name=k,
                  displacement=data['sqval'],
                  utme=utmx,
@@ -46,8 +59,12 @@ def load_SAR_data(datadir, tracks):
                  incidence=Lv.inci,
                  heading=Lv.head,
                  odw=data['ODW_sub']))
+            names.pop(0)
 
-    return DIFFGs
+        else:
+            logger.info('File %s was no SAR data?!' % datadir)
+
+    return diffgs
 
 
 def load_ascii_gps(filedir, filename):
@@ -70,16 +87,33 @@ def load_ascii_gps(filedir, filename):
 
     data = heart.GPSDataset()
     for i, name in enumerate(names):
-        gps_station = heart.GPSStation(lon=d[i, 1], lat=d[i, 2])
+
+        gps_station = heart.GPSStation(
+            name=str(name), lon=float(d[i, 0]), lat=float(d[i, 1]))
         for j, comp in enumerate('ENU'):
+
             gps_station.add_component(
                 heart.GPSComponent(
                     name=comp,
-                    v=d[i, j + 3] / km,
-                    sigma=d[i, j + 6] / km))
+                    v=float(d[i, j + 2] / km),
+                    twosigma=float(d[i, j + 5] / km)))
         data.add_station(gps_station)
 
     return data
+
+
+def load_and_blacklist_GPS(datadir, filename, blacklist):
+    """
+    Load ascii GPS data, apply blacklist and initialise targets.
+    """
+    gps_ds = load_ascii_gps(datadir, filename)
+    gps_ds.remove_stations(blacklist)
+    comps = gps_ds.stations.values()[0].get_component_names()
+    targets = []
+    for c in comps:
+        targets.append(gps_ds.get_compound(c))
+
+    return targets
 
 
 def load_and_blacklist_stations(datadir, blacklist):

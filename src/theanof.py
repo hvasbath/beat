@@ -5,7 +5,7 @@ Far future:
     include a 'def grad:' -method to each Op in order to enable the use of
     gradient based optimization algorithms
 """
-from beat import heart, utility, config
+from beat import heart, utility, config, interseismic
 from beat.fast_sweeping import fast_sweep
 
 import theano.tensor as tt
@@ -224,7 +224,7 @@ class GeoInterseismicSynthesizer(theano.Op):
         """
         z = output[0]
 
-!        point = {vname: i for vname, i in zip(self.varnames, inputs)}
+        point = {vname: i for vname, i in zip(self.varnames, inputs)}
 
         point = utility.adjust_point_units(point)
         spoint, bpoint = interseismic.seperate_point(point)
@@ -240,7 +240,7 @@ class GeoInterseismicSynthesizer(theano.Op):
             sources=self.sources,
             lons=self.lons,
             lats=self.lats,
-            reference= self.reference,
+            reference=self.reference,
             **bpoint)
 
         def infer_shape(self, node, input_shapes):

@@ -262,8 +262,9 @@ def command_import(args):
             help='Datasets to import; "geodetic, seismic".')
 
         parser.add_option('--geodetic_format', dest='geodetic_format',
-            type='string', default='matlab',
-            help='Data format to be imported; "matlab", ...,'
+            type='string', default=['matlab'],
+            action='callback', callback=list_callback,
+            help='Data format to be imported; "matlab", "ascii"...,'
                  ' Default: "matlab"')
 
         parser.add_option('--seismic_format', dest='seismic_format',
@@ -329,15 +330,22 @@ def command_import(args):
                 c.project_dir, config.geodetic_data_name)
             if not os.path.exists(geodetic_outpath) or options.force:
 
-                if options.geodetic_format == 'matlab':
-                    gtargets = inputf.load_SAR_data(gc.datadir, gc.tracks)
+                gtargets = []
+                if 'matlab' in options.geodetic_format and 'SAR' in gc.types:
+                    gtargets.extend(inputf.load_SAR_data(gc.datadir, gc.names))
 
-                    logger.info('Pickle geodetic data to %s' % geodetic_outpath)
-                    utility.dump_objects(geodetic_outpath, outlist=gtargets)
+                elif 'ascii' in options.geodetic_format and 'GPS' in gc.types:
+                    for name in gc.names:
+                        gtargets.extend(
+                            inputf.load_and_blacklist_GPS(
+                                gc.datadir, name, gc.blacklist))
                 else:
                     raise Exception(
                         'Format: %s not implemented yet.' % \
                         options.geodetic_format)
+
+                logger.info('Pickle geodetic data to %s' % geodetic_outpath)
+                utility.dump_objects(geodetic_outpath, outlist=gtargets)
             else:
                 logger.info('%s exists! Use --force to overwrite!' % \
                     geodetic_outpath)

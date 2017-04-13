@@ -567,7 +567,7 @@ class Parameter(Object):
                          dtype=num.float)
 
 
-class GeodeticTarget(gf.meta.MutliLocation):
+class GeodeticTarget(gf.meta.MultiLocation):
     """
     Overall geodetic data set class
     """
@@ -609,13 +609,14 @@ class GeodeticTarget(gf.meta.MutliLocation):
         return n
 
 
-class GPSComponent(gf.Location):
+class GPSComponent(Object):
     """
     Object holding the GPS data for a single station.
     """
     name = String.T(default='E', help='direction of measurement, E/N/U')
     v = Float.T(default=0.1, help='Average velocity in [m/yr]')
     twosigma = Float.T(default=0.01, help='2-sigma measurement error [m/yr]')
+    unit = String.T(default='m/yr', help='Unit of velocity v')
 
 
 class GPSStation(Station):
@@ -661,6 +662,7 @@ class GPSCompoundComponent(GeodeticTarget):
     los_vector = Array.T(shape=(None, 3), dtype=num.float, optional=True)
     displacement = Array.T(shape=(None,), dtype=num.float, optional=True)
     name = String.T(default='E', help='direction of measurement, E/N/U')
+    station_names = List.T(String.T(optional=True))
     covariance = Covariance.T(
         optional=True,
         help=':py:class:`Covariance` that holds data'
@@ -700,7 +702,7 @@ class GPSDataset(object):
     components for fast and easy modeling.
     """
 
-    def __init__(self, name= None, stations=None):
+    def __init__(self, name=None, stations=None):
         self.stations = {}
         self.name = name
 
@@ -708,21 +710,32 @@ class GPSDataset(object):
             for station in stations:
                 self.stations[station.name] = station
 
-    def add_station(self, station):
+    def add_station(self, station, force=False):
         if not isinstance(station, GPSStation):
             raise Exception(
                 'Input object is not a valid station of'
                 ' class: %s' % GPSStation)
 
-        self.stations[station.name] = station
+        if station.name not in self.stations.keys() or force:
+            self.stations[station.name] = station
+        else:
+            raise Exception(
+                'Station %s already exists in dataset!' % station.name)
 
     def get_station(self, name):
         return self.stations[name]
 
+    def remove_stations(self, stations):
+        for st in stations:
+            self.stations.pop(st)
+
+    def get_station_names(self):
+        return list(self.stations.keys())
+
     def get_compound(self, name):
         stations = self.stations.values()
 
-        comps = set([st.get_component_names() for st in stations])
+        comps = stations[0].get_component_names()
 
         if name in comps:
             stations_comps = [st.get_component(name) for st in stations]
@@ -732,10 +745,15 @@ class GPSDataset(object):
             vs = num.array([c.v for c in stations_comps])
             variances = num.power(
                 (num.array([c.twosigma for c in stations_comps]) / 2.), 2)
+        else:
+            raise Exception(
+                'Requested component %s does not exist in the dataset' % name)
 
         return GPSCompoundComponent(
-            displacment=vs,
-            covariance=num.eye(lats.size) * variances,
+            typ='GPS',
+            station_names=self.get_station_names(),
+            displacement=vs,
+            covariance=Covariance(data=num.eye(lats.size) * variances),
             lats=lats,
             lons=lons,
             name=name)

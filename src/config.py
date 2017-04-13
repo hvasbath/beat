@@ -284,7 +284,11 @@ class GeodeticConfig(Object):
     """
 
     datadir = String.T(default='./')
-    tracks = List.T(String.T(), default=['Data prefix filenames here ...'])
+    names = List.T(String.T(), default=['Data prefix filenames here ...'])
+    blacklist = List.T(String.T(),
+        optional=True,
+        default=['placeholder'],
+        help='Station name for station to be thrown out.')
     types = List.T(
         default=['SAR'],
         help='Types of geodetic data, i.e. SAR, GPS, ...')
