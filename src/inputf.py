@@ -108,7 +108,8 @@ def load_and_blacklist_GPS(datadir, filename, blacklist):
     """
     gps_ds = load_ascii_gps(datadir, filename)
     gps_ds.remove_stations(blacklist)
-    comps = gps_ds.stations.values()[0].get_component_names()
+    comps = gps_ds.get_component_names()
+
     targets = []
     for c in comps:
         targets.append(gps_ds.get_compound(c))

@@ -732,10 +732,13 @@ class GPSDataset(object):
     def get_station_names(self):
         return list(self.stations.keys())
 
+    def get_component_names(self):
+        return self.stations.values()[0].get_component_names()
+
     def get_compound(self, name):
         stations = self.stations.values()
 
-        comps = stations[0].get_component_names()
+        comps = self.get_component_names()
 
         if name in comps:
             stations_comps = [st.get_component(name) for st in stations]
