@@ -41,7 +41,7 @@ _beat_options()
         else
             opts=${arg_subsub[${COMP_WORDS[1]}]}
         fi
-    elif [ $COMP_CWORD > 3 ]; then
+    elif [ $COMP_CWORD > 2 ]; then
         opts=${arg_subsub[${COMP_WORDS[1]}]}
     fi
     COMPREPLY=( $(compgen -W '${opts}' -- $cur) )

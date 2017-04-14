@@ -29,9 +29,9 @@ def block_mask(easts, norths, strike, east_ref, north_ref):
     Parameters
     ----------
     easts : :class:`numpy.array`
-        east - local coordinates [m]
+        east - local coordinates [m] of observations
     norths : :class:`numpy.array`
-        north - local coordinates [m]
+        north - local coordinates [m] of observations
     strike : float
         fault strike [deg]
     east_ref : float
@@ -43,11 +43,10 @@ def block_mask(easts, norths, strike, east_ref, north_ref):
     -------
     :class:`numpy.array` with zeros at stable points, ones at moving points
     """
+
     sv = utility.strike_vector(-strike)[0:2]
     nes = num.vstack([norths.flatten(), easts.flatten()]).T
-
-    ref_ne = num.array([north_ref, east_ref])
-
+    ref_ne = num.array([north_ref, east_ref]).flatten()
     reference = num.dot(ref_ne, sv)
     mask = num.dot(nes, sv)
 
@@ -92,8 +91,12 @@ def block_geometry(lons, lats, sources, reference):
     bmask = num.zeros_like(lons)
     for source in sources:
         norths, easts = orthodrome.latlon_to_ne_numpy(
-            source.lat, source.lon, lats, lons)
-        north_ref, east_ref = orthodrome.latlon_to_ne(source, reference)
+            source.effective_lat, source.effective_lon, lats, lons)
+        north_ref, east_ref = orthodrome.latlon_to_ne_numpy(
+            source.effective_lat,
+            source.effective_lon,
+            reference.lat,
+            reference.lon)
         bmask += block_mask(easts, norths, source.strike, east_ref, north_ref)
 
     # reset points that are moving to one

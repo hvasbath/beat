@@ -623,8 +623,10 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
             c.event = utility.search_catalog(
                 date=date, min_magnitude=min_magnitude)
         elif mode == 'interseismic':
-            c.event = ReferenceLocation(
-                lat=10.0, lon=10.0, station='block_reference')
+            c.event = model.Event(lat=10., lon=10., depth=0.)
+            c.date = 'dummy'
+            logger.info('Interseismic mode! Using event as reference for the'
+                ' stable block! Please update coordinates!')
         else:
             logger.warn('No given date! Using dummy event!'
                 ' Updating reference coordinates (spatial & temporal)'

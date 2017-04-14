@@ -559,8 +559,8 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
                     store_superdir=gc.gf_config.store_superdir,
                     crust_ind=crust_ind,
                     sources=self.sources,
-                    lons=target.lon,
-                    lats=target.lat,
+                    lons=target.lons,
+                    lats=target.lats,
                     reference=self.event,
                     **bpoint)
                 synths.append((
@@ -1436,7 +1436,7 @@ class SourceOptimizer(Problem):
                     source.stf.anchor = -1.
             else:
                 source = source_catalog[pc.source_type]()
-
+            print 'Source:', source
             self.sources.append(source)
 
 
@@ -1498,7 +1498,7 @@ class InterseismicOptimizer(SourceOptimizer):
     def __init__(self, config, hypers=False):
         logger.info('... Initialising Interseismic Optimizer ... \n')
 
-        super(SourceOptimizer, self).__init__(config, hypers)
+        super(InterseismicOptimizer, self).__init__(config, hypers)
 
         pc = config.problem_config
 
@@ -1705,7 +1705,7 @@ def estimate_hypers(step, problem):
     bconfig.dump(problem.config, filename=conf_out)
 
 
-def load_model(project_dir, mode, hypers=False, nobuild=True):
+def load_model(project_dir, mode, hypers=False, nobuild=False):
     """
     Load config from project directory and return BEAT problem including model.
 

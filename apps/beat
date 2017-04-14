@@ -175,10 +175,10 @@ def command_init(args):
             help='Datasets to include in the setup; "geodetic, seismic".')
 
         parser.add_option('--mode', dest='mode',
-            choices=['geometry', 'static', 'kinematic'],
+            choices=['geometry', 'static', 'kinematic', 'interseismic'],
             default='geometry',
             help='Inversion problem to solve; "geometry", "static",'
-                 '"kinematic". Default: "geometry"')
+                 '"kinematic", "interseismic". Default: "geometry"')
 
         parser.add_option('--source_type', dest='source_type',
             choices=['DCSource', 'RectangularSource'],
@@ -273,10 +273,10 @@ def command_import(args):
                  'Default: "autokiwi"')
 
         parser.add_option('--mode', dest='mode',
-            choices=['geometry', 'static', 'kinematic'],
+            choices=['geometry', 'static', 'kinematic', 'interseismic'],
             default='geometry',
             help='Inversion problem to solve; "geometry", "static",'
-                 '"kinematic". Default: "geometry"')
+                 '"kinematic", "interseismic". Default: "geometry"')
 
         parser.add_option('--force', dest='force', action='store_true',
                 help='Overwrite existing files')
@@ -394,11 +394,11 @@ def command_clone(args):
             action='callback', callback=list_callback,
             help='Datasets to clone; "geodetic, seismic".')
 
-        parser.add_option('--mode',
-            default=config.modes_catalog.keys(), type='string',
-            action='callback', callback=list_callback,
-            help='Inversion problem configs to clone if available;'
-                 ' "geometry", "static", "kinematic". Default: all')
+        parser.add_option('--mode', dest='mode',
+            choices=['geometry', 'static', 'kinematic', 'interseismic'],
+            default='geometry',
+            help='Inversion problem to solve; "geometry", "static",'
+                 '"kinematic", "interseismic". Default: "geometry"')
 
         parser.add_option('--copy_data', dest='copy_data',
             action='store_true',
@@ -469,10 +469,10 @@ def command_sample(args):
 
     def setup(parser):
         parser.add_option('--mode', dest='mode',
-            choices=['geometry', 'static', 'kinematic'],
+            choices=['geometry', 'static', 'kinematic', 'interseismic'],
             default='geometry',
             help='Inversion problem to solve; "geometry", "static",'
-                 '"kinematic". Default: "geometry"')
+                 '"kinematic", "interseismic". Default: "geometry"')
 
         parser.add_option('--main_path', dest='main_path', type='string',
             default='./',
@@ -512,10 +512,10 @@ def command_build_gfs(args):
                  ' Default: current directory: ./')
 
         parser.add_option('--mode', dest='mode',
-            choices=['geometry', 'static', 'kinematic'],
+            choices=['geometry', 'static', 'kinematic', 'interseismic'],
             default='geometry',
-            help='Inversion problem to calculate GFs for; "geometry",'
-                 '"static", "kinematic". Default: "geometry"')
+            help='Inversion problem to solve; "geometry", "static",'
+                 '"kinematic", "interseismic". Default: "geometry"')
 
         parser.add_option('--datasets',
             default='geodetic', type='string',
@@ -537,7 +537,7 @@ def command_build_gfs(args):
 
     c = config.load_config(project_dir, options.mode)
 
-    if options.mode == 'geometry':
+    if options.mode in ['geometry', 'interseismic']:
         if 'geodetic' in options.datasets:
             gc = c.geodetic_config
             gf = c.geodetic_config.gf_config
@@ -673,10 +673,10 @@ def command_plot(args):
                  ' Default: current directory: ./')
 
         parser.add_option('--mode', dest='mode',
-            choices=['geometry', 'static', 'kinemtic'],
+            choices=['geometry', 'static', 'kinematic', 'interseismic'],
             default='geometry',
-            help='Inversion problem to calculate GFs for; "geometry",'
-                 '"static", "kinematic". Default: "geometry"')
+            help='Inversion problem to solve; "geometry", "static",'
+                 '"kinematic", "interseismic". Default: "geometry"')
 
         parser.add_option('--post_llk', dest='post_llk',
             choices=['max', 'min', 'mean', 'all'],

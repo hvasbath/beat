@@ -759,7 +759,8 @@ class GPSDataset(object):
             covariance=Covariance(data=num.eye(lats.size) * variances),
             lats=lats,
             lons=lons,
-            name=name)
+            name=name,
+            odw=num.ones_like(lats.size))
 
     def iter_stations(self):
         return self.stations.iteritems()
@@ -1551,7 +1552,7 @@ def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
     # only coseismic displacement
     c.times_snapshots = [0]
     c.rectangular_source_patches = sources
-
+    print 'PsCmp sources', sources[0]
     runner = pscmp.PsCmpRunner(keep_tmp=keep_tmp)
     runner.run(c)
     # returns list of displacements for each snapshot
