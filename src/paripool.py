@@ -48,6 +48,7 @@ def paripool(function, work, **kwargs):
 
         while True:
             args = [next(it) for it in iterables]
+            kwargs = {}
             yield function(*args, **kwargs)
 
         return

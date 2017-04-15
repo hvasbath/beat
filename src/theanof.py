@@ -225,10 +225,10 @@ class GeoInterseismicSynthesizer(theano.Op):
         z = output[0]
 
         point = {vname: i for vname, i in zip(self.varnames, inputs)}
-        print 'full point', point
+
         point = utility.adjust_point_units(point)
         spoint, bpoint = interseismic.seperate_point(point)
-        print bpoint
+
         source_points = utility.split_point(spoint)
 
         for i, source_point in enumerate(source_points):
@@ -238,8 +238,8 @@ class GeoInterseismicSynthesizer(theano.Op):
             store_superdir=self.store_superdir,
             crust_ind=self.crust_ind,
             sources=self.sources,
-            lons=self.lons,
-            lats=self.lats,
+            lons=num.array(self.lons),
+            lats=num.array(self.lats),
             reference=self.reference,
             **bpoint)
 

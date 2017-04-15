@@ -22,8 +22,7 @@ DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype')
 PatchMap = collections.namedtuple(
     'PatchMap', 'count, slc, shp, npatches')
 
-kmtypes = set(['east_shift', 'north_shift', 'length', 'width', 'depth',
-    'locking_depth'])
+kmtypes = set(['east_shift', 'north_shift', 'length', 'width', 'depth'])
 
 seconds_str = '00:00:00'
 

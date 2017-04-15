@@ -1013,7 +1013,7 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
         for i in paripool.paripool(
             _work_chain, work, chunksize=chunksize, nprocs=n_jobs):
 
-            pbar.update(i)
+            pbar.update()
 
 
 def tune(acc_rate):

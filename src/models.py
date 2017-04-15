@@ -408,7 +408,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         """
         self.input_rvs = input_rvs
 
-        logger.debug(
+        logger.info(
             'Geodetic optimization on: \n '
             '%s' % ', '.join(self.input_rvs.keys()))
 
@@ -861,7 +861,7 @@ class SeismicGeometryComposite(SeismicComposite):
         """
         self.input_rvs = input_rvs
 
-        logger.debug(
+        logger.info(
             'Teleseismic optimization on: \n '
             ' %s' % ', '.join(self.input_rvs.keys()))
 
@@ -1218,28 +1218,8 @@ class Problem(object):
 
         with pm.Model() as self.model:
 
-            pc = self.config.problem_config
+            rvs = self.get_random_variables()
 
-            logger.debug('Optimization for %i sources', pc.n_sources)
-
-            rvs = dict()
-            for param in pc.priors.itervalues():
-                if param.lower != param.upper:
-                    rvs[param.name] = pm.Uniform(
-                        param.name,
-                        shape=param.dimension,
-                        lower=param.lower,
-                        upper=param.upper,
-                        testval=param.testvalue,
-                        transform=None,
-                        dtype=tconfig.floatX)
-                else:
-                    logger.info(
-                        'not solving for %s, it got fixed at %f' % (
-                        param.name, param.lower))
-                    self.fixed_values = True
-
-            print 'rvs', rvs
             self.hyperparams = self.get_hyperparams()
 
             total_llk = tt.zeros((1), tconfig.floatX)
@@ -1296,6 +1276,33 @@ class Problem(object):
             point[k] = v
 
         return point
+
+    def get_random_variables(self):
+        """
+        Evaluate problem setup and return random variables dictionary.
+        Has to be executed in a "with model context"!
+        """
+        pc = self.config.problem_config
+
+        logger.debug('Optimization for %i sources', pc.n_sources)
+
+        rvs = dict()
+        for param in pc.priors.itervalues():
+            if param.lower != param.upper:
+                rvs[param.name] = pm.Uniform(
+                    param.name,
+                    shape=param.dimension,
+                    lower=param.lower,
+                    upper=param.upper,
+                    testval=param.testvalue,
+                    transform=None,
+                    dtype=tconfig.floatX)
+            else:
+                logger.info(
+                    'not solving for %s, it got fixed at %f' % (
+                    param.name, param.lower))
+
+        return rvs
 
     def get_hyperparams(self):
         """
@@ -1437,7 +1444,7 @@ class SourceOptimizer(Problem):
                     source.stf.anchor = -1.
             else:
                 source = source_catalog[pc.source_type]()
-            print 'Source:', source
+
             self.sources.append(source)
 
 
@@ -1478,10 +1485,9 @@ class GeometryOptimizer(SourceOptimizer):
 
         self.config = config
 
-        # updating source objects with fixed values
-        if self._fixed_values:
-            point = self.get_random_point()
-            self.point2sources(point)
+        # updating source objects with values in bounds
+        point = self.get_random_point()
+        self.point2sources(point)
 
 
 class InterseismicOptimizer(SourceOptimizer):
@@ -1523,9 +1529,8 @@ class InterseismicOptimizer(SourceOptimizer):
         self.config = config
 
         # updating source objects with fixed values
-        if self._fixed_values:
-            point = self.get_random_point()
-            self.point2sources(point)
+        point = self.get_random_point()
+        self.point2sources(point)
 
 
 class DistributionOptimizer(Problem):

@@ -22,7 +22,7 @@ class TestUtility(unittest.TestCase):
 
         self.amplitude = 0.02
         self.azimuth = 115.
-        self.locking_depth = [6.3]
+        self.locking_depth = [6.3, 5.0]
 
     def _get_store_superdir(self):
         return os.path.abspath('data/')

@@ -123,9 +123,10 @@ def block_movement(bmask, amplitude, azimuth):
     :class:`numpy.array`
          (n x 3) [North, East, Down] displacements [m]
     """
-    return num.repeat(
-        bmask * 2. * amplitude, 3).reshape((bmask.shape[0], 3)) * \
-        utility.strike_vector(azimuth, order='NEZ')
+    temp = num.repeat(
+        bmask * 2. * amplitude, 3).reshape((bmask.shape[0], 3))
+    sv = utility.strike_vector(float(azimuth), order='NEZ')
+    return temp * sv
 
 
 def geo_block_synthetics(lons, lats, sources, amplitude, azimuth, reference):
