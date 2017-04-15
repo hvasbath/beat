@@ -157,7 +157,7 @@ class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
 
     def outline(self, cs='xyz'):
         points = gf.seismosizer.outline_rect_source(
-            self.strike, self.dip, self.length, self.width)
+            self.strike, self.dip, self.length, self.width, 'center')
 
         points[:, 0] += self.north_shift
         points[:, 1] += self.east_shift

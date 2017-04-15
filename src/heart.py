@@ -592,9 +592,9 @@ class GeodeticTarget(gf.meta.MultiLocation):
         :class:`numpy.ndarray` (n_points, 3)
         """
 
-        self.locy, self.locx = orthodrome.latlon_to_ne_numpy(
+        self.north_shifts, self.east_shifts = orthodrome.latlon_to_ne_numpy(
             loc.lat, loc.lon, self.lats, self.lons)
-        return self.locy, self.locx
+        return self.north_shifts, self.east_shifts
 
     @property
     def samples(self):
@@ -602,8 +602,8 @@ class GeodeticTarget(gf.meta.MultiLocation):
             n = self.lats.size
         elif self.utmn is not None:
             n = self.utmn.size
-        elif self.locy is not None:
-            n = self.locy.size
+        elif self.north_shifts is not None:
+            n = self.north_shifts.size
         else:
             raise Exception('No coordinates defined!')
         return n
@@ -743,7 +743,7 @@ class GPSDataset(object):
         if name in comps:
             stations_comps = [st.get_component(name) for st in stations]
             lats = num.array([st.lat for st in stations])
-            lons = num.array([st.lat for st in stations])
+            lons = num.array([st.lon for st in stations])
 
             vs = num.array([c.v for c in stations_comps])
             variances = num.power(

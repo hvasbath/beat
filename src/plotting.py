@@ -529,7 +529,8 @@ def geodetic_fits(problem, stage, plot_options):
                     lon=outline[:, 0], lat=outline[:, 1], zone=po.utm_zone)
                 outline = num.vstack([utme / km, utmn / km]).T
             elif po.plot_projection == 'local':
-                outline = source.outline(cs='xy')
+                outline = source.outline(cs='xy') / km
+                print outline, source.strike
             ax.plot(outline[:, 0], outline[:, 1], '-', linewidth=1.0, **kwargs)
             ax.plot(
                 outline[0:2, 0], outline[0:2, 1], '-k', linewidth=1.0)
@@ -540,11 +541,12 @@ def geodetic_fits(problem, stage, plot_options):
 
     def str_title(name):
         if name[0] == 'A':
-            orbit = 'ascending'
+            title = 'Orbit: ascending'
         elif name[0] == 'D':
-            orbit = 'descending'
+            title = 'Orbit: descending'
+        else:
+            title = 'GPS'
 
-        title = 'Orbit: ' + orbit
         return title
 
     orbits_to_targets = utility.gather(
