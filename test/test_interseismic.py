@@ -1,6 +1,7 @@
 import numpy as num
 
 from beat import interseismic, pscmp
+from beat.heart import ReferenceLocation
 
 from tempfile import mkdtemp
 import os
@@ -21,7 +22,7 @@ class TestUtility(unittest.TestCase):
 
         self.amplitude = 0.02
         self.azimuth = 115.
-        self.locking_depth = 6.3
+        self.locking_depth = [6.3]
 
     def _get_store_superdir(self):
         return os.path.abspath('data/')
@@ -35,7 +36,7 @@ class TestUtility(unittest.TestCase):
         lat = num.linspace(44.0, 46.0, 100.)
 
         Lon, Lat = num.meshgrid(lon, lat)
-        reference = interseismic.heart.ReferenceLocation(
+        reference = ReferenceLocation(
             lon=5., lat=45.)
 
         return Lon.flatten(), Lat.flatten(), reference

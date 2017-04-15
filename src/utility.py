@@ -225,7 +225,7 @@ def weed_input_rvs(input_rvs, mode, dataset):
             tobeweeded = ['opening']
     elif mode == 'interseismic':
         if dataset == 'geodetic':
-            tobeweeded = ['amplitude', 'azimuth']
+            tobeweeded = []
     else:
         tobeweeded = []
 
@@ -428,8 +428,11 @@ def split_point(point):
     source_points : list
         of :func:`pymc3.model.Point`
     """
-
-    n_sources = point[point.keys()[0]].shape[0]
+    params = point.keys()
+    if len(params) > 0:
+        n_sources = point[params[0]].shape[0]
+    else:
+        n_sources = 0
 
     source_points = []
     for i in range(n_sources):

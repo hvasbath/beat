@@ -225,14 +225,14 @@ class GeoInterseismicSynthesizer(theano.Op):
         z = output[0]
 
         point = {vname: i for vname, i in zip(self.varnames, inputs)}
-
+        print 'full point', point
         point = utility.adjust_point_units(point)
         spoint, bpoint = interseismic.seperate_point(point)
-
+        print bpoint
         source_points = utility.split_point(spoint)
 
-        for i, source in enumerate(self.sources):
-            source.update(**source_points[i])
+        for i, source_point in enumerate(source_points):
+            self.sources[i].update(**source_point)
 
         z[0] = interseismic.geo_backslip_synthetics(
             store_superdir=self.store_superdir,

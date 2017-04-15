@@ -386,8 +386,8 @@ class GeodeticSourceComposite(GeodeticComposite):
 
         source_points = utility.split_point(tpoint)
 
-        for i, source in enumerate(self.sources):
-            source.update(**source_points[i])
+        for i, source_point in enumerate(source_points):
+            self.sources[i].update(**source_point)
 
     def get_formula(self, input_rvs, hyperparams):
         """
@@ -1239,6 +1239,7 @@ class Problem(object):
                         param.name, param.lower))
                     self.fixed_values = True
 
+            print 'rvs', rvs
             self.hyperparams = self.get_hyperparams()
 
             total_llk = tt.zeros((1), tconfig.floatX)
