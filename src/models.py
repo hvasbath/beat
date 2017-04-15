@@ -545,13 +545,14 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         -------
         list with :class:`numpy.ndarray` synthetics for each target
         """
+        print point
         spoint, bpoint = seperate_point(point)
 
         self.point2sources(spoint)
 
         gc = self.config
         crust_inds = [0]
-
+        print point, self.sources[0]
         synths = []
         for crust_ind in crust_inds:
             for target in self.targets:
@@ -1218,14 +1219,14 @@ class Problem(object):
 
         with pm.Model() as self.model:
 
-            rvs = self.get_random_variables()
+            self.rvs = self.get_random_variables()
 
             self.hyperparams = self.get_hyperparams()
 
             total_llk = tt.zeros((1), tconfig.floatX)
 
             for dataset, composite in self.composites.iteritems():
-                input_rvs = utility.weed_input_rvs(rvs, mode, dataset=dataset)
+                input_rvs = utility.weed_input_rvs(self.rvs, mode, dataset=dataset)
                 total_llk += composite.get_formula(input_rvs, self.hyperparams)
 
             like = pm.Deterministic(self._like_name, total_llk)

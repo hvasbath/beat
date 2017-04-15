@@ -759,6 +759,8 @@ class GPSDataset(object):
             covariance=Covariance(data=num.eye(lats.size) * variances),
             lats=lats,
             lons=lons,
+            east_shifts=num.zeros_like(lats),
+            north_shifts=num.zeros_like(lats),
             name=name,
             odw=num.ones_like(lats.size))
 

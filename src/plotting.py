@@ -70,7 +70,7 @@ class PlotOptions(Object):
         help='Which model to plot on the specified plot; Default: "max";'
              ' Options: "max", "min", "mean", "all"')
     plot_projection = String.T(
-        default='utm',
+        default='local',
         help='Projection to use for plotting geodetic data; options: "latlon"')
     utm_zone = Int.T(
         default=36,
@@ -312,7 +312,7 @@ def correlation_plot_hist(mtrace, varnames=None,
                     reference = None
 
                 histplot_op(
-                    axs[l, k], pmp.make_2d(a), alpha=alpha, color='orange',
+                    axs[l, k], pmp.utils.make_2d(a), alpha=alpha, color='orange',
                     tstd=0., reference=reference, ntickmarks=ntickmarks)
                 axs[l, k].get_yaxis().set_visible(False)
 
@@ -373,7 +373,7 @@ def plot(uwifg, point_size=20):
     im = ax.scatter(uwifg.lons, uwifg.lats, point_size, uwifg.displacement,
         edgecolors='none')
     plt.colorbar(im)
-    plt.title('Displacements [m] %s' % uwifg.track)
+    plt.title('Displacements [m] %s' % uwifg.name)
     plt.show()
 
 
@@ -384,7 +384,7 @@ def plot_cov(target, point_size=20):
              num.array(target.covariance.pred_v.sum(axis=0)).flatten(),
              edgecolors='none')
     plt.colorbar(im)
-    plt.title('Prediction Covariance [m2] %s' % target.track)
+    plt.title('Prediction Covariance [m2] %s' % target.name)
     plt.show()
 
 
@@ -538,10 +538,10 @@ def geodetic_fits(problem, stage, plot_options):
         rx = math.floor(x * 1000.) / 1000.
         return [-rx, rx]
 
-    def str_title(track):
-        if track[0] == 'A':
+    def str_title(name):
+        if name[0] == 'A':
             orbit = 'ascending'
-        elif track[0] == 'D':
+        elif name[0] == 'D':
             orbit = 'descending'
 
         title = 'Orbit: ' + orbit
@@ -549,7 +549,7 @@ def geodetic_fits(problem, stage, plot_options):
 
     orbits_to_targets = utility.gather(
         composite.targets,
-        lambda t: t.track,
+        lambda t: t.name,
         filter=lambda t: t in target_to_result)
 
     ott = orbits_to_targets.keys()
@@ -1157,7 +1157,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         llk = trace.get_values(
             'like', combine=combined, chains=chains, squeeze=False)
         llk = num.squeeze(transform(llk[0]))
-        llk = pmp.make_2d(llk)
+        llk = pmp.utils.make_2d(llk)
 
         posterior_idxs = utility.get_fit_indexes(llk)
 
@@ -1202,7 +1202,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
             for d in trace.get_values(
                     v, combine=combined, chains=chains, squeeze=False):
                 d = num.squeeze(transform(d))
-                d = pmp.make_2d(d)
+                d = pmp.utils.make_2d(d)
 
                 if make_bins_flag:
                     varbin = make_bins(d, nbins=nbins)
@@ -1337,7 +1337,7 @@ def draw_posteriors(problem, plot_options):
         varnames = pc.hyperparameters.keys() + ['like']
     else:
         sc = problem.config.sampler_config
-        varnames = pc.select_variables() + pc.hyperparameters.keys() + ['like']
+        varnames = problem.rvs.keys() + pc.hyperparameters.keys() + ['like']
 
     figs = []
 
