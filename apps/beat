@@ -690,10 +690,10 @@ def command_plot(args):
                  ' Default: all stages up to last complete stage')
 
         parser.add_option('--format', dest='format',
-            choices=['display', 'pdf', 'png'],
+            choices=['display', 'pdf', 'png', 'svg', 'eps'],
             default='pdf',
-            help='Output format of the plot; "display", "pdf" or "png"'
-                 'Default: "pdf"')
+            help='Output format of the plot; "display", "pdf", "png", "svg",'
+                 '"eps" Default: "pdf"')
 
         parser.add_option('--plot_projection', dest='plot_projection',
             choices=['latlon', 'local'],
