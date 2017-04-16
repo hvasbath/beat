@@ -1,6 +1,7 @@
 import pymc3 as pm
 import numpy as num
-from beat import smc, utility
+import os
+from beat import smc, utility, backend
 from tempfile import mkdtemp
 import shutil
 import theano.tensor as tt
@@ -63,7 +64,7 @@ class TestSMC(unittest.TestCase):
                 tune_interval=tune_interval,
                 likelihood_name=ATMIP_test.deterministics[0].name)
 
-        mtrace = smc.ATMIP_sample(
+        smc.ATMIP_sample(
             n_steps=n_steps,
             step=step,
             n_jobs=n_jobs,
@@ -72,6 +73,10 @@ class TestSMC(unittest.TestCase):
             homepath=self.test_folder,
             model=ATMIP_test,
             rm_flag=False)
+
+        stage_path = os.path.join(self.test_folder, 'stage_final')
+
+        mtrace = backend.load(stage_path, model=ATMIP_test)
 
         d = mtrace.get_values('X', combine=True, squeeze=True)
         x = last_sample(d)
