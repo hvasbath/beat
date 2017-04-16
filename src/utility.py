@@ -1084,6 +1084,15 @@ def PsGrnArray2LayeredModel(psgrn_input_path):
                     formatter={'float_kind': lambda x: "%.3f" % x}))))
 
 
+def swap_columns(array, index1, index2):
+    """
+    Swaps the column of the input array based on the given indexes.
+    """
+    array[:, index1], array[:, index2] = \
+        array[:, index2], array[:, index1].copy()
+    return array
+
+
 def get_rotation_matrix(axis):
     """
     Return a function for 3-d rotation matrix for a specified axis.

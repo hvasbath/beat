@@ -615,7 +615,7 @@ class GPSComponent(Object):
     """
     name = String.T(default='E', help='direction of measurement, E/N/U')
     v = Float.T(default=0.1, help='Average velocity in [m/yr]')
-    twosigma = Float.T(default=0.01, help='2-sigma measurement error [m/yr]')
+    sigma = Float.T(default=0.01, help='sigma measurement error (std) [m/yr]')
     unit = String.T(default='m/yr', help='Unit of velocity v')
 
 
@@ -747,7 +747,7 @@ class GPSDataset(object):
 
             vs = num.array([c.v for c in stations_comps])
             variances = num.power(
-                (num.array([c.twosigma for c in stations_comps]) / 2.), 2)
+                num.array([c.sigma for c in stations_comps]), 2)
         else:
             raise Exception(
                 'Requested component %s does not exist in the dataset' % name)

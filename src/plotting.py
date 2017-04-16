@@ -312,8 +312,9 @@ def correlation_plot_hist(mtrace, varnames=None,
                     reference = None
 
                 histplot_op(
-                    axs[l, k], pmp.utils.make_2d(a), alpha=alpha, color='orange',
-                    tstd=0., reference=reference, ntickmarks=ntickmarks)
+                    axs[l, k], pmp.utils.make_2d(a), alpha=alpha,
+                    color='orange', tstd=0., reference=reference,
+                    ntickmarks=ntickmarks)
                 axs[l, k].get_yaxis().set_visible(False)
 
                 xticks = axs[l, k].get_xticks()
@@ -530,7 +531,8 @@ def geodetic_fits(problem, stage, plot_options):
                 outline = num.vstack([utme / km, utmn / km]).T
             elif po.plot_projection == 'local':
                 outline = source.outline(cs='xy') / km
-                print outline, source.strike
+                outline = utility.swap_columns(outline, 0, 1)
+
             ax.plot(outline[:, 0], outline[:, 1], '-', linewidth=1.0, **kwargs)
             ax.plot(
                 outline[0:2, 0], outline[0:2, 1], '-k', linewidth=1.0)

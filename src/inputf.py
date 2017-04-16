@@ -96,7 +96,7 @@ def load_ascii_gps(filedir, filename):
                 heart.GPSComponent(
                     name=comp,
                     v=float(d[i, j + 2] / km),
-                    twosigma=float(d[i, j + 5] / km)))
+                    sigma=float(d[i, j + 5] / km)))
         data.add_station(gps_station)
 
     return data

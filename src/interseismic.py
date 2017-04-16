@@ -123,12 +123,9 @@ def block_movement(bmask, amplitude, azimuth):
     :class:`numpy.array`
          (n x 3) [North, East, Down] displacements [m]
     """
-    print amplitude.__class__, azimuth.__class__, amplitude, azimuth, bmask
-    moved = bmask * 2. * float(amplitude)
-    print moved, moved.__class__
-    temp = num.repeat(moved, 3)
-    print temp.shape, temp.__class__
-    tmp = temp.reshape((bmask.shape[0], 3))
+
+    tmp = num.repeat(
+        bmask * 2. * float(amplitude), 3).reshape((bmask.shape[0], 3))
     sv = utility.strike_vector(float(azimuth), order='NEZ')
     return tmp * sv
 
@@ -190,7 +187,6 @@ def backslip_params(azimuth, strike, dip, amplitude, locking_depth):
     if dip == 0.:
         raise ValueError('Dip must not be zero!')
 
-    print azimuth, 
     az_vec = utility.strike_vector(azimuth)
     strike_vec = utility.strike_vector(strike)
     alpha = num.arccos(az_vec.dot(strike_vec))
