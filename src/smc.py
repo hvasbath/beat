@@ -676,7 +676,7 @@ def update_last_samples(homepath, step,
     return backend.load(trans_stage_path, model)
 
 
-def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
+def ATMIP_sample(n_steps, step=None, start=None, homepath=None, chain=0,
                   stage=None, n_jobs=1, tune=None, progressbar=False,
                   model=None, update=None, random_seed=None, rm_flag=False):
     """
@@ -720,7 +720,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
         step.n_chains / n_jobs has to be an integer number!
     tune : int
         Number of iterations to tune, if applicable (defaults to None)
-    trace : string
+    homepath : string
         Result_folder for storing stages, will be created if not existing.
     progressbar : bool
         Flag for displaying a progress bar
@@ -753,7 +753,7 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
     if step is None:
         raise Exception('Argument `step` has to be a TMCMC step object.')
 
-    if trace is None:
+    if homepath is None:
         raise Exception('Argument `trace` should be path to result_directory.')
 
     if n_jobs > 1:
@@ -772,8 +772,6 @@ def ATMIP_sample(n_steps, step=None, start=None, trace=None, chain=0,
             raise Exception('Model (deterministic) variables need to contain '
                             'a variable %s '
                             'as defined in `step`.' % step.likelihood_name)
-
-    homepath = trace
 
     util.ensuredir(homepath)
 
