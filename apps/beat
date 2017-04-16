@@ -695,7 +695,7 @@ def command_plot(args):
             help='Output format of the plot; "display", "pdf" or "png"'
                  'Default: "pdf"')
 
-        parser.add_option('--plot_projection', dest='format',
+        parser.add_option('--plot_projection', dest='plot_projection',
             choices=['latlon', 'local'],
             default='local',
             help='Output projection of the plot; "latlon" or "local"'
