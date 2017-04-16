@@ -1407,7 +1407,7 @@ def seis_construct_gf(
             gf_directory = os.path.join(
                 sf.store_superdir, 'base_gfs_%i' % crust_ind)
 
-            conf, build = choose_backend(
+            conf = choose_backend(
                 fomosto_config, sf.code, source_model, receiver_model,
                 seismic_config.distances, gf_directory)
 
