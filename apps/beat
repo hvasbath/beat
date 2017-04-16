@@ -695,6 +695,12 @@ def command_plot(args):
             help='Output format of the plot; "display", "pdf" or "png"'
                  'Default: "pdf"')
 
+        parser.add_option('--plot_projection', dest='format',
+            choices=['latlon', 'local'],
+            default='local',
+            help='Output projection of the plot; "latlon" or "local"'
+                 'Default: "local"')
+
         parser.add_option('--dpi', dest='dpi', type='int',
             default=300,
             help='Output resolution of the plots in dpi (dots per inch);'
@@ -742,6 +748,7 @@ selected giving a comma seperated list.''' % (
         project_dir, options.mode, options.hypers, options.nobuild)
 
     po = plotting.PlotOptions(
+        plot_projection=options.plot_projection,
         post_llk=options.post_llk,
         load_stage=options.stage_number,
         outformat=options.format,
