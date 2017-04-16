@@ -1624,7 +1624,7 @@ def sample(step, problem):
             n_jobs=pa.n_jobs,
             stage=pa.stage,
             update=update,
-            trace=problem.outfolder,
+            homepath=problem.outfolder,
             rm_flag=pa.rm_flag)
 
 
