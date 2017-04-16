@@ -79,7 +79,7 @@ def load_ascii_gps(filedir, filename):
     :class:`heart.GPSDataset`
     """
     filepath = os.path.join(filedir, filename)
-    names = num.loadtxt(filepath, usecols=0, dtype='string')
+    names = num.loadtxt(filepath, usecols=[0], dtype='string')
     d = num.loadtxt(filepath, usecols=range(1, 9), dtype='float')
 
     if names.size != d.shape[0]:
