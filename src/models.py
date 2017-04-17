@@ -130,6 +130,8 @@ class Composite(Object):
         determines whether to initialise Composites with hyper parameter model
     """
 
+    input_rvs = {}
+    fixed_rvs = {}
     name = None
     _like_name = None
     config = None
@@ -397,8 +399,10 @@ class GeodeticSourceComposite(GeodeticComposite):
 
         Parameters
         ----------
-        input_rvs : list
+        input_rvs : dict
             of :class:`pymc3.distribution.Distribution`
+        fixed_rvs : dict
+            of :class:`numpy.array`
         hyperparams : dict
             of :class:`pymc3.distribution.Distribution`
 
@@ -857,6 +861,8 @@ class SeismicGeometryComposite(SeismicComposite):
         ----------
         input_rvs : list
             of :class:`pymc3.distribution.Distribution`
+        fixed_rvs : dict
+            of :class:`numpy.array`
         hyperparams : dict
             of :class:`pymc3.distribution.Distribution`
 
