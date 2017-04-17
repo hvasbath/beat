@@ -8,6 +8,8 @@ Far future:
 from beat import heart, utility, config, interseismic
 from beat.fast_sweeping import fast_sweep
 
+from pymc3.model import FreeRV
+
 import theano.tensor as tt
 import theano
 
@@ -202,10 +204,16 @@ class GeoInterseismicSynthesizer(theano.Op):
             values are :class:`theano.tensor.Tensor`
         """
         inlist = []
-        self.varnames = inputs.keys()
 
-        for i in inputs.values():
-            inlist.append(tt.as_tensor_variable(i))
+        self.fixed_values = {}
+        self.varnames = []
+
+        for k, v in inputs.iteritems():
+            if isinstance(v, FreeRV):
+                self.varnames.append(k)
+                inlist.append(tt.as_tensor_variable(v))
+            else:
+                self.fixed_values[k] = v
 
         out = tt.as_tensor_variable(num.zeros((2, 2)))
         outlist = [out.type()]
@@ -225,6 +233,7 @@ class GeoInterseismicSynthesizer(theano.Op):
         z = output[0]
 
         point = {vname: i for vname, i in zip(self.varnames, inputs)}
+        point.update(self.fixed_values)
 
         point = utility.adjust_point_units(point)
         spoint, bpoint = interseismic.seperate_point(point)

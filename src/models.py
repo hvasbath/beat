@@ -389,7 +389,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         for i, source_point in enumerate(source_points):
             self.sources[i].update(**source_point)
 
-    def get_formula(self, input_rvs, hyperparams):
+    def get_formula(self, input_rvs, fixed_rvs, hyperparams):
         """
         Get geodetic likelihood formula for the model built. Has to be called
         within a with model context.
@@ -407,10 +407,13 @@ class GeodeticSourceComposite(GeodeticComposite):
         posterior_llk : :class:`theano.tensor.Tensor`
         """
         self.input_rvs = input_rvs
+        self.fixed_rvs = fixed_rvs
 
         logger.info(
             'Geodetic optimization on: \n '
             '%s' % ', '.join(self.input_rvs.keys()))
+
+        self.input_rvs.update(fixed_rvs)
 
         t0 = time.time()
         disp = self.get_synths(self.input_rvs)
@@ -545,8 +548,9 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         -------
         list with :class:`numpy.ndarray` synthetics for each target
         """
-
-        spoint, bpoint = seperate_point(point)
+        tpoint = copy.deepcopy(point)
+        tpoint.update(self.fixed_rvs)
+        spoint, bpoint = seperate_point(tpoint)
 
         self.point2sources(spoint)
 
@@ -844,7 +848,7 @@ class SeismicGeometryComposite(SeismicComposite):
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
 
-    def get_formula(self, input_rvs, hyperparams):
+    def get_formula(self, input_rvs, fixed_rvs, hyperparams):
         """
         Get seismic likelihood formula for the model built. Has to be called
         within a with model context.
@@ -861,6 +865,7 @@ class SeismicGeometryComposite(SeismicComposite):
         posterior_llk : :class:`theano.tensor.Tensor`
         """
         self.input_rvs = input_rvs
+        self.fixed_rvs = fixed_rvs
 
         logger.info(
             'Teleseismic optimization on: \n '
@@ -1023,7 +1028,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
         return utility.load_objects(
             os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
 
-    def get_formula(self, input_rvs, hyperparams):
+    def get_formula(self, input_rvs, fixed_rvs, hyperparams):
         """
         Formulation of the distribution problem for the model built. Has to be
         called within a with-model-context.
@@ -1040,6 +1045,9 @@ class GeodeticDistributerComposite(GeodeticComposite):
         llk : :class:`theano.tensor.Tensor`
             log-likelihood for the distributed slip
         """
+        self.input_rvs = input_rvs
+        self.fixed_rvs = fixed_rvs
+
         residuals = [None for i in range(self.n_t)]
         for t in range(self.n_t):
 
@@ -1128,7 +1136,7 @@ class Problem(object):
     event = None
     model = None
     _like_name = 'like'
-    _fixed_values = False
+    fixed_params = {}
     composites = {}
     hyperparams = {}
 
@@ -1219,7 +1227,7 @@ class Problem(object):
 
         with pm.Model() as self.model:
 
-            self.rvs = self.get_random_variables()
+            self.rvs, self.fixed_params = self.get_random_variables()
 
             self.hyperparams = self.get_hyperparams()
 
@@ -1228,7 +1236,10 @@ class Problem(object):
             for dataset, composite in self.composites.iteritems():
                 input_rvs = utility.weed_input_rvs(
                     self.rvs, mode, dataset=dataset)
-                total_llk += composite.get_formula(input_rvs, self.hyperparams)
+                fixed_rvs = utility.weed_input_rvs(
+                    self.fixed_params, mode, dataset=dataset)
+                total_llk += composite.get_formula(
+                    input_rvs, fixed_rvs, self.hyperparams)
 
             like = pm.Deterministic(self._like_name, total_llk)
             llk = pm.Potential(self._like_name, like)
@@ -1289,6 +1300,7 @@ class Problem(object):
         logger.debug('Optimization for %i sources', pc.n_sources)
 
         rvs = dict()
+        fixed_params = dict()
         for param in pc.priors.itervalues():
             if param.lower != param.upper:
                 rvs[param.name] = pm.Uniform(
@@ -1303,8 +1315,9 @@ class Problem(object):
                 logger.info(
                     'not solving for %s, it got fixed at %f' % (
                     param.name, param.lower))
+                fixed_params[param.name] = param.lower
 
-        return rvs
+        return rvs, fixed_params
 
     def get_hyperparams(self):
         """
