@@ -1,4 +1,7 @@
- .. image:: docs/_static/LOGO_BEAT.jpg?raw=true
+
+# beat
+
+ .. image:: docs/_static/LOGO_BEAT.png?raw=true
     :alt BEAT logo
     :align: center
 
@@ -7,7 +10,7 @@
 Based on pyrocko, theano and pymc3
 
 Documentation (under construction) can be found here:
-https://hvasbath.github.io/beat/ .
+https://hvasbath.github.io/beat/
 
 This repository is very much work in progress!
 Please dont expect anything to work smoothly!
