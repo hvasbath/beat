@@ -1,4 +1,4 @@
- .. image:: docs/_static/defor_sources.png
+ .. image:: docs/_static/LOGO_BEAT.jpg?raw=true
     :alt BEAT logo
     :align: center
 
