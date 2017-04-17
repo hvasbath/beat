@@ -1,8 +1,12 @@
-# beat
+ .. image:: docs/_static/defor_sources.png
+    :alt BEAT logo
+    :align: center
 
-Bayesian Earthquake Analysis Tool, based on pyrocko, theano and pymc3
+# Bayesian Earthquake Analysis Tool
 
-Documentation (under construction) can be found here: 
+Based on pyrocko, theano and pymc3
+
+Documentation (under construction) can be found here:
 https://hvasbath.github.io/beat/ .
 
 This repository is very much work in progress!
