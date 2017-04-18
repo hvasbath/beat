@@ -44,9 +44,9 @@ class TestUtility(unittest.TestCase):
     def _get_sources(self):
         sources = [
             pscmp.PsCmpRectangularSource(
-                lon=12., lat=45., strike=20., dip=90., length=125. * km),
+                lon=12., lat=44.8, strike=120., dip=90., length=125. * km),
             pscmp.PsCmpRectangularSource(
-                lon=11.25, lat=44.35, strike=70., dip=90., length=80. * km)]
+                lon=11.25, lat=45.35, strike=170., dip=90., length=80. * km)]
         return sources
 
     def test_backslip_params(self):

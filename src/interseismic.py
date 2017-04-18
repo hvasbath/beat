@@ -88,7 +88,7 @@ def block_geometry(lons, lats, sources, reference):
         mask with zeros/ones for stable/moving observation points, respectively
     """
 
-    bmask = num.zeros_like(lons)
+    bmask = num.ones_like(lons)
     for source in sources:
         norths, easts = orthodrome.latlon_to_ne_numpy(
             source.effective_lat, source.effective_lon, lats, lons)
