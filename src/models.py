@@ -1308,7 +1308,7 @@ class Problem(object):
         rvs = dict()
         fixed_params = dict()
         for param in pc.priors.itervalues():
-            if param.lower != param.upper:
+            if not num.array_equal(param.lower, param.upper):
                 rvs[param.name] = pm.Uniform(
                     param.name,
                     shape=param.dimension,
