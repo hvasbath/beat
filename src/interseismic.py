@@ -97,7 +97,7 @@ def block_geometry(lons, lats, sources, reference):
             source.effective_lon,
             reference.lat,
             reference.lon)
-        bmask += block_mask(easts, norths, source.strike, east_ref, north_ref)
+        bmask *= block_mask(easts, norths, source.strike, east_ref, north_ref)
 
     # reset points that are moving to one
     bmask[bmask > 0] = 1
