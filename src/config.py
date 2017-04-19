@@ -103,7 +103,7 @@ default_bounds = dict(
     nuc_y=(0., 7.),
     velocity=(0.5, 4.2),
     azimuth=(0, 180),
-    amplitude=(-0.1, 0.1),
+    amplitude=(0., 0.1),
     locking_depth=(1., 10.),
     seis_Z=(-20., 20.),
     seis_T=(-20., 20.),
@@ -751,8 +751,10 @@ def load_config(project_dir, mode):
     try:
         config = load(filename=config_fn)
     except IOError:
-        logger.info('File %s does not exist! Returning None.' % config_fn)
+        logger.error('File %s does not exist! Returning None.' % config_fn)
         return None
+
+    config.problem_config.validate_priors()
 
     if config.problem_config.hyperparameters is None or \
         len(config.problem_config.hyperparameters.keys()) == 0:

@@ -41,12 +41,21 @@ class TestUtility(unittest.TestCase):
 
         return Lon.flatten(), Lat.flatten(), reference
 
-    def _get_sources(self):
-        sources = [
-            pscmp.PsCmpRectangularSource(
-                lon=12., lat=44.8, strike=120., dip=90., length=125. * km),
-            pscmp.PsCmpRectangularSource(
-                lon=11.25, lat=45.35, strike=170., dip=90., length=80. * km)]
+    def _get_sources(self, case=1):
+        if case == 1:
+            sources = [
+                pscmp.PsCmpRectangularSource(
+                    lon=12., lat=45., strike=20., dip=90., length=125. * km),
+                pscmp.PsCmpRectangularSource(
+                    lon=11.25, lat=44.35, strike=70., dip=90., length=80. * km)]
+        elif case == 2:
+            sources = [
+                pscmp.PsCmpRectangularSource(
+                    lon=12.04, lat=45.000, strike= 329.35 -180, dip=90.,
+                    length=117809.04),
+                pscmp.PsCmpRectangularSource(
+                    lon=11.5, lat=45.75, strike=357.04-180, dip=90.,
+                    length=80210.56)]
         return sources
 
     def test_backslip_params(self):
@@ -90,14 +99,14 @@ class TestUtility(unittest.TestCase):
             azimuth=self.azimuth,
             reference=reference)
 
-    def _test_backslip_synthetics(self):
+    def _test_backslip_synthetics(self, case=1):
 
         lons, lats, reference = self._get_synthetic_data()
 
         return interseismic.geo_backslip_synthetics(
             store_superdir=self._get_store_superdir(),
             crust_ind=0,
-            sources=self._get_sources(),
+            sources=self._get_sources(case),
             lons=lons,
             lats=lats,
             reference=reference,
@@ -120,7 +129,7 @@ class TestUtility(unittest.TestCase):
 
 #        disp = self.test_block_geometry()
 #        disp = self.test_block_synthetics()
-        disp = self._test_backslip_synthetics()
+        disp = self._test_backslip_synthetics(2)
 
         for i, comp in enumerate('NEZ'):
             im = ax[i].scatter(lons, lats, sz, disp[:, i], cmap=cmap)

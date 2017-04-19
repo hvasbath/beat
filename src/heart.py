@@ -517,6 +517,34 @@ class SeismicResult(Object):
     taper = trace.Taper.T(optional=True)
 
 
+physical_bounds = dict(
+    east_shift=(-500., 500.),
+    north_shift=(-500., 500.),
+    depth=(0., 1000.),
+    strike=(0, 360.),
+    dip=(0., 90.),
+    rake=(-180., 180.),
+    length=(0., 7000.),
+    width=(0., 500.),
+    slip=(0., 150.),
+    magnitude=(-10., 10.),
+    time=(-300., 300.),
+    duration=(0., 600.),
+    Uparr=(-0.3, 150.),
+    Uperp=(-150., 150.),
+    nuc_x=(0., num.inf),
+    nuc_y=(0., num.inf),
+    velocity=(0.5, 7.0),
+    azimuth=(0, 360),
+    amplitude=(0., 0.2),
+    locking_depth=(0.1, 100.),
+    seis_Z=(-20., 20.),
+    seis_T=(-20., 20.),
+    geo_S=(-20., 20.),
+    geo_G=(-20., 20.),
+    ramp=(-0.005, 0.005))
+
+
 class Parameter(Object):
     """
     Optimization parameter determines the bounds of the search space.
@@ -540,12 +568,22 @@ class Parameter(Object):
                         default=num.array([0.5, 0.5], dtype=tconfig.floatX))
 
     def __call__(self):
+        if self.name not in physical_bounds.keys():
+            raise TypeError('The variable %s cannot'
+                ' be optimized for!' % self.name)
+
         if self.lower is not None:
             for i in range(self.dimension):
                 if self.testvalue[i] > self.upper[i] or \
                     self.testvalue[i] < self.lower[i]:
-                    raise Exception('the testvalue of parameter "%s" has to be'
-                        'within the upper and lower bounds' % self.name)
+                    raise ValueError('The testvalue of parameter "%s" has to'
+                        ' be within the upper and lower bounds' % self.name)
+
+                if self.upper[i] > physical_bounds[self.name][1] or \
+                    self.lower[i] > physical_bounds[self.name][0]:
+                    raise ValueError(
+                        'The parameter bounds for %s are outside of physically'
+                        ' meaningful range!' % self.name)
 
     def random(self):
         """
