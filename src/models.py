@@ -1319,8 +1319,8 @@ class Problem(object):
                     dtype=tconfig.floatX)
             else:
                 logger.info(
-                    'not solving for %s, it got fixed at %f' % (
-                    param.name, param.lower))
+                    'not solving for %s, got fixed at %s' % (
+                    param.name, utility.list_to_str(param.lower.flatten())))
                 fixed_params[param.name] = param.lower
 
         return rvs, fixed_params
