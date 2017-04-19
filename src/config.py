@@ -391,7 +391,7 @@ class ProblemConfig(Object):
         Check if priors and their test values do not contradict!
         """
         for param in self.priors.itervalues():
-            param()
+            param.validate_bounds()
 
         logger.info('All parameter-priors ok!')
 

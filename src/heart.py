@@ -567,23 +567,35 @@ class Parameter(Object):
                         serialize_as='list',
                         default=num.array([0.5, 0.5], dtype=tconfig.floatX))
 
-    def __call__(self):
+    def validate_bounds(self):
         if self.name not in physical_bounds.keys():
-            raise TypeError('The variable %s cannot'
+            raise TypeError('The parameter "%s" cannot'
                 ' be optimized for!' % self.name)
 
         if self.lower is not None:
             for i in range(self.dimension):
+                if self.upper[i] < self.lower[i]:
+                    raise ValueError('The upper parameter bound for'
+                        ' parameter "%s" must be higher than the lower'
+                        ' bound' % self.name)
+
                 if self.testvalue[i] > self.upper[i] or \
                     self.testvalue[i] < self.lower[i]:
                     raise ValueError('The testvalue of parameter "%s" has to'
                         ' be within the upper and lower bounds' % self.name)
 
-                if self.upper[i] > physical_bounds[self.name][1] or \
-                    self.lower[i] > physical_bounds[self.name][0]:
+                phys_b = physical_bounds[self.name]
+
+                if self.upper[i] > phys_b[1] or \
+                    self.lower[i] < phys_b[0]:
                     raise ValueError(
-                        'The parameter bounds for %s are outside of physically'
-                        ' meaningful range!' % self.name)
+                        'The parameter bounds (%f, %f) for "%s" are outside of'
+                        ' physically meaningful values (%f, %f)!' % (
+                            self.lower[i], self.upper[i], self.name,
+                            phys_b[0], phys_b[1]))
+        else:
+            raise ValueError(
+                'Parameter bounds for "%s" have to be defined!' % self.name)
 
     def random(self):
         """
