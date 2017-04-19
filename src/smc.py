@@ -384,13 +384,14 @@ class SMC(backend.ArrayStepSharedLLK):
             weighted covariances (NumPy > 1.10. required)
         """
 
-        cov = np.cov(self.array_population,
-                      aweights=self.weights.ravel(),
-                      bias=False,
-                      rowvar=0)
+        cov = np.cov(
+            self.array_population,
+            aweights=self.weights.ravel(),
+            bias=False,
+            rowvar=0)
 
         if np.isnan(cov).any() or np.isinf(cov).any():
-            raise Exception('Sample covariances not valid! Likely "n_chains"'
+            raise ValueError('Sample covariances not valid! Likely "n_chains"'
                             ' is too small!')
         return cov
 
@@ -420,20 +421,21 @@ class SMC(backend.ArrayStepSharedLLK):
 
         # collect end points of each chain and put into array
         for var, slc, shp, _ in self.ordering.vmap:
+            slc_population = mtrace.get_values(
+                varname=var,
+                burn=n_steps - 1,
+                combine=True)
+
             if len(shp) == 0:
-                array_population[:, slc] = np.atleast_2d(
-                                    mtrace.get_values(varname=var,
-                                                burn=n_steps - 1,
-                                                combine=True)).T
+                array_population[:, slc] = np.atleast_2d(slc_population).T
             else:
-                array_population[:, slc] = mtrace.get_values(
-                                                    varname=var,
-                                                    burn=n_steps - 1,
-                                                    combine=True)
+                array_population[:, slc] = slc_population
+
         # get likelihoods
-        likelihoods = mtrace.get_values(varname=self.likelihood_name,
-                                        burn=n_steps - 1,
-                                        combine=True)
+        likelihoods = mtrace.get_values(
+            varname=self.likelihood_name,
+            burn=n_steps - 1,
+            combine=True)
         population = []
 
         # map end array_endpoints to dict points
@@ -462,20 +464,17 @@ class SMC(backend.ArrayStepSharedLLK):
 
         n_steps = len(mtrace)
 
-        for var, vmap in zip(mtrace.varnames, self.lordering.vmap):
+        for var, (_, slc, shp, _) in zip(mtrace.varnames, self.lordering.vmap):
 
-            list_ind, slc, shp, _ = vmap
+            slc_population = mtrace.get_values(
+                varname=var,
+                burn=n_steps - 1,
+                combine=True)
 
             if len(shp) == 0:
-                array_population[:, slc] = np.atleast_2d(
-                    mtrace.get_values(varname=var,
-                                      burn=n_steps - 1,
-                                      combine=True)).T
+                array_population[:, slc] = np.atleast_2d(slc_population).T
             else:
-                array_population[:, slc] = mtrace.get_values(
-                                      varname=var,
-                                      burn=n_steps - 1,
-                                      combine=True)
+                array_population[:, slc] = slc_population
 
         chain_previous_lpoint = []
 
@@ -508,7 +507,7 @@ class SMC(backend.ArrayStepSharedLLK):
             Array of resampled trace indexes
         """
 
-        parents = np.array(range(self.n_chains))
+        parents = np.arange(self.n_chains)
         N_childs = np.zeros(self.n_chains, dtype=int)
 
         cum_dist = np.cumsum(self.weights)

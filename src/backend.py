@@ -19,6 +19,7 @@ shape of (3, 2).
 """
 from glob import glob
 
+import itertools
 import copy
 import os
 import pandas as pd
@@ -111,10 +112,8 @@ class BaseSMCTrace(object):
         self.var_shapes_list = [var.tag.test_value.shape for var in vars]
         self.var_dtypes_list = [var.tag.test_value.dtype for var in vars]
 
-        self.var_shapes = {var: shape
-            for var, shape in zip(self.varnames, self.var_shapes_list)}
-        self.var_dtypes = {var: dtype
-            for var, dtype in zip(self.varnames, self.var_dtypes_list)}
+        self.var_shapes = dict(zip(self.varnames, self.var_shapes_list))
+        self.var_dtypes = dict(zip(self.varnames, self.var_dtypes_list))
 
         self.chain = None
 
@@ -201,7 +200,8 @@ class Text(BaseSMCTrace):
 
             vals[varname] = value.ravel()
 
-        columns = [str(val) for var in self.varnames for val in vals[var]]
+        columns = itertools.chain.from_iterable(
+            map(str, value.ravel()) for value in lpoint)
 
         with open(self.filename, 'a') as fh:
             fh.write(','.join(columns) + '\n')
@@ -310,9 +310,7 @@ def get_highest_sampled_stage(homedir, return_final=False):
             if return_final:
                 return stage_ending
 
-    stagenumbers.sort()
-
-    return stagenumbers[-1]
+    return max(stagenumbers)
 
 
 def check_multitrace(mtrace, draws, n_chains):
