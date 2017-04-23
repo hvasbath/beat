@@ -9,7 +9,7 @@ import shutil
 import unittest
 
 from pyrocko import util
-from pyrocko import plot
+from pyrocko import plot, orthodrome
 
 
 km = 1000.
@@ -20,6 +20,7 @@ class TestUtility(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
 
+        self.reference = None
         self.amplitude = 0.02
         self.azimuth = 115.
         self.locking_depth = [6.3, 5.0]
@@ -39,7 +40,9 @@ class TestUtility(unittest.TestCase):
         reference = ReferenceLocation(
             lon=5., lat=45.)
 
-        return Lon.flatten(), Lat.flatten(), reference
+        self.lons = Lon.flatten()
+        self.lats = Lat.flatten()
+        self.reference = reference
 
     def _get_sources(self, case=1):
         if case == 1:
@@ -48,6 +51,7 @@ class TestUtility(unittest.TestCase):
                     lon=12., lat=45., strike=20., dip=90., length=125. * km),
                 pscmp.PsCmpRectangularSource(
                     lon=11.25, lat=44.35, strike=70., dip=90., length=80. * km)]
+
         elif case == 2:
             sources = [
                 pscmp.PsCmpRectangularSource(
@@ -56,6 +60,19 @@ class TestUtility(unittest.TestCase):
                 pscmp.PsCmpRectangularSource(
                     lon=11.5, lat=45.75, strike=357.04-180, dip=90.,
                     length=80210.56)]
+
+        for source in sources:
+            north_shift, east_shift = orthodrome.latlon_to_ne_numpy(
+                self.reference.lat,
+                self.reference.lon,
+                source.effective_lat,
+                source.effective_lon,
+                )
+            source.update(
+                lat=self.reference.lat, lon=self.reference.lon,
+                north_shift=north_shift, east_shift=east_shift)
+            print source
+
         return sources
 
     def test_backslip_params(self):
@@ -83,33 +100,36 @@ class TestUtility(unittest.TestCase):
 
     def test_block_geometry(self):
 
-        lons, lats, reference = self._get_synthetic_data()
+        if self.reference is None:
+            self._get_synthetic_data()
 
-        return interseismic.block_geometry(lons=lons, lats=lats,
-            sources=self._get_sources(), reference=reference)
+        return interseismic.block_geometry(lons=self.lons, lats=self.lats,
+            sources=self._get_sources(), reference=self.reference)
 
     def test_block_synthetics(self):
 
-        lons, lats, reference = self._get_synthetic_data()
+        if self.reference is None:
+            self._get_synthetic_data()
 
         return interseismic.geo_block_synthetics(
-            lons=lons, lats=lats,
+            lons=self.lons, lats=self.lats,
             sources=self._get_sources(),
             amplitude=self.amplitude,
             azimuth=self.azimuth,
-            reference=reference)
+            reference=self.reference)
 
     def _test_backslip_synthetics(self, case=1):
 
-        lons, lats, reference = self._get_synthetic_data()
+        if self.reference is None:
+            self._get_synthetic_data()
 
         return interseismic.geo_backslip_synthetics(
             store_superdir=self._get_store_superdir(),
             crust_ind=0,
             sources=self._get_sources(case),
-            lons=lons,
-            lats=lats,
-            reference=reference,
+            lons=self.lons,
+            lats=self.lats,
+            reference=self.reference,
             amplitude=self.amplitude,
             azimuth=self.azimuth,
             locking_depth=self.locking_depth)
@@ -125,14 +145,15 @@ class TestUtility(unittest.TestCase):
         fontsize = 12
         sz = 10.
 
-        lons, lats, _ = self._get_synthetic_data()
+        if self.reference is None:
+            self._get_synthetic_data()
 
 #        disp = self.test_block_geometry()
 #        disp = self.test_block_synthetics()
         disp = self._test_backslip_synthetics(2)
 
         for i, comp in enumerate('NEZ'):
-            im = ax[i].scatter(lons, lats, sz, disp[:, i], cmap=cmap)
+            im = ax[i].scatter(self.lons, self.lats, sz, disp[:, i], cmap=cmap)
             cblabel = '%s displacement [m]' % comp
             cbs = plt.colorbar(im, ax=ax[i],
                 orientation='horizontal',

@@ -10,7 +10,9 @@ import logging
 import copy
 
 from pyrocko import orthodrome
+from pyrocko.gf import RectangularSource as RS
 
+from matplotlib.path import Path
 
 logger = logging.getLogger('interseismic')
 
@@ -21,7 +23,7 @@ r2d = 180. / num.pi
 non_source = set(['amplitude', 'azimuth', 'locking_depth'])
 
 
-def block_mask(easts, norths, strike, east_ref, north_ref):
+def block_mask(easts, norths, sources, east_ref, north_ref):
     """
     Determine stable and moving observation points dependend on the input
     fault orientation.
@@ -32,8 +34,8 @@ def block_mask(easts, norths, strike, east_ref, north_ref):
         east - local coordinates [m] of observations
     norths : :class:`numpy.array`
         north - local coordinates [m] of observations
-    strike : float
-        fault strike [deg]
+    sources : list
+        of :class:`RectangularSource`
     east_ref : float
         east local coordinate [m] of stable reference
     north_ref : float
@@ -44,26 +46,52 @@ def block_mask(easts, norths, strike, east_ref, north_ref):
     :class:`numpy.array` with zeros at stable points, ones at moving points
     """
 
-    sv = utility.strike_vector(-strike)[0:2]
-    nes = num.vstack([norths.flatten(), easts.flatten()]).T
-    ref_ne = num.array([north_ref, east_ref]).flatten()
-    reference = num.dot(ref_ne, sv)
-    mask = num.dot(nes, sv)
+    def get_vertex(outlines, i, j):
+        f1 = outlines[i]
+        f2 = outlines[j]
+        print f1, f2
+        return utility.line_intersect(f1[0, :], f1[1, :], f2[:, 0], f2[:, 1])
 
-    if reference < 0:
-        mask[mask < 0.] = 0.
-        mask[mask > 0.] = 1.
-    elif reference > 0:
-        mask[mask > 0.] = 0.
-        mask[mask < 0.] = 1.
+    tol = 2. * km
+
+    Eline = RS(
+        east_shift=easts.max() + tol, north_shift=0.,
+        strike=0., dip=90., length=1 * km)
+    Nline = RS(
+        east_shift=0., north_shift=norths.max() + tol,
+        strike=90, dip=90., length=1 * km)
+    Sline = RS(
+        east_shift=0., north_shift=norths.min() - tol,
+        strike=90, dip=90., length=1 * km)
+
+    frame = [Nline, Eline, Sline]
+
+    # collect frame lines
+    outlines = []
+    for source in sources + frame:
+        outline = source.outline(cs='xy')
+        outlines.append(utility.swap_columns(outline, 0, 1)[0:2, :])
+
+    # get polygon vertices
+    poly_vertices = []
+    for i in range(len(outlines) - 1):
+        poly_vertices.append(get_vertex(outlines, i, i + 1))
     else:
-        logger.warn(
-            'The stable reference location lies on the prolongation of a fault'
-            'ambiguous stability! Assuming stable! Re-check necessary!')
-        mask[mask < 0.] = 0.
-        mask[mask > 0.] = 1.
+        poly_vertices.append(get_vertex(outlines, 0, -1))
 
-    return mask
+    print poly_vertices, outlines
+    polygon = Path(num.vstack(poly_vertices), closed=True)
+
+    ens = num.vstack([easts.flatten(), norths.flatten()]).T
+    ref_en = num.array([east_ref, north_ref]).flatten()
+    print ens
+    mask = polygon.contains_points(ens)
+
+    if not polygon.contains_point(ref_en):
+        return mask
+
+    else:
+        return num.logical_not(mask)
 
 
 def block_geometry(lons, lats, sources, reference):
@@ -88,20 +116,10 @@ def block_geometry(lons, lats, sources, reference):
         mask with zeros/ones for stable/moving observation points, respectively
     """
 
-    bmask = num.ones_like(lons)
-    for source in sources:
-        norths, easts = orthodrome.latlon_to_ne_numpy(
-            source.effective_lat, source.effective_lon, lats, lons)
-        north_ref, east_ref = orthodrome.latlon_to_ne_numpy(
-            source.effective_lat,
-            source.effective_lon,
-            reference.lat,
-            reference.lon)
-        bmask *= block_mask(easts, norths, source.strike, east_ref, north_ref)
+    norths, easts = orthodrome.latlon_to_ne_numpy(
+        reference.lat, reference.lon, lats, lons)
 
-    # reset points that are moving to one
-    bmask[bmask > 0] = 1
-    return bmask
+    return block_mask(easts, norths, sources, east_ref=0., north_ref=0.)
 
 
 def block_movement(bmask, amplitude, azimuth):

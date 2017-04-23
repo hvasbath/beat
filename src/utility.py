@@ -1083,11 +1083,13 @@ def PsGrnArray2LayeredModel(psgrn_input_path):
                 b, precision=4,
                     formatter={'float_kind': lambda x: "%.3f" % x}))))
 
+
 def list_to_str(l):
     """
     Transform entries of a list or 1-d array to one single string.
     """
     return ''.join('%f ' % entry for entry in l)
+
 
 def swap_columns(array, index1, index2):
     """
@@ -1096,6 +1098,41 @@ def swap_columns(array, index1, index2):
     array[:, index1], array[:, index2] = \
         array[:, index2], array[:, index1].copy()
     return array
+
+
+def line_intersect(e1, e2, n1, n2):
+    """
+    Get intersection point of n-lines.
+
+    Parameters
+    ----------
+    end points of each line in (n x 2) arrays
+    e1 : :class:`numpy.array` (n x 2)
+        east coordinates of first line
+    e2 : :class:`numpy.array` (n x 2)
+        east coordinates of second line
+    n1 : :class:`numpy.array` (n x 2)
+        north coordinates of first line
+    n2 : :class:`numpy.array` (n x 2)
+        east coordinates of second line
+
+    Returns
+    -------
+    :class:`numpy.array` (n x 2) of intersection points (easts, norths)
+    """
+    perp = num.array([[0, -1], [1, 0]])
+    de = num.atleast_2d(e2 - e1)
+    dn = num.atleast_2d(n2 - n1)
+    dp = num.atleast_2d(e1 - n1)
+    dep = num.dot(de, perp)
+    denom = num.sum(dep * dn, axis=1)
+
+    if denom == 0:
+        logger.warn('Lines are parallel! No intersection point!')
+        return None
+
+    tmp = num.sum(dep * dp, axis=1)
+    return num.atleast_2d(tmp / denom).T * dn + n1
 
 
 def get_rotation_matrix(axis):
