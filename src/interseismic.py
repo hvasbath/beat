@@ -50,7 +50,7 @@ def block_mask(easts, norths, sources, east_ref, north_ref):
         f1 = outlines[i]
         f2 = outlines[j]
         print f1, f2
-        return utility.line_intersect(f1[0, :], f1[1, :], f2[:, 0], f2[:, 1])
+        return utility.line_intersect(f1[0, :], f1[1, :], f2[0, :], f2[1, :])
 
     tol = 2. * km
 
