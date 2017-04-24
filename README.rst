@@ -31,4 +31,6 @@ containing a list of 2 lists:
 We invite the users to propose data formats or outputs of specific programs that they would 
 like to see implemented. 
 
+Contributions
+=============
 This is an open source project and contributions to the repository are welcome!
