@@ -459,6 +459,23 @@ class TeleseismicTarget(gf.Target):
     def samples(self):
         return self.covariance.data.shape[0]
 
+    def update_target_times(self, source, taperer):
+        """
+        Update the target attributes tmin and tmax to do the stacking
+        only in this interval. Adds twice taper fade in time to each taper side.
+
+        Parameters
+        ----------
+        source : list
+            containing :class:`pyrocko.gf.seismosizer.Target` Objects
+        taperers : list
+            of :class:`pyrocko.trace.CosTaper`
+        """
+
+        tolerance = 2 * (taperer.b - taperer.a)
+        self.tmin = taperer.a - tolerance - source.time
+        self.tmax = taperer.d + tolerance - source.time
+
 
 class ArrivalTaper(trace.Taper):
     """
@@ -1931,37 +1948,9 @@ def get_phase_taperer(engine, source, target, arrival_taper):
     return taperer
 
 
-def update_targets_times(targets, source, taperers):
-    """
-    Update the target attributes tmin and tmax to do the stacking
-    only in this interval. Adds twice taper fade in time to each taper side.
-
-    Parameters
-    ----------
-    targets : list
-        containing :class:`pyrocko.gf.seismosizer.Target` Objects
-    taperers : list
-        of :class:`pyrocko.trace.CosTaper`
-
-    Returns
-    -------
-    list containing :class:`pyrocko.gf.seismosizer.Target` Objects
-    """
-
-    utargets = []
-    for t, taper in zip(targets, taperers):
-        tolerance = 2 * (taper.b - taper.a)
-        ct = copy.deepcopy(t)
-        ct.tmin = taper.a - tolerance - source.time
-        ct.tmax = taper.d + tolerance - source.time
-        utargets.append(ct)
-
-    return utargets
-
-
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     filterer=None, reference_taperer=None, plot=False,
-                    nprocs=1, outmode='array', pre_sum_cut=True):
+                    nprocs=1, outmode='array', pre_stack_cut=False):
     """
     Calculate synthetic seismograms of combination of targets and sources,
     filtering and tapering afterwards (filterer)
@@ -1987,7 +1976,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     outmode : string
         output format of synthetics can be 'array', 'stacked_traces',
         'full' returns traces unstacked including post-processing
-    pre_sum_cut : boolean
+    pre_stack_cut : boolean
         flag to decide wheather prior to stacking the GreensFunction traces
         should be cutted according to the phase arival time and the defined
         taper
@@ -2010,9 +1999,10 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
             else:
                 taperers.append(reference_taperer)
 
-    if pre_sum_cut and arrival_taper is not None:
-        targets = update_targets_times(
-            targets, sources[0], taperers)
+    if pre_stack_cut and arrival_taper is not None:
+        for t, taperer in zip(targets, taperers):
+            t.update_target_times(sources[0], taperer)
+
         if outmode == 'data':
             logger.warn('data traces will be very short! pre_sum_flag set!')
 

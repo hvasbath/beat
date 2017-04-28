@@ -256,7 +256,8 @@ def get_seis_cov_velocity_models(engine, sources, targets,
         engine, sources, targets,
         arrival_taper,
         filterer, nprocs=n_jobs,
-        reference_taperer=reference_taperer, plot=plot)
+        reference_taperer=reference_taperer, plot=plot,
+        pre_stack_cut=True)
 
     return num.cov(synths, rowvar=0)
 
