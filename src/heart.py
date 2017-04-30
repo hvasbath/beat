@@ -7,6 +7,7 @@ import os
 import logging
 import shutil
 import copy
+from time import time
 
 from beat import psgrn, pscmp, utility, qseis2d
 
@@ -2007,13 +2008,17 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         if outmode == 'data':
             logger.warn('data traces will be very short! pre_sum_flag set!')
 
+    t_2 = time()
     response = engine.process(
         sources=sources,
         targets=targets, nprocs=nprocs)
+    t_1 = time()
+    logger.debug('Synthetics generation time: %f' % (t_1 - t_2))
 
     nt = len(targets)
     ns = len(sources)
     
+    t0 = time()
     synt_trcs = []
     taper_index = [j for _ in range(ns) for j in range(nt)]
 
@@ -2028,26 +2033,37 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     corner_lp=filterer.upper_corner,
                     order=filterer.order)
 
-        tr.chop(tmin=taperers[ti].a, tmax=taperers[ti].d)
+        if arrival_taper is not None:
+            tr.chop(tmin=taperers[ti].a, tmax=taperers[ti].d)
 
         synt_trcs.append(tr)
 
+    t1 = time()
+    logger.debug('Post-process time %f' % (t1 - t0))
     if plot:
         trace.snuffle(synt_trcs)
 
+    t2 = time()
     tmins = num.vstack([synt_trcs[i].tmin for i in range(nt)]).flatten()
+    t3 = time()
+    logger.debug('Assemble tmins time %f' % (t3 - t2))
 
     if arrival_taper is not None:
+        t4 = time()
         synths = num.vstack(
             [synt_trcs[i].ydata for i in range(len(synt_trcs))])
-
+        t5 = time()
+        logger.debug('Assemble traces time %f' % (t5 - t4))
         # stack traces for all sources
+        t6 = time()
         if ns > 1:
+            outstack = num.zeros([nt, synths.shape[1]])
             for k in range(ns):
-                outstack = num.zeros([nt, synths.shape[1]])
                 outstack += synths[(k * nt):(k + 1) * nt, :]
         else:
             outstack = synths
+        t7 = time()
+        logger.debug('Stack traces time %f' % (t7 - t6))
 
     if outmode == 'stacked_traces':
         if arrival_taper is not None:
@@ -2058,7 +2074,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
             return outtraces, tmins
         else:
-            raise Exception(
+            raise TypeError(
                 'arrival taper has to be defined for %s type!' % outmode)
 
     elif outmode == 'data':
@@ -2068,7 +2084,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         return outstack, tmins
 
     else:
-        raise Exception('Outmode %s not supported!' % outmode)
+        raise TypeError('Outmode %s not supported!' % outmode)
 
 
 def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,

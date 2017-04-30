@@ -965,7 +965,10 @@ class SeismicGeometryComposite(SeismicComposite):
                 index = j * len(self.stations) + i
 
                 self.targets[index].covariance.pred_v = cov_pv
+                t0 = time.time()
                 icov = self.targets[index].covariance.inverse
+                t1 = time.time()
+                logger.debug('Calculate inverse time %f' % (t1 - t0))
                 self.weights[index].set_value(icov)
 
 
