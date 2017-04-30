@@ -346,11 +346,12 @@ class SeisSynthesizer(theano.Op):
             source.time += self.event.time
 
         synths[0], tmins[0] = heart.seis_synthetics(
-            self.engine, self.sources,
-            self.targets,
-            self.arrival_taper,
-            self.filterer,
-            self.pre_stack_cut)
+            engine=self.engine,
+            sources=self.sources,
+            targets=self.targets,
+            arrival_taper=self.arrival_taper,
+            filterer=self.filterer,
+            pre_stack_cut=self.pre_stack_cut)
 
     def infer_shape(self, node, input_shapes):
         nrow = len(self.targets)

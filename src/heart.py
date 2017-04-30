@@ -459,7 +459,7 @@ class TeleseismicTarget(gf.Target):
     def samples(self):
         return self.covariance.data.shape[0]
 
-    def update_target_times(self, source, taperer):
+    def update_target_times(self, source=None, taperer=None):
         """
         Update the target attributes tmin and tmax to do the stacking
         only in this interval. Adds twice taper fade in time to each taper
@@ -471,10 +471,13 @@ class TeleseismicTarget(gf.Target):
             containing :class:`pyrocko.gf.seismosizer.Target` Objects
         taperer : :class:`pyrocko.trace.CosTaper`
         """
-
-        tolerance = 2 * (taperer.b - taperer.a)
-        self.tmin = taperer.a - tolerance - source.time
-        self.tmax = taperer.d + tolerance - source.time
+        if source is None or taperer is None:
+            self.tmin = None
+            self.tmax = None
+        else:
+            tolerance = 4 * (taperer.b - taperer.a)
+            self.tmin = taperer.a - tolerance - source.time
+            self.tmax = taperer.d + tolerance - source.time
 
 
 class ArrivalTaper(trace.Taper):
@@ -1940,13 +1943,11 @@ def get_phase_taperer(engine, source, target, arrival_taper):
     """
 
     arrival_time = get_phase_arrival_time(engine, source, target)
-
-    taperer = trace.CosTaper(float(arrival_time + arrival_taper.a),
-                             float(arrival_time + arrival_taper.b),
-                             float(arrival_time + arrival_taper.c),
-                             float(arrival_time + arrival_taper.d))
-    return taperer
-
+    return trace.CosTaper(float(arrival_time + arrival_taper.a),
+                          float(arrival_time + arrival_taper.b),
+                          float(arrival_time + arrival_taper.c),
+                          float(arrival_time + arrival_taper.d))
+    
 
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     filterer=None, reference_taperer=None, plot=False,
@@ -1986,16 +1987,16 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     :class:`numpy.ndarray` or List of :class:`pyrocko.trace.Trace`
          with data each row-one target
     """
-
     taperers = []
     for target in targets:
         if arrival_taper is not None:
             if reference_taperer is None:
-                taperers.append(get_phase_taperer(
+                tap = get_phase_taperer(
                     engine=engine,
                     source=sources[0],
                     target=target,
-                    arrival_taper=arrival_taper))
+                    arrival_taper=arrival_taper)
+		taperers.append(tap)
             else:
                 taperers.append(reference_taperer)
 
@@ -2010,12 +2011,14 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         sources=sources,
         targets=targets, nprocs=nprocs)
 
+    nt = len(targets)
+    ns = len(sources)
+    
     synt_trcs = []
-    taper_index = [j for _ in range(len(sources)) for j in range(len(targets))]
+    taper_index = [j for _ in range(ns) for j in range(nt)]
 
     for i, (source, target, tr) in enumerate(response.iter_results()):
         ti = taper_index[i]
-
         if arrival_taper is not None:
             tr.taper(taperers[ti], inplace=True)
 
@@ -2031,9 +2034,6 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
     if plot:
         trace.snuffle(synt_trcs)
-
-    nt = len(targets)
-    ns = len(sources)
 
     tmins = num.vstack([synt_trcs[i].tmin for i in range(nt)]).flatten()
 
