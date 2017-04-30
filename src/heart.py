@@ -462,14 +462,14 @@ class TeleseismicTarget(gf.Target):
     def update_target_times(self, source, taperer):
         """
         Update the target attributes tmin and tmax to do the stacking
-        only in this interval. Adds twice taper fade in time to each taper side.
+        only in this interval. Adds twice taper fade in time to each taper
+        side.
 
         Parameters
         ----------
         source : list
             containing :class:`pyrocko.gf.seismosizer.Target` Objects
-        taperers : list
-            of :class:`pyrocko.trace.CosTaper`
+        taperer : :class:`pyrocko.trace.CosTaper`
         """
 
         tolerance = 2 * (taperer.b - taperer.a)
@@ -2006,13 +2006,18 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         if outmode == 'data':
             logger.warn('data traces will be very short! pre_sum_flag set!')
 
-    response = engine.process(sources=sources,
-                              targets=targets, nprocs=nprocs)
+    response = engine.process(
+        sources=sources,
+        targets=targets, nprocs=nprocs)
 
     synt_trcs = []
+    taper_index = [j for _ in range(len(sources)) for j in range(len(targets))]
+
     for i, (source, target, tr) in enumerate(response.iter_results()):
+        ti = taper_index[i]
+
         if arrival_taper is not None:
-            tr.taper(taperers[i], inplace=True)
+            tr.taper(taperers[ti], inplace=True)
 
         if filterer is not None:
             # filter traces
@@ -2020,7 +2025,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     corner_lp=filterer.upper_corner,
                     order=filterer.order)
 
-        tr.chop(tmin=taperers[i].a, tmax=taperers[i].d)
+        tr.chop(tmin=taperers[ti].a, tmax=taperers[ti].d)
 
         synt_trcs.append(tr)
 

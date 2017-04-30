@@ -794,7 +794,8 @@ class SeismicGeometryComposite(SeismicComposite):
             targets=self.targets,
             event=self.event,
             arrival_taper=sc.arrival_taper,
-            filterer=sc.filterer)
+            filterer=sc.filterer,
+            pre_stack_cut=sc.pre_stack_cut)
 
         self.chop_traces = theanof.SeisDataChopper(
             sample_rate=sc.gf_config.sample_rate,
@@ -917,7 +918,9 @@ class SeismicGeometryComposite(SeismicComposite):
             sources=self.sources,
             targets=self.targets,
             arrival_taper=sc.arrival_taper,
-            filterer=sc.filterer, **kwargs)
+            filterer=sc.filterer,
+            pre_stack_cut=sc.pre_stack_cut,
+            **kwargs)
 
         return synths
 
