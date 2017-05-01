@@ -274,16 +274,17 @@ class SeisSynthesizer(theano.Op):
     """
 
     __props__ = ('engine', 'sources', 'targets', 'event',
-                 'arrival_taper', 'filterer')
+                 'arrival_taper', 'filterer', 'pre_stack_cut')
 
     def __init__(self, engine, sources, targets, event, arrival_taper,
-                 filterer):
+                 filterer, pre_stack_cut):
         self.engine = engine
         self.sources = tuple(sources)
         self.targets = tuple(targets)
         self.event = event
         self.arrival_taper = arrival_taper
         self.filterer = filterer
+        self.pre_stack_cut = pre_stack_cut
 
     def __getstate__(self):
         self.engine.close_cashed_stores()
@@ -345,10 +346,12 @@ class SeisSynthesizer(theano.Op):
             source.time += self.event.time
 
         synths[0], tmins[0] = heart.seis_synthetics(
-                self.engine, self.sources,
-                self.targets,
-                self.arrival_taper,
-                self.filterer)
+            engine=self.engine,
+            sources=self.sources,
+            targets=self.targets,
+            arrival_taper=self.arrival_taper,
+            filterer=self.filterer,
+            pre_stack_cut=self.pre_stack_cut)
 
     def infer_shape(self, node, input_shapes):
         nrow = len(self.targets)

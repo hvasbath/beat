@@ -273,6 +273,10 @@ class SeismicConfig(Object):
     arrival_taper = trace.Taper.T(
                 default=ArrivalTaper.D(),
                 help='Taper a,b/c,d time [s] before/after wave arrival')
+    pre_stack_cut = Bool.T(
+        default=True,
+        help='Cut the GF traces before stacking around the specified arrival'
+             ' taper')
     filterer = Filter.T(default=Filter.D())
     targets = List.T(TeleseismicTarget.T(), optional=True)
     gf_config = GFConfig.T(default=SeismicGFConfig.D())

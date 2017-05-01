@@ -7,6 +7,7 @@ import os
 import logging
 import shutil
 import copy
+from time import time
 
 from beat import psgrn, pscmp, utility, qseis2d
 
@@ -458,6 +459,26 @@ class TeleseismicTarget(gf.Target):
     @property
     def samples(self):
         return self.covariance.data.shape[0]
+
+    def update_target_times(self, source=None, taperer=None):
+        """
+        Update the target attributes tmin and tmax to do the stacking
+        only in this interval. Adds twice taper fade in time to each taper
+        side.
+
+        Parameters
+        ----------
+        source : list
+            containing :class:`pyrocko.gf.seismosizer.Target` Objects
+        taperer : :class:`pyrocko.trace.CosTaper`
+        """
+        if source is None or taperer is None:
+            self.tmin = None
+            self.tmax = None
+        else:
+            tolerance = 4 * (taperer.b - taperer.a)
+            self.tmin = taperer.a - tolerance - source.time
+            self.tmax = taperer.d + tolerance - source.time
 
 
 class ArrivalTaper(trace.Taper):
@@ -1923,17 +1944,15 @@ def get_phase_taperer(engine, source, target, arrival_taper):
     """
 
     arrival_time = get_phase_arrival_time(engine, source, target)
-
-    taperer = trace.CosTaper(float(arrival_time + arrival_taper.a),
-                             float(arrival_time + arrival_taper.b),
-                             float(arrival_time + arrival_taper.c),
-                             float(arrival_time + arrival_taper.d))
-    return taperer
-
+    return trace.CosTaper(float(arrival_time + arrival_taper.a),
+                          float(arrival_time + arrival_taper.b),
+                          float(arrival_time + arrival_taper.c),
+                          float(arrival_time + arrival_taper.d))
+    
 
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     filterer=None, reference_taperer=None, plot=False,
-                    nprocs=1, outmode='array', inplace=True, chop=True):
+                    nprocs=1, outmode='array', pre_stack_cut=False):
     """
     Calculate synthetic seismograms of combination of targets and sources,
     filtering and tapering afterwards (filterer)
@@ -1943,9 +1962,10 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     Parameters
     ----------
     engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
-    sources : List
+    sources : list
         containing :class:`pyrocko.gf.seismosizer.Source` Objects
-    targets : List
+        reference source is the first in the list!!!
+    targets : list
         containing :class:`pyrocko.gf.seismosizer.Target` Objects
     arrival_taper : :class:`ArrivalTaper`
     filterer : :class:`Filterer`
@@ -1958,30 +1978,57 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     outmode : string
         output format of synthetics can be 'array', 'stacked_traces',
         'full' returns traces unstacked including post-processing
+    pre_stack_cut : boolean
+        flag to decide wheather prior to stacking the GreensFunction traces
+        should be cutted according to the phase arival time and the defined
+        taper
 
     Returns
     -------
     :class:`numpy.ndarray` or List of :class:`pyrocko.trace.Trace`
          with data each row-one target
     """
-
-    response = engine.process(sources=sources,
-                              targets=targets, nprocs=nprocs)
-
-    synt_trcs = []
-    for source, target, tr in response.iter_results():
+    taperers = []
+    tapp = taperers.append
+    for target in targets:
         if arrival_taper is not None:
             if reference_taperer is None:
-                taperer = get_phase_taperer(
-                    engine,
-                    sources[0],
-                    target,
-                    arrival_taper)
+                tapp(get_phase_taperer(
+                    engine=engine,
+                    source=sources[0],
+                    target=target,
+                    arrival_taper=arrival_taper))
             else:
-                taperer = reference_taperer
+                tapp(reference_taperer)
 
-            # cut traces
-            tr.taper(taperer, inplace=inplace, chop=chop)
+    if pre_stack_cut and arrival_taper is not None:
+        for t, taperer in zip(targets, taperers):
+            t.update_target_times(sources[0], taperer)
+
+        if outmode == 'data':
+            logger.warn('data traces will be very short! pre_sum_flag set!')
+
+    t_2 = time()
+    response = engine.process(
+        sources=sources,
+        targets=targets, nprocs=nprocs)
+    t_1 = time()
+
+    logger.debug('Synthetics generation time: %f' % (t_1 - t_2))
+    logger.debug('Details: %s \n' % response.stats)
+
+    nt = len(targets)
+    ns = len(sources)
+    
+    t0 = time()
+    synt_trcs = []
+    sapp = synt_trcs.append
+    taper_index = [j for _ in range(ns) for j in range(nt)]
+
+    for i, (source, target, tr) in enumerate(response.iter_results()):
+        ti = taper_index[i]
+        if arrival_taper is not None:
+            tr.taper(taperers[ti], inplace=True)
 
         if filterer is not None:
             # filter traces
@@ -1989,38 +2036,49 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     corner_lp=filterer.upper_corner,
                     order=filterer.order)
 
-        synt_trcs.append(tr)
+        if arrival_taper is not None:
+            tr.chop(tmin=taperers[ti].a, tmax=taperers[ti].d)
 
+        sapp(tr)
+
+    t1 = time()
+    logger.debug('Post-process time %f' % (t1 - t0))
     if plot:
         trace.snuffle(synt_trcs)
 
-    nt = len(targets)
-    ns = len(sources)
-
-    tmins = num.vstack([synt_trcs[i].tmin for i in range(nt)]).flatten()
+    t2 = time()
+    tmins = num.vstack([tr.tmin for tr in synt_trcs]).flatten()
+    t3 = time()
+    logger.debug('Assemble tmins time %f' % (t3 - t2))
 
     if arrival_taper is not None:
-        synths = num.vstack(
-            [synt_trcs[i].ydata for i in range(len(synt_trcs))])
+        t4 = time()
+        synths = num.vstack([tr.ydata for tr in synt_trcs])
+        t5 = time()
+        logger.debug('Assemble traces time %f' % (t5 - t4))
 
         # stack traces for all sources
+        t6 = time()
         if ns > 1:
+            outstack = num.zeros([nt, synths.shape[1]])
             for k in range(ns):
-                outstack = num.zeros([nt, synths.shape[1]])
                 outstack += synths[(k * nt):(k + 1) * nt, :]
         else:
             outstack = synths
+        t7 = time()
+        logger.debug('Stack traces time %f' % (t7 - t6))
 
     if outmode == 'stacked_traces':
         if arrival_taper is not None:
             outtraces = []
+            oapp = outtraces.append
             for i in range(nt):
                 synt_trcs[i].ydata = outstack[i, :]
-                outtraces.append(synt_trcs[i])
+                oapp(synt_trcs[i])
 
             return outtraces, tmins
         else:
-            raise Exception(
+            raise TypeError(
                 'arrival taper has to be defined for %s type!' % outmode)
 
     elif outmode == 'data':
@@ -2030,7 +2088,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         return outstack, tmins
 
     else:
-        raise Exception('Outmode %s not supported!' % outmode)
+        raise TypeError('Outmode %s not supported!' % outmode)
 
 
 def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,

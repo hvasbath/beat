@@ -794,7 +794,8 @@ class SeismicGeometryComposite(SeismicComposite):
             targets=self.targets,
             event=self.event,
             arrival_taper=sc.arrival_taper,
-            filterer=sc.filterer)
+            filterer=sc.filterer,
+            pre_stack_cut=sc.pre_stack_cut)
 
         self.chop_traces = theanof.SeisDataChopper(
             sample_rate=sc.gf_config.sample_rate,
@@ -917,7 +918,9 @@ class SeismicGeometryComposite(SeismicComposite):
             sources=self.sources,
             targets=self.targets,
             arrival_taper=sc.arrival_taper,
-            filterer=sc.filterer, **kwargs)
+            filterer=sc.filterer,
+            pre_stack_cut=sc.pre_stack_cut,
+            **kwargs)
 
         return synths
 
@@ -962,7 +965,10 @@ class SeismicGeometryComposite(SeismicComposite):
                 index = j * len(self.stations) + i
 
                 self.targets[index].covariance.pred_v = cov_pv
+                t0 = time.time()
                 icov = self.targets[index].covariance.inverse
+                t1 = time.time()
+                logger.debug('Calculate inverse time %f' % (t1 - t0))
                 self.weights[index].set_value(icov)
 
 

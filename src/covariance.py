@@ -1,5 +1,6 @@
 from pyrocko import gf, trace
 import numpy as num
+from time import time
 
 import logging
 import copy
@@ -252,11 +253,15 @@ def get_seis_cov_velocity_models(engine, sources, targets,
         ref_target,
         arrival_taper)
 
+    t0 = time()
     synths, _ = heart.seis_synthetics(
         engine, sources, targets,
         arrival_taper,
         filterer, nprocs=n_jobs,
-        reference_taperer=reference_taperer, plot=plot)
+        reference_taperer=reference_taperer, plot=plot,
+        pre_stack_cut=True)
+    t1 = time()
+    logger.debug('Trace generation time %f' % (t1 - t0))
 
     return num.cov(synths, rowvar=0)
 
