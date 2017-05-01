@@ -153,29 +153,39 @@ class NonlinearGFConfig(GFConfig):
     Config for non-linear GreensFunction calculation parameters.
     """
 
-    earth_model_name = String.T(default='ak135-f-average.m',
-                           help='Name of the reference earthmodel, see '
-                                'pyrocko.cake.builtin_models() for '
-                                'alternatives.')
+    earth_model_name = String.T(
+        default='ak135-f-average.m',
+        help='Name of the reference earthmodel, see '
+             'pyrocko.cake.builtin_models() for alternatives.')
     use_crust2 = Bool.T(
         default=True,
         help='Flag, for replacing the crust from the earthmodel'
              'with crust from the crust2 model.')
-    replace_water = Bool.T(default=True,
-                        help='Flag, for replacing water layers in the crust2'
-                             'model.')
+    replace_water = Bool.T(
+        default=True,
+        help='Flag, for replacing water layers in the crust2 model.')
     custom_velocity_model = Earthmodel1D.T(
         default=None,
         optional=True,
         help='Custom Earthmodel, in case crust2 and standard model not'
              ' wanted. Needs to be a :py::class:cake.LayeredModel')
-
-    source_depth_min = Float.T(default=0.,
-                               help='Minimum depth [km] for GF function grid.')
-    source_depth_max = Float.T(default=10.,
-                               help='Maximum depth [km] for GF function grid.')
-    source_depth_spacing = Float.T(default=1.,
-                               help='Depth spacing [km] for GF function grid.')
+    source_depth_min = Float.T(
+        default=0.,
+        help='Minimum depth [km] for GF function grid.')
+    source_depth_max = Float.T(
+        default=10.,
+        help='Maximum depth [km] for GF function grid.')
+    source_depth_spacing = Float.T(
+        default=1.,
+        help='Depth spacing [km] for GF function grid.')
+    source_distance_radius = Float.T(
+        default=20.,
+        help='Radius of distance grid [km] for GF function grid around '
+             'reference event.')
+    source_distance_spacing = Float.T(
+        default=1.,
+        help='Distance spacing [km] for GF function grid w.r.t'
+             ' reference_location.')
     nworkers = Int.T(
         default=1,
         help='Number of processors to use for calculating the GFs')
@@ -190,44 +200,41 @@ class SeismicGFConfig(NonlinearGFConfig):
         help="Reference location for the midpoint of the Green's Function "
              "grid.",
         optional=True)
-    code = String.T(default='qssp',
-                  help='Modeling code to use. (qssp, qseis, comming soon: '
-                       'qseis2d)')
-    sample_rate = Float.T(default=2.,
-                          help='Sample rate for the Greens Functions.')
-    rm_gfs = Bool.T(default=True,
-                    help='Flag for removing modeling module GF files after'
-                         ' completion.')
-    source_distance_radius = Float.T(
-        default=20.,
-        help='Radius of distance grid [km] for GF function grid around '
-             'reference event.')
-    source_distance_spacing = Float.T(
-        default=1.,
-        help='Distance spacing [km] for GF function grid w.r.t'
-             ' reference_location.')
+    code = String.T(
+        default='qssp',
+        help='Modeling code to use. (qssp, qseis, comming soon: '
+             'qseis2d)')
+    sample_rate = Float.T(
+        default=2.,
+        help='Sample rate for the Greens Functions.')
+    rm_gfs = Bool.T(
+        default=True,
+        help='Flag for removing modeling module GF files after'
+             ' completion.')
 
 
 class GeodeticGFConfig(NonlinearGFConfig):
     """
     Geodetic GF parameters for Layered Halfspace.
     """
-    code = String.T(default='psgrn',
-                    help='Modeling code to use. (psgrn, ... others need to be'
-                         'implemented!)')
+    code = String.T(
+        default='psgrn',
+        help='Modeling code to use. (psgrn, ... others need to be'
+             'implemented!)')
+    sample_rate = Float.T(
+        default=1. / (3600. * 24.),
+        help='Sample rate for the Greens Functions. Mainly relevant for'
+             ' viscoelastic modeling. Default: coseismic-one day')
     sampling_interval = Float.T(\
         default=1.0,
         help='Distance dependend sampling spacing coefficient.'
              '1. - equidistant')
-    source_distance_min = Float.T(
-        default=0.,
-        help='Minimum distance [km] for GF function grid.')
-    source_distance_max = Float.T(
-        default=100.,
-        help='Maximum distance [km] for GF function grid.')
-    source_distance_spacing = Float.T(
+    medium_depth_spacing = Float.T(
         default=1.,
-        help='Distance spacing [km] for GF function grid.')
+        help='Depth spacing [km] for GF medium grid.')
+    medium_distance_spacing = Float.T(
+        default=1.,
+        help='Distance spacing [km] for GF medium grid.')
 
 
 class LinearGFConfig(GFConfig):
@@ -261,9 +268,10 @@ class SeismicConfig(Object):
     """
 
     datadir = String.T(default='./')
-    blacklist = List.T(String.T(),
-                       default=['placeholder'],
-                       help='Station name for station to be thrown out.')
+    blacklist = List.T(
+        String.T(),
+        default=['placeholder'],
+        help='Station name for station to be thrown out.')
     distances = Tuple.T(2, Float.T(), default=(30., 90.))
     channels = List.T(String.T(), default=['Z', 'T'])
     calc_data_cov = Bool.T(
@@ -271,8 +279,8 @@ class SeismicConfig(Object):
         help='Flag for calculating the data covariance matrix based on the'
              ' pre P arrival data trace noise.')
     arrival_taper = trace.Taper.T(
-                default=ArrivalTaper.D(),
-                help='Taper a,b/c,d time [s] before/after wave arrival')
+        default=ArrivalTaper.D(),
+        help='Taper a,b/c,d time [s] before/after wave arrival')
     pre_stack_cut = Bool.T(
         default=True,
         help='Cut the GF traces before stacking around the specified arrival'
@@ -405,7 +413,7 @@ class ProblemConfig(Object):
         """
         if self.hyperparameters is not None:
             for hp in self.hyperparameters.itervalues():
-                hp()
+                hp.validate_bounds()
 
             logger.info('All hyper-parameters ok!')
 

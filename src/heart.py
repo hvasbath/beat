@@ -20,6 +20,7 @@ from pyrocko.guts_array import Array
 from pyrocko import crust2x2, gf, cake, orthodrome, trace, util
 from pyrocko.cake import GradientLayer
 from pyrocko.fomosto import qseis, qssp
+
 from pyrocko.model import Station
 
 from pyrocko.gf.seismosizer import outline_rect_source, Cloneable
@@ -1283,11 +1284,29 @@ def get_slowness_taper(fomosto_config, velocity_model, distances):
 
 
 def get_fomosto_baseconfig(
-    seismic_gfconfig, event, station, channels, crust_ind):
+    gfconfig, event, station, channels, crust_ind):
     """
     Initialise fomosto config.
+
+    Parameters
+    ----------
+    gfconfig : :class:`config.NonlinearGFConfig`
+    event : :class:`pyrocko.model.Event`
+        The event is used as a reference point for all the calculations
+        According to the its location the earth model is being built
+    station : :class:`pyrocko.model.Station` or
+        :class:`heart.ReferenceLocation`
+    crust_ind : int
+        Index to set to the Greens Function store
+    channels : List of str
+        Components of the traces to be optimized for if rotated:
+            T - transversal, Z - vertical, R - radial
+        If not rotated:
+            E - East, N- North, U - Up (Vertical)
+        if empty:
+            no tabulated phases set
     """
-    sf = seismic_gfconfig
+    sf = gfconfig
 
     # define phases
     tabulated_phases = []
@@ -1305,7 +1324,9 @@ def get_fomosto_baseconfig(
     distance_min = distance - (sf.source_distance_radius * km)
 
     if distance_min < 0.:
-        logger.warn('Minimum grid distance is below zero. Setting it to zero!')
+        if len(channels) > 0:
+            logger.warn(
+                'Minimum grid distance is below zero. Setting it to zero!')
         distance_min = 0.
 
     return gf.ConfigTypeA(
@@ -1509,10 +1530,110 @@ def seis_construct_gf(
                 logger.info('Removing QSSP Greens Functions!')
                 shutil.rmtree(gf_dir)
         else:
-            logger.info('Traces exists use force=True to overwrite!')
+            logger.info('Traces exist use force=True to overwrite!')
 
 
 def geo_construct_gf(
+    event, geodetic_config, crust_ind=0, execute=True, force=False):
+    """
+    Calculate geodetic Greens Functions (GFs) and create a fomosto 'GF store'
+    that is being used repeatetly later on to calculate the synthetic
+    displacements. Enables various different source geometries.
+
+    Parameters
+    ----------
+    event : :class:`pyrocko.model.Event`
+        The event is used as a reference point for all the calculations
+        According to the its location the earth model is being built
+    geodetic_config : :class:`config.GeodeticConfig`
+    crust_ind : int
+        Index to set to the Greens Function store
+    execute : boolean
+        Flag to execute the calculation, if False just setup tested
+    force : boolean
+        Flag to overwrite existing GF stores
+    """
+    from pyrocko.fomosto import psgrn_pscmp as ppp
+
+    version = '2008a'
+    gfc = geodetic_config.gf_config
+
+    # extract source crustal profile and check for water layer
+    source_model = get_velocity_model(
+        event, earth_model_name=gfc.earth_model_name,
+        crust_ind=crust_ind, gf_config=gfc,
+        custom_velocity_model=gfc.custom_velocity_model).extract(
+            depth_max=gfc.source_depth_max * km)
+
+    c = ppp.PsGrnPsCmpConfig()
+
+    c.pscmp_config.version = version
+
+    c.psgrn_config.version = version
+    c.psgrn_config.sampling_interval = gfc.sampling_interval
+    c.psgrn_config.gf_depth_spacing = gfc.medium_depth_spacing
+    c.psgrn_config.gf_distance_spacing = gfc.medium_distance_spacing
+
+    station = ReferenceLocation(
+        station='statics',
+        lat=event.lat,
+        lon=event.lon)
+
+    fomosto_config = get_fomosto_baseconfig(
+        gfconfig=gfc, event=event, station=station,
+        channels=[], crust_ind=crust_ind)
+
+    store_dir = gfc.store_superdir + fomosto_config.id
+
+    if not os.path.exists(store_dir) or force:
+        # potentially vary source model
+        if crust_ind > 0:
+            source_model = ensemble_earthmodel(
+                source_model,
+                num_vary=1,
+                error_depth=gfc.error_depth,
+                error_velocities=gfc.error_velocities)[0]
+
+        fomosto_config.earthmodel_1d = source_model
+
+        c.validate()
+        fomosto_config.validate()
+
+        gf.store.Store.create_editables(
+            store_dir, config=fomosto_config,
+            extra={'psgrn_pscmp': c}, force=force)
+
+    else:
+        logger.info(
+            'Store %s exists! Use force=True to overwrite!' % store_dir)
+
+    traces_path = os.path.join(store_dir, 'traces')
+
+    if execute and not os.path.exists(traces_path):
+        logger.info('Filling store ...')
+
+        store = gf.store.Store(store_dir, 'r')
+        store.close()
+
+        # build store
+        try:
+            ppp.build(store_dir, nworkers=gfc.nworkers, force=force)
+        except ppp.PsCmpError, e:
+            if str(e).find('could not start psgrn/pscmp') != -1:
+                logger.warn('psgrn/pscmp not installed')
+                return
+            else:
+                raise
+
+    elif not execute and not os.path.exists(traces_path):
+        logger.info('Geo GFs can be created in directory: %s ! '
+                    '(execute=True necessary)! GF params: \n' % store_dir)
+        print fomosto_config, c
+    else:
+        logger.info('Traces exist use force=True to overwrite!')
+
+
+def geo_construct_gf_psgrn(
     event, geodetic_config, crust_ind=0, execute=True, force=False):
     """
     Calculate geodetic Greens Functions (GFs) and create a repository 'store'
@@ -1532,46 +1653,48 @@ def geo_construct_gf(
     force : boolean
         Flag to overwrite existing GF stores
     """
-
-    gf = geodetic_config.gf_config
+    logger.warn(
+        'This function is deprecated and might be removed in later versions!')
+    gfc = geodetic_config.gf_config
 
     c = psgrn.PsGrnConfigFull()
 
-    n_steps_depth = int((gf.source_depth_max - gf.source_depth_min) / \
-        gf.source_depth_spacing) + 1
+    n_steps_depth = int((gfc.source_depth_max - gfc.source_depth_min) / \
+        gfc.source_depth_spacing) + 1
     n_steps_distance = int(
-        (gf.source_distance_max - gf.source_distance_min) / \
-        gf.source_distance_spacing) + 1
+        (gfc.source_distance_max - gfc.source_distance_min) / \
+        gfc.source_distance_spacing) + 1
 
     c.distance_grid = psgrn.PsGrnSpatialSampling(
         n_steps=n_steps_distance,
-        start_distance=gf.source_distance_min,
-        end_distance=gf.source_distance_max)
+        start_distance=gfc.source_distance_min,
+        end_distance=gfc.source_distance_max)
 
     c.depth_grid = psgrn.PsGrnSpatialSampling(
         n_steps=n_steps_depth,
-        start_distance=gf.source_depth_min,
-        end_distance=gf.source_depth_max)
+        start_distance=gfc.source_depth_min,
+        end_distance=gfc.source_depth_max)
 
-    c.sampling_interval = gf.sampling_interval
+    c.sampling_interval = gfc.sampling_interval
 
     # extract source crustal profile and check for water layer
     source_model = get_velocity_model(
-        event, earth_model_name=gf.earth_model_name, crust_ind=crust_ind,
-        gf_config=gf, custom_velocity_model=gf.custom_velocity_model).extract(
-            depth_max=gf.source_depth_max * km)
+        event, earth_model_name=gfc.earth_model_name,
+        crust_ind=crust_ind, gf_config=gfc,
+        custom_velocity_model=gfc.custom_velocity_model).extract(
+            depth_max=gfc.source_depth_max * km)
 
     # potentially vary source model
     if crust_ind > 0:
         source_model = ensemble_earthmodel(
             source_model,
             num_vary=1,
-            error_depth=gf.error_depth,
-            error_velocities=gf.error_velocities)[0]
+            error_depth=gfc.error_depth,
+            error_velocities=gfc.error_velocities)[0]
 
     c.earthmodel_1d = source_model
     c.psgrn_outdir = os.path.join(
-        gf.store_superdir, 'psgrn_green_%i' % (crust_ind))
+        gfc.store_superdir, 'psgrn_green_%i' % (crust_ind))
     c.validate()
 
     util.ensuredir(c.psgrn_outdir)
@@ -1948,7 +2071,7 @@ def get_phase_taperer(engine, source, target, arrival_taper):
                           float(arrival_time + arrival_taper.b),
                           float(arrival_time + arrival_taper.c),
                           float(arrival_time + arrival_taper.d))
-    
+
 
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     filterer=None, reference_taperer=None, plot=False,
@@ -2019,7 +2142,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
     nt = len(targets)
     ns = len(sources)
-    
+
     t0 = time()
     synt_trcs = []
     sapp = synt_trcs.append

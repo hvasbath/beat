@@ -418,7 +418,7 @@ def command_clone(args):
 
     util.ensuredir(cloned_dir)
 
-    for mode in options.mode:
+    for mode in [options.mode]:
         config_fn = os.path.join(project_dir, 'config_' + mode + '.yaml')
         if os.path.exists(config_fn):
             logger.info('Cloning %s problem config.' % mode)
