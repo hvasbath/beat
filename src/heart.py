@@ -1989,17 +1989,17 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
          with data each row-one target
     """
     taperers = []
+    tapp = taperers.append
     for target in targets:
         if arrival_taper is not None:
             if reference_taperer is None:
-                tap = get_phase_taperer(
+                tapp(get_phase_taperer(
                     engine=engine,
                     source=sources[0],
                     target=target,
-                    arrival_taper=arrival_taper)
-		taperers.append(tap)
+                    arrival_taper=arrival_taper))
             else:
-                taperers.append(reference_taperer)
+                tapp(reference_taperer)
 
     if pre_stack_cut and arrival_taper is not None:
         for t, taperer in zip(targets, taperers):
@@ -2013,13 +2013,16 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         sources=sources,
         targets=targets, nprocs=nprocs)
     t_1 = time()
+
     logger.debug('Synthetics generation time: %f' % (t_1 - t_2))
+    logger.debug('Details: %s \n' % response.stats)
 
     nt = len(targets)
     ns = len(sources)
     
     t0 = time()
     synt_trcs = []
+    sapp = synt_trcs.append
     taper_index = [j for _ in range(ns) for j in range(nt)]
 
     for i, (source, target, tr) in enumerate(response.iter_results()):
@@ -2036,7 +2039,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         if arrival_taper is not None:
             tr.chop(tmin=taperers[ti].a, tmax=taperers[ti].d)
 
-        synt_trcs.append(tr)
+        sapp(tr)
 
     t1 = time()
     logger.debug('Post-process time %f' % (t1 - t0))
@@ -2044,16 +2047,16 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         trace.snuffle(synt_trcs)
 
     t2 = time()
-    tmins = num.vstack([synt_trcs[i].tmin for i in range(nt)]).flatten()
+    tmins = num.vstack([tr.tmin for tr in synt_trcs]).flatten()
     t3 = time()
     logger.debug('Assemble tmins time %f' % (t3 - t2))
 
     if arrival_taper is not None:
         t4 = time()
-        synths = num.vstack(
-            [synt_trcs[i].ydata for i in range(len(synt_trcs))])
+        synths = num.vstack([tr.ydata for tr in synt_trcs])
         t5 = time()
         logger.debug('Assemble traces time %f' % (t5 - t4))
+
         # stack traces for all sources
         t6 = time()
         if ns > 1:
@@ -2068,9 +2071,10 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     if outmode == 'stacked_traces':
         if arrival_taper is not None:
             outtraces = []
+            oapp = outtraces.append
             for i in range(nt):
                 synt_trcs[i].ydata = outstack[i, :]
-                outtraces.append(synt_trcs[i])
+                oapp(synt_trcs[i])
 
             return outtraces, tmins
         else:

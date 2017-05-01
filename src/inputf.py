@@ -1,5 +1,6 @@
 import scipy.io
 import numpy as num
+import copy
 
 from beat import heart, utility
 from pyrocko import model, io
@@ -27,6 +28,7 @@ def load_SAR_data(datadir, names):
     Returns Diff_IFG objects.
     """
     diffgs = []
+    tobeloaded_names = set(copy.deepcopy(names))
 
     for k in names:
         # open matlab.mat files
@@ -59,11 +61,12 @@ def load_SAR_data(datadir, names):
                  incidence=Lv.inci,
                  heading=Lv.head,
                  odw=data['ODW_sub']))
-            names.pop(0)
+            tobeloaded_names.discard(k)
 
         else:
             logger.info('File %s was no SAR data?!' % datadir)
 
+    names = list(tobeloaded_names)
     return diffgs
 
 
