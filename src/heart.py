@@ -441,47 +441,6 @@ class Covariance(Object):
         return utility.scalar2floatX((N * num.log(2 * num.pi)) + ldet_x)
 
 
-!class TeleseismicTarget(gf.Target):
-    """
-    Extension to :class:`pyrocko.gf.targets.Target` to have
-    :class:`Covariance` as an attribute.
-    """
-
-    covariance = Covariance.T(
-        default=Covariance.D(),
-        optional=True,
-        help=':py:class:`Covariance` that holds data'
-             'and model prediction covariance matrixes')
-
-    @property
-    def typ(self):
-        return self.codes[3]
-
-    @property
-    def samples(self):
-        return self.covariance.data.shape[0]
-
-    def update_target_times(self, source=None, taperer=None):
-        """
-        Update the target attributes tmin and tmax to do the stacking
-        only in this interval. Adds twice taper fade in time to each taper
-        side.
-
-        Parameters
-        ----------
-        source : list
-            containing :class:`pyrocko.gf.seismosizer.Target` Objects
-        taperer : :class:`pyrocko.trace.CosTaper`
-        """
-        if source is None or taperer is None:
-            self.tmin = None
-            self.tmax = None
-        else:
-            tolerance = 4 * (taperer.b - taperer.a)
-            self.tmin = taperer.a - tolerance - source.time
-            self.tmax = taperer.d + tolerance - source.time
-
-
 class ArrivalTaper(trace.Taper):
     """
     Cosine arrival Taper.
@@ -637,6 +596,55 @@ class Parameter(Object):
     def bound_to_array(self):
         return num.array([self.lower, self.testval, self.upper],
                          dtype=num.float)
+
+
+class DynamicTarget(gf.Target):
+
+    def update_target_times(self, source=None, taperer=None):
+        """
+        Update the target attributes tmin and tmax to do the stacking
+        only in this interval. Adds twice taper fade in time to each taper
+        side.
+
+        Parameters
+        ----------
+        source : list
+            containing :class:`pyrocko.gf.seismosizer.Target` Objects
+        taperer : :class:`pyrocko.trace.CosTaper`
+        """
+        if source is None or taperer is None:
+            self.tmin = None
+            self.tmax = None
+        else:
+            tolerance = 4 * (taperer.b - taperer.a)
+            self.tmin = taperer.a - tolerance - source.time
+            self.tmax = taperer.d + tolerance - source.time
+
+
+class SeismicDataset(trace.Trace):
+    """
+    Extension to :class:`pyrocko.trace.Trace` to have
+    :class:`Covariance` as an attribute.
+    """
+
+    covariance = Covariance.T(
+        default=Covariance.D(),
+        optional=True,
+        help=':py:class:`Covariance` that holds data'
+             'and model prediction covariance matrixes')
+
+    @property
+    def samples(self):
+        if self.covariance.data is not None:
+            return self.covariance.data.shape[0]
+        else:
+            logger.warn(
+                'Dataset has no uncertainties! Return full data length!')
+            return self.data_len()
+
+    @property
+    def typ(self):
+        return self.channel
 
 
 class GeodeticDataset(gf.meta.MultiLocation):
@@ -955,7 +963,7 @@ def init_seismic_targets(
 
     Returns
     -------
-    List of :class:`pyrocko.gf.targets.Target`
+    List of :class:`DynamicTarget`
     """
 
     if reference_location is None:
@@ -967,7 +975,7 @@ def init_seismic_targets(
 
     em_name = get_earth_model_prefix(earth_model_name)
 
-    targets = [TeleseismicTarget(
+    targets = [DynamicTarget(
         quantity='displacement',
         codes=(stations[sta_num].network,
                  stations[sta_num].station,
@@ -2263,7 +2271,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
 
 def geo_synthetics(
-    engine, targets, sources, outmode='data', plot=False, nprocs=1):
+    engine, targets, sources, outmode='stacked_array', plot=False, nprocs=1):
     """
     Calculate synthetic displacements for a given static fomosto Greens
     Function database for sources and targets on the earths surface.

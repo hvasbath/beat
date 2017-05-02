@@ -161,7 +161,9 @@ def load_data_traces(datadir, stations, channels):
                     data_trace = io.load(tracepath, data_format)[0]
                     # [nm] convert to m
                     data_trace.set_ydata(data_trace.ydata * m)
-                    data_trcs.append(data_trace)
+                    # convert to BEAT seismic Dataset
+                    data_trcs.append(
+                        heart.SeismicDataset(**data_trace.__dict__))
             except IOError:
                 logger.warn('Unable to open file: ' + trace_name)
 

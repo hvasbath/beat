@@ -32,20 +32,20 @@ __all__ = ['GeometryOptimizer', 'DistributionOptimizer',
            'sample', 'load_model', 'load_stage']
 
 
-source_catalog = {
+!source_catalog = {
     bconfig.rfs: heart.RectangularSource,
     bconfig.dcs: gf.DCSource}
 
 
-def multivariate_normal(targets, weights, hyperparams, residuals):
+def multivariate_normal(datasets, weights, hyperparams, residuals):
     """
     Calculate posterior Likelihood of a Multivariate Normal distribution.
     Can only be executed in a `with model context`
 
     Parameters
     ----------
-    targets : list
-        of :class:`heart.TeleseismicTarget` or :class:`heart.GeodeticDataset`
+    datasets : list
+        of :class:`heart.SeismicDatset` or :class:`heart.GeodeticDataset`
     weights : list
         of :class:`theano.shared`
         Square matrix of the inverse of the covariance matrix as weights
@@ -57,15 +57,15 @@ def multivariate_normal(targets, weights, hyperparams, residuals):
     -------
     array_like
     """
-    n_t = len(targets)
+    n_t = len(datasets)
 
     logpts = tt.zeros((n_t), tconfig.floatX)
 
-    for l, target in enumerate(targets):
-!        M = tt.cast(shared(target.samples, borrow=True), 'int16')
+    for l, data in enumerate(datasets):
+        M = tt.cast(shared(data.samples, borrow=True), 'int16')
         factor = shared(
-            target.covariance.log_norm_factor, borrow=True)
-        hp_name = bconfig.hyper_pars[target.typ]
+            data.covariance.log_norm_factor, borrow=True)
+        hp_name = bconfig.hyper_pars[data.typ]
 
         logpts = tt.set_subtensor(logpts[l:l + 1],
             (-0.5) * (factor + \
@@ -78,18 +78,30 @@ def multivariate_normal(targets, weights, hyperparams, residuals):
     return logpts
 
 
-def hyper_normal(targets, hyperparams, llks):
+def hyper_normal(datasets, hyperparams, llks):
     """
-    Calculate posterior Likelihood only dependent on hyperparameters
+    Calculate posterior Likelihood only dependent on hyperparameters.
+
+    Parameters
+    ----------
+    datasets : list
+        of :class:`heart.SeismicDatset` or :class:`heart.GeodeticDataset`
+    hyperparams : dict
+        of :class:`theano.`
+    llks : posterior likelihoods
+
+    Returns
+    -------
+    array_like
     """
-    n_t = len(targets)
+    n_t = len(datasets)
 
     logpts = tt.zeros((n_t), tconfig.floatX)
 
-    for k, target in enumerate(targets):
-!        M = target.samples
-        factor = target.covariance.log_norm_factor
-        hp_name = bconfig.hyper_pars[target.typ]
+    for k, data in enumerate(datasets):
+        M = data.samples
+        factor = data.covariance.log_norm_factor
+        hp_name = bconfig.hyper_pars[data.typ]
 
         logpts = tt.set_subtensor(logpts[k:k + 1],
             (-0.5) * (factor + \
@@ -149,7 +161,7 @@ class Composite(Object):
         Get likelihood formula for the hyper model built. Has to be called
         within a with model context.
         """
-        logpts = hyper_normal(self.targets, hyperparams, self._llks)
+        logpts = hyper_normal(self.datasets, hyperparams, self._llks)
         llk = pm.Deterministic(self._like_name, logpts)
         return llk.sum()
 
@@ -179,6 +191,9 @@ class GeodeticComposite(Composite):
         configuration object containing seismic setup parameters
     project_dir : str
         directory of the model project, where to find the data
+    event : :class:`pyrocko.model.Event`
+        contains information of reference event, coordinates of reference
+        point and source time
     hypers : boolean
         if true initialise object for hyper parameter optimization
     """
@@ -191,33 +206,43 @@ class GeodeticComposite(Composite):
         self.name = 'geodetic'
         self._like_name = 'geo_like'
 
+        self.engine = gf.LocalEngine(
+            store_superdirs=[gc.gf_config.store_superdir])
+
         geodetic_data_path = os.path.join(
             project_dir, bconfig.geodetic_data_name)
-        self.targets = utility.load_objects(geodetic_data_path)
+
+        self.datasets = utility.load_objects(geodetic_data_path)
+
+        self.targets = heart.init_geodetic_targets(
+            datasets=self.datasets,
+            earth_model_name=gc.gf_config.earth_model_name,
+            interpolation='multilinear',
+            crust_inds=[0],
+            sample_rate=gc.gf_config.sample_rate)
 
         self.n_t = len(self.targets)
         logger.info('Number of geodetic datasets: %i ' % self.n_t)
 
         if gc.calc_data_cov:
-            logger.info('Using data covariance!')
+            logger.warn('Covariance estimation not implemented (yet)!'
+                        ' Using imported covariances!')
         else:
-            logger.info('No data-covariance estimation ...\n')
-            for t in self.targets:
-                t.covariance.data = num.zeros(t.lats.size)
-                t.covariance.pred_v = num.eye(t.lats.size)
+            logger.info('No data-covariance estimation! Using imported'
+                        ' covariances \n')
 
         self.weights = []
-        for target in self.targets:
-            icov = target.covariance.inverse
+        for data in self.datasets:
+            icov = data.covariance.inverse
             self.weights.append(shared(icov, borrow=True))
 
         if gc.fit_plane:
             logger.info('Fit residual ramp selected!')
             self._slocx = []
             self._slocy = []
-            for target in self.targets:
-                if isinstance(target, heart.DiffIFG):
-                    locy, locx = target.update_local_coords(self.event)
+            for data in self.datasets:
+                if isinstance(data, heart.DiffIFG):
+                    locy, locx = data.update_local_coords(self.event)
                     self._slocx.append(shared(
                         locx.astype(tconfig.floatX) / km, borrow=True))
                     self._slocy.append(shared(
@@ -247,14 +272,14 @@ class GeodeticComposite(Composite):
 
         logger.debug('Assembling geodetic data ...')
 
-        processed_synts = self.get_synthetics(point)
+        processed_synts = self.get_synthetics(point, outmode='stacked_arrays')
 
         results = []
-        for i, target in enumerate(self.targets):
-            res = target.displacement - processed_synts[i]
+        for i, data in enumerate(self.datasets):
+            res = data.displacement - processed_synts[i]
 
             results.append(heart.GeodeticResult(
-                processed_obs=target.displacement,
+                processed_obs=data.displacement,
                 processed_syn=processed_synts[i],
                 processed_res=res))
 
@@ -266,10 +291,10 @@ class GeodeticComposite(Composite):
         """
         self.ramp_params = {}
 
-        for i, target in enumerate(self.targets):
-            if isinstance(target, heart.DiffIFG):
-                self.ramp_params[target.name] = pm.Uniform(
-                    target.name + '_ramp',
+        for i, data in enumerate(self.datasets):
+            if isinstance(data, heart.DiffIFG):
+                self.ramp_params[data.name] = pm.Uniform(
+                    data.name + '_ramp',
                     shape=(2,),
                     lower=bconfig.default_bounds['ramp'][0],
                     upper=bconfig.default_bounds['ramp'][1],
@@ -295,7 +320,7 @@ class GeodeticComposite(Composite):
         """
         results = self.assemble_results(point)
         for l, result in enumerate(results):
-            icov = self.targets[l].covariance.inverse
+            icov = self.datasets[l].covariance.inverse
             llk = num.array(result.processed_res.dot(
                 icov).dot(result.processed_res.T)).flatten()
             self._llks[l].set_value(llk)
@@ -325,23 +350,17 @@ class GeodeticSourceComposite(GeodeticComposite):
         super(GeodeticSourceComposite, self).__init__(
             gc, project_dir, event, hypers=hypers)
 
-        self.event = event
         self.sources = sources
 
-        _disp_list = [self.targets[i].displacement for i in range(self.n_t)]
-        _lons_list = [self.targets[i].lons for i in range(self.n_t)]
-        _lats_list = [self.targets[i].lats for i in range(self.n_t)]
-        _odws_list = [self.targets[i].odw for i in range(self.n_t)]
-        _lv_list = [self.targets[i].update_los_vector()
-                        for i in range(self.n_t)]
+        _disp_list = [data.displacement for data in self.datasets]
+        _odws_list = [data.odw for data in self.datasets]
+        _lv_list = [data.update_los_vector() for data in self.datasets]
 
-        # merge geodetic data to call pscmp only once each forward model
+        # merge geodetic data to calculate residuals on single array
         ordering = utility.ListArrayOrdering(_disp_list, intype='numpy')
         self.Bij = utility.ListToArrayBijection(ordering, _disp_list)
 
         odws = self.Bij.fmap(_odws_list)
-        self._lons = self.Bij.fmap(_lons_list)
-        self._lats = self.Bij.fmap(_lats_list)
 
         logger.info(
             'Number of geodetic data points: %i ' % self._lats.shape[0])
@@ -353,6 +372,8 @@ class GeodeticSourceComposite(GeodeticComposite):
     def __getstate__(self):
         outstate = (
             self.config,
+            self.engine,
+            self.datasets,
             self.sources,
             self.weights,
             self.targets)
@@ -361,6 +382,8 @@ class GeodeticSourceComposite(GeodeticComposite):
 
     def __setstate__(self, state):
             self.config, \
+            self.engine, \
+            self.datasets, \
             self.sources, \
             self.weights, \
             self.targets = state
@@ -437,7 +460,7 @@ class GeodeticSourceComposite(GeodeticComposite):
             residuals = self.remove_ramps(residuals)
 
         logpts = multivariate_normal(
-            self.targets, self.weights, hyperparams, residuals)
+            self.datasets, self.weights, hyperparams, residuals)
 
         llk = pm.Deterministic(self._like_name, logpts)
         return llk.sum()
@@ -450,14 +473,12 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
         super(GeodeticGeometryComposite, self).__init__(
             gc, project_dir, sources, event, hypers=hypers)
 
-        # syntetics generation
+        # synthetics generation
         logger.debug('Initialising synthetics functions ... \n')
-        self.get_synths = theanof.GeoLayerSynthesizerStatic(
-            lats=self._lats,
-            lons=self._lons,
-            store_superdir=gc.gf_config.store_superdir,
-            crust_ind=0,    # always reference model
-            sources=sources)
+        self.get_synths = theanof.GeoSynthesizer(
+            engine=self.engine,
+            sources=self.sources,
+            targets=self.targets)
 
     def get_synthetics(self, point, **kwargs):
         """
@@ -475,26 +496,22 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
         """
         self.point2sources(point)
 
-        gc = self.config
-        crust_inds = [0]
+        displacements = heart.geo_synthetics(
+            engine=self.engine,
+            targets=self.targets,
+            sources=self.sources,
+            **kwargs)
 
         synths = []
-        for crust_ind in crust_inds:
-            for target in self.targets:
-                disp = heart.geo_layer_synthetics(
-                    store_superdir=gc.gf_config.store_superdir,
-                    crust_ind=crust_ind,
-                    lons=target.lons,
-                    lats=target.lats,
-                    sources=self.sources, **kwargs)
-                synths.append((
-                    disp[:, 0] * target.los_vector[:, 0] + \
-                    disp[:, 1] * target.los_vector[:, 1] + \
-                    disp[:, 2] * target.los_vector[:, 2]))
+        for disp, data in zip(displacements, self.datasets):
+            synths.append((
+                disp[:, 0] * data.los_vector[:, 0] + \
+                disp[:, 1] * data.los_vector[:, 1] + \
+                disp[:, 2] * data.los_vector[:, 2]))
 
         return synths
 
-    def update_weights(self, point, n_jobs=1, plot=False):
+!    def update_weights(self, point, n_jobs=1, plot=False):
         """
         Updates weighting matrixes (in place) with respect to the point in the
         solution space.
@@ -508,8 +525,8 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
 
         self.point2sources(point)
 
-        for i, target in enumerate(self.targets):
-            logger.debug('Track %s' % target.name)
+        for i, data in enumerate(self.datasets):
+            logger.debug('Track %s' % data.name)
             cov_pv = cov.get_geo_cov_velocity_models(
                 store_superdir=gc.gf_config.store_superdir,
                 crust_inds=range(*gc.gf_config.n_variations),
@@ -650,7 +667,8 @@ class SeismicComposite(Composite):
                 event=self.event,
                 targets=self.targets)
         else:
-            logger.info('No data-covariance estimation ...\n')
+            logger.info('No data-covariance estimation, using imported'
+                        ' covariances...\n')
             cov_ds_seismic = []
             at = sc.arrival_taper
             n_samples = int(num.ceil(
@@ -660,14 +678,14 @@ class SeismicComposite(Composite):
                 cov_ds_seismic.append(num.eye(n_samples))
 
         self.weights = []
-        for t, target in enumerate(self.targets):
-            if target.covariance.data is None and not sc.calc_data_cov:
+        for t, trace in enumerate(self.data_traces):
+            if trace.covariance.data is None and not sc.calc_data_cov:
                 logger.warn(
                     'No data covariance given/estimated! '
                     'Setting default: eye')
-            target.covariance.data = cov_ds_seismic[t]
+            trace.covariance.data = cov_ds_seismic[t]
 
-            icov = target.covariance.inverse
+            icov = trace.covariance.inverse
             self.weights.append(shared(icov, borrow=True))
 
         super(SeismicComposite, self).__init__(hypers=hypers)
@@ -908,7 +926,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
         Returns
         -------
-        list of synthetics for each target
+        default: array of synthetics for all targets
         """
         self.point2sources(point)
 
