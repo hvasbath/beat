@@ -45,7 +45,7 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
     Parameters
     ----------
     datasets : list
-        of :class:`heart.SeismicDatset` or :class:`heart.GeodeticDataset`
+        of :class:`heart.SeismicDataset` or :class:`heart.GeodeticDataset`
     weights : list
         of :class:`theano.shared`
         Square matrix of the inverse of the covariance matrix as weights
@@ -526,17 +526,25 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
         self.point2sources(point)
 
         for i, data in enumerate(self.datasets):
+            crust_targets = heart.init_geodetic_targets(
+                datasets=[data],
+                earth_model_name=gc.gf_config.earth_model_name,
+                interpolation='multilinear',
+                crust_inds=range(*gc.gf_config.n_variations),
+                sample_rate=gc.gf_config.sample_rate)
+
             logger.debug('Track %s' % data.name)
             cov_pv = cov.get_geo_cov_velocity_models(
-                store_superdir=gc.gf_config.store_superdir,
-                crust_inds=range(*gc.gf_config.n_variations),
-                target=target,
-                sources=self.sources)
+                engine=self.engine,
+                sources=self.sources,
+                targets=crust_targets,
+                dataset=data,
+                plot=False, n_jobs=1)
 
             cov_pv = utility.ensure_cov_psd(cov_pv)
 
-            target.covariance.pred_v = cov_pv
-            icov = target.covariance.inverse
+            data.covariance.pred_v = cov_pv
+            icov = data.covariance.inverse
             self.weights[i].set_value(icov)
 
 
@@ -547,11 +555,18 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         super(GeodeticInterseismicComposite, self).__init__(
             gc, project_dir, sources, event, hypers=hypers)
 
+        for source in sources:
+            if not isinstance(source, RS):
+                raise TypeError('Sources have to be RectangularSources!')
+
+        self._lats = self.Bij.fmap([data.lats for data in self.datasets])
+        self._lons = self.Bij.fmap([data.lons for data in self.datasets])
+
         self.get_synths = theanof.GeoInterseismicSynthesizer(
             lats=self._lats,
             lons=self._lons,
-            store_superdir=gc.gf_config.store_superdir,
-            crust_ind=0,
+            engine=self.engine,
+            targets=self.targets,
             sources=sources,
             reference=event)
 
@@ -576,23 +591,21 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         self.point2sources(spoint)
 
         gc = self.config
-        crust_inds = [0]
 
         synths = []
-        for crust_ind in crust_inds:
-            for target in self.targets:
-                disp = geo_backslip_synthetics(
-                    store_superdir=gc.gf_config.store_superdir,
-                    crust_ind=crust_ind,
-                    sources=self.sources,
-                    lons=target.lons,
-                    lats=target.lats,
-                    reference=self.event,
-                    **bpoint)
-                synths.append((
-                    disp[:, 0] * target.los_vector[:, 0] + \
-                    disp[:, 1] * target.los_vector[:, 1] + \
-                    disp[:, 2] * target.los_vector[:, 2]))
+        for target, data in zip(self.targets, self.datasets):
+            disp = geo_backslip_synthetics(
+                engine=self.engine,
+                sources=self.sources,
+                targets=[target],
+                lons=target.lons,
+                lats=target.lats,
+                reference=self.event,
+                **bpoint)
+            synths.append((
+                disp[:, 0] * data.los_vector[:, 0] + \
+                disp[:, 1] * data.los_vector[:, 1] + \
+                disp[:, 2] * data.los_vector[:, 2]))
 
         return synths
 
@@ -772,7 +785,7 @@ class SeismicComposite(Composite):
         """
         results = self.assemble_results(point)
         for k, result in enumerate(results):
-            icov = self.targets[k].covariance.inverse
+            icov = self.datasets[k].covariance.inverse
             _llk = num.array(result.processed_res.ydata.dot(
                 icov).dot(result.processed_res.ydata.T)).flatten()
             self._llks[k].set_value(_llk)
@@ -908,7 +921,7 @@ class SeismicGeometryComposite(SeismicComposite):
         residuals = data_trcs - synths
 
         logpts = multivariate_normal(
-            self.targets, self.weights, hyperparams, residuals)
+            self.datasets, self.weights, hyperparams, residuals)
 
         llk = pm.Deterministic(self._like_name, logpts)
         return llk.sum()
@@ -982,9 +995,9 @@ class SeismicGeometryComposite(SeismicComposite):
 
                 index = j * len(self.stations) + i
 
-                self.targets[index].covariance.pred_v = cov_pv
+                self.datasets[index].covariance.pred_v = cov_pv
                 t0 = time.time()
-                icov = self.targets[index].covariance.inverse
+                icov = self.datasets[index].covariance.inverse
                 t1 = time.time()
                 logger.debug('Calculate inverse time %f' % (t1 - t0))
                 self.weights[index].set_value(icov)
@@ -1009,12 +1022,12 @@ class GeodeticDistributerComposite(GeodeticComposite):
         self.gfpath = os.path.join(project_dir, self._mode,
                          bconfig.linear_gf_dir_name)
 
-        self.data = [
-            shared(target.displacement.astype(tconfig.floatX), borrow=True) \
-            for target in self.targets]
-        self.odws = [
-            shared(target.odw.astype(tconfig.floatX), borrow=True) \
-            for target in self.targets]
+        self.shared_data = [
+            shared(data.displacement.astype(tconfig.floatX), borrow=True) \
+            for data in self.datasets]
+        self.shared_odws = [
+            shared(data.odw.astype(tconfig.floatX), borrow=True) \
+            for data in self.datasets]
 
     def load_gfs(self, crust_inds=None, make_shared=True):
         """
@@ -1085,13 +1098,13 @@ class GeodeticDistributerComposite(GeodeticComposite):
             for var, rv in input_rvs.iteritems():
                 mu += tt.dot(self.sgfs[0][var][t], rv)
 
-            residuals[t] = self.odws[t] * (self.data[t] - mu)
+            residuals[t] = self.shared_odws[t] * (self.shared_data[t] - mu)
 
         if self.config.fit_plane:
             residuals = self.remove_ramps(residuals)
 
         logpts = multivariate_normal(
-            self.targets, self.weights, hyperparams, residuals)
+            self.datasets, self.weights, hyperparams, residuals)
 
         llk = pm.Deterministic(self._like_name, logpts)
 
@@ -1129,9 +1142,9 @@ class GeodeticDistributerComposite(GeodeticComposite):
                 tpoint.pop(param)
 
         synthetics = []
-        for i, target in enumerate(self.targets):
+        for i, data in enumerate(self.datasets):
 
-            mu = num.zeros_like(target.displacement)
+            mu = num.zeros_like(data.displacement)
             for var, rv in tpoint.iteritems():
                 mu += num.dot(self.gfs[0][var][i], rv)
                 synthetics.append(mu)
@@ -1263,7 +1276,7 @@ class Problem(object):
 
             total_llk = tt.zeros((1), tconfig.floatX)
 
-            for dataset, composite in self.composites.iteritems():
+!            for dataset, composite in self.composites.iteritems():
                 input_rvs = utility.weed_input_rvs(
                     self.rvs, mode, dataset=dataset)
                 fixed_rvs = utility.weed_input_rvs(
@@ -1481,7 +1494,7 @@ class SourceOptimizer(Problem):
         self.sources = []
         for i in range(pc.n_sources):
             if self.event:
-                source = source_catalog[pc.source_type].from_pyrocko_event(
+!                source = source_catalog[pc.source_type].from_pyrocko_event(
                     self.event)
 
                 # hardcoded inversion for hypocentral time
@@ -1512,7 +1525,7 @@ class GeometryOptimizer(SourceOptimizer):
         pc = config.problem_config
 
         if pc.source_type == 'RectangularSource':
-            dsources = utility.transform_sources(
+!            dsources = utility.transform_sources(
                 self.sources,
                 pc.datasets)
         else:
@@ -1520,7 +1533,7 @@ class GeometryOptimizer(SourceOptimizer):
             for dataset in pc.datasets:
                 dsources[dataset] = copy.deepcopy(self.sources)
 
-        for dataset in pc.datasets:
+!        for dataset in pc.datasets:
             self.composites[dataset] = geometry_composite_catalog[dataset](
                 config[dataset + '_config'],
                 config.project_dir,
@@ -1555,15 +1568,14 @@ class InterseismicOptimizer(SourceOptimizer):
         pc = config.problem_config
 
         if pc.source_type == 'RectangularSource':
-            dsources = utility.transform_sources(
+!            dsources = utility.transform_sources(
                 self.sources,
                 pc.datasets)
         else:
-            dsources = {}
-            for dataset in pc.datasets:
-                dsources[dataset] = copy.deepcopy(self.sources)
+            raise TypeError('Interseismic Optimizer has to be used with'
+                            ' RectangularSources!')
 
-        for dataset in pc.datasets:
+!        for dataset in pc.datasets:
             self.composites[dataset] = interseismic_composite_catalog[dataset](
                 config[dataset + '_config'],
                 config.project_dir,
@@ -1595,7 +1607,7 @@ class DistributionOptimizer(Problem):
 
         super(DistributionOptimizer, self).__init__(config, hypers)
 
-        for dataset in config.problem_config.datasets:
+!        for dataset in config.problem_config.datasets:
             composite = distributer_composite_catalog[dataset](
                 config[dataset + '_config'],
                 config.project_dir,
@@ -1698,7 +1710,7 @@ def estimate_hypers(step, problem):
 
         problem.outfolder = os.path.join(name, 'stage_%i' % stage)
         start = {param.name: param.random() for param in \
-                                            pc.hyperparameters.itervalues()}
+            pc.hyperparameters.itervalues()}
 
         if pa.rm_flag:
             shutil.rmtree(problem.outfolder, ignore_errors=True)

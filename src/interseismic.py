@@ -231,7 +231,7 @@ def backslip_params(azimuth, strike, dip, amplitude, locking_depth):
 
 
 def geo_backslip_synthetics(
-    store_superdir, crust_ind, sources, lons, lats, reference,
+    engine, sources, targets, lons, lats, reference,
     amplitude, azimuth, locking_depth):
     """
     Interseismic backslip model: forward model for synthetic
@@ -245,16 +245,13 @@ def geo_backslip_synthetics(
 
     Parameters
     ----------
-    store_superdir : str
-        main path to directory containing the different Greensfunction stores
-    crust_ind : int
-        index of Greens Function store to use
-    lons : List of floats
-        Longitudes [decimal deg] of observation points
-    lats : List of floats
-        Latitudes [decimal deg] of observation points
-    sources : List of :class:`pscmp.PsCmpRectangularSource`
+    engine : 
+    sources : List of :class:`pyrocko.gf.seismosizer.RectangularSource`
         Sources to calculate synthetics for
+    targets : 
+    lons : 
+    lats : 
+
     amplitude : float
         slip [m] of the moving block
     azimuth : float
@@ -280,7 +277,8 @@ def geo_backslip_synthetics(
         source.update(**source_params)
 
     disp_block += geo_layer_synthetics(
-        store_superdir, crust_ind, lons, lats, sources)
+        engine=engine, targets=targets, sources=sources,
+        outmode='stacked_array')
 
     return disp_block
 

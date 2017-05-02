@@ -266,10 +266,51 @@ def get_seis_cov_velocity_models(engine, sources, targets,
     return num.cov(synths, rowvar=0)
 
 
-def get_geo_cov_velocity_models(store_superdir, crust_inds, target, sources):
-    '''
+def get_geo_cov_velocity_models(
+    engine, sources, targets, dataset, plot=False, n_jobs=1):
+    """
     Calculate model prediction uncertainty matrix with respect to uncertainties
-    in the velocity model for geodetic targets.
+    in the velocity model for geodetic targets using fomosto GF stores.
+
+    Parameters
+    ----------
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+        contains synthetics generation machine
+    target : :class:`heart.GeodeticTarget`
+        dataset and observation points to calculate covariance for
+    sources : list
+        of :py:class:`pyrocko.gf.seismosizer.Source` determines the covariance
+        matrix
+
+    Returns
+    -------
+    :class:`numpy.ndarray` with Covariance due to velocity model uncertainties
+    """
+    t0 = time()
+    displacements = heart.geo_synthetics(
+        engine=engine,
+        targets=targets,
+        sources=sources,
+        plot=plot,
+        outmode='stacked_arrays')
+    t1 = time()
+    logger.debug('Synthetics generation time %f' % (t1 - t0))
+
+    synths = num.zeros((len(targets), dataset.samples))
+    for i, disp in enumerate(displacements):
+        synths[i, :] = (
+            disp[:, 0] * dataset.los_vector[:, 0] + \
+            disp[:, 1] * dataset.los_vector[:, 1] + \
+            disp[:, 2] * dataset.los_vector[:, 2]) * dataset.odw
+
+    return num.cov(synths, rowvar=0)
+
+
+def get_geo_cov_velocity_models_pscmp(
+    store_superdir, crust_inds, target, sources):
+    """
+    Calculate model prediction uncertainty matrix with respect to uncertainties
+    in the velocity model for geodetic targets based on pscmp. Deprecated.
 
     Parameters
     ----------
@@ -286,7 +327,7 @@ def get_geo_cov_velocity_models(store_superdir, crust_inds, target, sources):
     Returns
     -------
     :class:`numpy.ndarray` with Covariance due to velocity model uncertainties
-    '''
+    """
 
     synths = num.zeros((len(crust_inds), target.samples))
     for crust_ind in crust_inds:

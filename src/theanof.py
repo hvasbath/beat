@@ -203,14 +203,14 @@ class GeoInterseismicSynthesizer(theano.Op):
     parameters of a fault.
     """
     __props__ = (
-        'lats', 'lons', 'store_superdir', 'crust_ind', 'sources', 'reference')
+        'lats', 'lons', 'engine', 'targets', 'sources', 'reference')
 
     def __init__(
-        self, lats, lons, store_superdir, crust_ind, sources, reference):
+        self, lats, lons, engine, targets, sources, reference):
         self.lats = tuple(lats)
         self.lons = tuple(lons)
-        self.store_superdir = store_superdir
-        self.crust_ind = crust_ind
+        self.engine = engine
+        self.targets = tuple(targets)
         self.sources = tuple(sources)
         self.reference = reference
 
@@ -257,7 +257,7 @@ class GeoInterseismicSynthesizer(theano.Op):
         inputs : list
             of :class:`numpy.ndarray`
         output : list
-            of synthetic displacements of :class:`numpy.ndarray` (n x 1)
+            of synthetic displacements of :class:`numpy.ndarray` (n x 3)
         """
         z = output[0]
 
@@ -273,8 +273,8 @@ class GeoInterseismicSynthesizer(theano.Op):
             self.sources[i].update(**source_point)
 
         z[0] = interseismic.geo_backslip_synthetics(
-            store_superdir=self.store_superdir,
-            crust_ind=self.crust_ind,
+            engine=self.engine,
+            targets=self.targets,
             sources=self.sources,
             lons=num.array(self.lons),
             lats=num.array(self.lats),
