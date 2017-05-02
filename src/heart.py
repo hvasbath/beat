@@ -441,9 +441,9 @@ class Covariance(Object):
         return utility.scalar2floatX((N * num.log(2 * num.pi)) + ldet_x)
 
 
-class TeleseismicTarget(gf.Target):
+!class TeleseismicTarget(gf.Target):
     """
-    Extension to :class:`pyrocko.gf.seismpsizer.Target` to have
+    Extension to :class:`pyrocko.gf.targets.Target` to have
     :class:`Covariance` as an attribute.
     """
 
@@ -639,7 +639,7 @@ class Parameter(Object):
                          dtype=num.float)
 
 
-class GeodeticTarget(gf.meta.MultiLocation):
+class GeodeticDataset(gf.meta.MultiLocation):
     """
     Overall geodetic data set class
     """
@@ -726,7 +726,7 @@ class GPSStation(Station):
                 return c
 
 
-class GPSCompoundComponent(GeodeticTarget):
+class GPSCompoundComponent(GeodeticDataset):
     """
     Collecting many GPS components and merging them into arrays.
     Make synthetics generation more efficient.
@@ -840,7 +840,7 @@ class GPSDataset(object):
         return self.stations.iteritems()
 
 
-class IFG(GeodeticTarget):
+class IFG(GeodeticDataset):
     """
     Interferogram class as a dataset in the optimization.
     """
@@ -917,16 +917,16 @@ class GeodeticResult(Object):
     """
     Result object assembling different geodetic data.
     """
-    processed_obs = GeodeticTarget.T(optional=True)
-    processed_syn = GeodeticTarget.T(optional=True)
-    processed_res = GeodeticTarget.T(optional=True)
+    processed_obs = GeodeticDataset.T(optional=True)
+    processed_syn = GeodeticDataset.T(optional=True)
+    processed_res = GeodeticDataset.T(optional=True)
     llk = Float.T(default=0., optional=True)
 
 
-def init_targets(stations, earth_model='ak135-f-average.m',
-                 channels=['T', 'Z'], sample_rate=1.0,
-                 crust_inds=[0], interpolation='multilinear',
-                 reference_location=None):
+def init_seismic_targets(
+    stations, earth_model_name='ak135-f-average.m', channels=['T', 'Z'],
+    sample_rate=1.0, crust_inds=[0], interpolation='multilinear',
+    reference_location=None):
     """
     Initiate a list of target objects given a list of indexes to the
     respective GF store velocity model variation index (crust_inds).
@@ -935,7 +935,7 @@ def init_targets(stations, earth_model='ak135-f-average.m',
     ----------
     stations : List of :class:`pyrocko.model.Station`
         List of station objects for which the targets are being initialised
-    earth_model = str
+    earth_model_name = str
         Name of the earth model that has been used for GF calculation.
     channels : List of str
         Components of the traces to be optimized for if rotated:
@@ -955,7 +955,7 @@ def init_targets(stations, earth_model='ak135-f-average.m',
 
     Returns
     -------
-    List of :class:`pyrocko.gf.seismosizer.Target`
+    List of :class:`pyrocko.gf.targets.Target`
     """
 
     if reference_location is None:
@@ -965,7 +965,7 @@ def init_targets(stations, earth_model='ak135-f-average.m',
         store_prefixes = [copy.deepcopy(reference_location.station) \
              for station in stations]
 
-    em_name = earth_model.split('-')[0].split('.')[0]
+    em_name = get_earth_model_prefix(earth_model_name)
 
     targets = [TeleseismicTarget(
         quantity='displacement',
@@ -983,6 +983,49 @@ def init_targets(stations, earth_model='ak135-f-average.m',
         for channel in channels
             for crust_ind in crust_inds
                 for sta_num in range(len(stations))]
+
+    return targets
+
+
+def init_geodetic_targets(
+    datasets, earth_model_name='ak135-f-average.m',
+    interpolation='multilinear', crust_inds=[0],
+    sample_rate=0.0):
+    """
+    Initiate a list of Static target objects given a list of indexes to the
+    respective GF store velocity model variation index (crust_inds).
+
+    Parameters
+    ----------
+    datasets : list
+        of :class:`heart.GeodeticDataset` for which the targets are being
+        initialised
+    earth_model_name = str
+        Name of the earth model that has been used for GF calculation.
+    sample_rate : scalar, float
+        sample rate [Hz] of the Greens Functions to use
+    crust_inds : List of int
+        Indexes of different velocity model realisations, 0 - reference model
+    interpolation : str
+        Method of interpolation for the Greens Functions, can be 'multilinear'
+        or 'nearest_neighbor'
+
+    Returns
+    -------
+    List of :class:`pyrocko.gf.targets.StaticTarget`
+    """
+
+    em_name = get_earth_model_prefix(earth_model_name)
+
+    targets = [gf.StaticTarget(
+        lons=d.lons,
+        lats=d.lats,
+        interpolation=interpolation,
+        quantity='displacement',
+        store_id='%s_%s_%.3fHz_%s' % (
+            'static', em_name, sample_rate, crust_ind))
+            for crust_ind in crust_inds
+                for d in datasets]
 
     return targets
 
@@ -1283,6 +1326,10 @@ def get_slowness_taper(fomosto_config, velocity_model, distances):
     return (0.0, 0.0, 1.1 * float(smax), 1.3 * float(smax))
 
 
+def get_earth_model_prefix(earth_model_name):
+    return earth_model_name.split('-')[0].split('.')[0]
+
+
 def get_fomosto_baseconfig(
     gfconfig, event, station, channels, crust_ind):
     """
@@ -1332,7 +1379,7 @@ def get_fomosto_baseconfig(
     return gf.ConfigTypeA(
         id='%s_%s_%.3fHz_%s' % (
             station.station,
-            sf.earth_model_name.split('-')[0].split('.')[0],
+            get_earth_model_prefix(sf.earth_model_name),
             sf.sample_rate,
             crust_ind),
         ncomponents=10,
@@ -1711,7 +1758,7 @@ def geo_construct_gf_psgrn(
         runner.run(c, force)
 
 
-def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
+def geo_layer_synthetics_pscmp(store_superdir, crust_ind, lons, lats, sources,
                          keep_tmp=False, outmode='data'):
     """
     Calculate synthetic displacements for a given Greens Function database
@@ -1972,7 +2019,7 @@ def geo_construct_gf_linear(
     crust_ind : int
         of index of Greens Function store to use
     targets : list
-        of :class:`heart.GeodeticTarget`
+        of :class:`heart.GeodeticDataset`
     fault : :class:`FaultGeometry`
         fault object that may comprise of several sub-faults. thus forming a
         complex fault-geometry
@@ -1993,7 +2040,7 @@ def geo_construct_gf_linear(
 
                 gfs = []
                 for source in fault.get_all_patches('geodetic', var):
-                    disp = geo_layer_synthetics(
+                    disp = geo_layer_synthetics_pscmp(
                         store_superdir=store_superdir,
                         crust_ind=crust_ind,
                         lons=target.lons,
@@ -2098,6 +2145,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         flag for looking at traces
     nprocs : int
         number of processors to use for synthetics calculation
+        --> currently no effect !!!
     outmode : string
         output format of synthetics can be 'array', 'stacked_traces',
         'full' returns traces unstacked including post-processing
@@ -2212,6 +2260,80 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
     else:
         raise TypeError('Outmode %s not supported!' % outmode)
+
+
+def geo_synthetics(
+    engine, targets, sources, outmode='data', plot=False, nprocs=1):
+    """
+    Calculate synthetic displacements for a given static fomosto Greens
+    Function database for sources and targets on the earths surface.
+
+    Parameters
+    ----------
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+    sources : list
+        containing :class:`pyrocko.gf.seismosizer.Source` Objects
+        reference source is the first in the list!!!
+    targets : list
+        containing :class:`pyrocko.gf.seismosizer.Target` Objects
+    plot : boolean
+        flag for looking at synthetics - not implemented yet
+    nprocs : int
+        number of processors to use for synthetics calculation
+        --> currently no effect !!!
+    outmode : string
+        output format of synthetics can be: 'array', 'arrays',
+        'stacked_array','stacked_arrays'
+
+    Returns
+    -------
+    depends on outmode:
+    'stacked_array'
+    :class:`numpy.ndarray` (n_observations; ux-North, uy-East, uz-Down)
+    'stacked_arrays'
+    or list of
+    :class:`numpy.ndarray` (target.samples; ux-North, uy-East, uz-Down)
+    """
+
+    response = engine.process(sources, targets)
+    ns = len(sources)
+    nt = len(targets)
+
+    def stack_arrays(targets, disp_arrays):
+        stacked_arrays = []
+        sapp = stacked_arrays.append
+        for target in targets:
+            sapp(num.empty([target.lons.size, 3]))
+
+        for k in range(ns):
+            for l in range(nt):
+                idx = l + (k * nt)
+                stacked_arrays[l] += disp_arrays[idx]
+
+        return stacked_arrays
+
+    disp_arrays = []
+    dapp = disp_arrays.append
+    for response in response.static_results():
+        n = response['displacement.n']
+        e = response['displacement.e']
+        u = -response['displacement.d']
+        dapp(num.hstack([n, e, u]))
+
+    if outmode == 'arrays':
+        return disp_arrays
+
+    elif outmode == 'array':
+        return num.vstack(disp_arrays)
+
+    elif outmode == 'stacked_arrays':
+        return stack_arrays(targets, disp_arrays)
+
+    elif outmode == 'stacked_array':
+        return num.vstack(stack_arrays(targets, disp_arrays))
+
+    else:
+        raise ValueError('Outmode %s not available' % outmode)
 
 
 def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,

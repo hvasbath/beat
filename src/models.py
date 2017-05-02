@@ -45,7 +45,7 @@ def multivariate_normal(targets, weights, hyperparams, residuals):
     Parameters
     ----------
     targets : list
-        of :class:`heart.TeleseismicTarget` or :class:`heart.GeodeticTarget`
+        of :class:`heart.TeleseismicTarget` or :class:`heart.GeodeticDataset`
     weights : list
         of :class:`theano.shared`
         Square matrix of the inverse of the covariance matrix as weights
@@ -62,7 +62,7 @@ def multivariate_normal(targets, weights, hyperparams, residuals):
     logpts = tt.zeros((n_t), tconfig.floatX)
 
     for l, target in enumerate(targets):
-        M = tt.cast(shared(target.samples, borrow=True), 'int16')
+!        M = tt.cast(shared(target.samples, borrow=True), 'int16')
         factor = shared(
             target.covariance.log_norm_factor, borrow=True)
         hp_name = bconfig.hyper_pars[target.typ]
@@ -87,7 +87,7 @@ def hyper_normal(targets, hyperparams, llks):
     logpts = tt.zeros((n_t), tconfig.floatX)
 
     for k, target in enumerate(targets):
-        M = target.samples
+!        M = target.samples
         factor = target.covariance.log_norm_factor
         hp_name = bconfig.hyper_pars[target.typ]
 
@@ -627,9 +627,9 @@ class SeismicComposite(Composite):
             utility.downsample_traces(
                 self.data_traces, deltat=target_deltat)
 
-        self.targets = heart.init_targets(
+        self.targets = heart.init_seismic_targets(
             self.stations,
-            earth_model=sc.gf_config.earth_model_name,
+            earth_model_name=sc.gf_config.earth_model_name,
             channels=sc.channels,
             sample_rate=sc.gf_config.sample_rate,
             crust_inds=[0],  # always reference model
@@ -942,9 +942,9 @@ class SeismicGeometryComposite(SeismicComposite):
             for i, station in enumerate(self.stations):
                 logger.debug('Channel %s of Station %s ' % (
                     channel, station.station))
-                crust_targets = heart.init_targets(
+                crust_targets = heart.init_seismic_targets(
                     stations=[station],
-                    earth_model=sc.gf_config.earth_model_name,
+                    earth_model_name=sc.gf_config.earth_model_name,
                     channels=channel,
                     sample_rate=sc.gf_config.sample_rate,
                     crust_inds=range(*sc.gf_config.n_variations),

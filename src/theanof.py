@@ -1,11 +1,12 @@
 """
 Package for wrapping various functions into Theano-Ops to be able to include
 them into theano graphs as is needed by the pymc3 models.
+
 Far future:
     include a 'def grad:' -method to each Op in order to enable the use of
     gradient based optimization algorithms
 """
-from beat import heart, utility, config, interseismic
+from beat import heart, utility, interseismic
 from beat.fast_sweeping import fast_sweep
 
 from pymc3.model import FreeRV
@@ -18,34 +19,53 @@ import numpy as num
 km = 1000.
 
 
-class GeoLayerSynthesizerFree(theano.Op):
-    '''
-    Theano wrapper for a geodetic forward model for variable observation
-    points including opening- can be used for dike/sill modeling.
+class GeoSynthesizer(theano.Op):
+    """
+    Theano wrapper for a geodetic forward model with synthetic displacements.
+    Uses pyrocko engine and fomosto GF stores.
+    Input order does not matter anymore! Did in previous version.
 
-    Inputs have to be in order!
-    Type Numpy arrays:
-    Observation|             Source parameters (RectangularSource)
-    lons, lats | east_shifts, north_shifts, top_depths, strikes, dips, rakes,
-                 lengths, widths, slips, openings
-    '''
+    Parameters
+    ----------
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+    sources : List
+        containing :class:`pyrocko.gf.seismosizer.Source` Objects
+    targets : List
+        containing :class:`pyrocko.gf.targets.StaticTarget` Objects
+    """
 
-    __props__ = ('store_superdir', 'crust_ind', 'sources')
+    __props__ = ('engine', 'sources', 'targets')
 
-    def __init__(self, store_superdir, crust_ind, sources):
-        self.store_superdir = store_superdir
-        self.crust_ind = crust_ind
+    def __init__(self, engine, sources, targets):
+        self.engine = engine
         self.sources = tuple(sources)
+        self.targets = tuple(targets)
+        self.nobs = sum([target.lats.size for target in self.targets])
 
     def __getstate__(self):
+        self.engine.close_cashed_stores()
         return self.__dict__
 
     def __setstate__(self, state):
         self.__dict__.update(state)
 
-    def make_node(self, *inputs):
+    def make_node(self, inputs):
+        """
+        Transforms theano tensors to node and allocates variables accordingly.
+
+        Parameters
+        ----------
+        inputs : dict
+            keys being strings of source attributes of the
+            :class:`pscmp.RectangularSource` that was used to initialise
+            the Operator
+            values are :class:`theano.tensor.Tensor`
+        """
         inlist = []
-        for i in inputs:
+
+        self.varnames = inputs.keys()
+
+        for i in inputs.values():
             inlist.append(tt.as_tensor_variable(i))
 
         outm = tt.as_tensor_variable(num.zeros((2, 2)))
@@ -53,36 +73,45 @@ class GeoLayerSynthesizerFree(theano.Op):
         return theano.Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
+        """
+        Perform method of the Operator to calculate synthetic displacements.
 
-        z = output[0]
+        Parameters
+        ----------
+        inputs : list
+            of :class:`numpy.ndarray`
+        output : list
+            1) of synthetic waveforms of :class:`numpy.ndarray`
+               (n x nsamples)
+            2) of start times of the first waveform samples
+               :class:`numpy.ndarray` (n x 1)
+        """
+        synths = output[0]
 
-        lons = inputs.pop(0)
-        lats = inputs.pop(0)
+        point = {vname: i for vname, i in zip(self.varnames, inputs)}
 
-        point = {var: inp for var, inp in zip(
-                    config.geo_vars_magma, inputs)}
+        mpoint = utility.adjust_point_units(point)
 
-        point = utility.adjust_point_units(point)
-
-        source_points = utility.split_point(point)
+        source_points = utility.split_point(mpoint)
 
         for i, source in enumerate(self.sources):
-            source.update(**source_points[i])
-            heart.adjust_fault_reference(source, input_depth='top')
+            utility.update_source(source, **source_points[i])
 
-        z[0] = heart.geo_layer_synthetics(
-            self.store_superdir,
-            self.crust_ind, lons, lats, self.sources)
+        synths[0] = heart.geo_synthetics(
+            engine=self.engine,
+            targets=self.targets,
+            sources=self.sources,
+            outmode='stacked_array')
 
     def infer_shape(self, node, input_shapes):
-        return [(input_shapes[0][0], 3)]
+        return [(self.nobs, 3)]
 
 
-class GeoLayerSynthesizerStatic(theano.Op):
+class GeoLayerSynthesizerPsCmp(theano.Op):
     """
     Theano wrapper for a geodetic forward model for static observation
-    points.
-    Input order does not matter anymore! Did in previous version.
+    points. Direct call to PsCmp, needs PsGrn Greens Function store!
+    Deprecated, currently not used in composites.
 
     Parameters
     ----------
@@ -157,7 +186,7 @@ class GeoLayerSynthesizerStatic(theano.Op):
         for i, source in enumerate(self.sources):
             source.update(**source_points[i])
 
-        z[0] = heart.geo_layer_synthetics(
+        z[0] = heart.geo_layer_synthetics_pscmp(
             store_superdir=self.store_superdir,
             crust_ind=self.crust_ind,
             lons=self.lons,
