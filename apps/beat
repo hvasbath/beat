@@ -169,10 +169,10 @@ def command_init(args):
             help='Main path (absolute) for creating directory structure.'
                  '  Default: current directory ./')
 
-        parser.add_option('--datasets',
+        parser.add_option('--datatypes',
             default=['geodetic'], type='string',
             action='callback', callback=list_callback,
-            help='Datasets to include in the setup; "geodetic, seismic".')
+            help='Datatypes to include in the setup; "geodetic, seismic".')
 
         parser.add_option('--mode', dest='mode',
             choices=['geometry', 'static', 'kinematic', 'interseismic'],
@@ -231,7 +231,7 @@ def command_init(args):
     return config.init_config(name, date,
                min_magnitude=options.min_mag,
                main_path=options.main_path,
-               datasets=options.datasets,
+               datatypes=options.datatypes,
                mode=options.mode,
                source_type=options.source_type,
                n_sources=options.n_sources,
@@ -256,10 +256,10 @@ def command_import(args):
         parser.add_option('--results', dest='results', action='store_true',
                 help='Import results from previous modeling step.')
 
-        parser.add_option('--datasets',
+        parser.add_option('--datatypes',
             default=['geodetic'], type='string',
             action='callback', callback=list_callback,
-            help='Datasets to import; "geodetic, seismic".')
+            help='Datatypes to import; "geodetic, seismic".')
 
         parser.add_option('--geodetic_format', dest='geodetic_format',
             type='string', default=['matlab'],
@@ -291,7 +291,7 @@ def command_import(args):
     pc = c.problem_config
 
     if not options.results:
-        if 'seismic' in options.datasets:
+        if 'seismic' in options.datatypes:
             sc = c.seismic_config
             logger.info('Attempting to import seismic data from %s' % \
                 sc.datadir)
@@ -321,7 +321,7 @@ def command_import(args):
                 logger.info('%s exists! Use --force to overwrite!' % \
                     seismic_outpath)
 
-        if 'geodetic' in options.datasets:
+        if 'geodetic' in options.datatypes:
             gc = c.geodetic_config
             logger.info('Attempting to import geodetic data from %s' % \
                 gc.datadir)
@@ -389,10 +389,10 @@ def command_clone(args):
                  ' have been created by "init".'
                  ' Default: current directory: ./')
 
-        parser.add_option('--datasets',
+        parser.add_option('--datatypes',
             default=['geodetic', 'seismic'], type='string',
             action='callback', callback=list_callback,
-            help='Datasets to clone; "geodetic, seismic".')
+            help='Datatypes to clone; "geodetic, seismic".')
 
         parser.add_option('--mode', dest='mode',
             choices=['geometry', 'static', 'kinematic', 'interseismic'],
@@ -426,26 +426,26 @@ def command_clone(args):
             c.name = cloned_name
             c.project_dir = cloned_dir
 
-            new_datasets = []
-            for dataset in  options.datasets:
-                if dataset not in c.problem_config.datasets:
-                    logger.warn(
-                        'Dataset %s to be cloned is not in config!' % dataset)
+            new_datatypes = []
+            for datatype in  options.datatypes:
+                if datatype not in c.problem_config.datatypes:
+                    logger.warn('Datatype %s to be cloned is not'
+                                ' in config!' % datatype)
                 else:
-                    new_datasets.append(dataset)
+                    new_datatypes.append(datatype)
 
                     data_path = os.path.join(
-                        project_dir, dataset + '_data.pkl')
+                        project_dir, datatype + '_data.pkl')
 
                     if os.path.exists(data_path) and options.copy_data:
-                        logger.info('Cloning %s data.' % dataset)
+                        logger.info('Cloning %s data.' % datatype)
                         cloned_data_path = os.path.join(
-                            cloned_dir, dataset + '_data.pkl')
+                            cloned_dir, datatype + '_data.pkl')
                         shutil.copyfile(data_path, cloned_data_path)
 
             old_priors = copy.deepcopy(c.problem_config.priors)
 
-            c.problem_config.datasets = new_datasets
+            c.problem_config.datatype = new_datatype
             new_priors = c.problem_config.select_variables()
 
             for prior in new_priors:
@@ -517,10 +517,10 @@ def command_build_gfs(args):
             help='Inversion problem to solve; "geometry", "static",'
                  '"kinematic", "interseismic". Default: "geometry"')
 
-        parser.add_option('--datasets',
+        parser.add_option('--datatypes',
             default='geodetic', type='string',
             action='callback', callback=list_callback,
-            help='Datasets to calculate the GFs for; "geodetic, seismic".'
+            help='Datatypes to calculate the GFs for; "geodetic, seismic".'
                  ' Default: "geodetic"')
 
         parser.add_option('--force', dest='force', action='store_true',
@@ -538,7 +538,7 @@ def command_build_gfs(args):
     c = config.load_config(project_dir, options.mode)
 
     if options.mode in ['geometry', 'interseismic']:
-        if 'geodetic' in options.datasets:
+        if 'geodetic' in options.datatypes:
             gc = c.geodetic_config
             gf = c.geodetic_config.gf_config
 
@@ -553,7 +553,7 @@ def command_build_gfs(args):
             if options.execute:
                 logger.info('Geodetic GF calculations successful!')
 
-        if 'seismic' in options.datasets:
+        if 'seismic' in options.datatypes:
             sc = c.seismic_config
             sf = sc.gf_config
 
@@ -593,7 +593,7 @@ def command_build_gfs(args):
 
     elif options.mode == 'static':
         geo = 'geodetic'
-        if geo in options.datasets:
+        if geo in options.datatypes:
             gf = c.geodetic_config.gf_config
 
             geodetic_data_path = os.path.join(
@@ -621,7 +621,7 @@ def command_build_gfs(args):
                 extension_length=gf.extension_length,
                 patch_width=gf.patch_width,
                 patch_length=gf.patch_length,
-                datasets=[geo])
+                datatypes=[geo])
 
             faultpath = os.path.join(outdir, config.fault_geometry_name)
             if os.path.exists(faultpath) and not options.force:

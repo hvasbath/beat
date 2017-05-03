@@ -185,7 +185,7 @@ class RectangularSource(gf.DCSource, Cloneable):
             (bd[2] * num.sin(d2r * self.strike) / num.tan(d2r * self.dip))
         return num.array([xtrace, ytrace, 0.])
 
-    def patches(self, nl, nw, dataset):
+    def patches(self, nl, nw, datatype):
         """
         Cut source into n by m sub-faults and return n times m
         :class:`RectangularSource` Objects.
@@ -198,7 +198,7 @@ class RectangularSource(gf.DCSource, Cloneable):
             number of patches in length direction (strike)
         nw : int
             number of patches in width direction (dip)
-        dataset : string
+        datatype : string
             'geodetic' or 'seismic' determines the source to be returned
 
         Returns
@@ -218,28 +218,28 @@ class RectangularSource(gf.DCSource, Cloneable):
                     self.strikevector * ((i + 0.5 - 0.5 * nl) * length) + \
                     self.dipvector * ((j + 0.5 - 0.5 * nw) * width)
 
-                if dataset == 'seismic':
-                    patch = gf.RectangularSource(
-                        lat=float(self.lat),
-                        lon=float(self.lon),
-                        east_shift=float(sub_center[0]),
-                        north_shift=float(sub_center[1]),
-                        depth=float(sub_center[2]),
-                        strike=self.strike, dip=self.dip, rake=self.rake,
-                        length=length, width=width, stf=self.stf,
-                        time=self.time, slip=self.slip)
-                elif dataset == 'geodetic':
-                    patch = pscmp.PsCmpRectangularSource(
-                        lat=self.lat,
-                        lon=self.lon,
-                        east_shift=float(sub_center[0]),
-                        north_shift=float(sub_center[1]),
-                        depth=float(sub_center[2]),
-                        strike=self.strike, dip=self.dip, rake=self.rake,
-                        length=length, width=width, slip=self.slip,
-                        opening=self.opening)
+                patch = gf.RectangularSource(
+                    lat=float(self.lat),
+                    lon=float(self.lon),
+                    east_shift=float(sub_center[0]),
+                    north_shift=float(sub_center[1]),
+                    depth=float(sub_center[2]),
+                    strike=self.strike, dip=self.dip, rake=self.rake,
+                    length=length, width=width, stf=self.stf,
+                    time=self.time, slip=self.slip, anchor='center')
+
+                if nw == 1 and nl == 1:
+                    logger.warn(
+                        'RectangularSource for fault-geometry inversion'
+                        ' decimated!')
+                    if datatype == 'seismic':
+                        patch.decimation_factor = 20
+
+                    elif datatype == 'geodetic':
+                        patch.decimation_factor = 7
+
                 else:
-                    raise Exception(
+                    raise TypeError(
                         "Datatype not supported either: 'seismic/geodetic'")
 
                 patches.append(patch)
@@ -1825,7 +1825,7 @@ class FaultGeometry(gf.seismosizer.Cloneable):
 
     Parameters
     ----------
-    datasets : list
+    datatypes : list
         of str of potential dataset fault geometries to be stored
     components : list
         of str of potential inversion variables (e.g. slip-components) to
@@ -1834,15 +1834,15 @@ class FaultGeometry(gf.seismosizer.Cloneable):
         comprises patch information related to subfaults
     """
 
-    def __init__(self, datasets, components, ordering):
-        self.datasets = datasets
+    def __init__(self, datatypes, components, ordering):
+        self.datatypes = datatypes
         self.components = components
         self._ext_sources = {}
         self.ordering = ordering
 
-    def _check_dataset(self, dataset):
-        if dataset not in self.datasets:
-            raise Exception('Dataset not included in FaultGeometry')
+    def _check_datatype(self, datatype):
+        if datatype not in self.datatypes:
+            raise Exception('Datatype not included in FaultGeometry')
 
     def _check_component(self, component):
         if component not in self.components:
@@ -1852,12 +1852,12 @@ class FaultGeometry(gf.seismosizer.Cloneable):
         if index > self.nsubfaults - 1:
             raise Exception('Subfault not defined!')
 
-    def get_subfault_key(self, index, dataset, component):
+    def get_subfault_key(self, index, datatype, component):
 
-        if dataset is not None:
-            self._check_dataset(dataset)
+        if datatype is not None:
+            self._check_datatype(datatype)
         else:
-            dataset = self.datasets[0]
+            datatype = self.datatypes[0]
 
         if component is not None:
             self._check_component(component)
@@ -1866,49 +1866,49 @@ class FaultGeometry(gf.seismosizer.Cloneable):
 
         self._check_index(index)
 
-        return dataset + '_' + component + '_' + str(index)
+        return datatype + '_' + component + '_' + str(index)
 
-    def setup_subfaults(self, dataset, component, ext_sources, replace=False):
+    def setup_subfaults(self, datatype, component, ext_sources, replace=False):
 
-        self._check_dataset(dataset)
+        self._check_datatype(datatype)
         self._check_component(component)
 
         if len(ext_sources) != self.nsubfaults:
             raise Exception('Setup does not match fault ordering!')
 
         for i, source in enumerate(ext_sources):
-            source_key = self.get_subfault_key(i, dataset, component)
+            source_key = self.get_subfault_key(i, datatype, component)
 
             if source_key not in self._ext_sources.keys() or replace:
                 self._ext_sources[source_key] = copy.deepcopy(source)
             else:
                 raise Exception('Subfault already specified in geometry!')
 
-    def get_subfault(self, index, dataset=None, component=None):
+    def get_subfault(self, index, datatype=None, component=None):
 
-        source_key = self.get_subfault_key(index, dataset, component)
+        source_key = self.get_subfault_key(index, datatype, component)
 
         if source_key in self._ext_sources.keys():
             return self._ext_sources[source_key]
         else:
             raise Exception('Requested subfault not defined!')
 
-    def get_subfault_patches(self, index, dataset=None, component=None):
+    def get_subfault_patches(self, index, datatype=None, component=None):
 
         self._check_index(index)
 
         subfault = self.get_subfault(
-            index, dataset=dataset, component=component)
+            index, datatype=datatype, component=component)
         npw, npl = self.ordering.vmap[index].shp
 
-        return subfault.patches(nl=npl, nw=npw, dataset=dataset)
+        return subfault.patches(nl=npl, nw=npw, datatype=datatype)
 
-    def get_all_patches(self, dataset=None, component=None):
+    def get_all_patches(self, datatype=None, component=None):
 
         patches = []
         for i in range(self.nsubfaults):
             patches += self.get_subfault_patches(
-                i, dataset=dataset, component=component)
+                i, datatype=datatype, component=component)
 
         return patches
 
@@ -1942,7 +1942,7 @@ class FaultGeometry(gf.seismosizer.Cloneable):
 
 def discretize_sources(
     sources=None, extension_width=0.1, extension_length=0.1,
-    patch_width=5000., patch_length=5000., datasets=['geodetic'],
+    patch_width=5000., patch_length=5000., datatypes=['geodetic'],
     varnames=['']):
     """
     Extend sources into all directions and discretize sources into patches.
@@ -1983,10 +1983,10 @@ def discretize_sources(
 
     ordering = utility.FaultOrdering(npls, npws)
 
-    fault = FaultGeometry(datasets, varnames, ordering)
+    fault = FaultGeometry(datatypes, varnames, ordering)
 
-    for dataset in datasets:
-        logger.info('Discretizing %s source(s)' % dataset)
+    for datatype in datatypes:
+        logger.info('Discretizing %s source(s)' % datatype)
 
         for var in varnames:
             logger.info('%s slip component' % var)
@@ -2005,7 +2005,7 @@ def discretize_sources(
                 ext_sources.append(ext_source)
                 logger.info('Extended fault(s): \n %s' % ext_source.__str__())
 
-            fault.setup_subfaults(dataset, var, ext_sources)
+            fault.setup_subfaults(datatype, var, ext_sources)
 
     return fault
 

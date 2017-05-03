@@ -195,7 +195,7 @@ class ListToArrayBijection(object):
         return a_list
 
 
-def weed_input_rvs(input_rvs, mode, dataset):
+def weed_input_rvs(input_rvs, mode, datatype):
     """
     Throw out random variables (RV)s from input list that are not included by
     the respective synthetics generating functions.
@@ -204,9 +204,12 @@ def weed_input_rvs(input_rvs, mode, dataset):
     ----------
     input_rvs : dict
         of :class:`pymc3.Distribution`
+        or set
+            of variable names
     mode : str
-        'geometry', 'static, 'kinematic' determining the discarded RVs
-    dataset : str
+        'geometry', 'static, 'kinematic', 'interseismic' determining the
+        discarded RVs
+    datatype : str
         'seismic' or 'geodetic' determining the discarded RVs
 
     Returns
@@ -217,20 +220,30 @@ def weed_input_rvs(input_rvs, mode, dataset):
 
     weeded_input_rvs = copy.copy(input_rvs)
 
+    burian = '''
+        lat lon name stf stf1 stf2 stf_mode moment anchor nucleation_x sign
+        nucleation_y velocity interpolation decimation_factor npointsources
+        '''.split()
+
     if mode == 'geometry':
-        if dataset == 'geodetic':
-            tobeweeded = ['time', 'duration']
-        elif dataset == 'seismic':
-            tobeweeded = ['opening']
+        if datatype == 'geodetic':
+            tobeweeded = ['time', 'duration'] + burian
+        elif datatype == 'seismic':
+            tobeweeded = ['opening'] + burian
+
     elif mode == 'interseismic':
-        if dataset == 'geodetic':
-            tobeweeded = []
+        if datatype == 'geodetic':
+            tobeweeded = burian
+
     else:
         tobeweeded = []
 
     for weed in tobeweeded:
-        if weed in weeded_input_rvs.keys():
-            weeded_input_rvs.pop(weed)
+        if isinstance(weeded_input_rvs, dict):
+            if weed in weeded_input_rvs.keys():
+                weeded_input_rvs.pop(weed)
+        if isinstance(weeded_input_rvs, set):
+            weeded_input_rvs.discard(weed)
 
     return weeded_input_rvs
 
@@ -351,7 +364,7 @@ def weed_stations(stations, event, distances=(30., 90.)):
     return weeded_stations
 
 
-def transform_sources(sources, datasets):
+def transform_sources(sources, datatypes, decimation_factors=None):
     """
     Transforms a list of :py:class:`heart.RectangularSource` to a dictionary of
     sources :py:class:`pscmp.PsCmpRectangularSource` for geodetic data and
@@ -361,28 +374,32 @@ def transform_sources(sources, datasets):
     ----------
     sources : list
         :class:`heart.RectangularSource`
-    datasets : list
-        of strings with the datasets to be included 'geodetic' or 'seismic'
+    datatypes : list
+        of strings with the datatypes to be included 'geodetic' or 'seismic'
+    decimation_factors : dict
+        of datatypes and their respective decimation factor
 
     Returns
     -------
     d : dict
-        of transformed sources with datasets as keys
+        of transformed sources with datatypes as keys
     """
 
     d = dict()
 
-    for dataset in datasets:
-        sub_sources = []
+    for datatype in datatypes:
+        transformed_sources = []
 
         for source in sources:
-            sub_sources.append(source.patches(1, 1, dataset))
+            transformed_source = copy.deepcopy(source)
 
-        # concatenate list of lists to single list
-        transformed_sources = []
-        map(transformed_sources.extend, sub_sources)
+            if decimation_factors is not None:
+                transformed_source.update(
+                    decimation_factor=decimation_factors[datatype])
 
-        d[dataset] = transformed_sources
+            transformed_sources.append(transformed_source)
+
+        d[datatype] = transformed_sources
 
     return d
 
@@ -1180,4 +1197,3 @@ def get_rotation_matrix(axis):
         return R[axis]
     else:
         raise Exception('axis has to be either string or list of strings!')
-

@@ -245,13 +245,16 @@ def geo_backslip_synthetics(
 
     Parameters
     ----------
-    engine : 
-    sources : List of :class:`pyrocko.gf.seismosizer.RectangularSource`
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+    sources : list
+        of :class:`pyrocko.gf.seismosizer.RectangularSource`
         Sources to calculate synthetics for
-    targets : 
-    lons : 
-    lats : 
-
+    targets : list
+        of :class:`pyrocko.gf.targets.StaticTarget`
+    lons : list of floats, or :class:`numpy.array`
+        longitudes [deg] of observation points
+    lats : list of floats, or :class:`numpy.array`
+        latitudes [deg] of observation points
     amplitude : float
         slip [m] of the moving block
     azimuth : float

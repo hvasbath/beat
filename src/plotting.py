@@ -9,7 +9,7 @@ import copy
 from beat import utility, backend, config
 from beat.models import load_stage
 from beat.metropolis import get_trace_stats
-from beat.heart import init_targets
+from beat.heart import init_seismic_targets, init_geodetic_targets
 from beat.colormap import slip_colormap
 
 from matplotlib import pyplot as plt
@@ -35,6 +35,7 @@ __all__ = ['PlotOptions', 'correlation_plot', 'correlation_plot_hist',
     'get_result_point', 'seismic_fits', 'geodetic_fits', 'traceplot',
     'select_transform']
 
+u_nm = '[Nm]'
 u_km = '[km]'
 u_deg = '[deg]'
 u_m = '[m]'
@@ -47,13 +48,32 @@ plot_units = {
     'depth': u_km,
     'width': u_km,
     'length': u_km,
+
     'dip': u_deg,
+    'dip1': u_deg,
+    'dip2': u_deg,
     'strike': u_deg,
+    'strike1': u_deg,
+    'strike2': u_deg,
     'rake': u_deg,
+    'rake1': u_deg,
+    'rake2': u_deg,
+    'mix': u_hyp,
+
+    'diameter': u_km,
     'slip': u_m,
     'azimuth': u_deg,
     'amplitude': u_m,
     'locking_depth': u_km,
+
+    'mnn': u_nm,
+    'mee': u_nm,
+    'mdd': u_nm,
+    'mne': u_nm,
+    'mnd': u_nm,
+    'med': u_nm,
+    'magnitude': u_hyp,
+
     'time': u_s,
     'duration': u_s,
     'geo_S': u_hyp,
@@ -467,17 +487,17 @@ def geodetic_fits(problem, stage, plot_options):
         composite.point2sources(po.reference)
         ref_sources = copy.deepcopy(composite.sources)
 
-    target_index = dict(
-        (target, i) for (i, target) in enumerate(composite.targets))
+    dataset_index = dict(
+        (data, i) for (i, data) in enumerate(composite.datasets))
 
     point = get_result_point(stage, problem.config, po.post_llk)
 
     results = composite.assemble_results(point)
     nrmax = len(results)
 
-    target_to_result = {}
-    for target, result in zip(composite.targets, results):
-        target_to_result[target] = result
+    dataset_to_result = {}
+    for dataset, result in zip(composite.datasets, results):
+        dataset_to_result[dataset] = result
 
     nfigs = int(num.ceil(float(nrmax) / float(ndmax)))
 
@@ -551,12 +571,12 @@ def geodetic_fits(problem, stage, plot_options):
 
         return title
 
-    orbits_to_targets = utility.gather(
-        composite.targets,
+    orbits_to_datasets = utility.gather(
+        composite.datasets,
         lambda t: t.name,
-        filter=lambda t: t in target_to_result)
+        filter=lambda t: t in dataset_to_result)
 
-    ott = orbits_to_targets.keys()
+    ott = orbits_to_datasets.keys()
 
     colims = [num.max([
         num.max(num.abs(r.processed_obs)),
@@ -564,20 +584,20 @@ def geodetic_fits(problem, stage, plot_options):
     dcolims = [num.max(num.abs(r.processed_res)) for r in results]
 
     for o in ott:
-        targets = orbits_to_targets[o]
+        datasets = orbits_to_datasets[o]
 
-        for target in targets:
+        for dataset in datasets:
             if po.plot_projection == 'local':
-                target.update_local_coords(composite.event)
+                dataset.update_local_coords(composite.event)
 
-            result = target_to_result[target]
-            tidx = target_index[target]
+            result = dataset_to_result[dataset]
+            tidx = dataset_index[dataset]
 
             figidx, rowidx = utility.mod_i(tidx, ndmax)
 
             plot_scene(
                 axes[figidx][rowidx, 0],
-                target,
+                dataset,
                 result.processed_obs,
                 scattersize,
                 colim=colims[tidx],
@@ -586,7 +606,7 @@ def geodetic_fits(problem, stage, plot_options):
 
             syn = plot_scene(
                 axes[figidx][rowidx, 1],
-                target,
+                dataset,
                 result.processed_syn,
                 scattersize,
                 colim=colims[tidx],
@@ -595,7 +615,7 @@ def geodetic_fits(problem, stage, plot_options):
 
             res = plot_scene(
                 axes[figidx][rowidx, 2],
-                target,
+                dataset,
                 result.processed_res,
                 scattersize,
                 colim=dcolims[tidx],
@@ -1520,9 +1540,9 @@ def draw_earthmodels(problem, plot_options):
 
     po = plot_options
 
-    for dataset, composite in problem.composites.iteritems():
+    for datatype, composite in problem.composites.iteritems():
 
-        if dataset == 'seismic':
+        if datatype == 'seismic':
             models_dict = {}
             sc = problem.config.seismic_config
 
@@ -1535,15 +1555,15 @@ def draw_earthmodels(problem, plot_options):
                 outbasepath = os.path.join(
                     problem.outfolder, po.figure_dir,
                     '%s_%s_velocity_model' % (
-                        dataset, station.station))
+                        datatype, station.station))
 
                 if not os.path.exists(outbasepath) or po.force:
-                    targets = init_targets(
+                    targets = init_seismic_targets(
                         [station],
-                        earth_model=sc.gf_config.earth_model_name,
+                        earth_model_name=sc.gf_config.earth_model_name,
                         channels=[sc.channels[0]],
                         sample_rate=sc.gf_config.sample_rate,
-                        crust_inds=range(sc.gf_config.n_variations + 1),
+                        crust_inds=range(*sc.gf_config.n_variations),
                         interpolation='multilinear')
 
                     models = load_earthmodels(
@@ -1565,9 +1585,9 @@ def draw_earthmodels(problem, plot_options):
                     logger.info(
                         '%s earthmodel plot for station %s exists. Use '
                         'force=True for replotting!' % (
-                            dataset, station.station))
+                            datatype, station.station))
 
-        elif dataset == 'geodetic':
+        elif datatype == 'geodetic':
             gc = problem.config.geodetic_config
 
             models_dict = {}
@@ -1575,28 +1595,28 @@ def draw_earthmodels(problem, plot_options):
             outpath = os.path.join(
                 problem.outfolder, po.figure_dir,
                 '%s_%s_velocity_model.%s' % (
-                    dataset, 'psgrn', po.outformat))
+                    datatype, 'psgrn', po.outformat))
 
             if not os.path.exists(outpath) or po.force:
-                for crust_ind in range(gc.gf_config.n_variations + 1):
-                    psgrn_input_path = os.path.join(
-                        gc.gf_config.store_superdir,
-                        'psgrn_green_' + str(crust_ind),
-                        'input')
-                    models.append(
-                        utility.PsGrnArray2LayeredModel(psgrn_input_path))
+                targets = init_geodetic_targets(
+                    datasets=composite.datasets,
+                    earth_model_name=gc.gf_config.earth_model_name,
+                    interpolation='multilinear',
+                    crust_inds=range(*gc.gf_config.n_variations),
+                    sample_rate=gc.gf_config.sample_rate)
 
+                models = load_earthmodels(composite.engine, targets)
                 models_dict[outpath] = models
 
             else:
                 logger.info(
                     '%s earthmodel plot exists. Use force=True for'
-                    ' replotting!' % dataset)
+                    ' replotting!' % datatype)
                 return
 
         else:
             raise Exception(
-                'Plot for dataset %s not (yet) supported' % dataset)
+                'Plot for datatype %s not (yet) supported' % datatype)
 
         figs = []
         axes = []
@@ -1683,12 +1703,12 @@ def fault_slip_distribution(patches, slip, alpha=0.9):
 
 def draw_static_dist(problem, po):
 
-    dataset = 'geodetic'
+    datatype = 'geodetic'
 
-    if dataset not in problem.composites.keys():
+    if datatype not in problem.composites.keys():
         raise Exception('No geodetic composite defined for this problem!')
 
-    gc = problem.composites[dataset]
+    gc = problem.composites[datatype]
 
     fault = gc.load_fault_geometry()
     priorvars = problem.config.problem_config.priors.keys()
@@ -1706,7 +1726,7 @@ def draw_static_dist(problem, po):
     figs = []
     outpaths = []
     for i in range(fault.nsubfaults):
-        patches = fault.get_subfault_patches(i, dataset)
+        patches = fault.get_subfault_patches(i, datatype)
         slc = fault.get_patch_indexes(i)
         fig, axs = fault_slip_distribution(patches, slip[slc])
         figs.append(fig)

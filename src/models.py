@@ -32,11 +32,6 @@ __all__ = ['GeometryOptimizer', 'DistributionOptimizer',
            'sample', 'load_model', 'load_stage']
 
 
-!source_catalog = {
-    bconfig.rfs: heart.RectangularSource,
-    bconfig.dcs: gf.DCSource}
-
-
 def multivariate_normal(datasets, weights, hyperparams, residuals):
     """
     Calculate posterior Likelihood of a Multivariate Normal distribution.
@@ -304,7 +299,7 @@ class GeodeticComposite(Composite):
 
                 residuals[i] -= get_ramp_displacement(
                     self._slocx[i], self._slocy[i],
-                    self.ramp_params[target.name])
+                    self.ramp_params[data.name])
 
         return residuals
 
@@ -511,7 +506,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
 
         return synths
 
-!    def update_weights(self, point, n_jobs=1, plot=False):
+    def update_weights(self, point, n_jobs=1, plot=False):
         """
         Updates weighting matrixes (in place) with respect to the point in the
         solution space.
@@ -556,7 +551,7 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
             gc, project_dir, sources, event, hypers=hypers)
 
         for source in sources:
-            if not isinstance(source, RS):
+            if not isinstance(source, gf.RectangularSource):
                 raise TypeError('Sources have to be RectangularSources!')
 
         self._lats = self.Bij.fmap([data.lats for data in self.datasets])
@@ -589,8 +584,6 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         spoint, bpoint = seperate_point(tpoint)
 
         self.point2sources(spoint)
-
-        gc = self.config
 
         synths = []
         for target, data in zip(self.targets, self.datasets):
@@ -691,12 +684,12 @@ class SeismicComposite(Composite):
                 cov_ds_seismic.append(num.eye(n_samples))
 
         self.weights = []
-        for t, trace in enumerate(self.data_traces):
-            if trace.covariance.data is None and not sc.calc_data_cov:
+        for t, trc in enumerate(self.data_traces):
+            if trc.covariance.data is None and not sc.calc_data_cov:
                 logger.warn(
                     'No data covariance given/estimated! '
                     'Setting default: eye')
-            trace.covariance.data = cov_ds_seismic[t]
+            trc.covariance.data = cov_ds_seismic[t]
 
             icov = trace.covariance.inverse
             self.weights.append(shared(icov, borrow=True))
@@ -1276,11 +1269,11 @@ class Problem(object):
 
             total_llk = tt.zeros((1), tconfig.floatX)
 
-!            for dataset, composite in self.composites.iteritems():
+            for datatype, composite in self.composites.iteritems():
                 input_rvs = utility.weed_input_rvs(
-                    self.rvs, mode, dataset=dataset)
+                    self.rvs, mode, datatype=datatype)
                 fixed_rvs = utility.weed_input_rvs(
-                    self.fixed_params, mode, dataset=dataset)
+                    self.fixed_params, mode, datatype=datatype)
                 total_llk += composite.get_formula(
                     input_rvs, fixed_rvs, self.hyperparams)
 
@@ -1494,14 +1487,15 @@ class SourceOptimizer(Problem):
         self.sources = []
         for i in range(pc.n_sources):
             if self.event:
-!                source = source_catalog[pc.source_type].from_pyrocko_event(
-                    self.event)
+                source = \
+                    bconfig.source_catalog[pc.source_type].from_pyrocko_event(
+                        self.event)
 
                 # hardcoded inversion for hypocentral time
                 if source.stf is not None:
                     source.stf.anchor = -1.
             else:
-                source = source_catalog[pc.source_type]()
+                source = bconfig.source_catalog[pc.source_type]()
 
             self.sources.append(source)
 
@@ -1524,20 +1518,16 @@ class GeometryOptimizer(SourceOptimizer):
 
         pc = config.problem_config
 
-        if pc.source_type == 'RectangularSource':
-!            dsources = utility.transform_sources(
-                self.sources,
-                pc.datasets)
-        else:
-            dsources = {}
-            for dataset in pc.datasets:
-                dsources[dataset] = copy.deepcopy(self.sources)
+        dsources = utility.transform_sources(
+            self.sources,
+            pc.datatypes,
+            pc.decimation_factors)
 
-!        for dataset in pc.datasets:
-            self.composites[dataset] = geometry_composite_catalog[dataset](
-                config[dataset + '_config'],
+        for datatype in pc.datatypes:
+            self.composites[datatype] = geometry_composite_catalog[datatype](
+                config[datatype + '_config'],
                 config.project_dir,
-                dsources[dataset],
+                dsources[datatype],
                 self.event,
                 hypers)
 
@@ -1568,20 +1558,21 @@ class InterseismicOptimizer(SourceOptimizer):
         pc = config.problem_config
 
         if pc.source_type == 'RectangularSource':
-!            dsources = utility.transform_sources(
+            dsources = utility.transform_sources(
                 self.sources,
-                pc.datasets)
+                pc.datatypes)
         else:
             raise TypeError('Interseismic Optimizer has to be used with'
                             ' RectangularSources!')
 
-!        for dataset in pc.datasets:
-            self.composites[dataset] = interseismic_composite_catalog[dataset](
-                config[dataset + '_config'],
-                config.project_dir,
-                dsources[dataset],
-                self.event,
-                hypers)
+        for datatype in pc.datatypes:
+            self.composites[datatype] = \
+                interseismic_composite_catalog[datatype](
+                    config[datatype + '_config'],
+                    config.project_dir,
+                    dsources[datatype],
+                    self.event,
+                    hypers)
 
         self.config = config
 
@@ -1607,17 +1598,17 @@ class DistributionOptimizer(Problem):
 
         super(DistributionOptimizer, self).__init__(config, hypers)
 
-!        for dataset in config.problem_config.datasets:
-            composite = distributer_composite_catalog[dataset](
-                config[dataset + '_config'],
+        for datatype in config.problem_config.datatypes:
+            composite = distributer_composite_catalog[datatype](
+                config[datatype + '_config'],
                 config.project_dir,
                 self.event,
                 hypers)
 
             # do the optimization only on the reference velocity model
-            logger.info("Loading %s Green's Functions" % dataset)
+            logger.info("Loading %s Green's Functions" % datatype)
             composite.load_gfs(crust_inds=[0])
-            self.composites[dataset] = composite
+            self.composites[datatype] = composite
 
         self.config = config
 
