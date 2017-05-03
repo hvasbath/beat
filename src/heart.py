@@ -2011,7 +2011,7 @@ def discretize_sources(
 
 
 def geo_construct_gf_linear(
-    engine, outpath, crust_ind=0,
+    engine, outpath, crust_ind=0, datasets=None,
     targets=None, fault=None, varnames=[''],
     force=False):
     """
@@ -2035,6 +2035,8 @@ def geo_construct_gf_linear(
         complex fault-geometry
     varnames : list
         of str with variable names that are being optimized for
+    force : bool
+        Force to overwrite existing files.
     """
 
     if os.path.exists(outpath) and not force:
@@ -2044,34 +2046,27 @@ def geo_construct_gf_linear(
         out_gfs = {}
         for var in varnames:
             logger.debug('For slip component: %s' % var)
-            gfs_target = []
-            for target, data in zip(targets, datasets):
-                logger.debug('Target %s' % target.__str__())
 
-                gfs = []
-                for source in fault.get_all_patches('geodetic', var):
-!                    disp = heart.geo_synthetics(
-                        engine=engine,
-                        targets=[target],
-                        sources=[source],
-                        outmode='stacked_arrays')
-                    disp = geo_layer_synthetics_pscmp(
-                        store_superdir=store_superdir,
-                        crust_ind=crust_ind,
-                        lons=dataset.lons,
-                        lats=dataset.lats,
-                        sources=[source],
-                        keep_tmp=False)
+            gfs = []
+            for source in fault.get_all_patches('geodetic', var):
+                disp = geo_synthetics(
+                    engine=engine,
+                    targets=targets,
+                    sources=[source],
+                    outmode='stacked_arrays')
 
-                    gfs.append((
-                        disp[:, 0] * data.los_vector[:, 0] + \
-                        disp[:, 1] * data.los_vector[:, 1] + \
-                        disp[:, 2] * data.los_vector[:, 2]) * \
-                            target.odw)
+                gfs_data = []
+                for d, data in zip(disp, datasets):
+                    logger.debug('Target %s' % data.__str__())
+                    gfs_data.append((
+                        d[:, 0] * data.los_vector[:, 0] + \
+                        d[:, 1] * data.los_vector[:, 1] + \
+                        d[:, 2] * data.los_vector[:, 2]) * \
+                            data.odw)
 
-                gfs_target.append(num.vstack(gfs).T)
+                gfs.append(num.vstack(gfs_data).T)
 
-        out_gfs[var] = gfs_target
+        out_gfs[var] = gfs
         logger.info("Dumping Green's Functions to %s" % outpath)
         utility.dump_objects(outpath, [out_gfs])
 
@@ -2333,7 +2328,9 @@ def geo_synthetics(
         n = response['displacement.n']
         e = response['displacement.e']
         u = -response['displacement.d']
-        dapp(num.hstack([n, e, u]))
+        comps = num.hstack([n, e, u])
+        print comps.shape
+        dapp(comps)
 
     if outmode == 'arrays':
         return disp_arrays

@@ -658,10 +658,11 @@ def command_build_gfs(args):
                         crust_inds=[crust_ind],
                         sample_rate=gf.sample_rate)
 
-!                    heart.geo_construct_gf_linear(
+                    heart.geo_construct_gf_linear(
                         engine=engine,
                         outpath=outpath,
                         crust_ind=crust_ind,
+                        datasets=datasets,
                         targets=targets,
                         fault=fault,
                         varnames=varnames,
