@@ -3,7 +3,7 @@ Module for interseismic models. Block-backslip model.
 """
 
 from beat import utility
-from beat.heart import geo_layer_synthetics
+from beat.heart import geo_synthetics
 
 import numpy as num
 import logging
@@ -279,7 +279,7 @@ def geo_backslip_synthetics(
             strike=source.strike, dip=source.dip)
         source.update(**source_params)
 
-    disp_block += geo_layer_synthetics(
+    disp_block += geo_synthetics(
         engine=engine, targets=targets, sources=sources,
         outmode='stacked_array')
 

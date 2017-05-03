@@ -63,7 +63,9 @@ plot_units = {
     'diameter': u_km,
     'slip': u_m,
     'azimuth': u_deg,
-    'amplitude': u_m,
+    'bl_azimuth': u_deg,
+    'amplitude': u_nm,
+    'bl_amplitude': u_m,
     'locking_depth': u_km,
 
     'mnn': u_nm,
@@ -74,6 +76,9 @@ plot_units = {
     'med': u_nm,
     'magnitude': u_hyp,
 
+    'distance': u_km,
+    'delta_depth': u_km,
+    'delta_time': u_s,
     'time': u_s,
     'duration': u_s,
     'geo_S': u_hyp,

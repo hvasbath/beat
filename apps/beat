@@ -182,10 +182,11 @@ def command_init(args):
                  '"kinematic", "interseismic". Default: "geometry"')
 
         parser.add_option('--source_type', dest='source_type',
-            choices=['DCSource', 'RectangularSource'],
+            choices=config.source_names,
             default='RectangularSource',
-            help='Source type to solve for; "DCSource", "RectangularSource"'
-                 '. Default: "RectangularSource"')
+            help='Source type to solve for; %s'
+                 '. Default: "RectangularSource"' % (
+                     '", "'.join(name for name in config.source_names)))
 
         parser.add_option('--n_sources', dest='n_sources', type='int',
             default=1,

@@ -22,7 +22,8 @@ DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype')
 PatchMap = collections.namedtuple(
     'PatchMap', 'count, slc, shp, npatches')
 
-kmtypes = set(['east_shift', 'north_shift', 'length', 'width', 'depth'])
+kmtypes = set(['east_shift', 'north_shift', 'length', 'width', 'depth',
+               'distance', 'delta_depth'])
 
 seconds_str = '00:00:00'
 
@@ -227,7 +228,7 @@ def weed_input_rvs(input_rvs, mode, datatype):
 
     if mode == 'geometry':
         if datatype == 'geodetic':
-            tobeweeded = ['time', 'duration'] + burian
+            tobeweeded = ['time', 'duration', 'delta_time'] + burian
         elif datatype == 'seismic':
             tobeweeded = ['opening'] + burian
 
@@ -242,8 +243,13 @@ def weed_input_rvs(input_rvs, mode, datatype):
         if isinstance(weeded_input_rvs, dict):
             if weed in weeded_input_rvs.keys():
                 weeded_input_rvs.pop(weed)
-        if isinstance(weeded_input_rvs, set):
+
+        elif isinstance(weeded_input_rvs, set):
             weeded_input_rvs.discard(weed)
+
+        else:
+            TypeError('Variables are not of proper format: %s !' % \
+                weeded_input_rvs.__class__)
 
     return weeded_input_rvs
 

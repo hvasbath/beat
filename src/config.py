@@ -16,7 +16,7 @@ from pyrocko.cake import load_model
 from pyrocko import trace, model, util
 from pyrocko.gf import Earthmodel1D
 from pyrocko.gf.seismosizer import Cloneable, source_classes
-from beat.heart import Filter, ArrivalTaper, TeleseismicTarget, Parameter
+from beat.heart import Filter, ArrivalTaper, Parameter
 from beat.heart import RectangularSource, ReferenceLocation
 
 from beat import utility
@@ -27,7 +27,7 @@ guts_prefix = 'beat'
 
 logger = logging.getLogger('config')
 
-block_vars = ['azimuth', 'amplitude']
+block_vars = ['bl_azimuth', 'bl_amplitude']
 seis_vars = ['time', 'duration']
 
 source_names = '''
@@ -106,8 +106,12 @@ default_bounds = dict(
     mnd=mcomps,
     med=mcomps,
 
+    diameter=(5., 10.),
     mix=(0, 1),
     time=(-3., 3.),
+    delta_time=(0., 10.),
+    delta_depth=(0., 10.),
+    distance=(0., 10.),
     duration=(0., 20.),
 
     uparr=(-0.3, 6.),
@@ -117,7 +121,9 @@ default_bounds = dict(
     velocity=(0.5, 4.2),
 
     azimuth=(0, 180),
-    amplitude=(0., 0.1),
+    amplitude=mcomps,
+    bl_azimuth=(0, 180),
+    bl_amplitude=(0., 0.1),
     locking_depth=(1., 10.),
 
     seis_Z=(-20., 20.),
@@ -305,7 +311,6 @@ class SeismicConfig(Object):
         help='Cut the GF traces before stacking around the specified arrival'
              ' taper')
     filterer = Filter.T(default=Filter.D())
-    targets = List.T(TeleseismicTarget.T(), optional=True)
     gf_config = GFConfig.T(default=SeismicGFConfig.D())
 
 
@@ -346,6 +351,11 @@ class ProblemConfig(Object):
         default='RectangularSource',
         help='Source type to invert for. Options: %s' % (
             ', '.join(name for name in source_names)))
+    decimation_factors = Dict.T(
+        default=None,
+        optional=True,
+        help='Determines the reduction of discretization of an extended'
+             ' source.')
     n_sources = Int.T(default=1,
                      help='Number of Sub-sources to solve for')
     datatypes = List.T(default=['geodetic'])
@@ -353,11 +363,6 @@ class ProblemConfig(Object):
         help='Hyperparameters to weight different types of datatypes.')
     priors = Dict.T(
         help='Priors of the variables in question.')
-    decimation_factors = Dict.T(
-        default=None,
-        optional=True,
-        help='Determines the reduction of discretization of an extended'
-             ' source.')
 
     def init_vars(self, variables=None):
         """
@@ -405,7 +410,7 @@ class ProblemConfig(Object):
                     if self.source_type in vars_catalog[datatype].keys():
                         source = vars_catalog[datatype][self.source_type]
                         variables += utility.weed_input_rvs(
-                            source.keys(), self.mode, datatype)
+                            set(source.keys()), self.mode, datatype)
                     else:
                         raise ValueError('Source Type not supported for type'
                             ' of problem, and datatype!')
