@@ -717,6 +717,10 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
 
     elif mode == 'static':
 
+        if source_type != 'RectangularSource':
+            raise TypeError('Static distributed slip is so far only supported'
+                            ' for RectangularSource(s)')
+
         gc = load_config(c.project_dir, 'geometry')
 
         if gc is not None:

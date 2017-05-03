@@ -9,6 +9,7 @@ from beat import heart, config, utility, models, inputf, plotting
 from beat.metropolis import get_trace_stats
 
 from pyrocko import model, util
+from pyrocko.gf import LocalEngine
 
 from pyrocko.guts import load, dump
 
@@ -599,10 +600,10 @@ def command_build_gfs(args):
             geodetic_data_path = os.path.join(
                 c.project_dir, config.geodetic_data_name)
 
-            targets = utility.load_objects(geodetic_data_path)
-            for target in targets:
-                if target.los_vector is None:
-                    target.update_los_vector()
+            datasets = utility.load_objects(geodetic_data_path)
+            for data in datasets:
+                if data.los_vector is None:
+                    data.update_los_vector()
 
             outdir = os.path.join(
                 c.project_dir, options.mode, config.linear_gf_dir_name)
@@ -642,13 +643,23 @@ def command_build_gfs(args):
 
             if options.execute:
                 logger.info("Calculating linear Green's Functions...")
+                engine = LocalEngine(store_superdirs=[gf.store_superdir])
+
                 for crust_ind in range(*gf.n_variations):
                     outpath = os.path.join(outdir,
                         str(crust_ind) + '_' + \
                         config.geodetic_linear_gf_name)
                     logger.info('crust_ind %i' % crust_ind)
-                    heart.geo_construct_gf_linear(
-                        store_superdir=gf.store_superdir,
+
+                    targets = init_geodetic_targets(
+                        datasets,
+                        earth_model_name='ak135-f-average.m',
+                        interpolation='multilinear',
+                        crust_inds=[crust_ind],
+                        sample_rate=gf.sample_rate)
+
+!                    heart.geo_construct_gf_linear(
+                        engine=engine,
                         outpath=outpath,
                         crust_ind=crust_ind,
                         targets=targets,

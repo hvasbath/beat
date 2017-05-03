@@ -2011,7 +2011,7 @@ def discretize_sources(
 
 
 def geo_construct_gf_linear(
-    store_superdir, outpath, crust_ind=0,
+    engine, outpath, crust_ind=0,
     targets=None, fault=None, varnames=[''],
     force=False):
     """
@@ -2019,13 +2019,15 @@ def geo_construct_gf_linear(
 
     Parameters
     ----------
-    store_superdir : str
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
         main path to directory containing the different Greensfunction stores
     outpath : str
         absolute path to the directory and filename where to store the
         Green's Functions
     crust_ind : int
         of index of Greens Function store to use
+    datasets : list
+        of :class:`heart.GeodeticDataset` for which the GFs are calculated
     targets : list
         of :class:`heart.GeodeticDataset`
     fault : :class:`FaultGeometry`
@@ -2043,23 +2045,28 @@ def geo_construct_gf_linear(
         for var in varnames:
             logger.debug('For slip component: %s' % var)
             gfs_target = []
-            for target in targets:
+            for target, data in zip(targets, datasets):
                 logger.debug('Target %s' % target.__str__())
 
                 gfs = []
                 for source in fault.get_all_patches('geodetic', var):
+!                    disp = heart.geo_synthetics(
+                        engine=engine,
+                        targets=[target],
+                        sources=[source],
+                        outmode='stacked_arrays')
                     disp = geo_layer_synthetics_pscmp(
                         store_superdir=store_superdir,
                         crust_ind=crust_ind,
-                        lons=target.lons,
-                        lats=target.lats,
+                        lons=dataset.lons,
+                        lats=dataset.lats,
                         sources=[source],
                         keep_tmp=False)
 
                     gfs.append((
-                        disp[:, 0] * target.los_vector[:, 0] + \
-                        disp[:, 1] * target.los_vector[:, 1] + \
-                        disp[:, 2] * target.los_vector[:, 2]) * \
+                        disp[:, 0] * data.los_vector[:, 0] + \
+                        disp[:, 1] * data.los_vector[:, 1] + \
+                        disp[:, 2] * data.los_vector[:, 2]) * \
                             target.odw)
 
                 gfs_target.append(num.vstack(gfs).T)
