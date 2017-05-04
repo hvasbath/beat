@@ -15,7 +15,7 @@ from pyrocko.cake import load_model
 
 from pyrocko import trace, model, util
 from pyrocko.gf import Earthmodel1D
-from pyrocko.gf.seismosizer import Cloneable, source_classes
+from pyrocko.gf.seismosizer import Cloneable, source_classes, stf_classes
 from beat.heart import Filter, ArrivalTaper, Parameter
 from beat.heart import RectangularSource, ReferenceLocation
 
@@ -41,8 +41,17 @@ DoubleDCSource
 RingfaultSource
 '''.split()
 
+stf_names = '''
+Boxcar
+Triangular
+HalfSinusoid
+'''.split()
+
 source_catalog = {name: source_class for name, source_class in zip(
     source_names, source_classes[2:10])}
+
+stf_catalog = {name: stf_class for name, stf_class in zip(
+    stf_names, stf_classes[1:4])}
 
 interseismic_vars = [
     'east_shift', 'north_shift', 'strike', 'dip', 'length',
@@ -112,7 +121,9 @@ default_bounds = dict(
     delta_time=(0., 10.),
     delta_depth=(0., 10.),
     distance=(0., 10.),
+
     duration=(0., 20.),
+    peak_ratio=(0., 1.),
 
     uparr=(-0.3, 6.),
     uperp=(-0.3, 4.),
@@ -341,7 +352,7 @@ class GeodeticConfig(Object):
 
 class ProblemConfig(Object):
     """
-    Config for inversion problem to setup.
+    Config for optimization problem to setup.
     """
     mode = String.T(
         default='geometry',
@@ -349,8 +360,12 @@ class ProblemConfig(Object):
              ' "interseismic"',)
     source_type = String.T(
         default='RectangularSource',
-        help='Source type to invert for. Options: %s' % (
+        help='Source type to optimize for. Options: %s' % (
             ', '.join(name for name in source_names)))
+    stf_type = String.T(
+        default='HalfSinusoid',
+        help='Source time function type to use. Options: %s' % (
+            ', '.join(name for name in stf_names)))
     decimation_factors = Dict.T(
         default=None,
         optional=True,
@@ -414,6 +429,12 @@ class ProblemConfig(Object):
                     else:
                         raise ValueError('Source Type not supported for type'
                             ' of problem, and datatype!')
+
+                    if datatype == 'seismic':
+                        if self.stf_type in stf_catalog.keys():
+                            stf = stf_catalog[self.stf_type]
+                            variables += utility.weed_input_rvs(
+                                set(stf.keys()), self.mode, datatype)
                 else:
                     variables += vars_catalog[datatype]
             else:

@@ -96,6 +96,8 @@ class GeoSynthesizer(theano.Op):
 
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
+            # reset source time may result in store error otherwise
+            source.time = 0.01
 
         synths[0] = heart.geo_synthetics(
             engine=self.engine,

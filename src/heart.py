@@ -530,7 +530,9 @@ physical_bounds = dict(
     delta_time=(0., 100.),
     delta_depth=(0., 300.),
     distance=(0., 300.),
+
     duration=(0., 600.),
+    peak_ratio=(0., 1.),
 
     uparr=(-0.3, 150.),
     uperp=(-150., 150.),
@@ -1018,7 +1020,7 @@ def init_seismic_targets(
 
 def init_geodetic_targets(
     datasets, earth_model_name='ak135-f-average.m',
-    interpolation='multilinear', crust_inds=[0],
+    interpolation='nearest_neighbor', crust_inds=[0],
     sample_rate=0.0):
     """
     Initiate a list of Static target objects given a list of indexes to the
@@ -1671,6 +1673,7 @@ def geo_construct_gf(
                 error_velocities=gfc.error_velocities)[0]
 
         fomosto_config.earthmodel_1d = source_model
+        fomosto_config.modelling_code_id='psgrn_pscmp.%s' % version
 
         c.validate()
         fomosto_config.validate()
@@ -2345,11 +2348,11 @@ def geo_synthetics(
 
     disp_arrays = []
     dapp = disp_arrays.append
-    for response in response.static_results():
-        n = response['displacement.n']
-        e = response['displacement.e']
-        u = -response['displacement.d']
-        comps = num.hstack([n, e, u])
+    for sresult in response.static_results():
+        n = sresult.result['displacement.n']
+        e = sresult.result['displacement.e']
+        u = -sresult.result['displacement.d']
+        comps = num.vstack([n, e, u])
         print comps.shape
         dapp(comps)
 

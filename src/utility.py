@@ -403,6 +403,9 @@ def transform_sources(sources, datatypes, decimation_factors=None):
                 transformed_source.update(
                     decimation_factor=decimation_factors[datatype])
 
+            if datatype == 'geodetic':
+                transformed_source.stf = None
+
             transformed_sources.append(transformed_source)
 
         d[datatype] = transformed_sources

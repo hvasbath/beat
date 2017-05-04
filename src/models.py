@@ -408,6 +408,8 @@ class GeodeticSourceComposite(GeodeticComposite):
 
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
+            # reset source time may result in store error otherwise
+            source.time = 0.01
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams):
         """
@@ -524,7 +526,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
             crust_targets = heart.init_geodetic_targets(
                 datasets=[data],
                 earth_model_name=gc.gf_config.earth_model_name,
-                interpolation='multilinear',
+                interpolation='nearest_neighbor',
                 crust_inds=range(*gc.gf_config.n_variations),
                 sample_rate=gc.gf_config.sample_rate)
 
@@ -1490,6 +1492,9 @@ class SourceOptimizer(Problem):
                 source = \
                     bconfig.source_catalog[pc.source_type].from_pyrocko_event(
                         self.event)
+
+                source.stf = bconfig.stf_catalog[pc.stf_type](
+                    duration=self.event.duration)
 
                 # hardcoded inversion for hypocentral time
                 if source.stf is not None:

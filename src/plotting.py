@@ -81,6 +81,7 @@ plot_units = {
     'delta_time': u_s,
     'time': u_s,
     'duration': u_s,
+    'peak_ratio': u_hyp,
     'geo_S': u_hyp,
     'geo_G': u_hyp,
     'seis_Z': u_hyp,
