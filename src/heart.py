@@ -652,11 +652,7 @@ class SeismicDataset(trace.Trace):
     :class:`Covariance` as an attribute.
     """
 
-    covariance = Covariance.T(
-        default=Covariance.D(),
-        optional=True,
-        help=':py:class:`Covariance` that holds data'
-             'and model prediction covariance matrixes')
+    covariance = None
 
     @property
     def samples(self):
@@ -1056,7 +1052,7 @@ def init_geodetic_targets(
         interpolation=interpolation,
         quantity='displacement',
         store_id='%s_%s_%.3fHz_%s' % (
-            'static', em_name, sample_rate, crust_ind))
+            'statics', em_name, sample_rate, crust_ind))
             for crust_ind in crust_inds
                 for d in datasets]
 
@@ -1597,7 +1593,7 @@ def seis_construct_gf(
 
         traces_path = os.path.join(store_dir, 'traces')
 
-        if execute and not os.path.exists(traces_path):
+        if execute and not os.path.exists(traces_path) or force:
             logger.info('Filling store ...')
             store = gf.Store(store_dir, 'r')
             store.make_ttt(force=force)
@@ -1689,7 +1685,7 @@ def geo_construct_gf(
 
     traces_path = os.path.join(store_dir, 'traces')
 
-    if execute and not os.path.exists(traces_path):
+    if execute and not os.path.exists(traces_path) or force:
         logger.info('Filling store ...')
 
         store = gf.store.Store(store_dir, 'r')

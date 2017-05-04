@@ -248,7 +248,7 @@ def weed_input_rvs(input_rvs, mode, datatype):
             weeded_input_rvs.discard(weed)
 
         else:
-            TypeError('Variables are not of proper format: %s !' % \
+            raise TypeError('Variables are not of proper format: %s !' % \
                 weeded_input_rvs.__class__)
 
     return weeded_input_rvs

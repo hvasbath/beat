@@ -358,7 +358,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         odws = self.Bij.fmap(_odws_list)
 
         logger.info(
-            'Number of geodetic data points: %i ' % self._lats.shape[0])
+            'Number of geodetic data points: %i ' % ordering.dimensions)
 
         self.wdata = shared(self.Bij.fmap(_disp_list) * odws, borrow=True)
         self.lv = shared(self.Bij.f3map(_lv_list), borrow=True)
@@ -406,8 +406,8 @@ class GeodeticSourceComposite(GeodeticComposite):
 
         source_points = utility.split_point(tpoint)
 
-        for i, source_point in enumerate(source_points):
-            self.sources[i].update(**source_point)
+        for i, source in enumerate(self.sources):
+            utility.update_source(source, **source_points[i])
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams):
         """
@@ -685,13 +685,13 @@ class SeismicComposite(Composite):
 
         self.weights = []
         for t, trc in enumerate(self.data_traces):
-            if trc.covariance.data is None and not sc.calc_data_cov:
+            if trc.covariance is None and not sc.calc_data_cov:
                 logger.warn(
                     'No data covariance given/estimated! '
                     'Setting default: eye')
-            trc.covariance.data = cov_ds_seismic[t]
 
-            icov = trace.covariance.inverse
+            trc.covariance = heart.Covariance(data=cov_ds_seismic[t])
+            icov = trc.covariance.inverse
             self.weights.append(shared(icov, borrow=True))
 
         super(SeismicComposite, self).__init__(hypers=hypers)
