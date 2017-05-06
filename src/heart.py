@@ -2428,3 +2428,25 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
             raise Exception('Cannot return array without tapering!')
     if outmode == 'traces':
         return cut_traces
+
+
+def check_problem_stores(problem, datatypes):
+    """
+    Check GF stores for empty traces.
+    """
+
+    corrupted_stores = {}
+    for datatype in datatypes:
+        engine = problem.composites[datatype].engine
+        storeids = engine.get_store_ids()
+
+        cstores = []
+        for store_id in storeids:
+            store = engine.get_store(store_id)
+            stats = store.stats()
+            if stats['empty'] > 0:
+                cstores.append(store_id)
+
+        corrupted_stores[datatype] = cstores
+
+    return corrupted_stores

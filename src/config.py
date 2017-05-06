@@ -15,6 +15,7 @@ from pyrocko.cake import load_model
 
 from pyrocko import trace, model, util
 from pyrocko.gf import Earthmodel1D
+from pyrocko.gf import RectangularSource as RS
 from pyrocko.gf.seismosizer import Cloneable, source_classes, stf_classes
 from beat.heart import Filter, ArrivalTaper, Parameter
 from beat.heart import RectangularSource, ReferenceLocation
@@ -424,8 +425,12 @@ class ProblemConfig(Object):
                 if self.mode == 'geometry':
                     if self.source_type in vars_catalog[datatype].keys():
                         source = vars_catalog[datatype][self.source_type]
+                        svars = set(source.keys())
+                        if isinstance(self.source, RS):
+                            svars.discard('magnitude')
+
                         variables += utility.weed_input_rvs(
-                            set(source.keys()), self.mode, datatype)
+                            svars, self.mode, datatype)
                     else:
                         raise ValueError('Source Type not supported for type'
                             ' of problem, and datatype!')
@@ -444,6 +449,7 @@ class ProblemConfig(Object):
                             '"%s"' % d for d in vars_catalog.keys())))
 
         unique_variables = utility.unique_list(variables)
+
         if len(unique_variables) == 0:
             raise Exception('Mode and datatype combination not implemented'
                 ' or not resolvable with given datatypes.')
