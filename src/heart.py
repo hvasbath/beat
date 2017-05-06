@@ -1673,7 +1673,7 @@ def geo_construct_gf(
                 error_velocities=gfc.error_velocities)[0]
 
         fomosto_config.earthmodel_1d = source_model
-        fomosto_config.modelling_code_id='psgrn_pscmp.%s' % version
+        fomosto_config.modelling_code_id = 'psgrn_pscmp.%s' % version
 
         c.validate()
         fomosto_config.validate()
@@ -2337,7 +2337,7 @@ def geo_synthetics(
         stacked_arrays = []
         sapp = stacked_arrays.append
         for target in targets:
-            sapp(num.empty([target.lons.size, 3]))
+            sapp(num.zeros([target.lons.size, 3]))
 
         for k in range(ns):
             for l in range(nt):
@@ -2352,9 +2352,7 @@ def geo_synthetics(
         n = sresult.result['displacement.n']
         e = sresult.result['displacement.e']
         u = -sresult.result['displacement.d']
-        comps = num.vstack([n, e, u])
-        print comps.shape
-        dapp(comps)
+        dapp(num.vstack([n, e, u]).T)
 
     if outmode == 'arrays':
         return disp_arrays

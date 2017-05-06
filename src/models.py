@@ -409,7 +409,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
             # reset source time may result in store error otherwise
-            source.time = 0.01
+            source.time = 0.
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams):
         """
