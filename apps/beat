@@ -27,7 +27,7 @@ subcommand_descriptions = {
         'build_gfs':      'build GF stores',
         'clone':          'clone EQ model project into new directory',
         'plot':           'plot specified setups or results',
-        'check'           'check setup specific requirements'
+        'check':          'check setup specific requirements'
     }
 
 subcommand_usages = {
@@ -38,7 +38,7 @@ subcommand_usages = {
         'build_gfs':     'build_gfs <event_name> [options]',
         'clone':         'clone <event_name> <cloned_event_name> [options]',
         'plot':          'plot <event_name> <plot_type> [options]',
-        'check'          'check <event_name> [options]',
+        'check':         'check <event_name> [options]',
     }
 
 subcommands = subcommand_descriptions.keys()
@@ -825,8 +825,8 @@ def command_check(args):
         corrupted_stores = heart.check_problem_stores(
             problem, options.datatypes)
 
-        for dataset in options.datasets:
-            store_ids = corrupted_stores[dataset]
+        for datatype in options.datatypes:
+            store_ids = corrupted_stores[datatype]
             for store_id in store_ids:
                 logger.info('Store %s has empty traces!' % store_ids)
 
