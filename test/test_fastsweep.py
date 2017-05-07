@@ -48,15 +48,21 @@ class FastSweepingTestCase(unittest.TestCase):
 
     def _theano_implementation(self):
 
+        Slownesses = self.get_slownesses()
+
         slownesses = tt.dmatrix('slownesses')
+        slownesses.tag.test_value = Slownesses
+
         nuc_x = tt.lscalar('nuc_x')
+        nuc_x.tag.test_value = self.nuc_x
+
         nuc_y = tt.lscalar('nuc_y')
+        nuc_y.tag.test_value = self.nuc_y
+
         patch_size = tt.cast(self.patch_size / km, 'float64')
 
         theano_start_times = fast_sweep.get_rupture_times_theano(
             slownesses, patch_size, nuc_x, nuc_y)
-
-        Slownesses = self.get_slownesses()
 
         t0 = time()
         f = function([slownesses, nuc_x, nuc_y],
@@ -74,8 +80,13 @@ class FastSweepingTestCase(unittest.TestCase):
         Slownesses = self.get_slownesses()
 
         slownesses = tt.dvector('slownesses')
+        slownesses.tag.test_value = Slownesses.flatten()
+
         nuc_x = tt.lscalar('nuc_x')
+        nuc_x.tag.test_value = self.nuc_x
+
         nuc_y = tt.lscalar('nuc_y')
+        nuc_y.tag.test_value = self.nuc_y
 
         cleanup = theanof.Sweeper(
             self.patch_size / km, self.n_patch_strike, self.n_patch_dip)
