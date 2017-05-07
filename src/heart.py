@@ -2435,6 +2435,7 @@ def check_problem_stores(problem, datatypes):
     Check GF stores for empty traces.
     """
 
+    logger.info('Checking stores for empty traces ...')
     corrupted_stores = {}
     for datatype in datatypes:
         engine = problem.composites[datatype].engine
@@ -2446,6 +2447,8 @@ def check_problem_stores(problem, datatypes):
             stats = store.stats()
             if stats['empty'] > 0:
                 cstores.append(store_id)
+
+            engine.close_cashed_stores()
 
         corrupted_stores[datatype] = cstores
 
