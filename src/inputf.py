@@ -169,7 +169,7 @@ def load_data_traces(datadir, stations, channels):
                             ydata=dt.ydata,
                             station=station.station,
                             location=dt.location,
-                            channel=ref_channel,
+                            channel=dt.channel,
                             network=station.network,
                             deltat=dt.deltat))
             except IOError:

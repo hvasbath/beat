@@ -828,7 +828,7 @@ def command_check(args):
         for datatype in options.datatypes:
             store_ids = corrupted_stores[datatype]
             for store_id in store_ids:
-                logger.warn('Store %s has empty traces!' % store_ids)
+                logger.warn('Store %s has empty traces!' % store_id)
 
 
 if __name__ == '__main__':

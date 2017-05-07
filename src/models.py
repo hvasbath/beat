@@ -643,14 +643,14 @@ class SeismicComposite(Composite):
         self.stations = utility.weed_stations(
             stations, self.event, distances=sc.distances)
 
-        self.data_traces = utility.weed_data_traces(
+        self.datasets = utility.weed_data_traces(
             data_traces, self.stations)
 
         target_deltat = 1. / sc.gf_config.sample_rate
 
-        if self.data_traces[0].deltat != target_deltat:
+        if self.datasets[0].deltat != target_deltat:
             utility.downsample_traces(
-                self.data_traces, deltat=target_deltat)
+                self.datasets, deltat=target_deltat)
 
         self.targets = heart.init_seismic_targets(
             self.stations,
@@ -667,7 +667,7 @@ class SeismicComposite(Composite):
         if sc.calc_data_cov:
             logger.info('Estimating seismic data-covariances ...\n')
             cov_ds_seismic = cov.get_seismic_data_covariances(
-                data_traces=self.data_traces,
+                data_traces=self.datasets,
                 filterer=sc.filterer,
                 sample_rate=sc.gf_config.sample_rate,
                 arrival_taper=sc.arrival_taper,
@@ -682,11 +682,11 @@ class SeismicComposite(Composite):
             n_samples = int(num.ceil(
                 (num.abs(at.a) + at.d) * sc.gf_config.sample_rate))
 
-            for tr in self.data_traces:
+            for tr in self.datasets:
                 cov_ds_seismic.append(num.eye(n_samples))
 
         self.weights = []
-        for t, trc in enumerate(self.data_traces):
+        for t, trc in enumerate(self.datasets):
             if trc.covariance is None and not sc.calc_data_cov:
                 logger.warn(
                     'No data covariance given/estimated! '
@@ -721,7 +721,7 @@ class SeismicComposite(Composite):
         at = copy.deepcopy(self.config.arrival_taper)
 
         obs_proc_traces = heart.taper_filter_traces(
-            self.data_traces,
+            self.datasets,
             arrival_taper=at,
             filterer=self.config.filterer,
             tmins=tmins,
@@ -732,7 +732,7 @@ class SeismicComposite(Composite):
         syn_filt_traces = self.get_synthetics(point, outmode='data')
 
         obs_filt_traces = heart.taper_filter_traces(
-            self.data_traces,
+            self.datasets,
             filterer=self.config.filterer,
             outmode='traces')
 
@@ -825,7 +825,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.chop_traces = theanof.SeisDataChopper(
             sample_rate=sc.gf_config.sample_rate,
-            traces=self.data_traces,
+            traces=self.datasets,
             arrival_taper=sc.arrival_taper,
             filterer=sc.filterer)
 
