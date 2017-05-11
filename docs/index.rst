@@ -14,6 +14,7 @@ Contents:
    getting_started
    short_installation
    installation
+   updating
    api
 
 Indices and tables
