@@ -1,5 +1,18 @@
 """
-Module for interseismic models. Block-backslip model.
+Module for interseismic models.
+
+Block-backslip model
+--------------------
+The fault is assumed to be locked above a certain depth "locking_depth" and
+it is creeping with the rate of the defined plate- which is handled as a
+rigid block.
+
+STILL EXPERIMENTAL!
+
+References
+==========
+Savage & Prescott 1978
+Metzger et al. 2011
 """
 
 from beat import utility
@@ -21,6 +34,9 @@ d2r = num.pi / 180.
 r2d = 180. / num.pi
 
 non_source = set(['amplitude', 'azimuth', 'locking_depth'])
+
+
+__all__ = ['geo_backslip_synthetics']
 
 
 def block_mask(easts, norths, sources, east_ref, north_ref):
