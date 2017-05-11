@@ -322,7 +322,7 @@ def command_import(args):
                     utility.dump_objects(seismic_outpath,
                         outlist=[stations, data_traces])
                 else:
-                    raise Exception(
+                    raise TypeError(
                         'Format: %s not implemented yet.' % \
                         options.seismic_format)
             else:
@@ -348,7 +348,7 @@ def command_import(args):
                             inputf.load_and_blacklist_GPS(
                                 gc.datadir, name, gc.blacklist))
                 else:
-                    raise Exception(
+                    raise TypeError(
                         'Format: %s not implemented yet.' % \
                         options.geodetic_format)
 
@@ -453,7 +453,7 @@ def command_clone(args):
 
             old_priors = copy.deepcopy(c.problem_config.priors)
 
-            c.problem_config.datatype = new_datatype
+            c.problem_config.datatype = new_datatypes
             new_priors = c.problem_config.select_variables()
 
             for prior in new_priors:
@@ -469,7 +469,7 @@ def command_clone(args):
             config.dump_config(c)
 
         else:
-            raise Exception('Config file: %s does not exist!' % config_fn)
+            raise IOError('Config file: %s does not exist!' % config_fn)
 
 def command_sample(args):
 
@@ -759,7 +759,7 @@ selected giving a comma seperated list.''' % (
 
     for plot in plotnames:
         if plot not in plots_avail:
-            raise Exception('Plot type %s not available! Available plots are:'
+            raise TypeError('Plot type %s not available! Available plots are:'
             ' %s' % (plot, plots_avail))
 
     logger.info('Loading problem ...')
@@ -827,8 +827,7 @@ def command_check(args):
 
         for datatype in options.datatypes:
             store_ids = corrupted_stores[datatype]
-            for store_id in store_ids:
-                logger.warn('Store %s has empty traces!' % store_id)
+            logger.warn('Store(s) with empty traces! : %s ' % store_ids)
 
 
 if __name__ == '__main__':

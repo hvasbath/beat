@@ -87,7 +87,7 @@ modes_catalog = {
     'kinematic': kinematic_catalog,
     'interseismic': interseismic_catalog}
 
-mcomps = (10e10, 10e20)
+mcomps = (-1., 1.)
 
 default_bounds = dict(
     east_shift=(-10., 10.),
@@ -108,7 +108,7 @@ default_bounds = dict(
     width=(5., 20.),
     slip=(0.1, 8.),
 
-    magnitude=(4.5, 8.0),
+    moment=(1e10, 1e20),
     mnn=mcomps,
     mee=mcomps,
     mdd=mcomps,
@@ -426,8 +426,9 @@ class ProblemConfig(Object):
                     if self.source_type in vars_catalog[datatype].keys():
                         source = vars_catalog[datatype][self.source_type]
                         svars = set(source.keys())
-                        if isinstance(self.source, RS):
-                            svars.discard('magnitude')
+
+                        if isinstance(source(), RS):
+                            svars.discard('moment')
 
                         variables += utility.weed_input_rvs(
                             svars, self.mode, datatype)
