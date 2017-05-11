@@ -61,7 +61,7 @@ The :mod:`pscmp` Module
 
 
 The :mod:`interseismic` Module
-----------------------------
+------------------------------
 
 .. automodule:: interseismic
    :members:

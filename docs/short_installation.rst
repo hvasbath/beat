@@ -46,5 +46,5 @@ Seismic synthetics
 
 Geodetic synthetics
 """""""""""""""""""
-* `PSGRN/PSCMP < https://github.com/pyrocko/fomosto-psgrn-pscmp>`__
+* `PSGRN_PSCMP <https://github.com/pyrocko/fomosto-psgrn-pscmp>`__
 

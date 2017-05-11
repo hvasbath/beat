@@ -1,3 +1,7 @@
+"""
+This module got merged with the pscmp module and is now part of the pyrocko
+library and may be removed from the beat repository in the future.
+"""
 
 import logging
 import os

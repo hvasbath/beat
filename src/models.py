@@ -531,7 +531,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
                 sample_rate=gc.gf_config.sample_rate)
 
             logger.debug('Track %s' % data.name)
-            cov_pv = cov.get_geo_cov_velocity_models(
+            cov_pv = cov.geo_cov_velocity_models(
                 engine=self.engine,
                 sources=self.sources,
                 targets=crust_targets,
@@ -666,7 +666,7 @@ class SeismicComposite(Composite):
 
         if sc.calc_data_cov:
             logger.info('Estimating seismic data-covariances ...\n')
-            cov_ds_seismic = cov.get_seismic_data_covariances(
+            cov_ds_seismic = cov.seismic_data_covariance(
                 data_traces=self.datasets,
                 filterer=sc.filterer,
                 sample_rate=sc.gf_config.sample_rate,
@@ -976,7 +976,7 @@ class SeismicGeometryComposite(SeismicComposite):
                     crust_inds=range(*sc.gf_config.n_variations),
                     reference_location=sc.gf_config.reference_location)
 
-                cov_pv = cov.get_seis_cov_velocity_models(
+                cov_pv = cov.seis_cov_velocity_models(
                     engine=self.engine,
                     sources=self.sources,
                     targets=crust_targets,

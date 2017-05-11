@@ -1,3 +1,8 @@
+"""
+This module got merged with the psgrn module and is now part of the pyrocko
+library and may be removed from the beat repository in the future.
+"""
+
 # coding=utf-8
 import numpy as num
 import logging

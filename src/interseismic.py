@@ -46,9 +46,9 @@ def block_mask(easts, norths, sources, east_ref, north_ref):
 
     Parameters
     ----------
-    easts : :class:`numpy.array`
+    easts : :class:`numpy.ndarray`
         east - local coordinates [m] of observations
-    norths : :class:`numpy.array`
+    norths : :class:`numpy.ndarray`
         north - local coordinates [m] of observations
     sources : list
         of :class:`RectangularSource`
@@ -59,7 +59,7 @@ def block_mask(easts, norths, sources, east_ref, north_ref):
 
     Returns
     -------
-    :class:`numpy.array` with zeros at stable points, ones at moving points
+    :class:`numpy.ndarray` with zeros at stable points, ones at moving points
     """
 
     def get_vertex(outlines, i, j):
@@ -117,9 +117,9 @@ def block_geometry(lons, lats, sources, reference):
 
     Parameters
     ----------
-    lons : :class:`num.array`
+    lons : :class:`num.ndarray`
         Longitudes [deg] of observation points
-    lats : :class:`num.array`
+    lats : :class:`num.ndarray`
         Latitudes [deg] of observation points
     sources : list
         of RectangularFault objects
@@ -128,7 +128,7 @@ def block_geometry(lons, lats, sources, reference):
 
     Returns
     -------
-    :class:`num.array`
+    :class:`num.ndarray`
         mask with zeros/ones for stable/moving observation points, respectively
     """
 
@@ -145,7 +145,7 @@ def block_movement(bmask, amplitude, azimuth):
 
     Parameters
     ----------
-    bmask : :class:`numpy.array`
+    bmask : :class:`numpy.ndarray`
         masked block determining stable and moving observation points
     amplitude : float
         slip [m] of the moving block
@@ -154,7 +154,7 @@ def block_movement(bmask, amplitude, azimuth):
 
     Returns
     -------
-    :class:`numpy.array`
+    :class:`numpy.ndarray`
          (n x 3) [North, East, Down] displacements [m]
     """
 
@@ -174,9 +174,9 @@ def geo_block_synthetics(lons, lats, sources, amplitude, azimuth, reference):
 
     Parameters
     ----------
-    lons : :class:`num.array`
+    lons : :class:`num.ndarray`
         Longitudes [deg] of observation points
-    lats : :class:`num.array`
+    lats : :class:`num.ndarray`
         Latitudes [deg] of observation points
     sources : list
         of RectangularFault objects
@@ -189,7 +189,7 @@ def geo_block_synthetics(lons, lats, sources, amplitude, azimuth, reference):
 
     Returns
     -------
-    :class:`numpy.array`
+    :class:`numpy.ndarray`
          (n x 3) [North, East, Down] displacements [m]
     """
     bmask = block_geometry(lons, lats, sources, reference)
@@ -267,22 +267,22 @@ def geo_backslip_synthetics(
         Sources to calculate synthetics for
     targets : list
         of :class:`pyrocko.gf.targets.StaticTarget`
-    lons : list of floats, or :class:`numpy.array`
+    lons : list of floats, or :class:`numpy.ndarray`
         longitudes [deg] of observation points
-    lats : list of floats, or :class:`numpy.array`
+    lats : list of floats, or :class:`numpy.ndarray`
         latitudes [deg] of observation points
     amplitude : float
         slip [m] of the moving block
     azimuth : float
         azimuth-angle[deg] ergo direction of moving block towards North
-    locking_depth : :class:`numpy.array`
+    locking_depth : :class:`numpy.ndarray`
         locking_depth [km] of the fault(s) below there is no movement
     reference : :class:`heart.ReferenceLocation`
         reference location that determines the stable block
 
     Returns
     -------
-    :class:`numpy.array`
+    :class:`numpy.ndarray`
          (n x 3) [North, East, Down] displacements [m]
     """
 

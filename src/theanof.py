@@ -230,8 +230,8 @@ class GeoInterseismicSynthesizer(theano.Op):
         ----------
         inputs : dict
             keys being strings of source attributes of the
-            :class:`pscmp.RectangularSource` that was used to initialise
-            the Operator
+            :class:`pyrocko.gf.seismosizer.RectangularSource` that was used
+            to initialise the Operator.
             values are :class:`theano.tensor.Tensor`
         """
         inlist = []

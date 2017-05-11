@@ -1,3 +1,13 @@
+"""
+This module provides a namespace for various functions:
+coordinate transformations,
+loading and storing objects,
+book-keeping of indexes in arrays that relate to defined variable names,
+manipulation of various pyrocko objects
+and many more ...
+"""
+
+
 import logging
 import os
 import re
