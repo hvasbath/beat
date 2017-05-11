@@ -30,36 +30,21 @@ The original codes are packaged for windows and can be found
 
 For Unix systems the codes had to be repackaged.
 
+The packages below are also github repositories and you may want to use "git clone" to download:
+
+    git clone <url>
+
+This also enables easy updating for potential future changes.
+
+For configuration and compilation please follow the descriptions provided in each repository respectively.
+
 Seismic synthetics
 """"""""""""""""""
-* `QSEIS <http://kinherd.org/fomosto-qseis-2006a.tar.gz>`__
-* `QSSP <http://kinherd.org/fomosto-qssp-2010.tar.gz>`__
+* `QSEIS <https://github.com/pyrocko/fomosto-qseis>`__
+* `QSSP <https://github.com/pyrocko/fomosto-qssp>`__
 
-After unpacking each package, within each folder run::
-
-    autoreconf -i   # only if 'configure' script is missing
-    F77=gfortran ./configure
-    make
-    sudo make install
 
 Geodetic synthetics
 """""""""""""""""""
-* PSGRN and PSCMP
+* `PSGRN_PSCMP <https://github.com/pyrocko/fomosto-psgrn-pscmp>`__
 
-These codes are so far included in the beat repository, but will be a part of the pyrocko framework in the future.
-In the BEAT folder::
-
-    tar -xvzf fomosto-psgrn-pscmp.tar.gz
-    cd fomosto-psgrn-pscmp
-    autoreconf -i   # only if 'configure' script is missing
-    ./configure
-
-If the number of modelled points is large the FFLAGS flag has to be changed to
-FFLAGS=-mcmodel=large, this will result in a long compilation time.::
-
-    FFLAGS=-mcmodel=large ./configure
-
-After configuration::
-
-    make
-    sudo make install

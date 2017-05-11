@@ -39,7 +39,7 @@ setup(
                 },
     name='beat',
     description='Bayesian Earthquake Analysis Tool',
-    version='0.1',
+    version='1.0beta',
     author='Hannes Vasyuara-Bathke',
     author_email='hannes.vasyura-bathke@kaust.edu.sa',
     packages=['beat'] + subpackages,

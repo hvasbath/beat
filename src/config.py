@@ -15,8 +15,9 @@ from pyrocko.cake import load_model
 
 from pyrocko import trace, model, util
 from pyrocko.gf import Earthmodel1D
-from pyrocko.gf.seismosizer import Cloneable
-from beat.heart import Filter, ArrivalTaper, TeleseismicTarget, Parameter
+from pyrocko.gf import RectangularSource as RS
+from pyrocko.gf.seismosizer import Cloneable, source_classes, stf_classes
+from beat.heart import Filter, ArrivalTaper, Parameter
 from beat.heart import RectangularSource, ReferenceLocation
 
 from beat import utility
@@ -27,37 +28,39 @@ guts_prefix = 'beat'
 
 logger = logging.getLogger('config')
 
-geo_vars = ['east_shift', 'north_shift', 'depth', 'strike', 'dip',
-            'rake']
-geo_vars_complete = geo_vars + ['length', 'width', 'slip']
-
-block_vars = ['azimuth', 'amplitude']
-
+block_vars = ['bl_azimuth', 'bl_amplitude']
 seis_vars = ['time', 'duration']
 
-rfs = 'RectangularSource'
-dcs = 'DCSource'
+source_names = '''
+ExplosionSource
+RectangularExplosionSource
+DCSource
+CLVDSource
+MTSource
+RectangularSource
+DoubleDCSource
+RingfaultSource
+'''.split()
 
-geo_vars_geometry = {
-    rfs: geo_vars_complete,
-                    }
-#    dcs: geo_vars + ['magnitude']}
+stf_names = '''
+Boxcar
+Triangular
+HalfSinusoid
+'''.split()
 
-seis_vars_geometry = {
-    rfs: seis_vars + geo_vars_complete,
-    dcs: seis_vars + geo_vars}
+source_catalog = {name: source_class for name, source_class in zip(
+    source_names, source_classes[2:10])}
 
-joint_vars_geometry = {}
-for source_type in geo_vars_geometry.keys():
-    joint_vars_geometry[source_type] = geo_vars_geometry[source_type] + \
-                                       seis_vars_geometry[source_type]
+stf_catalog = {name: stf_class for name, stf_class in zip(
+    stf_names, stf_classes[1:4])}
 
 interseismic_vars = [
     'east_shift', 'north_shift', 'strike', 'dip', 'length',
     'locking_depth'] + block_vars
 
-static_dist_vars = ['Uparr', 'Uperp']
-partial_kinematic_vars = ['nuc_x', 'nuc_y', 'duration', 'velocity']
+static_dist_vars = ['uparr', 'uperp']
+partial_kinematic_vars = [
+    'nucleation_x', 'nucleation_y', 'duration', 'velocity']
 
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars
 
@@ -68,8 +71,8 @@ interseismic_catalog = {
     'geodetic': interseismic_vars}
 
 geometry_catalog = {
-    'geodetic': geo_vars_geometry,
-    'seismic': seis_vars_geometry}
+    'geodetic': source_catalog,
+    'seismic': source_catalog}
 
 static_catalog = {
     'geodetic': static_dist_vars,
@@ -84,27 +87,57 @@ modes_catalog = {
     'kinematic': kinematic_catalog,
     'interseismic': interseismic_catalog}
 
+mcomps = (-1., 1.)
+
 default_bounds = dict(
     east_shift=(-10., 10.),
     north_shift=(-10., 10.),
     depth=(0., 5.),
+
     strike=(0, 180.),
+    strike1=(0, 180.),
+    strike2=(0, 180.),
     dip=(45., 90.),
+    dip1=(45., 90.),
+    dip2=(45., 90.),
     rake=(-90., 90.),
+    rake1=(-90., 90.),
+    rake2=(-90., 90.),
+
     length=(5., 30.),
     width=(5., 20.),
     slip=(0.1, 8.),
-    magnitude=(4.5, 8.0),
+
+    moment=(1e10, 1e20),
+    mnn=mcomps,
+    mee=mcomps,
+    mdd=mcomps,
+    mne=mcomps,
+    mnd=mcomps,
+    med=mcomps,
+
+    diameter=(5., 10.),
+    mix=(0, 1),
     time=(-3., 3.),
+    delta_time=(0., 10.),
+    delta_depth=(0., 10.),
+    distance=(0., 10.),
+
     duration=(0., 20.),
-    Uparr=(-0.3, 6.),
-    Uperp=(-0.3, 4.),
-    nuc_x=(0., 10.),
-    nuc_y=(0., 7.),
+    peak_ratio=(0., 1.),
+
+    uparr=(-0.3, 6.),
+    uperp=(-0.3, 4.),
+    nucleation_x=(0., 10.),
+    nucleation_y=(0., 7.),
     velocity=(0.5, 4.2),
+
     azimuth=(0, 180),
-    amplitude=(0., 0.1),
+    amplitude=mcomps,
+    bl_azimuth=(0, 180),
+    bl_amplitude=(0., 0.1),
     locking_depth=(1., 10.),
+
     seis_Z=(-20., 20.),
     seis_T=(-20., 20.),
     geo_S=(-20., 20.),
@@ -113,6 +146,10 @@ default_bounds = dict(
 
 default_seis_std = 1.e-6
 default_geo_std = 1.e-3
+
+default_decimation_factors = {
+    'geodetic': 7,
+    'seismic': 20}
 
 seismic_data_name = 'seismic_data.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
@@ -153,29 +190,39 @@ class NonlinearGFConfig(GFConfig):
     Config for non-linear GreensFunction calculation parameters.
     """
 
-    earth_model_name = String.T(default='ak135-f-average.m',
-                           help='Name of the reference earthmodel, see '
-                                'pyrocko.cake.builtin_models() for '
-                                'alternatives.')
+    earth_model_name = String.T(
+        default='ak135-f-average.m',
+        help='Name of the reference earthmodel, see '
+             'pyrocko.cake.builtin_models() for alternatives.')
     use_crust2 = Bool.T(
         default=True,
         help='Flag, for replacing the crust from the earthmodel'
              'with crust from the crust2 model.')
-    replace_water = Bool.T(default=True,
-                        help='Flag, for replacing water layers in the crust2'
-                             'model.')
+    replace_water = Bool.T(
+        default=True,
+        help='Flag, for replacing water layers in the crust2 model.')
     custom_velocity_model = Earthmodel1D.T(
         default=None,
         optional=True,
         help='Custom Earthmodel, in case crust2 and standard model not'
              ' wanted. Needs to be a :py::class:cake.LayeredModel')
-
-    source_depth_min = Float.T(default=0.,
-                               help='Minimum depth [km] for GF function grid.')
-    source_depth_max = Float.T(default=10.,
-                               help='Maximum depth [km] for GF function grid.')
-    source_depth_spacing = Float.T(default=1.,
-                               help='Depth spacing [km] for GF function grid.')
+    source_depth_min = Float.T(
+        default=0.,
+        help='Minimum depth [km] for GF function grid.')
+    source_depth_max = Float.T(
+        default=10.,
+        help='Maximum depth [km] for GF function grid.')
+    source_depth_spacing = Float.T(
+        default=1.,
+        help='Depth spacing [km] for GF function grid.')
+    source_distance_radius = Float.T(
+        default=20.,
+        help='Radius of distance grid [km] for GF function grid around '
+             'reference event.')
+    source_distance_spacing = Float.T(
+        default=1.,
+        help='Distance spacing [km] for GF function grid w.r.t'
+             ' reference_location.')
     nworkers = Int.T(
         default=1,
         help='Number of processors to use for calculating the GFs')
@@ -190,44 +237,41 @@ class SeismicGFConfig(NonlinearGFConfig):
         help="Reference location for the midpoint of the Green's Function "
              "grid.",
         optional=True)
-    code = String.T(default='qssp',
-                  help='Modeling code to use. (qssp, qseis, comming soon: '
-                       'qseis2d)')
-    sample_rate = Float.T(default=2.,
-                          help='Sample rate for the Greens Functions.')
-    rm_gfs = Bool.T(default=True,
-                    help='Flag for removing modeling module GF files after'
-                         ' completion.')
-    source_distance_radius = Float.T(
-        default=20.,
-        help='Radius of distance grid [km] for GF function grid around '
-             'reference event.')
-    source_distance_spacing = Float.T(
-        default=1.,
-        help='Distance spacing [km] for GF function grid w.r.t'
-             ' reference_location.')
+    code = String.T(
+        default='qssp',
+        help='Modeling code to use. (qssp, qseis, comming soon: '
+             'qseis2d)')
+    sample_rate = Float.T(
+        default=2.,
+        help='Sample rate for the Greens Functions.')
+    rm_gfs = Bool.T(
+        default=True,
+        help='Flag for removing modeling module GF files after'
+             ' completion.')
 
 
 class GeodeticGFConfig(NonlinearGFConfig):
     """
     Geodetic GF parameters for Layered Halfspace.
     """
-    code = String.T(default='psgrn',
-                    help='Modeling code to use. (psgrn, ... others need to be'
-                         'implemented!)')
+    code = String.T(
+        default='psgrn',
+        help='Modeling code to use. (psgrn, ... others need to be'
+             'implemented!)')
+    sample_rate = Float.T(
+        default=1. / (3600. * 24.),
+        help='Sample rate for the Greens Functions. Mainly relevant for'
+             ' viscoelastic modeling. Default: coseismic-one day')
     sampling_interval = Float.T(\
         default=1.0,
         help='Distance dependend sampling spacing coefficient.'
              '1. - equidistant')
-    source_distance_min = Float.T(
-        default=0.,
-        help='Minimum distance [km] for GF function grid.')
-    source_distance_max = Float.T(
-        default=100.,
-        help='Maximum distance [km] for GF function grid.')
-    source_distance_spacing = Float.T(
+    medium_depth_spacing = Float.T(
         default=1.,
-        help='Distance spacing [km] for GF function grid.')
+        help='Depth spacing [km] for GF medium grid.')
+    medium_distance_spacing = Float.T(
+        default=1.,
+        help='Distance spacing [km] for GF medium grid.')
 
 
 class LinearGFConfig(GFConfig):
@@ -261,9 +305,10 @@ class SeismicConfig(Object):
     """
 
     datadir = String.T(default='./')
-    blacklist = List.T(String.T(),
-                       default=['placeholder'],
-                       help='Station name for station to be thrown out.')
+    blacklist = List.T(
+        String.T(),
+        default=['placeholder'],
+        help='Station name for station to be thrown out.')
     distances = Tuple.T(2, Float.T(), default=(30., 90.))
     channels = List.T(String.T(), default=['Z', 'T'])
     calc_data_cov = Bool.T(
@@ -271,14 +316,13 @@ class SeismicConfig(Object):
         help='Flag for calculating the data covariance matrix based on the'
              ' pre P arrival data trace noise.')
     arrival_taper = trace.Taper.T(
-                default=ArrivalTaper.D(),
-                help='Taper a,b/c,d time [s] before/after wave arrival')
+        default=ArrivalTaper.D(),
+        help='Taper a,b/c,d time [s] before/after wave arrival')
     pre_stack_cut = Bool.T(
         default=True,
         help='Cut the GF traces before stacking around the specified arrival'
              ' taper')
     filterer = Filter.T(default=Filter.D())
-    targets = List.T(TeleseismicTarget.T(), optional=True)
     gf_config = GFConfig.T(default=SeismicGFConfig.D())
 
 
@@ -303,13 +347,13 @@ class GeodeticConfig(Object):
     fit_plane = Bool.T(
         default=False,
         help='Flag for inverting for additional plane parameters on each'
-            ' SAR dataset')
+            ' SAR datatype')
     gf_config = GFConfig.T(default=GeodeticGFConfig.D())
 
 
 class ProblemConfig(Object):
     """
-    Config for inversion problem to setup.
+    Config for optimization problem to setup.
     """
     mode = String.T(
         default='geometry',
@@ -317,19 +361,28 @@ class ProblemConfig(Object):
              ' "interseismic"',)
     source_type = String.T(
         default='RectangularSource',
-        help='Source type to invert for. Options: RectangularSource or'
-             ' DCSource')
+        help='Source type to optimize for. Options: %s' % (
+            ', '.join(name for name in source_names)))
+    stf_type = String.T(
+        default='HalfSinusoid',
+        help='Source time function type to use. Options: %s' % (
+            ', '.join(name for name in stf_names)))
+    decimation_factors = Dict.T(
+        default=None,
+        optional=True,
+        help='Determines the reduction of discretization of an extended'
+             ' source.')
     n_sources = Int.T(default=1,
                      help='Number of Sub-sources to solve for')
-    datasets = List.T(default=['geodetic'])
+    datatypes = List.T(default=['geodetic'])
     hyperparameters = Dict.T(
-        help='Hyperparameters to weight different types of datasets.')
+        help='Hyperparameters to weight different types of datatypes.')
     priors = Dict.T(
         help='Priors of the variables in question.')
 
     def init_vars(self, variables=None):
         """
-        Initiate priors based on the problem mode and datasets.
+        Initiate priors based on the problem mode and datatypes.
 
         Parameters
         ----------
@@ -367,28 +420,55 @@ class ProblemConfig(Object):
         vars_catalog = modes_catalog[self.mode]
 
         variables = []
-        for dataset in self.datasets:
-            if dataset in vars_catalog.keys():
+        for datatype in self.datatypes:
+            if datatype in vars_catalog.keys():
                 if self.mode == 'geometry':
-                    if self.source_type in vars_catalog[dataset].keys():
-                        variables += vars_catalog[dataset][self.source_type]
+                    if self.source_type in vars_catalog[datatype].keys():
+                        source = vars_catalog[datatype][self.source_type]
+                        svars = set(source.keys())
+
+                        if isinstance(source(), RS):
+                            svars.discard('moment')
+
+                        variables += utility.weed_input_rvs(
+                            svars, self.mode, datatype)
                     else:
                         raise ValueError('Source Type not supported for type'
-                            ' of problem, and dataset!')
+                            ' of problem, and datatype!')
+
+                    if datatype == 'seismic':
+                        if self.stf_type in stf_catalog.keys():
+                            stf = stf_catalog[self.stf_type]
+                            variables += utility.weed_input_rvs(
+                                set(stf.keys()), self.mode, datatype)
                 else:
-                    variables += vars_catalog[dataset]
+                    variables += vars_catalog[datatype]
             else:
-                raise ValueError('Dataset %s not supported for type of'
-                    ' problem! Supported datasets are: %s' % (
-                        dataset, ', '.join(
+                raise ValueError('Datatype %s not supported for type of'
+                    ' problem! Supported datatype are: %s' % (
+                        datatype, ', '.join(
                             '"%s"' % d for d in vars_catalog.keys())))
 
         unique_variables = utility.unique_list(variables)
+
         if len(unique_variables) == 0:
-            raise Exception('Mode and dataset combination not implemented'
-                ' or not resolvable with given datasets.')
+            raise Exception('Mode and datatype combination not implemented'
+                ' or not resolvable with given datatypes.')
 
         return unique_variables
+
+    def set_decimation_factor(self):
+        """
+        Determines the reduction of discretization of an extended source.
+        Influences yet only the RectangularSource.
+        """
+        if self.source_type == 'RectangularSource':
+            self.decimation_factors = {}
+            for datatype in self.datatypes:
+                self.decimation_factors[datatype] = \
+                    default_decimation_factors[datatype]
+        else:
+            self.decimation_factors = None
 
     def validate_priors(self):
         """
@@ -405,7 +485,7 @@ class ProblemConfig(Object):
         """
         if self.hyperparameters is not None:
             for hp in self.hyperparameters.itervalues():
-                hp()
+                hp.validate_bounds()
 
             logger.info('All hyper-parameters ok!')
 
@@ -580,7 +660,7 @@ class BEATconfig(Object, Cloneable):
 
 
 def init_config(name, date=None, min_magnitude=6.0, main_path='./',
-                datasets=['geodetic'],
+                datatypes=['geodetic'],
                 mode='geometry', source_type='RectangularSource', n_sources=1,
                 sampler='SMC', hyper_sampler='Metropolis',
                 use_custom=False, individual_gfs=False):
@@ -596,7 +676,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
         'YYYY-MM-DD', date of the event
     min_magnitude : scalar, float
         approximate minimum Mw of the event
-    datasets : List of strings
+    datatypes : List of strings
         data sets to include in the optimization: either 'geodetic' and/or
         'seismic'
     mode : str
@@ -638,7 +718,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
             c.event = model.Event(duration=1.)
             c.date = 'dummy'
 
-        if 'geodetic' in datasets:
+        if 'geodetic' in datatypes:
             c.geodetic_config = GeodeticConfig()
             if use_custom:
                 logger.info('use_custom flag set! The velocity model in the'
@@ -650,7 +730,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
         else:
             c.geodetic_config = None
 
-        if 'seismic' in datasets:
+        if 'seismic' in datatypes:
             c.seismic_config = SeismicConfig()
             if not individual_gfs:
                 c.seismic_config.gf_config.reference_location = \
@@ -669,6 +749,10 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
             c.seismic_config = None
 
     elif mode == 'static':
+
+        if source_type != 'RectangularSource':
+            raise TypeError('Static distributed slip is so far only supported'
+                            ' for RectangularSource(s)')
 
         gc = load_config(c.project_dir, 'geometry')
 
@@ -697,9 +781,10 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
             ' dimensions and extension factors please run: import')
 
     c.problem_config = ProblemConfig(
-        n_sources=n_sources, datasets=datasets, mode=mode,
+        n_sources=n_sources, datatypes=datatypes, mode=mode,
         source_type=source_type)
     c.problem_config.init_vars()
+    c.problem_config.set_decimation_factor()
 
     c.sampler_config = SamplerConfig(name=sampler)
     c.sampler_config.set_parameters(update_covariances=False)

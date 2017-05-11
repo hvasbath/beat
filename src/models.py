@@ -32,20 +32,15 @@ __all__ = ['GeometryOptimizer', 'DistributionOptimizer',
            'sample', 'load_model', 'load_stage']
 
 
-source_catalog = {
-    bconfig.rfs: heart.RectangularSource,
-    bconfig.dcs: gf.DCSource}
-
-
-def multivariate_normal(targets, weights, hyperparams, residuals):
+def multivariate_normal(datasets, weights, hyperparams, residuals):
     """
     Calculate posterior Likelihood of a Multivariate Normal distribution.
     Can only be executed in a `with model context`
 
     Parameters
     ----------
-    targets : list
-        of :class:`heart.TeleseismicTarget` or :class:`heart.GeodeticTarget`
+    datasets : list
+        of :class:`heart.SeismicDataset` or :class:`heart.GeodeticDataset`
     weights : list
         of :class:`theano.shared`
         Square matrix of the inverse of the covariance matrix as weights
@@ -57,15 +52,15 @@ def multivariate_normal(targets, weights, hyperparams, residuals):
     -------
     array_like
     """
-    n_t = len(targets)
+    n_t = len(datasets)
 
     logpts = tt.zeros((n_t), tconfig.floatX)
 
-    for l, target in enumerate(targets):
-        M = tt.cast(shared(target.samples, borrow=True), 'int16')
+    for l, data in enumerate(datasets):
+        M = tt.cast(shared(data.samples, borrow=True), 'int16')
         factor = shared(
-            target.covariance.log_norm_factor, borrow=True)
-        hp_name = bconfig.hyper_pars[target.typ]
+            data.covariance.log_norm_factor, borrow=True)
+        hp_name = bconfig.hyper_pars[data.typ]
 
         logpts = tt.set_subtensor(logpts[l:l + 1],
             (-0.5) * (factor + \
@@ -78,18 +73,30 @@ def multivariate_normal(targets, weights, hyperparams, residuals):
     return logpts
 
 
-def hyper_normal(targets, hyperparams, llks):
+def hyper_normal(datasets, hyperparams, llks):
     """
-    Calculate posterior Likelihood only dependent on hyperparameters
+    Calculate posterior Likelihood only dependent on hyperparameters.
+
+    Parameters
+    ----------
+    datasets : list
+        of :class:`heart.SeismicDatset` or :class:`heart.GeodeticDataset`
+    hyperparams : dict
+        of :class:`theano.`
+    llks : posterior likelihoods
+
+    Returns
+    -------
+    array_like
     """
-    n_t = len(targets)
+    n_t = len(datasets)
 
     logpts = tt.zeros((n_t), tconfig.floatX)
 
-    for k, target in enumerate(targets):
-        M = target.samples
-        factor = target.covariance.log_norm_factor
-        hp_name = bconfig.hyper_pars[target.typ]
+    for k, data in enumerate(datasets):
+        M = data.samples
+        factor = data.covariance.log_norm_factor
+        hp_name = bconfig.hyper_pars[data.typ]
 
         logpts = tt.set_subtensor(logpts[k:k + 1],
             (-0.5) * (factor + \
@@ -149,7 +156,7 @@ class Composite(Object):
         Get likelihood formula for the hyper model built. Has to be called
         within a with model context.
         """
-        logpts = hyper_normal(self.targets, hyperparams, self._llks)
+        logpts = hyper_normal(self.datasets, hyperparams, self._llks)
         llk = pm.Deterministic(self._like_name, logpts)
         return llk.sum()
 
@@ -179,6 +186,9 @@ class GeodeticComposite(Composite):
         configuration object containing seismic setup parameters
     project_dir : str
         directory of the model project, where to find the data
+    event : :class:`pyrocko.model.Event`
+        contains information of reference event, coordinates of reference
+        point and source time
     hypers : boolean
         if true initialise object for hyper parameter optimization
     """
@@ -191,33 +201,43 @@ class GeodeticComposite(Composite):
         self.name = 'geodetic'
         self._like_name = 'geo_like'
 
+        self.engine = gf.LocalEngine(
+            store_superdirs=[gc.gf_config.store_superdir])
+
         geodetic_data_path = os.path.join(
             project_dir, bconfig.geodetic_data_name)
-        self.targets = utility.load_objects(geodetic_data_path)
+
+        self.datasets = utility.load_objects(geodetic_data_path)
+
+        self.targets = heart.init_geodetic_targets(
+            datasets=self.datasets,
+            earth_model_name=gc.gf_config.earth_model_name,
+            interpolation='multilinear',
+            crust_inds=[0],
+            sample_rate=gc.gf_config.sample_rate)
 
         self.n_t = len(self.targets)
         logger.info('Number of geodetic datasets: %i ' % self.n_t)
 
         if gc.calc_data_cov:
-            logger.info('Using data covariance!')
+            logger.warn('Covariance estimation not implemented (yet)!'
+                        ' Using imported covariances!')
         else:
-            logger.info('No data-covariance estimation ...\n')
-            for t in self.targets:
-                t.covariance.data = num.zeros(t.lats.size)
-                t.covariance.pred_v = num.eye(t.lats.size)
+            logger.info('No data-covariance estimation! Using imported'
+                        ' covariances \n')
 
         self.weights = []
-        for target in self.targets:
-            icov = target.covariance.inverse
+        for data in self.datasets:
+            icov = data.covariance.inverse
             self.weights.append(shared(icov, borrow=True))
 
         if gc.fit_plane:
             logger.info('Fit residual ramp selected!')
             self._slocx = []
             self._slocy = []
-            for target in self.targets:
-                if isinstance(target, heart.DiffIFG):
-                    locy, locx = target.update_local_coords(self.event)
+            for data in self.datasets:
+                if isinstance(data, heart.DiffIFG):
+                    locy, locx = data.update_local_coords(self.event)
                     self._slocx.append(shared(
                         locx.astype(tconfig.floatX) / km, borrow=True))
                     self._slocy.append(shared(
@@ -247,14 +267,14 @@ class GeodeticComposite(Composite):
 
         logger.debug('Assembling geodetic data ...')
 
-        processed_synts = self.get_synthetics(point)
+        processed_synts = self.get_synthetics(point, outmode='stacked_arrays')
 
         results = []
-        for i, target in enumerate(self.targets):
-            res = target.displacement - processed_synts[i]
+        for i, data in enumerate(self.datasets):
+            res = data.displacement - processed_synts[i]
 
             results.append(heart.GeodeticResult(
-                processed_obs=target.displacement,
+                processed_obs=data.displacement,
                 processed_syn=processed_synts[i],
                 processed_res=res))
 
@@ -266,10 +286,10 @@ class GeodeticComposite(Composite):
         """
         self.ramp_params = {}
 
-        for i, target in enumerate(self.targets):
-            if isinstance(target, heart.DiffIFG):
-                self.ramp_params[target.name] = pm.Uniform(
-                    target.name + '_ramp',
+        for i, data in enumerate(self.datasets):
+            if isinstance(data, heart.DiffIFG):
+                self.ramp_params[data.name] = pm.Uniform(
+                    data.name + '_ramp',
                     shape=(2,),
                     lower=bconfig.default_bounds['ramp'][0],
                     upper=bconfig.default_bounds['ramp'][1],
@@ -279,7 +299,7 @@ class GeodeticComposite(Composite):
 
                 residuals[i] -= get_ramp_displacement(
                     self._slocx[i], self._slocy[i],
-                    self.ramp_params[target.name])
+                    self.ramp_params[data.name])
 
         return residuals
 
@@ -295,7 +315,7 @@ class GeodeticComposite(Composite):
         """
         results = self.assemble_results(point)
         for l, result in enumerate(results):
-            icov = self.targets[l].covariance.inverse
+            icov = self.datasets[l].covariance.inverse
             llk = num.array(result.processed_res.dot(
                 icov).dot(result.processed_res.T)).flatten()
             self._llks[l].set_value(llk)
@@ -325,26 +345,20 @@ class GeodeticSourceComposite(GeodeticComposite):
         super(GeodeticSourceComposite, self).__init__(
             gc, project_dir, event, hypers=hypers)
 
-        self.event = event
         self.sources = sources
 
-        _disp_list = [self.targets[i].displacement for i in range(self.n_t)]
-        _lons_list = [self.targets[i].lons for i in range(self.n_t)]
-        _lats_list = [self.targets[i].lats for i in range(self.n_t)]
-        _odws_list = [self.targets[i].odw for i in range(self.n_t)]
-        _lv_list = [self.targets[i].update_los_vector()
-                        for i in range(self.n_t)]
+        _disp_list = [data.displacement for data in self.datasets]
+        _odws_list = [data.odw for data in self.datasets]
+        _lv_list = [data.update_los_vector() for data in self.datasets]
 
-        # merge geodetic data to call pscmp only once each forward model
+        # merge geodetic data to calculate residuals on single array
         ordering = utility.ListArrayOrdering(_disp_list, intype='numpy')
         self.Bij = utility.ListToArrayBijection(ordering, _disp_list)
 
         odws = self.Bij.fmap(_odws_list)
-        self._lons = self.Bij.fmap(_lons_list)
-        self._lats = self.Bij.fmap(_lats_list)
 
         logger.info(
-            'Number of geodetic data points: %i ' % self._lats.shape[0])
+            'Number of geodetic data points: %i ' % ordering.dimensions)
 
         self.wdata = shared(self.Bij.fmap(_disp_list) * odws, borrow=True)
         self.lv = shared(self.Bij.f3map(_lv_list), borrow=True)
@@ -353,6 +367,8 @@ class GeodeticSourceComposite(GeodeticComposite):
     def __getstate__(self):
         outstate = (
             self.config,
+            self.engine,
+            self.datasets,
             self.sources,
             self.weights,
             self.targets)
@@ -361,6 +377,8 @@ class GeodeticSourceComposite(GeodeticComposite):
 
     def __setstate__(self, state):
             self.config, \
+            self.engine, \
+            self.datasets, \
             self.sources, \
             self.weights, \
             self.targets = state
@@ -388,8 +406,10 @@ class GeodeticSourceComposite(GeodeticComposite):
 
         source_points = utility.split_point(tpoint)
 
-        for i, source_point in enumerate(source_points):
-            self.sources[i].update(**source_point)
+        for i, source in enumerate(self.sources):
+            utility.update_source(source, **source_points[i])
+            # reset source time may result in store error otherwise
+            source.time = 0.
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams):
         """
@@ -437,7 +457,7 @@ class GeodeticSourceComposite(GeodeticComposite):
             residuals = self.remove_ramps(residuals)
 
         logpts = multivariate_normal(
-            self.targets, self.weights, hyperparams, residuals)
+            self.datasets, self.weights, hyperparams, residuals)
 
         llk = pm.Deterministic(self._like_name, logpts)
         return llk.sum()
@@ -450,14 +470,12 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
         super(GeodeticGeometryComposite, self).__init__(
             gc, project_dir, sources, event, hypers=hypers)
 
-        # syntetics generation
+        # synthetics generation
         logger.debug('Initialising synthetics functions ... \n')
-        self.get_synths = theanof.GeoLayerSynthesizerStatic(
-            lats=self._lats,
-            lons=self._lons,
-            store_superdir=gc.gf_config.store_superdir,
-            crust_ind=0,    # always reference model
-            sources=sources)
+        self.get_synths = theanof.GeoSynthesizer(
+            engine=self.engine,
+            sources=self.sources,
+            targets=self.targets)
 
     def get_synthetics(self, point, **kwargs):
         """
@@ -475,22 +493,18 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
         """
         self.point2sources(point)
 
-        gc = self.config
-        crust_inds = [0]
+        displacements = heart.geo_synthetics(
+            engine=self.engine,
+            targets=self.targets,
+            sources=self.sources,
+            **kwargs)
 
         synths = []
-        for crust_ind in crust_inds:
-            for target in self.targets:
-                disp = heart.geo_layer_synthetics(
-                    store_superdir=gc.gf_config.store_superdir,
-                    crust_ind=crust_ind,
-                    lons=target.lons,
-                    lats=target.lats,
-                    sources=self.sources, **kwargs)
-                synths.append((
-                    disp[:, 0] * target.los_vector[:, 0] + \
-                    disp[:, 1] * target.los_vector[:, 1] + \
-                    disp[:, 2] * target.los_vector[:, 2]))
+        for disp, data in zip(displacements, self.datasets):
+            synths.append((
+                disp[:, 0] * data.los_vector[:, 0] + \
+                disp[:, 1] * data.los_vector[:, 1] + \
+                disp[:, 2] * data.los_vector[:, 2]))
 
         return synths
 
@@ -508,18 +522,26 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
 
         self.point2sources(point)
 
-        for i, target in enumerate(self.targets):
-            logger.debug('Track %s' % target.name)
-            cov_pv = cov.get_geo_cov_velocity_models(
-                store_superdir=gc.gf_config.store_superdir,
+        for i, data in enumerate(self.datasets):
+            crust_targets = heart.init_geodetic_targets(
+                datasets=[data],
+                earth_model_name=gc.gf_config.earth_model_name,
+                interpolation='nearest_neighbor',
                 crust_inds=range(*gc.gf_config.n_variations),
-                target=target,
-                sources=self.sources)
+                sample_rate=gc.gf_config.sample_rate)
+
+            logger.debug('Track %s' % data.name)
+            cov_pv = cov.geo_cov_velocity_models(
+                engine=self.engine,
+                sources=self.sources,
+                targets=crust_targets,
+                dataset=data,
+                plot=False, n_jobs=1)
 
             cov_pv = utility.ensure_cov_psd(cov_pv)
 
-            target.covariance.pred_v = cov_pv
-            icov = target.covariance.inverse
+            data.covariance.pred_v = cov_pv
+            icov = data.covariance.inverse
             self.weights[i].set_value(icov)
 
 
@@ -530,11 +552,18 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         super(GeodeticInterseismicComposite, self).__init__(
             gc, project_dir, sources, event, hypers=hypers)
 
+        for source in sources:
+            if not isinstance(source, gf.RectangularSource):
+                raise TypeError('Sources have to be RectangularSources!')
+
+        self._lats = self.Bij.fmap([data.lats for data in self.datasets])
+        self._lons = self.Bij.fmap([data.lons for data in self.datasets])
+
         self.get_synths = theanof.GeoInterseismicSynthesizer(
             lats=self._lats,
             lons=self._lons,
-            store_superdir=gc.gf_config.store_superdir,
-            crust_ind=0,
+            engine=self.engine,
+            targets=self.targets,
             sources=sources,
             reference=event)
 
@@ -558,24 +587,20 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
 
         self.point2sources(spoint)
 
-        gc = self.config
-        crust_inds = [0]
-
         synths = []
-        for crust_ind in crust_inds:
-            for target in self.targets:
-                disp = geo_backslip_synthetics(
-                    store_superdir=gc.gf_config.store_superdir,
-                    crust_ind=crust_ind,
-                    sources=self.sources,
-                    lons=target.lons,
-                    lats=target.lats,
-                    reference=self.event,
-                    **bpoint)
-                synths.append((
-                    disp[:, 0] * target.los_vector[:, 0] + \
-                    disp[:, 1] * target.los_vector[:, 1] + \
-                    disp[:, 2] * target.los_vector[:, 2]))
+        for target, data in zip(self.targets, self.datasets):
+            disp = geo_backslip_synthetics(
+                engine=self.engine,
+                sources=self.sources,
+                targets=[target],
+                lons=target.lons,
+                lats=target.lats,
+                reference=self.event,
+                **bpoint)
+            synths.append((
+                disp[:, 0] * data.los_vector[:, 0] + \
+                disp[:, 1] * data.los_vector[:, 1] + \
+                disp[:, 2] * data.los_vector[:, 2]))
 
         return synths
 
@@ -618,18 +643,18 @@ class SeismicComposite(Composite):
         self.stations = utility.weed_stations(
             stations, self.event, distances=sc.distances)
 
-        self.data_traces = utility.weed_data_traces(
+        self.datasets = utility.weed_data_traces(
             data_traces, self.stations)
 
         target_deltat = 1. / sc.gf_config.sample_rate
 
-        if self.data_traces[0].deltat != target_deltat:
+        if self.datasets[0].deltat != target_deltat:
             utility.downsample_traces(
-                self.data_traces, deltat=target_deltat)
+                self.datasets, deltat=target_deltat)
 
-        self.targets = heart.init_targets(
+        self.targets = heart.init_seismic_targets(
             self.stations,
-            earth_model=sc.gf_config.earth_model_name,
+            earth_model_name=sc.gf_config.earth_model_name,
             channels=sc.channels,
             sample_rate=sc.gf_config.sample_rate,
             crust_inds=[0],  # always reference model
@@ -641,8 +666,8 @@ class SeismicComposite(Composite):
 
         if sc.calc_data_cov:
             logger.info('Estimating seismic data-covariances ...\n')
-            cov_ds_seismic = cov.get_seismic_data_covariances(
-                data_traces=self.data_traces,
+            cov_ds_seismic = cov.seismic_data_covariance(
+                data_traces=self.datasets,
                 filterer=sc.filterer,
                 sample_rate=sc.gf_config.sample_rate,
                 arrival_taper=sc.arrival_taper,
@@ -650,24 +675,25 @@ class SeismicComposite(Composite):
                 event=self.event,
                 targets=self.targets)
         else:
-            logger.info('No data-covariance estimation ...\n')
+            logger.info('No data-covariance estimation, using imported'
+                        ' covariances...\n')
             cov_ds_seismic = []
             at = sc.arrival_taper
             n_samples = int(num.ceil(
                 (num.abs(at.a) + at.d) * sc.gf_config.sample_rate))
 
-            for tr in self.data_traces:
+            for tr in self.datasets:
                 cov_ds_seismic.append(num.eye(n_samples))
 
         self.weights = []
-        for t, target in enumerate(self.targets):
-            if target.covariance.data is None and not sc.calc_data_cov:
+        for t, trc in enumerate(self.datasets):
+            if trc.covariance is None and not sc.calc_data_cov:
                 logger.warn(
                     'No data covariance given/estimated! '
                     'Setting default: eye')
-            target.covariance.data = cov_ds_seismic[t]
 
-            icov = target.covariance.inverse
+            trc.covariance = heart.Covariance(data=cov_ds_seismic[t])
+            icov = trc.covariance.inverse
             self.weights.append(shared(icov, borrow=True))
 
         super(SeismicComposite, self).__init__(hypers=hypers)
@@ -695,7 +721,7 @@ class SeismicComposite(Composite):
         at = copy.deepcopy(self.config.arrival_taper)
 
         obs_proc_traces = heart.taper_filter_traces(
-            self.data_traces,
+            self.datasets,
             arrival_taper=at,
             filterer=self.config.filterer,
             tmins=tmins,
@@ -706,7 +732,7 @@ class SeismicComposite(Composite):
         syn_filt_traces = self.get_synthetics(point, outmode='data')
 
         obs_filt_traces = heart.taper_filter_traces(
-            self.data_traces,
+            self.datasets,
             filterer=self.config.filterer,
             outmode='traces')
 
@@ -754,7 +780,7 @@ class SeismicComposite(Composite):
         """
         results = self.assemble_results(point)
         for k, result in enumerate(results):
-            icov = self.targets[k].covariance.inverse
+            icov = self.datasets[k].covariance.inverse
             _llk = num.array(result.processed_res.ydata.dot(
                 icov).dot(result.processed_res.ydata.T)).flatten()
             self._llks[k].set_value(_llk)
@@ -799,7 +825,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.chop_traces = theanof.SeisDataChopper(
             sample_rate=sc.gf_config.sample_rate,
-            traces=self.data_traces,
+            traces=self.datasets,
             arrival_taper=sc.arrival_taper,
             filterer=sc.filterer)
 
@@ -890,7 +916,7 @@ class SeismicGeometryComposite(SeismicComposite):
         residuals = data_trcs - synths
 
         logpts = multivariate_normal(
-            self.targets, self.weights, hyperparams, residuals)
+            self.datasets, self.weights, hyperparams, residuals)
 
         llk = pm.Deterministic(self._like_name, logpts)
         return llk.sum()
@@ -908,7 +934,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
         Returns
         -------
-        list of synthetics for each target
+        default: array of synthetics for all targets
         """
         self.point2sources(point)
 
@@ -942,15 +968,15 @@ class SeismicGeometryComposite(SeismicComposite):
             for i, station in enumerate(self.stations):
                 logger.debug('Channel %s of Station %s ' % (
                     channel, station.station))
-                crust_targets = heart.init_targets(
+                crust_targets = heart.init_seismic_targets(
                     stations=[station],
-                    earth_model=sc.gf_config.earth_model_name,
+                    earth_model_name=sc.gf_config.earth_model_name,
                     channels=channel,
                     sample_rate=sc.gf_config.sample_rate,
                     crust_inds=range(*sc.gf_config.n_variations),
                     reference_location=sc.gf_config.reference_location)
 
-                cov_pv = cov.get_seis_cov_velocity_models(
+                cov_pv = cov.seis_cov_velocity_models(
                     engine=self.engine,
                     sources=self.sources,
                     targets=crust_targets,
@@ -964,9 +990,9 @@ class SeismicGeometryComposite(SeismicComposite):
 
                 index = j * len(self.stations) + i
 
-                self.targets[index].covariance.pred_v = cov_pv
+                self.datasets[index].covariance.pred_v = cov_pv
                 t0 = time.time()
-                icov = self.targets[index].covariance.inverse
+                icov = self.datasets[index].covariance.inverse
                 t1 = time.time()
                 logger.debug('Calculate inverse time %f' % (t1 - t0))
                 self.weights[index].set_value(icov)
@@ -991,12 +1017,12 @@ class GeodeticDistributerComposite(GeodeticComposite):
         self.gfpath = os.path.join(project_dir, self._mode,
                          bconfig.linear_gf_dir_name)
 
-        self.data = [
-            shared(target.displacement.astype(tconfig.floatX), borrow=True) \
-            for target in self.targets]
-        self.odws = [
-            shared(target.odw.astype(tconfig.floatX), borrow=True) \
-            for target in self.targets]
+        self.shared_data = [
+            shared(data.displacement.astype(tconfig.floatX), borrow=True) \
+            for data in self.datasets]
+        self.shared_odws = [
+            shared(data.odw.astype(tconfig.floatX), borrow=True) \
+            for data in self.datasets]
 
     def load_gfs(self, crust_inds=None, make_shared=True):
         """
@@ -1067,13 +1093,13 @@ class GeodeticDistributerComposite(GeodeticComposite):
             for var, rv in input_rvs.iteritems():
                 mu += tt.dot(self.sgfs[0][var][t], rv)
 
-            residuals[t] = self.odws[t] * (self.data[t] - mu)
+            residuals[t] = self.shared_odws[t] * (self.shared_data[t] - mu)
 
         if self.config.fit_plane:
             residuals = self.remove_ramps(residuals)
 
         logpts = multivariate_normal(
-            self.targets, self.weights, hyperparams, residuals)
+            self.datasets, self.weights, hyperparams, residuals)
 
         llk = pm.Deterministic(self._like_name, logpts)
 
@@ -1111,9 +1137,9 @@ class GeodeticDistributerComposite(GeodeticComposite):
                 tpoint.pop(param)
 
         synthetics = []
-        for i, target in enumerate(self.targets):
+        for i, data in enumerate(self.datasets):
 
-            mu = num.zeros_like(target.displacement)
+            mu = num.zeros_like(data.displacement)
             for var, rv in tpoint.iteritems():
                 mu += num.dot(self.gfs[0][var][i], rv)
                 synthetics.append(mu)
@@ -1245,11 +1271,11 @@ class Problem(object):
 
             total_llk = tt.zeros((1), tconfig.floatX)
 
-            for dataset, composite in self.composites.iteritems():
+            for datatype, composite in self.composites.iteritems():
                 input_rvs = utility.weed_input_rvs(
-                    self.rvs, mode, dataset=dataset)
+                    self.rvs, mode, datatype=datatype)
                 fixed_rvs = utility.weed_input_rvs(
-                    self.fixed_params, mode, dataset=dataset)
+                    self.fixed_params, mode, datatype=datatype)
                 total_llk += composite.get_formula(
                     input_rvs, fixed_rvs, self.hyperparams)
 
@@ -1463,14 +1489,18 @@ class SourceOptimizer(Problem):
         self.sources = []
         for i in range(pc.n_sources):
             if self.event:
-                source = source_catalog[pc.source_type].from_pyrocko_event(
-                    self.event)
+                source = \
+                    bconfig.source_catalog[pc.source_type].from_pyrocko_event(
+                        self.event)
+
+                source.stf = bconfig.stf_catalog[pc.stf_type](
+                    duration=self.event.duration)
 
                 # hardcoded inversion for hypocentral time
                 if source.stf is not None:
                     source.stf.anchor = -1.
             else:
-                source = source_catalog[pc.source_type]()
+                source = bconfig.source_catalog[pc.source_type]()
 
             self.sources.append(source)
 
@@ -1493,20 +1523,16 @@ class GeometryOptimizer(SourceOptimizer):
 
         pc = config.problem_config
 
-        if pc.source_type == 'RectangularSource':
-            dsources = utility.transform_sources(
-                self.sources,
-                pc.datasets)
-        else:
-            dsources = {}
-            for dataset in pc.datasets:
-                dsources[dataset] = copy.deepcopy(self.sources)
+        dsources = utility.transform_sources(
+            self.sources,
+            pc.datatypes,
+            pc.decimation_factors)
 
-        for dataset in pc.datasets:
-            self.composites[dataset] = geometry_composite_catalog[dataset](
-                config[dataset + '_config'],
+        for datatype in pc.datatypes:
+            self.composites[datatype] = geometry_composite_catalog[datatype](
+                config[datatype + '_config'],
                 config.project_dir,
-                dsources[dataset],
+                dsources[datatype],
                 self.event,
                 hypers)
 
@@ -1539,19 +1565,19 @@ class InterseismicOptimizer(SourceOptimizer):
         if pc.source_type == 'RectangularSource':
             dsources = utility.transform_sources(
                 self.sources,
-                pc.datasets)
+                pc.datatypes)
         else:
-            dsources = {}
-            for dataset in pc.datasets:
-                dsources[dataset] = copy.deepcopy(self.sources)
+            raise TypeError('Interseismic Optimizer has to be used with'
+                            ' RectangularSources!')
 
-        for dataset in pc.datasets:
-            self.composites[dataset] = interseismic_composite_catalog[dataset](
-                config[dataset + '_config'],
-                config.project_dir,
-                dsources[dataset],
-                self.event,
-                hypers)
+        for datatype in pc.datatypes:
+            self.composites[datatype] = \
+                interseismic_composite_catalog[datatype](
+                    config[datatype + '_config'],
+                    config.project_dir,
+                    dsources[datatype],
+                    self.event,
+                    hypers)
 
         self.config = config
 
@@ -1577,17 +1603,17 @@ class DistributionOptimizer(Problem):
 
         super(DistributionOptimizer, self).__init__(config, hypers)
 
-        for dataset in config.problem_config.datasets:
-            composite = distributer_composite_catalog[dataset](
-                config[dataset + '_config'],
+        for datatype in config.problem_config.datatypes:
+            composite = distributer_composite_catalog[datatype](
+                config[datatype + '_config'],
                 config.project_dir,
                 self.event,
                 hypers)
 
             # do the optimization only on the reference velocity model
-            logger.info("Loading %s Green's Functions" % dataset)
+            logger.info("Loading %s Green's Functions" % datatype)
             composite.load_gfs(crust_inds=[0])
-            self.composites[dataset] = composite
+            self.composites[datatype] = composite
 
         self.config = config
 
@@ -1680,7 +1706,7 @@ def estimate_hypers(step, problem):
 
         problem.outfolder = os.path.join(name, 'stage_%i' % stage)
         start = {param.name: param.random() for param in \
-                                            pc.hyperparameters.itervalues()}
+            pc.hyperparameters.itervalues()}
 
         if pa.rm_flag:
             shutil.rmtree(problem.outfolder, ignore_errors=True)

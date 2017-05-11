@@ -9,6 +9,7 @@ from beat import heart, config, utility, models, inputf, plotting
 from beat.metropolis import get_trace_stats
 
 from pyrocko import model, util
+from pyrocko.gf import LocalEngine
 
 from pyrocko.guts import load, dump
 
@@ -25,7 +26,8 @@ subcommand_descriptions = {
         'sample':         'sample the solution space of the problem',
         'build_gfs':      'build GF stores',
         'clone':          'clone EQ model project into new directory',
-        'plot':           'plot specified setups or results'
+        'plot':           'plot specified setups or results',
+        'check':          'check setup specific requirements'
     }
 
 subcommand_usages = {
@@ -36,6 +38,7 @@ subcommand_usages = {
         'build_gfs':     'build_gfs <event_name> [options]',
         'clone':         'clone <event_name> <cloned_event_name> [options]',
         'plot':          'plot <event_name> <plot_type> [options]',
+        'check':         'check <event_name> [options]',
     }
 
 subcommands = subcommand_descriptions.keys()
@@ -44,7 +47,7 @@ program_name = 'beat'
 
 usage = program_name + ''' <subcommand> <arguments> ... [options]
 BEAT: Bayesian earthquake analysis tool
- Version 0.1alpha
+ Version 1.0beta
 author: Hannes Vasyuara-Bathke
 email: hannes.vasyura-bathke@kaust.edu.sa
 
@@ -56,6 +59,7 @@ Subcommands:
     build_gfs       %(build_gfs)s
     sample          %(sample)s
     plot            %(plot)s
+    check           %(check)s
 
 To get further help and a list of available options for any subcommand run:
 
@@ -71,7 +75,10 @@ nargs_dict = {
    'import': 1,
    'build_gfs': 1,
    'sample': 1,
+   'check': 1,
    }
+
+mode_choices = ['geometry', 'static', 'kinematic', 'interseismic']
 
 
 def add_common_options(parser):
@@ -169,22 +176,23 @@ def command_init(args):
             help='Main path (absolute) for creating directory structure.'
                  '  Default: current directory ./')
 
-        parser.add_option('--datasets',
+        parser.add_option('--datatypes',
             default=['geodetic'], type='string',
             action='callback', callback=list_callback,
-            help='Datasets to include in the setup; "geodetic, seismic".')
+            help='Datatypes to include in the setup; "geodetic, seismic".')
 
         parser.add_option('--mode', dest='mode',
-            choices=['geometry', 'static', 'kinematic', 'interseismic'],
+            choices=mode_choices ,
             default='geometry',
             help='Inversion problem to solve; "geometry", "static",'
                  '"kinematic", "interseismic". Default: "geometry"')
 
         parser.add_option('--source_type', dest='source_type',
-            choices=['DCSource', 'RectangularSource'],
+            choices=config.source_names,
             default='RectangularSource',
-            help='Source type to solve for; "DCSource", "RectangularSource"'
-                 '. Default: "RectangularSource"')
+            help='Source type to solve for; %s'
+                 '. Default: "RectangularSource"' % (
+                     '", "'.join(name for name in config.source_names)))
 
         parser.add_option('--n_sources', dest='n_sources', type='int',
             default=1,
@@ -231,7 +239,7 @@ def command_init(args):
     return config.init_config(name, date,
                min_magnitude=options.min_mag,
                main_path=options.main_path,
-               datasets=options.datasets,
+               datatypes=options.datatypes,
                mode=options.mode,
                source_type=options.source_type,
                n_sources=options.n_sources,
@@ -256,10 +264,10 @@ def command_import(args):
         parser.add_option('--results', dest='results', action='store_true',
                 help='Import results from previous modeling step.')
 
-        parser.add_option('--datasets',
+        parser.add_option('--datatypes',
             default=['geodetic'], type='string',
             action='callback', callback=list_callback,
-            help='Datasets to import; "geodetic, seismic".')
+            help='Datatypes to import; "geodetic, seismic".')
 
         parser.add_option('--geodetic_format', dest='geodetic_format',
             type='string', default=['matlab'],
@@ -273,7 +281,7 @@ def command_import(args):
                  'Default: "autokiwi"')
 
         parser.add_option('--mode', dest='mode',
-            choices=['geometry', 'static', 'kinematic', 'interseismic'],
+            choices=mode_choices ,
             default='geometry',
             help='Inversion problem to solve; "geometry", "static",'
                  '"kinematic", "interseismic". Default: "geometry"')
@@ -291,7 +299,7 @@ def command_import(args):
     pc = c.problem_config
 
     if not options.results:
-        if 'seismic' in options.datasets:
+        if 'seismic' in options.datatypes:
             sc = c.seismic_config
             logger.info('Attempting to import seismic data from %s' % \
                 sc.datadir)
@@ -314,14 +322,14 @@ def command_import(args):
                     utility.dump_objects(seismic_outpath,
                         outlist=[stations, data_traces])
                 else:
-                    raise Exception(
+                    raise TypeError(
                         'Format: %s not implemented yet.' % \
                         options.seismic_format)
             else:
                 logger.info('%s exists! Use --force to overwrite!' % \
                     seismic_outpath)
 
-        if 'geodetic' in options.datasets:
+        if 'geodetic' in options.datatypes:
             gc = c.geodetic_config
             logger.info('Attempting to import geodetic data from %s' % \
                 gc.datadir)
@@ -340,7 +348,7 @@ def command_import(args):
                             inputf.load_and_blacklist_GPS(
                                 gc.datadir, name, gc.blacklist))
                 else:
-                    raise Exception(
+                    raise TypeError(
                         'Format: %s not implemented yet.' % \
                         options.geodetic_format)
 
@@ -389,13 +397,13 @@ def command_clone(args):
                  ' have been created by "init".'
                  ' Default: current directory: ./')
 
-        parser.add_option('--datasets',
+        parser.add_option('--datatypes',
             default=['geodetic', 'seismic'], type='string',
             action='callback', callback=list_callback,
-            help='Datasets to clone; "geodetic, seismic".')
+            help='Datatypes to clone; "geodetic, seismic".')
 
         parser.add_option('--mode', dest='mode',
-            choices=['geometry', 'static', 'kinematic', 'interseismic'],
+            choices=mode_choices ,
             default='geometry',
             help='Inversion problem to solve; "geometry", "static",'
                  '"kinematic", "interseismic". Default: "geometry"')
@@ -418,7 +426,7 @@ def command_clone(args):
 
     util.ensuredir(cloned_dir)
 
-    for mode in options.mode:
+    for mode in [options.mode]:
         config_fn = os.path.join(project_dir, 'config_' + mode + '.yaml')
         if os.path.exists(config_fn):
             logger.info('Cloning %s problem config.' % mode)
@@ -426,26 +434,26 @@ def command_clone(args):
             c.name = cloned_name
             c.project_dir = cloned_dir
 
-            new_datasets = []
-            for dataset in  options.datasets:
-                if dataset not in c.problem_config.datasets:
-                    logger.warn(
-                        'Dataset %s to be cloned is not in config!' % dataset)
+            new_datatypes = []
+            for datatype in  options.datatypes:
+                if datatype not in c.problem_config.datatypes:
+                    logger.warn('Datatype %s to be cloned is not'
+                                ' in config!' % datatype)
                 else:
-                    new_datasets.append(dataset)
+                    new_datatypes.append(datatype)
 
                     data_path = os.path.join(
-                        project_dir, dataset + '_data.pkl')
+                        project_dir, datatype + '_data.pkl')
 
                     if os.path.exists(data_path) and options.copy_data:
-                        logger.info('Cloning %s data.' % dataset)
+                        logger.info('Cloning %s data.' % datatype)
                         cloned_data_path = os.path.join(
-                            cloned_dir, dataset + '_data.pkl')
+                            cloned_dir, datatype + '_data.pkl')
                         shutil.copyfile(data_path, cloned_data_path)
 
             old_priors = copy.deepcopy(c.problem_config.priors)
 
-            c.problem_config.datasets = new_datasets
+            c.problem_config.datatype = new_datatypes
             new_priors = c.problem_config.select_variables()
 
             for prior in new_priors:
@@ -461,7 +469,7 @@ def command_clone(args):
             config.dump_config(c)
 
         else:
-            raise Exception('Config file: %s does not exist!' % config_fn)
+            raise IOError('Config file: %s does not exist!' % config_fn)
 
 def command_sample(args):
 
@@ -469,7 +477,7 @@ def command_sample(args):
 
     def setup(parser):
         parser.add_option('--mode', dest='mode',
-            choices=['geometry', 'static', 'kinematic', 'interseismic'],
+            choices=mode_choices ,
             default='geometry',
             help='Inversion problem to solve; "geometry", "static",'
                  '"kinematic", "interseismic". Default: "geometry"')
@@ -512,15 +520,15 @@ def command_build_gfs(args):
                  ' Default: current directory: ./')
 
         parser.add_option('--mode', dest='mode',
-            choices=['geometry', 'static', 'kinematic', 'interseismic'],
+            choices=mode_choices ,
             default='geometry',
             help='Inversion problem to solve; "geometry", "static",'
                  '"kinematic", "interseismic". Default: "geometry"')
 
-        parser.add_option('--datasets',
+        parser.add_option('--datatypes',
             default='geodetic', type='string',
             action='callback', callback=list_callback,
-            help='Datasets to calculate the GFs for; "geodetic, seismic".'
+            help='Datatypes to calculate the GFs for; "geodetic, seismic".'
                  ' Default: "geodetic"')
 
         parser.add_option('--force', dest='force', action='store_true',
@@ -538,7 +546,7 @@ def command_build_gfs(args):
     c = config.load_config(project_dir, options.mode)
 
     if options.mode in ['geometry', 'interseismic']:
-        if 'geodetic' in options.datasets:
+        if 'geodetic' in options.datatypes:
             gc = c.geodetic_config
             gf = c.geodetic_config.gf_config
 
@@ -553,7 +561,7 @@ def command_build_gfs(args):
             if options.execute:
                 logger.info('Geodetic GF calculations successful!')
 
-        if 'seismic' in options.datasets:
+        if 'seismic' in options.datatypes:
             sc = c.seismic_config
             sf = sc.gf_config
 
@@ -593,16 +601,16 @@ def command_build_gfs(args):
 
     elif options.mode == 'static':
         geo = 'geodetic'
-        if geo in options.datasets:
+        if geo in options.datatypes:
             gf = c.geodetic_config.gf_config
 
             geodetic_data_path = os.path.join(
                 c.project_dir, config.geodetic_data_name)
 
-            targets = utility.load_objects(geodetic_data_path)
-            for target in targets:
-                if target.los_vector is None:
-                    target.update_los_vector()
+            datasets = utility.load_objects(geodetic_data_path)
+            for data in datasets:
+                if data.los_vector is None:
+                    data.update_los_vector()
 
             outdir = os.path.join(
                 c.project_dir, options.mode, config.linear_gf_dir_name)
@@ -621,7 +629,7 @@ def command_build_gfs(args):
                 extension_length=gf.extension_length,
                 patch_width=gf.patch_width,
                 patch_length=gf.patch_length,
-                datasets=[geo])
+                datatypes=[geo])
 
             faultpath = os.path.join(outdir, config.fault_geometry_name)
             if os.path.exists(faultpath) and not options.force:
@@ -642,15 +650,26 @@ def command_build_gfs(args):
 
             if options.execute:
                 logger.info("Calculating linear Green's Functions...")
+                engine = LocalEngine(store_superdirs=[gf.store_superdir])
+
                 for crust_ind in range(*gf.n_variations):
                     outpath = os.path.join(outdir,
                         str(crust_ind) + '_' + \
                         config.geodetic_linear_gf_name)
                     logger.info('crust_ind %i' % crust_ind)
+
+                    targets = init_geodetic_targets(
+                        datasets,
+                        earth_model_name='ak135-f-average.m',
+                        interpolation='multilinear',
+                        crust_inds=[crust_ind],
+                        sample_rate=gf.sample_rate)
+
                     heart.geo_construct_gf_linear(
-                        store_superdir=gf.store_superdir,
+                        engine=engine,
                         outpath=outpath,
                         crust_ind=crust_ind,
+                        datasets=datasets,
                         targets=targets,
                         fault=fault,
                         varnames=varnames,
@@ -673,7 +692,7 @@ def command_plot(args):
                  ' Default: current directory: ./')
 
         parser.add_option('--mode', dest='mode',
-            choices=['geometry', 'static', 'kinematic', 'interseismic'],
+            choices=mode_choices,
             default='geometry',
             help='Inversion problem to solve; "geometry", "static",'
                  '"kinematic", "interseismic". Default: "geometry"')
@@ -740,7 +759,7 @@ selected giving a comma seperated list.''' % (
 
     for plot in plotnames:
         if plot not in plots_avail:
-            raise Exception('Plot type %s not available! Available plots are:'
+            raise TypeError('Plot type %s not available! Available plots are:'
             ' %s' % (plot, plots_avail))
 
     logger.info('Loading problem ...')
@@ -765,6 +784,50 @@ selected giving a comma seperated list.''' % (
 
     for plot in plotnames:
         plotting.plots_catalog[plot](problem, po)
+
+
+def command_check(args):
+
+    command_str = 'check'
+
+    def setup(parser):
+        parser.add_option('--mode', dest='mode',
+            choices=mode_choices,
+            default='geometry',
+            help='Inversion problem to solve; "geometry", "static",'
+                 '"kinematic", "interseismic". Default: "geometry"')
+
+        parser.add_option('--main_path', dest='main_path', type='string',
+            default='./',
+            help='Main path (absolute) leading to folders of events that'
+                 ' have been created by "init".'
+                 ' Default: current directory: ./')
+
+        parser.add_option('--datatypes',
+            default=['geodetic', ' seismic'], type='string',
+            action='callback', callback=list_callback,
+            help='Datatypes to check; "geodetic, seismic".')
+
+        parser.add_option('--what', dest='what',
+            choices=['stores'],
+            default='stores',
+            help='Setup item to check; "stores", Default: "stores"')
+
+    parser, options, args = cl_parse(command_str, args, setup=setup)
+
+    project_dir = get_project_directory(
+        args, options, nargs_dict[command_str])
+
+    problem = models.load_model(
+        project_dir, options.mode, hypers=False, nobuild=True)
+
+    if options.what == 'stores':
+        corrupted_stores = heart.check_problem_stores(
+            problem, options.datatypes)
+
+        for datatype in options.datatypes:
+            store_ids = corrupted_stores[datatype]
+            logger.warn('Store(s) with empty traces! : %s ' % store_ids)
 
 
 if __name__ == '__main__':

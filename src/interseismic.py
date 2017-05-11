@@ -1,9 +1,22 @@
 """
-Module for interseismic models. Block-backslip model.
+Module for interseismic models.
+
+Block-backslip model
+--------------------
+The fault is assumed to be locked above a certain depth "locking_depth" and
+it is creeping with the rate of the defined plate- which is handled as a
+rigid block.
+
+STILL EXPERIMENTAL!
+
+References
+==========
+Savage & Prescott 1978
+Metzger et al. 2011
 """
 
 from beat import utility
-from beat.heart import geo_layer_synthetics
+from beat.heart import geo_synthetics
 
 import numpy as num
 import logging
@@ -23,6 +36,9 @@ r2d = 180. / num.pi
 non_source = set(['amplitude', 'azimuth', 'locking_depth'])
 
 
+__all__ = ['geo_backslip_synthetics']
+
+
 def block_mask(easts, norths, sources, east_ref, north_ref):
     """
     Determine stable and moving observation points dependend on the input
@@ -30,9 +46,9 @@ def block_mask(easts, norths, sources, east_ref, north_ref):
 
     Parameters
     ----------
-    easts : :class:`numpy.array`
+    easts : :class:`numpy.ndarray`
         east - local coordinates [m] of observations
-    norths : :class:`numpy.array`
+    norths : :class:`numpy.ndarray`
         north - local coordinates [m] of observations
     sources : list
         of :class:`RectangularSource`
@@ -43,7 +59,7 @@ def block_mask(easts, norths, sources, east_ref, north_ref):
 
     Returns
     -------
-    :class:`numpy.array` with zeros at stable points, ones at moving points
+    :class:`numpy.ndarray` with zeros at stable points, ones at moving points
     """
 
     def get_vertex(outlines, i, j):
@@ -101,9 +117,9 @@ def block_geometry(lons, lats, sources, reference):
 
     Parameters
     ----------
-    lons : :class:`num.array`
+    lons : :class:`num.ndarray`
         Longitudes [deg] of observation points
-    lats : :class:`num.array`
+    lats : :class:`num.ndarray`
         Latitudes [deg] of observation points
     sources : list
         of RectangularFault objects
@@ -112,7 +128,7 @@ def block_geometry(lons, lats, sources, reference):
 
     Returns
     -------
-    :class:`num.array`
+    :class:`num.ndarray`
         mask with zeros/ones for stable/moving observation points, respectively
     """
 
@@ -129,7 +145,7 @@ def block_movement(bmask, amplitude, azimuth):
 
     Parameters
     ----------
-    bmask : :class:`numpy.array`
+    bmask : :class:`numpy.ndarray`
         masked block determining stable and moving observation points
     amplitude : float
         slip [m] of the moving block
@@ -138,7 +154,7 @@ def block_movement(bmask, amplitude, azimuth):
 
     Returns
     -------
-    :class:`numpy.array`
+    :class:`numpy.ndarray`
          (n x 3) [North, East, Down] displacements [m]
     """
 
@@ -158,9 +174,9 @@ def geo_block_synthetics(lons, lats, sources, amplitude, azimuth, reference):
 
     Parameters
     ----------
-    lons : :class:`num.array`
+    lons : :class:`num.ndarray`
         Longitudes [deg] of observation points
-    lats : :class:`num.array`
+    lats : :class:`num.ndarray`
         Latitudes [deg] of observation points
     sources : list
         of RectangularFault objects
@@ -173,7 +189,7 @@ def geo_block_synthetics(lons, lats, sources, amplitude, azimuth, reference):
 
     Returns
     -------
-    :class:`numpy.array`
+    :class:`numpy.ndarray`
          (n x 3) [North, East, Down] displacements [m]
     """
     bmask = block_geometry(lons, lats, sources, reference)
@@ -231,7 +247,7 @@ def backslip_params(azimuth, strike, dip, amplitude, locking_depth):
 
 
 def geo_backslip_synthetics(
-    store_superdir, crust_ind, sources, lons, lats, reference,
+    engine, sources, targets, lons, lats, reference,
     amplitude, azimuth, locking_depth):
     """
     Interseismic backslip model: forward model for synthetic
@@ -245,28 +261,28 @@ def geo_backslip_synthetics(
 
     Parameters
     ----------
-    store_superdir : str
-        main path to directory containing the different Greensfunction stores
-    crust_ind : int
-        index of Greens Function store to use
-    lons : List of floats
-        Longitudes [decimal deg] of observation points
-    lats : List of floats
-        Latitudes [decimal deg] of observation points
-    sources : List of :class:`pscmp.PsCmpRectangularSource`
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+    sources : list
+        of :class:`pyrocko.gf.seismosizer.RectangularSource`
         Sources to calculate synthetics for
+    targets : list
+        of :class:`pyrocko.gf.targets.StaticTarget`
+    lons : list of floats, or :class:`numpy.ndarray`
+        longitudes [deg] of observation points
+    lats : list of floats, or :class:`numpy.ndarray`
+        latitudes [deg] of observation points
     amplitude : float
         slip [m] of the moving block
     azimuth : float
         azimuth-angle[deg] ergo direction of moving block towards North
-    locking_depth : :class:`numpy.array`
+    locking_depth : :class:`numpy.ndarray`
         locking_depth [km] of the fault(s) below there is no movement
     reference : :class:`heart.ReferenceLocation`
         reference location that determines the stable block
 
     Returns
     -------
-    :class:`numpy.array`
+    :class:`numpy.ndarray`
          (n x 3) [North, East, Down] displacements [m]
     """
 
@@ -279,8 +295,9 @@ def geo_backslip_synthetics(
             strike=source.strike, dip=source.dip)
         source.update(**source_params)
 
-    disp_block += geo_layer_synthetics(
-        store_superdir, crust_ind, lons, lats, sources)
+    disp_block += geo_synthetics(
+        engine=engine, targets=targets, sources=sources,
+        outmode='stacked_array')
 
     return disp_block
 

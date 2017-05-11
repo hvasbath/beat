@@ -20,6 +20,7 @@ from pyrocko.guts_array import Array
 from pyrocko import crust2x2, gf, cake, orthodrome, trace, util
 from pyrocko.cake import GradientLayer
 from pyrocko.fomosto import qseis, qssp
+
 from pyrocko.model import Station
 
 from pyrocko.gf.seismosizer import outline_rect_source, Cloneable
@@ -184,7 +185,7 @@ class RectangularSource(gf.DCSource, Cloneable):
             (bd[2] * num.sin(d2r * self.strike) / num.tan(d2r * self.dip))
         return num.array([xtrace, ytrace, 0.])
 
-    def patches(self, nl, nw, dataset):
+    def patches(self, nl, nw, datatype):
         """
         Cut source into n by m sub-faults and return n times m
         :class:`RectangularSource` Objects.
@@ -197,7 +198,7 @@ class RectangularSource(gf.DCSource, Cloneable):
             number of patches in length direction (strike)
         nw : int
             number of patches in width direction (dip)
-        dataset : string
+        datatype : string
             'geodetic' or 'seismic' determines the source to be returned
 
         Returns
@@ -217,28 +218,28 @@ class RectangularSource(gf.DCSource, Cloneable):
                     self.strikevector * ((i + 0.5 - 0.5 * nl) * length) + \
                     self.dipvector * ((j + 0.5 - 0.5 * nw) * width)
 
-                if dataset == 'seismic':
-                    patch = gf.RectangularSource(
-                        lat=float(self.lat),
-                        lon=float(self.lon),
-                        east_shift=float(sub_center[0]),
-                        north_shift=float(sub_center[1]),
-                        depth=float(sub_center[2]),
-                        strike=self.strike, dip=self.dip, rake=self.rake,
-                        length=length, width=width, stf=self.stf,
-                        time=self.time, slip=self.slip)
-                elif dataset == 'geodetic':
-                    patch = pscmp.PsCmpRectangularSource(
-                        lat=self.lat,
-                        lon=self.lon,
-                        east_shift=float(sub_center[0]),
-                        north_shift=float(sub_center[1]),
-                        depth=float(sub_center[2]),
-                        strike=self.strike, dip=self.dip, rake=self.rake,
-                        length=length, width=width, slip=self.slip,
-                        opening=self.opening)
+                patch = gf.RectangularSource(
+                    lat=float(self.lat),
+                    lon=float(self.lon),
+                    east_shift=float(sub_center[0]),
+                    north_shift=float(sub_center[1]),
+                    depth=float(sub_center[2]),
+                    strike=self.strike, dip=self.dip, rake=self.rake,
+                    length=length, width=width, stf=self.stf,
+                    time=self.time, slip=self.slip, anchor='center')
+
+                if nw == 1 and nl == 1:
+                    logger.warn(
+                        'RectangularSource for fault-geometry inversion'
+                        ' decimated!')
+                    if datatype == 'seismic':
+                        patch.decimation_factor = 20
+
+                    elif datatype == 'geodetic':
+                        patch.decimation_factor = 7
+
                 else:
-                    raise Exception(
+                    raise TypeError(
                         "Datatype not supported either: 'seismic/geodetic'")
 
                 patches.append(patch)
@@ -440,47 +441,6 @@ class Covariance(Object):
         return utility.scalar2floatX((N * num.log(2 * num.pi)) + ldet_x)
 
 
-class TeleseismicTarget(gf.Target):
-    """
-    Extension to :class:`pyrocko.gf.seismpsizer.Target` to have
-    :class:`Covariance` as an attribute.
-    """
-
-    covariance = Covariance.T(
-        default=Covariance.D(),
-        optional=True,
-        help=':py:class:`Covariance` that holds data'
-             'and model prediction covariance matrixes')
-
-    @property
-    def typ(self):
-        return self.codes[3]
-
-    @property
-    def samples(self):
-        return self.covariance.data.shape[0]
-
-    def update_target_times(self, source=None, taperer=None):
-        """
-        Update the target attributes tmin and tmax to do the stacking
-        only in this interval. Adds twice taper fade in time to each taper
-        side.
-
-        Parameters
-        ----------
-        source : list
-            containing :class:`pyrocko.gf.seismosizer.Target` Objects
-        taperer : :class:`pyrocko.trace.CosTaper`
-        """
-        if source is None or taperer is None:
-            self.tmin = None
-            self.tmax = None
-        else:
-            tolerance = 4 * (taperer.b - taperer.a)
-            self.tmin = taperer.a - tolerance - source.time
-            self.tmax = taperer.d + tolerance - source.time
-
-
 class ArrivalTaper(trace.Taper):
     """
     Cosine arrival Taper.
@@ -543,22 +503,49 @@ physical_bounds = dict(
     north_shift=(-500., 500.),
     depth=(0., 1000.),
     strike=(0, 360.),
+    strike1=(0, 360.),
+    strike2=(0, 360.),
     dip=(0., 90.),
+    dip1=(0., 90.),
+    dip2=(0., 90.),
     rake=(-180., 180.),
+    rake1=(-180., 180.),
+    rake2=(-180., 180.),
+    mix=(0, 1),
+
+    diameter=(0., 100.),
+
+    mnn=(-1., 1.),
+    mee=(-1., 1.),
+    mdd=(-1., 1.),
+    mne=(-1., 1.),
+    mnd=(-1., 1.),
+    med=(-1., 1.),
+
     length=(0., 7000.),
     width=(0., 500.),
     slip=(0., 150.),
-    magnitude=(-10., 10.),
+    moment=(-1e30, 1e30),
     time=(-300., 300.),
+    delta_time=(0., 100.),
+    delta_depth=(0., 300.),
+    distance=(0., 300.),
+
     duration=(0., 600.),
-    Uparr=(-0.3, 150.),
-    Uperp=(-150., 150.),
+    peak_ratio=(0., 1.),
+
+    uparr=(-0.3, 150.),
+    uperp=(-150., 150.),
     nuc_x=(0., num.inf),
     nuc_y=(0., num.inf),
     velocity=(0.5, 7.0),
+
     azimuth=(0, 360),
-    amplitude=(0., 0.2),
+    amplitude=(1., 10e25),
+    bl_azimuth=(0, 360),
+    bl_amplitude=(0., 0.2),
     locking_depth=(0.1, 100.),
+
     seis_Z=(-20., 20.),
     seis_T=(-20., 20.),
     geo_S=(-20., 20.),
@@ -638,7 +625,52 @@ class Parameter(Object):
                          dtype=num.float)
 
 
-class GeodeticTarget(gf.meta.MultiLocation):
+class DynamicTarget(gf.Target):
+
+    def update_target_times(self, source=None, taperer=None):
+        """
+        Update the target attributes tmin and tmax to do the stacking
+        only in this interval. Adds twice taper fade in time to each taper
+        side.
+
+        Parameters
+        ----------
+        source : list
+            containing :class:`pyrocko.gf.seismosizer.Target` Objects
+        taperer : :class:`pyrocko.trace.CosTaper`
+        """
+        if source is None or taperer is None:
+            self.tmin = None
+            self.tmax = None
+        else:
+            tolerance = 4 * (taperer.b - taperer.a)
+            self.tmin = taperer.a - tolerance - source.time
+            self.tmax = taperer.d + tolerance - source.time
+
+
+class SeismicDataset(trace.Trace):
+    """
+    Extension to :class:`pyrocko.trace.Trace` to have
+    :class:`Covariance` as an attribute.
+    """
+
+    covariance = None
+
+    @property
+    def samples(self):
+        if self.covariance.data is not None:
+            return self.covariance.data.shape[0]
+        else:
+            logger.warn(
+                'Dataset has no uncertainties! Return full data length!')
+            return self.data_len()
+
+    @property
+    def typ(self):
+        return self.channel
+
+
+class GeodeticDataset(gf.meta.MultiLocation):
     """
     Overall geodetic data set class
     """
@@ -725,7 +757,7 @@ class GPSStation(Station):
                 return c
 
 
-class GPSCompoundComponent(GeodeticTarget):
+class GPSCompoundComponent(GeodeticDataset):
     """
     Collecting many GPS components and merging them into arrays.
     Make synthetics generation more efficient.
@@ -839,7 +871,7 @@ class GPSDataset(object):
         return self.stations.iteritems()
 
 
-class IFG(GeodeticTarget):
+class IFG(GeodeticDataset):
     """
     Interferogram class as a dataset in the optimization.
     """
@@ -916,16 +948,16 @@ class GeodeticResult(Object):
     """
     Result object assembling different geodetic data.
     """
-    processed_obs = GeodeticTarget.T(optional=True)
-    processed_syn = GeodeticTarget.T(optional=True)
-    processed_res = GeodeticTarget.T(optional=True)
+    processed_obs = GeodeticDataset.T(optional=True)
+    processed_syn = GeodeticDataset.T(optional=True)
+    processed_res = GeodeticDataset.T(optional=True)
     llk = Float.T(default=0., optional=True)
 
 
-def init_targets(stations, earth_model='ak135-f-average.m',
-                 channels=['T', 'Z'], sample_rate=1.0,
-                 crust_inds=[0], interpolation='multilinear',
-                 reference_location=None):
+def init_seismic_targets(
+    stations, earth_model_name='ak135-f-average.m', channels=['T', 'Z'],
+    sample_rate=1.0, crust_inds=[0], interpolation='multilinear',
+    reference_location=None):
     """
     Initiate a list of target objects given a list of indexes to the
     respective GF store velocity model variation index (crust_inds).
@@ -934,7 +966,7 @@ def init_targets(stations, earth_model='ak135-f-average.m',
     ----------
     stations : List of :class:`pyrocko.model.Station`
         List of station objects for which the targets are being initialised
-    earth_model = str
+    earth_model_name = str
         Name of the earth model that has been used for GF calculation.
     channels : List of str
         Components of the traces to be optimized for if rotated:
@@ -954,7 +986,7 @@ def init_targets(stations, earth_model='ak135-f-average.m',
 
     Returns
     -------
-    List of :class:`pyrocko.gf.seismosizer.Target`
+    List of :class:`DynamicTarget`
     """
 
     if reference_location is None:
@@ -964,9 +996,9 @@ def init_targets(stations, earth_model='ak135-f-average.m',
         store_prefixes = [copy.deepcopy(reference_location.station) \
              for station in stations]
 
-    em_name = earth_model.split('-')[0].split('.')[0]
+    em_name = get_earth_model_prefix(earth_model_name)
 
-    targets = [TeleseismicTarget(
+    targets = [DynamicTarget(
         quantity='displacement',
         codes=(stations[sta_num].network,
                  stations[sta_num].station,
@@ -982,6 +1014,49 @@ def init_targets(stations, earth_model='ak135-f-average.m',
         for channel in channels
             for crust_ind in crust_inds
                 for sta_num in range(len(stations))]
+
+    return targets
+
+
+def init_geodetic_targets(
+    datasets, earth_model_name='ak135-f-average.m',
+    interpolation='nearest_neighbor', crust_inds=[0],
+    sample_rate=0.0):
+    """
+    Initiate a list of Static target objects given a list of indexes to the
+    respective GF store velocity model variation index (crust_inds).
+
+    Parameters
+    ----------
+    datasets : list
+        of :class:`heart.GeodeticDataset` for which the targets are being
+        initialised
+    earth_model_name = str
+        Name of the earth model that has been used for GF calculation.
+    sample_rate : scalar, float
+        sample rate [Hz] of the Greens Functions to use
+    crust_inds : List of int
+        Indexes of different velocity model realisations, 0 - reference model
+    interpolation : str
+        Method of interpolation for the Greens Functions, can be 'multilinear'
+        or 'nearest_neighbor'
+
+    Returns
+    -------
+    List of :class:`pyrocko.gf.targets.StaticTarget`
+    """
+
+    em_name = get_earth_model_prefix(earth_model_name)
+
+    targets = [gf.StaticTarget(
+        lons=d.lons,
+        lats=d.lats,
+        interpolation=interpolation,
+        quantity='displacement',
+        store_id='%s_%s_%.3fHz_%s' % (
+            'statics', em_name, sample_rate, crust_ind))
+            for crust_ind in crust_inds
+                for d in datasets]
 
     return targets
 
@@ -1282,12 +1357,34 @@ def get_slowness_taper(fomosto_config, velocity_model, distances):
     return (0.0, 0.0, 1.1 * float(smax), 1.3 * float(smax))
 
 
+def get_earth_model_prefix(earth_model_name):
+    return earth_model_name.split('-')[0].split('.')[0]
+
+
 def get_fomosto_baseconfig(
-    seismic_gfconfig, event, station, channels, crust_ind):
+    gfconfig, event, station, channels, crust_ind):
     """
     Initialise fomosto config.
+
+    Parameters
+    ----------
+    gfconfig : :class:`config.NonlinearGFConfig`
+    event : :class:`pyrocko.model.Event`
+        The event is used as a reference point for all the calculations
+        According to the its location the earth model is being built
+    station : :class:`pyrocko.model.Station` or
+        :class:`heart.ReferenceLocation`
+    crust_ind : int
+        Index to set to the Greens Function store
+    channels : List of str
+        Components of the traces to be optimized for if rotated:
+            T - transversal, Z - vertical, R - radial
+        If not rotated:
+            E - East, N- North, U - Up (Vertical)
+        if empty:
+            no tabulated phases set
     """
-    sf = seismic_gfconfig
+    sf = gfconfig
 
     # define phases
     tabulated_phases = []
@@ -1305,13 +1402,15 @@ def get_fomosto_baseconfig(
     distance_min = distance - (sf.source_distance_radius * km)
 
     if distance_min < 0.:
-        logger.warn('Minimum grid distance is below zero. Setting it to zero!')
+        if len(channels) > 0:
+            logger.warn(
+                'Minimum grid distance is below zero. Setting it to zero!')
         distance_min = 0.
 
     return gf.ConfigTypeA(
         id='%s_%s_%.3fHz_%s' % (
             station.station,
-            sf.earth_model_name.split('-')[0].split('.')[0],
+            get_earth_model_prefix(sf.earth_model_name),
             sf.sample_rate,
             crust_ind),
         ncomponents=10,
@@ -1496,7 +1595,7 @@ def seis_construct_gf(
 
         traces_path = os.path.join(store_dir, 'traces')
 
-        if execute and not os.path.exists(traces_path):
+        if execute and not os.path.exists(traces_path) or force:
             logger.info('Filling store ...')
             store = gf.Store(store_dir, 'r')
             store.make_ttt(force=force)
@@ -1509,10 +1608,111 @@ def seis_construct_gf(
                 logger.info('Removing QSSP Greens Functions!')
                 shutil.rmtree(gf_dir)
         else:
-            logger.info('Traces exists use force=True to overwrite!')
+            logger.info('Traces exist use force=True to overwrite!')
 
 
 def geo_construct_gf(
+    event, geodetic_config, crust_ind=0, execute=True, force=False):
+    """
+    Calculate geodetic Greens Functions (GFs) and create a fomosto 'GF store'
+    that is being used repeatetly later on to calculate the synthetic
+    displacements. Enables various different source geometries.
+
+    Parameters
+    ----------
+    event : :class:`pyrocko.model.Event`
+        The event is used as a reference point for all the calculations
+        According to the its location the earth model is being built
+    geodetic_config : :class:`config.GeodeticConfig`
+    crust_ind : int
+        Index to set to the Greens Function store
+    execute : boolean
+        Flag to execute the calculation, if False just setup tested
+    force : boolean
+        Flag to overwrite existing GF stores
+    """
+    from pyrocko.fomosto import psgrn_pscmp as ppp
+
+    version = '2008a'
+    gfc = geodetic_config.gf_config
+
+    # extract source crustal profile and check for water layer
+    source_model = get_velocity_model(
+        event, earth_model_name=gfc.earth_model_name,
+        crust_ind=crust_ind, gf_config=gfc,
+        custom_velocity_model=gfc.custom_velocity_model).extract(
+            depth_max=gfc.source_depth_max * km)
+
+    c = ppp.PsGrnPsCmpConfig()
+
+    c.pscmp_config.version = version
+
+    c.psgrn_config.version = version
+    c.psgrn_config.sampling_interval = gfc.sampling_interval
+    c.psgrn_config.gf_depth_spacing = gfc.medium_depth_spacing
+    c.psgrn_config.gf_distance_spacing = gfc.medium_distance_spacing
+
+    station = ReferenceLocation(
+        station='statics',
+        lat=event.lat,
+        lon=event.lon)
+
+    fomosto_config = get_fomosto_baseconfig(
+        gfconfig=gfc, event=event, station=station,
+        channels=[], crust_ind=crust_ind)
+
+    store_dir = gfc.store_superdir + fomosto_config.id
+
+    if not os.path.exists(store_dir) or force:
+        # potentially vary source model
+        if crust_ind > 0:
+            source_model = ensemble_earthmodel(
+                source_model,
+                num_vary=1,
+                error_depth=gfc.error_depth,
+                error_velocities=gfc.error_velocities)[0]
+
+        fomosto_config.earthmodel_1d = source_model
+        fomosto_config.modelling_code_id = 'psgrn_pscmp.%s' % version
+
+        c.validate()
+        fomosto_config.validate()
+
+        gf.store.Store.create_editables(
+            store_dir, config=fomosto_config,
+            extra={'psgrn_pscmp': c}, force=force)
+
+    else:
+        logger.info(
+            'Store %s exists! Use force=True to overwrite!' % store_dir)
+
+    traces_path = os.path.join(store_dir, 'traces')
+
+    if execute and not os.path.exists(traces_path) or force:
+        logger.info('Filling store ...')
+
+        store = gf.store.Store(store_dir, 'r')
+        store.close()
+
+        # build store
+        try:
+            ppp.build(store_dir, nworkers=gfc.nworkers, force=force)
+        except ppp.PsCmpError, e:
+            if str(e).find('could not start psgrn/pscmp') != -1:
+                logger.warn('psgrn/pscmp not installed')
+                return
+            else:
+                raise
+
+    elif not execute and not os.path.exists(traces_path):
+        logger.info('Geo GFs can be created in directory: %s ! '
+                    '(execute=True necessary)! GF params: \n' % store_dir)
+        print fomosto_config, c
+    else:
+        logger.info('Traces exist use force=True to overwrite!')
+
+
+def geo_construct_gf_psgrn(
     event, geodetic_config, crust_ind=0, execute=True, force=False):
     """
     Calculate geodetic Greens Functions (GFs) and create a repository 'store'
@@ -1532,46 +1732,48 @@ def geo_construct_gf(
     force : boolean
         Flag to overwrite existing GF stores
     """
-
-    gf = geodetic_config.gf_config
+    logger.warn(
+        'This function is deprecated and might be removed in later versions!')
+    gfc = geodetic_config.gf_config
 
     c = psgrn.PsGrnConfigFull()
 
-    n_steps_depth = int((gf.source_depth_max - gf.source_depth_min) / \
-        gf.source_depth_spacing) + 1
+    n_steps_depth = int((gfc.source_depth_max - gfc.source_depth_min) / \
+        gfc.source_depth_spacing) + 1
     n_steps_distance = int(
-        (gf.source_distance_max - gf.source_distance_min) / \
-        gf.source_distance_spacing) + 1
+        (gfc.source_distance_max - gfc.source_distance_min) / \
+        gfc.source_distance_spacing) + 1
 
     c.distance_grid = psgrn.PsGrnSpatialSampling(
         n_steps=n_steps_distance,
-        start_distance=gf.source_distance_min,
-        end_distance=gf.source_distance_max)
+        start_distance=gfc.source_distance_min,
+        end_distance=gfc.source_distance_max)
 
     c.depth_grid = psgrn.PsGrnSpatialSampling(
         n_steps=n_steps_depth,
-        start_distance=gf.source_depth_min,
-        end_distance=gf.source_depth_max)
+        start_distance=gfc.source_depth_min,
+        end_distance=gfc.source_depth_max)
 
-    c.sampling_interval = gf.sampling_interval
+    c.sampling_interval = gfc.sampling_interval
 
     # extract source crustal profile and check for water layer
     source_model = get_velocity_model(
-        event, earth_model_name=gf.earth_model_name, crust_ind=crust_ind,
-        gf_config=gf, custom_velocity_model=gf.custom_velocity_model).extract(
-            depth_max=gf.source_depth_max * km)
+        event, earth_model_name=gfc.earth_model_name,
+        crust_ind=crust_ind, gf_config=gfc,
+        custom_velocity_model=gfc.custom_velocity_model).extract(
+            depth_max=gfc.source_depth_max * km)
 
     # potentially vary source model
     if crust_ind > 0:
         source_model = ensemble_earthmodel(
             source_model,
             num_vary=1,
-            error_depth=gf.error_depth,
-            error_velocities=gf.error_velocities)[0]
+            error_depth=gfc.error_depth,
+            error_velocities=gfc.error_velocities)[0]
 
     c.earthmodel_1d = source_model
     c.psgrn_outdir = os.path.join(
-        gf.store_superdir, 'psgrn_green_%i' % (crust_ind))
+        gfc.store_superdir, 'psgrn_green_%i' % (crust_ind))
     c.validate()
 
     util.ensuredir(c.psgrn_outdir)
@@ -1588,7 +1790,7 @@ def geo_construct_gf(
         runner.run(c, force)
 
 
-def geo_layer_synthetics(store_superdir, crust_ind, lons, lats, sources,
+def geo_layer_synthetics_pscmp(store_superdir, crust_ind, lons, lats, sources,
                          keep_tmp=False, outmode='data'):
     """
     Calculate synthetic displacements for a given Greens Function database
@@ -1647,7 +1849,7 @@ class FaultGeometry(gf.seismosizer.Cloneable):
 
     Parameters
     ----------
-    datasets : list
+    datatypes : list
         of str of potential dataset fault geometries to be stored
     components : list
         of str of potential inversion variables (e.g. slip-components) to
@@ -1656,15 +1858,15 @@ class FaultGeometry(gf.seismosizer.Cloneable):
         comprises patch information related to subfaults
     """
 
-    def __init__(self, datasets, components, ordering):
-        self.datasets = datasets
+    def __init__(self, datatypes, components, ordering):
+        self.datatypes = datatypes
         self.components = components
         self._ext_sources = {}
         self.ordering = ordering
 
-    def _check_dataset(self, dataset):
-        if dataset not in self.datasets:
-            raise Exception('Dataset not included in FaultGeometry')
+    def _check_datatype(self, datatype):
+        if datatype not in self.datatypes:
+            raise Exception('Datatype not included in FaultGeometry')
 
     def _check_component(self, component):
         if component not in self.components:
@@ -1674,12 +1876,12 @@ class FaultGeometry(gf.seismosizer.Cloneable):
         if index > self.nsubfaults - 1:
             raise Exception('Subfault not defined!')
 
-    def get_subfault_key(self, index, dataset, component):
+    def get_subfault_key(self, index, datatype, component):
 
-        if dataset is not None:
-            self._check_dataset(dataset)
+        if datatype is not None:
+            self._check_datatype(datatype)
         else:
-            dataset = self.datasets[0]
+            datatype = self.datatypes[0]
 
         if component is not None:
             self._check_component(component)
@@ -1688,49 +1890,49 @@ class FaultGeometry(gf.seismosizer.Cloneable):
 
         self._check_index(index)
 
-        return dataset + '_' + component + '_' + str(index)
+        return datatype + '_' + component + '_' + str(index)
 
-    def setup_subfaults(self, dataset, component, ext_sources, replace=False):
+    def setup_subfaults(self, datatype, component, ext_sources, replace=False):
 
-        self._check_dataset(dataset)
+        self._check_datatype(datatype)
         self._check_component(component)
 
         if len(ext_sources) != self.nsubfaults:
             raise Exception('Setup does not match fault ordering!')
 
         for i, source in enumerate(ext_sources):
-            source_key = self.get_subfault_key(i, dataset, component)
+            source_key = self.get_subfault_key(i, datatype, component)
 
             if source_key not in self._ext_sources.keys() or replace:
                 self._ext_sources[source_key] = copy.deepcopy(source)
             else:
                 raise Exception('Subfault already specified in geometry!')
 
-    def get_subfault(self, index, dataset=None, component=None):
+    def get_subfault(self, index, datatype=None, component=None):
 
-        source_key = self.get_subfault_key(index, dataset, component)
+        source_key = self.get_subfault_key(index, datatype, component)
 
         if source_key in self._ext_sources.keys():
             return self._ext_sources[source_key]
         else:
             raise Exception('Requested subfault not defined!')
 
-    def get_subfault_patches(self, index, dataset=None, component=None):
+    def get_subfault_patches(self, index, datatype=None, component=None):
 
         self._check_index(index)
 
         subfault = self.get_subfault(
-            index, dataset=dataset, component=component)
+            index, datatype=datatype, component=component)
         npw, npl = self.ordering.vmap[index].shp
 
-        return subfault.patches(nl=npl, nw=npw, dataset=dataset)
+        return subfault.patches(nl=npl, nw=npw, datatype=datatype)
 
-    def get_all_patches(self, dataset=None, component=None):
+    def get_all_patches(self, datatype=None, component=None):
 
         patches = []
         for i in range(self.nsubfaults):
             patches += self.get_subfault_patches(
-                i, dataset=dataset, component=component)
+                i, datatype=datatype, component=component)
 
         return patches
 
@@ -1764,7 +1966,7 @@ class FaultGeometry(gf.seismosizer.Cloneable):
 
 def discretize_sources(
     sources=None, extension_width=0.1, extension_length=0.1,
-    patch_width=5000., patch_length=5000., datasets=['geodetic'],
+    patch_width=5000., patch_length=5000., datatypes=['geodetic'],
     varnames=['']):
     """
     Extend sources into all directions and discretize sources into patches.
@@ -1805,10 +2007,10 @@ def discretize_sources(
 
     ordering = utility.FaultOrdering(npls, npws)
 
-    fault = FaultGeometry(datasets, varnames, ordering)
+    fault = FaultGeometry(datatypes, varnames, ordering)
 
-    for dataset in datasets:
-        logger.info('Discretizing %s source(s)' % dataset)
+    for datatype in datatypes:
+        logger.info('Discretizing %s source(s)' % datatype)
 
         for var in varnames:
             logger.info('%s slip component' % var)
@@ -1827,13 +2029,13 @@ def discretize_sources(
                 ext_sources.append(ext_source)
                 logger.info('Extended fault(s): \n %s' % ext_source.__str__())
 
-            fault.setup_subfaults(dataset, var, ext_sources)
+            fault.setup_subfaults(datatype, var, ext_sources)
 
     return fault
 
 
 def geo_construct_gf_linear(
-    store_superdir, outpath, crust_ind=0,
+    engine, outpath, crust_ind=0, datasets=None,
     targets=None, fault=None, varnames=[''],
     force=False):
     """
@@ -1841,20 +2043,24 @@ def geo_construct_gf_linear(
 
     Parameters
     ----------
-    store_superdir : str
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
         main path to directory containing the different Greensfunction stores
     outpath : str
         absolute path to the directory and filename where to store the
         Green's Functions
     crust_ind : int
         of index of Greens Function store to use
+    datasets : list
+        of :class:`heart.GeodeticDataset` for which the GFs are calculated
     targets : list
-        of :class:`heart.GeodeticTarget`
+        of :class:`heart.GeodeticDataset`
     fault : :class:`FaultGeometry`
         fault object that may comprise of several sub-faults. thus forming a
         complex fault-geometry
     varnames : list
         of str with variable names that are being optimized for
+    force : bool
+        Force to overwrite existing files.
     """
 
     if os.path.exists(outpath) and not force:
@@ -1864,29 +2070,27 @@ def geo_construct_gf_linear(
         out_gfs = {}
         for var in varnames:
             logger.debug('For slip component: %s' % var)
-            gfs_target = []
-            for target in targets:
-                logger.debug('Target %s' % target.__str__())
 
-                gfs = []
-                for source in fault.get_all_patches('geodetic', var):
-                    disp = geo_layer_synthetics(
-                        store_superdir=store_superdir,
-                        crust_ind=crust_ind,
-                        lons=target.lons,
-                        lats=target.lats,
-                        sources=[source],
-                        keep_tmp=False)
+            gfs = []
+            for source in fault.get_all_patches('geodetic', var):
+                disp = geo_synthetics(
+                    engine=engine,
+                    targets=targets,
+                    sources=[source],
+                    outmode='stacked_arrays')
 
-                    gfs.append((
-                        disp[:, 0] * target.los_vector[:, 0] + \
-                        disp[:, 1] * target.los_vector[:, 1] + \
-                        disp[:, 2] * target.los_vector[:, 2]) * \
-                            target.odw)
+                gfs_data = []
+                for d, data in zip(disp, datasets):
+                    logger.debug('Target %s' % data.__str__())
+                    gfs_data.append((
+                        d[:, 0] * data.los_vector[:, 0] + \
+                        d[:, 1] * data.los_vector[:, 1] + \
+                        d[:, 2] * data.los_vector[:, 2]) * \
+                            data.odw)
 
-                gfs_target.append(num.vstack(gfs).T)
+                gfs.append(num.vstack(gfs_data).T)
 
-        out_gfs[var] = gfs_target
+        out_gfs[var] = gfs
         logger.info("Dumping Green's Functions to %s" % outpath)
         utility.dump_objects(outpath, [out_gfs])
 
@@ -1948,7 +2152,7 @@ def get_phase_taperer(engine, source, target, arrival_taper):
                           float(arrival_time + arrival_taper.b),
                           float(arrival_time + arrival_taper.c),
                           float(arrival_time + arrival_taper.d))
-    
+
 
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     filterer=None, reference_taperer=None, plot=False,
@@ -1975,6 +2179,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         flag for looking at traces
     nprocs : int
         number of processors to use for synthetics calculation
+        --> currently no effect !!!
     outmode : string
         output format of synthetics can be 'array', 'stacked_traces',
         'full' returns traces unstacked including post-processing
@@ -2019,7 +2224,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
     nt = len(targets)
     ns = len(sources)
-    
+
     t0 = time()
     synt_trcs = []
     sapp = synt_trcs.append
@@ -2091,6 +2296,80 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         raise TypeError('Outmode %s not supported!' % outmode)
 
 
+def geo_synthetics(
+    engine, targets, sources, outmode='stacked_array', plot=False, nprocs=1):
+    """
+    Calculate synthetic displacements for a given static fomosto Greens
+    Function database for sources and targets on the earths surface.
+
+    Parameters
+    ----------
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+    sources : list
+        containing :class:`pyrocko.gf.seismosizer.Source` Objects
+        reference source is the first in the list!!!
+    targets : list
+        containing :class:`pyrocko.gf.seismosizer.Target` Objects
+    plot : boolean
+        flag for looking at synthetics - not implemented yet
+    nprocs : int
+        number of processors to use for synthetics calculation
+        --> currently no effect !!!
+    outmode : string
+        output format of synthetics can be: 'array', 'arrays',
+        'stacked_array','stacked_arrays'
+
+    Returns
+    -------
+    depends on outmode:
+    'stacked_array'
+    :class:`numpy.ndarray` (n_observations; ux-North, uy-East, uz-Down)
+    'stacked_arrays'
+    or list of
+    :class:`numpy.ndarray` (target.samples; ux-North, uy-East, uz-Down)
+    """
+
+    response = engine.process(sources, targets)
+    ns = len(sources)
+    nt = len(targets)
+
+    def stack_arrays(targets, disp_arrays):
+        stacked_arrays = []
+        sapp = stacked_arrays.append
+        for target in targets:
+            sapp(num.zeros([target.lons.size, 3]))
+
+        for k in range(ns):
+            for l in range(nt):
+                idx = l + (k * nt)
+                stacked_arrays[l] += disp_arrays[idx]
+
+        return stacked_arrays
+
+    disp_arrays = []
+    dapp = disp_arrays.append
+    for sresult in response.static_results():
+        n = sresult.result['displacement.n']
+        e = sresult.result['displacement.e']
+        u = -sresult.result['displacement.d']
+        dapp(num.vstack([n, e, u]).T)
+
+    if outmode == 'arrays':
+        return disp_arrays
+
+    elif outmode == 'array':
+        return num.vstack(disp_arrays)
+
+    elif outmode == 'stacked_arrays':
+        return stack_arrays(targets, disp_arrays)
+
+    elif outmode == 'stacked_array':
+        return num.vstack(stack_arrays(targets, disp_arrays))
+
+    else:
+        raise ValueError('Outmode %s not available' % outmode)
+
+
 def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
                         tmins=None, plot=False, outmode='array', chop=True):
     """
@@ -2149,3 +2428,28 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
             raise Exception('Cannot return array without tapering!')
     if outmode == 'traces':
         return cut_traces
+
+
+def check_problem_stores(problem, datatypes):
+    """
+    Check GF stores for empty traces.
+    """
+
+    logger.info('Checking stores for empty traces ...')
+    corrupted_stores = {}
+    for datatype in datatypes:
+        engine = problem.composites[datatype].engine
+        storeids = engine.get_store_ids()
+
+        cstores = []
+        for store_id in storeids:
+            store = engine.get_store(store_id)
+            stats = store.stats()
+            if stats['empty'] > 0:
+                cstores.append(store_id)
+
+            engine.close_cashed_stores()
+
+        corrupted_stores[datatype] = cstores
+
+    return corrupted_stores

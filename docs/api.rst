@@ -18,10 +18,10 @@ The :mod:`config` Module
    :members:
 
 
-The :mod:`atmcmc` Module
+The :mod:`smc` Module
 ------------------------
 
-.. automodule:: atmcmc
+.. automodule:: smc
    :members:
 
 
@@ -57,6 +57,13 @@ The :mod:`pscmp` Module
 -----------------------
 
 .. automodule:: pscmp
+   :members:
+
+
+The :mod:`interseismic` Module
+------------------------------
+
+.. automodule:: interseismic
    :members:
 
 

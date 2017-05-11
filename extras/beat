@@ -23,16 +23,17 @@ _beat_options()
     _std="--help -h --loglevel --main_path"
 
     declare -A arg_subsub
-    arg_subsub["init"]="--min_mag --datasets --mode --source_type --n_sources --sampler --hyper_sampler --use_custom --individual_gfs $_std"
-    arg_subsub["build_gfs"]="--mode --datasets --force --execute $_std"
-    arg_subsub["import"]="--results --datasets --geodetic_format --seismic_format --mode --force $_std"
+    arg_subsub["init"]="--min_mag --datatypes --mode --source_type --n_sources --sampler --hyper_sampler --use_custom --individual_gfs $_std"
+    arg_subsub["build_gfs"]="--mode --datatypes --force --execute $_std"
+    arg_subsub["import"]="--results --datatypes --geodetic_format --seismic_format --mode --force $_std"
     arg_subsub["sample"]="--mode --hypers $_std"
-    arg_subsub["clone"]="--datasets --mode --copy_data $_std"
+    arg_subsub["clone"]="--datatypes --mode --copy_data $_std"
     arg_subsub["plot"]="--mode --post_llk --stage_number --format --dpi --force --reference --hypers --nobuild $_std"
+    arg_subsub["check"]="--datatypes --mode --what $_std"
 
 
     if [ $COMP_CWORD = 1 ]; then
-        opts="init import build_gfs clone sample plot"
+        opts="init import build_gfs clone sample plot check"
     elif [ $COMP_CWORD = 2 ]; then
         opts="$(_opt_dirnames) ${arg_subsub[${COMP_WORDS[1]}]}"
     elif [ $COMP_CWORD = 3 ]; then

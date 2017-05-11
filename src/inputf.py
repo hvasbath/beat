@@ -158,10 +158,20 @@ def load_data_traces(datadir, stations, channels):
 
             try:
                 with open(tracepath):
-                    data_trace = io.load(tracepath, data_format)[0]
+                    dt = io.load(tracepath, data_format)[0]
                     # [nm] convert to m
-                    data_trace.set_ydata(data_trace.ydata * m)
-                    data_trcs.append(data_trace)
+                    dt.set_ydata(dt.ydata * m)
+                    # convert to BEAT seismic Dataset
+                    data_trcs.append(
+                        heart.SeismicDataset(
+                            tmin=dt.tmin,
+                            tmax=dt.tmax,
+                            ydata=dt.ydata,
+                            station=station.station,
+                            location=dt.location,
+                            channel=dt.channel,
+                            network=station.network,
+                            deltat=dt.deltat))
             except IOError:
                 logger.warn('Unable to open file: ' + trace_name)
 
