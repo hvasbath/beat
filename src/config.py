@@ -116,6 +116,7 @@ default_bounds = dict(
     mnd=mcomps,
     med=mcomps,
 
+    volume_change=(1e8, 1e10),
     diameter=(5., 10.),
     mix=(0, 1),
     time=(-3., 3.),

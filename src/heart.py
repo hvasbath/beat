@@ -514,6 +514,7 @@ physical_bounds = dict(
     mix=(0, 1),
 
     diameter=(0., 100.),
+    volume_change=(-1e12, 1e12),
 
     mnn=(-1., 1.),
     mee=(-1., 1.),
@@ -1664,6 +1665,9 @@ def geo_construct_gf(
     store_dir = gfc.store_superdir + fomosto_config.id
 
     if not os.path.exists(store_dir) or force:
+        logger.info('Create Store at: %s' % store_dir)
+        logger.info('---------------------------')
+
         # potentially vary source model
         if crust_ind > 0:
             source_model = ensemble_earthmodel(

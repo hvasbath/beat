@@ -7,7 +7,6 @@ manipulation of various pyrocko objects
 and many more ...
 """
 
-
 import logging
 import os
 import re
@@ -606,10 +605,12 @@ def setup_logging(project_dir, levelname):
               'error': logging.ERROR,
               'critical': logging.CRITICAL}
 
+    filename = os.path.join(project_dir, 'BEAT_log.txt')
+
     logging.basicConfig(
         level=levels[levelname],
         format='%(asctime)s - %(name)s - %(levelname)s %(message)s',
-        filename=os.path.join(project_dir, 'BEAT_log.txt'),
+        filename=filename,
         filemode='a')
 
     console = logging.StreamHandler()

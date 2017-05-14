@@ -39,6 +39,7 @@ u_nm = '[Nm]'
 u_km = '[km]'
 u_deg = '[deg]'
 u_m = '[m]'
+u_v = '[m^3]'
 u_s = '[s]'
 u_hyp = ''
 
@@ -60,6 +61,7 @@ plot_units = {
     'rake2': u_deg,
     'mix': u_hyp,
 
+    'volume_change': u_v,
     'diameter': u_km,
     'slip': u_m,
     'azimuth': u_deg,
