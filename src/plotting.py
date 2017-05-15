@@ -1,4 +1,5 @@
 from pyrocko import cake_plot as cp
+from pyrocko import gf
 from pymc3 import plots as pmp
 
 import math
@@ -561,9 +562,14 @@ def geodetic_fits(problem, stage, plot_options):
                 outline = source.outline(cs='xy') / km
                 outline = utility.swap_columns(outline, 0, 1)
 
-            ax.plot(outline[:, 0], outline[:, 1], '-', linewidth=1.0, **kwargs)
-            ax.plot(
-                outline[0:2, 0], outline[0:2, 1], '-k', linewidth=1.0)
+            if outline.shape[0] > 1:
+                ax.plot(outline[:, 0], outline[:, 1], '-',
+                    linewidth=1.0, **kwargs)
+                ax.plot(
+                    outline[0:2, 0], outline[0:2, 1], '-k', linewidth=1.0)
+            else:
+                ax.plot(outline[:, 0], outline[:, 1], marker='*',
+                    markersize=10, **kwargs)
 
     def cbtick(x):
         rx = math.floor(x * 1000.) / 1000.
@@ -643,7 +649,7 @@ def geodetic_fits(problem, stage, plot_options):
                 fontsize=fontsize_title)
 
             syn_color = scolor('plum1')
-            ref_color = scolor('aluminium3')
+            ref_color = scolor('aluminium5')
 
             draw_sources(
                 axes[figidx][rowidx, 1],

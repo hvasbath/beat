@@ -1,6 +1,7 @@
 #!/usr/bin/env python
+import logging
 
-import sys, re, os, logging, copy
+import sys, re, os, copy
 import shutil
 
 from optparse import OptionParser
@@ -15,6 +16,7 @@ from pyrocko.guts import load, dump
 
 
 logger = logging.getLogger('beat')
+
 
 def d2u(d):
     return dict((k.replace('-','_'), v) for (k, v) in d.iteritems())
@@ -112,7 +114,6 @@ def get_project_directory(args, options, nargs=1, popflag=False):
 def process_common_options(options, project_dir):
     util.ensuredir(project_dir)
     utility.setup_logging(project_dir, options.loglevel)
-
 
 def die(message, err=''):
     sys.exit('%s: error: %s \n %s' % (program_name, message, err))

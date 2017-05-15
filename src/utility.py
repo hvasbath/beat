@@ -8,6 +8,7 @@ and many more ...
 """
 
 import logging
+
 import os
 import re
 import collections
@@ -607,20 +608,25 @@ def setup_logging(project_dir, levelname):
 
     filename = os.path.join(project_dir, 'BEAT_log.txt')
 
-    logging.basicConfig(
-        level=levels[levelname],
-        format='%(asctime)s - %(name)s - %(levelname)s %(message)s',
-        filename=filename,
-        filemode='a')
+    logger = logging.getLogger()
+    # remove existing handlers
+    for handler in logger.handlers:
+        logger.removeHandler(handler)
 
+    # setup file handler
+    fhandler = logging.FileHandler(filename=filename, mode='a')
+    fformatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    fhandler.setFormatter(fformatter)
+    fhandler.setLevel(levels[levelname])
+    logger.addHandler(fhandler)
+
+    # setup screen handler
     console = logging.StreamHandler()
     console.setLevel(levels[levelname])
-
-    formatter = logging.Formatter('%(name)-12s - %(levelname)-8s %(message)s')
-
-    console.setFormatter(formatter)
-
-    logging.getLogger('').addHandler(console)
+    cformatter = logging.Formatter('%(name)-12s - %(levelname)-8s %(message)s')
+    console.setFormatter(cformatter)
+    logger.addHandler(console)
 
 
 def search_catalog(date, min_magnitude, dayrange=1.):
