@@ -628,7 +628,7 @@ class Parameter(Object):
 
 class DynamicTarget(gf.Target):
 
-    def update_target_times(self, source=None, taperer=None):
+    def update_target_times(self, sources=None, taperer=None):
         """
         Update the target attributes tmin and tmax to do the stacking
         only in this interval. Adds twice taper fade in time to each taper
@@ -637,16 +637,20 @@ class DynamicTarget(gf.Target):
         Parameters
         ----------
         source : list
-            containing :class:`pyrocko.gf.seismosizer.Target` Objects
+            containing :class:`pyrocko.gf.seismosizer.Source` Objects
         taperer : :class:`pyrocko.trace.CosTaper`
         """
-        if source is None or taperer is None:
+        times = [source.time for source in sources]
+        min_t = min(times)
+        max_t = max(times)
+
+        if sources is None or taperer is None:
             self.tmin = None
             self.tmax = None
         else:
             tolerance = 4 * (taperer.b - taperer.a)
-            self.tmin = taperer.a - tolerance - source.time
-            self.tmax = taperer.d + tolerance - source.time
+            self.tmin = taperer.a - tolerance - min_t
+            self.tmax = taperer.d + tolerance - max_t
 
 
 class SeismicDataset(trace.Trace):
