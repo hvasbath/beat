@@ -39,7 +39,7 @@ def sub_data_covariance(n, dt, tzero):
                               num.arange(n)[num.newaxis, :]) * dt / tzero)
 
 
-def seis_data_covariance(data_traces, engine, filterer, sample_rate,
+def seismic_data_covariance(data_traces, engine, filterer, sample_rate,
                                  arrival_taper, event, targets):
     '''
     Calculate SubCovariance Matrix of trace object following

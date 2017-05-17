@@ -649,8 +649,8 @@ class DynamicTarget(gf.Target):
             self.tmax = None
         else:
             tolerance = 4 * (taperer.b - taperer.a)
-            self.tmin = taperer.a - tolerance - min_t
-            self.tmax = taperer.d + tolerance - max_t
+            self.tmin = taperer.a - tolerance - max_t
+            self.tmax = taperer.d + tolerance - min_t
 
 
 class SeismicDataset(trace.Trace):
@@ -2216,7 +2216,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
     if pre_stack_cut and arrival_taper is not None:
         for t, taperer in zip(targets, taperers):
-            t.update_target_times(sources[0], taperer)
+            t.update_target_times(sources, taperer)
 
         if outmode == 'data':
             logger.warn('data traces will be very short! pre_sum_flag set!')
