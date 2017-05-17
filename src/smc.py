@@ -973,20 +973,6 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
 
     trace_list = []
 
-    if progressbar:
-        display = True
-    else:
-        display = False
-
-    pack_pb = ['False' for i in range(n_jobs - 1)] + [display]
-    block_pb = []
-    list_pb = []
-
-    for i in range(int(len(chains) / n_jobs)):
-        block_pb.append(pack_pb)
-
-    map(list_pb.extend, block_pb)
-
     logger.info('Initialising chain traces ...')
     for chain in chains:
         trace_list.append(backend.Text(stage_path, model=model))
@@ -997,20 +983,23 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
     logger.info('Sampling ...')
 
     work = [(draws, step, step.population[step.resampling_indexes[chain]],
-        trace, chain, None, progressbar, model, rseed)
-            for chain, rseed, trace, progressbar in zip(
-                chains, random_seeds, trace_list, list_pb)]
+        trace, chain, None, False, model, rseed)
+            for chain, rseed, trace in zip(
+                chains, random_seeds, trace_list)]
 
     if draws < 10:
         chunksize = n_jobs
     else:
         chunksize = 1
 
-    with tqdm(total=len(chains)) as pbar:
-        for i in paripool.paripool(
-            _work_chain, work, chunksize=chunksize, nprocs=n_jobs):
+    p = paripool.paripool(
+        _work_chain, work, chunksize=chunksize, nprocs=n_jobs)
 
-            pbar.update()
+    if n_jobs == 1 and progressbar:
+        p = tqdm(p, total=len(chains))
+
+    for _ in p:
+        pass
 
 
 def tune(acc_rate):

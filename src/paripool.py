@@ -9,7 +9,7 @@ def start_message():
     logger.info('Starting', multiprocessing.current_process().name)
 
 
-def paripool(function, work, **kwargs):
+def paripool(function, work, nprocs=None, chunksize=1, initmessage=False):
     """
     Initialises a pool of workers and executes a function in parallel by
     forking the process. Does forking once during initialisation.
@@ -29,9 +29,8 @@ def paripool(function, work, **kwargs):
         number of work packages to throw at workers in each instance
     """
 
-    nprocs = kwargs.get('nprocs', None)
-    initmessage = kwargs.get('initmessage', False)
-    chunksize = kwargs.get('chunksize', None)
+    if nprocs is None:
+        nprocs = multiprocessing.cpu_count()
 
     if not initmessage:
         start_message = None
@@ -40,32 +39,15 @@ def paripool(function, work, **kwargs):
         chunksize = 1
 
     if nprocs == 1:
-        def pack_one_worker(*work):
-            iterables = map(iter, work)
-            return iterables
+        for work_item in work:
+            yield function(work_item)
 
-        iterables = pack_one_worker(work)
+    else:
+        pool = multiprocessing.Pool(
+            processes=nprocs,
+            initializer=start_message)
 
-        while True:
-            args = [next(it) for it in iterables]
-            kwargs = {}
-            yield function(*args, **kwargs)
-
-        return
-
-    if nprocs is None:
-        nprocs = multiprocessing.cpu_count()
-
-    pool = multiprocessing.Pool(processes=nprocs,
-                                initializer=start_message)
-
-    try:
-        result = pool.imap_unordered(function, work, chunksize=chunksize)
-        pool.close()
-        pool.join()
-    except KeyboardInterrupt:
-        logger.warn('User interrupt! Ctrl + C')
-        pool.terminate()
-        pool.join()
-
-    return
+        try:
+            yield pool.map(function, work, chunksize=chunksize)
+        finally:
+            pool.terminate()
