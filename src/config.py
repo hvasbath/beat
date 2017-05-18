@@ -14,7 +14,7 @@ from pyrocko.guts import load, dump
 from pyrocko.cake import load_model
 
 from pyrocko import trace, model, util
-from pyrocko.gf import Earthmodel1D
+from pyrocko.gf import Earthmodel1D, MTSource
 from pyrocko.gf import RectangularSource as RS
 from pyrocko.gf.seismosizer import Cloneable, source_classes, stf_classes
 from beat.heart import Filter, ArrivalTaper, Parameter
@@ -430,6 +430,9 @@ class ProblemConfig(Object):
 
                         if isinstance(source(), RS):
                             svars.discard('moment')
+
+                        elif isinstance(source(), MTSource):
+                            svars.add('moment')
 
                         variables += utility.weed_input_rvs(
                             svars, self.mode, datatype)

@@ -14,6 +14,41 @@ km = 1000.
 m = 0.000000001
 
 
+def setup_stations(lats, lons, names, networks, event):
+    """
+    Setup station objects, based on station coordinates and reference event.
+
+    Parameters
+    ----------
+    lats : :class:`num.ndarray`
+        of station location latitude
+    lons : :class:`num.ndarray`
+        of station location longitude
+    names : list
+        of strings of station names
+    networks : list
+        of strings of network names for each station
+    event : :class:`pyrocko.model.Event`
+
+    Results
+    -------
+    stations : list
+        of :class:`pyrocko.model.Station`
+    """
+
+    stations = []
+    for lat, lon, name, network in zip(lats, lons, names, networks):
+        s = model.Station(
+            lat=lat, lon=lon, station=name, network=network)
+        s.set_event_relative_data(event)
+        s.set_channels_by_name('E', 'N', 'Z')
+        p = s.guess_projections_to_rtu(out_channels=('R', 'T', 'Z'))
+        s.set_channels(p[0][2])
+        stations.append(s)
+
+    return stations
+
+
 def load_matfile(datapath, **kwargs):
     try:
         return scipy.io.loadmat(datapath, **kwargs)

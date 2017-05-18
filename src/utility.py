@@ -18,7 +18,7 @@ import cPickle as pickle
 from pyrocko import util, orthodrome, catalog
 from pyrocko.cake import m2d, LayeredModel, read_nd_model_str
 
-from pyrocko.gf.seismosizer import RectangularSource
+from pyrocko.gf.seismosizer import RectangularSource, MTSource
 
 import numpy as num
 from theano import config as tconfig
@@ -480,7 +480,7 @@ def split_point(point):
     return source_points
 
 
-def update_source(source, **kwargs):
+def update_source(source, **point):
     """
     Update source keeping stf and source params seperate.
     Modifies input source Object!
@@ -492,7 +492,14 @@ def update_source(source, **kwargs):
         :func:`pymc3.model.Point`
     """
 
-    for (k, v) in kwargs.iteritems():
+    if isinstance(source, MTSource):
+        mtcomps = ('mee', 'mnn', 'mdd', 'mne', 'mnd', 'mde')
+        m0 = point.pop('moment')
+        for (k, v) in point.iteritems():
+            if k in mtcomps:
+                v *= m0
+
+    for (k, v) in point.iteritems():
         if k not in source.keys():
             if source.stf is not None:
                 source.stf[k] = v

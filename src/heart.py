@@ -1575,9 +1575,15 @@ def seis_construct_gf(
         if not os.path.exists(store_dir) or force:
             logger.info('Creating Store at %s' % store_dir)
 
+            if len(stations) == 1:
+                custom_velocity_model = sf.custom_velocity_model
+            else:
+                custom_velocity_model = None
+
             receiver_model = get_velocity_model(
                 station, earth_model_name=sf.earth_model_name,
-                crust_ind=crust_ind, gf_config=sf)
+                crust_ind=crust_ind, gf_config=sf,
+                custom_velocity_model=custom_velocity_model)
 
             gf_directory = os.path.join(
                 sf.store_superdir, 'base_gfs_%i' % crust_ind)
