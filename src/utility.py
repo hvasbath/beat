@@ -18,7 +18,7 @@ import cPickle as pickle
 from pyrocko import util, orthodrome, catalog
 from pyrocko.cake import m2d, LayeredModel, read_nd_model_str
 
-from pyrocko.gf.seismosizer import RectangularSource, MTSource
+from pyrocko.gf.seismosizer import RectangularSource
 
 import numpy as num
 from theano import config as tconfig
@@ -491,13 +491,6 @@ def update_source(source, **point):
     point : dict
         :func:`pymc3.model.Point`
     """
-
-    if isinstance(source, MTSource):
-        mtcomps = ('mee', 'mnn', 'mdd', 'mne', 'mnd', 'mde')
-        m0 = point.pop('moment')
-        for (k, v) in point.iteritems():
-            if k in mtcomps:
-                v *= m0
 
     for (k, v) in point.iteritems():
         if k not in source.keys():

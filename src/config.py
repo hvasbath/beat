@@ -13,10 +13,10 @@ from pyrocko.guts import Object, List, String, Float, Int, Tuple, Bool, Dict
 from pyrocko.guts import load, dump
 from pyrocko.cake import load_model
 
-from pyrocko import trace, model, util
-from pyrocko.gf import Earthmodel1D, MTSource
+from pyrocko import trace, model, util, gf
 from pyrocko.gf import RectangularSource as RS
-from pyrocko.gf.seismosizer import Cloneable, source_classes, stf_classes
+from pyrocko.gf.seismosizer import Cloneable, stf_classes
+
 from beat.heart import Filter, ArrivalTaper, Parameter
 from beat.heart import RectangularSource, ReferenceLocation
 
@@ -42,6 +42,16 @@ DoubleDCSource
 RingfaultSource
 '''.split()
 
+source_classes = [
+    gf.ExplosionSource,
+    gf.RectangularExplosionSource,
+    gf.DCSource,
+    gf.CLVDSource,
+    gf.MTSourceWithMagnitude,
+    gf.RectangularSource,
+    gf.DoubleDCSource,
+    gf.RingfaultSource]
+
 stf_names = '''
 Boxcar
 Triangular
@@ -49,7 +59,7 @@ HalfSinusoid
 '''.split()
 
 source_catalog = {name: source_class for name, source_class in zip(
-    source_names, source_classes[2:10])}
+    source_names, source_classes)}
 
 stf_catalog = {name: stf_class for name, stf_class in zip(
     stf_names, stf_classes[1:4])}
@@ -87,7 +97,8 @@ modes_catalog = {
     'kinematic': kinematic_catalog,
     'interseismic': interseismic_catalog}
 
-mcomps = (-1., 1.)
+moffdiag = (-1., 1.)
+mdiag = (-num.sqrt(2), num.sqrt(2))
 
 default_bounds = dict(
     east_shift=(-10., 10.),
@@ -109,12 +120,12 @@ default_bounds = dict(
     slip=(0.1, 8.),
 
     moment=(1e10, 1e20),
-    mnn=mcomps,
-    mee=mcomps,
-    mdd=mcomps,
-    mne=mcomps,
-    mnd=mcomps,
-    med=mcomps,
+    mnn=mdiag,
+    mee=mdiag,
+    mdd=mdiag,
+    mne=moffdiag,
+    mnd=moffdiag,
+    med=moffdiag,
 
     volume_change=(1e8, 1e10),
     diameter=(5., 10.),
@@ -134,7 +145,7 @@ default_bounds = dict(
     velocity=(0.5, 4.2),
 
     azimuth=(0, 180),
-    amplitude=mcomps,
+    amplitude=(1e10, 1e20),
     bl_azimuth=(0, 180),
     bl_amplitude=(0., 0.1),
     locking_depth=(1., 10.),
@@ -202,7 +213,7 @@ class NonlinearGFConfig(GFConfig):
     replace_water = Bool.T(
         default=True,
         help='Flag, for replacing water layers in the crust2 model.')
-    custom_velocity_model = Earthmodel1D.T(
+    custom_velocity_model = gf.Earthmodel1D.T(
         default=None,
         optional=True,
         help='Custom Earthmodel, in case crust2 and standard model not'
@@ -430,9 +441,6 @@ class ProblemConfig(Object):
 
                         if isinstance(source(), RS):
                             svars.discard('moment')
-
-                        elif isinstance(source(), MTSource):
-                            svars.add('moment')
 
                         variables += utility.weed_input_rvs(
                             svars, self.mode, datatype)

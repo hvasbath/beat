@@ -397,8 +397,7 @@ class GeodeticSourceComposite(GeodeticComposite):
             if hyper in tpoint:
                 tpoint.pop(hyper)
 
-        source = self.sources[0]
-        source_params = source.keys()
+        source_params = self.sources[0].keys()
 
         for param in tpoint.keys():
             if param not in source_params:
@@ -866,7 +865,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 tpoint.pop(hyper)
 
         source = self.sources[0]
-        source_params = source.stf.keys() + source.keys()
+        source_params = source.keys() + source.stf.keys()
 
         for param in tpoint.keys():
             if param not in source_params:
@@ -901,7 +900,7 @@ class SeismicGeometryComposite(SeismicComposite):
         self.fixed_rvs = fixed_rvs
 
         logger.info(
-            'Teleseismic optimization on: \n '
+            'Seismic optimization on: \n '
             ' %s' % ', '.join(self.input_rvs.keys()))
 
         t2 = time.time()
@@ -1276,6 +1275,7 @@ class Problem(object):
                     self.rvs, mode, datatype=datatype)
                 fixed_rvs = utility.weed_input_rvs(
                     self.fixed_params, mode, datatype=datatype)
+
                 total_llk += composite.get_formula(
                     input_rvs, fixed_rvs, self.hyperparams)
 

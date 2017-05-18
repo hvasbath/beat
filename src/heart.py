@@ -497,6 +497,7 @@ class SeismicResult(Object):
     llk = Float.T(default=0., optional=True)
     taper = trace.Taper.T(optional=True)
 
+sqrt2 = num.sqrt(2)
 
 physical_bounds = dict(
     east_shift=(-500., 500.),
@@ -516,9 +517,9 @@ physical_bounds = dict(
     diameter=(0., 100.),
     volume_change=(-1e12, 1e12),
 
-    mnn=(-1., 1.),
-    mee=(-1., 1.),
-    mdd=(-1., 1.),
+    mnn=(-sqrt2, sqrt2),
+    mee=(-sqrt2, sqrt2),
+    mdd=(-sqrt2, sqrt2),
     mne=(-1., 1.),
     mnd=(-1., 1.),
     med=(-1., 1.),
