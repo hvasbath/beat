@@ -34,6 +34,7 @@ c = 299792458.  # [m/s]
 km = 1000.
 d2r = num.pi / 180.
 r2d = 180. / num.pi
+near_field_threshold = 9.  # [deg]
 
 lambda_sensors = {
     'Envisat': 0.056,       # needs updating- no ressource file
@@ -1392,6 +1393,16 @@ def get_fomosto_baseconfig(
     """
     sf = gfconfig
 
+    # calculate event-station distance [m]
+    distance = orthodrome.distance_accurate50m(event, station)
+    distance_min = distance - (sf.source_distance_radius * km)
+
+    if distance_min < 0.:
+        if len(channels) > 0:
+            logger.warn(
+                'Minimum grid distance is below zero. Setting it to zero!')
+        distance_min = 0.
+
     # define phases
     tabulated_phases = []
     if 'Z' in channels:
@@ -1402,16 +1413,10 @@ def get_fomosto_baseconfig(
         tabulated_phases.append(gf.TPDef(
             id='any_S',
             definition='s,S,s\\,S\\'))
-
-    # calculate event-station distance [m]
-    distance = orthodrome.distance_accurate50m(event, station)
-    distance_min = distance - (sf.source_distance_radius * km)
-
-    if distance_min < 0.:
-        if len(channels) > 0:
-            logger.warn(
-                'Minimum grid distance is below zero. Setting it to zero!')
-        distance_min = 0.
+    if distance_min * cake.m2d < near_field_threshold:
+        tabulated_phases.append(gf.TPDef(
+            id='slowest',
+            definition='0.8'))
 
     return gf.ConfigTypeA(
         id='%s_%s_%.3fHz_%s' % (
@@ -1457,14 +1462,23 @@ def choose_backend(
 
         version = '2006a'
         distances = num.array([fc.distance_min, fc.distance_max]) * cake.m2d
-        slowness_taper = get_slowness_taper(fc, source_model, distances)
+
+        # if maximum distances are farther than regional distance
+        if distances.max() > near_field_threshold:
+            slowness_taper = get_slowness_taper(fc, source_model, distances)
+            sw_algorithm = 1
+            sw_flat_earth_transform = 1
+        else:
+            slowness_taper = (0., 0., 0., 0.)
+            sw_algorithm = 0
+            sw_flat_earth_transform = 0
 
         conf = qseis.QSeisConfig(
             filter_shallow_paths=0,
             slowness_window=slowness_taper,
             wavelet_duration_samples=0.001,
-            sw_flat_earth_transform=1,
-            sw_algorithm=1,
+            sw_flat_earth_transform=sw_flat_earth_transform,
+            sw_algorithm=sw_algorithm,
             qseis_version=version)
 
     elif code == 'qssp':
@@ -1510,24 +1524,33 @@ def choose_backend(
     fc.earthmodel_receiver_1d = receiver_model
     fc.modelling_code_id = code + '.' + version
 
-    window_extension = 60.   # [s]
-    tp = fc.tabulated_phases
+    window_extension = 50.   # [s]
+    tps = fc.tabulated_phases
+    pids = ['stored:' + tp.id for tp in tps]
 
     conf.time_region = (
-        gf.Timing(tp[0].id + '-%s' % (1.1 * window_extension)),
-        gf.Timing(tp[1].id + '+%s' % (1.6 * window_extension)))
+        gf.Timing(
+            phase_defs=pids, offset=(-1.1 * window_extension), select='first'),
+        gf.Timing(
+            phase_defs=pids, offset=(1.1 * window_extension), select='last'))
 
     conf.cut = (
-        gf.Timing(tp[0].id + '-%s' % window_extension),
-        gf.Timing(tp[1].id + '+%s' % (1.5 * window_extension)))
+        gf.Timing(
+            phase_defs=pids, offset=-window_extension, select='first'),
+        gf.Timing(
+            phase_defs=pids, offset=window_extension, select='last'))
 
     conf.relevel_with_fade_in = True
 
     conf.fade = (
-        gf.Timing(tp[0].id + '-%s' % (1.1 * window_extension)),
-        gf.Timing(tp[0].id + '-%s' % window_extension),
-        gf.Timing(tp[1].id + '+%s' % (1.5 * window_extension)),
-        gf.Timing(tp[1].id + '+%s' % (1.6 * window_extension)))
+        gf.Timing(
+            phase_defs=pids, offset=-window_extension, select='first'),
+        gf.Timing(
+            phase_defs=pids, offset=(-0.1) * window_extension, select='first'),
+        gf.Timing(
+            phase_defs=pids, offset=(0.1 * window_extension), select='last'),
+        gf.Timing(
+            phase_defs=pids, offset=window_extension, select='last'))
 
     return conf
 
@@ -2247,7 +2270,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
     for i, (source, target, tr) in enumerate(response.iter_results()):
         ti = taper_index[i]
-        if arrival_taper is not None:
+        if arrival_taper is not None and outmode != 'data':
             tr.taper(taperers[ti], inplace=True)
 
         if filterer is not None:
@@ -2256,7 +2279,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     corner_lp=filterer.upper_corner,
                     order=filterer.order)
 
-        if arrival_taper is not None:
+        if arrival_taper is not None and outmode != 'data':
             tr.chop(tmin=taperers[ti].a, tmax=taperers[ti].d)
 
         sapp(tr)
