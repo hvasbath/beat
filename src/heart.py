@@ -1524,7 +1524,7 @@ def choose_backend(
     fc.earthmodel_receiver_1d = receiver_model
     fc.modelling_code_id = code + '.' + version
 
-    window_extension = 50.   # [s]
+    window_extension = 60.   # [s]
     tps = fc.tabulated_phases
     pids = ['stored:' + tp.id for tp in tps]
 
@@ -1532,13 +1532,13 @@ def choose_backend(
         gf.Timing(
             phase_defs=pids, offset=(-1.1 * window_extension), select='first'),
         gf.Timing(
-            phase_defs=pids, offset=(1.1 * window_extension), select='last'))
+            phase_defs=pids, offset=(1.6 * window_extension), select='last'))
 
     conf.cut = (
         gf.Timing(
             phase_defs=pids, offset=-window_extension, select='first'),
         gf.Timing(
-            phase_defs=pids, offset=window_extension, select='last'))
+            phase_defs=pids, offset=(1.5 * window_extension), select='last'))
 
     conf.relevel_with_fade_in = True
 
@@ -1548,9 +1548,9 @@ def choose_backend(
         gf.Timing(
             phase_defs=pids, offset=(-0.1) * window_extension, select='first'),
         gf.Timing(
-            phase_defs=pids, offset=(0.1 * window_extension), select='last'),
+            phase_defs=pids, offset=(window_extension), select='last'),
         gf.Timing(
-            phase_defs=pids, offset=window_extension, select='last'))
+            phase_defs=pids, offset=(1.6 * window_extension), select='last'))
 
     return conf
 
@@ -2160,7 +2160,7 @@ def get_phase_arrival_time(engine, source, target):
     elif target.codes[3] == 'Z':
         wave = 'any_P'
     else:
-        raise Exception('Channel not supported! Either: "T" or "Z"')
+        raise TypeError('Channel not supported! Either: "T" or "Z"')
 
     return store.t(wave, (depth, dist)) + source.time
 
