@@ -2133,12 +2133,11 @@ def geo_construct_gf_linear(
         utility.dump_objects(outpath, [out_gfs])
 
 
-def get_phase_arrival_time(engine, source, target):
+def get_phase_arrival_time(engine, source, target, wavename):
     """
     Get arrival time from Greens Function store for respective
     :class:`pyrocko.gf.seismosizer.Target`,
-    :class:`pyrocko.gf.meta.Location` pair. The channel of the target
-    determines if S or P wave arrival time is returned.
+    :class:`pyrocko.gf.meta.Location` pair.
 
     Parameters
     ----------
@@ -2147,6 +2146,8 @@ def get_phase_arrival_time(engine, source, target):
         can be therefore :class:`pyrocko.gf.seismosizer.Source` or
         :class:`pyrocko.model.Event`
     target : :class:`pyrocko.gf.seismosizer.Target`
+    wavename : string
+        of the tabulated phase that determines the phase arrival
 
     Returns
     -------
@@ -2155,17 +2156,10 @@ def get_phase_arrival_time(engine, source, target):
     store = engine.get_store(target.store_id)
     dist = target.distance_to(source)
     depth = source.depth
-    if target.codes[3] == 'T':
-        wave = 'any_S'
-    elif target.codes[3] == 'Z':
-        wave = 'any_P'
-    else:
-        raise TypeError('Channel not supported! Either: "T" or "Z"')
-
-    return store.t(wave, (depth, dist)) + source.time
+    return store.t(wavename, (depth, dist)) + source.time
 
 
-def get_phase_taperer(engine, source, target, arrival_taper):
+def get_phase_taperer(engine, source, wavename, target, arrival_taper):
     """
     Create phase taperer according to synthetic travel times from
     source- target pair and taper return :class:`pyrocko.trace.CosTaper`
@@ -2177,6 +2171,8 @@ def get_phase_taperer(engine, source, target, arrival_taper):
     source : :class:`pyrocko.gf.meta.Location`
         can be therefore :class:`pyrocko.gf.seismosizer.Source` or
         :class:`pyrocko.model.Event`
+    wavename : string
+        of the tabulated phase that determines the phase arrival
     target : :class:`pyrocko.gf.seismosizer.Target`
     arrival_taper : :class:`ArrivalTaper`
 
@@ -2185,16 +2181,20 @@ def get_phase_taperer(engine, source, target, arrival_taper):
     :class:`pyrocko.trace.CosTaper`
     """
 
-    arrival_time = get_phase_arrival_time(engine, source, target)
-    return trace.CosTaper(float(arrival_time + arrival_taper.a),
-                          float(arrival_time + arrival_taper.b),
-                          float(arrival_time + arrival_taper.c),
-                          float(arrival_time + arrival_taper.d))
+    arrival_time = get_phase_arrival_time(
+        engine=engine, source=source, target=target, wavename=wavename)
+
+    return trace.CosTaper(
+        float(arrival_time + arrival_taper.a),
+        float(arrival_time + arrival_taper.b),
+        float(arrival_time + arrival_taper.c),
+        float(arrival_time + arrival_taper.d))
 
 
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
-                    filterer=None, reference_taperer=None, plot=False,
-                    nprocs=1, outmode='array', pre_stack_cut=False):
+                    wavename='any_P', filterer=None, reference_taperer=None,
+                    plot=False, nprocs=1, outmode='array',
+                    pre_stack_cut=False):
     """
     Calculate synthetic seismograms of combination of targets and sources,
     filtering and tapering afterwards (filterer)
@@ -2210,6 +2210,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     targets : list
         containing :class:`pyrocko.gf.seismosizer.Target` Objects
     arrival_taper : :class:`ArrivalTaper`
+    wavename : string
+        of the tabulated phase that determines the phase arrival
     filterer : :class:`Filterer`
     reference_taperer : :class:`ArrivalTaper`
         if set all the traces are tapered with the specifications of this Taper
@@ -2239,6 +2241,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
                 tapp(get_phase_taperer(
                     engine=engine,
                     source=sources[0],
+                    wavename=wavename,
                     target=target,
                     arrival_taper=arrival_taper))
             else:
@@ -2271,6 +2274,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     for i, (source, target, tr) in enumerate(response.iter_results()):
         ti = taper_index[i]
         if arrival_taper is not None and outmode != 'data':
+            tr.extend(taperers[ti].a, taperers[ti].d, fillmethod='repeat')
             tr.taper(taperers[ti], inplace=True)
 
         if filterer is not None:

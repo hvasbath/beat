@@ -10,7 +10,7 @@ import logging
 import os
 
 from pyrocko.guts import Object, List, String, Float, Int, Tuple, Bool, Dict
-from pyrocko.guts import load, dump
+from pyrocko.guts import load, dump, StringChoice
 from pyrocko.cake import load_model
 
 from pyrocko import trace, model, util, gf
@@ -311,6 +311,23 @@ class LinearGFConfig(GFConfig):
              ' each direction, i.e. 20% in total.')
 
 
+class WaveformFitConfig(Object):
+    """
+    Config for specific parameters that are applied to post-process
+    a specific type of waveform and calculate the misfit.
+    """
+    name = String.T('any_P')
+    channels = List.T(String.T(), default=['Z'])
+    filterer = Filter.T(default=Filter.D())
+    interpolation = StringChoice.T(
+        choices=['nearest_neighbor', 'multilinear'],
+        default='multilinear',
+        help='GF interpolation sceme')
+    arrival_taper = trace.Taper.T(
+        default=ArrivalTaper.D(),
+        help='Taper a,b/c,d time [s] before/after wave arrival')
+
+
 class SeismicConfig(Object):
     """
     Config for seismic data optimization related parameters.
@@ -322,19 +339,16 @@ class SeismicConfig(Object):
         default=['placeholder'],
         help='Station name for station to be thrown out.')
     distances = Tuple.T(2, Float.T(), default=(30., 90.))
-    channels = List.T(String.T(), default=['Z', 'T'])
     calc_data_cov = Bool.T(
         default=True,
         help='Flag for calculating the data covariance matrix based on the'
              ' pre P arrival data trace noise.')
-    arrival_taper = trace.Taper.T(
-        default=ArrivalTaper.D(),
-        help='Taper a,b/c,d time [s] before/after wave arrival')
     pre_stack_cut = Bool.T(
         default=True,
         help='Cut the GF traces before stacking around the specified arrival'
              ' taper')
-    filterer = Filter.T(default=Filter.D())
+    waveforms = List.T(WaveformFitConfig.T(),
+        default=[WaveformFitConfig.D()])
     gf_config = GFConfig.T(default=SeismicGFConfig.D())
 
 
@@ -349,7 +363,7 @@ class GeodeticConfig(Object):
         optional=True,
         default=['placeholder'],
         help='Station name for station to be thrown out.')
-    types = List.T(
+    types = List.T(String.T(),
         default=['SAR'],
         help='Types of geodetic data, i.e. SAR, GPS, ...')
     calc_data_cov = Bool.T(
@@ -367,16 +381,19 @@ class ProblemConfig(Object):
     """
     Config for optimization problem to setup.
     """
-    mode = String.T(
+    mode = StringChoice.T(
+        choices=['geometry', 'static', 'kinematic', 'interseismic'],
         default='geometry',
         help='Problem to solve: "geometry", "static", "kinematic",'
              ' "interseismic"',)
-    source_type = String.T(
+    source_type = StringChoice.T(
         default='RectangularSource',
+        choices=source_names,
         help='Source type to optimize for. Options: %s' % (
             ', '.join(name for name in source_names)))
-    stf_type = String.T(
+    stf_type = StringChoice.T(
         default='HalfSinusoid',
+        choices=stf_names,
         help='Source time function type to use. Options: %s' % (
             ', '.join(name for name in stf_names)))
     decimation_factors = Dict.T(

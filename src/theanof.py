@@ -376,7 +376,7 @@ class SeisSynthesizer(theano.Op):
             utility.update_source(source, **source_points[i])
             source.time += self.event.time
 
-        synths[0], tmins[0] = heart.seis_synthetics(
+!        synths[0], tmins[0] = heart.seis_synthetics(
             engine=self.engine,
             sources=self.sources,
             targets=self.targets,
