@@ -2191,6 +2191,167 @@ def get_phase_taperer(engine, source, wavename, target, arrival_taper):
         float(arrival_time + arrival_taper.d))
 
 
+class WaveformMapping(object):
+    
+
+    self._target2index = None
+
+    def __init__(self, name, weights=None, channels=['Z'], datasets=None,
+        targets=None):
+        self.name = name
+        self.weights = weights
+        self.datasets = datasets
+        self.targets = targets
+        self.channels = channels
+
+    def target_index_mapping(self):
+        if self._target2index is None:
+            self._target2index = dict(
+                (target, i) for (i, target) in enumerate(
+                    self.targets))
+        return self._target2index
+
+    @property
+    def n_t(self):
+        return len(self.targets)
+
+    def get_datasets(self, channels=['Z']):
+
+        t2i = self.target_index_mapping()
+
+        dtargets = utility.gather(self.targets, lambda t: t.codes[3])
+
+        datasets = []
+        for cha in channels:
+            for target in dtargets[cha]:
+                datasets.append(self.datasets[t2i[target]])
+
+        return datasets
+
+    def get_weights(self, channels=['Z']):
+
+        t2i = self.target_index_mapping()
+
+        dtargets = utility.gather(self.targets, lambda t: t.codes[3])
+
+        weights = []
+        for cha in channels:
+            for target in dtargets[cha]:
+                weights.append(self.weights[t2i[target]])
+
+        return weights
+
+
+class CollectionError(Exception):
+    pass
+
+
+class DataWaveformCollection(object):
+    """
+    Collection of available datasets, data-weights, waveforms and
+    DynamicTargets used to create synthetics.
+
+    Is used to return Mappings of the waveforms of interest to fit to the 
+    involved data, weights and synthetics generating objects.
+
+    Parameters
+    ----------
+    waveforms : list
+        of strings of tabulated phases that are to be used for misfit
+        calculation
+    """
+    self._weights = {}
+    self._targets = {}
+    self._datasets = {}
+    self._target2index = {}
+
+    def __init__(self, waveforms=['any_P']):
+        self.waveforms = waveforms
+
+    def _check_collection(self, waveform, errormode='not_in', force=False):
+        if errormode == 'not_in':
+            if waveform not in self.waveforms:
+                raise CollectionError('Waveform is not contained in collection!')
+            else:
+                pass
+
+        elif errormode == 'in':
+            if waveform in self.waveforms and not force:
+                raise CollectionError('Wavefom already in collection!')
+            else:
+                pass
+
+    def add_collection(self, waveform, datasets, targets, weights, force=False):
+        
+
+    @property
+    def n_waveforms(self):
+        return len(self.waveforms)
+
+    def target_index_mapping(self, waveform):
+        self._check_collection(waveform, errormode='not_in')
+
+        if waveform not in self._target2index.keys():
+            self._target2index[waveform] = dict(
+                (target, i) for (i, target) in enumerate(
+                    self._targets[waveform]))
+        return self._target2index[waveform]
+
+    def get_waveform_names(self):
+        return self.waveforms
+
+    def add_waveform(self, waveform, force=False):
+        self._check_collection(waveform, errormode='in', force=force)
+        self.waveforms.append(waveform)
+
+    def add_targets(self, waveform, targets, force=False):
+        self._check_collection(waveform, errormode='not_in')
+        if waveform in self._targets and not force:
+            raise CollectionError('Targets of that waveform already in collection!')
+        else:
+            self._targets[waveform] = targets
+
+    def add_datasets(self, waveform, datasets, force=False):
+        self._check_collection(waveform, errormode='not_in')
+
+        if waveform in self._datasets and not force:
+            raise CollectionError(
+                'Datasets of that waveform already in collection!')
+        else:
+            self._datasets[waveform] = datasets
+
+    def add_weights(self, waveform, weights, force=False):
+        self._check_collection(waveform, errormode='not_in')
+
+        if waveform in self._weights and not force:
+            raise CollectionError(
+                'Weights of that waveform already in collection!')
+        else:
+            self._weights[waveform] = weights
+
+    def get_waveform_mapping(self, waveform, channels=['Z', 'T', 'R']):
+
+        self._check_collection(waveform, errormode='not_in')
+        t2i = self.target_index_mapping(waveform)
+
+        dtargets = utility.gather(
+            self._targets[waveform], lambda t: t.codes[3])
+
+        targets = []
+        for cha in channels:
+            targets.extend(dtargets[cha])
+
+        weights = [self._weights[waveform][t2i[target]] for target in targets]
+        datasets = [self._datasets[waveform][t2i[target]] for target in targets]
+
+        return WaveformMapping(
+            name=waveform,
+            datasets=datasets,
+            targets=targets,
+            weights=weights,
+            channels=channels)
+
+
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     wavename='any_P', filterer=None, reference_taperer=None,
                     plot=False, nprocs=1, outmode='array',

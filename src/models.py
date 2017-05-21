@@ -622,8 +622,6 @@ class SeismicComposite(Composite):
     hypers : boolean
         if true initialise object for hyper parameter optimization
     """
-    targets = {}
-    weights = {}
 
     def __init__(self, sc, event, project_dir, hypers=False):
 
@@ -644,7 +642,7 @@ class SeismicComposite(Composite):
         self.stations = utility.weed_stations(
             stations, self.event, distances=sc.distances)
 
-!        self.datasets = utility.weed_data_traces(
+        datasets = utility.weed_data_traces(
             data_traces, self.stations)
 
         target_deltat = 1. / sc.gf_config.sample_rate
@@ -948,14 +946,18 @@ class SeismicGeometryComposite(SeismicComposite):
         self.point2sources(point)
 
         sc = self.config
-!        synths, _ = heart.seis_synthetics(
-            engine=self.engine,
-            sources=self.sources,
-            targets=self.targets,
-            arrival_taper=sc.arrival_taper,
-            filterer=sc.filterer,
-            pre_stack_cut=sc.pre_stack_cut,
-            **kwargs)
+        synths = []
+        for waveform in sc.waveforms:
+            synthetics, _ = heart.seis_synthetics(
+                engine=self.engine,
+                sources=self.sources,
+                targets=self.targets,
+                arrival_taper=waveform.arrival_taper,
+                wavename=waveform.name,
+                filterer=waveform.filterer,
+                pre_stack_cut=sc.pre_stack_cut,
+                **kwargs)
+            synths.extend(synthetics)
 
         return synths
 
@@ -973,7 +975,8 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.point2sources(point)
 
-!        for j, channel in enumerate(sc.channels):
+        for waveform in sc.waveforms:
+            for j, channel in enumerate(waveform.channels):
             for i, station in enumerate(self.stations):
                 logger.debug('Channel %s of Station %s ' % (
                     channel, station.station))

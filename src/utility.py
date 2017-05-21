@@ -1047,7 +1047,7 @@ def gather(l, key, sort=None, filter=None):
         d[k].append(x)
 
     if sort is not None:
-        for v in d.tervalues():
+        for v in d.itervalues():
             v.sort(key=sort)
 
     return d

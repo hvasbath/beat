@@ -177,6 +177,8 @@ def load_data_traces(datadir, stations, channels):
             ref_channels.append('u')
         elif cha == 'T':
             ref_channels.append('r')
+        elif cha == 'R':
+            ref_channels.append('a')
         else:
             raise Exception('No data for this channel!')
 
