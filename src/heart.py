@@ -2265,9 +2265,6 @@ class DataWaveformCollection(object):
     self._datasets = {}
     self._target2index = {}
 
-    def __init__(self, waveforms=['any_P']):
-        self.waveforms = waveforms
-
     def _check_collection(self, waveform, errormode='not_in', force=False):
         if errormode == 'not_in':
             if waveform not in self.waveforms:
@@ -2281,8 +2278,12 @@ class DataWaveformCollection(object):
             else:
                 pass
 
-    def add_collection(self, waveform, datasets, targets, weights, force=False):
-        
+    def add_collection(self, waveform=['any_P'], datasets=None, targets=None,
+                       weights=None, force=False):
+        self.add_waveform(waveform, force=force)
+        self.add_targets(waveform, targets, force=force)
+        self.add_datasets(waveform, datasets, force=force)
+        self.add_weights(waveform, weights, force=force)
 
     @property
     def n_waveforms(self):
