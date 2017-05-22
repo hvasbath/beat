@@ -305,15 +305,16 @@ class SeisSynthesizer(theano.Op):
     """
 
     __props__ = ('engine', 'sources', 'targets', 'event',
-                 'arrival_taper', 'filterer', 'pre_stack_cut')
+                 'arrival_taper', 'wavename', 'filterer', 'pre_stack_cut')
 
     def __init__(self, engine, sources, targets, event, arrival_taper,
-                 filterer, pre_stack_cut):
+                 wavename, filterer, pre_stack_cut):
         self.engine = engine
         self.sources = tuple(sources)
         self.targets = tuple(targets)
         self.event = event
         self.arrival_taper = arrival_taper
+        self.wavename = wavename,
         self.filterer = filterer
         self.pre_stack_cut = pre_stack_cut
 
@@ -376,11 +377,12 @@ class SeisSynthesizer(theano.Op):
             utility.update_source(source, **source_points[i])
             source.time += self.event.time
 
-!        synths[0], tmins[0] = heart.seis_synthetics(
+        synths[0], tmins[0] = heart.seis_synthetics(
             engine=self.engine,
             sources=self.sources,
             targets=self.targets,
             arrival_taper=self.arrival_taper,
+            wavename=self.wavename,
             filterer=self.filterer,
             pre_stack_cut=self.pre_stack_cut)
 

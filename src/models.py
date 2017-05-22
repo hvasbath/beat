@@ -96,7 +96,7 @@ def hyper_normal(datasets, hyperparams, llks):
     for k, data in enumerate(datasets):
         M = data.samples
         factor = data.covariance.log_norm_factor
-        hp_name = bconfig.hyper_pars[data.typ]
+!        hp_name = bconfig.hyper_pars[data.typ]
 
         logpts = tt.set_subtensor(logpts[k:k + 1],
             (-0.5) * (factor + \

@@ -663,6 +663,7 @@ class SeismicDataset(trace.Trace):
     """
 
     covariance = None
+    _wavename = None
 
     @property
     def samples(self):
@@ -673,9 +674,12 @@ class SeismicDataset(trace.Trace):
                 'Dataset has no uncertainties! Return full data length!')
             return self.data_len()
 
+    def set_wavename(self, wavename):
+        self._wavename = wavename
+
     @property
-    def typ(self):
-        return self.channel
+!    def typ(self):
+        return self._wavename + self.channel
 
 
 class GeodeticDataset(gf.meta.MultiLocation):

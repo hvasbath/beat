@@ -74,7 +74,7 @@ partial_kinematic_vars = [
 
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars
 
-hyper_pars = {'Z': 'seis_Z', 'T': 'seis_T',
+! hyper_pars = {'Z': 'seis_Z', 'T': 'seis_T',
              'SAR': 'geo_S', 'GPS': 'geo_G'}
 
 interseismic_catalog = {
@@ -150,7 +150,7 @@ default_bounds = dict(
     bl_amplitude=(0., 0.1),
     locking_depth=(1., 10.),
 
-    seis_Z=(-20., 20.),
+!    seis_Z=(-20., 20.),
     seis_T=(-20., 20.),
     geo_S=(-20., 20.),
     geo_G=(-20., 20.),
@@ -669,8 +669,8 @@ class BEATconfig(Object, Cloneable):
                 hypernames.append(hyper_pars[ty])
 
         if self.seismic_config is not None:
-            for ch in self.seismic_config.channels:
-                hypernames.append(hyper_pars[ch])
+            for hid in self.seismic_config.get_hyperids():
+!                hypernames.append(hyper_pars[hid])
 
         hypers = dict()
         for name in hypernames:

@@ -254,17 +254,18 @@ def seis_cov_velocity_models(engine, sources, targets,
 
     ref_target = copy.deepcopy(targets[0])
 
-!    reference_taperer = heart.get_phase_taperer(
+    reference_taperer = heart.get_phase_taperer(
         engine,
         sources[0],
-        ref_target,
-        arrival_taper)
+        wavename=wavename,
+        target=ref_target,
+        arrival_taper=arrival_taper)
 
     t0 = time()
-!    synths, _ = heart.seis_synthetics(
-        engine, sources, targets,
-        arrival_taper,
-        filterer, nprocs=n_jobs,
+    synths, _ = heart.seis_synthetics(
+        engine=engine, sources=sources, targets=targets,
+        arrival_taper=arrival_taper, wavename=wavename,
+        filterer=filterer, nprocs=n_jobs,
         reference_taperer=reference_taperer, plot=plot,
         pre_stack_cut=True)
     t1 = time()
