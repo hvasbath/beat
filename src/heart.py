@@ -8,6 +8,7 @@ import logging
 import shutil
 import copy
 from time import time
+from collections import OrderedDict
 
 from beat import psgrn, pscmp, utility, qseis2d
 
@@ -2192,13 +2193,16 @@ def get_phase_taperer(engine, source, wavename, target, arrival_taper):
 
 
 class WaveformMapping(object):
-    
+    """
+    Weights have to be theano.shared variables!
+    """
 
-    self._target2index = None
+    _target2index = None
 
-    def __init__(self, name, weights=None, channels=['Z'], datasets=None,
-        targets=None):
+    def __init__(self, name, stations, weights=None, channels=['Z'],
+        datasets=None, targets=None):
         self.name = name
+        self.stations = stations
         self.weights = weights
         self.datasets = datasets
         self.targets = targets
@@ -2211,9 +2215,34 @@ class WaveformMapping(object):
                     self.targets))
         return self._target2index
 
+    def add_weights(self, weights, force=False):
+        if len(weights) != self.n_t:
+            raise CollectionError(
+                'Number of Weights inconsistent with targets!')
+
+        self.weights = weights
+
+    def station_distance_weeding(self, event, distances):
+        self.stations = utility.weed_stations(
+            self.stations, event, distances=distances)
+
+        if self.n_data > 0:
+            weeded_traces = utility.weed_data_traces(
+                self.datasets, self.stations)
+
+            self.datasets = weeded_traces
+
+    def update_interpolation(self, method):
+        for target in self.targets:
+            target.interpolation = method
+
     @property
     def n_t(self):
         return len(self.targets)
+
+    @property
+    def n_data(self):
+        return len(self.datasets)
 
     def get_datasets(self, channels=['Z']):
 
@@ -2251,7 +2280,7 @@ class DataWaveformCollection(object):
     Collection of available datasets, data-weights, waveforms and
     DynamicTargets used to create synthetics.
 
-    Is used to return Mappings of the waveforms of interest to fit to the 
+    Is used to return Mappings of the waveforms of interest to fit to the
     involved data, weights and synthetics generating objects.
 
     Parameters
@@ -2260,15 +2289,32 @@ class DataWaveformCollection(object):
         of strings of tabulated phases that are to be used for misfit
         calculation
     """
-    self._weights = {}
-    self._targets = {}
-    self._datasets = {}
-    self._target2index = {}
+    _targets = OrderedDict()
+    _datasets = OrderedDict()
+    _target2index = {}
+
+    def __init__(self, stations, waveforms=None):
+        self.stations = stations
+        self.waveforms = waveforms
+
+    def station_blacklisting(self, blacklist):
+        self.stations = utility.apply_station_blacklist(
+            self.stations, blacklist)
+
+        if self.n_data > 0:
+            weeded_traces = utility.weed_data_traces(
+                self._data_traces.values(), self.stations)
+
+            self.add_datasets(weeded_traces, force=True)
+
+    def downsample_datasets(self, deltat):
+        utility.downsample_traces(self._datasets.values(), deltat=deltat)
 
     def _check_collection(self, waveform, errormode='not_in', force=False):
         if errormode == 'not_in':
             if waveform not in self.waveforms:
-                raise CollectionError('Waveform is not contained in collection!')
+                raise CollectionError(
+                    'Waveform is not contained in collection!')
             else:
                 pass
 
@@ -2278,57 +2324,59 @@ class DataWaveformCollection(object):
             else:
                 pass
 
-    def add_collection(self, waveform=['any_P'], datasets=None, targets=None,
+    @property
+    def n_t(self):
+        return len(self._targets.keys())
+
+    def add_collection(self, waveform=None, datasets=None, targets=None,
                        weights=None, force=False):
         self.add_waveform(waveform, force=force)
         self.add_targets(waveform, targets, force=force)
         self.add_datasets(waveform, datasets, force=force)
-        self.add_weights(waveform, weights, force=force)
 
     @property
     def n_waveforms(self):
         return len(self.waveforms)
 
-    def target_index_mapping(self, waveform):
-        self._check_collection(waveform, errormode='not_in')
-
-        if waveform not in self._target2index.keys():
-            self._target2index[waveform] = dict(
+    def target_index_mapping(self):
+        if self._target2index is not None:
+            self._target2index = dict(
                 (target, i) for (i, target) in enumerate(
-                    self._targets[waveform]))
-        return self._target2index[waveform]
+                    self._targets.values()))
+        return self._target2index
 
     def get_waveform_names(self):
         return self.waveforms
 
-    def add_waveform(self, waveform, force=False):
-        self._check_collection(waveform, errormode='in', force=force)
-        self.waveforms.append(waveform)
+    def add_waveforms(self, waveforms=[], force=False):
+        for waveform in waveforms:
+            self._check_collection(waveform, errormode='in', force=force)
+            self.waveforms.append(waveform)
 
-    def add_targets(self, waveform, targets, force=False):
-        self._check_collection(waveform, errormode='not_in')
-        if waveform in self._targets and not force:
-            raise CollectionError('Targets of that waveform already in collection!')
-        else:
-            self._targets[waveform] = targets
+    def add_targets(self, targets, force=False):
 
-    def add_datasets(self, waveform, datasets, force=False):
-        self._check_collection(waveform, errormode='not_in')
+        current_targets = self._targets.values()
+        for i, target in enumerate(targets):
+            if target not in current_targets or force:
+                self._targets[i] = target
+            else:
+                logger.warn(
+                    'Target %s already in collection!' % str(target.codes))
 
-        if waveform in self._datasets and not force:
-            raise CollectionError(
-                'Datasets of that waveform already in collection!')
-        else:
-            self._datasets[waveform] = datasets
+    def add_datasets(self, datasets, force=False):
 
-    def add_weights(self, waveform, weights, force=False):
-        self._check_collection(waveform, errormode='not_in')
+        entries = self._datasets.keys()
+        for d in datasets:
+            nslc_id = d.nslc_id()
+            if nslc_id not in entries or force:
+                self._datasets[nslc_id] = d
+            else:
+                logger.warn(
+                    'Dataset %s already in collection!' % str(nslc_id))
 
-        if waveform in self._weights and not force:
-            raise CollectionError(
-                'Weights of that waveform already in collection!')
-        else:
-            self._weights[waveform] = weights
+    @property
+    def n_data(self):
+        return len(self._datasets.keys())
 
     def get_waveform_mapping(self, waveform, channels=['Z', 'T', 'R']):
 
@@ -2342,14 +2390,14 @@ class DataWaveformCollection(object):
         for cha in channels:
             targets.extend(dtargets[cha])
 
-        weights = [self._weights[waveform][t2i[target]] for target in targets]
-        datasets = [self._datasets[waveform][t2i[target]] for target in targets]
+        data_traces = self._datasets.values()
+        datasets = [data_traces[t2i[target]] for target in targets]
 
         return WaveformMapping(
             name=waveform,
-            datasets=datasets,
-            targets=targets,
-            weights=weights,
+            stations=copy.deepcopy(self.stations),
+            datasets=copy.deepcopy(datasets),
+            targets=copy.deepcopy(targets),
             channels=channels)
 
 

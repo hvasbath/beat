@@ -317,8 +317,7 @@ def command_import(args):
                     data_traces = inputf.load_data_traces(
                         datadir=sc.datadir,
                         stations=stations,
-                        channels=set(
-                            [waveform.channels for waveform in sc.waveforms])
+                        channels=sc.get_channels())
 
                     logger.info('Pickle seismic data to %s' % seismic_outpath)
                     utility.dump_objects(seismic_outpath,

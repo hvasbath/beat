@@ -319,6 +319,7 @@ class WaveformFitConfig(Object):
     name = String.T('any_P')
     channels = List.T(String.T(), default=['Z'])
     filterer = Filter.T(default=Filter.D())
+    distances = Tuple.T(2, Float.T(), default=(30., 90.))
     interpolation = StringChoice.T(
         choices=['nearest_neighbor', 'multilinear'],
         default='multilinear',
@@ -338,7 +339,6 @@ class SeismicConfig(Object):
         String.T(),
         default=['placeholder'],
         help='Station name for station to be thrown out.')
-    distances = Tuple.T(2, Float.T(), default=(30., 90.))
     calc_data_cov = Bool.T(
         default=True,
         help='Flag for calculating the data covariance matrix based on the'
@@ -351,6 +351,11 @@ class SeismicConfig(Object):
         default=[WaveformFitConfig.D()])
     gf_config = GFConfig.T(default=SeismicGFConfig.D())
 
+    def get_waveform_names(self):
+        return [waveform.name for waveform in self.waveforms]
+
+    def get_channels(self):
+        return set([waveform.channels for waveform in sc.waveforms])
 
 class GeodeticConfig(Object):
     """
