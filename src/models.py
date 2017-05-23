@@ -640,12 +640,6 @@ class SeismicComposite(Composite):
 
         target_deltat = 1. / sc.gf_config.sample_rate
 
-        self.datahandler = heart.DataWaveformCollection(stations, wavenames)
-
-        self.datahandler.add_datasets(data_traces)
-        self.datahandler.downsample_datasets(target_deltat)
-        self.datahandler.station_blacklisting(sc.blacklist)
-
         targets = heart.init_seismic_targets(
             stations,
             earth_model_name=sc.gf_config.earth_model_name,
@@ -654,11 +648,15 @@ class SeismicComposite(Composite):
             crust_inds=[0],  # always reference model
             reference_location=sc.gf_config.reference_location)
 
-        self.datahandler.add_targets(targets)
+        datahandler = heart.DataWaveformCollection(stations, wavenames)
+        datahandler.add_datasets(data_traces)
+        datahandler.downsample_datasets(target_deltat)
+        datahandler.add_targets(targets)
+        datahandler.station_blacklisting(sc.blacklist)
 
         self.wavemaps = []
         for wc in sc.waveforms:
-            wmap = self.datahandler.get_waveform_mapping(
+            wmap = datahandler.get_waveform_mapping(
                 wc.name, channels=wc.channels)
 
             wmap.station_distance_weeding(event, wc.distances)
@@ -715,6 +713,14 @@ class SeismicComposite(Composite):
             ds.extend(wmap.datasets)
 
         return ds
+
+    @property
+    def weights(self):
+        ws = []
+        for wmap in self.wavemaps:
+            ws.extend(wmap.weights)
+
+        return ws
 
     def assemble_results(self, point):
         """

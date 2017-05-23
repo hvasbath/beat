@@ -302,7 +302,7 @@ def apply_station_blacklist(stations, blacklist):
 def weed_data_traces(data_traces, stations):
     """
     Throw out data traces belonging to stations that are not in the
-    stations list.
+    stations list. Keeps list orders!
 
     Parameters
     ----------
@@ -326,6 +326,33 @@ def weed_data_traces(data_traces, stations):
             weeded_data_traces.append(tr.copy())
 
     return weeded_data_traces
+
+
+def weed_targets(targets, stations):
+    """
+    Throw out targets belonging to stations that are not in the
+    stations list. Keeps list orders!
+
+    Parameters
+    ----------
+    targets : list
+        of :class:`pyrocko.gf.targets.Target`
+    stations : list
+        of :class:`pyrocko.model.Station`
+
+    Returns
+    -------
+    weeded_targets : list
+        of :class:`pyrocko.gf.targets.Target`
+    """
+    station_names = [station.station for station in stations]
+
+    weeded_targets = []
+    for target in targets:
+        if target.codes[1] in station_names:
+            weeded_targets.append(target)
+
+    return weeded_targets
 
 
 def downsample_traces(data_traces, deltat=None):

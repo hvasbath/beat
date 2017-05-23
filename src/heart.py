@@ -2235,10 +2235,12 @@ class WaveformMapping(object):
             self.stations, event, distances=distances)
 
         if self.n_data > 0:
-            weeded_traces = utility.weed_data_traces(
+            self.datasets = utility.weed_data_traces(
                 self.datasets, self.stations)
 
-            self.datasets = weeded_traces
+        if self.n_t > 0:
+            self.targets = utility.weed_targets(self.targets, self.stations)
+            self._target2index = None   # reset mapping
 
     def update_interpolation(self, method):
         for target in self.targets:
@@ -2299,7 +2301,7 @@ class DataWaveformCollection(object):
     """
     _targets = OrderedDict()
     _datasets = OrderedDict()
-    _target2index = {}
+    _target2index = None
 
     def __init__(self, stations, waveforms=None):
         self.stations = stations
@@ -2313,7 +2315,14 @@ class DataWaveformCollection(object):
             weeded_traces = utility.weed_data_traces(
                 self._data_traces.values(), self.stations)
 
-            self.add_datasets(weeded_traces, force=True)
+            self.add_datasets(weeded_traces, replace=True)
+
+        if self.n_t > 0:
+            weeded_targets = utility.weed_targets(
+                self.targets.values(), self.stations)
+
+            self.add_targets(weeded_targets, replace=True)
+            self._target2index = None   # reset mapping
 
     def downsample_datasets(self, deltat):
         utility.downsample_traces(self._datasets.values(), deltat=deltat)
@@ -2361,7 +2370,10 @@ class DataWaveformCollection(object):
             self._check_collection(waveform, errormode='in', force=force)
             self.waveforms.append(waveform)
 
-    def add_targets(self, targets, force=False):
+    def add_targets(self, targets, replace=False, force=False):
+
+        if replace:
+            self._targets = OrderedDict()
 
         current_targets = self._targets.values()
         for i, target in enumerate(targets):
@@ -2371,7 +2383,10 @@ class DataWaveformCollection(object):
                 logger.warn(
                     'Target %s already in collection!' % str(target.codes))
 
-    def add_datasets(self, datasets, force=False):
+    def add_datasets(self, datasets, replace=False, force=False):
+
+        if replace:
+            self._datasets = OrderedDict()
 
         entries = self._datasets.keys()
         for d in datasets:
