@@ -678,8 +678,8 @@ class SeismicDataset(trace.Trace):
         self._wavename = wavename
 
     @property
-!    def typ(self):
-        return self._wavename + self.channel
+    def typ(self):
+        return '_'.join((self._wavename, self.channel))
 
 
 class GeodeticDataset(gf.meta.MultiLocation):
@@ -2208,6 +2208,10 @@ class WaveformMapping(object):
         self.name = name
         self.stations = stations
         self.weights = weights
+
+        for dtrc in datasets:
+            dtrc.set_wavename(name)
+
         self.datasets = datasets
         self.targets = targets
         self.channels = channels

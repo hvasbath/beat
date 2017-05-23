@@ -74,9 +74,6 @@ partial_kinematic_vars = [
 
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars
 
-! hyper_pars = {'Z': 'seis_Z', 'T': 'seis_T',
-             'SAR': 'geo_S', 'GPS': 'geo_G'}
-
 interseismic_catalog = {
     'geodetic': interseismic_vars}
 
@@ -150,10 +147,7 @@ default_bounds = dict(
     bl_amplitude=(0., 0.1),
     locking_depth=(1., 10.),
 
-!    seis_Z=(-20., 20.),
-    seis_T=(-20., 20.),
-    geo_S=(-20., 20.),
-    geo_G=(-20., 20.),
+    hypers=(-20., 20.),
     ramp=(-0.005, 0.005))
 
 default_seis_std = 1.e-6
@@ -352,10 +346,19 @@ class SeismicConfig(Object):
     gf_config = GFConfig.T(default=SeismicGFConfig.D())
 
     def get_waveform_names(self):
-        return [waveform.name for waveform in self.waveforms]
+        return [wc.name for wc in self.waveforms]
 
-    def get_channels(self):
-        return set([waveform.channels for waveform in sc.waveforms])
+    def get_unique_channels(self):
+        return set([wc.channels for wc in self.waveforms])
+
+    def get_hypernames(self):
+        hids = []
+        for wc in self.waveforms:
+            for channel in wc.channels:
+                hids.append('_'.join((wc.name, channel)))
+
+        return hids
+
 
 class GeodeticConfig(Object):
     """
@@ -380,6 +383,9 @@ class GeodeticConfig(Object):
         help='Flag for inverting for additional plane parameters on each'
             ' SAR datatype')
     gf_config = GFConfig.T(default=GeodeticGFConfig.D())
+
+    def get_hypernames(self):
+        return self.types
 
 
 class ProblemConfig(Object):
@@ -663,26 +669,24 @@ class BEATconfig(Object, Cloneable):
         """
 
         hypernames = []
-
         if self.geodetic_config is not None:
-            for ty in self.geodetic_config.types:
-                hypernames.append(hyper_pars[ty])
+            hypernames.extend(self.geodetic_config.get_hypernames())
 
         if self.seismic_config is not None:
-            for hid in self.seismic_config.get_hyperids():
-!                hypernames.append(hyper_pars[hid])
+            hypernames.extend(self.seismic_config.get_hypernames())
 
         hypers = dict()
         for name in hypernames:
+            defaultb_name = 'hypers'
             hypers[name] = Parameter(
-                    name=name,
-                    lower=num.ones(1, dtype=num.float) * \
-                        default_bounds[name][0],
-                    upper=num.ones(1, dtype=num.float) * \
-                        default_bounds[name][1],
-                    testvalue=num.ones(1, dtype=num.float) * \
-                        num.mean(default_bounds[name])
-                                        )
+                name=name,
+                lower=num.ones(1, dtype=num.float) * \
+                    default_bounds[defaultb_name][0],
+                upper=num.ones(1, dtype=num.float) * \
+                    default_bounds[defaultb_name][1],
+                testvalue=num.ones(1, dtype=num.float) * \
+                    num.mean(default_bounds[defaultb_name])
+                                    )
 
         self.problem_config.hyperparameters = hypers
         self.problem_config.validate_hypers()

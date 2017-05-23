@@ -12,10 +12,10 @@ logger = logging.getLogger('covariance')
 
 
 __all__ = [
-    'geo_cov_velocity_models',
-    'geo_cov_velocity_models_pscmp',
-    'seis_cov_velocity_models',
-    'seis_data_covariance']
+    'geodetic_cov_velocity_models',
+    'geodetic_cov_velocity_models_pscmp',
+    'seismic_cov_velocity_models',
+    'seismic_data_covariance']
 
 
 def sub_data_covariance(n, dt, tzero):
@@ -224,8 +224,8 @@ def model_prediction_sensitivity(engine, *args, **kwargs):
     return sensitivity_param_trcs
 
 
-def seis_cov_velocity_models(engine, sources, targets,
-                              arrival_taper, filterer, plot=False, n_jobs=1):
+def seismic_cov_velocity_models(engine, sources, targets,
+                  arrival_taper, wavename, filterer, plot=False, n_jobs=1):
     '''
     Calculate model prediction uncertainty matrix with respect to uncertainties
     in the velocity model for station and channel.
@@ -274,7 +274,7 @@ def seis_cov_velocity_models(engine, sources, targets,
     return num.cov(synths, rowvar=0)
 
 
-def geo_cov_velocity_models(
+def geodetic_cov_velocity_models(
     engine, sources, targets, dataset, plot=False, n_jobs=1):
     """
     Calculate model prediction uncertainty matrix with respect to uncertainties
@@ -314,7 +314,7 @@ def geo_cov_velocity_models(
     return num.cov(synths, rowvar=0)
 
 
-def geo_cov_velocity_models_pscmp(
+def geodetic_cov_velocity_models_pscmp(
     store_superdir, crust_inds, target, sources):
     """
     Calculate model prediction uncertainty matrix with respect to uncertainties

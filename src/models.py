@@ -60,12 +60,11 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
         M = tt.cast(shared(data.samples, borrow=True), 'int16')
         factor = shared(
             data.covariance.log_norm_factor, borrow=True)
-        hp_name = bconfig.hyper_pars[data.typ]
 
         logpts = tt.set_subtensor(logpts[l:l + 1],
             (-0.5) * (factor + \
-            (M * 2 * hyperparams[hp_name]) + \
-            (1 / tt.exp(hyperparams[hp_name] * 2)) * \
+            (M * 2 * hyperparams[data.typ]) + \
+            (1 / tt.exp(hyperparams[data.typ] * 2)) * \
             (residuals[l].dot(weights[l]).dot(residuals[l].T))
                      )
                                  )
@@ -96,12 +95,11 @@ def hyper_normal(datasets, hyperparams, llks):
     for k, data in enumerate(datasets):
         M = data.samples
         factor = data.covariance.log_norm_factor
-!        hp_name = bconfig.hyper_pars[data.typ]
 
         logpts = tt.set_subtensor(logpts[k:k + 1],
             (-0.5) * (factor + \
-            (M * 2 * hyperparams[hp_name]) + \
-            (1 / tt.exp(hyperparams[hp_name] * 2)) * \
+            (M * 2 * hyperparams[data.typ]) + \
+            (1 / tt.exp(hyperparams[data.typ] * 2)) * \
                 llks[k]
                      )
                                  )
@@ -391,7 +389,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         tpoint = utility.adjust_point_units(tpoint)
 
         # remove hyperparameters from point
-        hps = bconfig.hyper_pars.values()
+        hps = self.config.get_hypernames()
 
         for hyper in hps:
             if hyper in tpoint:
@@ -530,7 +528,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
                 sample_rate=gc.gf_config.sample_rate)
 
             logger.debug('Track %s' % data.name)
-            cov_pv = cov.geo_cov_velocity_models(
+            cov_pv = cov.geodetic_cov_velocity_models(
                 engine=self.engine,
                 sources=self.sources,
                 targets=crust_targets,
@@ -651,7 +649,7 @@ class SeismicComposite(Composite):
         targets = heart.init_seismic_targets(
             stations,
             earth_model_name=sc.gf_config.earth_model_name,
-            channels=sc.get_channels(),
+            channels=sc.get_unique_channels(),
             sample_rate=sc.gf_config.sample_rate,
             crust_inds=[0],  # always reference model
             reference_location=sc.gf_config.reference_location)
@@ -896,7 +894,7 @@ class SeismicGeometryComposite(SeismicComposite):
         tpoint = utility.adjust_point_units(tpoint)
 
         # remove hyperparameters from point
-        hps = bconfig.hyper_pars.values()
+        hps = self.config.get_hypernames()
 
         for hyper in hps:
             if hyper in tpoint:
@@ -1028,10 +1026,11 @@ class SeismicGeometryComposite(SeismicComposite):
                         crust_inds=range(*sc.gf_config.n_variations),
                         reference_location=sc.gf_config.reference_location)
 
-                    cov_pv = cov.seis_cov_velocity_models(
+                    cov_pv = cov.seismic_cov_velocity_models(
                         engine=self.engine,
                         sources=self.sources,
                         targets=crust_targets,
+                        wavename=wmap.name,
                         arrival_taper=wc.arrival_taper,
                         filterer=wc.filterer,
                         plot=plot, n_jobs=n_jobs)
@@ -1175,7 +1174,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
 
         tpoint = copy.deepcopy(point)
 
-        hps = bconfig.hyper_pars.values()
+        hps = self.config.get_hypernames()
 
         for hyper in hps:
             if hyper in tpoint:
@@ -1421,9 +1420,8 @@ class Problem(object):
 
         logger.debug('Optimization for %i hyperparemeters', n_hyp)
 
-        for hp_name in bconfig.hyper_pars.values():
-            if hp_name in pc.hyperparameters:
-                hyperpar = pc.hyperparameters[hp_name]
+        for hp_name, hyperpar in pc.hyperparameters.iteritems():
+            if not num.array_equal(hyperpar.lower, hyperpar.upper):
                 hyperparams[hp_name] = pm.Uniform(
                     hyperpar.name,
                     shape=hyperpar.dimension,
@@ -1433,7 +1431,11 @@ class Problem(object):
                     dtype=tconfig.floatX,
                     transform=None)
             else:
-                hyperparams[hp_name] = 0.
+                logger.info(
+                    'not solving for %s, got fixed at %s' % (
+                    hyperpar.name,
+                    utility.list_to_str(hyperpar.lower.flatten())))
+                hyperparams[hyperpar.name] = hyperpar.lower
 
         return hyperparams
 
