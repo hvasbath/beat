@@ -199,6 +199,11 @@ def command_init(args):
             default=1,
             help='Integer Number of sources to invert for. Default: 1' )
 
+        parser.add_option('--waveforms', type='string',
+            action='callback', callback=list_callback,
+            default=['any_P', 'any_S'],
+            help='Waveforms to include in the setup; "any_P, any_S".')
+
         parser.add_option('--sampler', dest='sampler', type='string',
             default='SMC',
             help='Sampling algorithm to sample the solution space of the'
@@ -207,8 +212,8 @@ def command_init(args):
         parser.add_option('--hyper_sampler', dest='hyper_sampler',
             type='string', default='Metropolis',
             help='Sampling algorithm to sample the solution space of the'
-                 ' hyperparameters only;'
-                 '"SMC", "Metropolis". Default: "Metropolis"')
+                 ' hyperparameters only; So far only "Metropolis" supported.'
+                 'Default: "Metropolis"')
 
         parser.add_option('--use_custom', dest='use_custom',
             action='store_true',
@@ -244,6 +249,7 @@ def command_init(args):
                mode=options.mode,
                source_type=options.source_type,
                n_sources=options.n_sources,
+               waveforms=options.waveforms,
                sampler=options.sampler,
                hyper_sampler=options.hyper_sampler,
                use_custom=options.use_custom,

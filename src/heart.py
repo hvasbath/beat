@@ -550,10 +550,8 @@ physical_bounds = dict(
     bl_amplitude=(0., 0.2),
     locking_depth=(0.1, 100.),
 
-    seis_Z=(-20., 20.),
-    seis_T=(-20., 20.),
-    geo_S=(-20., 20.),
-    geo_G=(-20., 20.),
+    h=(-20., 20.),
+
     ramp=(-0.005, 0.005))
 
 
@@ -580,9 +578,15 @@ class Parameter(Object):
                         default=num.array([0.5, 0.5], dtype=tconfig.floatX))
 
     def validate_bounds(self):
+
         if self.name not in physical_bounds.keys():
-            raise TypeError('The parameter "%s" cannot'
-                ' be optimized for!' % self.name)
+            if self.name[0:2] != 'h_':
+                raise TypeError('The parameter "%s" cannot'
+                    ' be optimized for!' % self.name)
+            else:
+                name = 'h'
+        else:
+            name = self.name
 
         if self.lower is not None:
             for i in range(self.dimension):
@@ -596,7 +600,7 @@ class Parameter(Object):
                     raise ValueError('The testvalue of parameter "%s" has to'
                         ' be within the upper and lower bounds' % self.name)
 
-                phys_b = physical_bounds[self.name]
+                phys_b = physical_bounds[name]
 
                 if self.upper[i] > phys_b[1] or \
                     self.lower[i] < phys_b[0]:
@@ -1374,7 +1378,7 @@ def get_earth_model_prefix(earth_model_name):
 
 
 def get_fomosto_baseconfig(
-    gfconfig, event, station, channels, crust_ind):
+    gfconfig, event, station, waveforms, crust_ind):
     """
     Initialise fomosto config.
 
@@ -1386,38 +1390,38 @@ def get_fomosto_baseconfig(
         According to the its location the earth model is being built
     station : :class:`pyrocko.model.Station` or
         :class:`heart.ReferenceLocation`
+    waveforms : List of str
+        Waveforms to calculate GFs for, determines the length of traces
     crust_ind : int
         Index to set to the Greens Function store
-    channels : List of str
-        Components of the traces to be optimized for if rotated:
-            T - transversal, Z - vertical, R - radial
-        If not rotated:
-            E - East, N- North, U - Up (Vertical)
-        if empty:
-            no tabulated phases set
     """
     sf = gfconfig
+
+    if gfconfig.code != 'psgrn' and len(waveforms) < 1:
+        raise IOError('No waveforms specified! No GFs to be calculated!')
 
     # calculate event-station distance [m]
     distance = orthodrome.distance_accurate50m(event, station)
     distance_min = distance - (sf.source_distance_radius * km)
 
     if distance_min < 0.:
-        if len(channels) > 0:
-            logger.warn(
-                'Minimum grid distance is below zero. Setting it to zero!')
+        logger.warn(
+            'Minimum grid distance is below zero. Setting it to zero!')
         distance_min = 0.
 
     # define phases
     tabulated_phases = []
-    if 'Z' in channels:
+    if 'any_P' in waveforms:
         tabulated_phases.append(gf.TPDef(
             id='any_P',
             definition='p,P,p\\,P\\'))
-    if 'T' in channels:
+
+    if 'any_S' in waveforms:
         tabulated_phases.append(gf.TPDef(
             id='any_S',
             definition='s,S,s\\,S\\'))
+
+    # surface waves
     if distance_min * cake.m2d < near_field_threshold:
         tabulated_phases.append(gf.TPDef(
             id='slowest',
@@ -1597,7 +1601,7 @@ def seis_construct_gf(
         logger.info('---------------------')
 
         fomosto_config = get_fomosto_baseconfig(
-            sf, event, station, seismic_config.channels, crust_ind)
+            sf, event, station, seismic_config.get_waveform_names(), crust_ind)
 
         store_dir = sf.store_superdir + fomosto_config.id
 
@@ -1699,7 +1703,7 @@ def geo_construct_gf(
 
     fomosto_config = get_fomosto_baseconfig(
         gfconfig=gfc, event=event, station=station,
-        channels=[], crust_ind=crust_ind)
+        waveforms=[], crust_ind=crust_ind)
 
     store_dir = gfc.store_superdir + fomosto_config.id
 
@@ -2313,13 +2317,13 @@ class DataWaveformCollection(object):
 
         if self.n_data > 0:
             weeded_traces = utility.weed_data_traces(
-                self._data_traces.values(), self.stations)
+                self._datasets.values(), self.stations)
 
             self.add_datasets(weeded_traces, replace=True)
 
         if self.n_t > 0:
             weeded_targets = utility.weed_targets(
-                self.targets.values(), self.stations)
+                self._targets.values(), self.stations)
 
             self.add_targets(weeded_targets, replace=True)
             self._target2index = None   # reset mapping
@@ -2356,7 +2360,7 @@ class DataWaveformCollection(object):
         return len(self.waveforms)
 
     def target_index_mapping(self):
-        if self._target2index is not None:
+        if self._target2index is None:
             self._target2index = dict(
                 (target, i) for (i, target) in enumerate(
                     self._targets.values()))
@@ -2376,9 +2380,9 @@ class DataWaveformCollection(object):
             self._targets = OrderedDict()
 
         current_targets = self._targets.values()
-        for i, target in enumerate(targets):
+        for target in targets:
             if target not in current_targets or force:
-                self._targets[i] = target
+                self._targets[target.codes] = target
             else:
                 logger.warn(
                     'Target %s already in collection!' % str(target.codes))
@@ -2390,7 +2394,7 @@ class DataWaveformCollection(object):
 
         entries = self._datasets.keys()
         for d in datasets:
-            nslc_id = d.nslc_id()
+            nslc_id = d.nslc_id
             if nslc_id not in entries or force:
                 self._datasets[nslc_id] = d
             else:
@@ -2404,17 +2408,25 @@ class DataWaveformCollection(object):
     def get_waveform_mapping(self, waveform, channels=['Z', 'T', 'R']):
 
         self._check_collection(waveform, errormode='not_in')
-        t2i = self.target_index_mapping(waveform)
 
         dtargets = utility.gather(
-            self._targets[waveform], lambda t: t.codes[3])
+            self._targets.values(), lambda t: t.codes[3])
 
         targets = []
         for cha in channels:
             targets.extend(dtargets[cha])
 
-        data_traces = self._datasets.values()
-        datasets = [data_traces[t2i[target]] for target in targets]
+        datasets = []
+        for target in targets:
+            nslc_id = list(target.codes)
+            nslc_id[2] = ''   # remove location code
+            nslc_id = tuple(nslc_id)
+            try:
+                dtrace = self._datasets[nslc_id]
+                datasets.append(dtrace)
+            except KeyError:
+                logger.warn('No data trace for target %s in '
+                    'the collection!' % str(nslc_id))
 
         return WaveformMapping(
             name=waveform,

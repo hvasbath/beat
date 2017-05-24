@@ -341,23 +341,32 @@ class SeismicConfig(Object):
         default=True,
         help='Cut the GF traces before stacking around the specified arrival'
              ' taper')
-    waveforms = List.T(WaveformFitConfig.T(),
-        default=[WaveformFitConfig.D()])
+    waveforms = List.T(WaveformFitConfig.T(default=WaveformFitConfig.D()))
     gf_config = GFConfig.T(default=SeismicGFConfig.D())
 
     def get_waveform_names(self):
         return [wc.name for wc in self.waveforms]
 
     def get_unique_channels(self):
-        return set([wc.channels for wc in self.waveforms])
+        cl = [wc.channels for wc in self.waveforms]
+        uc = []
+        map(uc.extend, cl)
+        return set(uc)
 
     def get_hypernames(self):
         hids = []
         for wc in self.waveforms:
             for channel in wc.channels:
-                hids.append('_'.join((wc.name, channel)))
+                hids.append('_'.join(('h', wc.name, channel)))
 
         return hids
+
+    def init_waveforms(self, wavenames):
+        """
+        Initialise waveform configurations.
+        """
+        for wavename in wavenames:
+            self.waveforms.append(WaveformFitConfig(name=wavename))
 
 
 class GeodeticConfig(Object):
@@ -385,7 +394,7 @@ class GeodeticConfig(Object):
     gf_config = GFConfig.T(default=GeodeticGFConfig.D())
 
     def get_hypernames(self):
-        return self.types
+        return '_'.join(('h', self.types))
 
 
 class ProblemConfig(Object):
@@ -661,7 +670,9 @@ class BEATconfig(Object, Cloneable):
     seismic_config = SeismicConfig.T(
         default=None, optional=True)
     sampler_config = SamplerConfig.T(default=SamplerConfig.D())
-    hyper_sampler_config = SamplerConfig.T(default=SamplerConfig.D())
+    hyper_sampler_config = SamplerConfig.T(
+        default=SamplerConfig.D(),
+        optional=True)
 
     def update_hypers(self):
         """
@@ -700,7 +711,7 @@ class BEATconfig(Object, Cloneable):
 def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                 datatypes=['geodetic'],
                 mode='geometry', source_type='RectangularSource', n_sources=1,
-                sampler='SMC', hyper_sampler='Metropolis',
+                waveforms=['any_P'], sampler='SMC', hyper_sampler='Metropolis',
                 use_custom=False, individual_gfs=False):
     """
     Initialise BEATconfig File and write it main_path/name .
@@ -721,6 +732,9 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
         type of optimization problem: 'Geometry' / 'Static'/ 'Kinematic'
     n_sources : int
         number of sources to solve for / discretize depending on mode parameter
+    waveforms : list
+        of strings of waveforms to include into the misfit function and
+        GF calculation
     sampler : str
         Optimization algorithm to use to sample the solution space
         Options: 'SMC', 'Metropolis'
@@ -770,6 +784,8 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
 
         if 'seismic' in datatypes:
             c.seismic_config = SeismicConfig()
+            c.seismic_config.init_waveforms(waveforms)
+
             if not individual_gfs:
                 c.seismic_config.gf_config.reference_location = \
                     ReferenceLocation(lat=10.0, lon=10.0)
@@ -831,7 +847,6 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
     c.hyper_sampler_config.set_parameters(update_covariances=None)
 
     c.update_hypers()
-
     c.problem_config.validate_priors()
 
     c.validate()
@@ -856,7 +871,7 @@ def dump_config(config):
     dump(config, filename=conf_out)
 
 
-def load_config(project_dir, mode):
+def load_config(project_dir, mode, update=False):
     """
     Load configuration file.
 
@@ -883,10 +898,10 @@ def load_config(project_dir, mode):
 
     config.problem_config.validate_priors()
 
-    if config.problem_config.hyperparameters is None or \
-        len(config.problem_config.hyperparameters.keys()) == 0:
+    if update:
         config.update_hypers()
-        logger.info('Updated hyper parameters!')
+        logger.info('Updated hyper parameters! Previous hyper'
+           ' parameter bounds are invalid now!')
         dump(config, filename=config_fn)
 
     return config

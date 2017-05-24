@@ -58,13 +58,14 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
 
     for l, data in enumerate(datasets):
         M = tt.cast(shared(data.samples, borrow=True), 'int16')
+        hp_name = '_'.join(('h', data.typ))
         factor = shared(
             data.covariance.log_norm_factor, borrow=True)
 
         logpts = tt.set_subtensor(logpts[l:l + 1],
             (-0.5) * (factor + \
-            (M * 2 * hyperparams[data.typ]) + \
-            (1 / tt.exp(hyperparams[data.typ] * 2)) * \
+            (M * 2 * hyperparams[hp_name]) + \
+            (1 / tt.exp(hyperparams[hp_name] * 2)) * \
             (residuals[l].dot(weights[l]).dot(residuals[l].T))
                      )
                                  )
@@ -95,11 +96,12 @@ def hyper_normal(datasets, hyperparams, llks):
     for k, data in enumerate(datasets):
         M = data.samples
         factor = data.covariance.log_norm_factor
+        hp_name = '_'.join(('h', data.typ))
 
         logpts = tt.set_subtensor(logpts[k:k + 1],
             (-0.5) * (factor + \
-            (M * 2 * hyperparams[data.typ]) + \
-            (1 / tt.exp(hyperparams[data.typ] * 2)) * \
+            (M * 2 * hyperparams[hp_name]) + \
+            (1 / tt.exp(hyperparams[hp_name] * 2)) * \
                 llks[k]
                      )
                                  )
@@ -1844,7 +1846,7 @@ def load_model(project_dir, mode, hypers=False, nobuild=False):
     problem : :class:`Problem`
     """
 
-    config = bconfig.load_config(project_dir, mode)
+    config = bconfig.load_config(project_dir, mode, update=hypers)
 
     pc = config.problem_config
 
