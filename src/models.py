@@ -156,6 +156,8 @@ class Composite(Object):
         Get likelihood formula for the hyper model built. Has to be called
         within a with model context.
         """
+        for tr in self.datasets:
+            print tr._wavename
         logpts = hyper_normal(self.datasets, hyperparams, self._llks)
         llk = pm.Deterministic(self._like_name, logpts)
         return llk.sum()
@@ -689,24 +691,30 @@ class SeismicComposite(Composite):
                 n_samples = int(num.ceil(
                     (num.abs(at.a) + at.d) * sc.gf_config.sample_rate))
 
-                for tr in wmap.datasets:
-                    cov_ds_seismic.append(num.eye(n_samples))
+            for tr in wmap.datasets:
+                cov_ds_seismic.append(num.eye(n_samples))
 
-                weights = []
-                for t, trc in enumerate(wmap.datasets):
-                    if trc.covariance is None and not sc.calc_data_cov:
-                        logger.warn(
-                            'No data covariance given/estimated! '
-                            'Setting default: eye')
+            weights = []
+            print len(wmap.datasets)
+            for t, trc in enumerate(wmap.datasets):
+                if trc.covariance is None and not sc.calc_data_cov:
+                    logger.warn(
+                        'No data covariance given/estimated! '
+                        'Setting default: eye')
 
-                    trc.covariance = heart.Covariance(data=cov_ds_seismic[t])
-                    icov = trc.covariance.inverse
-                    weights.append(shared(icov, borrow=True))
+                trc.covariance = heart.Covariance(data=cov_ds_seismic[t])
+                icov = trc.covariance.inverse
+                weights.append(shared(icov, borrow=True))
 
             wmap.add_weights(weights)
+
             self.wavemaps.append(wmap)
 
         super(SeismicComposite, self).__init__(hypers=hypers)
+
+    @property
+    def n_t(self):
+        return sum(wmap.n_t for wmap in self.wavemaps)
 
     @property
     def datasets(self):
@@ -863,6 +871,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 targets=wmap.targets,
                 event=self.event,
                 arrival_taper=wc.arrival_taper,
+                wavename=wmap.name,
                 filterer=wc.filterer,
                 pre_stack_cut=sc.pre_stack_cut)
 
@@ -993,7 +1002,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 targets=wmap.targets,
                 arrival_taper=wc.arrival_taper,
                 wavename=wmap.name,
-                filterer=wmap.filterer,
+                filterer=wc.filterer,
                 pre_stack_cut=sc.pre_stack_cut,
                 **kwargs)
             synths.extend(synthetics)

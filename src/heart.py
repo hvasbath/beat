@@ -667,7 +667,6 @@ class SeismicDataset(trace.Trace):
     """
 
     covariance = None
-    _wavename = None
 
     @property
     def samples(self):
@@ -680,10 +679,24 @@ class SeismicDataset(trace.Trace):
 
     def set_wavename(self, wavename):
         self._wavename = wavename
+        print self._wavename
 
     @property
     def typ(self):
         return '_'.join((self._wavename, self.channel))
+
+    @classmethod
+    def from_pyrocko_trace(cls, trace, **kwargs):
+        d = dict(
+            tmin=trace.tmin,
+            tmax=trace.tmax,
+            ydata=trace.ydata,
+            station=trace.station,
+            location=trace.location,
+            channel=trace.channel,
+            network=trace.network,
+            deltat=trace.deltat)
+        return cls(**d)
 
 
 class GeodeticDataset(gf.meta.MultiLocation):
@@ -2212,10 +2225,6 @@ class WaveformMapping(object):
         self.name = name
         self.stations = stations
         self.weights = weights
-
-        for dtrc in datasets:
-            dtrc.set_wavename(name)
-
         self.datasets = datasets
         self.targets = targets
         self.channels = channels
@@ -2228,9 +2237,11 @@ class WaveformMapping(object):
         return self._target2index
 
     def add_weights(self, weights, force=False):
-        if len(weights) != self.n_t:
+        n_w = len(weights)
+        if  n_w != self.n_t:
             raise CollectionError(
-                'Number of Weights inconsistent with targets!')
+                'Number of Weights %i inconsistent with targets %i!' % (
+                    n_w, self.n_t))
 
         self.weights = weights
 
@@ -2416,13 +2427,15 @@ class DataWaveformCollection(object):
         for cha in channels:
             targets.extend(dtargets[cha])
 
+        print self._datasets
         datasets = []
         for target in targets:
-            nslc_id = list(target.codes)
-            nslc_id[2] = ''   # remove location code
-            nslc_id = tuple(nslc_id)
+            nslc_id = target.codes
+          #  nslc_id[2] = ''   # remove location code
+          #  nslc_id = tuple(nslc_id)
             try:
                 dtrace = self._datasets[nslc_id]
+                dtrace.set_wavename(waveform)
                 datasets.append(dtrace)
             except KeyError:
                 logger.warn('No data trace for target %s in '
@@ -2543,7 +2556,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     t3 = time()
     logger.debug('Assemble tmins time %f' % (t3 - t2))
 
-    if arrival_taper is not None:
+    if arrival_taper is not None and outmode != 'data':
         t4 = time()
         synths = num.vstack([tr.ydata for tr in synt_trcs])
         t5 = time()
