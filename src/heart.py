@@ -529,7 +529,7 @@ physical_bounds = dict(
     length=(0., 7000.),
     width=(0., 500.),
     slip=(0., 150.),
-    moment=(-1e30, 1e30),
+    magnitude=(-5., 10.),
     time=(-300., 300.),
     delta_time=(0., 100.),
     delta_depth=(0., 300.),
@@ -2712,6 +2712,7 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
                 float(tmins[i] - arrival_taper.a + arrival_taper.d))
 
             # taper and cut traces
+            cut_trace.extend(taperer.a, taperer.d, fillmethod='repeat')
             cut_trace.taper(taperer, inplace=True, chop=chop)
 
         if filterer is not None:

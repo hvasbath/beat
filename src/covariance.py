@@ -74,7 +74,7 @@ def seismic_data_covariance(data_traces, engine, filterer, sample_rate,
 
        i,j are samples of the seismic trace
     '''
-
+    wavename = 'any_P'   # hardcode here, want always pre P time
     tzero = 1. / filterer.upper_corner
     dt = 1. / sample_rate
     ataper = arrival_taper
@@ -83,14 +83,10 @@ def seismic_data_covariance(data_traces, engine, filterer, sample_rate,
     csub = sub_data_covariance(n, dt, tzero)
 
     cov_ds = []
-    for i, tr in enumerate(data_traces):
-        # assure getting P-wave arrival time
-        tmp_target = copy.deepcopy(targets[i])
-
-        tmp_target.codes = (tmp_target.codes[:3] + ('Z',))
-
+    for tr, target in zip(data_traces, targets):
         arrival_time = heart.get_phase_arrival_time(
-            engine=engine, source=event, target=tmp_target)
+            engine=engine, source=event,
+            target=target, wavename=wavename)
 
         ctrace = tr.chop(
             tmin=tr.tmin,
