@@ -666,7 +666,15 @@ class SeismicDataset(trace.Trace):
     :class:`Covariance` as an attribute.
     """
 
-    covariance = None
+    wavename = String.T(default=None, optional=True)
+    covariance = Covariance.T(default=Covariance.D())
+
+    def __init__(self, wavename, covariance):
+
+        super(SeismicDataset, self).__init__()
+
+        self.wavename = wavename
+        self.covariance = covariance
 
     @property
     def samples(self):
@@ -678,12 +686,11 @@ class SeismicDataset(trace.Trace):
             return self.data_len()
 
     def set_wavename(self, wavename):
-        self._wavename = wavename
-        print self._wavename
+        self.wavename = wavename
 
     @property
     def typ(self):
-        return '_'.join((self._wavename, self.channel))
+        return self.wavename
 
     @classmethod
     def from_pyrocko_trace(cls, trace, **kwargs):
@@ -2222,12 +2229,15 @@ class WaveformMapping(object):
 
     def __init__(self, name, stations, weights=None, channels=['Z'],
         datasets=None, targets=None):
+
         self.name = name
         self.stations = stations
         self.weights = weights
         self.datasets = datasets
         self.targets = targets
         self.channels = channels
+
+        self._update_trace_wavenames()
 
     def target_index_mapping(self):
         if self._target2index is None:
@@ -2260,6 +2270,10 @@ class WaveformMapping(object):
     def update_interpolation(self, method):
         for target in self.targets:
             target.interpolation = method
+
+    def _update_trace_wavenames(self):
+        for dtrace in self.datasets:
+            dtrace.set_wavename(self.name)
 
     @property
     def n_t(self):
@@ -2427,7 +2441,6 @@ class DataWaveformCollection(object):
         for cha in channels:
             targets.extend(dtargets[cha])
 
-        print self._datasets
         datasets = []
         for target in targets:
             nslc_id = target.codes
@@ -2435,7 +2448,6 @@ class DataWaveformCollection(object):
           #  nslc_id = tuple(nslc_id)
             try:
                 dtrace = self._datasets[nslc_id]
-                dtrace.set_wavename(waveform)
                 datasets.append(dtrace)
             except KeyError:
                 logger.warn('No data trace for target %s in '

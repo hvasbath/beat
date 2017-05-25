@@ -314,7 +314,7 @@ class SeisSynthesizer(theano.Op):
         self.targets = tuple(targets)
         self.event = event
         self.arrival_taper = arrival_taper
-        self.wavename = wavename,
+        self.wavename = wavename
         self.filterer = filterer
         self.pre_stack_cut = pre_stack_cut
 

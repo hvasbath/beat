@@ -356,8 +356,7 @@ class SeismicConfig(Object):
     def get_hypernames(self):
         hids = []
         for wc in self.waveforms:
-            for channel in wc.channels:
-                hids.append('_'.join(('h', wc.name, channel)))
+            hids.append('_'.join(('h', wc.name)))
 
         return hids
 

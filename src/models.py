@@ -14,6 +14,7 @@ import numpy as num
 import theano.tensor as tt
 from theano import config as tconfig
 from theano import shared
+#from theano.printing import Print
 
 from beat import theanof, heart, utility, smc, backend, metropolis
 from beat import covariance as cov
@@ -156,8 +157,6 @@ class Composite(Object):
         Get likelihood formula for the hyper model built. Has to be called
         within a with model context.
         """
-        for tr in self.datasets:
-            print tr._wavename
         logpts = hyper_normal(self.datasets, hyperparams, self._llks)
         llk = pm.Deterministic(self._like_name, logpts)
         return llk.sum()
@@ -624,6 +623,8 @@ class SeismicComposite(Composite):
     hypers : boolean
         if true initialise object for hyper parameter optimization
     """
+    _datasets = None
+    _weights = None
 
     def __init__(self, sc, event, project_dir, hypers=False):
 
@@ -691,11 +692,10 @@ class SeismicComposite(Composite):
                 n_samples = int(num.ceil(
                     (num.abs(at.a) + at.d) * sc.gf_config.sample_rate))
 
-            for tr in wmap.datasets:
-                cov_ds_seismic.append(num.eye(n_samples))
+                for tr in wmap.datasets:
+                    cov_ds_seismic.append(num.eye(n_samples))
 
             weights = []
-            print len(wmap.datasets)
             for t, trc in enumerate(wmap.datasets):
                 if trc.covariance is None and not sc.calc_data_cov:
                     logger.warn(
@@ -718,19 +718,23 @@ class SeismicComposite(Composite):
 
     @property
     def datasets(self):
-        ds = []
-        for wmap in self.wavemaps:
-            ds.extend(wmap.datasets)
+        if self._datasets is None:
+            ds = []
+            for wmap in self.wavemaps:
+                ds.extend(wmap.datasets)
 
-        return ds
+            self._datasets = ds
+        return self._datasets
 
     @property
     def weights(self):
-        ws = []
-        for wmap in self.wavemaps:
-            ws.extend(wmap.weights)
+        if self._weights is None:
+            ws = []
+            for wmap in self.wavemaps:
+                ws.extend(wmap.weights)
 
-        return ws
+        self._weights = ws
+        return self._weights
 
     def assemble_results(self, point):
         """
@@ -957,7 +961,7 @@ class SeismicGeometryComposite(SeismicComposite):
             ' %s' % ', '.join(self.input_rvs.keys()))
 
         t2 = time.time()
-        logpts = []
+        wlogpts = []
         for wmap in self.wavemaps:
             synths, tmins = self.synthesizers[wmap.name](self.input_rvs)
 
@@ -965,15 +969,17 @@ class SeismicGeometryComposite(SeismicComposite):
 
             residuals = data_trcs - synths
 
-            logpts.append(multivariate_normal(
-                wmap.datasets, wmap.weights, hyperparams, residuals))
+            logpts = multivariate_normal(
+                wmap.datasets, wmap.weights, hyperparams, residuals)
+
+            wlogpts.append(logpts)
 
         t3 = time.time()
         logger.debug(
             'Teleseismic forward model on test model takes: %f' % \
                 (t3 - t2))
 
-        llk = pm.Deterministic(self._like_name, tt.join(logpts))
+        llk = pm.Deterministic(self._like_name, tt.concatenate((wlogpts)))
         return llk.sum()
 
     def get_synthetics(self, point, **kwargs):

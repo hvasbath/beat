@@ -323,7 +323,7 @@ def weed_data_traces(data_traces, stations):
 
     for tr in data_traces:
         if tr.station in station_names:
-            weeded_data_traces.append(tr.copy())
+            weeded_data_traces.append(tr)
 
     return weeded_data_traces
 
