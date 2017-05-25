@@ -669,13 +669,6 @@ class SeismicDataset(trace.Trace):
     wavename = String.T(default=None, optional=True)
     covariance = Covariance.T(default=Covariance.D())
 
-    def __init__(self, wavename, covariance):
-
-        super(SeismicDataset, self).__init__()
-
-        self.wavename = wavename
-        self.covariance = covariance
-
     @property
     def samples(self):
         if self.covariance.data is not None:
