@@ -1249,7 +1249,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     varbin = varbins[i]
 
                 if lines:
-                    if v in config.hyper_pars.values():
+                    if v[0:2] == 'h_':
                         reference = None
                         if v in lines.keys():
                             lines.pop(v)

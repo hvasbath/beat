@@ -14,7 +14,7 @@ import numpy as num
 import theano.tensor as tt
 from theano import config as tconfig
 from theano import shared
-#from theano.printing import Print
+from theano.printing import Print
 
 from beat import theanof, heart, utility, smc, backend, metropolis
 from beat import covariance as cov
@@ -625,6 +625,7 @@ class SeismicComposite(Composite):
     """
     _datasets = None
     _weights = None
+    _targets = None
 
     def __init__(self, sc, event, project_dir, hypers=False):
 
@@ -733,8 +734,18 @@ class SeismicComposite(Composite):
             for wmap in self.wavemaps:
                 ws.extend(wmap.weights)
 
-        self._weights = ws
+            self._weights = ws
         return self._weights
+
+    @property
+    def targets(self):
+        if self._targets is None:
+            ts = []
+            for wmap in self.wavemaps:
+                ts.extend(wmap.targets)
+
+            self._targets = ts
+        return self._targets
 
     def assemble_results(self, point):
         """
@@ -964,11 +975,11 @@ class SeismicGeometryComposite(SeismicComposite):
         wlogpts = []
         for wmap in self.wavemaps:
             synths, tmins = self.synthesizers[wmap.name](self.input_rvs)
-
+            Print('Synths')(synths)
             data_trcs = self.choppers[wmap.name](tmins)
-
+            Print('data')(data_trcs)
             residuals = data_trcs - synths
-
+            Print('Res')(residuals)
             logpts = multivariate_normal(
                 wmap.datasets, wmap.weights, hyperparams, residuals)
 

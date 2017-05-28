@@ -740,6 +740,16 @@ class GeodeticDataset(gf.meta.MultiLocation):
             raise Exception('No coordinates defined!')
         return n
 
+    def __getstate__(self):
+        return (self.network, self.station, self.location, self.channel,
+                self.tmin, self.tmax, self.deltat, self.mtime,
+                self.ydata, self.meta, self.wavename, self.covariance)
+
+    def __setstate__(self, state):
+        self.network, self.station, self.location, self.channel, \
+            self.tmin, self.tmax, self.deltat, self.mtime, \
+            self.ydata, self.meta, self.wavename, self.covariance = state
+
 
 class GPSComponent(Object):
     """
