@@ -7,7 +7,7 @@ import os
 import logging
 import copy
 
-from beat import utility, backend, config
+from beat import utility, backend
 from beat.models import load_stage
 from beat.metropolis import get_trace_stats
 from beat.heart import init_seismic_targets, init_geodetic_targets
@@ -18,6 +18,7 @@ from matplotlib.patches import Rectangle
 from matplotlib.collections import PatchCollection
 from matplotlib.backends.backend_pdf import PdfPages
 
+from scipy.stats import kde
 import numpy as num
 from pyrocko.guts import Object, String, Dict, Bool, Int, load
 from pyrocko import util, trace
@@ -88,6 +89,7 @@ plot_units = {
     'h_': u_hyp,
     'like': u_hyp,
             }
+
 
 def hypername(varname):
     if varname[0:2] == 'h_':
@@ -183,6 +185,32 @@ def get_tickmarks(leftb, rightb, ntickmarks=5):
             num.linspace(leftb, rightb, ntickmarks), digits).tolist()
 
 
+def kde2plot_op(ax, x, y, grid=200, **kwargs):
+    xmin = x.min()
+    xmax = x.max()
+    ymin = y.min()
+    ymax = y.max()
+    extent = kwargs.pop('extent', [])
+    if len(extent) != 4:
+        extent = [xmin, xmax, ymin, ymax]
+
+    grid = grid * 1j
+    X, Y = num.mgrid[xmin:xmax:grid, ymin:ymax:grid]
+    positions = num.vstack([X.ravel(), Y.ravel()])
+    values = num.vstack([x, y])
+    kernel = kde.gaussian_kde(values)
+    Z = num.reshape(kernel(positions).T, X.shape)
+
+    ax.imshow(num.rot90(Z), extent=extent, **kwargs)
+
+
+def kde2plot(x, y, grid=200, ax=None, **kwargs):
+    if ax is None:
+        _, ax = plt.subplots(1, 1, squeeze=True)
+    kde2plot_op(ax, x, y, grid, **kwargs)
+    return ax
+
+
 def correlation_plot(mtrace, varnames=None,
         transform=lambda x: x, figsize=None, cmap=None, grid=200, point=None,
         point_style='.', point_color='white', point_size='8'):
@@ -240,7 +268,7 @@ def correlation_plot(mtrace, varnames=None,
             logger.debug('%s, %s' % (varnames[k], varnames[l]))
             b = d[varnames[l]]
 
-            pmp.kde2plot(
+            kde2plot(
                 a, b, grid=grid, ax=axs[l - 1, k], cmap=cmap, aspect='auto')
 
             if point is not None:
@@ -352,7 +380,7 @@ def correlation_plot_hist(mtrace, varnames=None,
             else:
                 b = d[v_nameb]
 
-                pmp.kde2plot(
+                kde2plot(
                     a, b, grid=grid, ax=axs[l, k], cmap=cmap, aspect='auto')
 
                 bmin = b.min()

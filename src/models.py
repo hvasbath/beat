@@ -703,8 +703,9 @@ class SeismicComposite(Composite):
                         data_cov = trc.covariance.data
                         if data_cov.shape[0] != n_samples:
                             raise ValueError(
-                                'Imported covariance shape does not agree '
-                                ' with taper duration!')
+                                'Imported covariance %i does not agree '
+                                ' with taper duration %i!' % (
+                                    data_cov.shape[0], n_samples))
                         cov_ds_seismic.append(data_cov)
 
             weights = []
