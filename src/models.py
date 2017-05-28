@@ -981,11 +981,9 @@ class SeismicGeometryComposite(SeismicComposite):
         wlogpts = []
         for wmap in self.wavemaps:
             synths, tmins = self.synthesizers[wmap.name](self.input_rvs)
-            Print('Synths')(synths)
             data_trcs = self.choppers[wmap.name](tmins)
-            Print('data')(data_trcs)
             residuals = data_trcs - synths
-            Print('Res')(residuals)
+
             logpts = multivariate_normal(
                 wmap.datasets, wmap.weights, hyperparams, residuals)
 
@@ -1325,7 +1323,7 @@ class Problem(object):
 
             elif sc.name == 'SMC':
                 logger.info(
-                    '... Initiate Adaptive Transitional Metropolis ... \n'
+                    '... Initiate Sequential Monte Carlo ... \n'
                     ' n_chains=%i, tune_interval=%i, n_jobs=%i \n' % (
                         sc.parameters.n_chains, sc.parameters.tune_interval,
                         sc.parameters.n_jobs))

@@ -116,7 +116,7 @@ default_bounds = dict(
     width=(5., 20.),
     slip=(0.1, 8.),
 
-    moment=(1e10, 1e20),
+    magnitude=(4., 7.),
     mnn=mdiag,
     mee=mdiag,
     mdd=mdiag,

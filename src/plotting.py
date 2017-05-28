@@ -85,12 +85,14 @@ plot_units = {
     'time': u_s,
     'duration': u_s,
     'peak_ratio': u_hyp,
-    'geo_S': u_hyp,
-    'geo_G': u_hyp,
-    'seis_Z': u_hyp,
-    'seis_T': u_hyp,
+    'h_': u_hyp,
     'like': u_hyp,
             }
+
+def hypername(varname):
+    if varname[0:2] == 'h_':
+        return 'h_'
+    return varname
 
 
 class PlotOptions(Object):
@@ -372,13 +374,14 @@ def correlation_plot_hist(mtrace, varnames=None,
                 axs[l, k].get_xaxis().set_ticklabels([])
 
             if k == 0:
-                axs[l, k].set_ylabel(v_nameb + '\n ' + plot_units[v_nameb])
+                axs[l, k].set_ylabel(
+                    v_nameb + '\n ' + plot_units[hypername(v_nameb)])
             else:
                 axs[l, k].get_yaxis().set_ticklabels([])
 
             axs[l, k].tick_params(direction='in')
 
-        axs[l, k].set_xlabel(v_namea + '\n ' + plot_units[v_namea])
+        axs[l, k].set_xlabel(v_namea + '\n ' + plot_units[hypername(v_namea)])
 
     for k in range(nvar):
         for l in range(k):
@@ -1249,7 +1252,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     varbin = varbins[i]
 
                 if lines:
-                    if v[0:2] == 'h_':
+                    if hypername(v) == 'h_':
                         reference = None
                         if v in lines.keys():
                             lines.pop(v)
@@ -1267,7 +1270,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     axs[rowi, coli], d, reference=reference,
                     bins=varbin, alpha=alpha, color=color)
 
-                axs[rowi, coli].set_title(str(v) + ' ' + plot_units[v])
+                axs[rowi, coli].set_title(
+                    str(v) + ' ' + plot_units[hypername(v)])
                 axs[rowi, coli].grid(grid)
                 axs[rowi, coli].set_yticks([])
                 axs[rowi, coli].set_yticklabels([])
