@@ -305,11 +305,11 @@ class SMC(backend.ArrayStepSharedLLK):
 
                 if np.isfinite(varlogp):
                     l = self.logp_forw(q)
-                    q_new = pm.metropolis.metrop_select(
+                    q_new, accepted = pm.metropolis.metrop_select(
                         self.beta * (l[self._llk_index] - l0[self._llk_index]),
                         q, q0)
 
-                    if q_new is q:
+                    if accepted:
                         self.accepted += 1
                         l_new = l
                         self.chain_previous_lpoint[self.chain_index] = l_new
@@ -321,11 +321,11 @@ class SMC(backend.ArrayStepSharedLLK):
 
             else:
                 l = self.logp_forw(q)
-                q_new = pm.metropolis.metrop_select(
+                q_new, accepted = pm.metropolis.metrop_select(
                     self.beta * (l[self._llk_index] - l0[self._llk_index]),
                     q, q0)
 
-                if q_new is q:
+                if accepted:
                     self.accepted += 1
                     l_new = l
                     self.chain_previous_lpoint[self.chain_index] = l_new
