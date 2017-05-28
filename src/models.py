@@ -691,18 +691,24 @@ class SeismicComposite(Composite):
                 cov_ds_seismic = []
                 at = wc.arrival_taper
                 n_samples = int(num.ceil(
-                    (num.abs(at.a) + at.d) * sc.gf_config.sample_rate))
+                    at.duration * sc.gf_config.sample_rate))
 
-                for tr in wmap.datasets:
-                    cov_ds_seismic.append(num.eye(n_samples))
+                for trc in wmap.datasets:
+                    if trc.covariance is None:
+                        logger.warn(
+                            'No data covariance given/estimated! '
+                            'Setting default: eye')
+                        cov_ds_seismic.append(num.eye(n_samples))
+                    else:
+                        data_cov = trc.covariance.data
+                        if data_cov.shape[0] != n_samples:
+                            raise ValueError(
+                                'Imported covariance shape does not agree '
+                                ' with taper duration!')
+                        cov_ds_seismic.append(data_cov)
 
             weights = []
             for t, trc in enumerate(wmap.datasets):
-                if trc.covariance is None and not sc.calc_data_cov:
-                    logger.warn(
-                        'No data covariance given/estimated! '
-                        'Setting default: eye')
-
                 trc.covariance = heart.Covariance(data=cov_ds_seismic[t])
                 icov = trc.covariance.inverse
                 weights.append(shared(icov, borrow=True))
