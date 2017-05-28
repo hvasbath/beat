@@ -666,8 +666,8 @@ class SeismicDataset(trace.Trace):
     :class:`Covariance` as an attribute.
     """
 
-    wavename = String.T(default=None, optional=True)
-    covariance = Covariance.T(default=Covariance.D())
+    wavename = None
+    covariance = None
 
     @property
     def samples(self):
@@ -697,6 +697,19 @@ class SeismicDataset(trace.Trace):
             network=trace.network,
             deltat=trace.deltat)
         return cls(**d)
+
+    def __getstate__(self):
+        return (self.network, self.station, self.location, self.channel,
+                self.tmin, self.tmax, self.deltat, self.mtime,
+                self.ydata, self.meta, self.wavename, self.covariance)
+
+    def __setstate__(self, state):
+        self.network, self.station, self.location, self.channel, \
+            self.tmin, self.tmax, self.deltat, self.mtime, \
+            self.ydata, self.meta, self.wavename, self.covariance = state
+
+        self._growbuffer = None
+        self._update_ids()
 
 
 class GeodeticDataset(gf.meta.MultiLocation):
