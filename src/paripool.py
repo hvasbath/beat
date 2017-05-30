@@ -19,11 +19,6 @@ def exception_tracer(func):
     return wrapped_func
 
 
-def start_message():
-    logger.info('Starting', multiprocessing.current_process().name)
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
-
-
 def paripool(function, work, nprocs=None, chunksize=1, initmessage=True):
     """
     Initialises a pool of workers and executes a function in parallel by
@@ -44,6 +39,12 @@ def paripool(function, work, nprocs=None, chunksize=1, initmessage=True):
         number of work packages to throw at workers in each instance
     """
 
+    def start_message():
+        logger.debug('Starting %s' % multiprocessing.current_process().name)
+
+    def callback():
+        logger.info('Done with the work!')
+
     if nprocs is None:
         nprocs = multiprocessing.cpu_count()
 
@@ -58,14 +59,17 @@ def paripool(function, work, nprocs=None, chunksize=1, initmessage=True):
             yield function(work_item)
 
     else:
+        osig_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+
         pool = multiprocessing.Pool(
             processes=nprocs,
             initializer=start_message)
 
-        try:
-            yield pool.map_async(function, work, chunksize=chunksize)
+        signal.signal(signal.SIGINT, osig_handler)
 
-            time.sleep(0.2)
+        try:
+            yield pool.map_async(
+                function, work, chunksize=chunksize, callback=callback)
 
         except KeyboardInterrupt:
             logger.error('Got Ctrl + C')
