@@ -70,7 +70,7 @@ def paripool(function, work, nprocs=None, chunksize=1, initmessage=True):
         try:
             yield pool.map_async(
                 function, work,
-                chunksize=chunksize, callback=callback).get(0xFFFF)
+                chunksize=chunksize).get(0xFFFF)
 
         except KeyboardInterrupt:
             logger.error('Got Ctrl + C')
