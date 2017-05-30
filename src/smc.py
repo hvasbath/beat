@@ -941,6 +941,7 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
         yield trace
 
 
+@paripool.exception_tracer
 def _work_chain(work):
     """
     Wrapper function for parallel execution of _sample i.e. the Markov Chains.
