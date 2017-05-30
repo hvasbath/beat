@@ -958,8 +958,10 @@ def _work_chain(work):
     chain : int
         Index of chain that has been sampled
     """
-
-    return _sample(*work)
+    try:
+        return _sample(*work)
+    except KeyboardInterrupt:
+        pass
 
 
 def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
