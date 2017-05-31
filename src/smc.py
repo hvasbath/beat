@@ -35,7 +35,8 @@ from beat.config import sample_p_outname
 
 from numpy.random import normal, standard_cauchy, standard_exponential, \
     poisson
-
+import hanging_threads
+import traceback
 
 __all__ = [
     'SMC',
@@ -958,10 +959,11 @@ def _work_chain(work):
     chain : int
         Index of chain that has been sampled
     """
+    hanging_threads.start_monitoring()
     try:
         return _sample(*work)
     except KeyboardInterrupt:
-        pass
+        traceback.print_exc()
 
 
 def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,

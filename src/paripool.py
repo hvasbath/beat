@@ -74,6 +74,7 @@ def paripool(function, work, nprocs=None, chunksize=1, initmessage=True):
 
         except KeyboardInterrupt:
             logger.error('Got Ctrl + C')
+            traceback.print_exc()
             pool.terminate()
         else:
             pool.close()
