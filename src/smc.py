@@ -35,7 +35,7 @@ from beat.config import sample_p_outname
 
 from numpy.random import normal, standard_cauchy, standard_exponential, \
     poisson
-import hanging_threads
+
 import traceback
 
 __all__ = [
@@ -272,6 +272,9 @@ class SMC(backend.ArrayStepSharedLLK):
 
             if not self.steps_until_tune and self.tune:
                 # Tune scaling parameter
+                logger.debug('Tuning: Chain_%i step_%i' % (
+                    self.chain_index, self.stage_sample))
+
                 self.scaling = utility.scalar2floatX(
                     pm.metropolis.tune(
                         self.scaling,
@@ -281,6 +284,8 @@ class SMC(backend.ArrayStepSharedLLK):
                 self.steps_until_tune = self.tune_interval
                 self.accepted = 0
 
+            logger.debug('Get delta: Chain_%i step_%i' % (
+                    self.chain_index, self.stage_sample))
             delta = self.proposal_samples_array[self.stage_sample, :] * \
                                                                 self.scaling
 
@@ -301,27 +306,44 @@ class SMC(backend.ArrayStepSharedLLK):
             l0 = self.chain_previous_lpoint[self.chain_index]
 
             if self.check_bnd:
-
+                logger.debug('Checking bound: Chain_%i step_%i' % (
+                    self.chain_index, self.stage_sample))
                 varlogp = self.check_bnd(q)
 
                 if np.isfinite(varlogp):
+                    logger.debug('Calc llk: Chain_%i step_%i' % (
+                        self.chain_index, self.stage_sample))
+
                     l = self.logp_forw(q)
+
+                    logger.debug('Select llk: Chain_%i step_%i' % (
+                        self.chain_index, self.stage_sample))
+
                     q_new, accepted = pm.metropolis.metrop_select(
                         self.beta * (l[self._llk_index] - l0[self._llk_index]),
                         q, q0)
 
                     if accepted:
+                        logger.debug('Accepted: Chain_%i step_%i' % (
+                            self.chain_index, self.stage_sample))
                         self.accepted += 1
                         l_new = l
                         self.chain_previous_lpoint[self.chain_index] = l_new
                     else:
+                        logger.debug('Rejected: Chain_%i step_%i' % (
+                            self.chain_index, self.stage_sample))
                         l_new = l0
                 else:
                     q_new = q0
                     l_new = l0
 
             else:
+                logger.debug('Calc llk: Chain_%i step_%i' % (
+                    self.chain_index, self.stage_sample))
+
                 l = self.logp_forw(q)
+                logger.debug('Select: Chain_%i step_%i' % (
+                    self.chain_index, self.stage_sample))
                 q_new, accepted = pm.metropolis.metrop_select(
                     self.beta * (l[self._llk_index] - l0[self._llk_index]),
                     q, q0)
@@ -333,6 +355,8 @@ class SMC(backend.ArrayStepSharedLLK):
                 else:
                     l_new = l0
 
+            logger.debug('Counters: Chain_%i step_%i' % (
+                    self.chain_index, self.stage_sample))
             self.steps_until_tune -= 1
             self.stage_sample += 1
 
@@ -340,6 +364,8 @@ class SMC(backend.ArrayStepSharedLLK):
             if self.stage_sample == self.n_steps:
                 self.stage_sample = 0
 
+            logger.debug('End step: Chain_%i step_%i' % (
+                    self.chain_index, self.stage_sample))
         return q_new, l_new
 
     def calc_beta(self):
@@ -935,10 +961,11 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
     for i in range(draws):
         if i == tune:
             step = pm.sampling.stop_tuning(step)
-
+        logger.debug('Step: Chain_%i step_%i' % (chain, i))
         point, out_list = step.step(point)
-        trace.record(out_list)
-
+        logger.debug('Start Record: Chain_%i step_%i' % (chain, i))
+        trace.record(out_list, i)
+        logger.debug('End Record: Chain_%i step_%i' % (chain, i))
         yield trace
 
 
@@ -959,7 +986,6 @@ def _work_chain(work):
     chain : int
         Index of chain that has been sampled
     """
-    hanging_threads.start_monitoring()
     try:
         return _sample(*work)
     except KeyboardInterrupt:

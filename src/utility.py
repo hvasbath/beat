@@ -654,6 +654,7 @@ def setup_logging(project_dir, levelname):
     cformatter = logging.Formatter('%(name)-12s - %(levelname)-8s %(message)s')
     console.setFormatter(cformatter)
     logger.addHandler(console)
+    logger.setLevel(levels[levelname])
 
 
 def search_catalog(date, min_magnitude, dayrange=1.):

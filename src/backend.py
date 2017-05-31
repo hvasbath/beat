@@ -173,7 +173,7 @@ class Text(BaseSMCTrace):
         chain : int
             Chain number
         """
-
+        logger.debug('SetupTrace: Chain_%i step_%i' % (chain, draws))
         self.chain = chain
         self.filename = os.path.join(self.name, 'chain-{}.csv'.format(chain))
 
@@ -185,7 +185,7 @@ class Text(BaseSMCTrace):
         with open(self.filename, 'w') as fh:
             fh.write(','.join(cnames) + '\n')
 
-    def record(self, lpoint):
+    def record(self, lpoint, draw):
         """
         Record results of a sampling iteration.
 
@@ -195,14 +195,11 @@ class Text(BaseSMCTrace):
             Values mapped to variable names
         """
 
-        vals = {}
-        for varname, value in zip(self.varnames, lpoint):
-
-            vals[varname] = value.ravel()
-
         columns = itertools.chain.from_iterable(
             map(str, value.ravel()) for value in lpoint)
 
+        logger.debug('Writing...: Chain_%i step_%i' % (
+            self.chain, draw))
         with open(self.filename, 'a') as fh:
             fh.write(','.join(columns) + '\n')
 

@@ -2547,7 +2547,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     t_1 = time()
 
     logger.debug('Synthetics generation time: %f' % (t_1 - t_2))
-    logger.debug('Details: %s \n' % response.stats)
+    #logger.debug('Details: %s \n' % response.stats)
 
     nt = len(targets)
     ns = len(sources)
@@ -2582,13 +2582,13 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     t2 = time()
     tmins = num.vstack([tr.tmin for tr in synt_trcs]).flatten()
     t3 = time()
-    logger.debug('Assemble tmins time %f' % (t3 - t2))
+    #logger.debug('Assemble tmins time %f' % (t3 - t2))
 
     if arrival_taper is not None and outmode != 'data':
         t4 = time()
         synths = num.vstack([tr.ydata for tr in synt_trcs])
         t5 = time()
-        logger.debug('Assemble traces time %f' % (t5 - t4))
+        #logger.debug('Assemble traces time %f' % (t5 - t4))
 
         # stack traces for all sources
         t6 = time()
@@ -2599,7 +2599,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         else:
             outstack = synths
         t7 = time()
-        logger.debug('Stack traces time %f' % (t7 - t6))
+        #logger.debug('Stack traces time %f' % (t7 - t6))
 
     if outmode == 'stacked_traces':
         if arrival_taper is not None:
