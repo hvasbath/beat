@@ -146,6 +146,8 @@ def paripool(function, workpackage, nprocs=None, chunksize=1, timeout=0xFFFF,
             processes=nprocs,
             initializer=start_message)
 
+        logger.info('Worker timeout after %f seconds' % timeout)
+
         workers = [
             WatchedWorker(function, work, timeout) for work in workpackage]
 

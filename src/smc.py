@@ -23,6 +23,7 @@ import os
 import shutil
 import theano
 import copy
+import time
 
 from pyrocko import util
 from pymc3.model import modelcontext
@@ -259,6 +260,13 @@ class SMC(backend.ArrayStepSharedLLK):
         self.check_bnd = logp_forw([model.varlogpt], vars, shared)
 
         super(SMC, self).__init__(vars, out_vars, shared)
+
+    def time_per_sample(self):
+        q = self.bij.map(model.test_point)
+        t0 = time.time()
+        self.logp_forw(q)
+        t1 = time.time()
+        return t1 - t0
 
     def astep(self, q0):
         if self.stage == 0:
@@ -989,8 +997,6 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
     max_int = np.iinfo(np.int32).max
     random_seeds = [randint(max_int) for _ in range(len(chains))]
 
-    logger.info('Sampling ...')
-
     work = [(draws, step, step.population[step.resampling_indexes[chain]],
         trace, chain, None, False, model, rseed)
             for chain, rseed, trace in zip(
@@ -1001,8 +1007,12 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
     else:
         chunksize = 1
 
+    timeout = (draws * step.n_chains ) / n_jobs * step.time_per_sample()
+
     p = paripool.paripool(
-        _sample, work, chunksize=chunksize, nprocs=n_jobs)
+        _sample, work, chunksize=chunksize, timeout=timeout, nprocs=n_jobs)
+
+    logger.info('Sampling ...')
 
     if n_jobs == 1 and progressbar:
         p = tqdm(p, total=len(chains))
