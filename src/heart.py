@@ -2599,7 +2599,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         else:
             outstack = synths
         t7 = time()
-        #logger.debug('Stack traces time %f' % (t7 - t6))
+        logger.debug('Stack traces time %f' % (t7 - t6))
 
     if outmode == 'stacked_traces':
         if arrival_taper is not None:
@@ -2618,6 +2618,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         return synt_trcs, tmins
 
     elif outmode == 'array':
+        logger.debug('Returning...')
         return outstack, tmins
 
     else:
@@ -2735,14 +2736,18 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
                 float(tmins[i] - arrival_taper.a + arrival_taper.d))
 
             # taper and cut traces
+            logger.debug('Extending and tapering data...')
             cut_trace.extend(taperer.a, taperer.d, fillmethod='repeat')
-            cut_trace.taper(taperer, inplace=True, chop=chop)
+            cut_trace.taper(taperer, inplace=True)
 
         if filterer is not None:
             # filter traces
             cut_trace.bandpass(corner_hp=filterer.lower_corner,
                                corner_lp=filterer.upper_corner,
                                order=filterer.order)
+
+        if arrival_taper is not None and chop:
+            cut_trace.chop(tmin=taperer.a, tmax=taperer.d)
 
         cut_traces.append(cut_trace)
 
@@ -2751,10 +2756,11 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
 
     if outmode == 'array':
         if arrival_taper is not None:
+            logger.debug('Returning chopped traces ...')
             return num.vstack(
                 [cut_traces[i].ydata for i in range(len(data_traces))])
         else:
-            raise Exception('Cannot return array without tapering!')
+            raise IOError('Cannot return array without tapering!')
     if outmode == 'traces':
         return cut_traces
 

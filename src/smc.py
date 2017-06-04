@@ -961,35 +961,13 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
     for i in range(draws):
         if i == tune:
             step = pm.sampling.stop_tuning(step)
+
         logger.debug('Step: Chain_%i step_%i' % (chain, i))
         point, out_list = step.step(point)
         logger.debug('Start Record: Chain_%i step_%i' % (chain, i))
         trace.record(out_list, i)
         logger.debug('End Record: Chain_%i step_%i' % (chain, i))
         yield trace
-
-
-@paripool.exception_tracer
-def _work_chain(work):
-    """
-    Wrapper function for parallel execution of _sample i.e. the Markov Chains.
-
-    Parameters
-    ----------
-    work : List
-        Containing all the information that is unique for each Markov Chain
-        i.e. [:class:'SMC', chain_number(int),
-        sampling index(int), start_point(dictionary)]
-
-    Returns
-    -------
-    chain : int
-        Index of chain that has been sampled
-    """
-    try:
-        return _sample(*work)
-    except KeyboardInterrupt:
-        traceback.print_exc()
 
 
 def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
@@ -1024,12 +1002,12 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
         chunksize = 1
 
     p = paripool.paripool(
-        _work_chain, work, chunksize=chunksize, nprocs=n_jobs)
+        _sample, work, chunksize=chunksize, nprocs=n_jobs)
 
     if n_jobs == 1 and progressbar:
         p = tqdm(p, total=len(chains))
 
-    for _ in p:
+    for results in p:
         pass
 
 

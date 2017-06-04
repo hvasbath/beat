@@ -13,7 +13,7 @@ from theano import function
 
 km = 1000.
 
-logger = logging.getLogger('beat')
+logger = logging.getLogger('test_fastsweep')
 
 
 class FastSweepingTestCase(unittest.TestCase):
