@@ -1906,7 +1906,7 @@ class Stage(object):
     parameters.
     """
 
-    def __init__(self, number='final', path='./', step=None, updates=None,
+    def __init__(self, number=-1, path='./', step=None, updates=None,
                  mtrace=None):
         self.number = number
         self.path = path
@@ -1922,7 +1922,7 @@ def load_stage(problem, stage_number=None, load='trace'):
     Parameters
     ----------
     problem : :class:`Problem`
-    stage_number : str
+    stage_number : int
         Number of stage to load
     load : str
         what to load and return 'full', 'trace', 'params'
@@ -1938,24 +1938,18 @@ def load_stage(problem, stage_number=None, load='trace'):
     if stage_number is None:
         stage_number = 'final'
 
-    homepath = problem.outfolder
-    stagepath = os.path.join(homepath, 'stage_%s' % stage_number)
+    stage_handler = backend.TextStage(problem.outfolder)
+    stagepath = stage_handler.stagepath(stage_number)
 
     if os.path.exists(stagepath):
         logger.info('Loading sampling results from: %s' % stagepath)
     else:
-        stage_number = backend.get_highest_sampled_stage(
-            homepath, return_final=True)
-
-        if isinstance(stage_number, int):
-            stage_number -= 1
-
-        stage_number = str(stage_number)
+        stage_number = stage_handler.highest_sampled_stage(stage_number)
 
         logger.info(
             'Stage results %s do not exist! Loading last completed'
             ' stage %s' % (stagepath, stage_number))
-        stagepath = os.path.join(homepath, 'stage_%s' % stage_number)
+        stagepath = stage_handler.stagepath(stage_number)
 
     if load == 'full':
         to_load = ['params', 'trace']
@@ -1965,10 +1959,11 @@ def load_stage(problem, stage_number=None, load='trace'):
     stage = Stage(path=stagepath, number=stage_number)
 
     if 'trace' in to_load:
-        stage.mtrace = backend.load(stagepath, model=problem.model)
+        stage.mtrace = stage_handler.load_multitrace(
+            stage_number, model=problem.model)
 
     if 'params' in to_load:
-        stage.step, stage.updates = backend.load_sampler_params(
-            project_dir, stage_number, mode)
+        stage.step, stage.updates = stage_handler.load_sampler_params(
+            stage_number)
 
     return stage

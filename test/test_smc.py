@@ -4,25 +4,34 @@ import os
 from beat import smc, utility, backend
 from tempfile import mkdtemp
 import shutil
+import logging
 import theano.tensor as tt
 import multiprocessing as mp
 import unittest
 from pyrocko import util
 
 
+logger = logging.getLogger('test_smc')
+
+
 class TestSMC(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
-        self.test_folder = mkdtemp(prefix='ATMIP_TEST')
-        print 'test in ', self.test_folder
-        self.n_cpu = mp.cpu_count()
 
-    def test_sample(self):
-        n_chains = 300
-        n_steps = 100
-        tune_interval = 25
-        n_jobs = utility.biggest_common_divisor(n_chains, self.n_cpu)
+        self.test_folder_one = mkdtemp(prefix='ATMIP_TEST')
+        self.test_folder_multi = mkdtemp(prefix='ATMIP_TEST')
+
+        logger.info('Test result in: \n %s, \n %s ' % (
+            self.test_folder_one, self.test_folder_multi))
+
+        self.n_cpu = mp.cpu_count()
+        self.n_chains = 300
+        self.n_steps = 100
+        self.tune_interval = 25
+
+    def _test_sample(self, n_jobs, test_folder):
+        logger.info('Running on %i cores...' % n_jobs)
 
         n = 4
 
@@ -38,7 +47,7 @@ class TestSMC(unittest.TestCase):
         w2 = (1 - stdev)
 
         def last_sample(x):
-            return x[(n_steps - 1)::n_steps]
+            return x[(self.n_steps - 1)::self.n_steps]
 
         def two_gaussians(x):
             log_like1 = - 0.5 * n * tt.log(2 * num.pi) \
@@ -61,21 +70,21 @@ class TestSMC(unittest.TestCase):
 
         with ATMIP_test:
             step = smc.SMC(
-                n_chains=n_chains,
-                tune_interval=tune_interval,
+                n_chains=self.n_chains,
+                tune_interval=self.tune_interval,
                 likelihood_name=ATMIP_test.deterministics[0].name)
 
         smc.ATMIP_sample(
-            n_steps=n_steps,
+            n_steps=self.n_steps,
             step=step,
             n_jobs=n_jobs,
-            progressbar=False,
+            progressbar=True,
             stage=0,
-            homepath=self.test_folder,
+            homepath=test_folder,
             model=ATMIP_test,
             rm_flag=False)
 
-        stage_handler = backend.TextStage(self.test_folder)
+        stage_handler = backend.TextStage(test_folder)
 
         mtrace = stage_handler.load_multitrace(-1, model=ATMIP_test)
 
@@ -85,8 +94,18 @@ class TestSMC(unittest.TestCase):
 
         num.testing.assert_allclose(mu1, mu1d, rtol=0., atol=0.03)
 
+    def test_one_core(self):
+        n_jobs = 1
+        self._test_sample(n_jobs, self.test_folder_one)
+
+    def test_multicore(self):
+        n_jobs = utility.biggest_common_divisor(
+            self.n_chains, self.n_cpu)
+        self._test_sample(n_jobs, self.test_folder_multi)
+
     def tearDown(self):
-        shutil.rmtree(self.test_folder)
+        shutil.rmtree(self.test_folder_one)
+        shutil.rmtree(self.test_folder_multi)
 
 if __name__ == '__main__':
     util.setup_logging('test_smc', 'info')

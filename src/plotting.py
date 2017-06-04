@@ -1393,7 +1393,7 @@ def draw_posteriors(problem, plot_options):
     if po.load_stage is not None:
         list_indexes = [po.load_stage]
     else:
-        if stage.number == 'final':
+        if stage.number == -1:
             stage_number = backend.get_highest_sampled_stage(
                 problem.outfolder, return_final=False)
             list_indexes = [
