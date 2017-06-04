@@ -818,8 +818,8 @@ def dump_objects(outpath, outlist):
         of objects to save pickle
     """
 
-    with open(outpath, 'w') as f:
-        pickle.dump(outlist, f)
+    with open(outpath, 'wb') as f:
+        pickle.dump(outlist, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def load_objects(loadpath):

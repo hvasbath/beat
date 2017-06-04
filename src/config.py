@@ -558,9 +558,9 @@ class MetropolisConfig(SamplerParameters):
              ' hyperparameter estimation')
     n_steps = Int.T(default=25000,
                     help='Number of steps for the MC chain.')
-    stage = String.T(default='0',
+    stage = Int.T(default=0,
                   help='Stage where to start/continue the sampling. Has to'
-                       ' be int or "final"')
+                       ' be int, -1 for final stage')
     tune_interval = Int.T(
         default=50,
         help='Tune interval for adaptive tuning of Metropolis step size.')
