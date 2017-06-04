@@ -309,7 +309,7 @@ class TextStage(object):
         -------
         stage number : int
         """
-        return max(self.stage_number(s) for s in glob(self.path('*')))
+        return max(self.stage_number(s) for s in glob(self.stage_path('*')))
 
     def atmip_path(self, stage_number):
         """

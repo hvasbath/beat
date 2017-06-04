@@ -605,9 +605,9 @@ class SMCConfig(SamplerParameters):
              'intermediate stage pdfs;'
              'low - small beta steps (slow cooling),'
              'high - wide beta steps (fast cooling)')
-    stage = String.T(default='0',
+    stage = Int.T(default='0',
                   help='Stage where to start/continue the sampling. Has to'
-                       ' be int or "final"')
+                       ' be int -1 for final stage')
     proposal_dist = String.T(
         default='MultivariateNormal',
         help='Multivariate Normal Proposal distribution, for Metropolis steps'

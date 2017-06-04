@@ -139,7 +139,7 @@ def paripool(function, workpackage, nprocs=None, chunksize=1, timeout=0xFFFF,
 
     if nprocs == 1:
         for work in workpackage:
-            yield function(work)
+            yield [function(*work)]
 
     else:
         pool = multiprocessing.Pool(

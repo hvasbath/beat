@@ -965,8 +965,9 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
         if n_jobs == 1 and progressbar:
             p = tqdm(p, total=len(chains))
 
-        for results in p:
-            pass
+        results = []
+        for res in p:
+            results.extend(res)
 
         # return chain indexes that have been aborted
         aborted_chains = []
