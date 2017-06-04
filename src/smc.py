@@ -35,7 +35,6 @@ from beat import backend, utility, paripool
 from numpy.random import normal, standard_cauchy, standard_exponential, \
     poisson
 
-import traceback
 
 __all__ = [
     'SMC',
@@ -259,8 +258,8 @@ class SMC(backend.ArrayStepSharedLLK):
 
         super(SMC, self).__init__(vars, out_vars, shared)
 
-    def time_per_sample(self):
-        q = self.bij.map(model.test_point)
+    def time_per_sample(self, test_point):
+        q = self.bij.map(test_point)
         t0 = time.time()
         self.logp_forw(q)
         t1 = time.time()
@@ -787,7 +786,7 @@ def ATMIP_sample(n_steps, step=None, start=None, homepath=None, chain=0,
             sample_args = {
                 'draws': draws,
                 'step': step,
-                'stage_path': step.stage_path(step.stage),
+                'stage_path': stage_handler.stage_path(step.stage),
                 'progressbar': progressbar,
                 'model': model,
                 'n_jobs': n_jobs,
@@ -849,7 +848,7 @@ def ATMIP_sample(n_steps, step=None, start=None, homepath=None, chain=0,
         step.chain_previous_lpoint = step.get_chain_previous_lpoint(mtrace)
 
         sample_args['step'] = step
-        sample_args['stage_path'] = step.stage_path(step.stage)
+        sample_args['stage_path'] = stage_handler.stage_path(step.stage)
         sample_args['chains'] = chains
         _iter_parallel_chains(**sample_args)
 
@@ -924,42 +923,58 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
     """
     Do Metropolis sampling over all the chains with each chain being
     sampled 'draws' times. Parallel execution according to n_jobs.
+    If jobs hang for any reason they are being killed after an estimated
+    timeout. The chains in question are being rerun and the estimated timeout
+    is added again.
     """
+    timeout = 0
 
     if chains is None:
         chains = list(range(step.n_chains))
 
-    trace_list = []
+    # while is necessary if any worker times out - rerun in case
+    while len(chains) > 0:
+        trace_list = []
 
-    logger.info('Initialising chain traces ...')
-    for chain in chains:
-        trace_list.append(backend.Text(stage_path, model=model))
+        logger.info('Initialising chain traces ...')
+        for chain in chains:
+            trace_list.append(backend.TextChain(stage_path, model=model))
 
-    max_int = np.iinfo(np.int32).max
-    random_seeds = [randint(max_int) for _ in range(len(chains))]
+        max_int = np.iinfo(np.int32).max
+        random_seeds = [randint(max_int) for _ in range(len(chains))]
 
-    work = [(draws, step, step.population[step.resampling_indexes[chain]],
-        trace, chain, None, False, model, rseed)
-            for chain, rseed, trace in zip(
-                chains, random_seeds, trace_list)]
+        work = [(draws, step, step.population[step.resampling_indexes[chain]],
+            trace, chain, None, False, model, rseed)
+                for chain, rseed, trace in zip(
+                    chains, random_seeds, trace_list)]
 
-    if draws < 10:
-        chunksize = n_jobs
-    else:
-        chunksize = 1
+        if draws < 10:
+            chunksize = n_jobs
+        else:
+            chunksize = 1
 
-    timeout = (draws * step.n_chains ) / n_jobs * step.time_per_sample()
+        timeout += int(np.ceil(
+            (draws * step.n_chains) / \
+            n_jobs * step.time_per_sample(model.test_point)))
 
-    p = paripool.paripool(
-        _sample, work, chunksize=chunksize, timeout=timeout, nprocs=n_jobs)
+        p = paripool.paripool(
+            _sample, work, chunksize=chunksize, timeout=timeout, nprocs=n_jobs)
 
-    logger.info('Sampling ...')
+        logger.info('Sampling ...')
 
-    if n_jobs == 1 and progressbar:
-        p = tqdm(p, total=len(chains))
+        if n_jobs == 1 and progressbar:
+            p = tqdm(p, total=len(chains))
 
-    for results in p:
-        pass
+        for results in p:
+            pass
+
+        # return chain indexes that have been aborted
+        aborted_chains = []
+        for chain in chains:
+            if chain not in results:
+                aborted_chains.append(chain)
+
+        chains = aborted_chains
 
 
 def tune(acc_rate):

@@ -3,7 +3,7 @@ import logging
 import traceback
 import functools
 import signal
-import time
+
 
 logger = logging.getLogger('paripool')
 
@@ -49,7 +49,7 @@ def overseer(timeout):
         def wrapped_f(*args, **kwargs):
             old_handler = signal.signal(signal.SIGALRM, timeout_handler)
             signal.alarm(timeout)
-            
+
             result = func(*args, **kwargs)
 
             # Old signal handler is restored
@@ -57,6 +57,7 @@ def overseer(timeout):
             signal.alarm(0)  # Alarm removed
             return result
 
+        wrapped_f.__name__ = func.__name__
         return wrapped_f
 
     return decorate
@@ -71,7 +72,7 @@ class WatchedWorker(object):
     task : function to execute
     work : List
         of arguments to specified function
-    timeout : float
+    timeout : int
         time [s] after which worker is fired, default 65536s
     """
 
@@ -136,17 +137,16 @@ def paripool(function, workpackage, nprocs=None, chunksize=1, timeout=0xFFFF,
     if chunksize is None:
         chunksize = 1
 
-
     if nprocs == 1:
-        for work_item in work:
-            yield function(work_item)
+        for work in workpackage:
+            yield function(work)
 
     else:
         pool = multiprocessing.Pool(
             processes=nprocs,
             initializer=start_message)
 
-        logger.info('Worker timeout after %f seconds' % timeout)
+        logger.info('Worker timeout after %i second(s)' % timeout)
 
         workers = [
             WatchedWorker(function, work, timeout) for work in workpackage]
@@ -161,3 +161,4 @@ def paripool(function, workpackage, nprocs=None, chunksize=1, timeout=0xFFFF,
             pool.terminate()
         else:
             pool.close()
+            pool.join()

@@ -15,6 +15,7 @@ class TestSMC(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.test_folder = mkdtemp(prefix='ATMIP_TEST')
+        print 'test in ', self.test_folder
         self.n_cpu = mp.cpu_count()
 
     def test_sample(self):
@@ -69,14 +70,14 @@ class TestSMC(unittest.TestCase):
             step=step,
             n_jobs=n_jobs,
             progressbar=False,
-            stage='0',
+            stage=0,
             homepath=self.test_folder,
             model=ATMIP_test,
             rm_flag=False)
 
-        stage_path = os.path.join(self.test_folder, 'stage_final')
+        stage_handler = backend.TextStage(self.test_folder)
 
-        mtrace = backend.load(stage_path, model=ATMIP_test)
+        mtrace = stage_handler.load_multitrace(-1, model=ATMIP_test)
 
         d = mtrace.get_values('X', combine=True, squeeze=True)
         x = last_sample(d)

@@ -289,7 +289,7 @@ class TextStage(object):
         self.base_dir = base_dir
         self.project_dir = os.path.dirname(base_dir)
         self.mode = os.path.basename(base_dir)
-        util.ensuredir(self.basedir)
+        util.ensuredir(self.base_dir)
 
     def stage_path(self, stage):
         return os.path.join(self.base_dir, 'stage_{}'.format(stage))
@@ -374,10 +374,11 @@ class TextStage(object):
         A :class:`pymc3.backend.base.MultiTrace` instance
         """
         dirname = self.stage_path(stage)
-        files = glob(os.path.join(dirname, 'chain_*.csv'))
+        logger.info('Loading multitrace from %s' % dirname)
+        files = glob(os.path.join(dirname, 'chain-*.csv'))
         straces = []
         for f in files:
-            chain = int(os.path.basename(f).split('_')[-1].split('.')[0])
+            chain = int(os.path.splitext(f)[0].rsplit('-', 1)[1])
             strace = TextChain(dirname, model=model)
             strace.chain = chain
             strace.filename = f
