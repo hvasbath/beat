@@ -258,12 +258,15 @@ class SMC(backend.ArrayStepSharedLLK):
 
         super(SMC, self).__init__(vars, out_vars, shared)
 
-    def time_per_sample(self, test_point):
-        q = self.bij.map(test_point)
-        t0 = time.time()
-        self.logp_forw(q)
-        t1 = time.time()
-        return t1 - t0
+    def time_per_sample(self, n_points):
+        tps = np.zeros((n_points))
+        for i in range(n_points):
+            q = self.bij.map(self.population[i])
+            t0 = time.time()
+            self.logp_forw(q)
+            t1 = time.time()
+            tps[i] = t1 - t0
+        return tps.mean()
 
     def astep(self, q0):
         if self.stage == 0:
@@ -944,13 +947,14 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
                 for chain, rseed, trace in zip(
                     chains, random_seeds, trace_list)]
 
-        if draws < 10:
+        tps = step.time_per_sample(10)
+
+        if draws < 10 or tps < 1.:
             chunksize = n_jobs
         else:
             chunksize = 1
 
-        timeout += int(np.ceil(
-            draws * step.time_per_sample(step.population[0]) * 3.))
+        timeout += int(np.ceil(tps) * draws)
 
         p = paripool.paripool(
             _sample, work, chunksize=chunksize, timeout=timeout, nprocs=n_jobs)

@@ -151,7 +151,7 @@ def paripool(function, workpackage, nprocs=None, chunksize=1, timeout=0xFFFF,
         workers = [
             WatchedWorker(function, work, timeout) for work in workpackage]
 
-        pool_timeout = int(timeout * len(workpackage) / (nprocs * 0.3))
+        pool_timeout = int(len(workpackage) * timeout / nprocs)
 
         logger.info('Overseer timeout after %i second(s)' % pool_timeout)
 
