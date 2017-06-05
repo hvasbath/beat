@@ -151,10 +151,17 @@ def paripool(function, workpackage, nprocs=None, chunksize=1, timeout=0xFFFF,
         workers = [
             WatchedWorker(function, work, timeout) for work in workpackage]
 
+        pool_timeout = int(timeout * len(workpackage) / (nprocs * 0.3))
+
+        logger.info('Overseer timeout after %i second(s)' % pool_timeout)
+
         try:
             yield pool.map_async(
                 _pay_worker, workers,
-                chunksize=chunksize, callback=callback).get()
+                chunksize=chunksize, callback=callback).get(pool_timeout)
+        except multiprocessing.TimeoutError:
+            logger.error('Overseer fell asleep. Fire everyone!')
+            pool.terminate()
         except KeyboardInterrupt:
             logger.error('Got Ctrl + C')
             traceback.print_exc()

@@ -630,9 +630,13 @@ class SamplerConfig(Object):
     Config for the sampler specific parameters.
     """
 
-    name = String.T(default='SMC',
-                    help='Sampler to use for sampling the solution space.'
-                         'Metropolis/ SMC')
+    name = String.T(
+        default='SMC',
+        help='Sampler to use for sampling the solution space.'
+             ' Metropolis/ SMC')
+    progressbar = Bool.T(
+        default=True,
+        help='Display progressbar(s) during sampling.')
     parameters = SamplerParameters.T(
         default=SMCConfig.D(),
         optional=True,

@@ -1748,7 +1748,7 @@ def sample(step, problem):
             n_steps=pa.n_steps,
             stage=pa.stage,
             step=step,
-            progressbar=True,
+            progressbar=sc.progressbar,
             trace=problem.outfolder,
             burn=pa.burn,
             thin=pa.thin,
@@ -1763,7 +1763,7 @@ def sample(step, problem):
         smc.ATMIP_sample(
             pa.n_steps,
             step=step,
-            progressbar=False,
+            progressbar=sc.progressbar,
             model=problem.model,
             n_jobs=pa.n_jobs,
             stage=pa.stage,

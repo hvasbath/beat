@@ -576,21 +576,20 @@ def init_stage(stage_handler, step, stage, model, n_jobs=1,
     """
     Examine starting point of sampling, reload stages and initialise steps.
     """
-
-    if stage == 0:
-        # continue or start initial stage
-        step.stage = stage
-        draws = 1
-    else:
-        step, updates = stage_handler.load_sampler_params(stage)
-        draws = step.n_steps
-
-        if update is not None:
-            update.apply(updates)
-
-    stage_handler.clean_directory(stage, None, rm_flag)
-
     with model:
+        if stage == 0:
+            # continue or start initial stage
+            step.stage = stage
+            draws = 1
+        else:
+            step, updates = stage_handler.load_sampler_params(stage)
+            draws = step.n_steps
+
+            if update is not None:
+                update.apply(updates)
+
+        stage_handler.clean_directory(stage, None, rm_flag)
+
         chains = stage_handler.recover_existing_results(stage, draws, step)
 
         if chains is not None:
@@ -755,9 +754,6 @@ def ATMIP_sample(n_steps, step=None, start=None, homepath=None, chain=0,
                             'as defined in `step`.' % step.likelihood_name)
 
     stage_handler = backend.TextStage(homepath)
-
-    if progressbar and n_jobs > 1:
-        progressbar = False
 
     chains, step, update = init_stage(
         stage_handler=stage_handler,
@@ -954,15 +950,14 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
             chunksize = 1
 
         timeout += int(np.ceil(
-            (draws * step.n_chains) / \
-            n_jobs * step.time_per_sample(model.test_point)))
+            draws * step.time_per_sample(step.population[0]) * 3.))
 
         p = paripool.paripool(
             _sample, work, chunksize=chunksize, timeout=timeout, nprocs=n_jobs)
 
         logger.info('Sampling ...')
 
-        if n_jobs == 1 and progressbar:
+        if progressbar:
             p = tqdm(p, total=len(chains))
 
         results = []
@@ -974,6 +969,12 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
         for chain in chains:
             if chain not in results:
                 aborted_chains.append(chain)
+
+        n_resample = len(aborted_chains)
+
+        if n_resample > 0:
+            logger.warning('%i Chains not finished sampling,'
+                ' restarting ...' % n_resample)
 
         chains = aborted_chains
 
