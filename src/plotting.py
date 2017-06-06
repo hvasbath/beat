@@ -804,9 +804,12 @@ def seismic_fits(problem, stage, plot_options):
 
     po = plot_options
 
-    point = get_result_point(stage, problem.config, po.post_llk)
+    if po.reference is None:
+        point = get_result_point(stage, problem.config, po.post_llk)
+    else:
+        point = po.reference
 
-    gcms = point['seis_like']
+    # gcms = point['seis_like']
     # gcm_max = d['like']
 
     results = composite.assemble_results(point)
@@ -1059,7 +1062,7 @@ def seismic_fits(problem, stage, plot_options):
                 azi = source.azibazi_to(target)[0]
                 infos.append(str_dist(dist))
                 infos.append(u'%.0f\u00B0' % azi)
-                infos.append('%.3f' % gcms[itarget])
+                #infos.append('%.3f' % gcms[itarget])
                 axes2.annotate(
                     '\n'.join(infos),
                     xy=(0., 1.),
@@ -1092,10 +1095,15 @@ def draw_seismic_fits(problem, po):
 
     mode = problem.config.problem_config.mode
 
+    if po.reference is None:
+        llk_str = po.post_llk
+    else:
+        llk_str = 'ref'
+
     outpath = os.path.join(
         problem.config.project_dir,
         mode, po.figure_dir, 'waveforms_%s_%s.%s' % (
-            stage.number, po.post_llk, po.outformat))
+            stage.number, llk_str, po.outformat))
 
     if not os.path.exists(outpath) or po.force:
         figs = seismic_fits(problem, stage, po)
