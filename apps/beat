@@ -396,6 +396,8 @@ def command_import(args):
 
 def command_clone(args):
 
+    command_str = 'clone'
+
     def setup(parser):
 
         parser.add_option('--main_path', dest='main_path', type='string',
@@ -420,7 +422,7 @@ def command_clone(args):
             help='If set, the imported data will be copied into the cloned'
                  ' directory.')
 
-    parser, options, args = cl_parse('clone', args, setup=setup)
+    parser, options, args = cl_parse(command_str, args, setup=setup)
 
     if not len(args) == 2:
         parser.print_help()
@@ -428,8 +430,9 @@ def command_clone(args):
 
     name, cloned_name = args
 
-    project_dir = os.path.join(options.main_path, name)
-    cloned_dir = os.path.join(options.main_path, cloned_name)
+    project_dir = get_project_directory(
+        args, options, nargs_dict[command_str])
+    cloned_dir = os.path.join(os.path.dirname(project_dir), cloned_name)
 
     util.ensuredir(cloned_dir)
 

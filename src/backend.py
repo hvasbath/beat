@@ -374,47 +374,7 @@ class TextStage(object):
         A :class:`pymc3.backend.base.MultiTrace` instance
         """
         dirname = self.stage_path(stage)
-        logger.info('Loading multitrace from %s' % dirname)
-        files = glob(os.path.join(dirname, 'chain-*.csv'))
-        straces = []
-        for f in files:
-            chain = int(os.path.splitext(f)[0].rsplit('-', 1)[1])
-            strace = TextChain(dirname, model=model)
-            strace.chain = chain
-            strace.filename = f
-            straces.append(strace)
-        return base.MultiTrace(straces)
-
-    def check_multitrace(self, mtrace, draws, n_chains):
-        """
-        Check multitrace for incomplete sampling and return indexes from chains
-        that need to be resampled.
-
-        Parameters
-        ----------
-        mtrace : :class:`pymc3.backend.base.MultiTrace`
-            Multitrace object containing the sampling traces
-        draws : int
-            Number of steps (i.e. chain length for each Markov Chain)
-        n_chains : int
-            Number of Markov Chains
-        Returns
-        -------
-        list of indexes for chains that need to be resampled
-        """
-        not_sampled_idx = []
-        for chain in range(n_chains):
-            if chain in mtrace.chains:
-                if len(mtrace._straces[chain]) != draws:
-                    logger.warn('Trace number %i incomplete' % chain)
-                    mtrace._straces[chain].corrupted_flag = True
-            else:
-                not_sampled_idx.append(chain)
-
-        flag_bool = [
-            mtrace._straces[chain].corrupted_flag for chain in mtrace.chains]
-        corrupted_idx = [i for i, x in enumerate(flag_bool) if x]
-        return corrupted_idx + not_sampled_idx
+        return load_multitrace(dirname=dirname, model=model)
 
     def recover_existing_results(self, stage, draws, step, model=None):
         stage_path = self.stage_path(stage)
@@ -425,11 +385,70 @@ class TextStage(object):
             if len(mtrace) > 0:
                 # continue sampling if traces exist
                 logger.info('Checking for corrupted files ...')
-                return self.check_multitrace(
+                return check_multitrace(
                     mtrace, draws=draws, n_chains=step.n_chains)
 
         logger.info('Init new trace!')
         return None
+
+
+def load_multitrace(dirname, model=None):
+    """
+    Load TextChain database.
+
+    Parameters
+    ----------
+    dirname : str
+        Name of directory with files (one per chain)
+    model : Model
+        If None, the model is taken from the `with` context.
+    Returns
+    -------
+    A :class:`pymc3.backend.base.MultiTrace` instance
+    """
+
+    logger.info('Loading multitrace from %s' % dirname)
+    files = glob(os.path.join(dirname, 'chain-*.csv'))
+    straces = []
+    for f in files:
+        chain = int(os.path.splitext(f)[0].rsplit('-', 1)[1])
+        strace = TextChain(dirname, model=model)
+        strace.chain = chain
+        strace.filename = f
+        straces.append(strace)
+    return base.MultiTrace(straces)
+
+
+def check_multitrace(mtrace, draws, n_chains):
+    """
+    Check multitrace for incomplete sampling and return indexes from chains
+    that need to be resampled.
+
+    Parameters
+    ----------
+    mtrace : :class:`pymc3.backend.base.MultiTrace`
+        Multitrace object containing the sampling traces
+    draws : int
+        Number of steps (i.e. chain length for each Markov Chain)
+    n_chains : int
+        Number of Markov Chains
+    Returns
+    -------
+    list of indexes for chains that need to be resampled
+    """
+    not_sampled_idx = []
+    for chain in range(n_chains):
+        if chain in mtrace.chains:
+            if len(mtrace._straces[chain]) != draws:
+                logger.warn('Trace number %i incomplete' % chain)
+                mtrace._straces[chain].corrupted_flag = True
+        else:
+            not_sampled_idx.append(chain)
+
+    flag_bool = [
+        mtrace._straces[chain].corrupted_flag for chain in mtrace.chains]
+    corrupted_idx = [i for i, x in enumerate(flag_bool) if x]
+    return corrupted_idx + not_sampled_idx
 
 
 def get_highest_sampled_stage(homedir, return_final=False):

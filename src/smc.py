@@ -599,7 +599,7 @@ def init_stage(stage_handler, step, stage, model, n_jobs=1,
             rest = len(chains) % n_jobs
             if rest > 0.:
                 logger.info('Fixing %i chains ...' % rest)
-                rest_chains = utility.split_off_list(chains, rest)
+                chains, rest_chains = chains[:-rest]; chains[-rest:]
                 # process traces that are not a multiple of n_jobs
                 sample_args = {
                     'draws': draws,
@@ -949,8 +949,9 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
 
         tps = step.time_per_sample(10)
 
-        if draws < 10 or tps < 1.:
+        if draws < 10:
             chunksize = n_jobs
+            tps += 3.
         else:
             chunksize = 1
 
@@ -968,17 +969,18 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
         for res in p:
             results.extend(res)
 
-        # return chain indexes that have been aborted
         aborted_chains = []
-        for chain in chains:
-            if chain not in results:
-                aborted_chains.append(chain)
+        if None in results or len(results) == 0:
+            # return chain indexes that have been aborted
+            mtrace = backend.load_multitrace(dirname=stage_path, model=model)
+            aborted_chains = backend.check_multitrace(
+                mtrace, draws=draws, n_chains=step.n_chains)
 
-        n_resample = len(aborted_chains)
+            n_resample = len(aborted_chains)
 
-        if n_resample > 0:
-            logger.warning('%i Chains not finished sampling,'
-                ' restarting ...' % n_resample)
+            if n_resample > 0:
+                logger.warning('%i Chains not finished sampling,'
+                    ' restarting ...' % n_resample)
 
         chains = aborted_chains
 

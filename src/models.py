@@ -1047,7 +1047,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
         for wc, wmap in zip(sc.waveforms, self.wavemaps):
 
-            for channel in enumerate(wmap.channels):
+            for channel in wmap.channels:
                 datasets = wmap.get_datasets([channel])
                 weights = wmap.get_weights([channel])
 
