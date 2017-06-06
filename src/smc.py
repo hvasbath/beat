@@ -655,7 +655,7 @@ def update_last_samples(homepath, step,
 
     step.stage = tmp_stage
 
-    return backend.load(trans_stage_path, model)
+    return backend.load_multitrace(trans_stage_path, model)
 
 
 def ATMIP_sample(n_steps, step=None, start=None, homepath=None, chain=0,

@@ -1954,10 +1954,11 @@ class Stage(object):
         else:
             to_load = [load]
 
-        if 'trace' in to_load:
-            self.mtrace = self.handler.load_multitrace(
-                stage_number, model=model)
+        with model:
+            if 'trace' in to_load:
+                self.mtrace = self.handler.load_multitrace(
+                    stage_number, model=model)
 
-        if 'params' in to_load:
-            self.step, self.updates = self.handler.load_sampler_params(
+            if 'params' in to_load:
+                self.step, self.updates = self.handler.load_sampler_params(
                 stage_number)
