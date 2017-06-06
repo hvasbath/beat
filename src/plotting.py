@@ -8,7 +8,7 @@ import logging
 import copy
 
 from beat import utility, backend
-from beat.models import load_stage
+from beat.models import Stage
 from beat.metropolis import get_trace_stats
 from beat.heart import init_seismic_targets, init_geodetic_targets
 from beat.colormap import slip_colormap
@@ -109,8 +109,8 @@ class PlotOptions(Object):
         default=36,
         optional=True,
         help='Only relevant if plot_projection is "utm"')
-    load_stage = String.T(
-        default='final',
+    load_stage = Int.T(
+        default=-1,
         help='Which stage to select for plotting')
     figure_dir = String.T(
         default='figures',
@@ -738,7 +738,9 @@ def draw_geodetic_fits(problem, plot_options):
 
     po = plot_options
 
-    stage = load_stage(problem, stage_number=po.load_stage, load='full')
+    stage = Stage(homepath=problem.outfolder)
+    stage.load_results(
+        model=problem.model, stage_number=po.load_stage, load='full')
 
     mode = problem.config.problem_config.mode
 
@@ -1084,7 +1086,9 @@ def draw_seismic_fits(problem, po):
     if 'seismic' not in problem.composites.keys():
         raise Exception('No seismic composite defined for this problem!')
 
-    stage = load_stage(problem, stage_number=po.load_stage, load='full')
+    stage = Stage(homepath=problem.outfolder)
+    stage.load_results(
+        model=problem.model, stage_number=po.load_stage, load='full')
 
     mode = problem.config.problem_config.mode
 
@@ -1387,20 +1391,18 @@ def draw_posteriors(problem, plot_options):
     hypers = utility.check_hyper_flag(problem)
     po = plot_options
 
-    stage = load_stage(problem, stage_number=po.load_stage, load='trace')
+    stage = Stage(homepath=problem.outfolder)
+
     pc = problem.config.problem_config
 
     if po.load_stage is not None:
         list_indexes = [po.load_stage]
     else:
         if stage.number == -1:
-            stage_number = backend.get_highest_sampled_stage(
-                problem.outfolder, return_final=False)
-            list_indexes = [
-                str(i) for i in range(stage_number + 1)] + ['final']
+            stage_number = stage.handler.highest_sampled_stage()
+            list_indexes = [i for i in range(-1, stage_number + 1)]
         else:
-            list_indexes = [
-                str(i) for i in range(int(stage.number) + 1)]
+            list_indexes = [i for i in range(stage.number + 1)]
 
     if hypers:
         sc = problem.config.hyper_sampler_config
@@ -1412,36 +1414,35 @@ def draw_posteriors(problem, plot_options):
     figs = []
 
     for s in list_indexes:
-        if s == '0':
+        if s == 0:
             draws = 1
-        elif s == 'final' and not hypers and sc.name == 'Metropolis':
+        elif s == -1 and not hypers and sc.name == 'Metropolis':
             draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
         else:
             draws = sc.parameters.n_steps
 
         transform = select_transform(sc=sc, n_steps=draws)
 
-        stage_path = os.path.join(
-            problem.outfolder, 'stage_%s' % s)
-
         outpath = os.path.join(
             problem.outfolder,
             po.figure_dir,
-            'stage_%s_%s.%s' % (s, po.post_llk, po.outformat))
+            'stage_%i_%s.%s' % (s, po.post_llk, po.outformat))
 
         if not os.path.exists(outpath) or po.force:
-            logger.info('plotting stage: %s' % stage_path)
-            mtrace = backend.load(stage_path, model=problem.model)
+            logger.info('plotting stage: %s' % stage.handler.stage_path(s))
+            stage.load_results(
+                model=problem.model, stage_number=s, load='trace')
 
             if sc.name == 'Metropolis' and po.post_llk != 'all':
-                chains = select_metropolis_chains(problem, mtrace, po.post_llk)
+                chains = select_metropolis_chains(
+                    problem, stage.mtrace, po.post_llk)
                 logger.info('plotting result: %s of Metropolis chain %i' % (
                     po.post_llk, chains))
             else:
                 chains = None
 
             fig, _, _ = traceplot(
-                mtrace,
+                stage.mtrace,
                 varnames=varnames,
                 transform=transform,
                 chains=chains,
@@ -1495,7 +1496,9 @@ def draw_correlation_hist(problem, plot_options):
 
     transform = select_transform(sc=sc, n_steps=draws)
 
-    stage = load_stage(problem, po.load_stage, load='trace')
+    stage = Stage(homepath=problem.outfolder)
+    stage.load_results(
+        model=problem.model, stage_number=po.load_stage, load='trace')
 
     if sc.name == 'Metropolis' and po.post_llk != 'all':
         chains = select_metropolis_chains(problem, stage.mtrace, po.post_llk)

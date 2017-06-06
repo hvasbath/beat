@@ -328,7 +328,10 @@ class TextStage(object):
             of stage number or -1 for last stage
         """
         if stage_number == -1:
-            prev = self.highest_sampled_stage()
+            if not os.path.exists(self.atmip_path(stage_number)):
+                prev = self.highest_sampled_stage()
+            else:
+                prev = stage_number
         else:
             prev = stage_number - 1
 

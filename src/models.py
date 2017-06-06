@@ -1905,65 +1905,59 @@ class Stage(object):
     Stage, containing sampling results and intermediate sampler
     parameters.
     """
+    number = None
+    path = None
+    step = None
+    updates = None
+    mtrace = None
 
-    def __init__(self, number=-1, path='./', step=None, updates=None,
-                 mtrace=None):
-        self.number = number
-        self.path = path
-        self.step = step
-        self.updates = updates
-        self.mtrace = mtrace
+    def __init__(self, handler=None, homepath=None, stage_number=-1):
 
+        if handler is not None:
+            self.handler = handler
+        elif handler is None and homepath is not None:
+            self.handler = backend.TextStage(homepath)
+        else:
+            raise TypeError('Either handler or homepath have to be not None')
 
-def load_stage(problem, stage_number=None, load='trace'):
-    """
-    Load stage results from sampling.
+        self.number = stage_number
 
-    Parameters
-    ----------
-    problem : :class:`Problem`
-    stage_number : int
-        Number of stage to load
-    load : str
-        what to load and return 'full', 'trace', 'params'
+    def load_results(self, model=None, stage_number=None, load='trace'):
+        """
+        Load stage results from sampling.
 
-    Returns
-    -------
-    dict
-    """
+        Parameters
+        ----------
+        model : :class:`pymc3.model.Model`
+        stage_number : int
+            Number of stage to load
+        load : str
+            what to load and return 'full', 'trace', 'params'
+        """
+        if stage_number is None:
+            stage_number = self.number
 
-    project_dir = problem.config.project_dir
-    mode = problem.config.problem_config.mode
+        self.path = self.handler.stage_path(stage_number)
 
-    if stage_number is None:
-        stage_number = 'final'
+        if not os.path.exists(self.path):
+            stage_number = self.handler.highest_sampled_stage()
 
-    stage_handler = backend.TextStage(problem.outfolder)
-    stagepath = stage_handler.stagepath(stage_number)
+            logger.info(
+                'Stage results %s do not exist! Loading last completed'
+                ' stage %s' % (self.path, stage_number))
+            self.path = self.handler.stage_path(stage_number)
 
-    if os.path.exists(stagepath):
-        logger.info('Loading sampling results from: %s' % stagepath)
-    else:
-        stage_number = stage_handler.highest_sampled_stage(stage_number)
+        self.number = stage_number
 
-        logger.info(
-            'Stage results %s do not exist! Loading last completed'
-            ' stage %s' % (stagepath, stage_number))
-        stagepath = stage_handler.stagepath(stage_number)
+        if load == 'full':
+            to_load = ['params', 'trace']
+        else:
+            to_load = [load]
 
-    if load == 'full':
-        to_load = ['params', 'trace']
-    else:
-        to_load = [load]
+        if 'trace' in to_load:
+            self.mtrace = self.handler.load_multitrace(
+                stage_number, model=model)
 
-    stage = Stage(path=stagepath, number=stage_number)
-
-    if 'trace' in to_load:
-        stage.mtrace = stage_handler.load_multitrace(
-            stage_number, model=problem.model)
-
-    if 'params' in to_load:
-        stage.step, stage.updates = stage_handler.load_sampler_params(
-            stage_number)
-
-    return stage
+        if 'params' in to_load:
+            self.step, self.updates = self.handler.load_sampler_params(
+                stage_number)
