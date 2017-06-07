@@ -15,6 +15,7 @@ Various significant updates July, August 2016
 import numpy as np
 from numpy.random import seed, randint
 
+import multiprocessing as mp
 import pymc3 as pm
 from tqdm import tqdm
 
@@ -599,7 +600,7 @@ def init_stage(stage_handler, step, stage, model, n_jobs=1,
             rest = len(chains) % n_jobs
             if rest > 0.:
                 logger.info('Fixing %i chains ...' % rest)
-                chains, rest_chains = chains[:-rest]; chains[-rest:]
+                chains, rest_chains = chains[:-rest], chains[-rest:]
                 # process traces that are not a multiple of n_jobs
                 sample_args = {
                     'draws': draws,
@@ -863,14 +864,26 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
                             tune, model, random_seed)
 
     if progressbar:
-        sampling = tqdm(sampling, total=draws)
+        try:
+            current = mp.current_process()
+            n = current._identity[0]
+        except IndexError:
+            # in case of only one used core ...
+            n = 1
 
+        sampling = tqdm(
+            sampling,
+            total=draws,
+            desc='chain: %i worker %i' % (chain, n),
+            position=n,
+            leave=False,
+            ncols=65)
     try:
         for strace in sampling:
             pass
 
     except KeyboardInterrupt:
-        pass
+        raise
 
     return chain
 
@@ -943,7 +956,7 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
         random_seeds = [randint(max_int) for _ in range(len(chains))]
 
         work = [(draws, step, step.population[step.resampling_indexes[chain]],
-            trace, chain, None, False, model, rseed)
+            trace, chain, None, progressbar, model, rseed)
                 for chain, rseed, trace in zip(
                     chains, random_seeds, trace_list)]
 
@@ -963,9 +976,6 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
             _sample, work, chunksize=chunksize, timeout=timeout, nprocs=n_jobs)
 
         logger.info('Sampling ...')
-
-        if progressbar:
-            p = tqdm(p, total=len(chains))
 
         results = []
         for res in p:

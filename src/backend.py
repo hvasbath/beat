@@ -385,7 +385,7 @@ class TextStage(object):
             # load incomplete stage results
             logger.info('Reloading existing results ...')
             mtrace = self.load_multitrace(stage, model=model)
-            if len(mtrace) > 0:
+            if len(mtrace.chains):
                 # continue sampling if traces exist
                 logger.info('Checking for corrupted files ...')
                 return check_multitrace(
