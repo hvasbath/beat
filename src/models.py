@@ -36,7 +36,9 @@ __all__ = ['GeometryOptimizer', 'DistributionOptimizer',
 def multivariate_normal(datasets, weights, hyperparams, residuals):
     """
     Calculate posterior Likelihood of a Multivariate Normal distribution.
-    Can only be executed in a `with model context`
+    Uses plain inverse of the covariances.
+    DEPRECATED! Is currently not being used in beat.
+    Can only be executed in a `with model context`.
 
     Parameters
     ----------
@@ -68,6 +70,51 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
             (M * 2 * hyperparams[hp_name]) + \
             (1 / tt.exp(hyperparams[hp_name] * 2)) * \
             (residuals[l].dot(weights[l]).dot(residuals[l].T))
+                     )
+                                 )
+
+    return logpts
+
+
+def multivariate_normal_chol(datasets, weights, hyperparams, residuals):
+    """
+    Calculate posterior Likelihood of a Multivariate Normal distribution.
+    Assumes weights to be the inverse cholesky decomposed lower triangle
+    of the Covariance matrix.
+    Can only be executed in a `with model context`.
+
+    Parameters
+    ----------
+    datasets : list
+        of :class:`heart.SeismicDataset` or :class:`heart.GeodeticDataset`
+    weights : list
+        of :class:`theano.shared`
+        Square matrix of the inverse of the lower triangular matrix of a 
+        cholesky decomposed covariance matrix
+    hyperparams : dict
+        of :class:`theano.`
+    residual : list or array of model residuals
+
+    Returns
+    -------
+    array_like
+    """
+    n_t = len(datasets)
+
+    logpts = tt.zeros((n_t), tconfig.floatX)
+
+    for l, data in enumerate(datasets):
+        M = tt.cast(shared(data.samples, borrow=True), 'int16')
+        hp_name = '_'.join(('h', data.typ))
+        factor = shared(
+            data.covariance.log_norm_factor, borrow=True)
+        tmp = weights[l].dot(residuals[l])
+
+        logpts = tt.set_subtensor(logpts[l:l + 1],
+            (-0.5) * (factor + \
+            (M * 2 * hyperparams[hp_name]) + \
+            (1 / tt.exp(hyperparams[hp_name] * 2)) * \
+            (tt.dot(tmp, tmp))
                      )
                                  )
 
@@ -306,9 +353,9 @@ class GeodeticComposite(Composite):
         """
         results = self.assemble_results(point)
         for l, result in enumerate(results):
-            icov = self.datasets[l].covariance.inverse
-            llk = num.array(result.processed_res.dot(
-                icov).dot(result.processed_res.T)).flatten()
+            choli = self.datasets[l].covariance.chol_inverse
+            tmp = choli.dot(result.processed_res)
+            llk = num.dot(tmp, tmp)
             self._llks[l].set_value(llk)
 
 
@@ -456,7 +503,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         if self.config.fit_plane:
             residuals = self.remove_ramps(residuals)
 
-        logpts = multivariate_normal(
+        logpts = multivariate_normal_chol(
             self.datasets, self.weights, hyperparams, residuals)
 
         llk = pm.Deterministic(self._like_name, logpts)
@@ -541,8 +588,8 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
             cov_pv = utility.ensure_cov_psd(cov_pv)
 
             data.covariance.pred_v = cov_pv
-            icov = data.covariance.inverse
-            self.weights[i].set_value(icov)
+            choli = data.covariance.chol_inverse
+            self.weights[i].set_value(choli)
 
 
 class GeodeticInterseismicComposite(GeodeticSourceComposite):
@@ -850,9 +897,9 @@ class SeismicComposite(Composite):
         """
         results = self.assemble_results(point)
         for k, result in enumerate(results):
-            icov = self.datasets[k].covariance.inverse
-            _llk = num.array(result.processed_res.ydata.dot(
-                icov).dot(result.processed_res.ydata.T)).flatten()
+            choli = self.datasets[k].covariance.chol_inverse
+            tmp = choli.dot(result.processed_res)
+            _llk = num.dot(tmp, tmp)
             self._llks[k].set_value(_llk)
 
 
@@ -985,7 +1032,7 @@ class SeismicGeometryComposite(SeismicComposite):
             data_trcs = self.choppers[wmap.name](tmins)
             residuals = data_trcs - synths
 
-            logpts = multivariate_normal(
+            logpts = multivariate_normal_chol(
                 wmap.datasets, wmap.weights, hyperparams, residuals)
 
             wlogpts.append(logpts)
@@ -1081,10 +1128,10 @@ class SeismicGeometryComposite(SeismicComposite):
                     dataset.covariance.pred_v = cov_pv
 
                     t0 = time.time()
-                    icov = dataset.covariance.inverse
+                    choli = dataset.covariance.chol_inverse
                     t1 = time.time()
-                    logger.debug('Calculate inverse time %f' % (t1 - t0))
-                    weight.set_value(icov)
+                    logger.debug('Calculate weight time %f' % (t1 - t0))
+                    weight.set_value(choli)
 
 
 class GeodeticDistributerComposite(GeodeticComposite):
@@ -1187,7 +1234,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
         if self.config.fit_plane:
             residuals = self.remove_ramps(residuals)
 
-        logpts = multivariate_normal(
+        logpts = multivariate_normal_chol(
             self.datasets, self.weights, hyperparams, residuals)
 
         llk = pm.Deterministic(self._like_name, logpts)

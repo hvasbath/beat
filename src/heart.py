@@ -14,6 +14,7 @@ from beat import psgrn, pscmp, utility, qseis2d
 
 from theano import config as tconfig
 import numpy as num
+from scipy import linalg
 
 from pyrocko.guts import Object, String, Float, Int, Tuple, List
 from pyrocko.guts_array import Array
@@ -348,7 +349,7 @@ def log_determinant(A, inverse=False):
     float logarithm of the determinant of the input Matrix A
     """
 
-    cholesky = num.linalg.cholesky(A)
+    cholesky = linalg.cholesky(A, lower=True)
     if inverse:
         cholesky = num.linalg.inv(cholesky)
     return num.log(num.diag(cholesky)).sum()
@@ -400,8 +401,7 @@ class Covariance(Object):
         """
         Cx = self.p_total + self.data
         if Cx.sum() == 0:
-            logger.debug('No covariances given, using I matrix!')
-            return num.eye(Cx.shape[0]).astype(tconfig.floatX)
+            raise ValueError('No covariances given!')
         else:
             return num.linalg.inv(Cx).astype(tconfig.floatX)
 
@@ -411,7 +411,7 @@ class Covariance(Object):
         Add and invert different MODEL uncertainty covariance Matrices.
         """
         if self.p_total.sum() == 0:
-            raise Exception('No model covariance defined!')
+            raise ValueError('No model covariance defined!')
         return num.linalg.inv(self.p_total).astype(tconfig.floatX)
 
     @property
@@ -424,6 +424,25 @@ class Covariance(Object):
         return num.linalg.inv(self.data).astype(tconfig.floatX)
 
     @property
+    def chol(self):
+        """
+        Cholesky decomposition of ALL uncertainty covariance matrices.
+        """
+        Cx = self.p_total + self.data
+        if Cx.sum() == 0:
+            raise ValueError('No covariances given!')
+        else:
+            return linalg.cholesky(Cx, lower=True).astype(tconfig.floatX)
+
+    @property
+    def chol_inverse(self):
+        """
+        Inverse of Cholesky decomposition of ALL uncertainty covariance
+        matrices. To be used as weight in the optimization.
+        """
+        return num.linalg.inv(self.chol).astype(tconfig.floatX)
+
+    @property
     def log_norm_factor(self):
         """
         Calculate the normalisation factor of the posterior pdf.
@@ -431,15 +450,7 @@ class Covariance(Object):
         """
 
         N = self.data.shape[0]
-
-        if self.p_total.any():
-            ldet_x = log_determinant(self.data + self.p_total)
-        elif self.data.any():
-            ldet_x = log_determinant(self.data)
-        else:
-            logger.debug('No covariance defined, using I matrix!')
-            ldet_x = 1.
-
+        ldet_x = num.log(num.diag(self.chol)).sum()
         return utility.scalar2floatX((N * num.log(2 * num.pi)) + ldet_x)
 
 
