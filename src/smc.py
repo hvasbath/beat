@@ -970,7 +970,7 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
         else:
             chunksize = 1
 
-        timeout += int(np.ceil(tps) * draws)
+        timeout += int(np.ceil(tps * draws))
 
         p = paripool.paripool(
             _sample, work, chunksize=chunksize, timeout=timeout, nprocs=n_jobs)
