@@ -1,11 +1,12 @@
 import multiprocessing
-import logging
+from logging import getLogger
 import traceback
-import functools
+from functools import wraps
 import signal
+from itertools import count
 
 
-logger = logging.getLogger('paripool')
+logger = getLogger('paripool')
 
 
 def exception_tracer(func):
@@ -13,7 +14,7 @@ def exception_tracer(func):
     Function decorator that returns a traceback if an Error is raised in
     a child process of a pool.
     """
-    @functools.wraps(func)
+    @wraps(func)
     def wrapped_func(*args, **kwargs):
         try:
             return func(*args, **kwargs)
@@ -45,7 +46,7 @@ def overseer(timeout):
         def timeout_handler(signum, frame):
             raise TimeoutException(traceback.format_stack())
 
-        @functools.wraps(func)
+        @wraps(func)
         def wrapped_f(*args, **kwargs):
             old_handler = signal.signal(signal.SIGALRM, timeout_handler)
             signal.alarm(timeout)
@@ -169,3 +170,5 @@ def paripool(function, workpackage, nprocs=None, chunksize=1, timeout=0xFFFF,
         else:
             pool.close()
             pool.join()
+            # reset process counter for tqdm progressbar
+            multiprocessing.process._current_process._counter = count(1)
