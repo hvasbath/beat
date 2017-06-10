@@ -15,7 +15,7 @@ from pyrocko import plot, orthodrome
 km = 1000.
 
 
-class TestUtility(unittest.TestCase):
+class TestInterseismic(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)

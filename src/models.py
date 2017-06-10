@@ -822,25 +822,21 @@ class SeismicComposite(Composite):
         tmins = [tr.tmin for tr in syn_proc_traces]
 
         obs_proc_traces = []
-        ats = []
+
         tstart = 0
         tend = 0
-        trcs_ats = []
+
         for wc, wmap in zip(sc.waveforms, self.wavemaps):
-            at = copy.deepcopy(wc.arrival_taper)
             tend += wmap.n_t
 
             obs_proc_traces.extend(heart.taper_filter_traces(
                 wmap.datasets,
-                arrival_taper=at,
+                arrival_taper=wc.arrival_taper,
                 filterer=wc.filterer,
                 tmins=tmins[tstart:tend],
                 outmode='traces'))
 
             tstart += wmap.n_t
-            ats.append(at)
-            trcs_ats.extend([at] * wmap.n_t)
-            wc.arrival_taper = None
 
         syn_filt_traces = self.get_synthetics(point, outmode='data')
 
@@ -854,7 +850,7 @@ class SeismicComposite(Composite):
             wc.arrival_taper = ats[i]
 
         factor = 2.
-        for i, (trs, tro) in enumerate(zip(syn_filt_traces, obs_filt_traces)):
+!        for i, (trs, tro) in enumerate(zip(syn_filt_traces, obs_filt_traces)):
             at = trcs_ats[i]
 
             trs.chop(tmin=tmins[i] - factor * at.fade,
@@ -1417,7 +1413,7 @@ class Problem(object):
                     input_rvs, fixed_rvs, self.hyperparams)
 
             like = pm.Deterministic(self._like_name, total_llk)
-            llk = pm.Potential(self._like_name, like)
+            llk = pm.Potential(self._like_name + 'p', like)
             logger.info('Model building was successful!')
 
     def built_hyper_model(self):
@@ -1447,7 +1443,7 @@ class Problem(object):
                 total_llk += composite.get_hyper_formula(self.hyperparams)
 
             like = pm.Deterministic(self._like_name, total_llk)
-            llk = pm.Potential(self._like_name, like)
+            llk = pm.Potential(self._like_name + 'p', like)
             logger.info('Hyper model building was successful!')
 
     def get_random_point(self):

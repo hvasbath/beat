@@ -2488,6 +2488,32 @@ class DataWaveformCollection(object):
             channels=channels)
 
 
+def post_process_trace(trace, taper, filterer, outmode=None):
+    """
+    Taper, filter and then chop one trace in place.
+
+    Parameters
+    ----------
+    trace : :class:`SeismicDataset`
+    arrival_taper : :class:`pyrocko.trace.Taper`
+    filterer : :class:`Filterer`
+    """
+
+    if taper is not None and outmode != 'data':
+        trace.extend(taper.a, taper.d, fillmethod='repeat')
+        trace.taper(taper, inplace=True)
+
+    if filterer is not None:
+        # filter traces
+        trace.bandpass(
+            corner_hp=filterer.lower_corner,
+            corner_lp=filterer.upper_corner,
+            order=filterer.order)
+
+    if taper is not None and outmode != 'data':
+        trace.chop(tmin=taper.a, tmax=taper.d)
+
+
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     wavename='any_P', filterer=None, reference_taperer=None,
                     plot=False, nprocs=1, outmode='array',
@@ -2570,18 +2596,11 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
     for i, (source, target, tr) in enumerate(response.iter_results()):
         ti = taper_index[i]
-        if arrival_taper is not None and outmode != 'data':
-            tr.extend(taperers[ti].a, taperers[ti].d, fillmethod='repeat')
-            tr.taper(taperers[ti], inplace=True)
-
-        if filterer is not None:
-            # filter traces
-            tr.bandpass(corner_hp=filterer.lower_corner,
-                    corner_lp=filterer.upper_corner,
-                    order=filterer.order)
-
-        if arrival_taper is not None and outmode != 'data':
-            tr.chop(tmin=taperers[ti].a, tmax=taperers[ti].d)
+        post_process_trace(
+            trace=tr,
+            taper=taperers[ti],
+            filterer=filterer,
+            outmode=outmode)
 
         sapp(tr)
 
@@ -2590,16 +2609,10 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     if plot:
         trace.snuffle(synt_trcs)
 
-    t2 = time()
-    tmins = num.vstack([tr.tmin for tr in synt_trcs]).flatten()
-    t3 = time()
-    #logger.debug('Assemble tmins time %f' % (t3 - t2))
+    tmins = num.array([tr.tmin for tr in synt_trcs])
 
     if arrival_taper is not None and outmode != 'data':
-        t4 = time()
         synths = num.vstack([tr.ydata for tr in synt_trcs])
-        t5 = time()
-        #logger.debug('Assemble traces time %f' % (t5 - t4))
 
         # stack traces for all sources
         t6 = time()
@@ -2736,34 +2749,29 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
     """
 
     cut_traces = []
-
+    ctpp = cut_traces.append
     for i, tr in enumerate(data_traces):
         cut_trace = tr.copy()
+
         if arrival_taper is not None:
-            taperer = trace.CosTaper(
+            taper = trace.CosTaper(
                 float(tmins[i]),
                 float(tmins[i] - arrival_taper.b),
                 float(tmins[i] - arrival_taper.a + arrival_taper.c),
                 float(tmins[i] - arrival_taper.a + arrival_taper.d))
+        else:
+            taper = None
 
-            # taper and cut traces
-            logger.debug('Extending and tapering data...')
-            cut_trace.extend(taperer.a, taperer.d, fillmethod='repeat')
-            cut_trace.taper(taperer, inplace=True)
+        post_process_trace(
+            trace=cut_trace,
+            taper=taper,
+            filterer=filterer,
+            outmode=outmode)
 
-        if filterer is not None:
-            # filter traces
-            cut_trace.bandpass(corner_hp=filterer.lower_corner,
-                               corner_lp=filterer.upper_corner,
-                               order=filterer.order)
+        ctpp(cut_trace)
 
-        if arrival_taper is not None and chop:
-            cut_trace.chop(tmin=taperer.a, tmax=taperer.d)
-
-        cut_traces.append(cut_trace)
-
-        if plot:
-            trace.snuffle(cut_traces)
+    if plot:
+        trace.snuffle(cut_traces)
 
     if outmode == 'array':
         if arrival_taper is not None:

@@ -1090,13 +1090,13 @@ def draw_seismic_fits(problem, po):
         raise Exception('No seismic composite defined for this problem!')
 
     stage = Stage(homepath=problem.outfolder)
-    stage.load_results(
-        model=problem.model, stage_number=po.load_stage, load='full')
 
     mode = problem.config.problem_config.mode
 
     if po.reference is None:
         llk_str = po.post_llk
+        stage.load_results(
+            model=problem.model, stage_number=po.load_stage, load='full')
     else:
         llk_str = 'ref'
 

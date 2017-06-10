@@ -1,0 +1,190 @@
+--- !beat.BEATconfig
+name: FullMT
+date: dummy
+event: !pf.Event
+  lat: 29.07
+  lon: 34.73
+  time: 1995-11-22 04:15:26.200000
+  name: 112295A
+  depth: 10400.0
+  magnitude: 7.20583885303153
+  region: ARAB REPUBLIC OF EGYPT
+  catalog: gCMT
+  moment_tensor: !pf.MomentTensor
+    mnn: -3.255e+19
+    mee: 4.616e+19
+    mdd: -1.361e+19
+    mne: 4.493e+19
+    mnd: 3.887e+19
+    med: -9.1e+17
+    strike1: 294.0906468639183
+    dip1: 77.25911284933075
+    rake1: -148.53160420242887
+    strike2: 196.40325577565235
+    dip2: 59.391141732003796
+    rake2: -14.84748226776409
+    moment: 7.223676349339025e+19
+    magnitude: 7.20583885303153
+  duration: 22.0
+project_dir: ./FullMT
+problem_config: !beat.ProblemConfig
+  mode: geometry
+  source_type: MTSource
+  stf_type: HalfSinusoid
+  n_sources: 1
+  datatypes: [seismic]
+  hyperparameters:
+    h_any_P: !beat.heart.Parameter
+      name: h_any_P
+      form: Uniform
+      lower: [-1.0]
+      upper: [6.0]
+      testvalue: [2.5]
+  priors:
+    depth: !beat.heart.Parameter
+      name: depth
+      form: Uniform
+      lower: [0.0]
+      upper: [15.0]
+      testvalue: [8.0]
+    duration: !beat.heart.Parameter
+      name: duration
+      form: Uniform
+      lower: [0.0]
+      upper: [10.0]
+      testvalue: [5.0]
+    east_shift: !beat.heart.Parameter
+      name: east_shift
+      form: Uniform
+      lower: [-10.0]
+      upper: [30.0]
+      testvalue: [10.0]
+    mdd: !beat.heart.Parameter
+      name: mdd
+      form: Uniform
+      lower: [-1.4142135623730951]
+      upper: [1.4142135623730951]
+      testvalue: [-0.08682409]
+    med: !beat.heart.Parameter
+      name: med
+      form: Uniform
+      lower: [-1.0]
+      upper: [1.0]
+      testvalue: [-0.25767963]
+    mee: !beat.heart.Parameter
+      name: mee
+      form: Uniform
+      lower: [-1.4142135623730951]
+      upper: [1.4142135623730951]
+      testvalue: [-0.75868967]
+    mnd: !beat.heart.Parameter
+      name: mnd
+      form: Uniform
+      lower: [-1.0]
+      upper: [1.0]
+      testvalue: [0.14554675]
+    mne: !beat.heart.Parameter
+      name: mne
+      form: Uniform
+      lower: [-1.0]
+      upper: [1.0]
+      testvalue: [0.51322155]
+    mnn: !beat.heart.Parameter
+      name: mnn
+      form: Uniform
+      lower: [-1.4142135623730951]
+      upper: [1.4142135623730951]
+      testvalue: [0.84551376]
+    moment: !beat.heart.Parameter
+      name: magnitude
+      form: Uniform
+      lower: [4.5]
+      upper: [5.1]
+      testvalue: [4.8]
+    north_shift: !beat.heart.Parameter
+      name: north_shift
+      form: Uniform
+      lower: [0.0]
+      upper: [40.0]
+      testvalue: [20.0]
+    time: !beat.heart.Parameter
+      name: time
+      form: Uniform
+      lower: [-6.0]
+      upper: [4.0]
+      testvalue: [-2.5]
+seismic_config: !beat.SeismicConfig
+  datadir: ./
+  blacklist: []
+  calc_data_cov: false
+  pre_stack_cut: false
+  waveforms:
+  - !beat.WaveformFitConfig
+    name: any_P
+    channels: [Z, R, T]
+    filterer: !beat.heart.Filter
+      lower_corner: 0.01
+      upper_corner: 0.1
+      order: 3
+    distances: [0.0, 9.0]
+    interpolation: multilinear
+    arrival_taper: !beat.heart.ArrivalTaper
+      a: -20.0
+      b: -10.0
+      c: 180.0
+      d: 210.0
+  gf_config: !beat.SeismicGFConfig
+    store_superdir: /tmp/GFs/FullMT/
+    n_variations: [0, 1]
+    error_depth: 0.1
+    error_velocities: 0.1
+    depth_limit_variation: 600.0
+    earth_model_name: ak135-f-average.m
+    use_crust2: false
+    replace_water: false
+    custom_velocity_model: |2
+          0.             5.51           3.1            2.6         1264.           600.
+          7.2            5.51           3.1            2.6         1264.           600.
+          7.2            6.23           3.6            2.8         1283.           600.
+         21.64           6.23           3.6            2.8         1283.           600.
+      mantle
+         21.64           7.95           4.45           3.2         1449.           600.
+    source_depth_min: 0.0
+    source_depth_max: 15.0
+    source_depth_spacing: 1.0
+    source_distance_radius: 1000.0
+    source_distance_spacing: 1.0
+    nworkers: 10
+    reference_location: !beat.heart.ReferenceLocation
+      lat: 29.07
+      lon: 34.73
+      depth: 0.0
+      station: AqabaMT
+    code: qseis
+    sample_rate: 1.0
+    rm_gfs: true
+sampler_config: !beat.SamplerConfig
+  name: SMC
+  parameters: !beat.SMCConfig
+    n_chains: 1000
+    n_steps: 100
+    n_jobs: 1
+    tune_interval: 10
+    coef_variation: 1.0
+    stage: '0'
+    proposal_dist: MultivariateNormal
+    check_bnd: true
+    update_covariances: false
+    rm_flag: true
+hyper_sampler_config: !beat.SamplerConfig
+  name: Metropolis
+  parameters: !beat.MetropolisConfig
+    n_jobs: 1
+    n_stages: 10
+    n_steps: 25000
+    stage: '0'
+    tune_interval: 50
+    proposal_dist: Normal
+    thin: 2
+    burn: 0.5
+    rm_flag: false
