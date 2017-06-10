@@ -3,13 +3,14 @@ from beat import heart
 
 from tempfile import mkdtemp
 import os
+import logging
 import shutil
-import unittest
 
 from pyrocko import util
 from pyrocko import plot, orthodrome
 
 
+logger = logging.getLogger('test_heart')
 km = 1000.
 
 
@@ -31,5 +32,8 @@ class TestHeart(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
-        self.work_dir = get_run_directory()
+        self.beat_dir = get_run_directory()
 
+if __name__ == "__main__":
+    util.setup_logging('test_heart', 'debug')
+    unittest.main()

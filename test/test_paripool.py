@@ -34,5 +34,5 @@ class ParipoolTestCase(unittest.TestCase):
                 assert val == rval
 
 if __name__ == "__main__":
-    util.setup_logging('test_fast_sweeping', 'debug')
+    util.setup_logging('test_paripool', 'debug')
     unittest.main()
