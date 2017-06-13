@@ -30,7 +30,7 @@ km = 1000.
 logger = logging.getLogger('models')
 
 __all__ = ['GeometryOptimizer', 'DistributionOptimizer',
-           'sample', 'load_model', 'load_stage']
+           'sample', 'load_model']
 
 
 def multivariate_normal(datasets, weights, hyperparams, residuals):
@@ -89,7 +89,7 @@ def multivariate_normal_chol(datasets, weights, hyperparams, residuals):
         of :class:`heart.SeismicDataset` or :class:`heart.GeodeticDataset`
     weights : list
         of :class:`theano.shared`
-        Square matrix of the inverse of the lower triangular matrix of a 
+        Square matrix of the inverse of the lower triangular matrix of a
         cholesky decomposed covariance matrix
     hyperparams : dict
         of :class:`theano.`
@@ -817,41 +817,25 @@ class SeismicComposite(Composite):
         sc = self.config
         logger.debug('Assembling seismic waveforms ...')
 
-        syn_proc_traces = self.get_synthetics(point, outmode='stacked_traces')
+        self.point2sources(point)
 
-        tmins = [tr.tmin for tr in syn_proc_traces]
+        sc = self.config
 
-        obs_proc_traces = []
+        syn_proc_traces, obs_proc_traces = self.get_synthetics(
+            point, outmode='stacked_traces')
 
-        tstart = 0
-        tend = 0
-
-        for wc, wmap in zip(sc.waveforms, self.wavemaps):
-            tend += wmap.n_t
-
-            obs_proc_traces.extend(heart.taper_filter_traces(
-                wmap.datasets,
-                arrival_taper=wc.arrival_taper,
-                filterer=wc.filterer,
-                tmins=tmins[tstart:tend],
-                outmode='traces'))
-
-            tstart += wmap.n_t
-
-        syn_filt_traces = self.get_synthetics(point, outmode='data')
+        syn_filt_traces, obs_filt_traces = self.get_synthetics(
+            point, outmode='data')
 
         obs_filt_traces = []
-        for i, wmap in enumerate(self.wavemaps):
-            obs_filt_traces.extend(heart.taper_filter_traces(
-                wmap.datasets,
-                filterer=wc.filterer,
-                outmode='traces'))
+        ats = []
+        for wc, wmap in enumerate(sc.waveforms, self.wavemaps):
+            ats.extend(wmap.n_t * [wc.arrival_taper])
 
-            wc.arrival_taper = ats[i]
-
+        tmins = [tr.tmin for tr in obs_proc_traces]
         factor = 2.
-!        for i, (trs, tro) in enumerate(zip(syn_filt_traces, obs_filt_traces)):
-            at = trcs_ats[i]
+        for i, (trs, tro) in enumerate(zip(syn_filt_traces, obs_filt_traces)):
+            at = ats[i]
 
             trs.chop(tmin=tmins[i] - factor * at.fade,
                      tmax=tmins[i] + factor * at.fade + at.duration)
@@ -859,12 +843,12 @@ class SeismicComposite(Composite):
                      tmax=tmins[i] + factor * at.fade + at.duration)
 
         results = []
-        for i, obstr in enumerate(obs_proc_traces):
-            dtrace = obstr.copy()
+        for i, obs_tr in enumerate(obs_proc_traces):
+            dtrace = obs_tr.copy()
             dtrace.set_ydata(
-                (obstr.get_ydata() - syn_proc_traces[i].get_ydata()))
+                (obs_tr.get_ydata() - syn_proc_traces[i].get_ydata()))
 
-            at = trcs_ats[i]
+            at = ats[i]
             taper = trace.CosTaper(
                 tmins[i],
                 tmins[i] + at.fade,
@@ -872,7 +856,7 @@ class SeismicComposite(Composite):
                 tmins[i] + at.duration)
 
             results.append(heart.SeismicResult(
-                    processed_obs=obstr,
+                    processed_obs=obs_tr,
                     processed_syn=syn_proc_traces[i],
                     processed_res=dtrace,
                     filtered_obs=obs_filt_traces[i],
@@ -1060,8 +1044,9 @@ class SeismicGeometryComposite(SeismicComposite):
 
         sc = self.config
         synths = []
+        obs = []
         for wc, wmap in zip(sc.waveforms, self.wavemaps):
-            synthetics, _ = heart.seis_synthetics(
+            synthetics, tmins = heart.seis_synthetics(
                 engine=self.engine,
                 sources=self.sources,
                 targets=wmap.targets,
@@ -1072,7 +1057,14 @@ class SeismicGeometryComposite(SeismicComposite):
                 **kwargs)
             synths.extend(synthetics)
 
-        return synths
+            obs.extend(heart.taper_filter_traces(
+                wmap.datasets,
+                arrival_taper=wc.arrival_taper,
+                filterer=wc.filterer,
+                tmins=tmins,
+                **kwargs))
+
+        return synths, obs
 
     def update_weights(self, point, n_jobs=1, plot=False):
         """
@@ -1412,8 +1404,11 @@ class Problem(object):
                 total_llk += composite.get_formula(
                     input_rvs, fixed_rvs, self.hyperparams)
 
-            like = pm.Deterministic(self._like_name, total_llk)
-            llk = pm.Potential(self._like_name + 'p', like)
+            # deterministic RV to write out llks to file
+            like = pm.Deterministic('tmp', total_llk)
+
+            # will overwrite deterministic name ...
+            llk = pm.Potential(self._like_name, like)
             logger.info('Model building was successful!')
 
     def built_hyper_model(self):
@@ -1442,8 +1437,8 @@ class Problem(object):
             for composite in self.composites.itervalues():
                 total_llk += composite.get_hyper_formula(self.hyperparams)
 
-            like = pm.Deterministic(self._like_name, total_llk)
-            llk = pm.Potential(self._like_name + 'p', like)
+            like = pm.Deterministic('tmp', total_llk)
+            llk = pm.Potential(self._like_name, like)
             logger.info('Hyper model building was successful!')
 
     def get_random_point(self):

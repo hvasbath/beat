@@ -2739,7 +2739,8 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
         containing the start times [s] since 1st.January 1970 to start
         tapering
     outmode : str
-        defines the output structure, options: "traces", "array"
+        defines the output structure, options: "stacked_traces", "array",
+        "data"
 
     Returns
     -------
@@ -2780,7 +2781,7 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
                 [cut_traces[i].ydata for i in range(len(data_traces))])
         else:
             raise IOError('Cannot return array without tapering!')
-    if outmode == 'traces':
+    if outmode == 'stacked_traces' or outmode == 'data':
         return cut_traces
 
 
