@@ -829,7 +829,7 @@ class SeismicComposite(Composite):
 
         obs_filt_traces = []
         ats = []
-        for wc, wmap in enumerate(sc.waveforms, self.wavemaps):
+        for wc, wmap in zip(sc.waveforms, self.wavemaps):
             ats.extend(wmap.n_t * [wc.arrival_taper])
 
         tmins = [tr.tmin for tr in obs_proc_traces]
