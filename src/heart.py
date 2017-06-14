@@ -36,7 +36,7 @@ c = 299792458.  # [m/s]
 km = 1000.
 d2r = num.pi / 180.
 r2d = 180. / num.pi
-near_field_threshold = 9.  # [deg]
+near_field_threshold = 9.  # [deg] below that surface waves are calculated
 
 lambda_sensors = {
     'Envisat': 0.056,       # needs updating- no ressource file
@@ -1422,8 +1422,7 @@ def get_slowness_taper(fomosto_config, velocity_model, distances):
 
     fc = fomosto_config
 
-    phases = [fc.tabulated_phases[i].phases
-        for i in range(len(fc.tabulated_phases))]
+    phases = [phase.phases for phase in fc.tabulated_phases]
 
     all_phases = []
     map(all_phases.extend, phases)
@@ -1495,7 +1494,7 @@ def get_fomosto_baseconfig(
             definition='s,S,s\\,S\\'))
 
     # surface waves
-    if distance_min * cake.m2d < near_field_threshold:
+    if 'slowest' in waveforms:
         tabulated_phases.append(gf.TPDef(
             id='slowest',
             definition='0.8'))
@@ -1526,7 +1525,7 @@ backend_builders = {
 
 
 def choose_backend(
-    fomosto_config, code, source_model, receiver_model, distances,
+    fomosto_config, code, source_model, receiver_model,
     gf_directory='qseis2d_green'):
     """
     Get backend related config.
@@ -1534,6 +1533,15 @@ def choose_backend(
 
     fc = fomosto_config
     receiver_basement_depth = 150 * km
+
+    distances = num.array([fc.distance_min, fc.distance_max]) * cake.m2d
+    slowness_taper = get_slowness_taper(fc, source_model, distances)
+
+    waveforms = [phase.id for phase in fc.tabulated_phases]
+
+    if 'slowest' in waveforms and code != 'qseis':
+        raise TypeError(
+            'For near-field phases the "qseis" backend has to be used!')
 
     if code == 'qseis':
         # find common basement layer
@@ -1543,17 +1551,14 @@ def choose_backend(
         receiver_model.append(l)
 
         version = '2006a'
-        distances = num.array([fc.distance_min, fc.distance_max]) * cake.m2d
 
-        # if maximum distances are farther than regional distance
-        if distances.max() > near_field_threshold:
-            slowness_taper = get_slowness_taper(fc, source_model, distances)
-            sw_algorithm = 1
-            sw_flat_earth_transform = 1
-        else:
+        if 'slowest' in waveforms:
             slowness_taper = (0., 0., 0., 0.)
             sw_algorithm = 0
             sw_flat_earth_transform = 0
+        else:
+            sw_algorithm = 1
+            sw_flat_earth_transform = 1
 
         conf = qseis.QSeisConfig(
             filter_shallow_paths=0,
@@ -1567,8 +1572,6 @@ def choose_backend(
         source_model = copy.deepcopy(receiver_model)
         receiver_model = None
         version = '2010'
-        distances = num.array([fc.distance_min, fc.distance_max]) * cake.m2d
-        slowness_taper = get_slowness_taper(fc, source_model, distances)
 
         conf = qssp.QSSPConfig(
             qssp_version=version,
@@ -1580,7 +1583,6 @@ def choose_backend(
 
     elif code == 'qseis2d':
         version = '2014'
-        slowness_taper = get_slowness_taper(fc, source_model, distances)
 
         conf = qseis2d.QSeis2dConfig()
         conf.qseis_s_config.slowness_window = slowness_taper
@@ -1607,8 +1609,8 @@ def choose_backend(
     fc.modelling_code_id = code + '.' + version
 
     window_extension = 60.   # [s]
-    tps = fc.tabulated_phases
-    pids = ['stored:' + tp.id for tp in tps]
+
+    pids = ['stored:' + wave for wave in waveforms]
 
     conf.time_region = (
         gf.Timing(
@@ -1696,7 +1698,7 @@ def seis_construct_gf(
 
             conf = choose_backend(
                 fomosto_config, sf.code, source_model, receiver_model,
-                seismic_config.distances, gf_directory)
+                gf_directory)
 
             fomosto_config.validate()
             conf.validate()

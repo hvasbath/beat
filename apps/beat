@@ -202,7 +202,7 @@ def command_init(args):
         parser.add_option('--waveforms', type='string',
             action='callback', callback=list_callback,
             default=['any_P', 'any_S'],
-            help='Waveforms to include in the setup; "any_P, any_S".')
+            help='Waveforms to include in the setup; "any_P, any_S, slowest".')
 
         parser.add_option('--sampler', dest='sampler', type='string',
             default='SMC',

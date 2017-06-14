@@ -310,6 +310,9 @@ class WaveformFitConfig(Object):
     Config for specific parameters that are applied to post-process
     a specific type of waveform and calculate the misfit.
     """
+    include = Bool.T(
+        default=True,
+        help='Flag to include waveform into optimization.')
     name = String.T('any_P')
     channels = List.T(String.T(), default=['Z'])
     filterer = Filter.T(default=Filter.D())

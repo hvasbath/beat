@@ -709,61 +709,66 @@ class SeismicComposite(Composite):
 
         self.wavemaps = []
         for wc in sc.waveforms:
-            wmap = datahandler.get_waveform_mapping(
-                wc.name, channels=wc.channels)
+            if wc.include:
+                wmap = datahandler.get_waveform_mapping(
+                    wc.name, channels=wc.channels)
+                wmap.config = wc
 
-            wmap.station_distance_weeding(event, wc.distances)
-            wmap.update_interpolation(wc.interpolation)
+                wmap.station_distance_weeding(event, wc.distances)
+                wmap.update_interpolation(wc.interpolation)
 
-            logger.info('Number of seismic datasets for %s: %i ' % (
-                wmap.name, wmap.n_data))
+                logger.info('Number of seismic datasets for %s: %i ' % (
+                    wmap.name, wmap.n_data))
 
-            if sc.calc_data_cov:
-                logger.info(
-                    'Estimating seismic data-covariances '
-                    'for %s ...\n' % wmap.name)
+                if sc.calc_data_cov:
+                    logger.info(
+                        'Estimating seismic data-covariances '
+                        'for %s ...\n' % wmap.name)
 
-                cov_ds_seismic = cov.seismic_data_covariance(
-                    data_traces=wmap.datasets,
-                    filterer=wc.filterer,
-                    sample_rate=sc.gf_config.sample_rate,
-                    arrival_taper=wc.arrival_taper,
-                    engine=self.engine,
-                    event=self.event,
-                    targets=wmap.targets)
+                    cov_ds_seismic = cov.seismic_data_covariance(
+                        data_traces=wmap.datasets,
+                        filterer=wc.filterer,
+                        sample_rate=sc.gf_config.sample_rate,
+                        arrival_taper=wc.arrival_taper,
+                        engine=self.engine,
+                        event=self.event,
+                        targets=wmap.targets)
+                else:
+                    logger.info('No data-covariance estimation, using imported'
+                                ' covariances...\n')
+
+                    cov_ds_seismic = []
+                    at = wc.arrival_taper
+                    n_samples = int(num.ceil(
+                        at.duration * sc.gf_config.sample_rate))
+
+                    for trc in wmap.datasets:
+                        if trc.covariance is None:
+                            logger.warn(
+                                'No data covariance given/estimated! '
+                                'Setting default: eye')
+                            cov_ds_seismic.append(num.eye(n_samples))
+                        else:
+                            data_cov = trc.covariance.data
+                            if data_cov.shape[0] != n_samples:
+                                raise ValueError(
+                                    'Imported covariance %i does not agree '
+                                    ' with taper duration %i!' % (
+                                        data_cov.shape[0], n_samples))
+                            cov_ds_seismic.append(data_cov)
+
+                weights = []
+                for t, trc in enumerate(wmap.datasets):
+                    trc.covariance = heart.Covariance(data=cov_ds_seismic[t])
+                    icov = trc.covariance.inverse
+                    weights.append(shared(icov, borrow=True))
+
+                wmap.add_weights(weights)
+
+                self.wavemaps.append(wmap)
             else:
-                logger.info('No data-covariance estimation, using imported'
-                            ' covariances...\n')
-
-                cov_ds_seismic = []
-                at = wc.arrival_taper
-                n_samples = int(num.ceil(
-                    at.duration * sc.gf_config.sample_rate))
-
-                for trc in wmap.datasets:
-                    if trc.covariance is None:
-                        logger.warn(
-                            'No data covariance given/estimated! '
-                            'Setting default: eye')
-                        cov_ds_seismic.append(num.eye(n_samples))
-                    else:
-                        data_cov = trc.covariance.data
-                        if data_cov.shape[0] != n_samples:
-                            raise ValueError(
-                                'Imported covariance %i does not agree '
-                                ' with taper duration %i!' % (
-                                    data_cov.shape[0], n_samples))
-                        cov_ds_seismic.append(data_cov)
-
-            weights = []
-            for t, trc in enumerate(wmap.datasets):
-                trc.covariance = heart.Covariance(data=cov_ds_seismic[t])
-                icov = trc.covariance.inverse
-                weights.append(shared(icov, borrow=True))
-
-            wmap.add_weights(weights)
-
-            self.wavemaps.append(wmap)
+                logger.info('The waveform defined in "%s" config is not '
+                    'included in the optimization!' % wc.name)
 
         super(SeismicComposite, self).__init__(hypers=hypers)
 
@@ -819,8 +824,6 @@ class SeismicComposite(Composite):
 
         self.point2sources(point)
 
-        sc = self.config
-
         syn_proc_traces, obs_proc_traces = self.get_synthetics(
             point, outmode='stacked_traces')
 
@@ -828,7 +831,8 @@ class SeismicComposite(Composite):
             point, outmode='data')
 
         ats = []
-        for wc, wmap in zip(sc.waveforms, self.wavemaps):
+        for wmap in self.wavemaps:
+            wc = wmap.config
             ats.extend(wmap.n_t * [wc.arrival_taper])
 
         tmins = [tr.tmin for tr in obs_proc_traces]
@@ -910,7 +914,9 @@ class SeismicGeometryComposite(SeismicComposite):
 
         # syntetics generation
         logger.debug('Initialising synthetics functions ... \n')
-        for wc, wmap in zip(sc.waveforms, self.wavemaps):
+        for wmap in self.wavemaps:
+            wc = wmap.config
+
             self.synthesizers[wc.name] = theanof.SeisSynthesizer(
                 engine=self.engine,
                 sources=self.sources,
@@ -1042,7 +1048,9 @@ class SeismicGeometryComposite(SeismicComposite):
         sc = self.config
         synths = []
         obs = []
-        for wc, wmap in zip(sc.waveforms, self.wavemaps):
+        for wmap in self.wavemaps:
+            wc = wmap.config
+
             synthetics, tmins = heart.seis_synthetics(
                 engine=self.engine,
                 sources=self.sources,
@@ -1077,7 +1085,8 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.point2sources(point)
 
-        for wc, wmap in zip(sc.waveforms, self.wavemaps):
+        for wmap in self.wavemaps:
+            wc = wmap.config
 
             for channel in wmap.channels:
                 datasets = wmap.get_datasets([channel])
