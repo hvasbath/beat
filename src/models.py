@@ -836,11 +836,12 @@ class SeismicComposite(Composite):
         factor = 2.
         for i, (trs, tro) in enumerate(zip(syn_filt_traces, obs_filt_traces)):
             at = ats[i]
+            tol = factor * at.fadein
 
-            trs.chop(tmin=tmins[i] - factor * at.fade,
-                     tmax=tmins[i] + factor * at.fade + at.duration)
-            tro.chop(tmin=tmins[i] - factor * at.fade,
-                     tmax=tmins[i] + factor * at.fade + at.duration)
+            trs.chop(tmin=tmins[i] - tol,
+                     tmax=tmins[i] + tol + at.duration)
+            tro.chop(tmin=tmins[i] - tol,
+                     tmax=tmins[i] + tol + at.duration)
 
         results = []
         for i, obs_tr in enumerate(obs_proc_traces):
@@ -849,11 +850,8 @@ class SeismicComposite(Composite):
                 (obs_tr.get_ydata() - syn_proc_traces[i].get_ydata()))
 
             at = ats[i]
-            taper = trace.CosTaper(
-                tmins[i],
-                tmins[i] + at.fade,
-                tmins[i] + at.duration - at.fade,
-                tmins[i] + at.duration)
+            taper = at.get_pyrocko_taper(
+                float(tmins[i] + num.abs(at.a)))
 
             results.append(heart.SeismicResult(
                     processed_obs=obs_tr,

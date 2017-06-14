@@ -26,7 +26,7 @@ event: !pf.Event
     moment: 7.223676349339025e+19
     magnitude: 7.20583885303153
   duration: 22.0
-project_dir: ./FullMT
+project_dir: /home/vasyurhm/Software/Seismosoft/beat/data/examples/FullMT
 problem_config: !beat.ProblemConfig
   mode: geometry
   source_type: MTSource

@@ -473,8 +473,34 @@ class ArrivalTaper(trace.Taper):
         return num.abs(self.a) + self.d
 
     @property
-    def fade(self):
-        return num.abs(self.a - self.b)
+    def fadein(self):
+        return self.b - self.a
+
+    @property
+    def fadeout(self):
+        return self.d - self.c
+
+    def get_pyrocko_taper(self, arrival_time):
+        """
+        Get pyrocko CosTaper object that may be applied to trace operations.
+
+        Parameters
+        ----------
+        arrival_time : float
+            [s] of the reference time around which the taper will be applied
+
+        Returns
+        -------
+        :class:`pyrocko.trace.CosTaper`
+        """
+        if not self.a < self.b < self.c < self.d:
+            raise ValueError('Taper values violate: a < b < c < d')
+
+        return trace.CosTaper(
+            arrival_time + self.a,
+            arrival_time + self.b,
+            arrival_time + self.c,
+            arrival_time + self.d)
 
 
 class Trace(Object):
@@ -2240,11 +2266,7 @@ def get_phase_taperer(engine, source, wavename, target, arrival_taper):
     arrival_time = get_phase_arrival_time(
         engine=engine, source=source, target=target, wavename=wavename)
 
-    return trace.CosTaper(
-        float(arrival_time + arrival_taper.a),
-        float(arrival_time + arrival_taper.b),
-        float(arrival_time + arrival_taper.c),
-        float(arrival_time + arrival_taper.d))
+    return arrival_taper.get_pyrocko_taper(float(arrival_time))
 
 
 class WaveformMapping(object):
@@ -2505,6 +2527,7 @@ def post_process_trace(trace, taper, filterer, outmode=None):
 
     if filterer is not None:
         # filter traces
+
         trace.bandpass(
             corner_hp=filterer.lower_corner,
             corner_lp=filterer.upper_corner,
@@ -2596,6 +2619,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
     for i, (source, target, tr) in enumerate(response.iter_results()):
         ti = taper_index[i]
+
         post_process_trace(
             trace=tr,
             taper=taperers[ti],
@@ -2608,8 +2632,6 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     logger.debug('Post-process time %f' % (t1 - t0))
     if plot:
         trace.snuffle(synt_trcs)
-
-    tmins = num.array([tr.tmin for tr in synt_trcs])
 
     if arrival_taper is not None and outmode != 'data':
         synths = num.vstack([tr.ydata for tr in synt_trcs])
@@ -2624,6 +2646,12 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
             outstack = synths
         t7 = time()
         logger.debug('Stack traces time %f' % (t7 - t6))
+
+        # get taper times for tapering data as well
+        tmins = num.array([at.a for at in taperers])
+    else:
+        # no taper defined so return trace tmins
+        tmins = num.array([tr.tmin for tr in synt_trcs])
 
     if outmode == 'stacked_traces':
         if arrival_taper is not None:
@@ -2753,13 +2781,12 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
     ctpp = cut_traces.append
     for i, tr in enumerate(data_traces):
         cut_trace = tr.copy()
+        tr.location = 'orig'
+        cut_trace.location = 'copy'
 
         if arrival_taper is not None:
-            taper = trace.CosTaper(
-                float(tmins[i]),
-                float(tmins[i] - arrival_taper.b),
-                float(tmins[i] - arrival_taper.a + arrival_taper.c),
-                float(tmins[i] - arrival_taper.a + arrival_taper.d))
+            taper = arrival_taper.get_pyrocko_taper(
+                float(tmins[i] + num.abs(arrival_taper.a)))
         else:
             taper = None
 
@@ -2772,7 +2799,7 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
         ctpp(cut_trace)
 
     if plot:
-        trace.snuffle(cut_traces)
+        trace.snuffle(cut_traces + data_traces)
 
     if outmode == 'array':
         if arrival_taper is not None:

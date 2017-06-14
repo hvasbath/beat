@@ -1,13 +1,14 @@
 import unittest
 from beat import heart, models
 
+import numpy as num
 from numpy.testing import assert_allclose
 from tempfile import mkdtemp
 import os
 import logging
 import shutil
 
-from pyrocko import util
+from pyrocko import util, trace
 from pyrocko import plot, orthodrome
 
 
@@ -40,7 +41,7 @@ class TestHeart(unittest.TestCase):
         return os.path.join(self.examples_dir, name)
 
     def _get_mt_source_params(self):
-        return {
+        source_point = {
             'magnitude': 4.8,
             'mnn': 0.84551376,
             'mee': -0.75868967,
@@ -54,24 +55,24 @@ class TestHeart(unittest.TestCase):
             'time': -2.5,
             'duration': 5.,
             }
+        return {k:num.atleast_1d(num.asarray(v)) for k, v in source_point.iteritems()}
 
     def test_full_mt(self):
         mode = 'geometry'
 
         project_dir = self.get_project_dir('FullMT')
-        print self.beat_dir
-        print project_dir
+
         problem = models.load_model(project_dir, mode=mode)
 
         sc = problem.composites['seismic']
 
         point = self._get_mt_source_params()
 
-        synths, obs = sc.get_synthetics(point, outmode='stacked_traces')
+        synths, obs = sc.get_synthetics(problem.model.test_point, outmode='data')
 
         for st, ot in zip(synths, obs):
-            assert_allclose(st, ot, rtol=1e-04, atol=0)
+            assert_allclose(st.ydata, ot.ydata, rtol=1e-05, atol=0)
 
 if __name__ == "__main__":
-    util.setup_logging('test_heart', 'debug')
+    util.setup_logging('test_heart', 'info')
     unittest.main()

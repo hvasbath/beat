@@ -371,8 +371,8 @@ def downsample_traces(data_traces, deltat=None):
         if deltat is not None:
             try:
                 tr.downsample_to(deltat, snap=True, allow_upsample_max=5)
-            except util.UnavailableDecimation, e:
-                print('Cannot downsample %s.%s.%s.%s: %s' % (
+            except util.UnavailableDecimation as e:
+                logger.error('Cannot downsample %s.%s.%s.%s: %s' % (
                                                             tr.nslc_id + (e,)))
                 continue
 
