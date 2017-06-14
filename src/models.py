@@ -827,7 +827,6 @@ class SeismicComposite(Composite):
         syn_filt_traces, obs_filt_traces = self.get_synthetics(
             point, outmode='data')
 
-        obs_filt_traces = []
         ats = []
         for wc, wmap in zip(sc.waveforms, self.wavemaps):
             ats.extend(wmap.n_t * [wc.arrival_taper])
