@@ -359,7 +359,11 @@ class SeismicConfig(Object):
     def get_hypernames(self):
         hids = []
         for wc in self.waveforms:
-            hids.append('_'.join(('h', wc.name)))
+            if wc.include:
+                hypername = '_'.join(('h', wc.name))
+                hids.append(hypername)
+                logger.info('Added hyperparameter %s for "%s" to config and '
+                    'model setup!' % (hypername, wc.name))
 
         return hids
 
