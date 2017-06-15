@@ -355,8 +355,8 @@ class GeodeticComposite(Composite):
         for l, result in enumerate(results):
             choli = self.datasets[l].covariance.chol_inverse
             tmp = choli.dot(result.processed_res)
-            llk = num.dot(tmp, tmp)
-            self._llks[l].set_value(llk)
+            _llk = num.asarray([num.dot(tmp, tmp)])
+            self._llks[l].set_value(_llk)
 
 
 class GeodeticSourceComposite(GeodeticComposite):
@@ -760,7 +760,7 @@ class SeismicComposite(Composite):
                 weights = []
                 for t, trc in enumerate(wmap.datasets):
                     trc.covariance = heart.Covariance(data=cov_ds_seismic[t])
-                    icov = trc.covariance.inverse
+                    icov = trc.covariance.chol_inverse
                     weights.append(shared(icov, borrow=True))
 
                 wmap.add_weights(weights)
@@ -879,8 +879,8 @@ class SeismicComposite(Composite):
         results = self.assemble_results(point)
         for k, result in enumerate(results):
             choli = self.datasets[k].covariance.chol_inverse
-            tmp = choli.dot(result.processed_res)
-            _llk = num.dot(tmp, tmp)
+            tmp = choli.dot(result.processed_res.ydata)
+            _llk = num.asarray([num.dot(tmp, tmp)])
             self._llks[k].set_value(_llk)
 
 
