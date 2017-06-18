@@ -1406,11 +1406,11 @@ def draw_posteriors(problem, plot_options):
     if po.load_stage is not None:
         list_indexes = [po.load_stage]
     else:
-        if stage.number == -1:
-            stage_number = stage.handler.highest_sampled_stage()
+        stage_number = stage.handler.highest_sampled_stage()
+        if os.path.exists(stage.handler.atmip_path(-1)):
             list_indexes = [i for i in range(-1, stage_number + 1)]
         else:
-            list_indexes = [i for i in range(stage.number + 1)]
+            list_indexes = [i for i in range(stage_number)]
 
     if hypers:
         sc = problem.config.hyper_sampler_config
