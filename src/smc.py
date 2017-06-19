@@ -945,15 +945,16 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
         chains = list(range(step.n_chains))
 
     # while is necessary if any worker times out - rerun in case
-    while len(chains) > 0:
+    n_chains = len(chains)
+    while n_chains > 0:
         trace_list = []
 
-        logger.info('Initialising chain traces ...')
+        logger.info('Initialising %i chain traces ...' % n_chains)
         for chain in chains:
             trace_list.append(backend.TextChain(stage_path, model=model))
 
         max_int = np.iinfo(np.int32).max
-        random_seeds = [randint(max_int) for _ in range(len(chains))]
+        random_seeds = [randint(max_int) for _ in range(n_chains)]
 
         work = [(draws, step, step.population[step.resampling_indexes[chain]],
             trace, chain, None, progressbar, model, rseed)
