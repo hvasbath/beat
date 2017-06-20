@@ -596,24 +596,6 @@ def init_stage(stage_handler, step, stage, model, n_jobs=1,
 
         chains = stage_handler.recover_existing_results(stage, draws, step)
 
-        if chains is not None:
-            rest = len(chains) % n_jobs
-            if rest > 0.:
-                logger.info('Fixing %i chains ...' % rest)
-                chains, rest_chains = chains[:-rest], chains[-rest:]
-                # process traces that are not a multiple of n_jobs
-                sample_args = {
-                    'draws': draws,
-                    'step': step,
-                    'stage_path': stage_handler.stage_path(stage),
-                    'progressbar': progressbar,
-                    'model': model,
-                    'n_jobs': rest,
-                    'chains': rest_chains}
-
-                _iter_parallel_chains(**sample_args)
-                logger.info('Back to normal!')
-
     return chains, step, update
 
 
@@ -652,11 +634,11 @@ def update_last_samples(homepath, step,
         'n_jobs': n_jobs,
         'chains': chains}
 
-    _iter_parallel_chains(**sample_args)
+    mtrace = _iter_parallel_chains(**sample_args)
 
     step.stage = tmp_stage
 
-    return backend.load_multitrace(trans_stage_path, model)
+    return mtrace
 
 
 def ATMIP_sample(n_steps, step=None, start=None, homepath=None, chain=0,
@@ -792,9 +774,7 @@ def ATMIP_sample(n_steps, step=None, start=None, homepath=None, chain=0,
                 'n_jobs': n_jobs,
                 'chains': chains}
 
-            _iter_parallel_chains(**sample_args)
-
-            mtrace = stage_handler.load_multitrace(step.stage)
+            mtrace = _iter_parallel_chains(**sample_args)
 
             step.population, step.array_population, step.likelihoods = \
                                     step.select_end_points(mtrace)
@@ -978,24 +958,23 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
 
         logger.info('Sampling ...')
 
-        results = []
         for res in p:
-            results.extend(res)
+            pass
 
-        aborted_chains = []
-        if None in results or len(results) == 0:
-            # return chain indexes that have been aborted
-            mtrace = backend.load_multitrace(dirname=stage_path, model=model)
-            aborted_chains = backend.check_multitrace(
-                mtrace, draws=draws, n_chains=step.n_chains)
+        # return chain indexes that have been corrupted
+        mtrace = backend.load_multitrace(dirname=stage_path, model=model)
+        corrupted_chains = backend.check_multitrace(
+            mtrace, draws=draws, n_chains=step.n_chains)
 
-            n_resample = len(aborted_chains)
+        n_chains = len(corrupted_chains)
 
-            if n_resample > 0:
-                logger.warning('%i Chains not finished sampling,'
-                    ' restarting ...' % n_resample)
+        if n_chains > 0:
+            logger.warning('%i Chains not finished sampling,'
+                ' restarting ...' % n_chains)
 
-        chains = aborted_chains
+        chains = corrupted_chains
+
+    return mtrace
 
 
 def tune(acc_rate):
