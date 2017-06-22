@@ -266,8 +266,8 @@ class GeodeticComposite(Composite):
 
         self.weights = []
         for data in self.datasets:
-            icov = data.covariance.inverse
-            self.weights.append(shared(icov, borrow=True))
+            choli = data.covariance.chol_inverse
+            self.weights.append(shared(choli, borrow=True))
 
         if gc.fit_plane:
             logger.info('Fit residual ramp selected!')

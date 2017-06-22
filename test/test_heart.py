@@ -95,6 +95,44 @@ class TestSeisComposite(unittest.TestCase):
                     rtol=1e-08, atol=0)
 
 
+class TestGeoComposite(unittest.TestCase):
+
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.dirname = 'Mogi'
+        self.mode = 'geometry'
+
+    @classmethod
+    def setUpClass(cls):
+        dirname = 'Mogi'
+        mode = 'geometry'
+        cls.problem = load_problem(dirname, mode)
+        cls.sc = cls.problem.composites['geodetic']
+
+    def test_synths(self):
+        logger.info('Test synth')
+        synths = self.sc.get_synthetics(
+            self.problem.model.test_point, outmode='stacked_arrays')
+
+        for st, ds in zip(synths, sc.datasets):
+            assert_allclose(st, ds, rtol=1e-03, atol=0)
+
+    def test_results(self):
+        logger.info('Test results')
+        results = self.sc.assemble_results(self.problem.model.test_point)
+
+        for result in results:
+            assert_allclose(result.processed_obs,
+                            result.processed_syn, rtol=1e-05, atol=0)
+
+    def test_weights(self):
+        logger.info('Test weights')
+        for w, d in zip(sc.weights, sc.datasets):
+            assert_allclose(
+                w.get_value(), d.covariance.chol_inverse,
+                rtol=1e-08, atol=0)
+
+
 if __name__ == "__main__":
     util.setup_logging('test_heart', 'warning')
     unittest.main()
