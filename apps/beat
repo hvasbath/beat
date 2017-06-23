@@ -713,9 +713,9 @@ def command_plot(args):
             help='Plot model with specified likelihood; "max", "min", "mean"'
                  ' or "all"; Default: "max"')
 
-        parser.add_option('--stage_number', dest='stage_number',
+        parser.add_option('--stage_number', dest='stage_number', type='int',
             default=None,
-            help='String of the stage number "n" of the stage to be plotted.'
+            help='Int of the stage number "n" of the stage to be plotted.'
                  ' Default: all stages up to last complete stage')
 
         parser.add_option('--format', dest='format',
