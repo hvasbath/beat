@@ -944,6 +944,7 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
         tps = step.time_per_sample(30) * (n_jobs + 1)
 
         if draws < 10 and tps < 1.:
+            n_jobs = mp.cpu_count() 
             chunksize = n_jobs
             tps += 3.
         elif tps < 1.:
