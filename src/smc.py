@@ -924,8 +924,12 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
     if chains is None:
         chains = list(range(step.n_chains))
 
-    # while is necessary if any worker times out - rerun in case
     n_chains = len(chains)
+
+    if n_chains == 0:
+        mtrace = backend.load_multitrace(dirname=stage_path, model=model)
+
+    # while is necessary if any worker times out - rerun in case
     while n_chains > 0:
         trace_list = []
 
@@ -974,8 +978,6 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
                 ' restarting ...' % n_chains)
 
         chains = corrupted_chains
-    else:
-        mtrace = backend.load_multitrace(dirname=stage_path, model=model)
 
     return mtrace
 
