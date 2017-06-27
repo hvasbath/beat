@@ -943,11 +943,11 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
 
         tps = step.time_per_sample(30) * (n_jobs + 1)
 
-        if draws < 10 and tps < 1.:
+        if draws < 10:
             n_jobs = mp.cpu_count() 
             chunksize = n_jobs
-            tps += 3.
-        elif tps < 1.:
+            tps += 5.
+        elif draws > 10 and tps < 1.:
             chunksize = n_jobs
         else:
             chunksize = 1
@@ -974,6 +974,8 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
                 ' restarting ...' % n_chains)
 
         chains = corrupted_chains
+    else:
+        mtrace = backend.load_multitrace(dirname=stage_path, model=model)
 
     return mtrace
 
