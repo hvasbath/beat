@@ -1551,8 +1551,12 @@ def choose_backend(
         receiver_model.append(l)
 
         version = '2006a'
-
-        if 'slowest' in waveforms:
+        if 'slowest' in waveforms or distances.min() < 1000 * km:
+            logger.info('Receiver and source'
+                ' site structures have to be identical as distance'
+                ' and ray depth not high enough for common reeiver'
+                ' depth!')
+            receiver_model = None
             slowness_taper = (0., 0., 0., 0.)
             sw_algorithm = 0
             sw_flat_earth_transform = 0
@@ -1671,12 +1675,14 @@ def seis_construct_gf(
         event, earth_model_name=sf.earth_model_name, crust_ind=crust_ind,
         gf_config=sf, custom_velocity_model=sf.custom_velocity_model)
 
+    waveforms = seismic_config.get_waveform_names()
+
     for station in stations:
         logger.info('Station %s' % station.station)
         logger.info('---------------------')
 
         fomosto_config = get_fomosto_baseconfig(
-            sf, event, station, seismic_config.get_waveform_names(), crust_ind)
+            sf, event, station, waveforms, crust_ind)
 
         store_dir = sf.store_superdir + fomosto_config.id
 
