@@ -720,7 +720,7 @@ class SeismicDataset(trace.Trace):
 
     @property
     def typ(self):
-        return self.wavename
+        return self.wavename + '_' + self.channel
 
     @classmethod
     def from_pyrocko_trace(cls, trace, **kwargs):

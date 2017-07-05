@@ -360,8 +360,9 @@ class SeismicConfig(Object):
         hids = []
         for wc in self.waveforms:
             if wc.include:
-                hypername = '_'.join(('h', wc.name))
-                hids.append(hypername)
+                for c in wc.channels:
+                    hypername = '_'.join(('h', wc.name, c))
+                    hids.append(hypername)
 
         return hids
 

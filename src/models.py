@@ -819,7 +819,6 @@ class SeismicComposite(Composite):
         -------
         List with :class:`heart.SeismicResult`
         """
-        sc = self.config
         logger.debug('Assembling seismic waveforms ...')
 
         self.point2sources(point)
