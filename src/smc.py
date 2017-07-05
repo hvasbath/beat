@@ -945,7 +945,7 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
                 for chain, rseed, trace in zip(
                     chains, random_seeds, trace_list)]
 
-        tps = step.time_per_sample(30) * (n_jobs + 1)
+        tps = step.time_per_sample(30)
 
         if draws < 10:
             n_jobs = mp.cpu_count() 
@@ -956,7 +956,7 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
         else:
             chunksize = 1
 
-        timeout += int(np.ceil(tps * draws))
+        timeout += int(np.ceil(tps * draws)) * n_jobs
 
         p = paripool.paripool(
             _sample, work, chunksize=chunksize, timeout=timeout, nprocs=n_jobs)

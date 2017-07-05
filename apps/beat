@@ -1,7 +1,13 @@
 #!/usr/bin/env python
+import os
+
+# disable internal blas parallelisation as we parallelise over chains
+os.environ["OMP_NUM_THREADS"] = "1"
+
 import logging
 
-import sys, re, os, copy
+import sys, re, copy
+
 import shutil
 
 from optparse import OptionParser

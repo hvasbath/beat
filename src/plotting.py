@@ -459,6 +459,15 @@ def plot_matrix(A):
     plt.show()
 
 
+def plot_log_cov(cov_mat):
+    ax = plt.axes()
+    mask = num.ones_like(cov_mat)
+    mask[cov_mat < 0] = -1.
+    im = ax.imshow(num.multiply(num.log(num.abs(cov_mat)), mask))
+    plt.colorbar(im)
+    plt.show()
+
+
 def get_result_point(stage, config, point_llk='max'):
     """
     Return point of a given stage result.

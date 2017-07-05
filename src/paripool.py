@@ -157,6 +157,7 @@ def paripool(function, workpackage, nprocs=None, chunksize=1, timeout=0xFFFF,
             pool_timeout = 100
 
         logger.info('Overseer timeout after %i second(s)' % pool_timeout)
+        logger.info('Chunksize: %i' % chunksize)
 
         try:
             yield pool.map_async(
