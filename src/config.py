@@ -14,7 +14,7 @@ from pyrocko.guts import load, dump, StringChoice
 from pyrocko.cake import load_model
 
 from pyrocko import trace, model, util, gf
-from pyrocko.gf import RectangularSource as RS
+from pyrocko.gf import RectangularSource as PyrockoRS
 from pyrocko.gf.seismosizer import Cloneable, stf_classes
 
 from beat.heart import Filter, ArrivalTaper, Parameter
@@ -49,7 +49,7 @@ source_classes = [
     gf.DCSource,
     gf.CLVDSource,
     MTSourceWithMagnitude,
-    RS,
+    PyrockoRS,
     gf.DoubleDCSource,
     gf.RingfaultSource]
 
@@ -482,7 +482,7 @@ class ProblemConfig(Object):
                         source = vars_catalog[datatype][self.source_type]
                         svars = set(source.keys())
 
-                        if isinstance(source(), RS):
+                        if isinstance(source(), PyrockoRS):
                             svars.discard('moment')
 
                         variables += utility.weed_input_rvs(

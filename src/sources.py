@@ -3,22 +3,23 @@ Module that contains customized sources that can be used by the
 pyrocko.gf.seismosizer.Engine.
 Other specialized sources may be implemented here.
 """
-from pyrocko.guts import Float, 
+from pyrocko.guts import Float
 from pyrocko import gf
 from pyrocko.gf import meta
 from pyrocko import moment_tensor as mtm
-from pyrocko.gf.seismosizer import outline_rect_source, Source
+from pyrocko.gf.seismosizer import outline_rect_source, Source, Cloneable
 from pyrocko.orthodrome import ne_to_latlon
 
 import copy
 import numpy as num
 import logging
 
+km = 1000.
 
 logger = logging.getLogger('sources')
 
 
-class RectangularSource(gf.DCSource, gf.Cloneable):
+class RectangularSource(gf.DCSource, Cloneable):
     """
     Source for rectangular fault that unifies the necessary different source
     objects for teleseismic and geodetic computations.
