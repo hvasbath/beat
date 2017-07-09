@@ -18,7 +18,8 @@ from pyrocko.gf import RectangularSource as RS
 from pyrocko.gf.seismosizer import Cloneable, stf_classes
 
 from beat.heart import Filter, ArrivalTaper, Parameter
-from beat.heart import RectangularSource, ReferenceLocation
+from beat.heart import ReferenceLocation
+from beat.sources import RectangularSource, MTSourceWithMagnitude
 
 from beat import utility
 
@@ -47,8 +48,8 @@ source_classes = [
     gf.RectangularExplosionSource,
     gf.DCSource,
     gf.CLVDSource,
-    gf.MTSourceWithMagnitude,
-    gf.RectangularSource,
+    MTSourceWithMagnitude,
+    RS,
     gf.DoubleDCSource,
     gf.RingfaultSource]
 
