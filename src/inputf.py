@@ -200,6 +200,7 @@ def load_data_traces(datadir, stations, channels):
                     dt.set_ydata(dt.ydata * m)
                     dt.station = station.station
                     dt.network = station.network
+                    dt.location = '0'
                     # convert to BEAT seismic Dataset
                     data_trcs.append(
                         heart.SeismicDataset.from_pyrocko_trace(dt))

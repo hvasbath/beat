@@ -1,5 +1,5 @@
 """
-Module that contains customized sources that can be used by the 
+Module that contains customized sources that can be used by the
 pyrocko.gf.seismosizer.Engine.
 Other specialized sources may be implemented here.
 """
@@ -15,6 +15,8 @@ import numpy as num
 import logging
 
 km = 1000.
+d2r = num.pi / 180.
+r2d = 180. / num.pi
 
 logger = logging.getLogger('sources')
 
@@ -364,7 +366,7 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
             **self._dparams_base_repeated(times))
 
     def pyrocko_moment_tensor(self):
-        return mtm.MomentTensor(m=mt.symmat6(*self.m6_astuple) * self.moment)
+        return mtm.MomentTensor(m=mtm.symmat6(*self.m6_astuple) * self.moment)
 
     def pyrocko_event(self, **kwargs):
         mt = self.pyrocko_moment_tensor()
@@ -383,4 +385,3 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
 
         d.update(kwargs)
         return super(MTSourceWithMagnitude, cls).from_pyrocko_event(ev, **d)
-

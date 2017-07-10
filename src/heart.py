@@ -507,16 +507,6 @@ class GeodeticDataset(gf.meta.MultiLocation):
             raise Exception('No coordinates defined!')
         return n
 
-    def __getstate__(self):
-        return (self.network, self.station, self.location, self.channel,
-                self.tmin, self.tmax, self.deltat, self.mtime,
-                self.ydata, self.meta, self.wavename, self.covariance)
-
-    def __setstate__(self, state):
-        self.network, self.station, self.location, self.channel, \
-            self.tmin, self.tmax, self.deltat, self.mtime, \
-            self.ydata, self.meta, self.wavename, self.covariance = state
-
 
 class GPSComponent(Object):
     """
@@ -763,7 +753,7 @@ class GeodeticResult(Object):
 def init_seismic_targets(
     stations, earth_model_name='ak135-f-average.m', channels=['T', 'Z'],
     sample_rate=1.0, crust_inds=[0], interpolation='multilinear',
-    reference_location=None):
+    reference_location=None, blacklist=[]):
     """
     Initiate a list of target objects given a list of indexes to the
     respective GF store velocity model variation index (crust_inds).
@@ -789,6 +779,7 @@ def init_seismic_targets(
     reference_location : :class:`ReferenceLocation` or
         :class:`pyrocko.model.Station`
         if given, targets are initialised with this reference location
+    blacklist : stations that are blacklisted later
 
     Returns
     -------
@@ -804,23 +795,33 @@ def init_seismic_targets(
 
     em_name = get_earth_model_prefix(earth_model_name)
 
-    targets = [DynamicTarget(
-        quantity='displacement',
-        codes=(stations[sta_num].network,
-                 stations[sta_num].station,
-                 '%i' % crust_ind, channel),  # n, s, l, c
-        lat=stations[sta_num].lat,
-        lon=stations[sta_num].lon,
-        azimuth=stations[sta_num].get_channel(channel).azimuth,
-        dip=stations[sta_num].get_channel(channel).dip,
-        interpolation=interpolation,
-        store_id='%s_%s_%.3fHz_%s' % (
-            store_prefixes[sta_num], em_name, sample_rate, crust_ind))
-
-        for channel in channels
-            for crust_ind in crust_inds
-                for sta_num in range(len(stations))]
-
+    targets = []
+    for sta_num, station in enumerate(stations):
+        for channel in channels:
+            for crust_ind in crust_inds:
+                cha = station.get_channel(channel)
+                if cha is None:
+                    if station.station not in blacklist:
+                        logger.warn('Channel %s for station does not exist!'
+                                ' Putting station into blacklist!')
+                        blacklist.append(station.station)
+                else:
+                    targets.append(DynamicTarget(
+                        quantity='displacement',
+                        codes=(station.network,
+                               station.station,
+                               '%i' % crust_ind, channel),  # n, s, l, c
+                        lat=station.lat,
+                        lon=station.lon,
+                        azimuth=cha.azimuth,
+                        dip=cha.dip,
+                        interpolation=interpolation,
+                        store_id='%s_%s_%.3fHz_%s' % (
+                            store_prefixes[sta_num],
+                            em_name,
+                            sample_rate,
+                            crust_ind))
+                                   )
     return targets
 
 
@@ -2226,6 +2227,14 @@ class DataWaveformCollection(object):
             except KeyError:
                 logger.warn('No data trace for target %s in '
                     'the collection!' % str(nslc_id))
+
+        ndata = len(datasets)
+        n_t = len(targets)
+
+        if ndata != n_t:
+            raise CollectionError(
+                'Inconsistent number of targets %i '
+                'and datasets %i!' % (n_t, ndata))
 
         return WaveformMapping(
             name=waveform,

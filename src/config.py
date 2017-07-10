@@ -400,7 +400,7 @@ class GeodeticConfig(Object):
     gf_config = GFConfig.T(default=GeodeticGFConfig.D())
 
     def get_hypernames(self):
-        return '_'.join(('h', self.types))
+        return ['_'.join(('h', typ)) for typ in self.types]
 
 
 class ProblemConfig(Object):
@@ -612,7 +612,7 @@ class SMCConfig(SamplerParameters):
              'intermediate stage pdfs;'
              'low - small beta steps (slow cooling),'
              'high - wide beta steps (fast cooling)')
-    stage = Int.T(default='0',
+    stage = Int.T(default=0,
                   help='Stage where to start/continue the sampling. Has to'
                        ' be int -1 for final stage')
     proposal_dist = String.T(

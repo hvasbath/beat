@@ -699,7 +699,8 @@ class SeismicComposite(Composite):
             channels=sc.get_unique_channels(),
             sample_rate=sc.gf_config.sample_rate,
             crust_inds=[0],  # always reference model
-            reference_location=sc.gf_config.reference_location)
+            reference_location=sc.gf_config.reference_location,
+            blacklist=sc.blacklist)
 
         datahandler = heart.DataWaveformCollection(stations, wavenames)
         datahandler.add_datasets(data_traces)
