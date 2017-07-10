@@ -360,9 +360,9 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
         times, amplitudes = self.effective_stf_pre().discretize_t(
             store.config.deltat, 0.0)
         m0 = mtm.magnitude_to_moment(self.magnitude)
-        amplitudes *= m0
+        rm6 = self.m6 * m0
         return meta.DiscretizedMTSource(
-            m6s=self.m6[num.newaxis, :] * amplitudes[:, num.newaxis],
+            m6s=rm6[num.newaxis, :] * amplitudes[:, num.newaxis],
             **self._dparams_base_repeated(times))
 
     def pyrocko_moment_tensor(self):
