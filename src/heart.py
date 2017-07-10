@@ -2322,9 +2322,6 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         for t, taperer in zip(targets, taperers):
             t.update_target_times(sources, taperer)
 
-        if outmode == 'data':
-            logger.warn('data traces will be very short! pre_sum_flag set!')
-
     t_2 = time()
     response = engine.process(
         sources=sources,
