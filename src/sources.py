@@ -346,6 +346,11 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
         return num.array(self.m6_astuple)
 
     @property
+    def scaled_m6(self):
+        m0 = mtm.magnitude_to_moment(self.magnitude)
+        return self.m6 * m0
+
+    @property
     def m6_astuple(self):
         return (self.mnn, self.mee, self.mdd, self.mne, self.mnd, self.med)
 
@@ -359,10 +364,8 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
     def discretize_basesource(self, store, target=None):
         times, amplitudes = self.effective_stf_pre().discretize_t(
             store.config.deltat, 0.0)
-        m0 = mtm.magnitude_to_moment(self.magnitude)
-        rm6 = self.m6 * m0
         return meta.DiscretizedMTSource(
-            m6s=rm6[num.newaxis, :] * amplitudes[:, num.newaxis],
+            m6s=self.scaled_m6[num.newaxis, :] * amplitudes[:, num.newaxis],
             **self._dparams_base_repeated(times))
 
     def pyrocko_moment_tensor(self):
