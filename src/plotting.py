@@ -20,7 +20,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 from scipy.stats import kde
 import numpy as num
-from pyrocko.guts import Object, String, Dict, Bool, Int, load
+from pyrocko.guts import Object, String, Dict, List, Bool, Int, load
 from pyrocko import util, trace
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.cake_plot import light
@@ -121,6 +121,8 @@ class PlotOptions(Object):
     outformat = String.T(default='pdf')
     dpi = Int.T(default=300)
     force = Bool.T(default=False)
+    varnames = List.T(
+	default=[], optional=True, help='Names of variables to plot')
 
 
 def str_dist(dist):
@@ -363,10 +365,13 @@ def correlation_plot_hist(mtrace, varnames=None,
             logger.debug('%s, %s' % (v_namea, v_nameb))
             if l == k:
                 if point is not None:
-                    reference = point[v_namea]
-                    axs[l, k].axvline(
-                        x=reference, color=point_color,
-                        lw=int(point_size) / 4.)
+                    if v_namea in point.keys():
+                        reference = point[v_namea]
+                        axs[l, k].axvline(
+                            x=reference, color=point_color,
+                            lw=int(point_size) / 4.)
+                    else:
+                        reference = None
                 else:
                     reference = None
 
@@ -387,12 +392,13 @@ def correlation_plot_hist(mtrace, varnames=None,
                 bmax = b.max()
 
                 if point is not None:
-                    axs[l, k].plot(point[v_namea], point[v_nameb],
-                        color=point_color, marker=point_style,
-                        markersize=point_size)
+                    if v_namea and v_nameb in point.keys():
+                        axs[l, k].plot(point[v_namea], point[v_nameb],
+                            color=point_color, marker=point_style,
+                            markersize=point_size)
 
-                    bmin = num.minimum(bmin, point[v_nameb])
-                    bmax = num.maximum(bmax, point[v_nameb])
+                        bmin = num.minimum(bmin, point[v_nameb])
+                        bmax = num.maximum(bmax, point[v_nameb])
 
                 ytickmarks = get_tickmarks(bmin, bmax, ntickmarks=ntickmarks)
                 axs[l, k].set_xticks(xticks)
@@ -1428,6 +1434,10 @@ def draw_posteriors(problem, plot_options):
         sc = problem.config.sampler_config
         varnames = problem.rvs.keys() + pc.hyperparameters.keys() + ['like']
 
+    if len(po.varnames) > 0:
+        varnames = po.varnames
+
+    logger.info('Plotting variables: %s' % (', '.join((v for v in varnames))))
     figs = []
 
     for s in list_indexes:
@@ -1500,7 +1510,12 @@ def draw_correlation_hist(problem, plot_options):
         varnames = problem.config.problem_config.hyperparameters.keys()
     else:
         sc = problem.config.sampler_config
-        varnames = problem.config.problem_config.select_variables()
+        varnames = problem.config.problem_config.select_variables() + ['like']
+
+    if len(po.varnames) > 0:
+        varnames = po.varnames
+
+    logger.info('Plotting variables: %s' % (', '.join((v for v in varnames))))
 
     if len(varnames) < 2:
         raise Exception('Need at least two parameters to compare!'

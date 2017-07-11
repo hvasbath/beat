@@ -724,6 +724,12 @@ def command_plot(args):
             help='Int of the stage number "n" of the stage to be plotted.'
                  ' Default: all stages up to last complete stage')
 
+        parser.add_option('--varnames',
+            default='', type='string',
+            action='callback', callback=list_callback,
+            help='Variable names to plot in figures. Example: "strike,dip"'
+                 ' Default: empty string --> all')
+
         parser.add_option('--format', dest='format',
             choices=['display', 'pdf', 'png', 'svg', 'eps'],
             default='pdf',
@@ -788,7 +794,8 @@ selected giving a comma seperated list.''' % (
         load_stage=options.stage_number,
         outformat=options.format,
         force=options.force,
-        dpi=options.dpi)
+        dpi=options.dpi,
+        varnames=options.varnames)
 
     if options.reference:
         po.reference = problem.model.test_point
