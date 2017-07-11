@@ -69,7 +69,7 @@ def log_determinant(A, inverse=False):
     cholesky = linalg.cholesky(A, lower=True)
     if inverse:
         cholesky = num.linalg.inv(cholesky)
-    return num.log(num.diag(cholesky)).sum()
+    return num.log(num.diag(cholesky)).sum() * 2.
 
 
 class ReferenceLocation(gf.Location):
@@ -167,7 +167,7 @@ class Covariance(Object):
         """
 
         N = self.data.shape[0]
-        ldet_x = num.log(num.diag(self.chol)).sum()
+        ldet_x = num.log(num.diag(self.chol)).sum() * 2.
         return utility.scalar2floatX((N * num.log(2 * num.pi)) + ldet_x)
 
 
