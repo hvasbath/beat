@@ -13,6 +13,7 @@ from collections import OrderedDict
 from beat import psgrn, pscmp, utility, qseis2d
 
 from theano import config as tconfig
+from theano import shared
 import numpy as num
 from scipy import linalg
 
@@ -101,6 +102,11 @@ class Covariance(Object):
                     help='Model prediction covariance matrix, velocity model',
                     optional=True)
 
+    def __init__(self, **kwargs):
+        self.slnf = shared(0., borrow=True)
+        Object.__init__(self, **kwargs)
+        self.update_slnf()
+
     @property
     def p_total(self):
         if self.pred_g is None:
@@ -165,10 +171,16 @@ class Covariance(Object):
         Calculate the normalisation factor of the posterior pdf.
         Following Duputel et al. 2014
         """
-
         N = self.data.shape[0]
         ldet_x = num.log(num.diag(self.chol)).sum() * 2.
         return utility.scalar2floatX((N * num.log(2 * num.pi)) + ldet_x)
+
+    def update_slnf(self):
+        """
+        Update shared variable with current log_norm_factor (lnf)
+        (for theano models).
+        """
+        self.slnf.set_value(self.log_norm_factor)
 
 
 class ArrivalTaper(trace.Taper):

@@ -6,7 +6,7 @@ event: !pf.Event
   lon: 34.73
   time: 1995-11-22 04:15:26.200000
   name: 112295A
-  depth: 10400.0
+  depth: 8000.0
   magnitude: 7.20583885303153
   region: ARAB REPUBLIC OF EGYPT
   catalog: gCMT
@@ -34,7 +34,7 @@ problem_config: !beat.ProblemConfig
   n_sources: 1
   datatypes: [seismic]
   hyperparameters:
-    h_any_P: !beat.heart.Parameter
+    h_any_P_Z: !beat.heart.Parameter
       name: h_any_P
       form: Uniform
       lower: [-1.0]
@@ -120,8 +120,9 @@ seismic_config: !beat.SeismicConfig
   pre_stack_cut: false
   waveforms:
   - !beat.WaveformFitConfig
+    include: true
     name: any_P
-    channels: [Z, R, T]
+    channels: [Z]
     filterer: !beat.heart.Filter
       lower_corner: 0.01
       upper_corner: 0.1
@@ -134,7 +135,7 @@ seismic_config: !beat.SeismicConfig
       c: 180.0
       d: 210.0
   gf_config: !beat.SeismicGFConfig
-    store_superdir: /tmp/GFs/FullMT/
+    store_superdir: /tmp/GF/FullMT/
     n_variations: [0, 1]
     error_depth: 0.1
     error_velocities: 0.1
@@ -149,8 +150,8 @@ seismic_config: !beat.SeismicConfig
          21.64           6.23           3.6            2.8         1283.           600.
       mantle
          21.64           7.95           4.45           3.2         1449.           600.
-    source_depth_min: 0.0
-    source_depth_max: 15.0
+    source_depth_min: 8.0
+    source_depth_max: 8.0
     source_depth_spacing: 1.0
     source_distance_radius: 1000.0
     source_distance_spacing: 1.0
