@@ -19,6 +19,7 @@ from pyrocko import util, orthodrome, catalog
 from pyrocko.cake import m2d, LayeredModel, read_nd_model_str
 
 from pyrocko.gf.seismosizer import RectangularSource
+from beat.sources import MTSourceWithMagnitude
 
 import numpy as num
 from theano import config as tconfig
@@ -28,7 +29,7 @@ from pyproj import Proj
 
 logger = logging.getLogger('utility')
 
-DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype')
+DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype, name')
 PatchMap = collections.namedtuple(
     'PatchMap', 'count, slc, shp, npatches')
 
@@ -93,13 +94,14 @@ class ListArrayOrdering(object):
         count = 0
         for array in list_arrays:
             if intype == 'tensor':
+                name = array.name
                 array = array.tag.test_value
             elif intype == 'numpy':
-                pass
+                name = 'numpy'
 
             slc = slice(dim, dim + array.size)
             self.vmap.append(DataMap(
-                count, slc, array.shape, array.dtype))
+                count, slc, array.shape, array.dtype, name))
             dim += array.size
             count += 1
 
@@ -121,6 +123,46 @@ class ListToArrayBijection(object):
         self.ordering = ordering
         self.list_arrays = list_arrays
 
+    def dmap(self, dpt):
+        """
+        Maps values from dict space to List space
+
+        Parameters
+        ----------
+        dpt : list
+            of :class:`numpy.ndarray`
+
+        Returns
+        -------
+        point
+        """
+        a_list = copy.copy(self.list_arrays)
+
+        for list_ind, _, _, _, var in self.ordering.vmap:
+            a_list[list_ind] = dpt[var].ravel()
+
+        return a_list
+
+    def drmap(self, a_list):
+        """
+        Maps values from List space to dict space
+
+        Parameters
+        ----------
+        list_arrays : list
+            of :class:`numpy.ndarray`
+
+        Returns
+        -------
+        point
+        """
+        point = {}
+
+        for list_ind, _, _, _, var in self.ordering.vmap:
+            point[var] = a_list[list_ind].ravel()
+
+        return point
+
     def fmap(self, list_arrays):
         """
         Maps values from List space to array space
@@ -137,7 +179,7 @@ class ListToArrayBijection(object):
         """
 
         array = num.empty(self.ordering.dimensions)
-        for list_ind, slc, _, _ in self.ordering.vmap:
+        for list_ind, slc, _, _, _ in self.ordering.vmap:
             array[slc] = list_arrays[list_ind].ravel()
         return array
 
@@ -157,7 +199,7 @@ class ListToArrayBijection(object):
         """
 
         array = num.empty((self.ordering.dimensions, 3))
-        for list_ind, slc, _, _ in self.ordering.vmap:
+        for list_ind, slc, _, _, _ in self.ordering.vmap:
             array[slc, :] = list_arrays[list_ind]
         return array
 
@@ -178,7 +220,7 @@ class ListToArrayBijection(object):
 
         a_list = copy.copy(self.list_arrays)
 
-        for list_ind, slc, shp, dtype in self.ordering.vmap:
+        for list_ind, slc, shp, dtype, _ in self.ordering.vmap:
             a_list[list_ind] = num.atleast_1d(
                                         array)[slc].reshape(shp).astype(dtype)
 
@@ -200,7 +242,7 @@ class ListToArrayBijection(object):
 
         a_list = copy.copy(self.list_arrays)
 
-        for list_ind, slc, shp, dtype in self.ordering.vmap:
+        for list_ind, slc, shp, dtype, _ in self.ordering.vmap:
             a_list[list_ind] = tarray[slc].reshape(shp).astype(dtype.name)
 
         return a_list
@@ -531,6 +573,9 @@ def update_source(source, **point):
 
     if isinstance(source, RectangularSource):
         adjust_fault_reference(source, input_depth='top')
+
+    if isinstance(source, MTSourceWithMagnitude):
+        point.update(source.scaled_dict)
 
 
 def utm_to_loc(utmx, utmy, zone, event):

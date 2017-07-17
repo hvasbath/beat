@@ -354,6 +354,10 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
         m6 = mtm.to6(m9)
         return m6
 
+    def scaled_m6_dict(self):
+        keys = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
+        return {k: m for k, m in zip(keys, self.scaled_m6.tolist())}
+
     @property
     def m6_astuple(self):
         return (self.mnn, self.mee, self.mdd, self.mne, self.mnd, self.med)
