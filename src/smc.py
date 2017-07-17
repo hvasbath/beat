@@ -500,7 +500,7 @@ class SMC(backend.ArrayStepSharedLLK):
 
         n_steps = len(mtrace)
 
-        for var, (_, slc, shp, _) in zip(mtrace.varnames, self.lordering.vmap):
+        for _, slc, shp, _, var in self.lordering.vmap:
 
             slc_population = mtrace.get_values(
                 varname=var,

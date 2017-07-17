@@ -574,9 +574,6 @@ def update_source(source, **point):
     if isinstance(source, RectangularSource):
         adjust_fault_reference(source, input_depth='top')
 
-    if isinstance(source, MTSourceWithMagnitude):
-        point.update(source.scaled_dict)
-
 
 def utm_to_loc(utmx, utmy, zone, event):
     """
