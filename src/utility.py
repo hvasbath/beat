@@ -549,6 +549,15 @@ def split_point(point):
     return source_points
 
 
+def join_points(ldicts):
+    """
+    Join list of dicts into one dict with concatenating 
+    values of keys that are present in multiple dicts.
+    """
+    
+    return
+
+
 def update_source(source, **point):
     """
     Update source keeping stf and source params seperate.
