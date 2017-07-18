@@ -199,7 +199,7 @@ def kde2plot_op(ax, x, y, grid=200, **kwargs):
     grid = grid * 1j
     X, Y = num.mgrid[xmin:xmax:grid, ymin:ymax:grid]
     positions = num.vstack([X.ravel(), Y.ravel()])
-    values = num.vstack([x, y])
+    values = num.vstack([x.ravel(), y.ravel()])
     kernel = kde.gaussian_kde(values)
     Z = num.reshape(kernel(positions).T, X.shape)
 
@@ -1352,7 +1352,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     return fig, axs, varbins
 
 
-def select_transform(sc, n_steps):
+def select_transform(sc, n_steps=None):
     """
     Select transform function to be applied after loading the sampling results.
 
@@ -1385,6 +1385,12 @@ def select_transform(sc, n_steps):
                 xout.append(x[nstart:nend:pa.thin])
 
             return num.vstack(xout).flatten()
+
+    def standard(x):
+        return x
+
+    if n_steps is None:
+        return standard
 
     if sc.name == 'SMC':
         return last_sample
@@ -1445,6 +1451,8 @@ def draw_posteriors(problem, plot_options):
             draws = 1
         elif s == -1 and not hypers and sc.name == 'Metropolis':
             draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
+        elif s== -2:    # return summarized trace plot -standard pymc trace
+            draws = None
         else:
             draws = sc.parameters.n_steps
 
@@ -1523,6 +1531,8 @@ def draw_correlation_hist(problem, plot_options):
 
     if po.load_stage is None and not hypers and not sc.name == 'SMC':
         draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
+    if po.load_stage == -2:
+        draws = None
     else:
         draws = sc.parameters.n_steps
 

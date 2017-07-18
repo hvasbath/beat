@@ -12,13 +12,16 @@ import shutil
 
 from optparse import OptionParser
 
-from beat import heart, config, utility, models, inputf, plotting
+from beat import heart, config, utility, models, inputf, plotting, backend
+from beat.sources import MTSourceWithMagnitude
 from beat.metropolis import get_trace_stats
 
 from pyrocko import model, util
 from pyrocko.gf import LocalEngine
 
 from pyrocko.guts import load, dump
+
+from pymc3 import summary
 
 
 logger = logging.getLogger('beat')
@@ -557,28 +560,47 @@ def command_summarize(args):
     problem = models.load_model(project_dir, options.mode)
 
     stage = models.Stage(homepath=problem.outfolder)
-    stage.load_results(model=problem.model, stage_number=-1, 'full')
+    stage.load_results(model=problem.model, stage_number=-1, load='full')
+    stage_path = stage.handler.stage_path(-2)
 
-    rtrace = backend.TextChain(
-        stage.handler.stage_path(-2), model=problem.model)
-    rtrace.setup(draws=, chain=0)
-    for chain in stage.mtrace.chains:
-        point = mtrace.point(idx=[-1], chain)
-        source = problem.sources[0]
+    if not os.path.exists(
+        os.path.join(stage_path, 'chain-0.csv')) or options.force:
 
-        if isinstance(source, MTSourceWithMagnitude):
-            problem.point2sources(point)
-            ldicts = []
-            for source in problem.sources:
-                ldicts.append(source.scaled_m6_dict)
+        rtrace = backend.TextChain(stage_path, model=problem.model)
+        rtrace.setup(draws=len(stage.mtrace.chains), chain=0)
 
-            jpoint = utility.join_points(ldicts)
-            point.update(jpoint)
+        for chain in stage.mtrace.chains:
+            point = stage.mtrace.point(idx=-1, chain=chain)
+            print point
+            source = problem.sources[0]
 
-        lpoint = stage.step.lij.dmap(point)
-        rtrace.record(lpoint)
+            if isinstance(source, MTSourceWithMagnitude):
+                sc = problem.composites['seismic']
+                sc.point2sources(point)
+                ldicts = []
+                for source in sc.sources:
+                    print source
+                    ldicts.append(source.scaled_m6_dict)
 
+                jpoint = utility.join_points(ldicts)
+                print jpoint
+                point.update(jpoint)
+
+            lpoint = stage.step.lij.dmap(point)
+            rtrace.record(lpoint, draw=chain)
+    else:
+        logger.info('Summarized trace exists! Use force=True to overwrite!')
+        stage.load_results(model=problem.model, stage_number=-2)
+        rtrace = stage.mtrace
     
+    summary_file = os.path.join(problem.outfolder, config.summary_name)
+    
+    if not os.path.exists(summary_file):
+        logger.info('Writing summary to %s' % summary_file)
+        summary(rtrace, to_file=summary_file)
+    else:
+        logger.info('Summary exists! Use force=True to overwrite!')
+
 
 def command_build_gfs(args):
 

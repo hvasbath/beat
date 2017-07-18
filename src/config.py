@@ -168,6 +168,8 @@ seismic_static_linear_gf_name = 'linear_seismic_gfs.pkl'
 
 sample_p_outname = 'sample.params'
 
+summary_name = 'summary.txt'
+
 km = 1000.
 
 

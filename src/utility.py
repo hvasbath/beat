@@ -555,7 +555,19 @@ def join_points(ldicts):
     values of keys that are present in multiple dicts.
     """
     
-    return
+    npoints = len(ldicts)
+    keys = set([k for d in ldicts for k in d.iterkeys()])
+
+    jpoint = {}
+    for k in keys:
+        jvar = []
+        for d in ldicts:
+            jvar.append(d[k])
+
+
+        jpoint[k] = num.array(jvar)
+
+    return jpoint
 
 
 def update_source(source, **point):
@@ -1144,7 +1156,7 @@ def get_fit_indexes(llk):
     -------
     dict with array indexes
     """
-
+    print llk
     mean_idx = (num.abs(llk - llk.mean())).argmin()
     min_idx = (num.abs(llk - llk.min())).argmin()
     max_idx = (num.abs(llk - llk.max())).argmin()
