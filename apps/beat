@@ -22,7 +22,7 @@ from pyrocko.gf import LocalEngine
 from pyrocko.guts import load, dump
 
 from pymc3 import summary
-
+from pymc3.backends.base import MultiTrace
 
 logger = logging.getLogger('beat')
 
@@ -571,7 +571,6 @@ def command_summarize(args):
 
         for chain in stage.mtrace.chains:
             point = stage.mtrace.point(idx=-1, chain=chain)
-            print point
             source = problem.sources[0]
 
             if isinstance(source, MTSourceWithMagnitude):
@@ -579,15 +578,15 @@ def command_summarize(args):
                 sc.point2sources(point)
                 ldicts = []
                 for source in sc.sources:
-                    print source
                     ldicts.append(source.scaled_m6_dict)
 
                 jpoint = utility.join_points(ldicts)
-                print jpoint
                 point.update(jpoint)
 
             lpoint = stage.step.lij.dmap(point)
             rtrace.record(lpoint, draw=chain)
+
+        rtrace = MultiTrace([rtrace])
     else:
         logger.info('Summarized trace exists! Use force=True to overwrite!')
         stage.load_results(model=problem.model, stage_number=-2)

@@ -1156,7 +1156,6 @@ def get_fit_indexes(llk):
     -------
     dict with array indexes
     """
-    print llk
     mean_idx = (num.abs(llk - llk.mean())).argmin()
     min_idx = (num.abs(llk - llk.min())).argmin()
     max_idx = (num.abs(llk - llk.max())).argmin()
