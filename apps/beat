@@ -594,7 +594,7 @@ def command_summarize(args):
     
     summary_file = os.path.join(problem.outfolder, config.summary_name)
     
-    if not os.path.exists(summary_file):
+    if not os.path.exists(summary_file) or options.force:
         logger.info('Writing summary to %s' % summary_file)
         summary(rtrace, to_file=summary_file)
     else:
