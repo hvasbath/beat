@@ -8,11 +8,14 @@ import logging
 import shutil
 import copy
 from time import time
+from collections import OrderedDict
 
 from beat import psgrn, pscmp, utility, qseis2d
 
 from theano import config as tconfig
+from theano import shared
 import numpy as num
+from scipy import linalg
 
 from pyrocko.guts import Object, String, Float, Int, Tuple, List
 from pyrocko.guts_array import Array
@@ -23,8 +26,6 @@ from pyrocko.fomosto import qseis, qssp
 
 from pyrocko.model import Station
 
-from pyrocko.gf.seismosizer import outline_rect_source, Cloneable
-from pyrocko.orthodrome import ne_to_latlon
 #from pyrocko.fomosto import qseis2d
 
 
@@ -34,7 +35,7 @@ c = 299792458.  # [m/s]
 km = 1000.
 d2r = num.pi / 180.
 r2d = 180. / num.pi
-near_field_threshold = 9.  # [deg]
+near_field_threshold = 9.  # [deg] below that surface waves are calculated
 
 lambda_sensors = {
     'Envisat': 0.056,       # needs updating- no ressource file
@@ -43,287 +44,6 @@ lambda_sensors = {
     'JERS': 0.23513133960784313,
     'RadarSat2': 0.055465772433
     }
-
-
-class RectangularSource(gf.DCSource, Cloneable):
-    """
-    Source for rectangular fault that unifies the necessary different source
-    objects for teleseismic and geodetic computations.
-    Reference point of the depth attribute is the top-center of the fault.
-
-    Many of the methods of the RectangularSource have been modified from
-    the HalfspaceTool from GertjanVanZwieten.
-    """
-
-    width = Float.T(help='width of the fault [m]',
-                    default=1. * km)
-    length = Float.T(help='length of the fault [m]',
-                    default=1. * km)
-    slip = Float.T(help='slip of the fault [m]',
-                    default=1.)
-    opening = Float.T(help='opening of the fault [m]',
-                    default=0.)
-
-    @property
-    def dipvector(self):
-        """
-        Get 3 dimensional dip-vector of the planar fault.
-
-        Parameters
-        ----------
-        dip : scalar, float
-            dip-angle [deg] of the fault
-        strike : scalar, float
-            strike-abgle [deg] of the fault
-
-        Returns
-        -------
-        :class:`numpy.ndarray`
-        """
-
-        return num.array(
-            [num.cos(self.dip * d2r) * num.cos(self.strike * d2r),
-             -num.cos(self.dip * d2r) * num.sin(self.strike * d2r),
-              num.sin(self.dip * d2r)])
-
-    @property
-    def strikevector(self):
-        """
-        Get 3 dimensional strike-vector of the planar fault.
-
-        Parameters
-        ----------
-        strike : scalar, float
-            strike-abgle [deg] of the fault
-
-        Returns
-        -------
-        :class:`numpy.ndarray`
-        """
-
-        return num.array(
-            [num.sin(self.strike * d2r),
-             num.cos(self.strike * d2r),
-             0.])
-
-    def center(self, width):
-        """
-        Get 3d fault center coordinates. Depth attribute is top depth!
-
-        Parameters
-        ----------
-        width : scalar, float
-            width [m] of the fault (dip-direction)
-
-        Returns
-        -------
-        :class:`numpy.ndarray` with x, y, z coordinates of the center of the
-        fault
-        """
-
-        return num.array([self.east_shift, self.north_shift, self.depth]) + \
-            0.5 * width * self.dipvector
-
-    def center2top_depth(self, center):
-        """
-        Get top depth of the fault [m] given a potential center point.
-        (Patches method needs input depth to
-        be top_depth.)
-
-        Parameters
-        ----------
-        center : scalar, float
-            coordinates [m] of the center of the fault
-
-        Returns
-        -------
-        :class:`numpy.ndarray` with x, y, z coordinates of the central
-        upper edge of the fault
-        """
-
-        return num.array([center[0], center[1], center[2]]) - \
-            0.5 * self.width * self.dipvector
-
-    def bottom_depth(self, depth):
-        """
-        Get bottom depth of the fault [m].
-        (Patches method needs input depth to be top_depth.)
-
-        Parameters
-        ----------
-        depth : scalar, float
-            depth [m] of the center of the fault
-
-        Returns
-        -------
-        :class:`numpy.ndarray` with x, y, z coordinates of the central
-        lower edge of the fault
-        """
-
-        return num.array([self.east_shift, self.north_shift, depth]) + \
-            0.5 * self.width * self.dipvector
-
-    def trace_center(self, depth):
-        """
-        Get trace central coordinates of the fault [m] at the surface of the
-        halfspace.
-
-        Parameters
-        ----------
-        depth : scalar, float
-            depth [m] of the center of the fault
-
-        Returns
-        -------
-        :class:`numpy.ndarray` with x, y, z coordinates of the central
-        lower edge of the fault
-        """
-
-        bd = self.bottom_depth(depth)
-        xtrace = bd[0] - \
-            (bd[2] * num.cos(d2r * self.strike) / num.tan(d2r * self.dip))
-        ytrace = bd[1] + \
-            (bd[2] * num.sin(d2r * self.strike) / num.tan(d2r * self.dip))
-        return num.array([xtrace, ytrace, 0.])
-
-    def patches(self, nl, nw, datatype):
-        """
-        Cut source into n by m sub-faults and return n times m
-        :class:`RectangularSource` Objects.
-        Discretization starts at shallow depth going row-wise deeper.
-        REQUIRES: self.depth to be TOP DEPTH!!!
-
-        Parameters
-        ----------
-        nl : int
-            number of patches in length direction (strike)
-        nw : int
-            number of patches in width direction (dip)
-        datatype : string
-            'geodetic' or 'seismic' determines the source to be returned
-
-        Returns
-        -------
-        :class:`pscmp.PsCmpRectangularSource` or
-        :class:`pyrocko.gf.seismosizer.RectangularSource` depending on
-        datatype. Depth is being updated from top_depth to center_depth.
-        """
-
-        length = self.length / float(nl)
-        width = self.width / float(nw)
-
-        patches = []
-        for j in range(nw):
-            for i in range(nl):
-                sub_center = self.center(self.width) + \
-                    self.strikevector * ((i + 0.5 - 0.5 * nl) * length) + \
-                    self.dipvector * ((j + 0.5 - 0.5 * nw) * width)
-
-                patch = gf.RectangularSource(
-                    lat=float(self.lat),
-                    lon=float(self.lon),
-                    east_shift=float(sub_center[0]),
-                    north_shift=float(sub_center[1]),
-                    depth=float(sub_center[2]),
-                    strike=self.strike, dip=self.dip, rake=self.rake,
-                    length=length, width=width, stf=self.stf,
-                    time=self.time, slip=self.slip, anchor='center')
-
-                if nw == 1 and nl == 1:
-                    logger.warn(
-                        'RectangularSource for fault-geometry inversion'
-                        ' decimated!')
-                    if datatype == 'seismic':
-                        patch.decimation_factor = 20
-
-                    elif datatype == 'geodetic':
-                        patch.decimation_factor = 7
-
-                else:
-                    raise TypeError(
-                        "Datatype not supported either: 'seismic/geodetic'")
-
-                patches.append(patch)
-
-        return patches
-
-    def outline(self, cs='xyz'):
-        points = outline_rect_source(self.strike, self.dip, self.length,
-                                     self.width)
-        center = self.center(self.width)
-        points[:, 0] += center[0]
-        points[:, 1] += center[1]
-        points[:, 2] += center[2]
-        if cs == 'xyz':
-            return points
-        elif cs == 'xy':
-            return points[:, :2]
-        elif cs in ('latlon', 'lonlat'):
-            latlon = ne_to_latlon(
-                self.lat, self.lon, points[:, 0], points[:, 1])
-
-            latlon = num.array(latlon).T
-            if cs == 'latlon':
-                return latlon
-            else:
-                return latlon[:, ::-1]
-
-    def extent_source(self, extension_width, extension_length,
-                     patch_width, patch_length):
-        """
-        Extend fault into all directions. Rounds dimensions to have no
-        half-patches.
-
-        Parameters
-        ----------
-        extension_width : float
-            factor to extend source in width (dip-direction)
-        extension_length : float
-            factor extend source in length (strike-direction)
-        patch_width : float
-            Width [m] of subpatch in dip-direction
-        patch_length : float
-            Length [m] of subpatch in strike-direction
-
-        Returns
-        -------
-        dict with list of :class:`pscmp.PsCmpRectangularSource` or
-            :class:`pyrocko.gf.seismosizer.RectangularSource`
-        """
-        s = copy.deepcopy(self)
-
-        l = self.length
-        w = self.width
-
-        new_length = num.ceil((l + (2. * l * extension_length)) / km) * km
-        new_width = num.ceil((w + (2. * w * extension_length)) / km) * km
-
-        npl = int(num.ceil(new_length / patch_length))
-        npw = int(num.ceil(new_width / patch_width))
-
-        new_length = float(npl * patch_length)
-        new_width = float(npw * patch_width)
-        logger.info(
-            'Fault extended to length=%f, width=%f!' % (new_length, new_width))
-
-        orig_center = s.center(s.width)
-        s.update(length=new_length, width=new_width)
-
-        top_center = s.center2top_depth(orig_center)
-
-        if top_center[2] < 0.:
-            logger.info('Fault would intersect surface!'
-                        ' Setting top center to 0.!')
-            trace_center = s.trace_center(s.depth)
-            s.update(east_shift=float(trace_center[0]),
-                     north_shift=float(trace_center[1]),
-                     depth=float(trace_center[2]))
-        else:
-            s.update(east_shift=float(top_center[0]),
-                     north_shift=float(top_center[1]),
-                     depth=float(top_center[2]))
-
-        return s
 
 
 def log_determinant(A, inverse=False):
@@ -347,10 +67,10 @@ def log_determinant(A, inverse=False):
     float logarithm of the determinant of the input Matrix A
     """
 
-    cholesky = num.linalg.cholesky(A)
+    cholesky = linalg.cholesky(A, lower=True)
     if inverse:
         cholesky = num.linalg.inv(cholesky)
-    return num.log(num.diag(cholesky)).sum()
+    return num.log(num.diag(cholesky)).sum() * 2.
 
 
 class ReferenceLocation(gf.Location):
@@ -382,6 +102,11 @@ class Covariance(Object):
                     help='Model prediction covariance matrix, velocity model',
                     optional=True)
 
+    def __init__(self, **kwargs):
+        self.slnf = shared(0., borrow=True)
+        Object.__init__(self, **kwargs)
+        self.update_slnf()
+
     @property
     def p_total(self):
         if self.pred_g is None:
@@ -399,8 +124,7 @@ class Covariance(Object):
         """
         Cx = self.p_total + self.data
         if Cx.sum() == 0:
-            logger.debug('No covariances given, using I matrix!')
-            return num.eye(Cx.shape[0]).astype(tconfig.floatX)
+            raise ValueError('No covariances given!')
         else:
             return num.linalg.inv(Cx).astype(tconfig.floatX)
 
@@ -410,7 +134,7 @@ class Covariance(Object):
         Add and invert different MODEL uncertainty covariance Matrices.
         """
         if self.p_total.sum() == 0:
-            raise Exception('No model covariance defined!')
+            raise ValueError('No model covariance defined!')
         return num.linalg.inv(self.p_total).astype(tconfig.floatX)
 
     @property
@@ -423,23 +147,40 @@ class Covariance(Object):
         return num.linalg.inv(self.data).astype(tconfig.floatX)
 
     @property
+    def chol(self):
+        """
+        Cholesky decomposition of ALL uncertainty covariance matrices.
+        """
+        Cx = self.p_total + self.data
+        if Cx.sum() == 0:
+            raise ValueError('No covariances given!')
+        else:
+            return linalg.cholesky(Cx, lower=True).astype(tconfig.floatX)
+
+    @property
+    def chol_inverse(self):
+        """
+        Inverse of Cholesky decomposition of ALL uncertainty covariance
+        matrices. To be used as weight in the optimization.
+        """
+        return num.linalg.inv(self.chol).astype(tconfig.floatX)
+
+    @property
     def log_norm_factor(self):
         """
         Calculate the normalisation factor of the posterior pdf.
         Following Duputel et al. 2014
         """
-
         N = self.data.shape[0]
-
-        if self.p_total.any():
-            ldet_x = log_determinant(self.data + self.p_total)
-        elif self.data.any():
-            ldet_x = log_determinant(self.data)
-        else:
-            logger.debug('No covariance defined, using I matrix!')
-            ldet_x = 1.
-
+        ldet_x = num.log(num.diag(self.chol)).sum() * 2.
         return utility.scalar2floatX((N * num.log(2 * num.pi)) + ldet_x)
+
+    def update_slnf(self):
+        """
+        Update shared variable with current log_norm_factor (lnf)
+        (for theano models).
+        """
+        self.slnf.set_value(self.log_norm_factor)
 
 
 class ArrivalTaper(trace.Taper):
@@ -461,8 +202,34 @@ class ArrivalTaper(trace.Taper):
         return num.abs(self.a) + self.d
 
     @property
-    def fade(self):
-        return num.abs(self.a - self.b)
+    def fadein(self):
+        return self.b - self.a
+
+    @property
+    def fadeout(self):
+        return self.d - self.c
+
+    def get_pyrocko_taper(self, arrival_time):
+        """
+        Get pyrocko CosTaper object that may be applied to trace operations.
+
+        Parameters
+        ----------
+        arrival_time : float
+            [s] of the reference time around which the taper will be applied
+
+        Returns
+        -------
+        :class:`pyrocko.trace.CosTaper`
+        """
+        if not self.a < self.b < self.c < self.d:
+            raise ValueError('Taper values violate: a < b < c < d')
+
+        return trace.CosTaper(
+            arrival_time + self.a,
+            arrival_time + self.b,
+            arrival_time + self.c,
+            arrival_time + self.d)
 
 
 class Trace(Object):
@@ -528,7 +295,7 @@ physical_bounds = dict(
     length=(0., 7000.),
     width=(0., 500.),
     slip=(0., 150.),
-    moment=(-1e30, 1e30),
+    magnitude=(-5., 10.),
     time=(-300., 300.),
     delta_time=(0., 100.),
     delta_depth=(0., 300.),
@@ -549,10 +316,8 @@ physical_bounds = dict(
     bl_amplitude=(0., 0.2),
     locking_depth=(0.1, 100.),
 
-    seis_Z=(-20., 20.),
-    seis_T=(-20., 20.),
-    geo_S=(-20., 20.),
-    geo_G=(-20., 20.),
+    h=(-20., 20.),
+
     ramp=(-0.005, 0.005))
 
 
@@ -579,9 +344,15 @@ class Parameter(Object):
                         default=num.array([0.5, 0.5], dtype=tconfig.floatX))
 
     def validate_bounds(self):
+
         if self.name not in physical_bounds.keys():
-            raise TypeError('The parameter "%s" cannot'
-                ' be optimized for!' % self.name)
+            if self.name[0:2] != 'h_':
+                raise TypeError('The parameter "%s" cannot'
+                    ' be optimized for!' % self.name)
+            else:
+                name = 'h'
+        else:
+            name = self.name
 
         if self.lower is not None:
             for i in range(self.dimension):
@@ -595,7 +366,7 @@ class Parameter(Object):
                     raise ValueError('The testvalue of parameter "%s" has to'
                         ' be within the upper and lower bounds' % self.name)
 
-                phys_b = physical_bounds[self.name]
+                phys_b = physical_bounds[name]
 
                 if self.upper[i] > phys_b[1] or \
                     self.lower[i] < phys_b[0]:
@@ -661,6 +432,7 @@ class SeismicDataset(trace.Trace):
     :class:`Covariance` as an attribute.
     """
 
+    wavename = None
     covariance = None
 
     @property
@@ -672,9 +444,38 @@ class SeismicDataset(trace.Trace):
                 'Dataset has no uncertainties! Return full data length!')
             return self.data_len()
 
+    def set_wavename(self, wavename):
+        self.wavename = wavename
+
     @property
     def typ(self):
-        return self.channel
+        return self.wavename + '_' + self.channel
+
+    @classmethod
+    def from_pyrocko_trace(cls, trace, **kwargs):
+        d = dict(
+            tmin=trace.tmin,
+            tmax=trace.tmax,
+            ydata=trace.ydata,
+            station=trace.station,
+            location=trace.location,
+            channel=trace.channel,
+            network=trace.network,
+            deltat=trace.deltat)
+        return cls(**d)
+
+    def __getstate__(self):
+        return (self.network, self.station, self.location, self.channel,
+                self.tmin, self.tmax, self.deltat, self.mtime,
+                self.ydata, self.meta, self.wavename, self.covariance)
+
+    def __setstate__(self, state):
+        self.network, self.station, self.location, self.channel, \
+            self.tmin, self.tmax, self.deltat, self.mtime, \
+            self.ydata, self.meta, self.wavename, self.covariance = state
+
+        self._growbuffer = None
+        self._update_ids()
 
 
 class GeodeticDataset(gf.meta.MultiLocation):
@@ -964,7 +765,7 @@ class GeodeticResult(Object):
 def init_seismic_targets(
     stations, earth_model_name='ak135-f-average.m', channels=['T', 'Z'],
     sample_rate=1.0, crust_inds=[0], interpolation='multilinear',
-    reference_location=None):
+    reference_location=None, blacklist=[]):
     """
     Initiate a list of target objects given a list of indexes to the
     respective GF store velocity model variation index (crust_inds).
@@ -990,6 +791,7 @@ def init_seismic_targets(
     reference_location : :class:`ReferenceLocation` or
         :class:`pyrocko.model.Station`
         if given, targets are initialised with this reference location
+    blacklist : stations that are blacklisted later
 
     Returns
     -------
@@ -1005,23 +807,33 @@ def init_seismic_targets(
 
     em_name = get_earth_model_prefix(earth_model_name)
 
-    targets = [DynamicTarget(
-        quantity='displacement',
-        codes=(stations[sta_num].network,
-                 stations[sta_num].station,
-                 '%i' % crust_ind, channel),  # n, s, l, c
-        lat=stations[sta_num].lat,
-        lon=stations[sta_num].lon,
-        azimuth=stations[sta_num].get_channel(channel).azimuth,
-        dip=stations[sta_num].get_channel(channel).dip,
-        interpolation=interpolation,
-        store_id='%s_%s_%.3fHz_%s' % (
-            store_prefixes[sta_num], em_name, sample_rate, crust_ind))
-
-        for channel in channels
-            for crust_ind in crust_inds
-                for sta_num in range(len(stations))]
-
+    targets = []
+    for sta_num, station in enumerate(stations):
+        for channel in channels:
+            for crust_ind in crust_inds:
+                cha = station.get_channel(channel)
+                if cha is None:
+                    if station.station not in blacklist:
+                        logger.warn('Channel %s for station does not exist!'
+                                ' Putting station into blacklist!')
+                        blacklist.append(station.station)
+                else:
+                    targets.append(DynamicTarget(
+                        quantity='displacement',
+                        codes=(station.network,
+                               station.station,
+                               '%i' % crust_ind, channel),  # n, s, l, c
+                        lat=station.lat,
+                        lon=station.lon,
+                        azimuth=cha.azimuth,
+                        dip=cha.dip,
+                        interpolation=interpolation,
+                        store_id='%s_%s_%.3fHz_%s' % (
+                            store_prefixes[sta_num],
+                            em_name,
+                            sample_rate,
+                            crust_ind))
+                                   )
     return targets
 
 
@@ -1340,8 +1152,7 @@ def get_slowness_taper(fomosto_config, velocity_model, distances):
 
     fc = fomosto_config
 
-    phases = [fc.tabulated_phases[i].phases
-        for i in range(len(fc.tabulated_phases))]
+    phases = [phase.phases for phase in fc.tabulated_phases]
 
     all_phases = []
     map(all_phases.extend, phases)
@@ -1369,7 +1180,7 @@ def get_earth_model_prefix(earth_model_name):
 
 
 def get_fomosto_baseconfig(
-    gfconfig, event, station, channels, crust_ind):
+    gfconfig, event, station, waveforms, crust_ind):
     """
     Initialise fomosto config.
 
@@ -1381,39 +1192,39 @@ def get_fomosto_baseconfig(
         According to the its location the earth model is being built
     station : :class:`pyrocko.model.Station` or
         :class:`heart.ReferenceLocation`
+    waveforms : List of str
+        Waveforms to calculate GFs for, determines the length of traces
     crust_ind : int
         Index to set to the Greens Function store
-    channels : List of str
-        Components of the traces to be optimized for if rotated:
-            T - transversal, Z - vertical, R - radial
-        If not rotated:
-            E - East, N- North, U - Up (Vertical)
-        if empty:
-            no tabulated phases set
     """
     sf = gfconfig
+
+    if gfconfig.code != 'psgrn' and len(waveforms) < 1:
+        raise IOError('No waveforms specified! No GFs to be calculated!')
 
     # calculate event-station distance [m]
     distance = orthodrome.distance_accurate50m(event, station)
     distance_min = distance - (sf.source_distance_radius * km)
 
     if distance_min < 0.:
-        if len(channels) > 0:
-            logger.warn(
-                'Minimum grid distance is below zero. Setting it to zero!')
+        logger.warn(
+            'Minimum grid distance is below zero. Setting it to zero!')
         distance_min = 0.
 
     # define phases
     tabulated_phases = []
-    if 'Z' in channels:
+    if 'any_P' in waveforms:
         tabulated_phases.append(gf.TPDef(
             id='any_P',
             definition='p,P,p\\,P\\'))
-    if 'T' in channels:
+
+    if 'any_S' in waveforms:
         tabulated_phases.append(gf.TPDef(
             id='any_S',
             definition='s,S,s\\,S\\'))
-    if distance_min * cake.m2d < near_field_threshold:
+
+    # surface waves
+    if 'slowest' in waveforms:
         tabulated_phases.append(gf.TPDef(
             id='slowest',
             definition='0.8'))
@@ -1444,7 +1255,7 @@ backend_builders = {
 
 
 def choose_backend(
-    fomosto_config, code, source_model, receiver_model, distances,
+    fomosto_config, code, source_model, receiver_model,
     gf_directory='qseis2d_green'):
     """
     Get backend related config.
@@ -1452,6 +1263,15 @@ def choose_backend(
 
     fc = fomosto_config
     receiver_basement_depth = 150 * km
+
+    distances = num.array([fc.distance_min, fc.distance_max]) * cake.m2d
+    slowness_taper = get_slowness_taper(fc, source_model, distances)
+
+    waveforms = [phase.id for phase in fc.tabulated_phases]
+
+    if 'slowest' in waveforms and code != 'qseis':
+        raise TypeError(
+            'For near-field phases the "qseis" backend has to be used!')
 
     if code == 'qseis':
         # find common basement layer
@@ -1461,17 +1281,18 @@ def choose_backend(
         receiver_model.append(l)
 
         version = '2006a'
-        distances = num.array([fc.distance_min, fc.distance_max]) * cake.m2d
-
-        # if maximum distances are farther than regional distance
-        if distances.max() > near_field_threshold:
-            slowness_taper = get_slowness_taper(fc, source_model, distances)
-            sw_algorithm = 1
-            sw_flat_earth_transform = 1
-        else:
+        if 'slowest' in waveforms or distances.min() < 1000 * km:
+            logger.info('Receiver and source'
+                ' site structures have to be identical as distance'
+                ' and ray depth not high enough for common reeiver'
+                ' depth!')
+            receiver_model = None
             slowness_taper = (0., 0., 0., 0.)
             sw_algorithm = 0
             sw_flat_earth_transform = 0
+        else:
+            sw_algorithm = 1
+            sw_flat_earth_transform = 1
 
         conf = qseis.QSeisConfig(
             filter_shallow_paths=0,
@@ -1485,8 +1306,6 @@ def choose_backend(
         source_model = copy.deepcopy(receiver_model)
         receiver_model = None
         version = '2010'
-        distances = num.array([fc.distance_min, fc.distance_max]) * cake.m2d
-        slowness_taper = get_slowness_taper(fc, source_model, distances)
 
         conf = qssp.QSSPConfig(
             qssp_version=version,
@@ -1498,7 +1317,6 @@ def choose_backend(
 
     elif code == 'qseis2d':
         version = '2014'
-        slowness_taper = get_slowness_taper(fc, source_model, distances)
 
         conf = qseis2d.QSeis2dConfig()
         conf.qseis_s_config.slowness_window = slowness_taper
@@ -1525,8 +1343,8 @@ def choose_backend(
     fc.modelling_code_id = code + '.' + version
 
     window_extension = 60.   # [s]
-    tps = fc.tabulated_phases
-    pids = ['stored:' + tp.id for tp in tps]
+
+    pids = ['stored:' + wave for wave in waveforms]
 
     conf.time_region = (
         gf.Timing(
@@ -1587,12 +1405,14 @@ def seis_construct_gf(
         event, earth_model_name=sf.earth_model_name, crust_ind=crust_ind,
         gf_config=sf, custom_velocity_model=sf.custom_velocity_model)
 
+    waveforms = seismic_config.get_waveform_names()
+
     for station in stations:
         logger.info('Station %s' % station.station)
         logger.info('---------------------')
 
         fomosto_config = get_fomosto_baseconfig(
-            sf, event, station, seismic_config.channels, crust_ind)
+            sf, event, station, waveforms, crust_ind)
 
         store_dir = sf.store_superdir + fomosto_config.id
 
@@ -1614,7 +1434,7 @@ def seis_construct_gf(
 
             conf = choose_backend(
                 fomosto_config, sf.code, source_model, receiver_model,
-                seismic_config.distances, gf_directory)
+                gf_directory)
 
             fomosto_config.validate()
             conf.validate()
@@ -1694,7 +1514,7 @@ def geo_construct_gf(
 
     fomosto_config = get_fomosto_baseconfig(
         gfconfig=gfc, event=event, station=station,
-        channels=[], crust_ind=crust_ind)
+        waveforms=[], crust_ind=crust_ind)
 
     store_dir = gfc.store_superdir + fomosto_config.id
 
@@ -2012,7 +1832,7 @@ def discretize_sources(
 
     Parameters
     ----------
-    sources : :class:`RectangularSource`
+    sources : :class:`sources.RectangularSource`
         Reference plane, which is being extended and
     extension_width : float
         factor to extend source in width (dip-direction)
@@ -2133,12 +1953,11 @@ def geo_construct_gf_linear(
         utility.dump_objects(outpath, [out_gfs])
 
 
-def get_phase_arrival_time(engine, source, target):
+def get_phase_arrival_time(engine, source, target, wavename):
     """
     Get arrival time from Greens Function store for respective
     :class:`pyrocko.gf.seismosizer.Target`,
-    :class:`pyrocko.gf.meta.Location` pair. The channel of the target
-    determines if S or P wave arrival time is returned.
+    :class:`pyrocko.gf.meta.Location` pair.
 
     Parameters
     ----------
@@ -2147,6 +1966,8 @@ def get_phase_arrival_time(engine, source, target):
         can be therefore :class:`pyrocko.gf.seismosizer.Source` or
         :class:`pyrocko.model.Event`
     target : :class:`pyrocko.gf.seismosizer.Target`
+    wavename : string
+        of the tabulated phase that determines the phase arrival
 
     Returns
     -------
@@ -2155,17 +1976,10 @@ def get_phase_arrival_time(engine, source, target):
     store = engine.get_store(target.store_id)
     dist = target.distance_to(source)
     depth = source.depth
-    if target.codes[3] == 'T':
-        wave = 'any_S'
-    elif target.codes[3] == 'Z':
-        wave = 'any_P'
-    else:
-        raise TypeError('Channel not supported! Either: "T" or "Z"')
-
-    return store.t(wave, (depth, dist)) + source.time
+    return store.t(wavename, (depth, dist)) + source.time
 
 
-def get_phase_taperer(engine, source, target, arrival_taper):
+def get_phase_taperer(engine, source, wavename, target, arrival_taper):
     """
     Create phase taperer according to synthetic travel times from
     source- target pair and taper return :class:`pyrocko.trace.CosTaper`
@@ -2177,6 +1991,8 @@ def get_phase_taperer(engine, source, target, arrival_taper):
     source : :class:`pyrocko.gf.meta.Location`
         can be therefore :class:`pyrocko.gf.seismosizer.Source` or
         :class:`pyrocko.model.Event`
+    wavename : string
+        of the tabulated phase that determines the phase arrival
     target : :class:`pyrocko.gf.seismosizer.Target`
     arrival_taper : :class:`ArrivalTaper`
 
@@ -2185,16 +2001,292 @@ def get_phase_taperer(engine, source, target, arrival_taper):
     :class:`pyrocko.trace.CosTaper`
     """
 
-    arrival_time = get_phase_arrival_time(engine, source, target)
-    return trace.CosTaper(float(arrival_time + arrival_taper.a),
-                          float(arrival_time + arrival_taper.b),
-                          float(arrival_time + arrival_taper.c),
-                          float(arrival_time + arrival_taper.d))
+    arrival_time = get_phase_arrival_time(
+        engine=engine, source=source, target=target, wavename=wavename)
+
+    return arrival_taper.get_pyrocko_taper(float(arrival_time))
+
+
+class WaveformMapping(object):
+    """
+    Weights have to be theano.shared variables!
+    """
+
+    _target2index = None
+
+    def __init__(self, name, stations, weights=None, channels=['Z'],
+        datasets=None, targets=None):
+
+        self.name = name
+        self.stations = stations
+        self.weights = weights
+        self.datasets = datasets
+        self.targets = targets
+        self.channels = channels
+
+        self._update_trace_wavenames()
+
+    def target_index_mapping(self):
+        if self._target2index is None:
+            self._target2index = dict(
+                (target, i) for (i, target) in enumerate(
+                    self.targets))
+        return self._target2index
+
+    def add_weights(self, weights, force=False):
+        n_w = len(weights)
+        if  n_w != self.n_t:
+            raise CollectionError(
+                'Number of Weights %i inconsistent with targets %i!' % (
+                    n_w, self.n_t))
+
+        self.weights = weights
+
+    def station_distance_weeding(self, event, distances):
+        self.stations = utility.weed_stations(
+            self.stations, event, distances=distances)
+
+        if self.n_data > 0:
+            self.datasets = utility.weed_data_traces(
+                self.datasets, self.stations)
+
+        if self.n_t > 0:
+            self.targets = utility.weed_targets(self.targets, self.stations)
+            self._target2index = None   # reset mapping
+
+    def update_interpolation(self, method):
+        for target in self.targets:
+            target.interpolation = method
+
+    def _update_trace_wavenames(self):
+        for dtrace in self.datasets:
+            dtrace.set_wavename(self.name)
+
+    @property
+    def n_t(self):
+        return len(self.targets)
+
+    @property
+    def n_data(self):
+        return len(self.datasets)
+
+    def get_datasets(self, channels=['Z']):
+
+        t2i = self.target_index_mapping()
+
+        dtargets = utility.gather(self.targets, lambda t: t.codes[3])
+
+        datasets = []
+        for cha in channels:
+            for target in dtargets[cha]:
+                datasets.append(self.datasets[t2i[target]])
+
+        return datasets
+
+    def get_weights(self, channels=['Z']):
+
+        t2i = self.target_index_mapping()
+
+        dtargets = utility.gather(self.targets, lambda t: t.codes[3])
+
+        weights = []
+        for cha in channels:
+            for target in dtargets[cha]:
+                weights.append(self.weights[t2i[target]])
+
+        return weights
+
+
+class CollectionError(Exception):
+    pass
+
+
+class DataWaveformCollection(object):
+    """
+    Collection of available datasets, data-weights, waveforms and
+    DynamicTargets used to create synthetics.
+
+    Is used to return Mappings of the waveforms of interest to fit to the
+    involved data, weights and synthetics generating objects.
+
+    Parameters
+    ----------
+    waveforms : list
+        of strings of tabulated phases that are to be used for misfit
+        calculation
+    """
+    _targets = OrderedDict()
+    _datasets = OrderedDict()
+    _target2index = None
+
+    def __init__(self, stations, waveforms=None):
+        self.stations = stations
+        self.waveforms = waveforms
+
+    def station_blacklisting(self, blacklist):
+        self.stations = utility.apply_station_blacklist(
+            self.stations, blacklist)
+
+        if self.n_data > 0:
+            weeded_traces = utility.weed_data_traces(
+                self._datasets.values(), self.stations)
+
+            self.add_datasets(weeded_traces, replace=True)
+
+        if self.n_t > 0:
+            weeded_targets = utility.weed_targets(
+                self._targets.values(), self.stations)
+
+            self.add_targets(weeded_targets, replace=True)
+            self._target2index = None   # reset mapping
+
+    def downsample_datasets(self, deltat):
+        utility.downsample_traces(self._datasets.values(), deltat=deltat)
+
+    def _check_collection(self, waveform, errormode='not_in', force=False):
+        if errormode == 'not_in':
+            if waveform not in self.waveforms:
+                raise CollectionError(
+                    'Waveform is not contained in collection!')
+            else:
+                pass
+
+        elif errormode == 'in':
+            if waveform in self.waveforms and not force:
+                raise CollectionError('Wavefom already in collection!')
+            else:
+                pass
+
+    @property
+    def n_t(self):
+        return len(self._targets.keys())
+
+    def add_collection(self, waveform=None, datasets=None, targets=None,
+                       weights=None, force=False):
+        self.add_waveform(waveform, force=force)
+        self.add_targets(waveform, targets, force=force)
+        self.add_datasets(waveform, datasets, force=force)
+
+    @property
+    def n_waveforms(self):
+        return len(self.waveforms)
+
+    def target_index_mapping(self):
+        if self._target2index is None:
+            self._target2index = dict(
+                (target, i) for (i, target) in enumerate(
+                    self._targets.values()))
+        return self._target2index
+
+    def get_waveform_names(self):
+        return self.waveforms
+
+    def add_waveforms(self, waveforms=[], force=False):
+        for waveform in waveforms:
+            self._check_collection(waveform, errormode='in', force=force)
+            self.waveforms.append(waveform)
+
+    def add_targets(self, targets, replace=False, force=False):
+
+        if replace:
+            self._targets = OrderedDict()
+
+        current_targets = self._targets.values()
+        for target in targets:
+            if target not in current_targets or force:
+                self._targets[target.codes] = target
+            else:
+                logger.warn(
+                    'Target %s already in collection!' % str(target.codes))
+
+    def add_datasets(self, datasets, replace=False, force=False):
+
+        if replace:
+            self._datasets = OrderedDict()
+
+        entries = self._datasets.keys()
+        for d in datasets:
+            nslc_id = d.nslc_id
+            if nslc_id not in entries or force:
+                self._datasets[nslc_id] = d
+            else:
+                logger.warn(
+                    'Dataset %s already in collection!' % str(nslc_id))
+
+    @property
+    def n_data(self):
+        return len(self._datasets.keys())
+
+    def get_waveform_mapping(self, waveform, channels=['Z', 'T', 'R']):
+
+        self._check_collection(waveform, errormode='not_in')
+
+        dtargets = utility.gather(
+            self._targets.values(), lambda t: t.codes[3])
+
+        targets = []
+        for cha in channels:
+            targets.extend(dtargets[cha])
+
+        datasets = []
+        for target in targets:
+            nslc_id = target.codes
+          #  nslc_id[2] = ''   # remove location code
+          #  nslc_id = tuple(nslc_id)
+            try:
+                dtrace = self._datasets[nslc_id]
+                datasets.append(dtrace)
+            except KeyError:
+                logger.warn('No data trace for target %s in '
+                    'the collection!' % str(nslc_id))
+
+        ndata = len(datasets)
+        n_t = len(targets)
+
+        if ndata != n_t:
+            raise CollectionError(
+                'Inconsistent number of targets %i '
+                'and datasets %i!' % (n_t, ndata))
+
+        return WaveformMapping(
+            name=waveform,
+            stations=copy.deepcopy(self.stations),
+            datasets=copy.deepcopy(datasets),
+            targets=copy.deepcopy(targets),
+            channels=channels)
+
+
+def post_process_trace(trace, taper, filterer, outmode=None):
+    """
+    Taper, filter and then chop one trace in place.
+
+    Parameters
+    ----------
+    trace : :class:`SeismicDataset`
+    arrival_taper : :class:`pyrocko.trace.Taper`
+    filterer : :class:`Filterer`
+    """
+
+    if taper is not None and outmode != 'data':
+        trace.extend(taper.a, taper.d, fillmethod='repeat')
+        trace.taper(taper, inplace=True)
+
+    if filterer is not None:
+        # filter traces
+
+        trace.bandpass(
+            corner_hp=filterer.lower_corner,
+            corner_lp=filterer.upper_corner,
+            order=filterer.order)
+
+    if taper is not None and outmode != 'data':
+        trace.chop(tmin=taper.a, tmax=taper.d)
 
 
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
-                    filterer=None, reference_taperer=None, plot=False,
-                    nprocs=1, outmode='array', pre_stack_cut=False):
+                    wavename='any_P', filterer=None, reference_taperer=None,
+                    plot=False, nprocs=1, outmode='array',
+                    pre_stack_cut=False):
     """
     Calculate synthetic seismograms of combination of targets and sources,
     filtering and tapering afterwards (filterer)
@@ -2210,6 +2302,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     targets : list
         containing :class:`pyrocko.gf.seismosizer.Target` Objects
     arrival_taper : :class:`ArrivalTaper`
+    wavename : string
+        of the tabulated phase that determines the phase arrival
     filterer : :class:`Filterer`
     reference_taperer : :class:`ArrivalTaper`
         if set all the traces are tapered with the specifications of this Taper
@@ -2239,6 +2333,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
                 tapp(get_phase_taperer(
                     engine=engine,
                     source=sources[0],
+                    wavename=wavename,
                     target=target,
                     arrival_taper=arrival_taper))
             else:
@@ -2248,9 +2343,6 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         for t, taperer in zip(targets, taperers):
             t.update_target_times(sources, taperer)
 
-        if outmode == 'data':
-            logger.warn('data traces will be very short! pre_sum_flag set!')
-
     t_2 = time()
     response = engine.process(
         sources=sources,
@@ -2258,7 +2350,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     t_1 = time()
 
     logger.debug('Synthetics generation time: %f' % (t_1 - t_2))
-    logger.debug('Details: %s \n' % response.stats)
+    #logger.debug('Details: %s \n' % response.stats)
 
     nt = len(targets)
     ns = len(sources)
@@ -2270,17 +2362,12 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
     for i, (source, target, tr) in enumerate(response.iter_results()):
         ti = taper_index[i]
-        if arrival_taper is not None and outmode != 'data':
-            tr.taper(taperers[ti], inplace=True)
 
-        if filterer is not None:
-            # filter traces
-            tr.bandpass(corner_hp=filterer.lower_corner,
-                    corner_lp=filterer.upper_corner,
-                    order=filterer.order)
-
-        if arrival_taper is not None and outmode != 'data':
-            tr.chop(tmin=taperers[ti].a, tmax=taperers[ti].d)
+        post_process_trace(
+            trace=tr,
+            taper=taperers[ti],
+            filterer=filterer,
+            outmode=outmode)
 
         sapp(tr)
 
@@ -2289,16 +2376,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     if plot:
         trace.snuffle(synt_trcs)
 
-    t2 = time()
-    tmins = num.vstack([tr.tmin for tr in synt_trcs]).flatten()
-    t3 = time()
-    logger.debug('Assemble tmins time %f' % (t3 - t2))
-
-    if arrival_taper is not None:
-        t4 = time()
+    if arrival_taper is not None and outmode != 'data':
         synths = num.vstack([tr.ydata for tr in synt_trcs])
-        t5 = time()
-        logger.debug('Assemble traces time %f' % (t5 - t4))
 
         # stack traces for all sources
         t6 = time()
@@ -2310,6 +2389,12 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
             outstack = synths
         t7 = time()
         logger.debug('Stack traces time %f' % (t7 - t6))
+
+        # get taper times for tapering data as well
+        tmins = num.array([at.a for at in taperers])
+    else:
+        # no taper defined so return trace tmins
+        tmins = num.array([tr.tmin for tr in synt_trcs])
 
     if outmode == 'stacked_traces':
         if arrival_taper is not None:
@@ -2328,6 +2413,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         return synt_trcs, tmins
 
     elif outmode == 'array':
+        logger.debug('Returning...')
         return outstack, tmins
 
     else:
@@ -2424,7 +2510,8 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
         containing the start times [s] since 1st.January 1970 to start
         tapering
     outmode : str
-        defines the output structure, options: "traces", "array"
+        defines the output structure, options: "stacked_traces", "array",
+        "data"
 
     Returns
     -------
@@ -2434,37 +2521,37 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
     """
 
     cut_traces = []
-
+    ctpp = cut_traces.append
     for i, tr in enumerate(data_traces):
         cut_trace = tr.copy()
+        tr.location = 'orig'
+        cut_trace.location = 'copy'
+
         if arrival_taper is not None:
-            taperer = trace.CosTaper(
-                float(tmins[i]),
-                float(tmins[i] - arrival_taper.b),
-                float(tmins[i] - arrival_taper.a + arrival_taper.c),
-                float(tmins[i] - arrival_taper.a + arrival_taper.d))
+            taper = arrival_taper.get_pyrocko_taper(
+                float(tmins[i] + num.abs(arrival_taper.a)))
+        else:
+            taper = None
 
-            # taper and cut traces
-            cut_trace.taper(taperer, inplace=True, chop=chop)
+        post_process_trace(
+            trace=cut_trace,
+            taper=taper,
+            filterer=filterer,
+            outmode=outmode)
 
-        if filterer is not None:
-            # filter traces
-            cut_trace.bandpass(corner_hp=filterer.lower_corner,
-                               corner_lp=filterer.upper_corner,
-                               order=filterer.order)
+        ctpp(cut_trace)
 
-        cut_traces.append(cut_trace)
-
-        if plot:
-            trace.snuffle(cut_traces)
+    if plot:
+        trace.snuffle(cut_traces + data_traces)
 
     if outmode == 'array':
         if arrival_taper is not None:
+            logger.debug('Returning chopped traces ...')
             return num.vstack(
                 [cut_traces[i].ydata for i in range(len(data_traces))])
         else:
-            raise Exception('Cannot return array without tapering!')
-    if outmode == 'traces':
+            raise IOError('Cannot return array without tapering!')
+    if outmode == 'stacked_traces' or outmode == 'data':
         return cut_traces
 
 

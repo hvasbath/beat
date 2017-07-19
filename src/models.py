@@ -14,6 +14,7 @@ import numpy as num
 import theano.tensor as tt
 from theano import config as tconfig
 from theano import shared
+from theano.printing import Print
 
 from beat import theanof, heart, utility, smc, backend, metropolis
 from beat import covariance as cov
@@ -29,13 +30,15 @@ km = 1000.
 logger = logging.getLogger('models')
 
 __all__ = ['GeometryOptimizer', 'DistributionOptimizer',
-           'sample', 'load_model', 'load_stage']
+           'sample', 'load_model']
 
 
 def multivariate_normal(datasets, weights, hyperparams, residuals):
     """
     Calculate posterior Likelihood of a Multivariate Normal distribution.
-    Can only be executed in a `with model context`
+    Uses plain inverse of the covariances.
+    DEPRECATED! Is currently not being used in beat.
+    Can only be executed in a `with model context`.
 
     Parameters
     ----------
@@ -58,15 +61,56 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
 
     for l, data in enumerate(datasets):
         M = tt.cast(shared(data.samples, borrow=True), 'int16')
-        factor = shared(
-            data.covariance.log_norm_factor, borrow=True)
-        hp_name = bconfig.hyper_pars[data.typ]
+        hp_name = '_'.join(('h', data.typ))
 
         logpts = tt.set_subtensor(logpts[l:l + 1],
-            (-0.5) * (factor + \
+            (-0.5) * (data.covariance.slnf + \
             (M * 2 * hyperparams[hp_name]) + \
             (1 / tt.exp(hyperparams[hp_name] * 2)) * \
             (residuals[l].dot(weights[l]).dot(residuals[l].T))
+                     )
+                                 )
+
+    return logpts
+
+
+def multivariate_normal_chol(datasets, weights, hyperparams, residuals):
+    """
+    Calculate posterior Likelihood of a Multivariate Normal distribution.
+    Assumes weights to be the inverse cholesky decomposed lower triangle
+    of the Covariance matrix.
+    Can only be executed in a `with model context`.
+
+    Parameters
+    ----------
+    datasets : list
+        of :class:`heart.SeismicDataset` or :class:`heart.GeodeticDataset`
+    weights : list
+        of :class:`theano.shared`
+        Square matrix of the inverse of the lower triangular matrix of a
+        cholesky decomposed covariance matrix
+    hyperparams : dict
+        of :class:`theano.`
+    residual : list or array of model residuals
+
+    Returns
+    -------
+    array_like
+    """
+    n_t = len(datasets)
+
+    logpts = tt.zeros((n_t), tconfig.floatX)
+
+    for l, data in enumerate(datasets):
+        M = tt.cast(shared(data.samples, borrow=True), 'int16')
+        hp_name = '_'.join(('h', data.typ))
+        tmp = weights[l].dot(residuals[l])
+
+        logpts = tt.set_subtensor(logpts[l:l + 1],
+            (-0.5) * (data.covariance.slnf + \
+            (M * 2 * hyperparams[hp_name]) + \
+            (1 / tt.exp(hyperparams[hp_name] * 2)) * \
+            (tt.dot(tmp, tmp))
                      )
                                  )
 
@@ -95,11 +139,10 @@ def hyper_normal(datasets, hyperparams, llks):
 
     for k, data in enumerate(datasets):
         M = data.samples
-        factor = data.covariance.log_norm_factor
-        hp_name = bconfig.hyper_pars[data.typ]
+        hp_name = '_'.join(('h', data.typ))
 
         logpts = tt.set_subtensor(logpts[k:k + 1],
-            (-0.5) * (factor + \
+            (-0.5) * (data.covariance.slnf + \
             (M * 2 * hyperparams[hp_name]) + \
             (1 / tt.exp(hyperparams[hp_name] * 2)) * \
                 llks[k]
@@ -201,23 +244,13 @@ class GeodeticComposite(Composite):
         self.name = 'geodetic'
         self._like_name = 'geo_like'
 
-        self.engine = gf.LocalEngine(
-            store_superdirs=[gc.gf_config.store_superdir])
-
         geodetic_data_path = os.path.join(
             project_dir, bconfig.geodetic_data_name)
 
         self.datasets = utility.load_objects(geodetic_data_path)
 
-        self.targets = heart.init_geodetic_targets(
-            datasets=self.datasets,
-            earth_model_name=gc.gf_config.earth_model_name,
-            interpolation='multilinear',
-            crust_inds=[0],
-            sample_rate=gc.gf_config.sample_rate)
-
-        self.n_t = len(self.targets)
-        logger.info('Number of geodetic datasets: %i ' % self.n_t)
+        self.n_d = len(self.datasets)
+        logger.info('Number of geodetic datasets: %i ' % self.n_d)
 
         if gc.calc_data_cov:
             logger.warn('Covariance estimation not implemented (yet)!'
@@ -228,8 +261,8 @@ class GeodeticComposite(Composite):
 
         self.weights = []
         for data in self.datasets:
-            icov = data.covariance.inverse
-            self.weights.append(shared(icov, borrow=True))
+            choli = data.covariance.chol_inverse
+            self.weights.append(shared(choli, borrow=True))
 
         if gc.fit_plane:
             logger.info('Fit residual ramp selected!')
@@ -315,10 +348,10 @@ class GeodeticComposite(Composite):
         """
         results = self.assemble_results(point)
         for l, result in enumerate(results):
-            icov = self.datasets[l].covariance.inverse
-            llk = num.array(result.processed_res.dot(
-                icov).dot(result.processed_res.T)).flatten()
-            self._llks[l].set_value(llk)
+            choli = self.datasets[l].covariance.chol_inverse
+            tmp = choli.dot(result.processed_res)
+            _llk = num.asarray([num.dot(tmp, tmp)])
+            self._llks[l].set_value(_llk)
 
 
 class GeodeticSourceComposite(GeodeticComposite):
@@ -344,6 +377,16 @@ class GeodeticSourceComposite(GeodeticComposite):
 
         super(GeodeticSourceComposite, self).__init__(
             gc, project_dir, event, hypers=hypers)
+
+        self.engine = gf.LocalEngine(
+            store_superdirs=[gc.gf_config.store_superdir])
+
+        self.targets = heart.init_geodetic_targets(
+            datasets=self.datasets,
+            earth_model_name=gc.gf_config.earth_model_name,
+            interpolation='multilinear',
+            crust_inds=[0],
+            sample_rate=gc.gf_config.sample_rate)
 
         self.sources = sources
 
@@ -391,7 +434,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         tpoint = utility.adjust_point_units(tpoint)
 
         # remove hyperparameters from point
-        hps = bconfig.hyper_pars.values()
+        hps = self.config.get_hypernames()
 
         for hyper in hps:
             if hyper in tpoint:
@@ -455,7 +498,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         if self.config.fit_plane:
             residuals = self.remove_ramps(residuals)
 
-        logpts = multivariate_normal(
+        logpts = multivariate_normal_chol(
             self.datasets, self.weights, hyperparams, residuals)
 
         llk = pm.Deterministic(self._like_name, logpts)
@@ -530,7 +573,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
                 sample_rate=gc.gf_config.sample_rate)
 
             logger.debug('Track %s' % data.name)
-            cov_pv = cov.geo_cov_velocity_models(
+            cov_pv = cov.geodetic_cov_velocity_models(
                 engine=self.engine,
                 sources=self.sources,
                 targets=crust_targets,
@@ -540,8 +583,9 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
             cov_pv = utility.ensure_cov_psd(cov_pv)
 
             data.covariance.pred_v = cov_pv
-            icov = data.covariance.inverse
-            self.weights[i].set_value(icov)
+            choli = data.covariance.chol_inverse
+            self.weights[i].set_value(choli)
+            data.covariance.update_slnf()
 
 
 class GeodeticInterseismicComposite(GeodeticSourceComposite):
@@ -622,6 +666,9 @@ class SeismicComposite(Composite):
     hypers : boolean
         if true initialise object for hyper parameter optimization
     """
+    _datasets = None
+    _weights = None
+    _targets = None
 
     def __init__(self, sc, event, project_dir, hypers=False):
 
@@ -637,65 +684,124 @@ class SeismicComposite(Composite):
             project_dir, bconfig.seismic_data_name)
         stations, data_traces = utility.load_objects(
             seismic_data_path)
-        stations = utility.apply_station_blacklist(stations, sc.blacklist)
 
-        self.stations = utility.weed_stations(
-            stations, self.event, distances=sc.distances)
-
-        self.datasets = utility.weed_data_traces(
-            data_traces, self.stations)
+        wavenames = sc.get_waveform_names()
 
         target_deltat = 1. / sc.gf_config.sample_rate
 
-        if self.datasets[0].deltat != target_deltat:
-            utility.downsample_traces(
-                self.datasets, deltat=target_deltat)
-
-        self.targets = heart.init_seismic_targets(
-            self.stations,
+        targets = heart.init_seismic_targets(
+            stations,
             earth_model_name=sc.gf_config.earth_model_name,
-            channels=sc.channels,
+            channels=sc.get_unique_channels(),
             sample_rate=sc.gf_config.sample_rate,
             crust_inds=[0],  # always reference model
-            interpolation='multilinear',
-            reference_location=sc.gf_config.reference_location)
+            reference_location=sc.gf_config.reference_location,
+            blacklist=sc.blacklist)
 
-        self.n_t = len(self.targets)
-        logger.info('Number of seismic datasets: %i ' % self.n_t)
+        datahandler = heart.DataWaveformCollection(stations, wavenames)
+        datahandler.add_datasets(data_traces)
+        datahandler.downsample_datasets(target_deltat)
+        datahandler.add_targets(targets)
+        datahandler.station_blacklisting(sc.blacklist)
 
-        if sc.calc_data_cov:
-            logger.info('Estimating seismic data-covariances ...\n')
-            cov_ds_seismic = cov.seismic_data_covariance(
-                data_traces=self.datasets,
-                filterer=sc.filterer,
-                sample_rate=sc.gf_config.sample_rate,
-                arrival_taper=sc.arrival_taper,
-                engine=self.engine,
-                event=self.event,
-                targets=self.targets)
-        else:
-            logger.info('No data-covariance estimation, using imported'
-                        ' covariances...\n')
-            cov_ds_seismic = []
-            at = sc.arrival_taper
-            n_samples = int(num.ceil(
-                (num.abs(at.a) + at.d) * sc.gf_config.sample_rate))
+        self.wavemaps = []
+        for wc in sc.waveforms:
+            if wc.include:
+                wmap = datahandler.get_waveform_mapping(
+                    wc.name, channels=wc.channels)
+                wmap.config = wc
 
-            for tr in self.datasets:
-                cov_ds_seismic.append(num.eye(n_samples))
+                wmap.station_distance_weeding(event, wc.distances)
+                wmap.update_interpolation(wc.interpolation)
 
-        self.weights = []
-        for t, trc in enumerate(self.datasets):
-            if trc.covariance is None and not sc.calc_data_cov:
-                logger.warn(
-                    'No data covariance given/estimated! '
-                    'Setting default: eye')
+                logger.info('Number of seismic datasets for %s: %i ' % (
+                    wmap.name, wmap.n_data))
 
-            trc.covariance = heart.Covariance(data=cov_ds_seismic[t])
-            icov = trc.covariance.inverse
-            self.weights.append(shared(icov, borrow=True))
+                if sc.calc_data_cov:
+                    logger.info(
+                        'Estimating seismic data-covariances '
+                        'for %s ...\n' % wmap.name)
+
+                    cov_ds_seismic = cov.seismic_data_covariance(
+                        data_traces=wmap.datasets,
+                        filterer=wc.filterer,
+                        sample_rate=sc.gf_config.sample_rate,
+                        arrival_taper=wc.arrival_taper,
+                        engine=self.engine,
+                        event=self.event,
+                        targets=wmap.targets)
+                else:
+                    logger.info('No data-covariance estimation, using imported'
+                                ' covariances...\n')
+
+                    cov_ds_seismic = []
+                    at = wc.arrival_taper
+                    n_samples = int(num.ceil(
+                        at.duration * sc.gf_config.sample_rate))
+
+                    for trc in wmap.datasets:
+                        if trc.covariance is None:
+                            logger.warn(
+                                'No data covariance given/estimated! '
+                                'Setting default: eye')
+                            cov_ds_seismic.append(num.eye(n_samples))
+                        else:
+                            data_cov = trc.covariance.data
+                            if data_cov.shape[0] != n_samples:
+                                raise ValueError(
+                                    'Imported covariance %i does not agree '
+                                    ' with taper duration %i!' % (
+                                        data_cov.shape[0], n_samples))
+                            cov_ds_seismic.append(data_cov)
+
+                weights = []
+                for t, trc in enumerate(wmap.datasets):
+                    trc.covariance = heart.Covariance(data=cov_ds_seismic[t])
+                    icov = trc.covariance.chol_inverse
+                    weights.append(shared(icov, borrow=True))
+
+                wmap.add_weights(weights)
+
+                self.wavemaps.append(wmap)
+            else:
+                logger.info('The waveform defined in "%s" config is not '
+                    'included in the optimization!' % wc.name)
 
         super(SeismicComposite, self).__init__(hypers=hypers)
+
+    @property
+    def n_t(self):
+        return sum(wmap.n_t for wmap in self.wavemaps)
+
+    @property
+    def datasets(self):
+        if self._datasets is None:
+            ds = []
+            for wmap in self.wavemaps:
+                ds.extend(wmap.datasets)
+
+            self._datasets = ds
+        return self._datasets
+
+    @property
+    def weights(self):
+        if self._weights is None:
+            ws = []
+            for wmap in self.wavemaps:
+                ws.extend(wmap.weights)
+
+            self._weights = ws
+        return self._weights
+
+    @property
+    def targets(self):
+        if self._targets is None:
+            ts = []
+            for wmap in self.wavemaps:
+                ts.extend(wmap.targets)
+
+            self._targets = ts
+        return self._targets
 
     def assemble_results(self, point):
         """
@@ -710,55 +816,44 @@ class SeismicComposite(Composite):
         -------
         List with :class:`heart.SeismicResult`
         """
-
         logger.debug('Assembling seismic waveforms ...')
 
-        syn_proc_traces = self.get_synthetics(point, outmode='stacked_traces')
+        self.point2sources(point)
 
-        tmins = [tr.tmin for tr in syn_proc_traces]
+        syn_proc_traces, obs_proc_traces = self.get_synthetics(
+            point, outmode='stacked_traces')
 
-        at = copy.deepcopy(self.config.arrival_taper)
+        syn_filt_traces, obs_filt_traces = self.get_synthetics(
+            point, outmode='data')
 
-        obs_proc_traces = heart.taper_filter_traces(
-            self.datasets,
-            arrival_taper=at,
-            filterer=self.config.filterer,
-            tmins=tmins,
-            outmode='traces')
+        ats = []
+        for wmap in self.wavemaps:
+            wc = wmap.config
+            ats.extend(wmap.n_t * [wc.arrival_taper])
 
-        self.config.arrival_taper = None
-
-        syn_filt_traces = self.get_synthetics(point, outmode='data')
-
-        obs_filt_traces = heart.taper_filter_traces(
-            self.datasets,
-            filterer=self.config.filterer,
-            outmode='traces')
-
+        tmins = [tr.tmin for tr in obs_proc_traces]
         factor = 2.
         for i, (trs, tro) in enumerate(zip(syn_filt_traces, obs_filt_traces)):
+            at = ats[i]
+            tol = factor * at.fadein
 
-            trs.chop(tmin=tmins[i] - factor * at.fade,
-                     tmax=tmins[i] + factor * at.fade + at.duration)
-            tro.chop(tmin=tmins[i] - factor * at.fade,
-                     tmax=tmins[i] + factor * at.fade + at.duration)
-
-        self.config.arrival_taper = at
+            trs.chop(tmin=tmins[i] - tol,
+                     tmax=tmins[i] + tol + at.duration)
+            tro.chop(tmin=tmins[i] - tol,
+                     tmax=tmins[i] + tol + at.duration)
 
         results = []
-        for i, obstr in enumerate(obs_proc_traces):
-            dtrace = obstr.copy()
+        for i, obs_tr in enumerate(obs_proc_traces):
+            dtrace = obs_tr.copy()
             dtrace.set_ydata(
-                (obstr.get_ydata() - syn_proc_traces[i].get_ydata()))
+                (obs_tr.get_ydata() - syn_proc_traces[i].get_ydata()))
 
-            taper = trace.CosTaper(
-                tmins[i],
-                tmins[i] + at.fade,
-                tmins[i] + at.duration - at.fade,
-                tmins[i] + at.duration)
+            at = ats[i]
+            taper = at.get_pyrocko_taper(
+                float(tmins[i] + num.abs(at.a)))
 
             results.append(heart.SeismicResult(
-                    processed_obs=obstr,
+                    processed_obs=obs_tr,
                     processed_syn=syn_proc_traces[i],
                     processed_res=dtrace,
                     filtered_obs=obs_filt_traces[i],
@@ -779,9 +874,9 @@ class SeismicComposite(Composite):
         """
         results = self.assemble_results(point)
         for k, result in enumerate(results):
-            icov = self.datasets[k].covariance.inverse
-            _llk = num.array(result.processed_res.ydata.dot(
-                icov).dot(result.processed_res.ydata.T)).flatten()
+            choli = self.datasets[k].covariance.chol_inverse
+            tmp = choli.dot(result.processed_res.ydata)
+            _llk = num.asarray([num.dot(tmp, tmp)])
             self._llks[k].set_value(_llk)
 
 
@@ -803,6 +898,8 @@ class SeismicGeometryComposite(SeismicComposite):
     hypers : boolean
         if true initialise object for hyper parameter optimization
     """
+    synthesizers = {}
+    choppers = {}
 
     def __init__(self, sc, project_dir, sources, event, hypers=False):
 
@@ -813,20 +910,24 @@ class SeismicGeometryComposite(SeismicComposite):
 
         # syntetics generation
         logger.debug('Initialising synthetics functions ... \n')
-        self.get_synths = theanof.SeisSynthesizer(
-            engine=self.engine,
-            sources=self.sources,
-            targets=self.targets,
-            event=self.event,
-            arrival_taper=sc.arrival_taper,
-            filterer=sc.filterer,
-            pre_stack_cut=sc.pre_stack_cut)
+        for wmap in self.wavemaps:
+            wc = wmap.config
 
-        self.chop_traces = theanof.SeisDataChopper(
-            sample_rate=sc.gf_config.sample_rate,
-            traces=self.datasets,
-            arrival_taper=sc.arrival_taper,
-            filterer=sc.filterer)
+            self.synthesizers[wc.name] = theanof.SeisSynthesizer(
+                engine=self.engine,
+                sources=self.sources,
+                targets=wmap.targets,
+                event=self.event,
+                arrival_taper=wc.arrival_taper,
+                wavename=wmap.name,
+                filterer=wc.filterer,
+                pre_stack_cut=sc.pre_stack_cut)
+
+            self.choppers[wc.name] = theanof.SeisDataChopper(
+               sample_rate=sc.gf_config.sample_rate,
+               traces=wmap.datasets,
+               arrival_taper=wc.arrival_taper,
+               filterer=wc.filterer)
 
         self.config = sc
 
@@ -858,7 +959,7 @@ class SeismicGeometryComposite(SeismicComposite):
         tpoint = utility.adjust_point_units(tpoint)
 
         # remove hyperparameters from point
-        hps = bconfig.hyper_pars.values()
+        hps = self.config.get_hypernames()
 
         for hyper in hps:
             if hyper in tpoint:
@@ -904,20 +1005,23 @@ class SeismicGeometryComposite(SeismicComposite):
             ' %s' % ', '.join(self.input_rvs.keys()))
 
         t2 = time.time()
-        synths, tmins = self.get_synths(self.input_rvs)
+        wlogpts = []
+        for wmap in self.wavemaps:
+            synths, tmins = self.synthesizers[wmap.name](self.input_rvs)
+            data_trcs = self.choppers[wmap.name](tmins)
+            residuals = data_trcs - synths
+
+            logpts = multivariate_normal_chol(
+                wmap.datasets, wmap.weights, hyperparams, residuals)
+
+            wlogpts.append(logpts)
+
         t3 = time.time()
         logger.debug(
             'Teleseismic forward model on test model takes: %f' % \
                 (t3 - t2))
 
-        data_trcs = self.chop_traces(tmins)
-
-        residuals = data_trcs - synths
-
-        logpts = multivariate_normal(
-            self.datasets, self.weights, hyperparams, residuals)
-
-        llk = pm.Deterministic(self._like_name, logpts)
+        llk = pm.Deterministic(self._like_name, tt.concatenate((wlogpts)))
         return llk.sum()
 
     def get_synthetics(self, point, **kwargs):
@@ -938,16 +1042,30 @@ class SeismicGeometryComposite(SeismicComposite):
         self.point2sources(point)
 
         sc = self.config
-        synths, _ = heart.seis_synthetics(
-            engine=self.engine,
-            sources=self.sources,
-            targets=self.targets,
-            arrival_taper=sc.arrival_taper,
-            filterer=sc.filterer,
-            pre_stack_cut=sc.pre_stack_cut,
-            **kwargs)
+        synths = []
+        obs = []
+        for wmap in self.wavemaps:
+            wc = wmap.config
 
-        return synths
+            synthetics, tmins = heart.seis_synthetics(
+                engine=self.engine,
+                sources=self.sources,
+                targets=wmap.targets,
+                arrival_taper=wc.arrival_taper,
+                wavename=wmap.name,
+                filterer=wc.filterer,
+                pre_stack_cut=sc.pre_stack_cut,
+                **kwargs)
+            synths.extend(synthetics)
+
+            obs.extend(heart.taper_filter_traces(
+                wmap.datasets,
+                arrival_taper=wc.arrival_taper,
+                filterer=wc.filterer,
+                tmins=tmins,
+                **kwargs))
+
+        return synths, obs
 
     def update_weights(self, point, n_jobs=1, plot=False):
         """
@@ -963,38 +1081,48 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.point2sources(point)
 
-        for j, channel in enumerate(sc.channels):
-            for i, station in enumerate(self.stations):
-                logger.debug('Channel %s of Station %s ' % (
-                    channel, station.station))
-                crust_targets = heart.init_seismic_targets(
-                    stations=[station],
-                    earth_model_name=sc.gf_config.earth_model_name,
-                    channels=channel,
-                    sample_rate=sc.gf_config.sample_rate,
-                    crust_inds=range(*sc.gf_config.n_variations),
-                    reference_location=sc.gf_config.reference_location)
+        for wmap in self.wavemaps:
+            wc = wmap.config
 
-                cov_pv = cov.seis_cov_velocity_models(
-                    engine=self.engine,
-                    sources=self.sources,
-                    targets=crust_targets,
-                    arrival_taper=sc.arrival_taper,
-                    filterer=sc.filterer,
-                    plot=plot, n_jobs=n_jobs)
+            for channel in wmap.channels:
+                datasets = wmap.get_datasets([channel])
+                weights = wmap.get_weights([channel])
 
-                cov_pv = utility.ensure_cov_psd(cov_pv)
+                for station, dataset, weight in zip(
+                    wmap.stations, datasets, weights):
 
-                self.engine.close_cashed_stores()
+                    logger.debug('Channel %s of Station %s ' % (
+                        channel, station.station))
 
-                index = j * len(self.stations) + i
+                    crust_targets = heart.init_seismic_targets(
+                        stations=[station],
+                        earth_model_name=sc.gf_config.earth_model_name,
+                        channels=channel,
+                        sample_rate=sc.gf_config.sample_rate,
+                        crust_inds=range(*sc.gf_config.n_variations),
+                        reference_location=sc.gf_config.reference_location)
 
-                self.datasets[index].covariance.pred_v = cov_pv
-                t0 = time.time()
-                icov = self.datasets[index].covariance.inverse
-                t1 = time.time()
-                logger.debug('Calculate inverse time %f' % (t1 - t0))
-                self.weights[index].set_value(icov)
+                    cov_pv = cov.seismic_cov_velocity_models(
+                        engine=self.engine,
+                        sources=self.sources,
+                        targets=crust_targets,
+                        wavename=wmap.name,
+                        arrival_taper=wc.arrival_taper,
+                        filterer=wc.filterer,
+                        plot=plot, n_jobs=n_jobs)
+
+                    cov_pv = utility.ensure_cov_psd(cov_pv)
+
+                    self.engine.close_cashed_stores()
+
+                    dataset.covariance.pred_v = cov_pv
+
+                    t0 = time.time()
+                    choli = dataset.covariance.chol_inverse
+                    t1 = time.time()
+                    logger.debug('Calculate weight time %f' % (t1 - t0))
+                    weight.set_value(choli)
+                    dataset.covariance.update_slnf()
 
 
 class GeodeticDistributerComposite(GeodeticComposite):
@@ -1097,7 +1225,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
         if self.config.fit_plane:
             residuals = self.remove_ramps(residuals)
 
-        logpts = multivariate_normal(
+        logpts = multivariate_normal_chol(
             self.datasets, self.weights, hyperparams, residuals)
 
         llk = pm.Deterministic(self._like_name, logpts)
@@ -1123,7 +1251,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
 
         tpoint = copy.deepcopy(point)
 
-        hps = bconfig.hyper_pars.values()
+        hps = self.config.get_hypernames()
 
         for hyper in hps:
             if hyper in tpoint:
@@ -1234,7 +1362,7 @@ class Problem(object):
 
             elif sc.name == 'SMC':
                 logger.info(
-                    '... Initiate Adaptive Transitional Metropolis ... \n'
+                    '... Initiate Sequential Monte Carlo ... \n'
                     ' n_chains=%i, tune_interval=%i, n_jobs=%i \n' % (
                         sc.parameters.n_chains, sc.parameters.tune_interval,
                         sc.parameters.n_jobs))
@@ -1279,7 +1407,10 @@ class Problem(object):
                 total_llk += composite.get_formula(
                     input_rvs, fixed_rvs, self.hyperparams)
 
-            like = pm.Deterministic(self._like_name, total_llk)
+            # deterministic RV to write out llks to file
+            like = pm.Deterministic('tmp', total_llk)
+
+            # will overwrite deterministic name ...
             llk = pm.Potential(self._like_name, like)
             logger.info('Model building was successful!')
 
@@ -1309,7 +1440,7 @@ class Problem(object):
             for composite in self.composites.itervalues():
                 total_llk += composite.get_hyper_formula(self.hyperparams)
 
-            like = pm.Deterministic(self._like_name, total_llk)
+            like = pm.Deterministic('tmp', total_llk)
             llk = pm.Potential(self._like_name, like)
             logger.info('Hyper model building was successful!')
 
@@ -1369,9 +1500,8 @@ class Problem(object):
 
         logger.debug('Optimization for %i hyperparemeters', n_hyp)
 
-        for hp_name in bconfig.hyper_pars.values():
-            if hp_name in pc.hyperparameters:
-                hyperpar = pc.hyperparameters[hp_name]
+        for hp_name, hyperpar in pc.hyperparameters.iteritems():
+            if not num.array_equal(hyperpar.lower, hyperpar.upper):
                 hyperparams[hp_name] = pm.Uniform(
                     hyperpar.name,
                     shape=hyperpar.dimension,
@@ -1381,7 +1511,11 @@ class Problem(object):
                     dtype=tconfig.floatX,
                     transform=None)
             else:
-                hyperparams[hp_name] = 0.
+                logger.info(
+                    'not solving for %s, got fixed at %s' % (
+                    hyperpar.name,
+                    utility.list_to_str(hyperpar.lower.flatten())))
+                hyperparams[hyperpar.name] = hyperpar.lower
 
         return hyperparams
 
@@ -1655,7 +1789,7 @@ def sample(step, problem):
             n_steps=pa.n_steps,
             stage=pa.stage,
             step=step,
-            progressbar=True,
+            progressbar=sc.progressbar,
             trace=problem.outfolder,
             burn=pa.burn,
             thin=pa.thin,
@@ -1670,7 +1804,7 @@ def sample(step, problem):
         smc.ATMIP_sample(
             pa.n_steps,
             step=step,
-            progressbar=False,
+            progressbar=sc.progressbar,
             model=problem.model,
             n_jobs=pa.n_jobs,
             stage=pa.stage,
@@ -1784,7 +1918,7 @@ def load_model(project_dir, mode, hypers=False, nobuild=False):
     problem : :class:`Problem`
     """
 
-    config = bconfig.load_config(project_dir, mode)
+    config = bconfig.load_config(project_dir, mode, update=hypers)
 
     pc = config.problem_config
 
@@ -1812,70 +1946,60 @@ class Stage(object):
     Stage, containing sampling results and intermediate sampler
     parameters.
     """
+    number = None
+    path = None
+    step = None
+    updates = None
+    mtrace = None
 
-    def __init__(self, number='final', path='./', step=None, updates=None,
-                 mtrace=None):
-        self.number = number
-        self.path = path
-        self.step = step
-        self.updates = updates
-        self.mtrace = mtrace
+    def __init__(self, handler=None, homepath=None, stage_number=-1):
 
+        if handler is not None:
+            self.handler = handler
+        elif handler is None and homepath is not None:
+            self.handler = backend.TextStage(homepath)
+        else:
+            raise TypeError('Either handler or homepath have to be not None')
 
-def load_stage(problem, stage_number=None, load='trace'):
-    """
-    Load stage results from sampling.
+        self.number = stage_number
 
-    Parameters
-    ----------
-    problem : :class:`Problem`
-    stage_number : str
-        Number of stage to load
-    load : str
-        what to load and return 'full', 'trace', 'params'
+    def load_results(self, model=None, stage_number=None, load='trace'):
+        """
+        Load stage results from sampling.
 
-    Returns
-    -------
-    dict
-    """
+        Parameters
+        ----------
+        model : :class:`pymc3.model.Model`
+        stage_number : int
+            Number of stage to load
+        load : str
+            what to load and return 'full', 'trace', 'params'
+        """
+        if stage_number is None:
+            stage_number = self.number
 
-    project_dir = problem.config.project_dir
-    mode = problem.config.problem_config.mode
+        self.path = self.handler.stage_path(stage_number)
 
-    if stage_number is None:
-        stage_number = 'final'
+        if not os.path.exists(self.path):
+            stage_number = self.handler.highest_sampled_stage()
 
-    homepath = problem.outfolder
-    stagepath = os.path.join(homepath, 'stage_%s' % stage_number)
+            logger.info(
+                'Stage results %s do not exist! Loading last completed'
+                ' stage %s' % (self.path, stage_number))
+            self.path = self.handler.stage_path(stage_number)
 
-    if os.path.exists(stagepath):
-        logger.info('Loading sampling results from: %s' % stagepath)
-    else:
-        stage_number = backend.get_highest_sampled_stage(
-            homepath, return_final=True)
+        self.number = stage_number
 
-        if isinstance(stage_number, int):
-            stage_number -= 1
+        if load == 'full':
+            to_load = ['params', 'trace']
+        else:
+            to_load = [load]
 
-        stage_number = str(stage_number)
+        with model:
+            if 'trace' in to_load:
+                self.mtrace = self.handler.load_multitrace(
+                    stage_number, model=model)
 
-        logger.info(
-            'Stage results %s do not exist! Loading last completed'
-            ' stage %s' % (stagepath, stage_number))
-        stagepath = os.path.join(homepath, 'stage_%s' % stage_number)
-
-    if load == 'full':
-        to_load = ['params', 'trace']
-    else:
-        to_load = [load]
-
-    stage = Stage(path=stagepath, number=stage_number)
-
-    if 'trace' in to_load:
-        stage.mtrace = backend.load(stagepath, model=problem.model)
-
-    if 'params' in to_load:
-        stage.step, stage.updates = backend.load_sampler_params(
-            project_dir, stage_number, mode)
-
-    return stage
+            if 'params' in to_load:
+                self.step, self.updates = self.handler.load_sampler_params(
+                stage_number)

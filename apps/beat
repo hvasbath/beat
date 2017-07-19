@@ -1,12 +1,19 @@
 #!/usr/bin/env python
+import os
+
+# disable internal blas parallelisation as we parallelise over chains
+os.environ["OMP_NUM_THREADS"] = "1"
+
 import logging
 
-import sys, re, os, copy
+import sys, re, copy
+
 import shutil
 
 from optparse import OptionParser
 
-from beat import heart, config, utility, models, inputf, plotting
+from beat import heart, config, utility, models, inputf, plotting, backend
+from beat.sources import MTSourceWithMagnitude
 from beat.metropolis import get_trace_stats
 
 from pyrocko import model, util
@@ -14,6 +21,8 @@ from pyrocko.gf import LocalEngine
 
 from pyrocko.guts import load, dump
 
+from pymc3 import summary
+from pymc3.backends.base import MultiTrace
 
 logger = logging.getLogger('beat')
 
@@ -29,7 +38,8 @@ subcommand_descriptions = {
         'build_gfs':      'build GF stores',
         'clone':          'clone EQ model project into new directory',
         'plot':           'plot specified setups or results',
-        'check':          'check setup specific requirements'
+        'check':          'check setup specific requirements',
+        'summarize':      'collect results and create statistics',
     }
 
 subcommand_usages = {
@@ -41,6 +51,7 @@ subcommand_usages = {
         'clone':         'clone <event_name> <cloned_event_name> [options]',
         'plot':          'plot <event_name> <plot_type> [options]',
         'check':         'check <event_name> [options]',
+        'summarize':     'summarize <event_name> [options]',
     }
 
 subcommands = subcommand_descriptions.keys()
@@ -60,6 +71,7 @@ Subcommands:
     import          %(import)s
     build_gfs       %(build_gfs)s
     sample          %(sample)s
+    summarize       %(summarize)s
     plot            %(plot)s
     check           %(check)s
 
@@ -78,6 +90,7 @@ nargs_dict = {
    'build_gfs': 1,
    'sample': 1,
    'check': 1,
+   'summarize': 1,
    }
 
 mode_choices = ['geometry', 'static', 'kinematic', 'interseismic']
@@ -199,6 +212,11 @@ def command_init(args):
             default=1,
             help='Integer Number of sources to invert for. Default: 1' )
 
+        parser.add_option('--waveforms', type='string',
+            action='callback', callback=list_callback,
+            default=['any_P', 'any_S'],
+            help='Waveforms to include in the setup; "any_P, any_S, slowest".')
+
         parser.add_option('--sampler', dest='sampler', type='string',
             default='SMC',
             help='Sampling algorithm to sample the solution space of the'
@@ -207,8 +225,8 @@ def command_init(args):
         parser.add_option('--hyper_sampler', dest='hyper_sampler',
             type='string', default='Metropolis',
             help='Sampling algorithm to sample the solution space of the'
-                 ' hyperparameters only;'
-                 '"SMC", "Metropolis". Default: "Metropolis"')
+                 ' hyperparameters only; So far only "Metropolis" supported.'
+                 'Default: "Metropolis"')
 
         parser.add_option('--use_custom', dest='use_custom',
             action='store_true',
@@ -244,6 +262,7 @@ def command_init(args):
                mode=options.mode,
                source_type=options.source_type,
                n_sources=options.n_sources,
+               waveforms=options.waveforms,
                sampler=options.sampler,
                hyper_sampler=options.hyper_sampler,
                use_custom=options.use_custom,
@@ -317,7 +336,7 @@ def command_import(args):
                     data_traces = inputf.load_data_traces(
                         datadir=sc.datadir,
                         stations=stations,
-                        channels=sc.channels)
+                        channels=sc.get_unique_channels())
 
                     logger.info('Pickle seismic data to %s' % seismic_outpath)
                     utility.dump_objects(seismic_outpath,
@@ -390,6 +409,8 @@ def command_import(args):
 
 def command_clone(args):
 
+    command_str = 'clone'
+
     def setup(parser):
 
         parser.add_option('--main_path', dest='main_path', type='string',
@@ -414,7 +435,7 @@ def command_clone(args):
             help='If set, the imported data will be copied into the cloned'
                  ' directory.')
 
-    parser, options, args = cl_parse('clone', args, setup=setup)
+    parser, options, args = cl_parse(command_str, args, setup=setup)
 
     if not len(args) == 2:
         parser.print_help()
@@ -422,8 +443,9 @@ def command_clone(args):
 
     name, cloned_name = args
 
-    project_dir = os.path.join(options.main_path, name)
-    cloned_dir = os.path.join(options.main_path, cloned_name)
+    project_dir = get_project_directory(
+        args, options, nargs_dict[command_str])
+    cloned_dir = os.path.join(os.path.dirname(project_dir), cloned_name)
 
     util.ensuredir(cloned_dir)
 
@@ -506,6 +528,77 @@ def command_sample(args):
         models.estimate_hypers(step, problem)
     else:
         models.sample(step, problem)
+
+
+def command_summarize(args):
+
+    command_str = 'summarize'
+
+    def setup(parser):
+
+        parser.add_option('--main_path', dest='main_path', type='string',
+            default='./',
+            help='Main path (absolute) leading to folders of events that'
+                 ' have been created by "init".'
+                 ' Default: current directory: ./')
+
+        parser.add_option('--mode', dest='mode',
+            choices=mode_choices ,
+            default='geometry',
+            help='Inversion problem to solve; "geometry", "static",'
+                 '"kinematic", "interseismic". Default: "geometry"')
+
+        parser.add_option('--force', dest='force', action='store_true',
+                help='Overwrite existing files')
+
+    parser, options, args = cl_parse(command_str, args, setup=setup)
+
+    project_dir = get_project_directory(
+        args, options, nargs_dict[command_str])
+
+    logger.info('Loading problem ...')
+    problem = models.load_model(project_dir, options.mode)
+
+    stage = models.Stage(homepath=problem.outfolder)
+    stage.load_results(model=problem.model, stage_number=-1, load='full')
+    stage_path = stage.handler.stage_path(-2)
+
+    if not os.path.exists(
+        os.path.join(stage_path, 'chain-0.csv')) or options.force:
+
+        rtrace = backend.TextChain(stage_path, model=problem.model)
+        rtrace.setup(draws=len(stage.mtrace.chains), chain=0)
+
+        for chain in stage.mtrace.chains:
+            point = stage.mtrace.point(idx=-1, chain=chain)
+            source = problem.sources[0]
+
+            if isinstance(source, MTSourceWithMagnitude):
+                sc = problem.composites['seismic']
+                sc.point2sources(point)
+                ldicts = []
+                for source in sc.sources:
+                    ldicts.append(source.scaled_m6_dict)
+
+                jpoint = utility.join_points(ldicts)
+                point.update(jpoint)
+
+            lpoint = stage.step.lij.dmap(point)
+            rtrace.record(lpoint, draw=chain)
+
+        rtrace = MultiTrace([rtrace])
+    else:
+        logger.info('Summarized trace exists! Use force=True to overwrite!')
+        stage.load_results(model=problem.model, stage_number=-2)
+        rtrace = stage.mtrace
+    
+    summary_file = os.path.join(problem.outfolder, config.summary_name)
+    
+    if not os.path.exists(summary_file):
+        logger.info('Writing summary to %s' % summary_file)
+        summary(rtrace, to_file=summary_file)
+    else:
+        logger.info('Summary exists! Use force=True to overwrite!')
 
 
 def command_build_gfs(args):
@@ -704,10 +797,16 @@ def command_plot(args):
             help='Plot model with specified likelihood; "max", "min", "mean"'
                  ' or "all"; Default: "max"')
 
-        parser.add_option('--stage_number', dest='stage_number',
+        parser.add_option('--stage_number', dest='stage_number', type='int',
             default=None,
-            help='String of the stage number "n" of the stage to be plotted.'
+            help='Int of the stage number "n" of the stage to be plotted.'
                  ' Default: all stages up to last complete stage')
+
+        parser.add_option('--varnames',
+            default='', type='string',
+            action='callback', callback=list_callback,
+            help='Variable names to plot in figures. Example: "strike,dip"'
+                 ' Default: empty string --> all')
 
         parser.add_option('--format', dest='format',
             choices=['display', 'pdf', 'png', 'svg', 'eps'],
@@ -773,7 +872,8 @@ selected giving a comma seperated list.''' % (
         load_stage=options.stage_number,
         outformat=options.format,
         force=options.force,
-        dpi=options.dpi)
+        dpi=options.dpi,
+        varnames=options.varnames)
 
     if options.reference:
         po.reference = problem.model.test_point

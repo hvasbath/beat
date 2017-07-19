@@ -177,6 +177,8 @@ def load_data_traces(datadir, stations, channels):
             ref_channels.append('u')
         elif cha == 'T':
             ref_channels.append('r')
+        elif cha == 'R':
+            ref_channels.append('a')
         else:
             raise Exception('No data for this channel!')
 
@@ -196,17 +198,12 @@ def load_data_traces(datadir, stations, channels):
                     dt = io.load(tracepath, data_format)[0]
                     # [nm] convert to m
                     dt.set_ydata(dt.ydata * m)
+                    dt.station = station.station
+                    dt.network = station.network
+                    dt.location = '0'
                     # convert to BEAT seismic Dataset
                     data_trcs.append(
-                        heart.SeismicDataset(
-                            tmin=dt.tmin,
-                            tmax=dt.tmax,
-                            ydata=dt.ydata,
-                            station=station.station,
-                            location=dt.location,
-                            channel=dt.channel,
-                            network=station.network,
-                            deltat=dt.deltat))
+                        heart.SeismicDataset.from_pyrocko_trace(dt))
             except IOError:
                 logger.warn('Unable to open file: ' + trace_name)
 

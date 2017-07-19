@@ -1,0 +1,125 @@
+--- !beat.BEATconfig
+name: Mogi
+date: '1995-11-22'
+event: !pf.Event
+  lat: 10.0
+  lon: 10.0
+  time: 1995-11-22 04:15:26.200000
+  name: 112295A
+  depth: 15000.0
+  magnitude: 7.20583885303153
+  region: ARAB REPUBLIC OF EGYPT
+  catalog: gCMT
+  moment_tensor: !pf.MomentTensor
+    mnn: -3.255e+19
+    mee: 4.616e+19
+    mdd: -1.361e+19
+    mne: 4.493e+19
+    mnd: 3.887e+19
+    med: -9.1e+17
+    strike1: 294.0906468639183
+    dip1: 77.25911284933075
+    rake1: -148.53160420242887
+    strike2: 196.40325577565235
+    dip2: 59.391141732003796
+    rake2: -14.84748226776409
+    moment: 7.223676349339025e+19
+    magnitude: 7.20583885303153
+  duration: 22.0
+project_dir: ./Mogi
+problem_config: !beat.ProblemConfig
+  mode: geometry
+  source_type: ExplosionSource
+  stf_type: HalfSinusoid
+  n_sources: 1
+  datatypes: [geodetic]
+  hyperparameters:
+    geo_S: !beat.heart.Parameter
+      name: geo_S
+      form: Uniform
+      lower: [-3.0]
+      upper: [7.0]
+      testvalue: [2.0]
+  priors:
+    depth: !beat.heart.Parameter
+      name: depth
+      form: Uniform
+      lower: [2.0]
+      upper: [25.0]
+      testvalue: [15.0]
+    east_shift: !beat.heart.Parameter
+      name: east_shift
+      form: Uniform
+      lower: [-15.0]
+      upper: [15.0]
+      testvalue: [5.0]
+    north_shift: !beat.heart.Parameter
+      name: north_shift
+      form: Uniform
+      lower: [-15.0]
+      upper: [15.0]
+      testvalue: [-2.0]
+    volume_change: !beat.heart.Parameter
+      name: volume_change
+      form: Uniform
+      lower: [10000000.0]
+      upper: [1000000000.0]
+      testvalue: [100000000.0]
+geodetic_config: !beat.GeodeticConfig
+  datadir: ./
+  names: [A_T343co, D_T350co]
+  types: [SAR]
+  calc_data_cov: true
+  fit_plane: false
+  gf_config: !beat.GeodeticGFConfig
+    store_superdir: /tmp/GF/Mogi/
+    n_variations: [0, 1]
+    error_depth: 0.1
+    error_velocities: 0.1
+    depth_limit_variation: 600.0
+    earth_model_name: ak135-f-average.m
+    use_crust2: false
+    replace_water: false
+    custom_velocity_model: |2
+          0.             5.51           3.1            2.6         1264.           600.
+          7.2            5.51           3.1            2.6         1264.           600.
+          7.2            6.23           3.6            2.8         1283.           600.
+         21.64           6.23           3.6            2.8         1283.           600.
+      mantle
+         21.64           7.95           4.45           3.2         1449.           600.
+    source_depth_min: 14.0
+    source_depth_max: 16.0
+    source_depth_spacing: 1.0
+    source_distance_radius: 250.0
+    source_distance_spacing: 0.5
+    nworkers: 10
+    code: psgrn
+    sample_rate: 1.1574074074074073e-05
+    sampling_interval: 1.0
+    medium_depth_spacing: 1.0
+    medium_distance_spacing: 20.0
+sampler_config: !beat.SamplerConfig
+  name: SMC
+  parameters: !beat.SMCConfig
+    n_chains: 1000
+    n_steps: 100
+    n_jobs: 10
+    tune_interval: 10
+    coef_variation: 1.0
+    stage: '0'
+    proposal_dist: MvNPd
+    check_bnd: true
+    update_covariances: false
+    rm_flag: true
+hyper_sampler_config: !beat.SamplerConfig
+  name: Metropolis
+  parameters: !beat.MetropolisConfig
+    n_jobs: 1
+    n_stages: 10
+    n_steps: 25000
+    stage: '0'
+    tune_interval: 50
+    proposal_dist: Normal
+    thin: 5
+    burn: 0.5
+    rm_flag: false

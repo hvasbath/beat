@@ -12,10 +12,10 @@ logger = logging.getLogger('covariance')
 
 
 __all__ = [
-    'geo_cov_velocity_models',
-    'geo_cov_velocity_models_pscmp',
-    'seis_cov_velocity_models',
-    'seis_data_covariance']
+    'geodetic_cov_velocity_models',
+    'geodetic_cov_velocity_models_pscmp',
+    'seismic_cov_velocity_models',
+    'seismic_data_covariance']
 
 
 def sub_data_covariance(n, dt, tzero):
@@ -74,7 +74,7 @@ def seismic_data_covariance(data_traces, engine, filterer, sample_rate,
 
        i,j are samples of the seismic trace
     '''
-
+    wavename = 'any_P'   # hardcode here, want always pre P time
     tzero = 1. / filterer.upper_corner
     dt = 1. / sample_rate
     ataper = arrival_taper
@@ -83,14 +83,10 @@ def seismic_data_covariance(data_traces, engine, filterer, sample_rate,
     csub = sub_data_covariance(n, dt, tzero)
 
     cov_ds = []
-    for i, tr in enumerate(data_traces):
-        # assure getting P-wave arrival time
-        tmp_target = copy.deepcopy(targets[i])
-
-        tmp_target.codes = (tmp_target.codes[:3] + ('Z',))
-
+    for tr, target in zip(data_traces, targets):
         arrival_time = heart.get_phase_arrival_time(
-            engine=engine, source=event, target=tmp_target)
+            engine=engine, source=event,
+            target=target, wavename=wavename)
 
         ctrace = tr.chop(
             tmin=tr.tmin,
@@ -224,8 +220,8 @@ def model_prediction_sensitivity(engine, *args, **kwargs):
     return sensitivity_param_trcs
 
 
-def seis_cov_velocity_models(engine, sources, targets,
-                              arrival_taper, filterer, plot=False, n_jobs=1):
+def seismic_cov_velocity_models(engine, sources, targets,
+                  arrival_taper, wavename, filterer, plot=False, n_jobs=1):
     '''
     Calculate model prediction uncertainty matrix with respect to uncertainties
     in the velocity model for station and channel.
@@ -257,14 +253,15 @@ def seis_cov_velocity_models(engine, sources, targets,
     reference_taperer = heart.get_phase_taperer(
         engine,
         sources[0],
-        ref_target,
-        arrival_taper)
+        wavename=wavename,
+        target=ref_target,
+        arrival_taper=arrival_taper)
 
     t0 = time()
     synths, _ = heart.seis_synthetics(
-        engine, sources, targets,
-        arrival_taper,
-        filterer, nprocs=n_jobs,
+        engine=engine, sources=sources, targets=targets,
+        arrival_taper=arrival_taper, wavename=wavename,
+        filterer=filterer, nprocs=n_jobs,
         reference_taperer=reference_taperer, plot=plot,
         pre_stack_cut=True)
     t1 = time()
@@ -273,7 +270,7 @@ def seis_cov_velocity_models(engine, sources, targets,
     return num.cov(synths, rowvar=0)
 
 
-def geo_cov_velocity_models(
+def geodetic_cov_velocity_models(
     engine, sources, targets, dataset, plot=False, n_jobs=1):
     """
     Calculate model prediction uncertainty matrix with respect to uncertainties
@@ -313,7 +310,7 @@ def geo_cov_velocity_models(
     return num.cov(synths, rowvar=0)
 
 
-def geo_cov_velocity_models_pscmp(
+def geodetic_cov_velocity_models_pscmp(
     store_superdir, crust_inds, target, sources):
     """
     Calculate model prediction uncertainty matrix with respect to uncertainties

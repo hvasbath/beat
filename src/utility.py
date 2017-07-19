@@ -19,6 +19,7 @@ from pyrocko import util, orthodrome, catalog
 from pyrocko.cake import m2d, LayeredModel, read_nd_model_str
 
 from pyrocko.gf.seismosizer import RectangularSource
+from beat.sources import MTSourceWithMagnitude
 
 import numpy as num
 from theano import config as tconfig
@@ -28,7 +29,7 @@ from pyproj import Proj
 
 logger = logging.getLogger('utility')
 
-DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype')
+DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype, name')
 PatchMap = collections.namedtuple(
     'PatchMap', 'count, slc, shp, npatches')
 
@@ -93,13 +94,14 @@ class ListArrayOrdering(object):
         count = 0
         for array in list_arrays:
             if intype == 'tensor':
+                name = array.name
                 array = array.tag.test_value
             elif intype == 'numpy':
-                pass
+                name = 'numpy'
 
             slc = slice(dim, dim + array.size)
             self.vmap.append(DataMap(
-                count, slc, array.shape, array.dtype))
+                count, slc, array.shape, array.dtype, name))
             dim += array.size
             count += 1
 
@@ -121,6 +123,46 @@ class ListToArrayBijection(object):
         self.ordering = ordering
         self.list_arrays = list_arrays
 
+    def dmap(self, dpt):
+        """
+        Maps values from dict space to List space
+
+        Parameters
+        ----------
+        dpt : list
+            of :class:`numpy.ndarray`
+
+        Returns
+        -------
+        point
+        """
+        a_list = copy.copy(self.list_arrays)
+
+        for list_ind, _, _, _, var in self.ordering.vmap:
+            a_list[list_ind] = dpt[var].ravel()
+
+        return a_list
+
+    def drmap(self, a_list):
+        """
+        Maps values from List space to dict space
+
+        Parameters
+        ----------
+        list_arrays : list
+            of :class:`numpy.ndarray`
+
+        Returns
+        -------
+        point
+        """
+        point = {}
+
+        for list_ind, _, _, _, var in self.ordering.vmap:
+            point[var] = a_list[list_ind].ravel()
+
+        return point
+
     def fmap(self, list_arrays):
         """
         Maps values from List space to array space
@@ -137,7 +179,7 @@ class ListToArrayBijection(object):
         """
 
         array = num.empty(self.ordering.dimensions)
-        for list_ind, slc, _, _ in self.ordering.vmap:
+        for list_ind, slc, _, _, _ in self.ordering.vmap:
             array[slc] = list_arrays[list_ind].ravel()
         return array
 
@@ -157,7 +199,7 @@ class ListToArrayBijection(object):
         """
 
         array = num.empty((self.ordering.dimensions, 3))
-        for list_ind, slc, _, _ in self.ordering.vmap:
+        for list_ind, slc, _, _, _ in self.ordering.vmap:
             array[slc, :] = list_arrays[list_ind]
         return array
 
@@ -178,7 +220,7 @@ class ListToArrayBijection(object):
 
         a_list = copy.copy(self.list_arrays)
 
-        for list_ind, slc, shp, dtype in self.ordering.vmap:
+        for list_ind, slc, shp, dtype, _ in self.ordering.vmap:
             a_list[list_ind] = num.atleast_1d(
                                         array)[slc].reshape(shp).astype(dtype)
 
@@ -200,7 +242,7 @@ class ListToArrayBijection(object):
 
         a_list = copy.copy(self.list_arrays)
 
-        for list_ind, slc, shp, dtype in self.ordering.vmap:
+        for list_ind, slc, shp, dtype, _ in self.ordering.vmap:
             a_list[list_ind] = tarray[slc].reshape(shp).astype(dtype.name)
 
         return a_list
@@ -232,7 +274,7 @@ def weed_input_rvs(input_rvs, mode, datatype):
     weeded_input_rvs = copy.copy(input_rvs)
 
     burian = '''
-        lat lon name stf stf1 stf2 stf_mode magnitude anchor nucleation_x sign
+        lat lon name stf stf1 stf2 stf_mode moment anchor nucleation_x sign
         nucleation_y velocity interpolation decimation_factor npointsources
         '''.split()
 
@@ -302,7 +344,7 @@ def apply_station_blacklist(stations, blacklist):
 def weed_data_traces(data_traces, stations):
     """
     Throw out data traces belonging to stations that are not in the
-    stations list.
+    stations list. Keeps list orders!
 
     Parameters
     ----------
@@ -323,9 +365,36 @@ def weed_data_traces(data_traces, stations):
 
     for tr in data_traces:
         if tr.station in station_names:
-            weeded_data_traces.append(tr.copy())
+            weeded_data_traces.append(tr)
 
     return weeded_data_traces
+
+
+def weed_targets(targets, stations):
+    """
+    Throw out targets belonging to stations that are not in the
+    stations list. Keeps list orders!
+
+    Parameters
+    ----------
+    targets : list
+        of :class:`pyrocko.gf.targets.Target`
+    stations : list
+        of :class:`pyrocko.model.Station`
+
+    Returns
+    -------
+    weeded_targets : list
+        of :class:`pyrocko.gf.targets.Target`
+    """
+    station_names = [station.station for station in stations]
+
+    weeded_targets = []
+    for target in targets:
+        if target.codes[1] in station_names:
+            weeded_targets.append(target)
+
+    return weeded_targets
 
 
 def downsample_traces(data_traces, deltat=None):
@@ -344,8 +413,8 @@ def downsample_traces(data_traces, deltat=None):
         if deltat is not None:
             try:
                 tr.downsample_to(deltat, snap=True, allow_upsample_max=5)
-            except util.UnavailableDecimation, e:
-                print('Cannot downsample %s.%s.%s.%s: %s' % (
+            except util.UnavailableDecimation as e:
+                logger.error('Cannot downsample %s.%s.%s.%s: %s' % (
                                                             tr.nslc_id + (e,)))
                 continue
 
@@ -478,6 +547,27 @@ def split_point(point):
         source_points.append(source_param_dict)
 
     return source_points
+
+
+def join_points(ldicts):
+    """
+    Join list of dicts into one dict with concatenating 
+    values of keys that are present in multiple dicts.
+    """
+    
+    npoints = len(ldicts)
+    keys = set([k for d in ldicts for k in d.iterkeys()])
+
+    jpoint = {}
+    for k in keys:
+        jvar = []
+        for d in ldicts:
+            jvar.append(d[k])
+
+
+        jpoint[k] = num.array(jvar)
+
+    return jpoint
 
 
 def update_source(source, **point):
@@ -627,6 +717,7 @@ def setup_logging(project_dir, levelname):
     cformatter = logging.Formatter('%(name)-12s - %(levelname)-8s %(message)s')
     console.setFormatter(cformatter)
     logger.addHandler(console)
+    logger.setLevel(levels[levelname])
 
 
 def search_catalog(date, min_magnitude, dayrange=1.):
@@ -790,8 +881,8 @@ def dump_objects(outpath, outlist):
         of objects to save pickle
     """
 
-    with open(outpath, 'w') as f:
-        pickle.dump(outlist, f)
+    with open(outpath, 'wb') as f:
+        pickle.dump(outlist, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def load_objects(loadpath):
@@ -1047,7 +1138,7 @@ def gather(l, key, sort=None, filter=None):
         d[k].append(x)
 
     if sort is not None:
-        for v in d.tervalues():
+        for v in d.itervalues():
             v.sort(key=sort)
 
     return d
@@ -1065,7 +1156,6 @@ def get_fit_indexes(llk):
     -------
     dict with array indexes
     """
-
     mean_idx = (num.abs(llk - llk.mean())).argmin()
     min_idx = (num.abs(llk - llk.min())).argmin()
     max_idx = (num.abs(llk - llk.max())).argmin()

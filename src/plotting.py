@@ -7,8 +7,8 @@ import os
 import logging
 import copy
 
-from beat import utility, backend, config
-from beat.models import load_stage
+from beat import utility, backend
+from beat.models import Stage
 from beat.metropolis import get_trace_stats
 from beat.heart import init_seismic_targets, init_geodetic_targets
 from beat.colormap import slip_colormap
@@ -18,8 +18,9 @@ from matplotlib.patches import Rectangle
 from matplotlib.collections import PatchCollection
 from matplotlib.backends.backend_pdf import PdfPages
 
+from scipy.stats import kde
 import numpy as num
-from pyrocko.guts import Object, String, Dict, Bool, Int, load
+from pyrocko.guts import Object, String, Dict, List, Bool, Int, load
 from pyrocko import util, trace
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.cake_plot import light
@@ -85,12 +86,15 @@ plot_units = {
     'time': u_s,
     'duration': u_s,
     'peak_ratio': u_hyp,
-    'geo_S': u_hyp,
-    'geo_G': u_hyp,
-    'seis_Z': u_hyp,
-    'seis_T': u_hyp,
+    'h_': u_hyp,
     'like': u_hyp,
             }
+
+
+def hypername(varname):
+    if varname[0:2] == 'h_':
+        return 'h_'
+    return varname
 
 
 class PlotOptions(Object):
@@ -105,8 +109,8 @@ class PlotOptions(Object):
         default=36,
         optional=True,
         help='Only relevant if plot_projection is "utm"')
-    load_stage = String.T(
-        default='final',
+    load_stage = Int.T(
+        default=-1,
         help='Which stage to select for plotting')
     figure_dir = String.T(
         default='figures',
@@ -117,6 +121,8 @@ class PlotOptions(Object):
     outformat = String.T(default='pdf')
     dpi = Int.T(default=300)
     force = Bool.T(default=False)
+    varnames = List.T(
+	default=[], optional=True, help='Names of variables to plot')
 
 
 def str_dist(dist):
@@ -181,6 +187,32 @@ def get_tickmarks(leftb, rightb, ntickmarks=5):
             num.linspace(leftb, rightb, ntickmarks), digits).tolist()
 
 
+def kde2plot_op(ax, x, y, grid=200, **kwargs):
+    xmin = x.min()
+    xmax = x.max()
+    ymin = y.min()
+    ymax = y.max()
+    extent = kwargs.pop('extent', [])
+    if len(extent) != 4:
+        extent = [xmin, xmax, ymin, ymax]
+
+    grid = grid * 1j
+    X, Y = num.mgrid[xmin:xmax:grid, ymin:ymax:grid]
+    positions = num.vstack([X.ravel(), Y.ravel()])
+    values = num.vstack([x.ravel(), y.ravel()])
+    kernel = kde.gaussian_kde(values)
+    Z = num.reshape(kernel(positions).T, X.shape)
+
+    ax.imshow(num.rot90(Z), extent=extent, **kwargs)
+
+
+def kde2plot(x, y, grid=200, ax=None, **kwargs):
+    if ax is None:
+        _, ax = plt.subplots(1, 1, squeeze=True)
+    kde2plot_op(ax, x, y, grid, **kwargs)
+    return ax
+
+
 def correlation_plot(mtrace, varnames=None,
         transform=lambda x: x, figsize=None, cmap=None, grid=200, point=None,
         point_style='.', point_color='white', point_size='8'):
@@ -238,7 +270,7 @@ def correlation_plot(mtrace, varnames=None,
             logger.debug('%s, %s' % (varnames[k], varnames[l]))
             b = d[varnames[l]]
 
-            pmp.kde2plot(
+            kde2plot(
                 a, b, grid=grid, ax=axs[l - 1, k], cmap=cmap, aspect='auto')
 
             if point is not None:
@@ -333,10 +365,13 @@ def correlation_plot_hist(mtrace, varnames=None,
             logger.debug('%s, %s' % (v_namea, v_nameb))
             if l == k:
                 if point is not None:
-                    reference = point[v_namea]
-                    axs[l, k].axvline(
-                        x=reference, color=point_color,
-                        lw=int(point_size) / 4.)
+                    if v_namea in point.keys():
+                        reference = point[v_namea]
+                        axs[l, k].axvline(
+                            x=reference, color=point_color,
+                            lw=int(point_size) / 4.)
+                    else:
+                        reference = None
                 else:
                     reference = None
 
@@ -350,19 +385,20 @@ def correlation_plot_hist(mtrace, varnames=None,
             else:
                 b = d[v_nameb]
 
-                pmp.kde2plot(
+                kde2plot(
                     a, b, grid=grid, ax=axs[l, k], cmap=cmap, aspect='auto')
 
                 bmin = b.min()
                 bmax = b.max()
 
                 if point is not None:
-                    axs[l, k].plot(point[v_namea], point[v_nameb],
-                        color=point_color, marker=point_style,
-                        markersize=point_size)
+                    if v_namea and v_nameb in point.keys():
+                        axs[l, k].plot(point[v_namea], point[v_nameb],
+                            color=point_color, marker=point_style,
+                            markersize=point_size)
 
-                    bmin = num.minimum(bmin, point[v_nameb])
-                    bmax = num.maximum(bmax, point[v_nameb])
+                        bmin = num.minimum(bmin, point[v_nameb])
+                        bmax = num.maximum(bmax, point[v_nameb])
 
                 ytickmarks = get_tickmarks(bmin, bmax, ntickmarks=ntickmarks)
                 axs[l, k].set_xticks(xticks)
@@ -372,13 +408,14 @@ def correlation_plot_hist(mtrace, varnames=None,
                 axs[l, k].get_xaxis().set_ticklabels([])
 
             if k == 0:
-                axs[l, k].set_ylabel(v_nameb + '\n ' + plot_units[v_nameb])
+                axs[l, k].set_ylabel(
+                    v_nameb + '\n ' + plot_units[hypername(v_nameb)])
             else:
                 axs[l, k].get_yaxis().set_ticklabels([])
 
             axs[l, k].tick_params(direction='in')
 
-        axs[l, k].set_xlabel(v_namea + '\n ' + plot_units[v_namea])
+        axs[l, k].set_xlabel(v_namea + '\n ' + plot_units[hypername(v_namea)])
 
     for k in range(nvar):
         for l in range(k):
@@ -424,6 +461,15 @@ def plot_matrix(A):
     """
     ax = plt.axes()
     im = ax.matshow(A)
+    plt.colorbar(im)
+    plt.show()
+
+
+def plot_log_cov(cov_mat):
+    ax = plt.axes()
+    mask = num.ones_like(cov_mat)
+    mask[cov_mat < 0] = -1.
+    im = ax.imshow(num.multiply(num.log(num.abs(cov_mat)), mask))
     plt.colorbar(im)
     plt.show()
 
@@ -707,7 +753,9 @@ def draw_geodetic_fits(problem, plot_options):
 
     po = plot_options
 
-    stage = load_stage(problem, stage_number=po.load_stage, load='full')
+    stage = Stage(homepath=problem.outfolder)
+    stage.load_results(
+        model=problem.model, stage_number=po.load_stage, load='full')
 
     mode = problem.config.problem_config.mode
 
@@ -771,9 +819,12 @@ def seismic_fits(problem, stage, plot_options):
 
     po = plot_options
 
-    point = get_result_point(stage, problem.config, po.post_llk)
+    if po.reference is None:
+        point = get_result_point(stage, problem.config, po.post_llk)
+    else:
+        point = po.reference
 
-    gcms = point['seis_like']
+    # gcms = point['seis_like']
     # gcm_max = d['like']
 
     results = composite.assemble_results(point)
@@ -1026,7 +1077,7 @@ def seismic_fits(problem, stage, plot_options):
                 azi = source.azibazi_to(target)[0]
                 infos.append(str_dist(dist))
                 infos.append(u'%.0f\u00B0' % azi)
-                infos.append('%.3f' % gcms[itarget])
+                #infos.append('%.3f' % gcms[itarget])
                 axes2.annotate(
                     '\n'.join(infos),
                     xy=(0., 1.),
@@ -1053,14 +1104,21 @@ def draw_seismic_fits(problem, po):
     if 'seismic' not in problem.composites.keys():
         raise Exception('No seismic composite defined for this problem!')
 
-    stage = load_stage(problem, stage_number=po.load_stage, load='full')
+    stage = Stage(homepath=problem.outfolder)
 
     mode = problem.config.problem_config.mode
+
+    if po.reference is None:
+        llk_str = po.post_llk
+        stage.load_results(
+            model=problem.model, stage_number=po.load_stage, load='full')
+    else:
+        llk_str = 'ref'
 
     outpath = os.path.join(
         problem.config.project_dir,
         mode, po.figure_dir, 'waveforms_%s_%s.%s' % (
-            stage.number, po.post_llk, po.outformat))
+            stage.number, llk_str, po.outformat))
 
     if not os.path.exists(outpath) or po.force:
         figs = seismic_fits(problem, stage, po)
@@ -1249,7 +1307,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     varbin = varbins[i]
 
                 if lines:
-                    if v in config.hyper_pars.values():
+                    if hypername(v) == 'h_':
                         reference = None
                         if v in lines.keys():
                             lines.pop(v)
@@ -1267,7 +1325,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     axs[rowi, coli], d, reference=reference,
                     bins=varbin, alpha=alpha, color=color)
 
-                axs[rowi, coli].set_title(str(v) + ' ' + plot_units[v])
+                axs[rowi, coli].set_title(
+                    str(v) + ' ' + plot_units[hypername(v)])
                 axs[rowi, coli].grid(grid)
                 axs[rowi, coli].set_yticks([])
                 axs[rowi, coli].set_yticklabels([])
@@ -1293,7 +1352,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     return fig, axs, varbins
 
 
-def select_transform(sc, n_steps):
+def select_transform(sc, n_steps=None):
     """
     Select transform function to be applied after loading the sampling results.
 
@@ -1327,6 +1386,12 @@ def select_transform(sc, n_steps):
 
             return num.vstack(xout).flatten()
 
+    def standard(x):
+        return x
+
+    if n_steps is None:
+        return standard
+
     if sc.name == 'SMC':
         return last_sample
     elif sc.name == 'Metropolis':
@@ -1355,20 +1420,18 @@ def draw_posteriors(problem, plot_options):
     hypers = utility.check_hyper_flag(problem)
     po = plot_options
 
-    stage = load_stage(problem, stage_number=po.load_stage, load='trace')
+    stage = Stage(homepath=problem.outfolder)
+
     pc = problem.config.problem_config
 
     if po.load_stage is not None:
         list_indexes = [po.load_stage]
     else:
-        if stage.number == 'final':
-            stage_number = backend.get_highest_sampled_stage(
-                problem.outfolder, return_final=False)
-            list_indexes = [
-                str(i) for i in range(stage_number + 1)] + ['final']
+        stage_number = stage.handler.highest_sampled_stage()
+        if os.path.exists(stage.handler.atmip_path(-1)):
+            list_indexes = [i for i in range(-1, stage_number + 1)]
         else:
-            list_indexes = [
-                str(i) for i in range(int(stage.number) + 1)]
+            list_indexes = [i for i in range(stage_number)]
 
     if hypers:
         sc = problem.config.hyper_sampler_config
@@ -1377,39 +1440,44 @@ def draw_posteriors(problem, plot_options):
         sc = problem.config.sampler_config
         varnames = problem.rvs.keys() + pc.hyperparameters.keys() + ['like']
 
+    if len(po.varnames) > 0:
+        varnames = po.varnames
+
+    logger.info('Plotting variables: %s' % (', '.join((v for v in varnames))))
     figs = []
 
     for s in list_indexes:
-        if s == '0':
+        if s == 0:
             draws = 1
-        elif s == 'final' and not hypers and sc.name == 'Metropolis':
+        elif s == -1 and not hypers and sc.name == 'Metropolis':
             draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
+        elif s== -2:    # return summarized trace plot -standard pymc trace
+            draws = None
         else:
             draws = sc.parameters.n_steps
 
         transform = select_transform(sc=sc, n_steps=draws)
 
-        stage_path = os.path.join(
-            problem.outfolder, 'stage_%s' % s)
-
         outpath = os.path.join(
             problem.outfolder,
             po.figure_dir,
-            'stage_%s_%s.%s' % (s, po.post_llk, po.outformat))
+            'stage_%i_%s.%s' % (s, po.post_llk, po.outformat))
 
         if not os.path.exists(outpath) or po.force:
-            logger.info('plotting stage: %s' % stage_path)
-            mtrace = backend.load(stage_path, model=problem.model)
+            logger.info('plotting stage: %s' % stage.handler.stage_path(s))
+            stage.load_results(
+                model=problem.model, stage_number=s, load='trace')
 
             if sc.name == 'Metropolis' and po.post_llk != 'all':
-                chains = select_metropolis_chains(problem, mtrace, po.post_llk)
+                chains = select_metropolis_chains(
+                    problem, stage.mtrace, po.post_llk)
                 logger.info('plotting result: %s of Metropolis chain %i' % (
                     po.post_llk, chains))
             else:
                 chains = None
 
             fig, _, _ = traceplot(
-                mtrace,
+                stage.mtrace,
                 varnames=varnames,
                 transform=transform,
                 chains=chains,
@@ -1450,7 +1518,12 @@ def draw_correlation_hist(problem, plot_options):
         varnames = problem.config.problem_config.hyperparameters.keys()
     else:
         sc = problem.config.sampler_config
-        varnames = problem.config.problem_config.select_variables()
+        varnames = problem.config.problem_config.select_variables() + ['like']
+
+    if len(po.varnames) > 0:
+        varnames = po.varnames
+
+    logger.info('Plotting variables: %s' % (', '.join((v for v in varnames))))
 
     if len(varnames) < 2:
         raise Exception('Need at least two parameters to compare!'
@@ -1458,12 +1531,16 @@ def draw_correlation_hist(problem, plot_options):
 
     if po.load_stage is None and not hypers and not sc.name == 'SMC':
         draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
+    if po.load_stage == -2:
+        draws = None
     else:
         draws = sc.parameters.n_steps
 
     transform = select_transform(sc=sc, n_steps=draws)
 
-    stage = load_stage(problem, po.load_stage, load='trace')
+    stage = Stage(homepath=problem.outfolder)
+    stage.load_results(
+        model=problem.model, stage_number=po.load_stage, load='trace')
 
     if sc.name == 'Metropolis' and po.post_llk != 'all':
         chains = select_metropolis_chains(problem, stage.mtrace, po.post_llk)

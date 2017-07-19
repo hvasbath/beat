@@ -10,15 +10,16 @@ import logging
 import os
 
 from pyrocko.guts import Object, List, String, Float, Int, Tuple, Bool, Dict
-from pyrocko.guts import load, dump
+from pyrocko.guts import load, dump, StringChoice
 from pyrocko.cake import load_model
 
 from pyrocko import trace, model, util, gf
-from pyrocko.gf import RectangularSource as RS
+from pyrocko.gf import RectangularSource as PyrockoRS
 from pyrocko.gf.seismosizer import Cloneable, stf_classes
 
 from beat.heart import Filter, ArrivalTaper, Parameter
-from beat.heart import RectangularSource, ReferenceLocation
+from beat.heart import ReferenceLocation
+from beat.sources import RectangularSource, MTSourceWithMagnitude
 
 from beat import utility
 
@@ -47,8 +48,8 @@ source_classes = [
     gf.RectangularExplosionSource,
     gf.DCSource,
     gf.CLVDSource,
-    gf.MTSourceWithMagnitude,
-    gf.RectangularSource,
+    MTSourceWithMagnitude,
+    PyrockoRS,
     gf.DoubleDCSource,
     gf.RingfaultSource]
 
@@ -73,9 +74,6 @@ partial_kinematic_vars = [
     'nucleation_x', 'nucleation_y', 'duration', 'velocity']
 
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars
-
-hyper_pars = {'Z': 'seis_Z', 'T': 'seis_T',
-             'SAR': 'geo_S', 'GPS': 'geo_G'}
 
 interseismic_catalog = {
     'geodetic': interseismic_vars}
@@ -119,7 +117,7 @@ default_bounds = dict(
     width=(5., 20.),
     slip=(0.1, 8.),
 
-    moment=(1e10, 1e20),
+    magnitude=(4., 7.),
     mnn=mdiag,
     mee=mdiag,
     mdd=mdiag,
@@ -150,10 +148,7 @@ default_bounds = dict(
     bl_amplitude=(0., 0.1),
     locking_depth=(1., 10.),
 
-    seis_Z=(-20., 20.),
-    seis_T=(-20., 20.),
-    geo_S=(-20., 20.),
-    geo_G=(-20., 20.),
+    hypers=(-20., 20.),
     ramp=(-0.005, 0.005))
 
 default_seis_std = 1.e-6
@@ -172,6 +167,8 @@ geodetic_linear_gf_name = 'linear_geodetic_gfs.pkl'
 seismic_static_linear_gf_name = 'linear_seismic_gfs.pkl'
 
 sample_p_outname = 'sample.params'
+
+summary_name = 'summary.txt'
 
 km = 1000.
 
@@ -311,6 +308,27 @@ class LinearGFConfig(GFConfig):
              ' each direction, i.e. 20% in total.')
 
 
+class WaveformFitConfig(Object):
+    """
+    Config for specific parameters that are applied to post-process
+    a specific type of waveform and calculate the misfit.
+    """
+    include = Bool.T(
+        default=True,
+        help='Flag to include waveform into optimization.')
+    name = String.T('any_P')
+    channels = List.T(String.T(), default=['Z'])
+    filterer = Filter.T(default=Filter.D())
+    distances = Tuple.T(2, Float.T(), default=(30., 90.))
+    interpolation = StringChoice.T(
+        choices=['nearest_neighbor', 'multilinear'],
+        default='multilinear',
+        help='GF interpolation sceme')
+    arrival_taper = trace.Taper.T(
+        default=ArrivalTaper.D(),
+        help='Taper a,b/c,d time [s] before/after wave arrival')
+
+
 class SeismicConfig(Object):
     """
     Config for seismic data optimization related parameters.
@@ -321,21 +339,42 @@ class SeismicConfig(Object):
         String.T(),
         default=['placeholder'],
         help='Station name for station to be thrown out.')
-    distances = Tuple.T(2, Float.T(), default=(30., 90.))
-    channels = List.T(String.T(), default=['Z', 'T'])
     calc_data_cov = Bool.T(
         default=True,
         help='Flag for calculating the data covariance matrix based on the'
              ' pre P arrival data trace noise.')
-    arrival_taper = trace.Taper.T(
-        default=ArrivalTaper.D(),
-        help='Taper a,b/c,d time [s] before/after wave arrival')
     pre_stack_cut = Bool.T(
         default=True,
         help='Cut the GF traces before stacking around the specified arrival'
              ' taper')
-    filterer = Filter.T(default=Filter.D())
+    waveforms = List.T(WaveformFitConfig.T(default=WaveformFitConfig.D()))
     gf_config = GFConfig.T(default=SeismicGFConfig.D())
+
+    def get_waveform_names(self):
+        return [wc.name for wc in self.waveforms]
+
+    def get_unique_channels(self):
+        cl = [wc.channels for wc in self.waveforms]
+        uc = []
+        map(uc.extend, cl)
+        return set(uc)
+
+    def get_hypernames(self):
+        hids = []
+        for wc in self.waveforms:
+            if wc.include:
+                for c in wc.channels:
+                    hypername = '_'.join(('h', wc.name, c))
+                    hids.append(hypername)
+
+        return hids
+
+    def init_waveforms(self, wavenames):
+        """
+        Initialise waveform configurations.
+        """
+        for wavename in wavenames:
+            self.waveforms.append(WaveformFitConfig(name=wavename))
 
 
 class GeodeticConfig(Object):
@@ -349,7 +388,7 @@ class GeodeticConfig(Object):
         optional=True,
         default=['placeholder'],
         help='Station name for station to be thrown out.')
-    types = List.T(
+    types = List.T(String.T(),
         default=['SAR'],
         help='Types of geodetic data, i.e. SAR, GPS, ...')
     calc_data_cov = Bool.T(
@@ -362,21 +401,27 @@ class GeodeticConfig(Object):
             ' SAR datatype')
     gf_config = GFConfig.T(default=GeodeticGFConfig.D())
 
+    def get_hypernames(self):
+        return ['_'.join(('h', typ)) for typ in self.types]
+
 
 class ProblemConfig(Object):
     """
     Config for optimization problem to setup.
     """
-    mode = String.T(
+    mode = StringChoice.T(
+        choices=['geometry', 'static', 'kinematic', 'interseismic'],
         default='geometry',
         help='Problem to solve: "geometry", "static", "kinematic",'
              ' "interseismic"',)
-    source_type = String.T(
+    source_type = StringChoice.T(
         default='RectangularSource',
+        choices=source_names,
         help='Source type to optimize for. Options: %s' % (
             ', '.join(name for name in source_names)))
-    stf_type = String.T(
+    stf_type = StringChoice.T(
         default='HalfSinusoid',
+        choices=stf_names,
         help='Source time function type to use. Options: %s' % (
             ', '.join(name for name in stf_names)))
     decimation_factors = Dict.T(
@@ -439,7 +484,7 @@ class ProblemConfig(Object):
                         source = vars_catalog[datatype][self.source_type]
                         svars = set(source.keys())
 
-                        if isinstance(source(), RS):
+                        if isinstance(source(), PyrockoRS):
                             svars.discard('moment')
 
                         variables += utility.weed_input_rvs(
@@ -522,9 +567,9 @@ class MetropolisConfig(SamplerParameters):
              ' hyperparameter estimation')
     n_steps = Int.T(default=25000,
                     help='Number of steps for the MC chain.')
-    stage = String.T(default='0',
+    stage = Int.T(default=0,
                   help='Stage where to start/continue the sampling. Has to'
-                       ' be int or "final"')
+                       ' be int, -1 for final stage')
     tune_interval = Int.T(
         default=50,
         help='Tune interval for adaptive tuning of Metropolis step size.')
@@ -569,9 +614,9 @@ class SMCConfig(SamplerParameters):
              'intermediate stage pdfs;'
              'low - small beta steps (slow cooling),'
              'high - wide beta steps (fast cooling)')
-    stage = String.T(default='0',
+    stage = Int.T(default=0,
                   help='Stage where to start/continue the sampling. Has to'
-                       ' be int or "final"')
+                       ' be int -1 for final stage')
     proposal_dist = String.T(
         default='MultivariateNormal',
         help='Multivariate Normal Proposal distribution, for Metropolis steps'
@@ -594,9 +639,13 @@ class SamplerConfig(Object):
     Config for the sampler specific parameters.
     """
 
-    name = String.T(default='SMC',
-                    help='Sampler to use for sampling the solution space.'
-                         'Metropolis/ SMC')
+    name = String.T(
+        default='SMC',
+        help='Sampler to use for sampling the solution space.'
+             ' Metropolis/ SMC')
+    progressbar = Bool.T(
+        default=True,
+        help='Display progressbar(s) during sampling.')
     parameters = SamplerParameters.T(
         default=SMCConfig.D(),
         optional=True,
@@ -633,7 +682,9 @@ class BEATconfig(Object, Cloneable):
     seismic_config = SeismicConfig.T(
         default=None, optional=True)
     sampler_config = SamplerConfig.T(default=SamplerConfig.D())
-    hyper_sampler_config = SamplerConfig.T(default=SamplerConfig.D())
+    hyper_sampler_config = SamplerConfig.T(
+        default=SamplerConfig.D(),
+        optional=True)
 
     def update_hypers(self):
         """
@@ -641,26 +692,27 @@ class BEATconfig(Object, Cloneable):
         """
 
         hypernames = []
-
         if self.geodetic_config is not None:
-            for ty in self.geodetic_config.types:
-                hypernames.append(hyper_pars[ty])
+            hypernames.extend(self.geodetic_config.get_hypernames())
 
         if self.seismic_config is not None:
-            for ch in self.seismic_config.channels:
-                hypernames.append(hyper_pars[ch])
+            hypernames.extend(self.seismic_config.get_hypernames())
 
         hypers = dict()
         for name in hypernames:
+            logger.info('Added hyperparameter %s to config and '
+                'model setup!' % name)
+
+            defaultb_name = 'hypers'
             hypers[name] = Parameter(
-                    name=name,
-                    lower=num.ones(1, dtype=num.float) * \
-                        default_bounds[name][0],
-                    upper=num.ones(1, dtype=num.float) * \
-                        default_bounds[name][1],
-                    testvalue=num.ones(1, dtype=num.float) * \
-                        num.mean(default_bounds[name])
-                                        )
+                name=name,
+                lower=num.ones(1, dtype=num.float) * \
+                    default_bounds[defaultb_name][0],
+                upper=num.ones(1, dtype=num.float) * \
+                    default_bounds[defaultb_name][1],
+                testvalue=num.ones(1, dtype=num.float) * \
+                    num.mean(default_bounds[defaultb_name])
+                                    )
 
         self.problem_config.hyperparameters = hypers
         self.problem_config.validate_hypers()
@@ -674,7 +726,7 @@ class BEATconfig(Object, Cloneable):
 def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                 datatypes=['geodetic'],
                 mode='geometry', source_type='RectangularSource', n_sources=1,
-                sampler='SMC', hyper_sampler='Metropolis',
+                waveforms=['any_P'], sampler='SMC', hyper_sampler='Metropolis',
                 use_custom=False, individual_gfs=False):
     """
     Initialise BEATconfig File and write it main_path/name .
@@ -695,6 +747,9 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
         type of optimization problem: 'Geometry' / 'Static'/ 'Kinematic'
     n_sources : int
         number of sources to solve for / discretize depending on mode parameter
+    waveforms : list
+        of strings of waveforms to include into the misfit function and
+        GF calculation
     sampler : str
         Optimization algorithm to use to sample the solution space
         Options: 'SMC', 'Metropolis'
@@ -744,6 +799,8 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
 
         if 'seismic' in datatypes:
             c.seismic_config = SeismicConfig()
+            c.seismic_config.init_waveforms(waveforms)
+
             if not individual_gfs:
                 c.seismic_config.gf_config.reference_location = \
                     ReferenceLocation(lat=10.0, lon=10.0)
@@ -805,7 +862,6 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
     c.hyper_sampler_config.set_parameters(update_covariances=None)
 
     c.update_hypers()
-
     c.problem_config.validate_priors()
 
     c.validate()
@@ -830,7 +886,7 @@ def dump_config(config):
     dump(config, filename=conf_out)
 
 
-def load_config(project_dir, mode):
+def load_config(project_dir, mode, update=False):
     """
     Load configuration file.
 
@@ -857,10 +913,10 @@ def load_config(project_dir, mode):
 
     config.problem_config.validate_priors()
 
-    if config.problem_config.hyperparameters is None or \
-        len(config.problem_config.hyperparameters.keys()) == 0:
+    if update:
         config.update_hypers()
-        logger.info('Updated hyper parameters!')
+        logger.info('Updated hyper parameters! Previous hyper'
+           ' parameter bounds are invalid now!')
         dump(config, filename=config_fn)
 
     return config
