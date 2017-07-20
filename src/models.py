@@ -249,8 +249,7 @@ class GeodeticComposite(Composite):
 
         self.datasets = utility.load_objects(geodetic_data_path)
 
-        self.n_d = len(self.datasets)
-        logger.info('Number of geodetic datasets: %i ' % self.n_d)
+        logger.info('Number of geodetic datasets: %i ' % self.n_t)
 
         if gc.calc_data_cov:
             logger.warn('Covariance estimation not implemented (yet)!'
@@ -283,6 +282,10 @@ class GeodeticComposite(Composite):
         self.config = gc
 
         super(GeodeticComposite, self).__init__(hypers=hypers)
+
+    @property
+    def n_t(self):
+        return len(self.datasets)
 
     def assemble_results(self, point):
         """
@@ -698,16 +701,16 @@ class SeismicComposite(Composite):
             reference_location=sc.gf_config.reference_location,
             blacklist=sc.blacklist)
 
-        datahandler = heart.DataWaveformCollection(stations, wavenames)
-        datahandler.add_datasets(data_traces)
-        datahandler.downsample_datasets(target_deltat)
-        datahandler.add_targets(targets)
-        datahandler.station_blacklisting(sc.blacklist)
+        self.datahandler = heart.DataWaveformCollection(stations, wavenames)
+        self.datahandler.add_datasets(data_traces)
+        self.datahandler.downsample_datasets(target_deltat)
+        self.datahandler.add_targets(targets)
+        self.datahandler.station_blacklisting(sc.blacklist)
 
         self.wavemaps = []
         for wc in sc.waveforms:
             if wc.include:
-                wmap = datahandler.get_waveform_mapping(
+                wmap = self.datahandler.get_waveform_mapping(
                     wc.name, channels=wc.channels)
                 wmap.config = wc
 

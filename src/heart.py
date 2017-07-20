@@ -2054,6 +2054,15 @@ class WaveformMapping(object):
             self.targets = utility.weed_targets(self.targets, self.stations)
             self._target2index = None   # reset mapping
 
+        self.check_consistency()
+
+    def check_consistency(self):
+        if self.n_t != self.n_data:
+            CollectionError('Inconsistent number of datasets and targets!')
+        else:
+            logger.init('Consistent number of '
+                'datasets and targets in %s wavemap!' % self.name)
+
     def update_interpolation(self, method):
         for target in self.targets:
             target.interpolation = method
@@ -2244,9 +2253,9 @@ class DataWaveformCollection(object):
         n_t = len(targets)
 
         if ndata != n_t:
-            raise CollectionError(
+            logger.warn(
                 'Inconsistent number of targets %i '
-                'and datasets %i!' % (n_t, ndata))
+                'and datasets %i! in wavemap %s init' % (n_t, ndata, waveform))
 
         return WaveformMapping(
             name=waveform,
