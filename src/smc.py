@@ -451,7 +451,7 @@ class SMC(backend.ArrayStepSharedLLK):
         """
 
         array_population = np.zeros((self.n_chains,
-                                      self.ordering.dimensions))
+                                      self.ordering.size))
 
         n_steps = len(mtrace)
 
@@ -496,7 +496,7 @@ class SMC(backend.ArrayStepSharedLLK):
         """
 
         array_population = np.zeros((self.n_chains,
-                                      self.lordering.dimensions))
+                                      self.lordering.size))
 
         n_steps = len(mtrace)
 

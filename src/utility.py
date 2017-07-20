@@ -105,7 +105,7 @@ class ListArrayOrdering(object):
             dim += array.size
             count += 1
 
-        self.dimensions = dim
+        self.size = dim
 
 
 class ListToArrayBijection(object):
@@ -178,7 +178,7 @@ class ListToArrayBijection(object):
             single array comprising all the input arrays
         """
 
-        array = num.empty(self.ordering.dimensions)
+        array = num.empty(self.ordering.size)
         for list_ind, slc, _, _, _ in self.ordering.vmap:
             array[slc] = list_arrays[list_ind].ravel()
         return array
@@ -198,7 +198,7 @@ class ListToArrayBijection(object):
             single array comprising all the input arrays
         """
 
-        array = num.empty((self.ordering.dimensions, 3))
+        array = num.empty((self.ordering.size, 3))
         for list_ind, slc, _, _, _ in self.ordering.vmap:
             array[slc, :] = list_arrays[list_ind]
         return array
