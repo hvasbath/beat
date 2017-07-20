@@ -2060,7 +2060,7 @@ class WaveformMapping(object):
         if self.n_t != self.n_data:
             CollectionError('Inconsistent number of datasets and targets!')
         else:
-            logger.init('Consistent number of '
+            logger.info('Consistent number of '
                 'datasets and targets in %s wavemap!' % self.name)
 
     def update_interpolation(self, method):

@@ -122,7 +122,7 @@ class PlotOptions(Object):
     dpi = Int.T(default=300)
     force = Bool.T(default=False)
     varnames = List.T(
-	default=[], optional=True, help='Names of variables to plot')
+        default=[], optional=True, help='Names of variables to plot')
 
 
 def str_dist(dist):
@@ -541,11 +541,12 @@ def geodetic_fits(problem, stage, plot_options):
     if po.reference is not None:
         composite.point2sources(po.reference)
         ref_sources = copy.deepcopy(composite.sources)
+        point = po.reference
+    else:
+        point = get_result_point(stage, problem.config, po.post_llk)
 
     dataset_index = dict(
         (data, i) for (i, data) in enumerate(composite.datasets))
-
-    point = get_result_point(stage, problem.config, po.post_llk)
 
     results = composite.assemble_results(point)
     nrmax = len(results)
@@ -754,15 +755,20 @@ def draw_geodetic_fits(problem, plot_options):
     po = plot_options
 
     stage = Stage(homepath=problem.outfolder)
-    stage.load_results(
-        model=problem.model, stage_number=po.load_stage, load='full')
+
+    if po.reference is None:
+        stage.load_results(
+            model=problem.model, stage_number=po.load_stage, load='full')
+        llk_str = po.post_llk
+    else:
+        llk_str = 'ref'
 
     mode = problem.config.problem_config.mode
 
     outpath = os.path.join(
         problem.config.project_dir,
         mode, po.figure_dir, 'scenes_%s_%s.%s' % (
-            stage.number, po.post_llk, po.outformat))
+            stage.number, llk_str, po.outformat))
 
     if not os.path.exists(outpath) or po.force:
         figs = geodetic_fits(problem, stage, po)
@@ -1451,7 +1457,7 @@ def draw_posteriors(problem, plot_options):
             draws = 1
         elif s == -1 and not hypers and sc.name == 'Metropolis':
             draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
-        elif s== -2:    # return summarized trace plot -standard pymc trace
+        elif s == -2:    # return summarized trace plot -standard pymc trace
             draws = None
         else:
             draws = sc.parameters.n_steps
