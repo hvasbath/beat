@@ -109,7 +109,7 @@ class RectangularSource(gf.DCSource, Cloneable):
 
         Parameters
         ----------
-        center : scalar, float
+        center : vector[x, y, z], float
             coordinates [m] of the center of the fault
 
         Returns
