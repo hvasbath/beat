@@ -404,7 +404,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         odws = self.Bij.fmap(_odws_list)
 
         logger.info(
-            'Number of geodetic data points: %i ' % ordering.dimensions)
+            'Number of geodetic data points: %i ' % ordering.size)
 
         self.wdata = shared(self.Bij.fmap(_disp_list) * odws, borrow=True)
         self.lv = shared(self.Bij.f3map(_lv_list), borrow=True)
