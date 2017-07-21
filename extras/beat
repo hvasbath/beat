@@ -34,7 +34,7 @@ _beat_options()
 
 
     if [ $COMP_CWORD = 1 ]; then
-        opts="init import build_gfs clone sample plot check"
+        opts="init import build_gfs clone sample summarize plot check"
     elif [ $COMP_CWORD = 2 ]; then
         opts="$(_opt_dirnames) ${arg_subsub[${COMP_WORDS[1]}]}"
     elif [ $COMP_CWORD = 3 ]; then
