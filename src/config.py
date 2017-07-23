@@ -485,7 +485,7 @@ class ProblemConfig(Object):
                         svars = set(source.keys())
 
                         if isinstance(source(), PyrockoRS):
-                            svars.discard('moment')
+                            svars.discard('magnitude')
 
                         variables += utility.weed_input_rvs(
                             svars, self.mode, datatype)
