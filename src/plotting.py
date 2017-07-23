@@ -1164,14 +1164,14 @@ def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None,
         if bins is None:
             bins = int(num.ceil((maxd - mind) / step))
 
+        l, r = ax.get_xlim()
         ax.hist(d, bins=bins, normed=True, stacked=True, alpha=alpha,
             align='left', color=color, edgecolor=color)
 
         leftb = mind - tstd
         rightb = maxd + tstd
 
-        l, r = ax.get_xlim()
-        if l != 0.0 and r != 1.0:
+        if l != 0.0 or r != 1.0:
             leftb = num.minimum(leftb, l)
             rightb = num.maximum(rightb, r)
 
