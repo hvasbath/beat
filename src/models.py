@@ -260,6 +260,10 @@ class GeodeticComposite(Composite):
 
         self.weights = []
         for data in self.datasets:
+            if int(data.covariance.data.sum()) == data.ncoords:
+                logger.warn('Data covariance is identity matrix!'
+                            ' Please double check!!!')
+
             choli = data.covariance.chol_inverse
             self.weights.append(shared(choli, borrow=True))
 
@@ -760,6 +764,9 @@ class SeismicComposite(Composite):
                 weights = []
                 for t, trc in enumerate(wmap.datasets):
                     trc.covariance = heart.Covariance(data=cov_ds_seismic[t])
+                    if int(trc.covariance.data.sum()) == trc.data_len():
+                        logger.warn('Data covariance is identity matrix!'
+                                    ' Please double check!!!')
                     icov = trc.covariance.chol_inverse
                     weights.append(shared(icov, borrow=True))
 
