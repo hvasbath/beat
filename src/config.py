@@ -178,6 +178,10 @@ class GFConfig(Object):
     Base config for GreensFunction calculation parameters.
     """
     store_superdir = String.T(default='./')
+    reference_model_idx = Int.T(
+        default=0,
+        help='Index to velocity model to use for the optimization.'
+             ' 0 - reference, 1..n - model of variations')
     n_variations = Tuple.T(
         2,
         Int.T(),
