@@ -706,7 +706,8 @@ class SeismicComposite(Composite):
             blacklist=sc.blacklist)
 
         self.datahandler = heart.DataWaveformCollection(stations, wavenames)
-        self.datahandler.add_datasets(data_traces)
+        self.datahandler.add_datasets(
+            data_traces, location=sc.gf_config.reference_model_idx)
         self.datahandler.downsample_datasets(target_deltat)
         self.datahandler.add_targets(targets)
         self.datahandler.station_blacklisting(sc.blacklist)
