@@ -1134,6 +1134,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
                     dataset.covariance.pred_v = cov_pv
 
+<<<<<<< HEAD
                     t0 = time.time()
                     choli = dataset.covariance.chol_inverse
                     t1 = time.time()
@@ -1142,6 +1143,8 @@ class SeismicGeometryComposite(SeismicComposite):
                     dataset.covariance.update_slnf()
 
 
+=======
+>>>>>>> aa8bc12aba14fefc1912a221a174a7a3164c440a
 class GeodeticDistributerComposite(GeodeticComposite):
     """
     Comprises how to solve the geodetic (static) linear forward model.
@@ -1155,7 +1158,11 @@ class GeodeticDistributerComposite(GeodeticComposite):
     def __init__(self, gc, project_dir, event, hypers=False):
 
         super(GeodeticDistributerComposite, self).__init__(
+<<<<<<< HEAD
             gc, project_dir, event, hypers=hypers)
+=======
+            gc, project_dir, hypers=hypers)
+>>>>>>> aa8bc12aba14fefc1912a221a174a7a3164c440a
 
         self._mode = 'static'
         self.gfpath = os.path.join(project_dir, self._mode,
@@ -1403,10 +1410,13 @@ geometry_composite_catalog = {
 distributer_composite_catalog = {
     'seismic': SeismicDistributerComposite,
     'geodetic': GeodeticDistributerComposite,
+<<<<<<< HEAD
     }
 
 interseismic_composite_catalog = {
     'geodetic': GeodeticInterseismicComposite,
+=======
+>>>>>>> aa8bc12aba14fefc1912a221a174a7a3164c440a
     }
 
 
@@ -1859,10 +1869,16 @@ class DistributionOptimizer(Problem):
 
         super(DistributionOptimizer, self).__init__(config, hypers)
 
+<<<<<<< HEAD
         for datatype in config.problem_config.datatypes:
             data_config = config[datatype + '_config']
             composite = distributer_composite_catalog[datatype](
                 data_config,
+=======
+        for dataset in config.problem_config.datasets:
+            composite = distributer_composite_catalog[dataset](
+                config[dataset + '_config'],
+>>>>>>> aa8bc12aba14fefc1912a221a174a7a3164c440a
                 config.project_dir,
                 self.event,
                 hypers)
@@ -1879,8 +1895,12 @@ class DistributionOptimizer(Problem):
 problem_catalog = {
     bconfig.modes_catalog.keys()[0]: GeometryOptimizer,
     bconfig.modes_catalog.keys()[1]: DistributionOptimizer,
+<<<<<<< HEAD
     bconfig.modes_catalog.keys()[2]: DistributionOptimizer,
     bconfig.modes_catalog.keys()[3]: InterseismicOptimizer}
+=======
+    bconfig.modes_catalog.keys()[1]: DistributionOptimizer,
+>>>>>>> aa8bc12aba14fefc1912a221a174a7a3164c440a
 }
 
 
