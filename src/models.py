@@ -392,7 +392,7 @@ class GeodeticSourceComposite(GeodeticComposite):
             datasets=self.datasets,
             earth_model_name=gc.gf_config.earth_model_name,
             interpolation='multilinear',
-            crust_inds=[0],
+            crust_inds=[gc.gf_config.reference_model_idx],
             sample_rate=gc.gf_config.sample_rate)
 
         self.sources = sources
@@ -701,12 +701,13 @@ class SeismicComposite(Composite):
             earth_model_name=sc.gf_config.earth_model_name,
             channels=sc.get_unique_channels(),
             sample_rate=sc.gf_config.sample_rate,
-            crust_inds=[0],  # always reference model
+            crust_inds=[sc.gf_config.reference_model_idx],
             reference_location=sc.gf_config.reference_location,
             blacklist=sc.blacklist)
 
         self.datahandler = heart.DataWaveformCollection(stations, wavenames)
-        self.datahandler.add_datasets(data_traces)
+        self.datahandler.add_datasets(
+            data_traces, location=sc.gf_config.reference_model_idx)
         self.datahandler.downsample_datasets(target_deltat)
         self.datahandler.add_targets(targets)
         self.datahandler.station_blacklisting(sc.blacklist)
@@ -778,6 +779,12 @@ class SeismicComposite(Composite):
                     'included in the optimization!' % wc.name)
 
         super(SeismicComposite, self).__init__(hypers=hypers)
+
+    def get_unique_stations(self):
+        sl = [wmap.stations for wmap in self.wavemaps]
+        us = []
+        map(us.extend, sl)
+        return list(set(us))
 
     @property
     def n_t(self):
@@ -1175,7 +1182,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
         """
 
         if crust_inds is None:
-            crust_inds = range(*self.gc.gf_config.n_variations)
+            crust_inds = range(*self.config.gf_config.n_variations)
 
         for crust_ind in crust_inds:
             gfpath = os.path.join(self.gfpath,
@@ -1257,7 +1264,9 @@ class GeodeticDistributerComposite(GeodeticComposite):
         list with :class:`numpy.ndarray` synthetics for each target
         """
         if len(self.gfs.keys()) == 0:
-            self.load_gfs(crust_inds=[0], make_shared=False)
+            self.load_gfs(
+                crust_inds=[self.config.gf_config.reference_model_idx],
+                make_shared=False)
 
         tpoint = copy.deepcopy(point)
 
@@ -1748,15 +1757,16 @@ class DistributionOptimizer(Problem):
         super(DistributionOptimizer, self).__init__(config, hypers)
 
         for datatype in config.problem_config.datatypes:
+            data_config = config[datatype + '_config']
             composite = distributer_composite_catalog[datatype](
-                config[datatype + '_config'],
+                data_config,
                 config.project_dir,
                 self.event,
                 hypers)
 
             # do the optimization only on the reference velocity model
             logger.info("Loading %s Green's Functions" % datatype)
-            composite.load_gfs(crust_inds=[0])
+            composite.load_gfs(crust_inds=[data_config.gf_config.reference_model_idx])
             self.composites[datatype] = composite
 
         self.config = config

@@ -2208,13 +2208,16 @@ class DataWaveformCollection(object):
                 logger.warn(
                     'Target %s already in collection!' % str(target.codes))
 
-    def add_datasets(self, datasets, replace=False, force=False):
+    def add_datasets(self, datasets, location=None, replace=False, force=False):
 
         if replace:
             self._datasets = OrderedDict()
 
         entries = self._datasets.keys()
         for d in datasets:
+            if location is not None:
+                d.set_location(str(location))
+
             nslc_id = d.nslc_id
             if nslc_id not in entries or force:
                 self._datasets[nslc_id] = d
