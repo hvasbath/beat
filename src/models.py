@@ -1820,7 +1820,8 @@ class DistributionOptimizer(Problem):
 
             # do the optimization only on the reference velocity model
             logger.info("Loading %s Green's Functions" % datatype)
-            composite.load_gfs(crust_inds=[data_config.gf_config.reference_model_idx])
+            composite.load_gfs(
+                crust_inds=[data_config.gf_config.reference_model_idx])
             self.composites[datatype] = composite
 
         self.config = config
@@ -1829,7 +1830,9 @@ class DistributionOptimizer(Problem):
 problem_catalog = {
     bconfig.modes_catalog.keys()[0]: GeometryOptimizer,
     bconfig.modes_catalog.keys()[1]: DistributionOptimizer,
+    bconfig.modes_catalog.keys()[2]: DistributionOptimizer,
     bconfig.modes_catalog.keys()[3]: InterseismicOptimizer}
+}
 
 
 def sample(step, problem):
