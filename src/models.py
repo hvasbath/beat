@@ -780,6 +780,12 @@ class SeismicComposite(Composite):
 
         super(SeismicComposite, self).__init__(hypers=hypers)
 
+    def get_unique_stations(self):
+        sl = [wmap.stations for wmap in self.wavemaps]
+        us = []
+        map(us.extend, sl)
+        return list(set(us))
+
     @property
     def n_t(self):
         return sum(wmap.n_t for wmap in self.wavemaps)

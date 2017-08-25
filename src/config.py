@@ -361,7 +361,7 @@ class SeismicConfig(Object):
         cl = [wc.channels for wc in self.waveforms]
         uc = []
         map(uc.extend, cl)
-        return set(uc)
+        return list(set(uc))
 
     def get_hypernames(self):
         hids = []

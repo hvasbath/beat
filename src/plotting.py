@@ -1644,7 +1644,7 @@ def draw_earthmodels(problem, plot_options):
             sc = problem.config.seismic_config
 
             if sc.gf_config.reference_location is None:
-                plot_stations = composite.stations
+                plot_stations = composite.get_unique_stations()
             else:
                 plot_stations = [sc.gf_config.reference_location]
 
@@ -1658,7 +1658,7 @@ def draw_earthmodels(problem, plot_options):
                     targets = init_seismic_targets(
                         [station],
                         earth_model_name=sc.gf_config.earth_model_name,
-                        channels=[sc.channels[0]],
+                        channels=sc.get_unique_channels()[0],
                         sample_rate=sc.gf_config.sample_rate,
                         crust_inds=range(*sc.gf_config.n_variations),
                         interpolation='multilinear')
@@ -1688,7 +1688,6 @@ def draw_earthmodels(problem, plot_options):
             gc = problem.config.geodetic_config
 
             models_dict = {}
-            models = []
             outpath = os.path.join(
                 problem.outfolder, po.figure_dir,
                 '%s_%s_velocity_model.%s' % (
@@ -1702,8 +1701,11 @@ def draw_earthmodels(problem, plot_options):
                     crust_inds=range(*gc.gf_config.n_variations),
                     sample_rate=gc.gf_config.sample_rate)
 
-                models = load_earthmodels(composite.engine, targets)
-                models_dict[outpath] = models
+                models = load_earthmodels(
+                    engine=composite.engine,
+                    targets=targets,
+                    depth_max=gc.gf_config.source_depth_max * km)
+                models_dict[outpath] = models[0]  #select only source site
 
             else:
                 logger.info(
