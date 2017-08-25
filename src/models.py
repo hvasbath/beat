@@ -1293,12 +1293,115 @@ class GeodeticDistributerComposite(GeodeticComposite):
         return synthetics
 
 
+class SeismicDistributerComposite(SeismicComposite):
+    """
+    Comprises how to solve the geodetic (static) linear forward model.
+    Distributed slip
+    """
+
+    gfs = {}
+    sgfs = {}
+    gf_names = {}
+
+    def __init__(self, gc, project_dir, hypers=False):
+
+        super(SeismicDistributerComposite, self).__init__(
+            sc, project_dir, hypers=hypers)
+
+        self._mode = 'kinematic'
+        self.gfpath = os.path.join(project_dir, self._mode,
+                         bconfig.linear_gf_dir_name)
+
+        sgfc = sc.gf_config
+
+        if sgfc.patch_width != sgfc.patch_length:
+            raise Exception('So far only square patches supported in kinematic'
+                ' model! - fast_sweping issues')
+
+        if len(sgfc.reference_sources) > 1:
+            raise Exception('So far only one reference plane supported! - '
+                'fast_sweeping issues')
+
+        self.ext_reference_source = sgfc.reference_sources[0].extend_source(
+            sgfc.extension_width, sgfc.extension_length,
+            sgfc.patch_width, sgfc.patch_length)
+
+        n_patches_strike = self.ext_reference_source.get_n_patches(
+            sgfc.patch_length, 'length')
+        n_patches_dip = self.ext_reference_source.get_n_patches(
+            sgfc.patch_width, 'width')
+
+        self.sweeper = theanof.Sweeper(
+            patch_length / km, n_patches_strike, n_patches_dip)
+
+    def load_gfs(self, crust_inds=None, make_shared=True):
+        """
+        Load Greens Function matrixes for each variable to be inverted for.
+        Updates gfs and gf_names attributes.
+
+        Parameters
+        ----------
+        crust_inds : list
+            of int to indexes of Green's Functions
+        make_shared : bool
+            if True transforms gfs to :class:`theano.shared` variables
+        """
+
+        if crust_inds is None:
+            crust_inds = range(self.gc.gf_config.n_variations + 1)
+
+        for crust_ind in crust_inds:
+            gfpath = os.path.join(self.gfpath,
+                str(crust_ind) + '_' + bconfig.geodetic_linear_gf_name)
+
+            self.gf_names[crust_ind] = gfpath
+            gfs = utility.load_objects(gfpath)[0]
+
+            if make_shared:
+                self.sgfs[crust_ind] = {param: [
+                    shared(gf.astype(tconfig.floatX), borrow=True) \
+                        for gf in gfs[param]] \
+                            for param in gfs.keys()}
+            else:
+                self.gfs[crust_ind] = gfs
+
+    def get_formula(self, input_rvs, hyperparams):
+
+        #convert velocities to rupture onset
+        tzero = self.sweeper(
+                    (1 / input_rvs['velocity']),
+                    tt.round(nuc_x).astype('int16'),
+                    tt.round(nuc_y).astype('int16')).flatten()
+
+self.nuc_x, self.nuc_y
+
+    Synthetics = gfs.GF_stacking_2scan_complete_rtint(
+                    GFLIB_parr, GFLIB_perp,
+                    GFTIMES, CutInterval,
+                    m_risetime, tzero, m_parr, m_perp, deltat)
+
+    RES = CUT_DATA_TRCS - Synthetics
+    for k in range(ntargets):
+        # calculate likelihood
+        logpts_s = tt.set_subtensor(logpts_s[k:k + 1],
+                    (-0.5) * RES[k, :].dot(shared(ICxss[k])).dot(RES[k, :].T))
+
+
+        logpts = multivariate_normal(
+            self.targets, self.weights, hyperparams, residuals)
+
+        llk = pm.Deterministic(self._like_name, logpts)
+
+        return llk.sum()
+
+
 geometry_composite_catalog = {
     'seismic': SeismicGeometryComposite,
     'geodetic': GeodeticGeometryComposite}
 
 
 distributer_composite_catalog = {
+    'seismic': SeismicDistributerComposite,
     'geodetic': GeodeticDistributerComposite,
     }
 
@@ -1766,7 +1869,8 @@ class DistributionOptimizer(Problem):
 
             # do the optimization only on the reference velocity model
             logger.info("Loading %s Green's Functions" % datatype)
-            composite.load_gfs(crust_inds=[data_config.gf_config.reference_model_idx])
+            composite.load_gfs(
+                crust_inds=[data_config.gf_config.reference_model_idx])
             self.composites[datatype] = composite
 
         self.config = config
@@ -1775,7 +1879,9 @@ class DistributionOptimizer(Problem):
 problem_catalog = {
     bconfig.modes_catalog.keys()[0]: GeometryOptimizer,
     bconfig.modes_catalog.keys()[1]: DistributionOptimizer,
+    bconfig.modes_catalog.keys()[2]: DistributionOptimizer,
     bconfig.modes_catalog.keys()[3]: InterseismicOptimizer}
+}
 
 
 def sample(step, problem):
