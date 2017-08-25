@@ -484,7 +484,8 @@ class ProblemConfig(Object):
                         source = vars_catalog[datatype][self.source_type]
                         svars = set(source.keys())
 
-                        if isinstance(source(), PyrockoRS):
+                        if isinstance(
+                            source(), (PyrockoRS, gf.ExplosionSource)):
                             svars.discard('magnitude')
 
                         variables += utility.weed_input_rvs(
