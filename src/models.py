@@ -1832,7 +1832,6 @@ problem_catalog = {
     bconfig.modes_catalog.keys()[1]: DistributionOptimizer,
     bconfig.modes_catalog.keys()[2]: DistributionOptimizer,
     bconfig.modes_catalog.keys()[3]: InterseismicOptimizer}
-}
 
 
 def sample(step, problem):

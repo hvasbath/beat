@@ -2314,7 +2314,6 @@ def discretize_sources(
                     ext_source.get_n_patches(patch_length, 'length'))
                 npws.append(
                     ext_source.get_n_patches(patch_width, 'width'))
-
                 ext_sources.append(ext_source)
                 logger.info('Extended fault(s): \n %s' % ext_source.__str__())
 
