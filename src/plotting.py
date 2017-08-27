@@ -1646,7 +1646,8 @@ def draw_earthmodels(problem, plot_options):
             if sc.gf_config.reference_location is None:
                 plot_stations = composite.get_unique_stations()
             else:
-                plot_stations = [sc.gf_config.reference_location]
+                plot_stations = [composite.get_unique_stations()[0]]
+                plot_stations[0].station = sc.gf_config.reference_location.station
 
             for station in plot_stations:
                 outbasepath = os.path.join(
