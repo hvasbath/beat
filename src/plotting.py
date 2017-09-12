@@ -160,38 +160,6 @@ def str_duration(t):
         return s + '%.1f d' % (t / (24. * 3600.))
 
 
-def choose_round_digit(twosigma):
-    if twosigma < 0.01:
-        return 3
-    elif twosigma < 0.1:
-        return 2
-    elif twosigma < 1.:
-        return 1
-    elif twosigma < 10.:
-        return 0
-    elif twosigma < 100.:
-        return -1
-    elif twosigma < 1000.:
-        return -2
-    elif twosigma < 10000.:
-        return -3
-    elif twosigma < 100000.:
-        return -4
-    elif twosigma < 1000000.:
-        return -5
-    else:
-        return -6
-
-
-def get_tickmarks(leftb, rightb, ntickmarks=5):
-    """
-    Get tickmarks according to range of given values and number of tickmarks!
-    """
-    digits = choose_round_digit((rightb - leftb) / ntickmarks)
-    return num.round(
-            num.linspace(leftb, rightb, ntickmarks), digits).tolist()
-
-
 def kde2plot_op(ax, x, y, grid=200, **kwargs):
     xmin = x.min()
     xmax = x.max()
@@ -201,6 +169,7 @@ def kde2plot_op(ax, x, y, grid=200, **kwargs):
     if len(extent) != 4:
         extent = [xmin, xmax, ymin, ymax]
 
+    print extent
     grid = grid * 1j
     X, Y = num.mgrid[xmin:xmax:grid, ymin:ymax:grid]
     positions = num.vstack([X.ravel(), Y.ravel()])
@@ -390,6 +359,7 @@ def correlation_plot_hist(mtrace, varnames=None,
                 axs[l, k].get_yaxis().set_visible(False)
 
                 xticks = axs[l, k].get_xticks()
+                xlim = axs[l, k].get_xlim()
             else:
                 b = d[v_nameb]
 
@@ -408,9 +378,11 @@ def correlation_plot_hist(mtrace, varnames=None,
                         bmin = num.minimum(bmin, point[v_nameb])
                         bmax = num.maximum(bmax, point[v_nameb])
 
-                ytickmarks = get_tickmarks(bmin, bmax, ntickmarks=ntickmarks)
+                yticker = tick.MaxNLocator(nbins=ntickmarks)
                 axs[l, k].set_xticks(xticks)
-                axs[l, k].set_yticks(ytickmarks)
+                axs[l, k].set_xlim(xlim)
+                yax = axs[l, k].get_yaxis()
+                yax.set_major_locator(yticker)
 
             if l != nvar - 1:
                 axs[l, k].get_xaxis().set_ticklabels([])
