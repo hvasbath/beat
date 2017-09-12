@@ -1127,10 +1127,10 @@ def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None,
     Modified from pymc3. Additional color argument.
     """
     for i in range(data.shape[1]):
-        #d, mind, maxd = pmp.artists.fast_kde(data[:, i])
         d = data[:, i]
         mind = d.min()
         maxd = d.max()
+        # bins, mind, maxd = pmp.artists.fast_kde(data[:,i])
 
         if reference is not None:
             mind = num.minimum(mind, reference)
@@ -1315,7 +1315,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                 if plot_style == 'kde':
                     pmp.kdeplot(
                         d, alpha=alpha, shade=True, ax=axs[rowi, coli],
-                        color=color)
+                        color=color, linewidth=1.)
                     xlim = axs[rowi, coli].get_xlim()
                     #xticklabels = get_tickmarks(*xlim, ntickmarks=5)
                     xax = axs[rowi, coli].get_xaxis()
