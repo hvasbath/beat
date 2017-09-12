@@ -17,6 +17,7 @@ from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.collections import PatchCollection
 from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib.ticker as tick
 
 from scipy.stats import kde
 import numpy as num
@@ -37,12 +38,12 @@ __all__ = ['PlotOptions', 'correlation_plot', 'correlation_plot_hist',
     'get_result_point', 'seismic_fits', 'geodetic_fits', 'traceplot',
     'select_transform']
 
-u_nm = '[Nm]'
-u_km = '[km]'
-u_deg = '[deg]'
-u_m = '[m]'
-u_v = '[m^3]'
-u_s = '[s]'
+u_nm = '$[Nm]$'
+u_km = '$[km]$'
+u_deg = '$[^{\circ}]$'
+u_m = '$[m]$'
+u_v = '$[m^3]$'
+u_s = '$[s]$'
 u_hyp = ''
 
 plot_units = {
@@ -174,8 +175,12 @@ def choose_round_digit(twosigma):
         return -2
     elif twosigma < 10000.:
         return -3
-    else:
+    elif twosigma < 100000.:
         return -4
+    elif twosigma < 1000000.:
+        return -5
+    else:
+        return -6
 
 
 def get_tickmarks(leftb, rightb, ntickmarks=5):
@@ -345,7 +350,10 @@ def correlation_plot_hist(mtrace, varnames=None,
     nvar = len(varnames)
 
     if figsize is None:
-        figsize = mpl_papersize('a4', 'landscape')
+        if nvar < 5:
+            figsize = mpl_papersize('a5', 'landscape')
+        else:
+            figsize = mpl_papersize('a4', 'landscape')
 
     fig, axs = plt.subplots(nrows=nvar, ncols=nvar, figsize=figsize,
             subplot_kw={'adjustable': 'box-forced'})
@@ -1147,10 +1155,10 @@ def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None,
     Modified from pymc3. Additional color argument.
     """
     for i in range(data.shape[1]):
+        #d, mind, maxd = pmp.artists.fast_kde(data[:, i])
         d = data[:, i]
-
-        mind = num.min(d)
-        maxd = num.max(d)
+        mind = d.min()
+        maxd = d.max()
 
         if reference is not None:
             mind = num.minimum(mind, reference)
@@ -1166,7 +1174,7 @@ def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None,
 
         l, r = ax.get_xlim()
         ax.hist(d, bins=bins, normed=True, stacked=True, alpha=alpha,
-            align='left', color=color, edgecolor=color)
+            align='left', histtype='stepfilled', color=color, edgecolor=color)
 
         leftb = mind - tstd
         rightb = maxd + tstd
@@ -1180,15 +1188,17 @@ def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None,
         ax.set_xlim(leftb, rightb)
 #        ax.get_yaxis().set_ticklabels([])
         xax = ax.get_xaxis()
-        xax.set_ticklabels(xticklabels)
-        xax.set_ticks(xticklabels)
+        xticker = tick.MaxNLocator(nbins=ntickmarks)
+        xax.set_major_locator(xticker)
+#        xax.set_ticklabels(xticklabels)
+#        xax.set_ticks(xticklabels)
 
 
 def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
               lines=None, chains=None, combined=False, grid=False,
               varbins=None, nbins=40, color=None,
               alpha=0.35, priors=None, prior_alpha=1, prior_style='--',
-              axs=None, posterior=None, fig=None):
+              axs=None, posterior=None, fig=None, plot_style='kde'):
     """
     Plots posterior pdfs as histograms from multiple mtrace objects.
 
@@ -1275,7 +1285,10 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     n_fig = nrow * ncol
 
     if figsize is None:
-        figsize = (8.2, 11.7)
+        if n < 7:
+            figsize = (5.8, 8.2)
+        else:
+            figsize = (8.2, 11.7)
 
     if axs is None:
         fig, axs = plt.subplots(nrow, ncol, figsize=figsize)
@@ -1327,9 +1340,21 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                 if color is None:
                     color = scolor('aluminium3')
 
-                histplot_op(
-                    axs[rowi, coli], d, reference=reference,
-                    bins=varbin, alpha=alpha, color=color)
+                if plot_style == 'kde':
+                    pmp.kdeplot(
+                        d, alpha=alpha, shade=True, ax=axs[rowi, coli],
+                        color=color)
+                    xlim = axs[rowi, coli].get_xlim()
+                    #xticklabels = get_tickmarks(*xlim, ntickmarks=5)
+                    xax = axs[rowi, coli].get_xaxis()
+                    xticker = tick.MaxNLocator(nbins=5)
+                    xax.set_major_locator(xticker)
+                    #xax.set_ticklabels(xticklabels)
+                    #xax.set_ticks(xticklabels)
+                else:
+                    histplot_op(
+                        axs[rowi, coli], d, reference=reference,
+                        bins=varbin, alpha=alpha, color=color)
 
                 axs[rowi, coli].set_title(
                     str(v) + ' ' + plot_units[hypername(v)])
