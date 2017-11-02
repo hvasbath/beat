@@ -169,7 +169,6 @@ def kde2plot_op(ax, x, y, grid=200, **kwargs):
     if len(extent) != 4:
         extent = [xmin, xmax, ymin, ymax]
 
-    print extent
     grid = grid * 1j
     X, Y = num.mgrid[xmin:xmax:grid, ymin:ymax:grid]
     positions = num.vstack([X.ravel(), Y.ravel()])
@@ -1136,6 +1135,7 @@ def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None,
             mind = num.minimum(mind, reference)
             maxd = num.maximum(maxd, reference)
 
+        print 'minmax', mind, maxd
         if tstd is None:
             tstd = num.std(d)
 
@@ -1144,10 +1144,10 @@ def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None,
         if bins is None:
             bins = int(num.ceil((maxd - mind) / step))
 
-        l, r = ax.get_xlim()
         ax.hist(d, bins=bins, normed=True, stacked=True, alpha=alpha,
             align='left', histtype='stepfilled', color=color, edgecolor=color)
 
+        l, r = ax.get_xlim()
         leftb = mind - tstd
         rightb = maxd + tstd
 
@@ -1155,15 +1155,10 @@ def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None,
             leftb = num.minimum(leftb, l)
             rightb = num.maximum(rightb, r)
 
-        xticklabels = get_tickmarks(leftb, rightb, ntickmarks=ntickmarks)
-
         ax.set_xlim(leftb, rightb)
-#        ax.get_yaxis().set_ticklabels([])
         xax = ax.get_xaxis()
         xticker = tick.MaxNLocator(nbins=ntickmarks)
         xax.set_major_locator(xticker)
-#        xax.set_ticklabels(xticklabels)
-#        xax.set_ticks(xticklabels)
 
 
 def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
@@ -1317,12 +1312,9 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         d, alpha=alpha, shade=True, ax=axs[rowi, coli],
                         color=color, linewidth=1.)
                     xlim = axs[rowi, coli].get_xlim()
-                    #xticklabels = get_tickmarks(*xlim, ntickmarks=5)
                     xax = axs[rowi, coli].get_xaxis()
                     xticker = tick.MaxNLocator(nbins=5)
                     xax.set_major_locator(xticker)
-                    #xax.set_ticklabels(xticklabels)
-                    #xax.set_ticks(xticklabels)
                 else:
                     histplot_op(
                         axs[rowi, coli], d, reference=reference,
