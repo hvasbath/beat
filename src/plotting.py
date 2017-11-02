@@ -169,7 +169,6 @@ def kde2plot_op(ax, x, y, grid=200, **kwargs):
     if len(extent) != 4:
         extent = [xmin, xmax, ymin, ymax]
 
-    print extent
     grid = grid * 1j
     X, Y = num.mgrid[xmin:xmax:grid, ymin:ymax:grid]
     positions = num.vstack([X.ravel(), Y.ravel()])
