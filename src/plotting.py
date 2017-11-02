@@ -1135,7 +1135,6 @@ def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None,
             mind = num.minimum(mind, reference)
             maxd = num.maximum(maxd, reference)
 
-        print 'minmax', mind, maxd
         if tstd is None:
             tstd = num.std(d)
 
