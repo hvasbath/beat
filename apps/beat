@@ -31,7 +31,8 @@ def d2u(d):
     return dict((k.replace('-','_'), v) for (k, v) in d.iteritems())
 
 subcommand_descriptions = {
-        'init':           'create a new EQ model project',
+        'init':           'create a new EQ model project, use only event'
+                          ' name to skip catalog search',
         'import':         'import data or results, from external format or '
                           'modeling results, respectively',
         'sample':         'sample the solution space of the problem',
@@ -120,6 +121,8 @@ def get_project_directory(args, options, nargs=1, popflag=False):
         else:
             name = args[0]
         project_dir = os.path.join(os.path.abspath(options.main_path), name)
+    else:
+        project_dir = os.getcwd()
 
     return project_dir
 
