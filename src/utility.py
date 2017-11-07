@@ -677,7 +677,7 @@ def utm_to_lonlat(utmx, utmy, zone):
     return lon, lat
 
 
-def setup_logging(project_dir, levelname):
+def setup_logging(project_dir, levelname, logfilename='BEAT_log.txt'):
     """
     Setup function for handling BEAT logging. The logfile 'BEAT_log.txt' is
     saved in the 'project_dir'.
@@ -696,7 +696,7 @@ def setup_logging(project_dir, levelname):
               'error': logging.ERROR,
               'critical': logging.CRITICAL}
 
-    filename = os.path.join(project_dir, 'BEAT_log.txt')
+    filename = os.path.join(project_dir, logfilename)
 
     logger = logging.getLogger()
     # remove existing handlers
