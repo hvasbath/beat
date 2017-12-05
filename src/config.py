@@ -913,8 +913,8 @@ def load_config(project_dir, mode, update=False):
     try:
         config = load(filename=config_fn)
     except IOError:
-        logger.error('File %s does not exist! Returning None.' % config_fn)
-        return None
+        raise IOError('Cannot load config, file %s'
+                      ' does not exist!' % config_fn)
 
     config.problem_config.validate_priors()
 

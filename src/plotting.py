@@ -1212,7 +1212,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
     ax : matplotlib axes
     """
-
+    print 'Inside traceplot'
     def make_bins(data, nbins=40):
         d = data.flatten()
         mind = d.min()
@@ -1260,8 +1260,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         fig, axs = plt.subplots(nrow, ncol, figsize=figsize)
         axs = num.atleast_2d(axs)
     elif axs.shape != (nrow, ncol):
-        logger.warn('traceplot requires n*2 subplots')
-        return None
+        raise TypeError('traceplot requires n*2 subplots %i, %i' % (
+                        nrow, ncol))
 
     if varbins is None:
         make_bins_flag = True
@@ -1307,6 +1307,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     color = scolor('aluminium3')
 
                 if plot_style == 'kde':
+                    print 'using KDE'
                     pmp.kdeplot(
                         d, alpha=alpha, shade=True, ax=axs[rowi, coli],
                         color=color, linewidth=1.)
@@ -1315,6 +1316,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     xticker = tick.MaxNLocator(nbins=5)
                     xax.set_major_locator(xticker)
                 else:
+                    print 'using hist'
                     histplot_op(
                         axs[rowi, coli], d, reference=reference,
                         bins=varbin, alpha=alpha, color=color)
