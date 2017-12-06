@@ -27,7 +27,7 @@ from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.cake_plot import light
 
 import pyrocko.moment_tensor as mt
-from pyrocko.plot import mpl_papersize
+from pyrocko.plot import mpl_papersize, mpl_init
 
 logger = logging.getLogger('plotting')
 
@@ -1567,32 +1567,50 @@ def draw_correlation_hist(problem, plot_options):
         fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
-def n_model_plot(models, axes=None):
+def n_model_plot(models, axes=None, draw_bg=True, highlightidx=[]):
     """
     Plot cake layered earth models.
     """
     if axes is None:
+        mpl_init(fontsize=12)
         fig, axes = plt.subplots(
             nrows=1, ncols=1, figsize=mpl_papersize('a5', 'portrait'))
 
-    cp.labelspace(axes)
-    cp.labels_model(axes=axes)
-    cp.sketch_model(models[0], axes=axes)
-
-    ref = models.pop(0)
-
-    for mod in models:
+    def plot_profile(mod, axes, vp_c, vs_c, lw=0.5):
         z = mod.profile('z')
         vp = mod.profile('vp')
         vs = mod.profile('vs')
-        axes.plot(vp, z, color=scolor('scarletred1'), lw=0.5)
-        axes.plot(vs, z, color=scolor('skyblue1'), lw=0.5)
+        axes.plot(vp, z, color=vp_c, lw=lw)
+        axes.plot(vs, z, color=vs_c, lw=lw)
 
-    z = ref.profile('z')
-    vp = ref.profile('vp')
-    vs = ref.profile('vs')
-    axes.plot(vp, z, color=scolor('aluminium6'), lw=1.5)
-    axes.plot(vs, z, color=scolor('aluminium3'), lw=1.5)
+
+    cp.labelspace(axes)
+    cp.labels_model(axes=axes)
+    if draw_bg:
+        cp.sketch_model(models[0], axes=axes)
+    else:
+        axes.spines['right'].set_visible(False)
+        axes.spines['top'].set_visible(False)
+
+    ref_vp_c = scolor('aluminium5')
+    ref_vs_c = scolor('aluminium5')
+    vp_c = scolor('scarletred2')
+    vs_c = scolor('skyblue2')
+
+    for i, mod in enumerate(models):
+        plot_profile(
+            mod, axes, vp_c=light(vp_c, 0.3), vs_c=light(vs_c, 0.3), lw=1.)
+
+    for count, i in enumerate(sorted(highlightidx)):
+        if count == 0:
+            vpcolor = ref_vp_c
+            vscolor = ref_vs_c
+        else:
+            vpcolor = vp_c
+            vscolor = vs_c
+
+        plot_profile(
+            models[i], axes, vp_c=vpcolor, vs_c=vscolor, lw=2.)
 
     ymin, ymax = axes.get_ylim()
     xmin, xmax = axes.get_xlim()
@@ -1604,12 +1622,12 @@ def n_model_plot(models, axes=None):
     return fig, axes
 
 
-def load_earthmodels(engine, targets, depth_max='cmb'):
+def load_earthmodels(store_superdir, targets, depth_max='cmb'):
 
     ems = []
     emr = []
     for t in targets:
-        path = os.path.join(engine.store_superdirs[0], t.store_id, 'config')
+        path = os.path.join(store_superdir, t.store_id, 'config')
         config = load(filename=path)
         em = config.earthmodel_1d.extract(depth_max=depth_max)
         ems.append(em)
@@ -1652,7 +1670,7 @@ def draw_earthmodels(problem, plot_options):
                         interpolation='multilinear')
 
                     models = load_earthmodels(
-                        composite.engine, targets,
+                        composite.engine.store_superdirs[0], targets,
                         depth_max=sc.gf_config.depth_limit_variation * km)
 
                     for i, mods in enumerate(models):
@@ -1690,7 +1708,7 @@ def draw_earthmodels(problem, plot_options):
                     sample_rate=gc.gf_config.sample_rate)
 
                 models = load_earthmodels(
-                    engine=composite.engine,
+                    store_superdir=composite.engine.store_superdirs[0],
                     targets=targets,
                     depth_max=gc.gf_config.source_depth_max * km)
                 models_dict[outpath] = models[0]  #select only source site
@@ -1702,7 +1720,7 @@ def draw_earthmodels(problem, plot_options):
                 return
 
         else:
-            raise Exception(
+            raise TypeError(
                 'Plot for datatype %s not (yet) supported' % datatype)
 
         figs = []
@@ -1710,7 +1728,9 @@ def draw_earthmodels(problem, plot_options):
         tobepopped = []
         for path, models in models_dict.iteritems():
             if len(models) > 0:
-                fig, axs = n_model_plot(models, axes=None)
+                fig, axs = n_model_plot(
+                    models, axes=None,
+                    draw_bg=po.reference, highlightidx=[0])
                 figs.append(fig)
                 axes.append(axs)
             else:
