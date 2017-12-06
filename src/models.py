@@ -98,11 +98,9 @@ def multivariate_normal_chol(datasets, weights, hyperparams, residuals):
     array_like
     """
     n_t = len(datasets)
-    print n_t
     logpts = tt.zeros((n_t), tconfig.floatX)
 
     for l, data in enumerate(datasets):
-        print data.__class__
         M = tt.cast(shared(data.samples, borrow=True), 'int16')
         hp_name = '_'.join(('h', data.typ))
         tmp = weights[l].dot(residuals[l])
@@ -1128,7 +1126,6 @@ class SeismicGeometryComposite(SeismicComposite):
                         arrival_taper=wc.arrival_taper,
                         filterer=wc.filterer,
                         plot=plot, n_jobs=n_jobs)
-
                     cov_pv = utility.ensure_cov_psd(cov_pv)
 
                     self.engine.close_cashed_stores()
@@ -1416,13 +1413,10 @@ class Problem(object):
             self.rvs, self.fixed_params = self.get_random_variables()
 
             self.hyperparams = self.get_hyperparams()
-            print self.hyperparams
-            print self.config.problem_config
 
             total_llk = tt.zeros((1), tconfig.floatX)
 
             for datatype, composite in self.composites.iteritems():
-                print 'builtmodel', datatype, composite.__class__
                 input_rvs = utility.weed_input_rvs(
                     self.rvs, mode, datatype=datatype)
                 fixed_rvs = utility.weed_input_rvs(
@@ -1574,9 +1568,6 @@ class Problem(object):
             with respect to velocity model uncertainties are calculated
         """
         for composite in self.composites.values():
-            print composite.__class__
-            print 'name', composite.name
-            print self.composites
             self.composites[composite.name].point2sources(point)
 
     def update_weights(self, point, n_jobs=1, plot=False):
@@ -1690,7 +1681,6 @@ class GeometryOptimizer(SourceOptimizer):
             pc.decimation_factors)
 
         for datatype in pc.datatypes:
-            print 'init composite', datatype
             self.composites[datatype] = geometry_composite_catalog[datatype](
                 config[datatype + '_config'],
                 config.project_dir,
@@ -1698,7 +1688,6 @@ class GeometryOptimizer(SourceOptimizer):
                 self.event,
                 hypers)
 
-        print self.composites
         self.config = config
 
         # updating source objects with values in bounds
@@ -1958,7 +1947,6 @@ def load_model(project_dir, mode, hypers=False, nobuild=False):
 
     if pc.mode in problem_catalog.keys():
         problem = problem_catalog[pc.mode](config, hypers)
-        print problem
     else:
         logger.error('Modeling problem %s not supported' % pc.mode)
         raise Exception('Model not supported')

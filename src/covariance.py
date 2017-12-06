@@ -263,7 +263,7 @@ def seismic_cov_velocity_models(engine, sources, targets,
         arrival_taper=arrival_taper, wavename=wavename,
         filterer=filterer, nprocs=n_jobs,
         reference_taperer=reference_taperer, plot=plot,
-        pre_stack_cut=True)
+        pre_stack_cut=True, outmode='stacked_traces')
     t1 = time()
     logger.debug('Trace generation time %f' % (t1 - t0))
 
