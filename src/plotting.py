@@ -17,6 +17,7 @@ from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.collections import PatchCollection
 from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib.ticker as tick
 
 from scipy.stats import kde
 import numpy as num
@@ -26,7 +27,7 @@ from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.cake_plot import light
 
 import pyrocko.moment_tensor as mt
-from pyrocko.plot import mpl_papersize
+from pyrocko.plot import mpl_papersize, mpl_init
 
 logger = logging.getLogger('plotting')
 
@@ -37,12 +38,12 @@ __all__ = ['PlotOptions', 'correlation_plot', 'correlation_plot_hist',
     'get_result_point', 'seismic_fits', 'geodetic_fits', 'traceplot',
     'select_transform']
 
-u_nm = '[Nm]'
-u_km = '[km]'
-u_deg = '[deg]'
-u_m = '[m]'
-u_v = '[m^3]'
-u_s = '[s]'
+u_nm = '$[Nm]$'
+u_km = '$[km]$'
+u_deg = '$[^{\circ}]$'
+u_m = '$[m]$'
+u_v = '$[m^3]$'
+u_s = '$[s]$'
 u_hyp = ''
 
 plot_units = {
@@ -157,34 +158,6 @@ def str_duration(t):
         return s + util.time_to_str(t, format='%H:%M h')
     else:
         return s + '%.1f d' % (t / (24. * 3600.))
-
-
-def choose_round_digit(twosigma):
-    if twosigma < 0.01:
-        return 3
-    elif twosigma < 0.1:
-        return 2
-    elif twosigma < 1.:
-        return 1
-    elif twosigma < 10.:
-        return 0
-    elif twosigma < 100.:
-        return -1
-    elif twosigma < 1000.:
-        return -2
-    elif twosigma < 10000.:
-        return -3
-    else:
-        return -4
-
-
-def get_tickmarks(leftb, rightb, ntickmarks=5):
-    """
-    Get tickmarks according to range of given values and number of tickmarks!
-    """
-    digits = choose_round_digit((rightb - leftb) / ntickmarks)
-    return num.round(
-            num.linspace(leftb, rightb, ntickmarks), digits).tolist()
 
 
 def kde2plot_op(ax, x, y, grid=200, **kwargs):
@@ -345,7 +318,10 @@ def correlation_plot_hist(mtrace, varnames=None,
     nvar = len(varnames)
 
     if figsize is None:
-        figsize = mpl_papersize('a4', 'landscape')
+        if nvar < 5:
+            figsize = mpl_papersize('a5', 'landscape')
+        else:
+            figsize = mpl_papersize('a4', 'landscape')
 
     fig, axs = plt.subplots(nrows=nvar, ncols=nvar, figsize=figsize,
             subplot_kw={'adjustable': 'box-forced'})
@@ -382,6 +358,7 @@ def correlation_plot_hist(mtrace, varnames=None,
                 axs[l, k].get_yaxis().set_visible(False)
 
                 xticks = axs[l, k].get_xticks()
+                xlim = axs[l, k].get_xlim()
             else:
                 b = d[v_nameb]
 
@@ -400,9 +377,11 @@ def correlation_plot_hist(mtrace, varnames=None,
                         bmin = num.minimum(bmin, point[v_nameb])
                         bmax = num.maximum(bmax, point[v_nameb])
 
-                ytickmarks = get_tickmarks(bmin, bmax, ntickmarks=ntickmarks)
+                yticker = tick.MaxNLocator(nbins=ntickmarks)
                 axs[l, k].set_xticks(xticks)
-                axs[l, k].set_yticks(ytickmarks)
+                axs[l, k].set_xlim(xlim)
+                yax = axs[l, k].get_yaxis()
+                yax.set_major_locator(yticker)
 
             if l != nvar - 1:
                 axs[l, k].get_xaxis().set_ticklabels([])
@@ -1148,9 +1127,9 @@ def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None,
     """
     for i in range(data.shape[1]):
         d = data[:, i]
-
-        mind = num.min(d)
-        maxd = num.max(d)
+        mind = d.min()
+        maxd = d.max()
+        # bins, mind, maxd = pmp.artists.fast_kde(data[:,i])
 
         if reference is not None:
             mind = num.minimum(mind, reference)
@@ -1164,10 +1143,10 @@ def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None,
         if bins is None:
             bins = int(num.ceil((maxd - mind) / step))
 
-        l, r = ax.get_xlim()
         ax.hist(d, bins=bins, normed=True, stacked=True, alpha=alpha,
-            align='left', color=color, edgecolor=color)
+            align='left', histtype='stepfilled', color=color, edgecolor=color)
 
+        l, r = ax.get_xlim()
         leftb = mind - tstd
         rightb = maxd + tstd
 
@@ -1175,20 +1154,17 @@ def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None,
             leftb = num.minimum(leftb, l)
             rightb = num.maximum(rightb, r)
 
-        xticklabels = get_tickmarks(leftb, rightb, ntickmarks=ntickmarks)
-
         ax.set_xlim(leftb, rightb)
-#        ax.get_yaxis().set_ticklabels([])
         xax = ax.get_xaxis()
-        xax.set_ticklabels(xticklabels)
-        xax.set_ticks(xticklabels)
+        xticker = tick.MaxNLocator(nbins=ntickmarks)
+        xax.set_major_locator(xticker)
 
 
 def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
               lines=None, chains=None, combined=False, grid=False,
               varbins=None, nbins=40, color=None,
               alpha=0.35, priors=None, prior_alpha=1, prior_style='--',
-              axs=None, posterior=None, fig=None):
+              axs=None, posterior=None, fig=None, plot_style='kde'):
     """
     Plots posterior pdfs as histograms from multiple mtrace objects.
 
@@ -1236,7 +1212,6 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
     ax : matplotlib axes
     """
-
     def make_bins(data, nbins=40):
         d = data.flatten()
         mind = d.min()
@@ -1275,14 +1250,17 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     n_fig = nrow * ncol
 
     if figsize is None:
-        figsize = (8.2, 11.7)
+        if n < 7:
+            figsize = (5.8, 8.2)
+        else:
+            figsize = (8.2, 11.7)
 
     if axs is None:
         fig, axs = plt.subplots(nrow, ncol, figsize=figsize)
         axs = num.atleast_2d(axs)
     elif axs.shape != (nrow, ncol):
-        logger.warn('traceplot requires n*2 subplots')
-        return None
+        raise TypeError('traceplot requires n*2 subplots %i, %i' % (
+                        nrow, ncol))
 
     if varbins is None:
         make_bins_flag = True
@@ -1327,9 +1305,18 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                 if color is None:
                     color = scolor('aluminium3')
 
-                histplot_op(
-                    axs[rowi, coli], d, reference=reference,
-                    bins=varbin, alpha=alpha, color=color)
+                if plot_style == 'kde':
+                    pmp.kdeplot(
+                        d, alpha=alpha, shade=True, ax=axs[rowi, coli],
+                        color=color, linewidth=1.)
+                    xlim = axs[rowi, coli].get_xlim()
+                    xax = axs[rowi, coli].get_xaxis()
+                    xticker = tick.MaxNLocator(nbins=5)
+                    xax.set_major_locator(xticker)
+                else:
+                    histplot_op(
+                        axs[rowi, coli], d, reference=reference,
+                        bins=varbin, alpha=alpha, color=color)
 
                 axs[rowi, coli].set_title(
                     str(v) + ' ' + plot_units[hypername(v)])
@@ -1340,7 +1327,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
                 if lines:
                     try:
-                        axs[rowi, coli].axvline(x=lines[v], color="k", lw=0.5)
+                        axs[rowi, coli].axvline(x=lines[v], color="k", lw=1.)
                     except KeyError:
                         pass
 
@@ -1348,11 +1335,11 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     if posterior == 'all':
                         for k, idx in posterior_idxs.iteritems():
                             axs[rowi, coli].axvline(
-                                x=d[idx], color=colors[k], lw=0.5)
+                                x=d[idx], color=colors[k], lw=1.)
                     else:
                         idx = posterior_idxs[posterior]
                         axs[rowi, coli].axvline(
-                            x=d[idx], color=colors[posterior], lw=0.5)
+                            x=d[idx], color=colors[posterior], lw=1.)
 
     fig.tight_layout()
     return fig, axs, varbins
@@ -1580,32 +1567,50 @@ def draw_correlation_hist(problem, plot_options):
         fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
-def n_model_plot(models, axes=None):
+def n_model_plot(models, axes=None, draw_bg=True, highlightidx=[]):
     """
     Plot cake layered earth models.
     """
     if axes is None:
+        mpl_init(fontsize=12)
         fig, axes = plt.subplots(
             nrows=1, ncols=1, figsize=mpl_papersize('a5', 'portrait'))
 
-    cp.labelspace(axes)
-    cp.labels_model(axes=axes)
-    cp.sketch_model(models[0], axes=axes)
-
-    ref = models.pop(0)
-
-    for mod in models:
+    def plot_profile(mod, axes, vp_c, vs_c, lw=0.5):
         z = mod.profile('z')
         vp = mod.profile('vp')
         vs = mod.profile('vs')
-        axes.plot(vp, z, color=scolor('scarletred1'), lw=0.5)
-        axes.plot(vs, z, color=scolor('skyblue1'), lw=0.5)
+        axes.plot(vp, z, color=vp_c, lw=lw)
+        axes.plot(vs, z, color=vs_c, lw=lw)
 
-    z = ref.profile('z')
-    vp = ref.profile('vp')
-    vs = ref.profile('vs')
-    axes.plot(vp, z, color=scolor('aluminium6'), lw=1.5)
-    axes.plot(vs, z, color=scolor('aluminium3'), lw=1.5)
+
+    cp.labelspace(axes)
+    cp.labels_model(axes=axes)
+    if draw_bg:
+        cp.sketch_model(models[0], axes=axes)
+    else:
+        axes.spines['right'].set_visible(False)
+        axes.spines['top'].set_visible(False)
+
+    ref_vp_c = scolor('aluminium5')
+    ref_vs_c = scolor('aluminium5')
+    vp_c = scolor('scarletred2')
+    vs_c = scolor('skyblue2')
+
+    for i, mod in enumerate(models):
+        plot_profile(
+            mod, axes, vp_c=light(vp_c, 0.3), vs_c=light(vs_c, 0.3), lw=1.)
+
+    for count, i in enumerate(sorted(highlightidx)):
+        if count == 0:
+            vpcolor = ref_vp_c
+            vscolor = ref_vs_c
+        else:
+            vpcolor = vp_c
+            vscolor = vs_c
+
+        plot_profile(
+            models[i], axes, vp_c=vpcolor, vs_c=vscolor, lw=2.)
 
     ymin, ymax = axes.get_ylim()
     xmin, xmax = axes.get_xlim()
@@ -1617,12 +1622,12 @@ def n_model_plot(models, axes=None):
     return fig, axes
 
 
-def load_earthmodels(engine, targets, depth_max='cmb'):
+def load_earthmodels(store_superdir, targets, depth_max='cmb'):
 
     ems = []
     emr = []
     for t in targets:
-        path = os.path.join(engine.store_superdirs[0], t.store_id, 'config')
+        path = os.path.join(store_superdir, t.store_id, 'config')
         config = load(filename=path)
         em = config.earthmodel_1d.extract(depth_max=depth_max)
         ems.append(em)
@@ -1665,7 +1670,7 @@ def draw_earthmodels(problem, plot_options):
                         interpolation='multilinear')
 
                     models = load_earthmodels(
-                        composite.engine, targets,
+                        composite.engine.store_superdirs[0], targets,
                         depth_max=sc.gf_config.depth_limit_variation * km)
 
                     for i, mods in enumerate(models):
@@ -1703,7 +1708,7 @@ def draw_earthmodels(problem, plot_options):
                     sample_rate=gc.gf_config.sample_rate)
 
                 models = load_earthmodels(
-                    engine=composite.engine,
+                    store_superdir=composite.engine.store_superdirs[0],
                     targets=targets,
                     depth_max=gc.gf_config.source_depth_max * km)
                 models_dict[outpath] = models[0]  #select only source site
@@ -1715,7 +1720,7 @@ def draw_earthmodels(problem, plot_options):
                 return
 
         else:
-            raise Exception(
+            raise TypeError(
                 'Plot for datatype %s not (yet) supported' % datatype)
 
         figs = []
@@ -1723,7 +1728,9 @@ def draw_earthmodels(problem, plot_options):
         tobepopped = []
         for path, models in models_dict.iteritems():
             if len(models) > 0:
-                fig, axs = n_model_plot(models, axes=None)
+                fig, axs = n_model_plot(
+                    models, axes=None,
+                    draw_bg=po.reference, highlightidx=[0])
                 figs.append(fig)
                 axes.append(axs)
             else:

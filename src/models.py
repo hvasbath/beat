@@ -98,7 +98,6 @@ def multivariate_normal_chol(datasets, weights, hyperparams, residuals):
     array_like
     """
     n_t = len(datasets)
-
     logpts = tt.zeros((n_t), tconfig.floatX)
 
     for l, data in enumerate(datasets):
@@ -180,14 +179,13 @@ class Composite(Object):
         determines whether to initialise Composites with hyper parameter model
     """
 
-    input_rvs = {}
-    fixed_rvs = {}
-    name = None
-    _like_name = None
-    config = None
-    weights = None
-
     def __init__(self, hypers=False):
+
+        self.input_rvs = {}
+        self.fixed_rvs = {}
+        self.name = None
+        self._like_name = None
+        self.config = None
 
         if hypers:
             self._llks = []
@@ -238,6 +236,8 @@ class GeodeticComposite(Composite):
 
     def __init__(self, gc, project_dir, event, hypers=False):
 
+        super(GeodeticComposite, self).__init__(hypers=hypers)
+
         self.event = event
 
         logger.debug('Setting up geodetic structure ...\n')
@@ -284,8 +284,6 @@ class GeodeticComposite(Composite):
                     self._slocy.append(None)
 
         self.config = gc
-
-        super(GeodeticComposite, self).__init__(hypers=hypers)
 
     @property
     def n_t(self):
@@ -679,6 +677,8 @@ class SeismicComposite(Composite):
 
     def __init__(self, sc, event, project_dir, hypers=False):
 
+        super(SeismicComposite, self).__init__(hypers=hypers)
+        
         logger.debug('Setting up seismic structure ...\n')
         self.name = 'seismic'
         self._like_name = 'seis_like'
@@ -777,8 +777,6 @@ class SeismicComposite(Composite):
             else:
                 logger.info('The waveform defined in "%s" config is not '
                     'included in the optimization!' % wc.name)
-
-        super(SeismicComposite, self).__init__(hypers=hypers)
 
     def get_unique_stations(self):
         sl = [wmap.stations for wmap in self.wavemaps]
@@ -915,13 +913,14 @@ class SeismicGeometryComposite(SeismicComposite):
     hypers : boolean
         if true initialise object for hyper parameter optimization
     """
-    synthesizers = {}
-    choppers = {}
 
     def __init__(self, sc, project_dir, sources, event, hypers=False):
 
         super(SeismicGeometryComposite, self).__init__(
             sc, event, project_dir, hypers=hypers)
+
+        self.synthesizers = {}
+        self.choppers = {}
 
         self.sources = sources
 
@@ -1127,7 +1126,6 @@ class SeismicGeometryComposite(SeismicComposite):
                         arrival_taper=wc.arrival_taper,
                         filterer=wc.filterer,
                         plot=plot, n_jobs=n_jobs)
-
                     cov_pv = utility.ensure_cov_psd(cov_pv)
 
                     self.engine.close_cashed_stores()
@@ -1148,14 +1146,14 @@ class GeodeticDistributerComposite(GeodeticComposite):
     Distributed slip
     """
 
-    gfs = {}
-    sgfs = {}
-    gf_names = {}
-
     def __init__(self, gc, project_dir, event, hypers=False):
 
         super(GeodeticDistributerComposite, self).__init__(
             gc, project_dir, event, hypers=hypers)
+
+        self.gfs = {}
+        self.sgfs = {}
+        self.gf_names = {}
 
         self._mode = 'static'
         self.gfpath = os.path.join(project_dir, self._mode,
@@ -1317,14 +1315,15 @@ class Problem(object):
         Configuration object that contains the problem definition.
     """
 
-    event = None
-    model = None
-    _like_name = 'like'
-    fixed_params = {}
-    composites = {}
-    hyperparams = {}
-
     def __init__(self, config, hypers=False):
+        self.event = None
+        self.model = None
+
+        self._like_name = 'like'
+
+        self.fixed_params = {}
+        self.composites = {}
+        self.hyperparams = {}
 
         logger.info('Analysing problem ...')
         logger.info('---------------------\n')
