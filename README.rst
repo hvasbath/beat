@@ -13,6 +13,10 @@ https://hvasbath.github.io/beat/
 This repository is still beta version and under development!
 There might be future changes in the API that cause previous versions to break.
 
+Tutorials
+=========
+Step by step points on how to use the tool are in preparation and will be online soon! Stay tuned!
+
 Data import
 ===========
 The import of data (geodetic, seismic) is so far restricted to only two formats.
