@@ -569,28 +569,31 @@ def command_summarize(args):
     stage.load_results(model=problem.model, stage_number=-1, load='full')
     stage_path = stage.handler.stage_path(-2)
 
+    sc_params = problem.config.sampler_config.parameters
     if not os.path.exists(
         os.path.join(stage_path, 'chain-0.csv')) or options.force:
 
         rtrace = backend.TextChain(stage_path, model=problem.model)
-        rtrace.setup(draws=len(stage.mtrace.chains), chain=0)
+        rtrace.setup(
+            draws=sc_params.n_chains * sc_params.n_steps, chain=0)
 
+        source = problem.sources[0]
         for chain in stage.mtrace.chains:
-            point = stage.mtrace.point(idx=-1, chain=chain)
-            source = problem.sources[0]
+            for idx in [-1]:
+                point = stage.mtrace.point(idx=idx, chain=chain)
 
-            if isinstance(source, MTSourceWithMagnitude):
-                sc = problem.composites['seismic']
-                sc.point2sources(point)
-                ldicts = []
-                for source in sc.sources:
-                    ldicts.append(source.scaled_m6_dict)
+                if isinstance(source, MTSourceWithMagnitude):
+                    sc = problem.composites['seismic']
+                    sc.point2sources(point)
+                    ldicts = []
+                    for source in sc.sources:
+                        ldicts.append(source.scaled_m6_dict)
 
-                jpoint = utility.join_points(ldicts)
-                point.update(jpoint)
+                    jpoint = utility.join_points(ldicts)
+                    point.update(jpoint)
 
-            lpoint = stage.step.lij.dmap(point)
-            rtrace.record(lpoint, draw=chain)
+                lpoint = stage.step.lij.dmap(point)
+                rtrace.record(lpoint, draw=chain)
 
         rtrace = MultiTrace([rtrace])
     else:
