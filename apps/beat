@@ -41,7 +41,7 @@ subcommand_descriptions = {
         'plot':           'plot specified setups or results',
         'check':          'check setup specific requirements',
         'summarize':      'collect results and create statistics',
-    }
+}
 
 subcommand_usages = {
         'init':          'init <event_name> <event_date "YYYY-MM-DD"> '
@@ -53,7 +53,7 @@ subcommand_usages = {
         'plot':          'plot <event_name> <plot_type> [options]',
         'check':         'check <event_name> [options]',
         'summarize':     'summarize <event_name> [options]',
-    }
+}
 
 subcommands = subcommand_descriptions.keys()
 
@@ -84,38 +84,39 @@ To get further help and a list of available options for any subcommand run:
 
 
 nargs_dict = {
-   'init': 2,
-   'clone': 2,
-   'plot': 2,
-   'import': 1,
-   'build_gfs': 1,
-   'sample': 1,
-   'check': 1,
-   'summarize': 1,
-   }
+    'init': 2,
+    'clone': 2,
+    'plot': 2,
+    'import': 1,
+    'build_gfs': 1,
+    'sample': 1,
+    'check': 1,
+    'summarize': 1,
+}
 
 mode_choices = ['geometry', 'static', 'kinematic', 'interseismic']
 
 
 def add_common_options(parser):
-    parser.add_option('--loglevel',
-        action = 'store',
-        dest = 'loglevel',
-        type = 'choice',
-        choices = ('critical', 'error', 'warning', 'info', 'debug'),
-        default = 'info',
-        help ='set logger level to '
-              '"critical", "error", "warning", "info", or "debug". '
-              'Default is "%default".')
+    parser.add_option(
+        '--loglevel',
+        action='store',
+        dest='loglevel',
+        type='choice',
+        choices=('critical', 'error', 'warning', 'info', 'debug'),
+        default='info',
+        help='set logger level to '
+             '"critical", "error", "warning", "info", or "debug". '
+             'Default is "%default".')
 
 
 def get_project_directory(args, options, nargs=1, popflag=False):
 
-    l = len(args)
+    larg = len(args)
 
-    if l == nargs - 1:
+    if larg == nargs - 1:
         project_dir = os.getcwd()
-    elif l == nargs:
+    elif larg == nargs:
         if popflag:
             name = args.pop(0)
         else:
@@ -129,7 +130,9 @@ def get_project_directory(args, options, nargs=1, popflag=False):
 
 def process_common_options(options, project_dir):
     util.ensuredir(project_dir)
-    utility.setup_logging(project_dir, options.loglevel)
+    utility.setup_logging(
+        project_dir, options.loglevel, logfilename='BEAT_log.txt')
+
 
 def die(message, err=''):
     sys.exit('%s: error: %s \n %s' % (program_name, message, err))
@@ -168,7 +171,7 @@ def load_config(fn):
         config = load(filename=fn)
         assert isinstance(config, config.BEATconfig)
 
-    except:
+    except IOError:
         die('cannot load BEAT config from file: %s' % fn)
 
     return config
@@ -936,7 +939,6 @@ def command_check(args):
 
 if __name__ == '__main__':
 
-    usage_sub = 'BEAT %s [options]'
     if len(sys.argv) < 2:
         sys.exit('Usage: %s' % usage)
 
@@ -945,7 +947,7 @@ if __name__ == '__main__':
     command = args.pop(0)
 
     if command in subcommands:
-        globals()['command_'+ command](args)
+        globals()['command_' + command](args)
 
     elif command in ('--help', '-h', 'help'):
         if command == 'help' and args:
@@ -957,4 +959,3 @@ if __name__ == '__main__':
 
     else:
         sys.exit('BEAT: error: no such subcommand: %s' % command)
-
