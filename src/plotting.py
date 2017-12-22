@@ -1250,7 +1250,9 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     n_fig = nrow * ncol
 
     if figsize is None:
-        if n < 7:
+        if n < 5:
+            figsize = (5.8, 4.1)
+        elif n < 7:
             figsize = (5.8, 8.2)
         else:
             figsize = (8.2, 11.7)
