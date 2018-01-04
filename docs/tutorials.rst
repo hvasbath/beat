@@ -71,14 +71,14 @@ Within the directoy you will see that there have been two files created:
 The first file is a logging file where all the executed comments and outputs are written to. In case something goes wrong this log file helps to find the error.
 For now it contains::
 
-2018-01-04 16:15:06,696 - utility - INFO - Getting relevant events from the gCMT catalog for the dates:1992-06-27 00:00:00.000 - 1992-06-29 00:00:00.000 
+    2018-01-04 16:15:06,696 - utility - INFO - Getting relevant events from the gCMT catalog for the dates:1992-06-27 00:00:00.000 - 1992-06-29 00:00:00.000 
 
-2018-01-04 16:15:07,097 - config - INFO - Added hyperparameter h_any_P_Z to config and model setup!
-2018-01-04 16:15:07,097 - config - INFO - Added hyperparameter h_any_S_Z to config and model setup!
-2018-01-04 16:15:07,097 - config - INFO - All hyper-parameters ok!
-2018-01-04 16:15:07,097 - config - INFO - Number of hyperparameters! 2
-2018-01-04 16:15:07,098 - config - INFO - All parameter-priors ok!
-2018-01-04 16:15:07,102 - config - INFO - Project_directory: /home/vasyurhm/BEATS/LandersEQ 
+    2018-01-04 16:15:07,097 - config - INFO - Added hyperparameter h_any_P_Z to config and model setup!
+    2018-01-04 16:15:07,097 - config - INFO - Added hyperparameter h_any_S_Z to config and model setup!
+    2018-01-04 16:15:07,097 - config - INFO - All hyper-parameters ok!
+    2018-01-04 16:15:07,097 - config - INFO - Number of hyperparameters! 2
+    2018-01-04 16:15:07,098 - config - INFO - All parameter-priors ok!
+    2018-01-04 16:15:07,102 - config - INFO - Project_directory: /home/vasyurhm/BEATS/LandersEQ 
 
 The second file is a yaml-configuration file and it is where ALL the changes in parameters and settings have to be done to avoid tinkering with the program itself!
 This file can be read as is by the computer, therefore, it is important to keep the syntax clean!
@@ -347,7 +347,7 @@ In an ipython session from within the LandersEQ directory execute::
     c = guts.load(filename='config_geometry.yaml')
     print c.event
 
-Will yield:
+Will yield::
 
     --- !pf.Event
     lat: 34.65
@@ -376,7 +376,7 @@ Will yield:
     duration: 38.4
 
 
-Once a list of traces and station objects exists it may be exported to the project directory (here path from example):
+Once a list of traces and station objects exists it may be exported to the project directory (here path from example)::
 
     from beat import utility
 
