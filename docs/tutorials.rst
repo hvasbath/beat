@@ -11,6 +11,7 @@ For example::
 
     beat init --help
 
+Will display::
 
     Usage: beat init <event_name> <event_date "YYYY-MM-DD"> [options]
 
@@ -54,14 +55,16 @@ For example::
 
 
 
-Seismic data
+Example data
 ------------
-In this tutorial we will use synthetic example data to get familiar with the basic functionality of BEAT. 
+In the following tutorials we will use synthetic example data to get familiar with the basic functionality of BEAT.
 
 
-Regional Full Moment Tensor example
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-This setup is comprised of 20 stations that are randomly distributed within distances of 40 to 1000 km compared to a reference event.
+Regional Full Moment Tensor
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+This setup is comprised of 20 seismic stations that are randomly distributed within distances of 40 to 1000 km compared to a reference event.
 To copy the scenario (including the data) to a directory outside of the package source directory please edit the target path and execute::
 
     beat clone FullMT /absolute/path/to/your/directory/FullMT --copy_data
+
+    
