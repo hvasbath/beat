@@ -757,9 +757,9 @@ def search_catalog(date, min_magnitude, dayrange=1.):
 
     if len(events) > 1:
         logger.info(
-            'More than one event from that date with specified magnitude'
-            'found! Please copy the relevant event information to the'
-            'configuration file file!')
+            'More than one event from that date with specified magnitude '
+            'found! Please copy the relevant event information to the '
+            'configuration file!')
         for event in events:
             print event
 
