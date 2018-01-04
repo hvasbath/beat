@@ -105,6 +105,30 @@ def load_SAR_data(datadir, names):
     return diffgs
 
 
+def load_kite_scenes(datadir, names):
+    """
+    Load SAR data from the kite format.
+    """
+    try:
+        from kite import Scene
+    except ImportError:
+        raise ImportError(
+            'kite not installed! please checkout www.pyrocko.org!')
+
+    diffgs = []
+    tobeloaded_names = set(copy.deepcopy(names))
+    for k in names:
+        try:
+            sc = Scene.load(k)
+            diffgs.append(heart.DiffIFG.from_kite_scene(sc))
+            tobeloaded_names.discard(k)
+        except ImportError:
+            logger.warning('File %s not conform with kite format!' % k)
+
+    names = list(tobeloaded_names)
+    return diffgs
+
+
 def load_ascii_gps(filedir, filename):
     """
     Load ascii file columns containing:

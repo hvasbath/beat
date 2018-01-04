@@ -751,6 +751,29 @@ class DiffIFG(IFG):
              'dataset for overlaps with other datasets',
         optional=True)
 
+    @classmethod
+    def from_kite_scene(cls, scene, **kwargs):
+        logger.info(
+            'Attempting to access the full covariance matrix of the kite'
+            ' scene. If this is not precalculated it will be calculated '
+            'now, which may take a significant amount of time...')
+        covariance = Covariance(data=scene.covariance.covariance_matrix)
+        utme = scene.quadtree.leaf_eastings
+        utmn = scene.quadtree.leaf_northings
+        lons, lats = utility.utm_to_lonlat(utme, utmn, scene.frame.utm_zone)
+        d = dict(
+            name=scene.meta.filename,
+            displacement=scene.quadtree.leaf_means,
+            utme=utme,
+            utmn=utmn,
+            lons=lons,
+            lats=lats,
+            covariance=covariance,
+            incidence=90 - num.rad2deg(scene.quadtree.leaf_thetas),
+            heading=-num.rad2deg(scene.quadtree.leaf_phis) + 180,
+            odw=num.ones_like(scene.phiDeg))
+        return cls(**d)
+
 
 class GeodeticResult(Object):
     """
