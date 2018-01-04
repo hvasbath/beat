@@ -30,6 +30,10 @@ logger = logging.getLogger('beat')
 def d2u(d):
     return dict((k.replace('-','_'), v) for (k, v) in d.iteritems())
 
+def list2string(l):
+    return ', '.join('"%s"' % listentry for listentry in l)
+
+
 subcommand_descriptions = {
         'init':           'create a new EQ model project, use only event'
                           ' name to skip catalog search',
@@ -94,7 +98,7 @@ nargs_dict = {
     'summarize': 1,
 }
 
-mode_choices = ['geometry', 'static', 'kinematic', 'interseismic']
+mode_choices = ['geometry', 'static', 'interseismic']
 
 
 def add_common_options(parser):
@@ -204,8 +208,8 @@ def command_init(args):
         parser.add_option('--mode', dest='mode',
             choices=mode_choices ,
             default='geometry',
-            help='Inversion problem to solve; "geometry", "static",'
-                 '"kinematic", "interseismic". Default: "geometry"')
+            help='Inversion problem to solve; %s Default: "geometry"' % \
+                list2string(mode_choices))
 
         parser.add_option('--source_type', dest='source_type',
             choices=config.source_names,
@@ -309,8 +313,8 @@ def command_import(args):
         parser.add_option('--mode', dest='mode',
             choices=mode_choices ,
             default='geometry',
-            help='Inversion problem to solve; "geometry", "static",'
-                 '"kinematic", "interseismic". Default: "geometry"')
+            help='Inversion problem to solve; %s Default: "geometry"' % \
+                list2string(mode_choices))
 
         parser.add_option('--force', dest='force', action='store_true',
                 help='Overwrite existing files')
@@ -433,8 +437,8 @@ def command_clone(args):
         parser.add_option('--mode', dest='mode',
             choices=mode_choices ,
             default='geometry',
-            help='Inversion problem to solve; "geometry", "static",'
-                 '"kinematic", "interseismic". Default: "geometry"')
+            help='Inversion problem to solve; %s Default: "geometry"' % \
+                list2string(mode_choices))
 
         parser.add_option('--copy_data', dest='copy_data',
             action='store_true',
@@ -508,8 +512,8 @@ def command_sample(args):
         parser.add_option('--mode', dest='mode',
             choices=mode_choices ,
             default='geometry',
-            help='Inversion problem to solve; "geometry", "static",'
-                 '"kinematic", "interseismic". Default: "geometry"')
+            help='Inversion problem to solve; %s Default: "geometry"' % \
+                list2string(mode_choices))
 
         parser.add_option('--main_path', dest='main_path', type='string',
             default='./',
@@ -551,8 +555,8 @@ def command_summarize(args):
         parser.add_option('--mode', dest='mode',
             choices=mode_choices ,
             default='geometry',
-            help='Inversion problem to solve; "geometry", "static",'
-                 '"kinematic", "interseismic". Default: "geometry"')
+            help='Inversion problem to solve; %s Default: "geometry"' % \
+                list2string(mode_choices))
 
         parser.add_option('--force', dest='force', action='store_true',
                 help='Overwrite existing files')
@@ -625,8 +629,8 @@ def command_build_gfs(args):
         parser.add_option('--mode', dest='mode',
             choices=mode_choices ,
             default='geometry',
-            help='Inversion problem to solve; "geometry", "static",'
-                 '"kinematic", "interseismic". Default: "geometry"')
+            help='Inversion problem to solve; %s Default: "geometry"' % \
+                list2string(mode_choices))
 
         parser.add_option('--datatypes',
             default='geodetic', type='string',
@@ -788,17 +792,19 @@ def command_plot(args):
 
     def setup(parser):
 
-        parser.add_option('--main_path', dest='main_path', type='string',
+        parser.add_option(
+            '--main_path', dest='main_path', type='string',
             default='./',
             help='Main path (absolute) leading to folders of events that'
                  ' have been created by "init".'
                  ' Default: current directory: ./')
 
-        parser.add_option('--mode', dest='mode',
+        parser.add_option(
+            '--mode', dest='mode',
             choices=mode_choices,
             default='geometry',
-            help='Inversion problem to solve; "geometry", "static",'
-                 '"kinematic", "interseismic". Default: "geometry"')
+            help='Inversion problem to solve; %s Default: "geometry"' % \
+                list2string(mode_choices))
 
         parser.add_option('--post_llk', dest='post_llk',
             choices=['max', 'min', 'mean', 'all'],
@@ -849,8 +855,7 @@ def command_plot(args):
     plots_avail = plotting.available_plots()
 
     details = '''Available <plot types> are: %s or "all". Multiple plots can be
-selected giving a comma seperated list.''' % (
-        ', '.join('"%s"' % plot for plot in plots_avail))
+selected giving a comma seperated list.''' % list2string(plots_avail)
 
     parser, options, args = cl_parse(command_str, args, setup, details)
 
@@ -904,8 +909,8 @@ def command_check(args):
         parser.add_option('--mode', dest='mode',
             choices=mode_choices,
             default='geometry',
-            help='Inversion problem to solve; "geometry", "static",'
-                 '"kinematic", "interseismic". Default: "geometry"')
+            help='Inversion problem to solve; %s Default: "geometry"' % \
+                list2string(mode_choices))
 
         parser.add_option('--main_path', dest='main_path', type='string',
             default='./',
@@ -919,9 +924,9 @@ def command_check(args):
             help='Datatypes to check; "geodetic, seismic".')
 
         parser.add_option('--what', dest='what',
-            choices=['stores'],
+            choices=['stores', 'traces'],
             default='stores',
-            help='Setup item to check; "stores", Default: "stores"')
+            help='Setup item to check; "stores, traces", Default: "stores"')
 
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
@@ -938,6 +943,15 @@ def command_check(args):
         for datatype in options.datatypes:
             store_ids = corrupted_stores[datatype]
             logger.warn('Store(s) with empty traces! : %s ' % store_ids)
+
+    elif options.what == 'traces':
+        from pyrocko import trace
+        sc = problem.composites['seismic']
+        for wmap in sc.wavemaps:
+            trace.snuffle(wmap.datasets)
+
+    else:
+        raise ValueError('Subject what: %s is not available!' % options.what)
 
 
 if __name__ == '__main__':
