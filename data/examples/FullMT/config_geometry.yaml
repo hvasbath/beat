@@ -1,5 +1,5 @@
 --- !beat.BEATconfig
-name: FullMT
+name: /home/vasyurhm/BEATS/FullMT
 date: dummy
 event: !pf.Event
   lat: 29.07
@@ -26,7 +26,7 @@ event: !pf.Event
     moment: 7.223676349339025e+19
     magnitude: 7.20583885303153
   duration: 22.0
-project_dir: /home/vasyurhm/Software/Seismosoft/beat/data/examples/FullMT
+project_dir: /home/vasyurhm/BEATS/FullMT
 problem_config: !beat.ProblemConfig
   mode: geometry
   source_type: MTSource
@@ -34,12 +34,18 @@ problem_config: !beat.ProblemConfig
   n_sources: 1
   datatypes: [seismic]
   hyperparameters:
-    h_any_P_Z: !beat.heart.Parameter
-      name: h_any_P
+    h_any_P_T: !beat.heart.Parameter
+      name: h_any_P_T
       form: Uniform
-      lower: [-1.0]
+      lower: [-3.0]
       upper: [6.0]
-      testvalue: [2.5]
+      testvalue: [1.5]
+    h_any_P_Z: !beat.heart.Parameter
+      name: h_any_P_Z
+      form: Uniform
+      lower: [-3.0]
+      upper: [5.0]
+      testvalue: [1.0]
   priors:
     depth: !beat.heart.Parameter
       name: depth
@@ -116,13 +122,13 @@ problem_config: !beat.ProblemConfig
 seismic_config: !beat.SeismicConfig
   datadir: ./
   blacklist: []
-  calc_data_cov: false
-  pre_stack_cut: false
+  calc_data_cov: true
+  pre_stack_cut: true
   waveforms:
   - !beat.WaveformFitConfig
     include: true
     name: any_P
-    channels: [Z]
+    channels: [Z, T]
     filterer: !beat.heart.Filter
       lower_corner: 0.01
       upper_corner: 0.1
@@ -132,10 +138,11 @@ seismic_config: !beat.SeismicConfig
     arrival_taper: !beat.heart.ArrivalTaper
       a: -20.0
       b: -10.0
-      c: 180.0
-      d: 210.0
+      c: 250.0
+      d: 270.0
   gf_config: !beat.SeismicGFConfig
-    store_superdir: /tmp/GF/FullMT/
+    store_superdir: /home/vasyurhm/BEATS/GF
+    reference_model_idx: 0
     n_variations: [0, 1]
     error_depth: 0.1
     error_velocities: 0.1
@@ -150,15 +157,16 @@ seismic_config: !beat.SeismicConfig
          21.64           6.23           3.6            2.8         1283.           600.
       mantle
          21.64           7.95           4.45           3.2         1449.           600.
-    source_depth_min: 8.0
-    source_depth_max: 8.0
+    source_depth_min: 0.0
+    source_depth_max: 15.0
     source_depth_spacing: 1.0
     source_distance_radius: 1000.0
     source_distance_spacing: 1.0
-    nworkers: 10
+    nworkers: 25
     reference_location: !beat.heart.ReferenceLocation
       lat: 29.07
       lon: 34.73
+      elevation: 0.0
       depth: 0.0
       station: AqabaMT
     code: qseis
@@ -166,26 +174,28 @@ seismic_config: !beat.SeismicConfig
     rm_gfs: true
 sampler_config: !beat.SamplerConfig
   name: SMC
+  progressbar: true
   parameters: !beat.SMCConfig
-    n_chains: 1000
+    n_chains: 400
     n_steps: 100
-    n_jobs: 1
+    n_jobs: 4
     tune_interval: 10
     coef_variation: 1.0
-    stage: '0'
+    stage: 0
     proposal_dist: MultivariateNormal
     check_bnd: true
     update_covariances: false
     rm_flag: true
 hyper_sampler_config: !beat.SamplerConfig
   name: Metropolis
+  progressbar: true
   parameters: !beat.MetropolisConfig
     n_jobs: 1
-    n_stages: 10
+    n_stages: 5
     n_steps: 25000
-    stage: '0'
+    stage: 0
     tune_interval: 50
     proposal_dist: Normal
-    thin: 2
+    thin: 5
     burn: 0.5
     rm_flag: false

@@ -172,25 +172,15 @@ class Composite(Object):
     """
     Class that comprises the rules to formulate the problem. Has to be
     used by an overarching problem object.
-
-    Parameters
-    ----------
-    hypers : boolean
-        determines whether to initialise Composites with hyper parameter model
     """
 
-    def __init__(self, hypers=False):
+    def __init__(self):
 
         self.input_rvs = {}
         self.fixed_rvs = {}
         self.name = None
         self._like_name = None
         self.config = None
-
-        if hypers:
-            self._llks = []
-            for t in range(self.n_t):
-                self._llks.append(shared(num.array([1.]), borrow=True))
 
     def get_hyper_formula(self, hyperparams):
         """
@@ -236,7 +226,7 @@ class GeodeticComposite(Composite):
 
     def __init__(self, gc, project_dir, event, hypers=False):
 
-        super(GeodeticComposite, self).__init__(hypers=hypers)
+        super(GeodeticComposite, self).__init__()
 
         self.event = event
 
@@ -284,6 +274,11 @@ class GeodeticComposite(Composite):
                     self._slocy.append(None)
 
         self.config = gc
+
+        if hypers:
+            self._llks = []
+            for t in range(self.n_t):
+                self._llks.append(shared(num.array([1.]), borrow=True))
 
     @property
     def n_t(self):
@@ -677,7 +672,7 @@ class SeismicComposite(Composite):
 
     def __init__(self, sc, event, project_dir, hypers=False):
 
-        super(SeismicComposite, self).__init__(hypers=hypers)
+        super(SeismicComposite, self).__init__()
         
         logger.debug('Setting up seismic structure ...\n')
         self.name = 'seismic'
@@ -775,8 +770,14 @@ class SeismicComposite(Composite):
 
                 self.wavemaps.append(wmap)
             else:
-                logger.info('The waveform defined in "%s" config is not '
+                logger.info(
+                    'The waveform defined in "%s" config is not '
                     'included in the optimization!' % wc.name)
+
+        if hypers:
+            self._llks = []
+            for t in range(self.n_t):
+                self._llks.append(shared(num.array([1.]), borrow=True))
 
     def get_unique_stations(self):
         sl = [wmap.stations for wmap in self.wavemaps]
