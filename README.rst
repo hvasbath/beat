@@ -19,18 +19,21 @@ Step by step points on how to use the tool are in preparation and will be online
 
 Data import
 ===========
-The import of data (geodetic, seismic) is so far restricted to only two formats.
-seismic - autokiwi output
-geodetic - matlab, ascii (GAMIT output)
+Geodetic
+^^^^^^^^
+We recommend to prepare the SAR data (subsampling, data covariance estimation) using KITE (www.pyrocko.org).
+kite supports import of ISCE, GAMMA, ROI_Pac and GMTSAR processed interferograms. BEAT then supports import of the native KITE format.
 
-An alternative:
-The geodetic data may be saved using the package "pickle" as a file "geodetic_data.pkl"
-containing a list of "GeodeticTarget", especially "CompoundGPS" or "DiffIFG" objects. Please see the heart.py module for specifics.
+Seismic
+^^^^^^^
+Unfortunately, the import of seismic data is so far restricted to only one format:
+ autokiwi output
 
-The seismic data may be saved using the package "pickle" as a file "seismic_data.pkl"
+Alternatively the seismic data may be saved using the package "pickle" as a file "seismic_data.pkl"
 containing a list of 2 lists:
 1. list of "pyrocko.trace.Trace" objects alternating for (Z / T) rotated traces.
 2. list of "pyrocko.model.Station" objects in the same order like the data traces.
+How to import the data into pyrocko format we refer to the webpage: https://pyrocko.org/docs/current/library/examples/trace_handling.html
 
 We invite the users to propose data formats or outputs of specific programs that they would 
 like to see implemented. 
