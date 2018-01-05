@@ -758,9 +758,14 @@ class DiffIFG(IFG):
             ' scene. If this is not precalculated it will be calculated '
             'now, which may take a significant amount of time...')
         covariance = Covariance(data=scene.covariance.covariance_matrix)
-        utme = scene.quadtree.leaf_eastings
-        utmn = scene.quadtree.leaf_northings
-        lons, lats = utility.utm_to_lonlat(utme, utmn, scene.frame.utm_zone)
+        loce = scene.quadtree.leaf_eastings
+        locn = scene.quadtree.leaf_northings
+        lats, lons = orthodrome.ne_to_latlon(
+            lat0=scene.frame.llLat, lon0=scene.frame.llLon,
+            north_m=locn, east_m=loce)
+
+        utme, utmn = utility.lonlat_to_utm(lons, lats, scene.frame.utm_zone)
+        #lons, lats = utility.lonlat(utme, utmn, scene.frame.utm_zone)
         d = dict(
             name=scene.meta.filename,
             displacement=scene.quadtree.leaf_means,
@@ -771,7 +776,7 @@ class DiffIFG(IFG):
             covariance=covariance,
             incidence=90 - num.rad2deg(scene.quadtree.leaf_thetas),
             heading=-num.rad2deg(scene.quadtree.leaf_phis) + 180,
-            odw=num.ones_like(scene.phiDeg))
+            odw=num.ones_like(scene.quadtree.leaf_phis))
         return cls(**d)
 
 

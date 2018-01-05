@@ -86,16 +86,16 @@ def load_SAR_data(datadir, names):
             covariance = heart.Covariance(data=covs['Cov'])
 
             diffgs.append(heart.DiffIFG(
-                 name=k,
-                 displacement=data['sqval'],
-                 utme=utmx,
-                 utmn=utmy,
-                 lons=lons,
-                 lats=lats,
-                 covariance=covariance,
-                 incidence=Lv.inci,
-                 heading=Lv.head,
-                 odw=data['ODW_sub']))
+                name=k,
+                displacement=data['sqval'],
+                utme=utmx,
+                utmn=utmy,
+                lons=lons,
+                lats=lats,
+                covariance=covariance,
+                incidence=Lv.inci,
+                heading=Lv.head,
+                odw=data['ODW_sub']))
             tobeloaded_names.discard(k)
 
         else:
@@ -119,7 +119,7 @@ def load_kite_scenes(datadir, names):
     tobeloaded_names = set(copy.deepcopy(names))
     for k in names:
         try:
-            sc = Scene.load(k)
+            sc = Scene.load(os.path.join(datadir, k))
             diffgs.append(heart.DiffIFG.from_kite_scene(sc))
             tobeloaded_names.discard(k)
         except ImportError:
