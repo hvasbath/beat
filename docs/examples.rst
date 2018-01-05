@@ -166,7 +166,7 @@ Finally, we fix the depth prior to 8km (upper and lower) as we only calculated G
         testvalue: [8.0]
 
 Of course, in a real case this would not be fixed.
-Also we may inspect the data:
+Also we may inspect the data::
 
     beat check FullMT --what='traces'
 
@@ -215,7 +215,7 @@ Note: n_chains divided by n_jobs MUST yield a whole number! An error is going to
 
 Dependend on the hardware, sampler specifications and number of jobs that have been defined this calculation is going to take several hours.
 Therefore, in order to avoid crashes or in the case of remote connection via ssh it is very much recommended to use something like `screen`
-to detach the terminal where the process is running.
+to detach the terminal where the process is running.::
 
     beat sample FullMT
 
