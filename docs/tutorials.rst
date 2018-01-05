@@ -305,11 +305,17 @@ This is the step to import the user data into the program format and setup.
 seismic data
 ____________
 
-So far, unfortunately the output of `autokiwi <https://github.com/emolch/kiwi>`__ is supported for automatic import of seismic data. Here the user will have to do some programming to get the respective data into the beat project.
+So far, unfortunately only the output of `autokiwi <https://github.com/emolch/kiwi>`__ is supported for automatic import of seismic data. Here the user will have to do some programing to get the respective data into the beat project.
 
-The seismic data may be saved using the package "pickle" as a file "seismic_data.pkl" containing a list of 2 lists: 1. list of "pyrocko.trace.Trace" objects alternating for (Z / T) rotated traces. 2. list of "pyrocko.model.Station" objects in the same order like the data traces. To get familiar with data reading, restitution, rotation and saving of the seimsic data by using python and the pyrocko package we refer to the `pyrocko/example <https://pyrocko.org/docs/current/library/examples/trace_handling.html>`__ webpage.
+The following remarks are just bits and pieces that may be followed to write a script to bring the data into the necessary format.
 
-To create the list of station objects we provide a helper function 'setup_stations' in the inputf module.
+The seismic data may be saved using the package "pickle" as a file "seismic_data.pkl" containing a list of 2 lists: 1. list of "pyrocko.trace.Trace" objects alternating for (Z / T) rotated traces. 2. list of "pyrocko.model.Station" objects in the same order like the data traces.
+
+Pyrocko supports the import of various data formats and all the necessary tools to remove the instrument response and to convert the traces to displacement.
+How to do this based on some examples is shown `here <https://pyrocko.org/docs/current/library/examples/trace_handling.html#restitute-to-displacement-using-poles-and-zeros>`__ webpage.
+
+Once you have done this with your data, you only need to create the second list of station objects.
+To create this list we provide a helper function 'setup_stations' in the inputf module.
 Within an ipython session type::
 
     from beat import inputf
@@ -392,26 +398,3 @@ sample
 ^^^^^^
 To be written ...
  
-
-
-Example data
-------------
-In the following tutorials we will use synthetic example data to get familiar with the basic functionality of BEAT.
-
-
-Regional Full Moment Tensor
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-This setup is comprised of 20 seismic stations that are randomly distributed within distances of 40 to 1000 km compared to a reference event.
-To copy the scenario (including the data) to a directory outside of the package source directory please edit the target path and execute::
-
-    beat clone FullMT /absolute/path/to/your/directory/FullMT --copy_data
-
-This will create a BEAT project directory with a configuration file and some synthetic example data.
-The station-event geometry determines the grid of Greens Functions that will need to be calculated next.
-
-In the geometry_config.yaml under seismic_config gf_config store_superdir the path to where the Greens Functions are supposed to be stored needs to be filled!
-
-In this example the source depth grid is limited to one depth (8 km) to reduce calculation time. ::
-
-    beat build_gfs FullMT --datatypes='seismic'
-

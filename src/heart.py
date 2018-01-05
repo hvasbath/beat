@@ -1478,20 +1478,21 @@ def seis_construct_gf(
 
         traces_path = os.path.join(store_dir, 'traces')
 
-        if execute and not os.path.exists(traces_path) or force:
-            logger.info('Filling store ...')
-            store = gf.Store(store_dir, 'r')
-            store.make_ttt(force=force)
-            store.close()
-            backend_builders[sf.code](
-                store_dir, nworkers=sf.nworkers, force=force)
+        if execute:
+            if not os.path.exists(traces_path) or force:
+                logger.info('Filling store ...')
+                store = gf.Store(store_dir, 'r')
+                store.make_ttt(force=force)
+                store.close()
+                backend_builders[sf.code](
+                    store_dir, nworkers=sf.nworkers, force=force)
 
-            if sf.rm_gfs and sf.code == 'qssp':
-                gf_dir = os.path.join(store_dir, 'qssp_green')
-                logger.info('Removing QSSP Greens Functions!')
-                shutil.rmtree(gf_dir)
-        else:
-            logger.info('Traces exist use force=True to overwrite!')
+                if sf.rm_gfs and sf.code == 'qssp':
+                    gf_dir = os.path.join(store_dir, 'qssp_green')
+                    logger.info('Removing QSSP Greens Functions!')
+                    shutil.rmtree(gf_dir)
+            else:
+                logger.info('Traces exist use force=True to overwrite!')
 
 
 def geo_construct_gf(
