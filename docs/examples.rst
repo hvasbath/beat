@@ -11,10 +11,10 @@ Regional Full Moment Tensor
 Clone project
 ^^^^^^^^^^^^^
 This setup is comprised of 20 seismic stations that are randomly distributed within distances of 40 to 1000 km compared to a reference event.
-To copy the scenario (including the data) to a directory outside of the package source directory please edit the target path and execute::
+To copy the scenario (including the data) to a directory outside of the package source directory please edit the 'model path' (referred to as $beat_models now on) and execute::
 
     cd /path/to/beat/data/examples/
-    beat clone FullMT /absolute/path/to/your/directory/FullMT --copy_data
+    beat clone FullMT /'model path'/FullMT --copy_data
 
 This will create a BEAT project directory with a configuration file and some synthetic example data.
 
@@ -25,6 +25,7 @@ The station-event geometry determines the grid of Greens Functions (GFs) that wi
 In the config_geometry.yaml under: seismic_config gf_config store_superdir- the path needs to be defined to where the Greens Functions are supposed to be stored!
 This directory is refered to as the $GF_path in the rest of the text.::
 
+    cd $beat_models
     beat build_gfs FullMT --datatypes='seismic'
 
 This will create an empty Greens Function store named AqabaMT_ak135_1.000Hz_0 in the $GF_path. Under $GF_path/AqabaMT_ak135_1.000Hz_0/config it is always recommended to cross-check again the velocity model and the specificationos of the store.
