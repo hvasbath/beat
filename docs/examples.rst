@@ -283,6 +283,8 @@ The following command produces a '.png' file with the final posterior distributi
 
     beat plot FullMT stage_posteriors --reference --stage_number=-2 --format='png'
 
+It may look like this.
+
  .. image:: _static/FullMT_stage_-2_max.png
 
  The vertical black lines are the true values and the vertical red lines are the maximum likelihood values.
