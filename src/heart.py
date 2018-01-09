@@ -1442,7 +1442,7 @@ def seis_construct_gf(
         fomosto_config = get_fomosto_baseconfig(
             sf, event, station, waveforms, crust_ind)
 
-        store_dir = sf.store_superdir + fomosto_config.id
+        store_dir = os.path.join(sf.store_superdir, fomosto_config.id)
 
         if not os.path.exists(store_dir) or force:
             logger.info('Creating Store at %s' % store_dir)

@@ -22,7 +22,7 @@ Calculate Greens Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 The station-event geometry determines the grid of Greens Functions (GFs) that will need to be calculated next.
 
-In the config_geometry.yaml under: seismic_config gf_config store_superdir- the path needs to be defined to where the Greens Functions are supposed to be stored!
+Now please open config_geometry.yaml and edit the line under: seismic_config gf_config store_superdir- the path to the directory needs to be defined to where the Greens Functions are supposed to be stored!
 This directory is refered to as the $GF_path in the rest of the text.::
 
     cd $beat_models
