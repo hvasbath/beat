@@ -136,8 +136,10 @@ Next we can use the fomosto tool together with snuffler to inspect if the GFs lo
 
     fomosto view $GF_path/AqabaMT_ak135_1.000Hz_0 --extract='8k,500k'
 
-This looks reasonably well.
-TODO: Insert picture here ...
+This looks reasonably well!
+
+ .. image:: _static/fomosto_traces_snuffler.png
+
 
 Sample the solution space
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -222,6 +224,8 @@ to detach the terminal where the process is running.::
 
 Summarize the results
 ^^^^^^^^^^^^^^^^^^^^^
+
+
 
 Plotting
 ^^^^^^^^
