@@ -1545,7 +1545,7 @@ def geo_construct_gf(
         gfconfig=gfc, event=event, station=station,
         waveforms=[], crust_ind=crust_ind)
 
-    store_dir = gfc.store_superdir + fomosto_config.id
+    store_dir = os.path.join(gfc.store_superdir, fomosto_config.id)
 
     if not os.path.exists(store_dir) or force:
         logger.info('Create Store at: %s' % store_dir)
