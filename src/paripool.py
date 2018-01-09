@@ -127,7 +127,7 @@ def paripool(function, workpackage, nprocs=None, chunksize=1, timeout=0xFFFF,
         logger.debug('Starting %s' % multiprocessing.current_process().name)
 
     def callback(result):
-        logger.info('Feierabend! Done with the work!')
+        logger.info('\n Feierabend! Done with the work!')
 
     if nprocs is None:
         nprocs = multiprocessing.cpu_count()

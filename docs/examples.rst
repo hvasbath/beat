@@ -222,12 +222,82 @@ to detach the terminal where the process is running.::
 
     beat sample FullMT
 
+The sampling is successfully finished if the screen shows something like this::
+
+    ...
+    backend      - INFO     Loading multitrace from /home/vasyurhm/BEATS/FullMT/geometry/stage_25
+    smc          - INFO     Beta > 1.: 1.293753                      
+    smc          - INFO     Sample final stage                       
+    smc          - INFO     Initialising 400 chain traces ...        
+    smc          - INFO     Sampling ...
+    paripool     - INFO     Worker timeout after 12 second(s)
+    paripool     - INFO     Overseer timeout after 400 second(s)
+    paripool     - INFO     Chunksize: 4
+    paripool     - INFO     Feierabend! Done with the work!
+    backend      - INFO     Loading multitrace from /home/vasyurhm/BEATS/FullMT2/geometry/stage_-1
+    smc          - INFO     Finished sampling!    
+
+
 Summarize the results
 ^^^^^^^^^^^^^^^^^^^^^
 
+The following command will create a summary with the statistics of the posterior distribution expressed in quantiles.
+If you check the summary.txt file (path then also printed to the screen)::
+
+    beat summarize FullMT
+    more FullMT/geometry/summary.txt
+
+For example for the north_shift true value is 20. the posterior comprises::
+
+    north_shift:
+
+      Mean             SD               MC Error         95% HPD interval
+      -------------------------------------------------------------------
+      
+      19.989           0.010            0.000            [19.972, 20.012]
+
+      Posterior quantiles:
+      2.5            25             50             75             97.5
+      |--------------|==============|==============|--------------|
+      
+      19.969         19.982         19.990         19.996         20.010
+
+As this is a synthetic case with only little noise it is not particularly surprising to get such a steeply peaked distribution.
 
 
 Plotting
 ^^^^^^^^
+Now to the point that you all have been waiting for ;) the result in pictures.
+To see the waveform fit of the posterior maximum likelihood solution::
 
+    beat plot FullMT waveform_fits
+
+If it worked it will produce a pdf with several pages output for all the components for each station that have been used in the optimization.
+The black waveforms are the unfiltered data. Red are the best fitting synthetic traces. Light grey and light red are the filtered, untapered
+data and synthetic traces respectively. The red data trace below are the residual traces between data and synthetics. 
+The Z-components from our stations should look something like this::
+
+  .. image:: _static/FullMT_waveforms_max.png
+
+    beat plot FullMT stage_posteriors --reference --stage_number=-2 --format='png'
+
+produces a '.png' file with the final posterior distribution, which might look something along this.
+
+ .. image:: _static/FullMT_stage_-2_max.png
+
+ The vertical black lines are the true values and the vertical red lines are the maximum likelihood values.
+ We see that the true solution is not comprised within the posterior pdfs. This may have several reasons I will not go in to detail for now.
+
+ To get an image of parameter correlations (including the true reference value in red) of moment tensor components, the location and the magnitude::
+
+    beat plot FullMT correlation_hist --reference --format='png' --stage_number=-2 --varnames='mee, med, mdd, mnn, mnd, mne, north_shift, east_shift, magnitude'
+
+This will show an image like that.
+
+ .. image:: _static/FullMT_corr_hist_max.png
+
+This shows 2d kernel density estimates (kde) and histograms of the specified model parameters. The darker the 2d kde the higher the probability of the model parameter.
+THe red dot and the vertical red lines show the true values of the target source in the kde plots and histograms, respectively.
+
+The 'varnames' option may take any parameter that has been optimized for. For example one might als want to try --varnames='duration, time, magnitude, north_shift, east_shift'
 
