@@ -275,13 +275,13 @@ To see the waveform fit of the posterior maximum likelihood solution::
 If it worked it will produce a pdf with several pages output for all the components for each station that have been used in the optimization.
 The black waveforms are the unfiltered data. Red are the best fitting synthetic traces. Light grey and light red are the filtered, untapered
 data and synthetic traces respectively. The red data trace below are the residual traces between data and synthetics. 
-The Z-components from our stations should look something like this::
+The Z-components from our stations should look something like this.
 
   .. image:: _static/FullMT_waveforms_max.png
 
-    beat plot FullMT stage_posteriors --reference --stage_number=-2 --format='png'
+The following command produces a '.png' file with the final posterior distribution::
 
-produces a '.png' file with the final posterior distribution, which might look something along this.
+    beat plot FullMT stage_posteriors --reference --stage_number=-2 --format='png'
 
  .. image:: _static/FullMT_stage_-2_max.png
 
