@@ -138,7 +138,7 @@ Your seismic_config within the $project_directory/config_geometry.yaml should lo
           c: 250.0
           d: 270.0
       - !beat.WaveformFitConfig
-        include: false
+        include: true
         name: slowest
         channels: [Z]
         filterer: !beat.heart.Filter
@@ -215,7 +215,7 @@ Also we may inspect the data::
 
     beat check FullMT --what='traces'
 
-This should open again the 'snuffler' window and you can interactively scroll through the traces zoom in and out, filter the traces and much more. ::
+This should open again the 'snuffler' window and you can interactively scroll through the traces zoom in and out, filter the traces and much more.
 
   .. image:: _static/FullMT_data.png
 
