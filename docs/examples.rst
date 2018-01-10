@@ -84,16 +84,16 @@ The seismic phases for which the GFs are going to be calculated are defined unde
         name: any_P
         channels: [Z]
         filterer: !beat.heart.Filter
-          lower_corner: 0.001
+          lower_corner: 0.01
           upper_corner: 0.1
-          order: 4
-        distances: [30.0, 90.0]
+          order: 3
+        distances: [0.0, 9.0]
         interpolation: multilinear
         arrival_taper: !beat.heart.ArrivalTaper
-          a: -15.0
+          a: -20.0
           b: -10.0
-          c: 50.0
-          d: 55.0
+          c: 250.0
+          d: 270.0
 
 In this case the GFs are going to be calculated for the P body waves. We can add additional WaveformFitConfig(s) if we want to include more phases. Like in our case of a regional setup we would like to include surface waves. For the build_GFs command only the existence of the WaveformFitConfig and the name are of importance and we can ignore the other parameters so far. So lets add to the $project_directory/config_geometry.yaml file, the following config. Please copy .. ::
 
@@ -114,6 +114,45 @@ In this case the GFs are going to be calculated for the P body waves. We can add
           d: 55.0
 
 and paste it below the 'any_P' WaveformFitConfig. Note: You should be having 2 WaveformFitConfig entries and both entries MUST have the same indentation!
+Your seismic_config within the $project_directory/config_geometry.yaml should look like this::
+
+    seismic_config: !beat.SeismicConfig
+      datadir: ./
+      blacklist: []
+      calc_data_cov: true
+      pre_stack_cut: true
+      waveforms:
+      - !beat.WaveformFitConfig
+        include: true
+        name: any_P
+        channels: [Z]
+        filterer: !beat.heart.Filter
+          lower_corner: 0.01
+          upper_corner: 0.1
+          order: 3
+        distances: [0.0, 9.0]
+        interpolation: multilinear
+        arrival_taper: !beat.heart.ArrivalTaper
+          a: -20.0
+          b: -10.0
+          c: 250.0
+          d: 270.0
+      - !beat.WaveformFitConfig
+        include: false
+        name: slowest
+        channels: [Z]
+        filterer: !beat.heart.Filter
+          lower_corner: 0.001
+          upper_corner: 0.1
+          order: 4
+        distances: [30.0, 90.0]
+        interpolation: multilinear
+        arrival_taper: !beat.heart.ArrivalTaper
+          a: -15.0
+          b: -10.0
+          c: 50.0
+          d: 55.0
+
 Now the store configuration files have to be updated. As we created them before we need to overwrite them! We can do this with the --force option.::
 
     beat build_gfs FullMT --datatypes='seismic' --force
@@ -175,6 +214,10 @@ Of course, in a real case this would not be fixed.
 Also we may inspect the data::
 
     beat check FullMT --what='traces'
+
+This should open again the 'snuffler' window and you can interactively scroll through the traces zoom in and out, filter the traces and much more. ::
+
+  .. image:: _static/FullMT_data.png
 
 Now that we checked the optimization setup we are good to go.
 
