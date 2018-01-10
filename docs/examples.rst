@@ -95,7 +95,8 @@ The seismic phases for which the GFs are going to be calculated are defined unde
           c: 50.0
           d: 55.0
 
-In this case the GFs are going to be calculated for the P body waves. We can add additional WaveformFitConfig(s) if we want to include more phases. Like in our case of a regional setup we would like to include surface waves. For the build_GFs command only the existence of the WaveformFitConfig and the name are of importance and we can ignore the other parameters so far. So lets add to the $project_directory/config_geometry.yaml file, the following config. Please copy ...::
+In this case the GFs are going to be calculated for the P body waves. We can add additional WaveformFitConfig(s) if we want to include more phases. Like in our case of a regional setup we would like to include surface waves. For the build_GFs command only the existence of the WaveformFitConfig and the name are of importance and we can ignore the other parameters so far. So lets add to the $project_directory/config_geometry.yaml file, the following config. Please copy .. ::
+
       - !beat.WaveformFitConfig
         include: true
         name: slowest
