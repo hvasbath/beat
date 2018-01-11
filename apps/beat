@@ -1008,7 +1008,8 @@ def command_check(args):
         from pyrocko import trace
         sc = problem.composites['seismic']
         for wmap in sc.wavemaps:
-            trace.snuffle(wmap.datasets)
+            trace.snuffle(
+                wmap.datasets, stations=wmap.stations, events=[sc.event])
 
     else:
         raise ValueError('Subject what: %s is not available!' % options.what)

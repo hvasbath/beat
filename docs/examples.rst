@@ -216,9 +216,11 @@ Also we may inspect the data::
     beat check FullMT --what='traces'
 
 This should open again the 'snuffler' window and you can interactively scroll through the traces zoom in and out, filter the traces and much more.
+A detailed tutorial about handeling the browser is given `here <https://pyrocko.org/docs/current/apps/snuffler/tutorial.html>`__.
 
   .. image:: _static/FullMT_data.png
 
+For example you can also right click in the window and see a menu that pops up. There you can select sort the traces by distance or azimuth to get a better picture of the setup.
 Now that we checked the optimization setup we are good to go.
 
 Firstly, we fix the source parameters to some random value and only optimize for the hyperparameters (HPs).

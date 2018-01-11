@@ -2087,7 +2087,7 @@ class WaveformMapping(object):
 
     def check_consistency(self):
         if self.n_t != self.n_data:
-            CollectionError('Inconsistent number of datasets and targets!')
+            raise CollectionError('Inconsistent number of datasets and targets!')
         else:
             logger.info('Consistent number of '
                 'datasets and targets in %s wavemap!' % self.name)
