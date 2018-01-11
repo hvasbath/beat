@@ -37,15 +37,15 @@ problem_config: !beat.ProblemConfig
     h_any_P_T: !beat.heart.Parameter
       name: h_any_P_T
       form: Uniform
-      lower: [-3.0]
-      upper: [6.0]
-      testvalue: [1.5]
+      lower: [-20.0]
+      upper: [20.0]
+      testvalue: [0.0]
     h_any_P_Z: !beat.heart.Parameter
       name: h_any_P_Z
       form: Uniform
-      lower: [-3.0]
-      upper: [5.0]
-      testvalue: [1.0]
+      lower: [-20.0]
+      upper: [20.0]
+      testvalue: [0.0]
   priors:
     depth: !beat.heart.Parameter
       name: depth
@@ -128,7 +128,7 @@ seismic_config: !beat.SeismicConfig
   - !beat.WaveformFitConfig
     include: true
     name: any_P
-    channels: [Z, T]
+    channels: [Z]
     filterer: !beat.heart.Filter
       lower_corner: 0.01
       upper_corner: 0.1
@@ -184,7 +184,7 @@ sampler_config: !beat.SamplerConfig
     stage: 0
     proposal_dist: MultivariateNormal
     check_bnd: true
-    update_covariances: false
+    update_covarsiances: false
     rm_flag: true
 hyper_sampler_config: !beat.SamplerConfig
   name: Metropolis
