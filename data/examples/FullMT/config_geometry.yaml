@@ -157,8 +157,8 @@ seismic_config: !beat.SeismicConfig
          21.64           6.23           3.6            2.8         1283.           600.
       mantle
          21.64           7.95           4.45           3.2         1449.           600.
-    source_depth_min: 0.0
-    source_depth_max: 15.0
+    source_depth_min: 8.0
+    source_depth_max: 8.0
     source_depth_spacing: 1.0
     source_distance_radius: 1000.0
     source_distance_spacing: 1.0
