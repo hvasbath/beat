@@ -184,7 +184,7 @@ sampler_config: !beat.SamplerConfig
     stage: 0
     proposal_dist: MultivariateNormal
     check_bnd: true
-    update_covarsiances: false
+    update_covariances: false
     rm_flag: true
 hyper_sampler_config: !beat.SamplerConfig
   name: Metropolis
