@@ -2382,6 +2382,114 @@ def geo_construct_gf_linear(
         utility.dump_objects(outpath, [out_gfs])
 
 
+def seis_construct_gf_linear(
+    engine, targets, fault, risetimes,
+    lower_corner_f, upper_corner_f, cut_interval, 
+    outpath, saveflag=False):
+    """
+    Create seismic Greens Function matrix for defined source geometry
+    by convolution of the GFs with the source time function (STF).
+
+    Parameters
+    ---------- 
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+        main path to directory containing the different Greensfunction stores
+    targets - list of pyrocko target objects for respective phase to compute
+    fault : :class:`FaultGeometry`
+        fault object that may comprise of several sub-faults. thus forming a
+        complex fault-geometry
+
+        risetimes - vector of risetimes of the STF for each patch to convolve
+        lower/upper_corner_f - frequency range for filtering the GFs after
+                               convolution
+        cut_interval - list[time before, after] tapering each 
+                       phase arrival (target)
+
+        outpath - path for storage
+        saveflag - boolean to save Library at outpath
+    Returns
+    -------
+    GFLibrary : list of Greensfunctions in the form
+                    [targets][patches][risetimes, cut_interval]
+        GFTimes - list of respective times of begin, phase arrival and end of 
+                  traces in the form [targets][patches][start,arrival,end]
+    """
+
+    GFLibrary = []
+    Times = []
+    print 'Storing GFLibrary in ',outpath
+
+    for i in xrange(len(targets)):
+        GFLibrary.append([0] * len(dist_patches))
+        Times.append([0] * len(dist_patches))
+
+    for p in range(len(dist_patches)):
+        patches_risetimes = []
+        print 'Patch Number ',p
+        
+        for r in risetimes:
+            copy = dist_patches[p].clone()
+            copy.update(risetime = r)
+            patches_risetimes.append(copy)
+        
+        for t in range(len(targets)):
+            response = engine.process(sources=patches_risetimes, targets=[targets[t]], nprocs=nprocs)
+            # get wave arrival times
+            store = engine.get_store(targets[t].store_id)
+            sdist = targets[t].distance_to(dist_patches[p])
+            sdepth = dist_patches[p].depth
+            if targets[t].codes[3] == 'T':
+                wave = 'any_S'
+            else:
+                wave = 'any_P'
+
+            # have to add event time as traces are with respect to that
+            arrival_time = store.t(wave, (sdepth, sdist)) + dist_patches[p].time
+            cut_start = arrival_time - cut_interval[0]
+            cut_end = arrival_time + cut_interval[1]
+
+            GF_traces = response.pyrocko_traces()
+            # bandpass
+            _ = [GF_traces[rt].bandpass(corner_hp = lower_corner_f, corner_lp = upper_corner_f, order=4) for rt in range(len(GF_traces))]
+
+            # get trace times
+            trcs_tmax = num.array([GF_traces[rt].tmax for rt in range(len(GF_traces))]).max()
+            trcs_tmin = num.array([GF_traces[rt].tmin for rt in range(len(GF_traces))]).min()
+
+
+            # zero padding of traces
+            if trcs_tmin > cut_start:
+                trcs_tmin = cut_start
+            if trcs_tmax < cut_end:
+                trcs_tmax = cut_end
+            _ = [GF_traces[rt].extend(trcs_tmin, trcs_tmax) for rt in range(len(GF_traces))]
+
+            # tapering around phase arrivals
+            taperer = trace.CosTaper(cut_start, 
+                                     cut_start + 10,
+                                     cut_end - 10,
+                                     cut_end)
+            _ = [GF_traces[rt].taper(taperer,inplace=True,chop=True) for rt in range(len(GF_traces))]
+
+            # bandpass again
+            _ = [GF_traces[rt].bandpass(corner_hp = lower_corner_f, corner_lp = upper_corner_f, order=4) for rt in range(len(GF_traces))]
+
+            # get trace times of tapered traces
+            trcs_tmax = num.array([GF_traces[rt].tmax for rt in range(len(GF_traces))]).max()
+            trcs_tmin = num.array([GF_traces[rt].tmin for rt in range(len(GF_traces))]).min()
+
+            # re-arranging to matrix and put into list
+            GFLibrary[t][p] = (num.vstack([GF_traces[rt].ydata for rt in xrange(len(patches_risetimes))]))
+            Times[t][p] = num.vstack([trcs_tmin, arrival_time, trcs_tmax])
+
+    if saveflag:
+        with open(outpath,'w') as f:
+            pickle.dump([GFLibrary, Times], f)
+
+    return GFLibrary, Times
+
+
+
 def get_phase_arrival_time(engine, source, target, wavename):
     """
     Get arrival time from Greens Function store for respective

@@ -1245,7 +1245,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
 
 class SeismicDistributerComposite(SeismicComposite):
     """
-    Comprises how to solve the geodetic (static) linear forward model.
+    Comprises how to solve the seismic (kinematic) linear forward model.
     Distributed slip
     """
 
@@ -1302,7 +1302,7 @@ class SeismicDistributerComposite(SeismicComposite):
 
         for crust_ind in crust_inds:
             gfpath = os.path.join(self.gfpath,
-                str(crust_ind) + '_' + bconfig.geodetic_linear_gf_name)
+                str(crust_ind) + '_' + bconfig.seismic_linear_gf_name)
 
             self.gf_names[crust_ind] = gfpath
             gfs = utility.load_objects(gfpath)[0]
