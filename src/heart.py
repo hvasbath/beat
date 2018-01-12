@@ -2088,6 +2088,11 @@ class WaveformMapping(object):
     def check_consistency(self):
         if self.n_t != self.n_data:
             raise CollectionError('Inconsistent number of datasets and targets!')
+        elif self.n_t == 0:
+            raise CollectionError(
+                'No data left in wavemap "%s" after applying the distance filter! '
+                'The distance range has to be adjusted or the wavemap needs to'
+                ' be deactivated by setting include=False!' % self.name)
         else:
             logger.info('Consistent number of '
                 'datasets and targets in %s wavemap!' % self.name)
