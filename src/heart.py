@@ -755,8 +755,9 @@ class DiffIFG(IFG):
     def from_kite_scene(cls, scene, **kwargs):
         logger.info(
             'Attempting to access the full covariance matrix of the kite'
-            ' scene. If this is not precalculated it will be calculated '
-            'now, which may take a significant amount of time...')
+            ' scene %s. If this is not precalculated it will be calculated '
+            'now, which may take a significant amount of time...' %
+            scene.meta.filename)
         covariance = Covariance(data=scene.covariance.covariance_matrix)
         loce = scene.quadtree.leaf_eastings
         locn = scene.quadtree.leaf_northings

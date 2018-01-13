@@ -16,6 +16,7 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
+import sphinx_sleekcat_theme
 import os
 import sys
 sys.path.insert(0, os.path.abspath('../src'))
@@ -32,10 +33,12 @@ sys.path.insert(0, os.path.abspath('../src'))
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.intersphinx',
+    'sphinx.ext.imgmath',
     'sphinx.ext.coverage',
-    'sphinx.ext.mathjax',
+   # 'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
     'sphinx.ext.doctest',
+    'sphinx.ext.todo',
     'numpydoc'
 ]
 
@@ -110,7 +113,8 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # show_authors = False
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = 'sphinx'
+pygments_style = 'friendly'
+#pygments_style = 'sphinx'
 
 # A list of ignored prefixes for module index sorting.
 # modindex_common_prefix = []
@@ -127,16 +131,28 @@ todo_include_todos = False
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+#html_theme = 'sphinx_rtd_theme'
+html_theme = 'sphinx_sleekcat_theme'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
 # html_theme_options = {}
+html_theme_options = {
+    # 'githuburl': 'https://github.com/ionelmc/sphinx-py3doc-enhanced-theme/',
+    'bodyfont': '"Roboto Slab",Arial,sans-serif',
+    'headfont': '"Lucida Grande",Arial,sans-serif',
+    'codefont': 'monospace,sans-serif',
+    'linkcolor': '#204a87',
+    'visitedlinkcolor': '#204a87',
+    'nosidebar': True,
+    # 'sidebarcollapse': False,
+    'googlewebfonturl': 'https://fonts.googleapis.com/css?family=Roboto+Slab',
+}
 
 # Add any paths that contain custom themes here, relative to this directory.
-# html_theme_path = []
+html_theme_path = [sphinx_sleekcat_theme.get_html_theme_path()]
 
 # The name for this set of Sphinx documents.
 # "<project> v<release> documentation" by default.
@@ -348,3 +364,30 @@ intersphinx_mapping = {
     'pyrocko': ('http://pyrocko.org/v0.3/', None),
     'theano': ('http://deeplearning.net/software/theano/', None)
 }
+
+
+def process_signature(app, what, name, obj, options, signature,
+                      return_annotation):
+    from pyrocko import guts
+    if what == 'attribute' and isinstance(obj, guts.TBase):
+            return '', str(obj)
+
+    if what == 'class' and issubclass(obj, guts.Object):
+        if obj.dummy_for is not None:
+            return ('(dummy)', '%s' % obj.dummy_for.__name__)
+
+    return
+
+
+def skip_member(app, what, name, obj, skip, options):
+    from pyrocko import guts
+
+    if what == 'class' and name == 'dummy_for':
+        return True
+    if what == 'class' and name == 'T':
+        return True
+
+
+def setup(app):
+    app.connect('autodoc-process-signature', process_signature)
+    app.connect('autodoc-skip-member', skip_member)
