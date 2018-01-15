@@ -177,7 +177,10 @@ class GFConfig(Object):
     """
     Base config for GreensFunction calculation parameters.
     """
-    store_superdir = String.T(default='./')
+    store_superdir = String.T(
+        default='./',
+        help='Absolute path to the directory where Greens Function'
+             ' stores are located')
     reference_model_idx = Int.T(
         default=0,
         help='Index to velocity model to use for the optimization.'
@@ -186,21 +189,29 @@ class GFConfig(Object):
         2,
         Int.T(),
         default=(0, 1),
-        help='Start and end index to vary input velocity model.')
+        help='Start and end index to vary input velocity model. '
+             'Important for the calculation of the model prediction covariance'
+             ' matrix with respect to uncertainties in the velocity model.')
     error_depth = Float.T(
         default=0.1,
-        help='3sigma [%/100] in velocity model layer depth.')
+        help='3sigma [%/100] error in velocity model layer depth, '
+             'translates to interval for varying the velocity model')
     error_velocities = Float.T(
         default=0.1,
-        help='3sigma [%/100] in velocity model layer wave-velocities.')
+        help='3sigma [%/100] in velocity model layer wave-velocities, '
+             'translates to interval for varying the velocity model')
     depth_limit_variation = Float.T(
         default=600.,
-        help='Depth limit [km] for varying the velocity model.')
+        help='Depth limit [km] for varying the velocity model. Below that '
+             'depth the velocity model is not varied based on the errors '
+             'defined above!')
 
 
 class NonlinearGFConfig(GFConfig):
     """
     Config for non-linear GreensFunction calculation parameters.
+    Defines how the grid of Green's Functions in the respective store is
+    created.
     """
 
     earth_model_name = String.T(

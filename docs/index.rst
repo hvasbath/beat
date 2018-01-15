@@ -6,6 +6,8 @@
 Welcome to beat's documentation!
 ================================
 
+.. image :: _static/LOGO_BEAT.png
+
 Contents:
 
 .. toctree::

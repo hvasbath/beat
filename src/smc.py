@@ -96,7 +96,14 @@ class PoissonProposal(Proposal):
 
 class MultivariateNormalProposal(Proposal):
     def __call__(self, num_draws=None):
-        return np.random.multivariate_normal(
+        try:
+            return np.random.multivariate_normal(
+                mean=np.zeros(self.s.shape[0]), cov=self.s, size=num_draws)
+        except RuntimeWarning:
+            logger.warn('Proposal Covariance not positive definite, finding '
+                        'closest positive semi-definite matrix!')
+            self.s = utility.ensure_cov_psd(self.s)
+            return np.random.multivariate_normal(
                 mean=np.zeros(self.s.shape[0]), cov=self.s, size=num_draws)
 
 
