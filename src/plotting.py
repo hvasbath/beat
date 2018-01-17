@@ -1309,8 +1309,9 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
                 if plot_style == 'kde':
                     pmp.kdeplot(
-                        d, alpha=alpha, shade=True, ax=axs[rowi, coli],
-                        color=color, linewidth=1.)
+                        d, shade=alpha, ax=axs[rowi, coli],
+                        color=color, linewidth=1.,
+                        kwargs_shade={'color': color})
                     xlim = axs[rowi, coli].get_xlim()
                     xax = axs[rowi, coli].get_xaxis()
                     xticker = tick.MaxNLocator(nbins=5)
