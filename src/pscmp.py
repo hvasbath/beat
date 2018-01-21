@@ -269,7 +269,7 @@ class PsCmpConfig(Object):
 
     times_snapshots = List.T(Float.T(), optional=True)
 
-    rectangular_source_patches = List.T(default=PsCmpRectangularSource.D())
+    rectangular_source_patches = List.T(default=[PsCmpRectangularSource.D()])
 
 
 class PsCmpConfigFull(PsCmpConfig):
