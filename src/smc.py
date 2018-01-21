@@ -96,15 +96,8 @@ class PoissonProposal(Proposal):
 
 class MultivariateNormalProposal(Proposal):
     def __call__(self, num_draws=None):
-        try:
-            return np.random.multivariate_normal(
-                mean=np.zeros(self.s.shape[0]), cov=self.s, size=num_draws)
-        except RuntimeWarning:
-            logger.warn('Proposal Covariance not positive definite, finding '
-                        'closest positive semi-definite matrix!')
-            self.s = utility.ensure_cov_psd(self.s)
-            return np.random.multivariate_normal(
-                mean=np.zeros(self.s.shape[0]), cov=self.s, size=num_draws)
+        return np.random.multivariate_normal(
+            mean=np.zeros(self.s.shape[0]), cov=self.s, size=num_draws)
 
 
 proposal_dists = {
@@ -433,6 +426,7 @@ class SMC(backend.ArrayStepSharedLLK):
             bias=False,
             rowvar=0)
 
+        cov = utility.ensure_cov_psd(cov)
         if np.isnan(cov).any() or np.isinf(cov).any():
             raise ValueError('Sample covariances not valid! Likely "n_chains"'
                             ' is too small!')
