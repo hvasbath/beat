@@ -48,7 +48,10 @@ help:
 
 .PHONY: clean
 clean:
-	rm -rf $(BUILDDIR)/*
+	rm -rf $(BUILDDIR)/html $(BUILDDIR)/doctrees
+	mkdir $(BUILDDIR)/html
+	cp -r $(BUILDDIR)/.git/ $(BUILDDIR)/html/
+	touch $(BUILDDIR)/html/.nojekyll
 
 .PHONY: html
 html:
