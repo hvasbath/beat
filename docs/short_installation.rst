@@ -8,9 +8,9 @@ First install pyrocko following this webpage:
 
  - `pyrocko <http://pyrocko.org/>`__
 
-Then install the following packages::
+Then install the following packages, pymc3 version3.2 and pyproj::
 
-    sudo pip install pymc3
+    sudo pip install pymc3==3.2
     sudo pip install pyproj
 
     cd ~/src  # or whereever you keep the packages

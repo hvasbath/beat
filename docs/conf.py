@@ -20,6 +20,7 @@ import sphinx_sleekcat_theme
 import os
 import sys
 sys.path.insert(0, os.path.abspath('../src'))
+sys.setrecursionlimit(1500)
 
 # -- General configuration ------------------------------------------------
 
@@ -38,7 +39,6 @@ extensions = [
    # 'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
     'sphinx.ext.doctest',
-    'sphinx.ext.todo',
     'numpydoc'
 ]
 
@@ -60,7 +60,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'beat'
-copyright = u'2017, Hannes Vasyura-Bathke'
+copyright = u'2018, Hannes Vasyura-Bathke'
 author = u'Hannes Vasyura-Bathke'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -146,7 +146,7 @@ html_theme_options = {
     'codefont': 'monospace,sans-serif',
     'linkcolor': '#204a87',
     'visitedlinkcolor': '#204a87',
-    'nosidebar': True,
+    # 'nosidebar': False,
     # 'sidebarcollapse': False,
     'googlewebfonturl': 'https://fonts.googleapis.com/css?family=Roboto+Slab',
 }
@@ -199,6 +199,11 @@ html_static_path = ['_static']
 # Custom sidebar templates, maps document names to template names.
 #
 # html_sidebars = {}
+html_sidebars = {
+    '**': [
+        'globaltoc.html',
+    ]
+}
 
 # Additional templates that should be rendered to pages, maps page names to
 # template names.

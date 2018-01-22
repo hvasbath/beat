@@ -1,8 +1,13 @@
 
 
-*******************************
-Scenarios in beat/data/examples
-*******************************
+*********
+Scenarios 
+*********
+  
+The example scenarios are located in the directory::
+
+     beat/data/examples
+
 In the following tutorials we will use synthetic example data to get familiar with the basic functionality of BEAT.
 
 

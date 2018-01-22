@@ -7,8 +7,8 @@ Detailed Installation instructions
 BEAT can be installed on any Unix based system with python2.7
 that supports its prerequisites.
 
-BEAT source
------------
+Prerequisites
+-------------
 First of all please download the beat source code::
 
     cd ~/src  # or whereever you keep the packages
@@ -17,14 +17,10 @@ First of all please download the beat source code::
 The package includes scripts that help setting up and testing the following
 optimizations of your numerics libraries.
 
-Prerequisites
--------------
-First of all we need a fortran compiler and the python developers library::
+Then we will need a fortran compiler and the python developers library::
 
     sudo apt-get install git python-dev gfortran
 
-Numerics
-^^^^^^^^
 BEAT does many intensive calculations, which is why we need to get as much as
 possible out of the available libraries in terms of computational efficiency.
 There are actually significant speedups possible by not using the standard
@@ -78,6 +74,7 @@ your .bashrc or .cshrc in the homedirectory::
 
 Numpy
 """""
+This following step is completely optional and one may decide to use a standard pip numpy package.
 Building numpy from source requires cython::
 
     pip install cython
@@ -172,8 +169,7 @@ This again speeds up the elemantary operations! Theano will for sure work
 without including this, but the performance increase (below)
 will convince you to do so ;) .
 
-Download the amdlibm package `here <http://developer.amd.com/tools-and-sdks/
-archive/compute/libm/>`__ according to your system.
+Download the amdlibm package `here <https://developer.amd.com/amd-cpu-libraries/amd-math-library-libm/>`__ according to your system.
 
 For Linux based systems if you have admin rights (with $ROOT=/usr) do ::
 
@@ -264,7 +260,7 @@ as intended::
 
 Using the CPU (amdlibm = False)::
 
-    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python src/test/gpu_test.py 
+    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python test/gpu_test.py 
 
     [Elemwise{exp,no_inplace}(<TensorType(float32, vector)>)]
     Looping 1000 times took 2.717895 seconds
@@ -274,7 +270,7 @@ Using the CPU (amdlibm = False)::
 
 Using the CPU (amdlibm = True)::
 
-    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python src/test/gpu_test.py 
+    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python test/gpu_test.py 
 
     [Elemwise{exp,no_inplace}(<TensorType(float32, vector)>)]
     Looping 1000 times took 0.703979 seconds
@@ -301,7 +297,7 @@ Congratulations, you are done with the numerics installations!
 
 
 Main Packages
-^^^^^^^^^^^^^
+-------------
 
 BEAT relies on 2 main libraries. Detailed installation instructions for each
 can be found on the respective websites:
@@ -341,14 +337,14 @@ Pyproj is the last package and also the most easy one to install::
 
 
 BEAT
-----
+""""
 After these long and heavy installations, you can setup BEAT itself::
 
     cd ~/src/beat
     sudo python setup.py install
 
 Greens Function calculations
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+############################
 
 To calculate the Greens Functions we rely on modeling codes written by
 `Rongjiang Wang <http://www.gfz-potsdam.de/en/section/physics-of-earthquakes-and-volcanoes/staff/profil/rongjiang-wang/>`__.
@@ -368,11 +364,11 @@ This also enables easy updating for potential future changes.
 For configuration and compilation please follow the descriptions provided in each repository respectively.
 
 Seismic synthetics
-""""""""""""""""""
+
 * `QSEIS <https://github.com/pyrocko/fomosto-qseis>`__
 * `QSSP <https://github.com/pyrocko/fomosto-qssp>`__
 
 
 Geodetic synthetics
-"""""""""""""""""""
+
 * `PSGRN_PSCMP <https://github.com/pyrocko/fomosto-psgrn-pscmp>`__
