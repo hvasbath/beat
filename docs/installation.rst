@@ -310,7 +310,7 @@ pymc3
 Pymc3 is a framework that provides various optimization algorithms allows and
 allows to build Bayesian models. For the last stable release::
 
-    pip install pymc3
+    pip install pymc3==3.2
 
 For the bleeding edge::
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 import os
-from distutils.core import setup, Extension
-from distutils.command.build_py import build_py
+from setuptools import setup, Extension
+from setuptools.command.build_py import build_py
 import shutil
 
 try:
@@ -15,6 +15,13 @@ except ImportError:
         @classmethod
         def get_include(self):
             return ''
+
+
+PROJECT_ROOT = os.path.dirname(os.path.realpath(__file__))
+REQUIREMENTS_FILE = os.path.join(PROJECT_ROOT, 'requirements.txt')
+
+with open(REQUIREMENTS_FILE) as f:
+    install_reqs = f.read().splitlines()
 
 
 class custom_build_py(build_py):
@@ -42,6 +49,7 @@ setup(
     version='1.0beta',
     author='Hannes Vasyuara-Bathke',
     author_email='hannes.vasyura-bathke@kaust.edu.sa',
+    install_requires=install_reqs,
     packages=['beat'] + subpackages,
     package_dir={'beat': 'src'},
     scripts=['apps/beat'],
