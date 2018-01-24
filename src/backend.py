@@ -405,6 +405,7 @@ def load_multitrace(dirname, model=None):
         Name of directory with files (one per chain)
     model : Model
         If None, the model is taken from the `with` context.
+
     Returns
     -------
     A :class:`pymc3.backend.base.MultiTrace` instance
@@ -435,6 +436,7 @@ def check_multitrace(mtrace, draws, n_chains):
         Number of steps (i.e. chain length for each Markov Chain)
     n_chains : int
         Number of Markov Chains
+
     Returns
     -------
     list of indexes for chains that need to be resampled
