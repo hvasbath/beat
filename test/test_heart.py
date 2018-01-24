@@ -100,7 +100,7 @@ class TestSeisComposite(unittest.TestCase):
         logger.info('Test covariance factor')
         cov = deepcopy(self.sc.datasets[0].covariance)
 
-        f = function([],[cov.slnf])
+        f = function([], [cov.slnf])
 
         cov.pred_v += num.ones_like(cov.data) * 1e-20
         cov.update_slnf()
@@ -108,42 +108,43 @@ class TestSeisComposite(unittest.TestCase):
         assert_allclose(cov.slnf.get_value(), f(), rtol=1e-06, atol=0)
         assert_allclose(cov.log_norm_factor, f(), rtol=1e-06, atol=0)
 
-#class TestGeoComposite(unittest.TestCase):
 
-#    def __init__(self, *args, **kwargs):
-#        unittest.TestCase.__init__(self, *args, **kwargs)
-#        self.dirname = 'Mogi'
-#        self.mode = 'geometry'
+class TestGeoComposite(unittest.TestCase):
 
-#    @classmethod
-#    def setUpClass(cls):
-#        dirname = 'Mogi'
-#        mode = 'geometry'
-#        cls.problem = load_problem(dirname, mode)
-#        cls.sc = cls.problem.composites['geodetic']
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.dirname = 'Mogi'
+        self.mode = 'geometry'
 
-#    def test_synths(self):
-#        logger.info('Test synth')
-#        synths = self.sc.get_synthetics(
-#            self.problem.model.test_point, outmode='stacked_arrays')
+    @classmethod
+    def setUpClass(cls):
+        dirname = 'Mogi'
+        mode = 'geometry'
+        cls.problem = load_problem(dirname, mode)
+        cls.sc = cls.problem.composites['geodetic']
 
-#        for st, ds in zip(synths, sc.datasets):
-#            assert_allclose(st, ds, rtol=1e-03, atol=0)
+    def test_synths(self):
+        logger.info('Test synth')
+        synths = self.sc.get_synthetics(
+            self.problem.model.test_point, outmode='stacked_arrays')
 
-#    def test_results(self):
-#        logger.info('Test results')
-#        results = self.sc.assemble_results(self.problem.model.test_point)
+        for st, ds in zip(synths, self.sc.datasets):
+            assert_allclose(st, ds, rtol=1e-03, atol=0)
 
-#        for result in results:
-#            assert_allclose(result.processed_obs,
-#                            result.processed_syn, rtol=1e-05, atol=0)
+    def test_results(self):
+        logger.info('Test results')
+        results = self.sc.assemble_results(self.problem.model.test_point)
 
-#    def test_weights(self):
-#        logger.info('Test weights')
-#        for w, d in zip(sc.weights, sc.datasets):
-#            assert_allclose(
-#                w.get_value(), d.covariance.chol_inverse,
-#                rtol=1e-08, atol=0)
+        for result in results:
+            assert_allclose(result.processed_obs,
+                            result.processed_syn, rtol=1e-05, atol=0)
+
+    def test_weights(self):
+        logger.info('Test weights')
+        for w, d in zip(self.sc.weights, self.sc.datasets):
+            assert_allclose(
+                w.get_value(), d.covariance.chol_inverse,
+                rtol=1e-08, atol=0)
 
 
 if __name__ == "__main__":

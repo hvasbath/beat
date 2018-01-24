@@ -2327,7 +2327,7 @@ def post_process_trace(trace, taper, filterer, taper_tolerance_factor=0.,
         taper.fadein times this factor determines added tolerance
     """
 
-    tolerance = taper.fadein * taper_tolerance_factor
+    tolerance = (taper.b - taper.a) * taper_tolerance_factor
     lower_cut = taper.a - tolerance
     upper_cut = taper.d + tolerance
 
