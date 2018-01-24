@@ -840,41 +840,29 @@ class SeismicComposite(Composite):
             point, outmode='stacked_traces')
 
         syn_filt_traces, obs_filt_traces = self.get_synthetics(
-            point, outmode='data')
+            point, outmode='stacked_traces', taper_tolerance_factor=2.)
 
         ats = []
         for wmap in self.wavemaps:
             wc = wmap.config
             ats.extend(wmap.n_t * [wc.arrival_taper])
 
-        tmins = [tr.tmin for tr in obs_proc_traces]
-        factor = 2.
-        for i, (trs, tro) in enumerate(zip(syn_filt_traces, obs_filt_traces)):
-            at = ats[i]
-            tol = factor * at.fadein
-
-            trs.chop(tmin=tmins[i] - tol,
-                     tmax=tmins[i] + tol + at.duration)
-            tro.chop(tmin=tmins[i] - tol,
-                     tmax=tmins[i] + tol + at.duration)
-
         results = []
-        for i, obs_tr in enumerate(obs_proc_traces):
+        for i, (obs_tr, at) in enumerate(zip(obs_proc_traces, ats)):
             dtrace = obs_tr.copy()
             dtrace.set_ydata(
                 (obs_tr.get_ydata() - syn_proc_traces[i].get_ydata()))
 
-            at = ats[i]
             taper = at.get_pyrocko_taper(
-                float(tmins[i] + num.abs(at.a)))
+                float(obs_tr.tmin + num.abs(at.a)))
 
             results.append(heart.SeismicResult(
-                    processed_obs=obs_tr,
-                    processed_syn=syn_proc_traces[i],
-                    processed_res=dtrace,
-                    filtered_obs=obs_filt_traces[i],
-                    filtered_syn=syn_filt_traces[i],
-                    taper=taper))
+                processed_obs=obs_tr,
+                processed_syn=syn_proc_traces[i],
+                processed_res=dtrace,
+                filtered_obs=obs_filt_traces[i],
+                filtered_syn=syn_filt_traces[i],
+                taper=taper))
 
         return results
 

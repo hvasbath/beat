@@ -867,9 +867,9 @@ def init_seismic_targets(
 
 
 def init_geodetic_targets(
-    datasets, earth_model_name='ak135-f-average.m',
-    interpolation='nearest_neighbor', crust_inds=[0],
-    sample_rate=0.0):
+        datasets, earth_model_name='ak135-f-average.m',
+        interpolation='nearest_neighbor', crust_inds=[0],
+        sample_rate=0.0):
     """
     Initiate a list of Static target objects given a list of indexes to the
     respective GF store velocity model variation index (crust_inds).
@@ -909,7 +909,8 @@ def init_geodetic_targets(
     return targets
 
 
-def vary_model(earthmod, error_depth=0.1, error_velocities=0.1,
+def vary_model(
+        earthmod, error_depth=0.1, error_velocities=0.1,
         depth_limit_variation=600 * km):
     """
     Vary depths and velocities in the given source model by Gaussians with
@@ -984,8 +985,9 @@ def vary_model(earthmod, error_depth=0.1, error_velocities=0.1,
                     error_velocities = vel_unc
                     logger.debug('Velocity error: %f ', error_velocities)
 
-            deltavp = float(num.random.normal(
-                        0, layer.mtop.vp * error_velocities / 3., 1))
+            deltavp = float(
+                num.random.normal(
+                    0, layer.mtop.vp * error_velocities / 3., 1))
 
             if layer.ztop == 0:
                 layer.mtop.vp += deltavp
@@ -1000,7 +1002,7 @@ def vary_model(earthmod, error_depth=0.1, error_velocities=0.1,
                     else:
                         layer.mbot.vp += deltavp
                         layer.mbot.vs += (deltavp /
-                                                layer.mbot.vp_vs_ratio())
+                                          layer.mbot.vp_vs_ratio())
                         repeat = 0
                         cost += count
                 elif layer.mtop.vp + deltavp < last_l.mbot.vp:
@@ -1029,8 +1031,9 @@ def vary_model(earthmod, error_depth=0.1, error_velocities=0.1,
 
         while repeat:
             # ensure that bottom of layer is not shallower than the top
-            deltaz = float(num.random.normal(
-                       0, layer.zbot * factor_d / 3., 1))  # 3 sigma
+            deltaz = float(
+                num.random.normal(
+                    0, layer.zbot * factor_d / 3., 1))  # 3 sigma
             layer.zbot += deltaz
             if layer.zbot < layer.ztop:
                 layer.zbot -= deltaz
@@ -1088,8 +1091,8 @@ def ensemble_earthmodel(ref_earthmod, num_vary=10, error_depth=0.1,
 
 
 def get_velocity_model(
-    location, earth_model_name, crust_ind=0, gf_config=None,
-    custom_velocity_model=None):
+        location, earth_model_name, crust_ind=0, gf_config=None,
+        custom_velocity_model=None):
     """
     Get velocity model at the specified location, combines given or crustal
     models with the global model.
@@ -1126,7 +1129,8 @@ def get_velocity_model(
         if gfc.replace_water:
             thickness_lwater = profile.get_layer(crust2x2.LWATER)[0]
             if thickness_lwater > 0.0:
-                logger.info('Water layer %f in CRUST model!'
+                logger.info(
+                    'Water layer %f in CRUST model!'
                     ' Remove and add to lower crust' % thickness_lwater)
                 thickness_llowercrust = profile.get_layer(
                     crust2x2.LLOWERCRUST)[0]
@@ -1134,17 +1138,18 @@ def get_velocity_model(
                     crust2x2.LSOFTSED)[0]
 
                 profile.set_layer_thickness(crust2x2.LWATER, 0.0)
-                profile.set_layer_thickness(crust2x2.LSOFTSED,
-                        num.ceil(thickness_lsoftsed / 3))
+                profile.set_layer_thickness(
+                    crust2x2.LSOFTSED,
+                    num.ceil(thickness_lsoftsed / 3))
                 profile.set_layer_thickness(
                     crust2x2.LLOWERCRUST,
-                    thickness_llowercrust + \
-                    thickness_lwater + \
-                    (thickness_lsoftsed - num.ceil(thickness_lsoftsed / 3))
-                                            )
+                    thickness_llowercrust +
+                    thickness_lwater +
+                    (thickness_lsoftsed - num.ceil(thickness_lsoftsed / 3)))
+
                 profile._elevation = 0.0
-                logger.info('New Lower crust layer thickness %f' % \
-                    profile.get_layer(crust2x2.LLOWERCRUST)[0])
+                logger.info('New Lower crust layer thickness %f' %
+                            profile.get_layer(crust2x2.LLOWERCRUST)[0])
         source_model = cake.load_model(
             earth_model_name, crust2_profile=profile)
 
@@ -1209,7 +1214,7 @@ def get_earth_model_prefix(earth_model_name):
 
 
 def get_fomosto_baseconfig(
-    gfconfig, event, station, waveforms, crust_ind):
+        gfconfig, event, station, waveforms, crust_ind):
     """
     Initialise fomosto config.
 
@@ -1279,13 +1284,12 @@ def get_fomosto_baseconfig(
 backend_builders = {
     'qseis': qseis.build,
     'qssp': qssp.build,
-    'qseis2d': qseis2d.build
-                 }
+    'qseis2d': qseis2d.build}
 
 
 def choose_backend(
-    fomosto_config, code, source_model, receiver_model,
-    gf_directory='qseis2d_green'):
+        fomosto_config, code, source_model, receiver_model,
+        gf_directory='qseis2d_green'):
     """
     Get backend related config.
     """
@@ -1311,7 +1315,8 @@ def choose_backend(
 
         version = '2006a'
         if 'slowest' in waveforms or distances.min() < 1000 * km:
-            logger.info('Receiver and source'
+            logger.info(
+                'Receiver and source'
                 ' site structures have to be identical as distance'
                 ' and ray depth not high enough for common reeiver'
                 ' depth!')
@@ -1341,7 +1346,7 @@ def choose_backend(
             slowness_max=float(num.max(slowness_taper)),
             toroidal_modes=True,
             spheroidal_modes=True,
-            source_patch_radius=(fc.distance_delta - \
+            source_patch_radius=(fc.distance_delta -
                                  fc.distance_delta * 0.05) / km)
 
     elif code == 'qseis2d':
@@ -1403,7 +1408,8 @@ def choose_backend(
 
 
 def seis_construct_gf(
-    stations, event, seismic_config, crust_ind=0, execute=False, force=False):
+        stations, event, seismic_config, crust_ind=0, execute=False,
+        force=False):
     """
     Calculate seismic Greens Functions (GFs) and create a repository 'store'
     that is being used later on repeatetly to calculate the synthetic
@@ -1497,7 +1503,7 @@ def seis_construct_gf(
 
 
 def geo_construct_gf(
-    event, geodetic_config, crust_ind=0, execute=True, force=False):
+        event, geodetic_config, crust_ind=0, execute=True, force=False):
     """
     Calculate geodetic Greens Functions (GFs) and create a fomosto 'GF store'
     that is being used repeatetly later on to calculate the synthetic
@@ -1601,7 +1607,7 @@ def geo_construct_gf(
 
 
 def geo_construct_gf_psgrn(
-    event, geodetic_config, crust_ind=0, execute=True, force=False):
+        event, geodetic_config, crust_ind=0, execute=True, force=False):
     """
     Calculate geodetic Greens Functions (GFs) and create a repository 'store'
     that is being used later on repeatetly to calculate the synthetic
@@ -1626,10 +1632,10 @@ def geo_construct_gf_psgrn(
 
     c = psgrn.PsGrnConfigFull()
 
-    n_steps_depth = int((gfc.source_depth_max - gfc.source_depth_min) / \
-        gfc.source_depth_spacing) + 1
+    n_steps_depth = int((gfc.source_depth_max - gfc.source_depth_min) /
+                        gfc.source_depth_spacing) + 1
     n_steps_distance = int(
-        (gfc.source_distance_max - gfc.source_distance_min) / \
+        (gfc.source_distance_max - gfc.source_distance_min) /
         gfc.source_distance_spacing) + 1
 
     c.distance_grid = psgrn.PsGrnSpatialSampling(
@@ -1678,8 +1684,9 @@ def geo_construct_gf_psgrn(
         runner.run(c, force)
 
 
-def geo_layer_synthetics_pscmp(store_superdir, crust_ind, lons, lats, sources,
-                         keep_tmp=False, outmode='data'):
+def geo_layer_synthetics_pscmp(
+        store_superdir, crust_ind, lons, lats, sources,
+        keep_tmp=False, outmode='data'):
     """
     Calculate synthetic displacements for a given Greens Function database
     sources and observation points on the earths surface.
@@ -1853,9 +1860,9 @@ class FaultGeometry(gf.seismosizer.Cloneable):
 
 
 def discretize_sources(
-    sources=None, extension_width=0.1, extension_length=0.1,
-    patch_width=5000., patch_length=5000., datatypes=['geodetic'],
-    varnames=['']):
+        sources=None, extension_width=0.1, extension_length=0.1,
+        patch_width=5000., patch_length=5000., datatypes=['geodetic'],
+        varnames=['']):
     """
     Extend sources into all directions and discretize sources into patches.
     Rounds dimensions to have no half-patches.
@@ -1923,9 +1930,8 @@ def discretize_sources(
 
 
 def geo_construct_gf_linear(
-    engine, outpath, crust_ind=0, datasets=None,
-    targets=None, fault=None, varnames=[''],
-    force=False):
+        engine, outpath, crust_ind=0, datasets=None,
+        targets=None, fault=None, varnames=[''], force=False):
     """
     Create geodetic Greens Function matrix for defined source geometry.
 
@@ -1953,7 +1959,7 @@ def geo_construct_gf_linear(
 
     if os.path.exists(outpath) and not force:
         logger.info("Green's Functions exist! Use --force to"
-            " overwrite!")
+                    " overwrite!")
     else:
         out_gfs = {}
         for var in varnames:
@@ -2045,7 +2051,7 @@ class WaveformMapping(object):
     _target2index = None
 
     def __init__(self, name, stations, weights=None, channels=['Z'],
-        datasets=None, targets=None):
+                 datasets=None, targets=None):
 
         self.name = name
         self.stations = stations
@@ -2065,7 +2071,7 @@ class WaveformMapping(object):
 
     def add_weights(self, weights, force=False):
         n_w = len(weights)
-        if  n_w != self.n_t:
+        if n_w != self.n_t:
             raise CollectionError(
                 'Number of Weights %i inconsistent with targets %i!' % (
                     n_w, self.n_t))
@@ -2088,15 +2094,16 @@ class WaveformMapping(object):
 
     def check_consistency(self):
         if self.n_t != self.n_data:
-            raise CollectionError('Inconsistent number of datasets and targets!')
+            raise CollectionError(
+                'Inconsistent number of datasets and targets!')
         elif self.n_t == 0:
             raise CollectionError(
-                'No data left in wavemap "%s" after applying the distance filter! '
+                'No data left in wavemap "%s" after applying the distance filter!'
                 'The distance range has to be adjusted or the wavemap needs to'
                 ' be deactivated by setting include=False!' % self.name)
         else:
             logger.info('Consistent number of '
-                'datasets and targets in %s wavemap!' % self.name)
+                        'datasets and targets in %s wavemap!' % self.name)
 
     def update_interpolation(self, method):
         for target in self.targets:
@@ -2243,7 +2250,8 @@ class DataWaveformCollection(object):
                 logger.warn(
                     'Target %s already in collection!' % str(target.codes))
 
-    def add_datasets(self, datasets, location=None, replace=False, force=False):
+    def add_datasets(self, datasets, location=None, replace=False,
+                     force=False):
 
         if replace:
             self._datasets = OrderedDict()
@@ -2284,7 +2292,8 @@ class DataWaveformCollection(object):
                 dtrace = self._datasets[nslc_id]
                 datasets.append(dtrace)
             except KeyError:
-                logger.warn('No data trace for target %s in '
+                logger.warn(
+                    'No data trace for target %s in '
                     'the collection!' % str(nslc_id))
 
         ndata = len(datasets)
@@ -2303,7 +2312,8 @@ class DataWaveformCollection(object):
             channels=channels)
 
 
-def post_process_trace(trace, taper, filterer, outmode=None):
+def post_process_trace(trace, taper, filterer, taper_tolerance_factor=0.,
+                       outmode=None):
     """
     Taper, filter and then chop one trace in place.
 
@@ -2312,10 +2322,17 @@ def post_process_trace(trace, taper, filterer, outmode=None):
     trace : :class:`SeismicDataset`
     arrival_taper : :class:`pyrocko.trace.Taper`
     filterer : :class:`Filterer`
+    taper_tolerance_factor : float
+        default: 0 , cut exactly at the taper edges
+        taper.fadein times this factor determines added tolerance
     """
 
+    tolerance = taper.fadein * taper_tolerance_factor
+    lower_cut = taper.a - tolerance
+    upper_cut = taper.d + tolerance
+
     if taper is not None and outmode != 'data':
-        trace.extend(taper.a, taper.d, fillmethod='repeat')
+        trace.extend(lower_cut, upper_cut, fillmethod='repeat')
         trace.taper(taper, inplace=True)
 
     if filterer is not None:
@@ -2327,13 +2344,14 @@ def post_process_trace(trace, taper, filterer, outmode=None):
             order=filterer.order)
 
     if taper is not None and outmode != 'data':
-        trace.chop(tmin=taper.a, tmax=taper.d)
+        trace.chop(tmin=lower_cut,
+                   tmax=upper_cut)
 
 
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     wavename='any_P', filterer=None, reference_taperer=None,
                     plot=False, nprocs=1, outmode='array',
-                    pre_stack_cut=False):
+                    pre_stack_cut=False, taper_tolerance_factor=0.):
     """
     Calculate synthetic seismograms of combination of targets and sources,
     filtering and tapering afterwards (filterer)
@@ -2366,6 +2384,9 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         flag to decide wheather prior to stacking the GreensFunction traces
         should be cutted according to the phase arival time and the defined
         taper
+    taper_tolerance_factor : float
+        tolerance to chop traces around taper.a and taper.d
+
 
     Returns
     -------
@@ -2414,6 +2435,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
             trace=tr,
             taper=taperers[ti],
             filterer=filterer,
+            taper_tolerance_factor=taper_tolerance_factor,
             outmode=outmode)
 
         sapp(tr)
@@ -2542,7 +2564,8 @@ def geo_synthetics(
 
 
 def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
-                        tmins=None, plot=False, outmode='array', chop=True):
+                        tmins=None, plot=False, outmode='array', chop=True,
+                        taper_tolerance_factor=0.):
     """
     Taper and filter data_traces according to given taper and filterers.
     Tapering will start at the given tmin.
@@ -2559,6 +2582,8 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
     outmode : str
         defines the output structure, options: "stacked_traces", "array",
         "data"
+    taper_tolerance_factor : float
+        tolerance to chop traces around taper.a and taper.d
 
     Returns
     -------
@@ -2584,6 +2609,7 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
             trace=cut_trace,
             taper=taper,
             filterer=filterer,
+            taper_tolerance_factor=taper_tolerance_factor,
             outmode=outmode)
 
         ctpp(cut_trace)
