@@ -13,6 +13,7 @@ from optparse import OptionParser
 from beat import heart, config, utility, models, inputf, plotting, backend
 from beat.sources import MTSourceWithMagnitude
 from beat.metropolis import get_trace_stats
+from beat.utility import list2string
 
 from pyrocko import model, util
 from pyrocko.gf import LocalEngine
@@ -27,9 +28,6 @@ logger = logging.getLogger('beat')
 
 def d2u(d):
     return dict((k.replace('-','_'), v) for (k, v) in d.iteritems())
-
-def list2string(l):
-    return ', '.join('"%s"' % listentry for listentry in l)
 
 
 subcommand_descriptions = {

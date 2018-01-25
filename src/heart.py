@@ -2009,8 +2009,14 @@ def get_phase_arrival_time(engine, source, target, wavename):
     -------
     scalar, float of the arrival time of the wave
     """
-    store = engine.get_store(target.store_id)
     dist = target.distance_to(source)
+    try:
+        store = engine.get_store(target.store_id)
+    except gf.seismosizer.NoSuchStore:
+        raise gf.seismosizer.NoSuchStore(
+            'No such store with ID %s found, distance [deg] to event: %f ' % (
+            target.store_id, cake.m2d * dist))
+
     depth = source.depth
     return store.t(wavename, (depth, dist)) + source.time
 
@@ -2348,6 +2354,10 @@ def post_process_trace(trace, taper, filterer, taper_tolerance_factor=0.,
                    tmax=upper_cut)
 
 
+class StackingError(Exception):
+    pass
+
+
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     wavename='any_P', filterer=None, reference_taperer=None,
                     plot=False, nprocs=1, outmode='array',
@@ -2379,7 +2389,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         --> currently no effect !!!
     outmode : string
         output format of synthetics can be 'array', 'stacked_traces',
-        'full' returns traces unstacked including post-processing
+        'data' returns traces unstacked including post-processing
     pre_stack_cut : boolean
         flag to decide wheather prior to stacking the GreensFunction traces
         should be cutted according to the phase arival time and the defined
@@ -2393,6 +2403,12 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     :class:`numpy.ndarray` or List of :class:`pyrocko.trace.Trace`
          with data each row-one target
     """
+    stackmodes = ['array', 'data', 'stacked_traces']
+
+    if outmode not in stackmodes:
+        raise StackingError('Outmode "%s" not available! Available: %s' % 
+            outmode, utility.list2string(stackmodes))
+
     taperers = []
     tapp = taperers.append
     for target in targets:

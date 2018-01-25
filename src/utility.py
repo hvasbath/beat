@@ -1017,6 +1017,18 @@ def repair_covariance(x, epsilon=num.finfo(num.float64).eps):
     return vec * num.diag(val) * vec.T
 
 
+def list2string(l):
+    """
+    Convert list of string to single string.
+
+    Parameters
+    ----------
+    l: list
+        of strings
+    """
+    return ', '.join('"%s"' % listentry for listentry in l)
+
+
 def unique_list(l):
     """
     Find unique entries in list and return them in a list.
