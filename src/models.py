@@ -407,25 +407,6 @@ class GeodeticSourceComposite(GeodeticComposite):
         self.lv = shared(self.Bij.f3map(_lv_list), borrow=True)
         self.odws = shared(odws, borrow=True)
 
-    def __getstate__(self):
-        outstate = (
-            self.config,
-            self.engine,
-            self.datasets,
-            self.sources,
-            self.weights,
-            self.targets)
-
-        return outstate
-
-    def __setstate__(self, state):
-            self.config, \
-            self.engine, \
-            self.datasets, \
-            self.sources, \
-            self.weights, \
-            self.targets = state
-
     def point2sources(self, point):
         """
         Updates the composite source(s) (in place) with the point values.
@@ -935,26 +916,6 @@ class SeismicGeometryComposite(SeismicComposite):
                filterer=wc.filterer)
 
         self.config = sc
-
-    def __getstate__(self):
-
-        outstate = (
-            self.config,
-            self.sources,
-            self.weights,
-            self.targets,
-            self.stations,
-            self.engine)
-
-        return outstate
-
-    def __setstate__(self, state):
-            self.config, \
-            self.sources, \
-            self.weights, \
-            self.targets, \
-            self.stations, \
-            self.engine = state
 
     def point2sources(self, point):
         """
