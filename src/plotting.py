@@ -1284,65 +1284,67 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
             for d in trace.get_values(
                     v, combine=combined, chains=chains, squeeze=False):
                 d = num.squeeze(transform(d))
-                d = pmp.utils.make_2d(d)
+                # iterate over columns in case varsize > 1
+                for e in d.T:
+                    e = pmp.utils.make_2d(e)
 
-                if make_bins_flag:
-                    varbin = make_bins(d, nbins=nbins)
-                    varbins.append(varbin)
-                else:
-                    varbin = varbins[i]
+                    if make_bins_flag:
+                        varbin = make_bins(d, nbins=nbins)
+                        varbins.append(varbin)
+                    else:
+                        varbin = varbins[i]
 
-                if lines:
-                    if hypername(v) == 'h_':
-                        reference = None
-                        if v in lines.keys():
-                            lines.pop(v)
-                    elif v in lines:
-                        reference = lines[v]
+                    if lines:
+                        if hypername(v) == 'h_':
+                            reference = None
+                            if v in lines.keys():
+                                lines.pop(v)
+                        elif v in lines:
+                            reference = lines[v]
+                        else:
+                            reference = None
                     else:
                         reference = None
-                else:
-                    reference = None
 
-                if color is None:
-                    color = scolor('aluminium3')
+                    if color is None:
+                        color = scolor('aluminium3')
 
-                if plot_style == 'kde':
-                    pmp.kdeplot(
-                        d, shade=alpha, ax=axs[rowi, coli],
-                        color=color, linewidth=1.,
-                        kwargs_shade={'color': color})
-                    xlim = axs[rowi, coli].get_xlim()
-                    xax = axs[rowi, coli].get_xaxis()
-                    xticker = tick.MaxNLocator(nbins=5)
-                    xax.set_major_locator(xticker)
-                else:
-                    histplot_op(
-                        axs[rowi, coli], d, reference=reference,
-                        bins=varbin, alpha=alpha, color=color)
+                    if plot_style == 'kde':
+                        pmp.kdeplot(
+                            e, shade=alpha, ax=axs[rowi, coli],
+                            color=color, linewidth=1.,
+                            kwargs_shade={'color': color})
+                        xlim = axs[rowi, coli].get_xlim()
+                        xax = axs[rowi, coli].get_xaxis()
+                        xticker = tick.MaxNLocator(nbins=5)
+                        xax.set_major_locator(xticker)
+                    else:
+                        histplot_op(
+                            axs[rowi, coli], e, reference=reference,
+                            bins=varbin, alpha=alpha, color=color)
 
-                axs[rowi, coli].set_title(
-                    str(v) + ' ' + plot_units[hypername(v)])
-                axs[rowi, coli].grid(grid)
-                axs[rowi, coli].set_yticks([])
-                axs[rowi, coli].set_yticklabels([])
-#                axs[rowi, coli].set_ylabel("Frequency")
+                    axs[rowi, coli].set_title(
+                        str(v) + ' ' + plot_units[hypername(v)])
+                    axs[rowi, coli].grid(grid)
+                    axs[rowi, coli].set_yticks([])
+                    axs[rowi, coli].set_yticklabels([])
+    #                axs[rowi, coli].set_ylabel("Frequency")
 
-                if lines:
-                    try:
-                        axs[rowi, coli].axvline(x=lines[v], color="k", lw=1.)
-                    except KeyError:
-                        pass
+                    if lines:
+                        try:
+                            axs[rowi, coli].axvline(x=lines[v], color="k", lw=1.)
+                        except KeyError:
+                            pass
 
-                if posterior:
-                    if posterior == 'all':
-                        for k, idx in posterior_idxs.iteritems():
+                    if posterior:
+                        if posterior == 'all':
+                            for k, idx in posterior_idxs.iteritems():
+                                axs[rowi, coli].axvline(
+                                    x=e[idx], color=colors[k], lw=1.)
+                        else:
+                            idx = posterior_idxs[posterior]
                             axs[rowi, coli].axvline(
-                                x=d[idx], color=colors[k], lw=1.)
-                    else:
-                        idx = posterior_idxs[posterior]
-                        axs[rowi, coli].axvline(
-                            x=d[idx], color=colors[posterior], lw=1.)
+                                x=e[idx], color=colors[posterior], lw=1.)
 
     fig.tight_layout()
     return fig, axs, varbins
