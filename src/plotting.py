@@ -1283,13 +1283,14 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
             for d in trace.get_values(
                     v, combine=combined, chains=chains, squeeze=False):
-                d = num.squeeze(transform(d))
+                d = transform(d)
                 # iterate over columns in case varsize > 1
+                color = None
                 for e in d.T:
                     e = pmp.utils.make_2d(e)
 
                     if make_bins_flag:
-                        varbin = make_bins(d, nbins=nbins)
+                        varbin = make_bins(e, nbins=nbins)
                         varbins.append(varbin)
                     else:
                         varbin = varbins[i]
@@ -1307,15 +1308,18 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         reference = None
 
                     if color is None:
-                        color = scolor('aluminium3')
+                        color = scolor('aluminium4')
+                    else:
+                        color = light(color, 0.12)
 
                     if plot_style == 'kde':
                         pmp.kdeplot(
                             e, shade=alpha, ax=axs[rowi, coli],
                             color=color, linewidth=1.,
                             kwargs_shade={'color': color})
-                        xlim = axs[rowi, coli].get_xlim()
+                        #axs[rowi, coli].set_ylim(0)
                         xax = axs[rowi, coli].get_xaxis()
+                        #axs[rowi, coli].set_ylim([0, e.max()])
                         xticker = tick.MaxNLocator(nbins=5)
                         xax.set_major_locator(xticker)
                     else:
@@ -1369,7 +1373,7 @@ def select_transform(sc, n_steps=None):
     pa = sc.parameters
 
     def last_sample(x):
-        return x[(n_steps - 1)::n_steps].flatten()
+        return x[(n_steps - 1)::n_steps]
 
     def burn_sample(x):
         if n_steps == 1:
@@ -1382,7 +1386,7 @@ def select_transform(sc, n_steps=None):
                 nend = int(n_steps * (i + 1) - 1)
                 xout.append(x[nstart:nend:pa.thin])
 
-            return num.vstack(xout).flatten()
+            return num.vstack(xout)
 
     def standard(x):
         return x
