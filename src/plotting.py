@@ -1507,6 +1507,10 @@ def draw_correlation_hist(problem, plot_options):
     Only feasible for 'geometry' problem.
     """
 
+    if problem.config.problem_config.n_sources > 1:
+        raise NotImplementedError(
+            'correlation_hist plot not working (yet) for n_sources > 1')
+
     po = plot_options
     mode = problem.config.problem_config.mode
 
