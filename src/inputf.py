@@ -5,6 +5,7 @@ import copy
 from beat import heart, utility
 from pyrocko import model, io
 
+from glob import glob
 import os
 import logging
 
@@ -12,6 +13,59 @@ logger = logging.getLogger('inputf')
 
 km = 1000.
 m = 0.000000001
+
+
+def load_obspy_data(datdir):
+    """
+    Load data from the directory through obspy and convert to pyrocko objects.
+
+    Parameters
+    ----------
+    datadir : string
+        absolute path to the data directory
+
+    Returns
+    -------
+    data_traces, stations
+    """
+
+    import obspy
+    from pyrocko import obspy_compat
+
+    obspy_compat.plant()
+
+    filenames = set(glob(os.getcwd() + '/*'))
+
+    stations = []
+    for f in filenames:
+        try:
+            inv = obspy.read_inventory(f)
+            stations.extend(inv.to_pyrocko_stations())
+            filenames.discard(f)
+        except TypeError:
+            logger.debug('File %s not an inventory.' % f)
+
+    data_traces = []
+    for f in filenames:
+        try:
+            stream = obspy.read()
+            pyrocko_traces = stream.to_pyrocko_traces()
+            for tr in pyrocko_traces:
+                data_traces.append(heart.SeismicDataset.from_pyrocko_trace(tr))
+
+            filenames.discard(f)
+
+        except TypeError:
+            logger.debug('File %s not waveforms' % f)
+
+    if len(filenames) > 0:
+        logger.warning(
+            'Could not import these files %s' %
+            utility.list_to_str(list(filenames)))
+
+    logger.info('Imported %i data_traces and %i stations' %
+                (len(stations), len(data_traces)))
+    return data_traces, stations
 
 
 def setup_stations(lats, lons, names, networks, event):
@@ -145,7 +199,7 @@ def load_ascii_gps(filedir, filename):
     d = num.loadtxt(filepath, usecols=range(1, 9), dtype='float')
 
     if names.size != d.shape[0]:
-        raise Exception('Number of stations and available data differs!')
+        raise IOError('Number of stations and available data differs!')
 
     data = heart.GPSDataset()
     for i, name in enumerate(names):
@@ -204,7 +258,7 @@ def load_data_traces(datadir, stations, channels):
         elif cha == 'R':
             ref_channels.append('a')
         else:
-            raise Exception('No data for this channel!')
+            raise IOError('No data for this channel!')
 
     # load recorded data
     data_trcs = []

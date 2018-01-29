@@ -313,6 +313,7 @@ def command_import(args):
         parser.add_option(
             '--seismic_format', dest='seismic_format',
             type='string', default='autokiwi',
+            choices=['autokiwi', 'obspy'],
             help='Data format to be imported; "autokiwi", ...,'
                  'Default: "autokiwi"')
 
@@ -356,13 +357,19 @@ def command_import(args):
                         stations=stations,
                         channels=sc.get_unique_channels())
 
-                    logger.info('Pickle seismic data to %s' % seismic_outpath)
-                    utility.dump_objects(seismic_outpath,
-                                         outlist=[stations, data_traces])
+                elif options.seismic_format == 'obspy':
+                    data_traces, stations = inputf.load_obspy_data(sc.datadir)
+
                 else:
                     raise TypeError(
                         'Format: %s not implemented yet.' %
                         options.seismic_format)
+
+
+                logger.info('Pickle seismic data to %s' % seismic_outpath)
+                utility.dump_objects(seismic_outpath,
+                                     outlist=[stations, data_traces])
+
             else:
                 logger.info('%s exists! Use --force to overwrite!' %
                             seismic_outpath)
