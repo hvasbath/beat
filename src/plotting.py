@@ -1310,14 +1310,16 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     if color is None:
                         color = scolor('aluminium4')
                     else:
-                        color = light(color, 0.12)
+                        color = light(color, 0.3)
 
                     if plot_style == 'kde':
                         pmp.kdeplot(
                             e, shade=alpha, ax=axs[rowi, coli],
                             color=color, linewidth=1.,
                             kwargs_shade={'color': color})
-                        #axs[rowi, coli].set_ylim(0)
+                        axs[rowi, coli].relim()
+                        axs[rowi, coli].autoscale(tight=False)
+                        axs[rowi, coli].set_ylim(0)
                         xax = axs[rowi, coli].get_xaxis()
                         #axs[rowi, coli].set_ylim([0, e.max()])
                         xticker = tick.MaxNLocator(nbins=5)
