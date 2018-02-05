@@ -1,5 +1,7 @@
 from pyrocko import cake_plot as cp
 from pyrocko import gf
+from pyrocko import orthodrome as otd
+
 from pymc3 import plots as pmp
 
 import math
@@ -506,6 +508,8 @@ def geodetic_fits(problem, stage, plot_options):
     """
     Plot geodetic data, synthetics and residuals.
     """
+    from pyrocko.dataset import gshhg
+
     scattersize = 16
     fontsize = 10
     fontsize_title = 12
@@ -574,6 +578,55 @@ def geodetic_fits(problem, stage, plot_options):
 
         axes[0].set_ylabel(ystr, fontsize=fontsize)
         axes[0].set_xlabel(xstr, fontsize=fontsize)
+
+    def draw_coastlines(ax, event, po):
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+
+        logger.debug('Drawing coastlines ...')
+        coasts = gshhg.GSHHG.full()
+
+        if po.plot_projection == 'latlon':
+            west, east = xlim
+            south, north = ylim
+
+        elif po.plot_projection == 'utm':
+            lons, lats = utility.utm_to_lonlat(
+                utmx=xlim, utmy=ylim, zone=po.utm_zone)
+            west, east = lons
+            south, north = lats
+
+        elif po.plot_projection == 'local':
+            lats, lons = otd.ne_to_latlon(
+                event.lat, event.lon,
+                north_m=num.array(ylim) * km, east_m=num.array(xlim) * km)
+            south, north = lats
+            west, east = lons
+
+        polygons = coasts.get_polygons_within(
+            west=west, east=east, south=south, north=north)
+
+        for p in polygons:
+            if (p.is_land() or p.is_antarctic_grounding_line() or
+               p.is_island_in_lake()):
+
+                if po.plot_projection == 'latlon':
+                    xs = p.lons
+                    ys = p.lats
+
+                elif po.plot_projection == 'utm':
+                    xs, ys = utility.lonlat_to_utm(p.lons, p.lats, po.utm_zone)
+
+                elif po.plot_projection == 'local':
+                    ys, xs = otd.latlon_to_ne_numpy(
+                        event.lat, event.lon, p.lats, p.lons)
+                    ys /= km
+                    xs /= km
+
+                ax.plot(xs, ys, '-k', linewidth=1.0)
+            
+                ax.set_xlim(xlim)
+                ax.set_ylim(ylim)
 
     def draw_sources(ax, sources, po, **kwargs):
         for source in sources:
@@ -644,6 +697,8 @@ def geodetic_fits(problem, stage, plot_options):
                 outmode=po.plot_projection,
                 cmap=cmap)
 
+            draw_coastlines(axes[figidx][rowidx, 0], composite.event, po)
+
             syn = plot_scene(
                 axes[figidx][rowidx, 1],
                 dataset,
@@ -653,6 +708,8 @@ def geodetic_fits(problem, stage, plot_options):
                 outmode=po.plot_projection,
                 cmap=cmap)
 
+            draw_coastlines(axes[figidx][rowidx, 1], composite.event, po)
+
             res = plot_scene(
                 axes[figidx][rowidx, 2],
                 dataset,
@@ -661,6 +718,8 @@ def geodetic_fits(problem, stage, plot_options):
                 colim=dcolims[tidx],
                 outmode=po.plot_projection,
                 cmap=cmap)
+
+            draw_coastlines(axes[figidx][rowidx, 2], composite.event, po)
 
             titley = 0.91
             titlex = 0.16
