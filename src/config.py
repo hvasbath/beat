@@ -25,6 +25,9 @@ from beat import utility
 
 import numpy as num
 
+from theano import config as tconfig
+
+
 guts_prefix = 'beat'
 
 logger = logging.getLogger('config')
@@ -286,7 +289,7 @@ class GeodeticGFConfig(NonlinearGFConfig):
         default=1. / (3600. * 24.),
         help='Sample rate for the Greens Functions. Mainly relevant for'
              ' viscoelastic modeling. Default: coseismic-one day')
-    sampling_interval = Float.T(\
+    sampling_interval = Float.T(
         default=1.0,
         help='Distance dependend sampling spacing coefficient.'
              '1. - equidistant')
@@ -302,7 +305,8 @@ class LinearGFConfig(GFConfig):
     """
     Config for linear GreensFunction calculation parameters.
     """
-    reference_sources = List.T(RectangularSource.T(),
+    reference_sources = List.T(
+        RectangularSource.T(),
         help='Geometry of the reference source(s) to fix')
     patch_width = Float.T(
         default=5. * km,
@@ -399,11 +403,13 @@ class GeodeticConfig(Object):
 
     datadir = String.T(default='./')
     names = List.T(String.T(), default=['Data prefix filenames here ...'])
-    blacklist = List.T(String.T(),
+    blacklist = List.T(
+        String.T(),
         optional=True,
         default=['placeholder'],
         help='Station name for station to be thrown out.')
-    types = List.T(String.T(),
+    types = List.T(
+        String.T(),
         default=['SAR'],
         help='Types of geodetic data, i.e. SAR, GPS, ...')
     calc_data_cov = Bool.T(
@@ -413,7 +419,7 @@ class GeodeticConfig(Object):
     fit_plane = Bool.T(
         default=False,
         help='Flag for inverting for additional plane parameters on each'
-            ' SAR datatype')
+             ' SAR datatype')
     gf_config = GFConfig.T(default=GeodeticGFConfig.D())
 
     def get_hypernames(self):
@@ -444,8 +450,9 @@ class ProblemConfig(Object):
         optional=True,
         help='Determines the reduction of discretization of an extended'
              ' source.')
-    n_sources = Int.T(default=1,
-                     help='Number of Sub-sources to solve for')
+    n_sources = Int.T(
+        default=1,
+        help='Number of Sub-sources to solve for')
     datatypes = List.T(default=['geodetic'])
     hyperparameters = Dict.T(
         help='Hyperparameters to weight different types of datatypes.')
@@ -474,12 +481,16 @@ class ProblemConfig(Object):
             self.priors[variable] = \
                 Parameter(
                     name=variable,
-                    lower=num.ones(nvars, dtype=num.float) * \
-                        default_bounds[variable][0],
-                    upper=num.ones(nvars, dtype=num.float) * \
-                        default_bounds[variable][1],
-                    testvalue=num.ones(nvars, dtype=num.float) * \
-                        num.mean(default_bounds[variable]))
+                    lower=num.ones(
+                        nvars,
+                        dtype=tconfig.floatX) * default_bounds[variable][0],
+                    upper=num.ones(
+                        nvars,
+                        dtype=tconfig.floatX) * default_bounds[variable][1],
+                    testvalue=num.ones(
+                        nvars,
+                        dtype=tconfig.floatX) * num.mean(
+                        default_bounds[variable]))
 
     def select_variables(self):
         """
@@ -500,14 +511,14 @@ class ProblemConfig(Object):
                         svars = set(source.keys())
 
                         if isinstance(
-                            source(), (PyrockoRS, gf.ExplosionSource)):
+                                source(), (PyrockoRS, gf.ExplosionSource)):
                             svars.discard('magnitude')
 
                         variables += utility.weed_input_rvs(
                             svars, self.mode, datatype)
                     else:
                         raise ValueError('Source Type not supported for type'
-                            ' of problem, and datatype!')
+                                         ' of problem, and datatype!')
 
                     if datatype == 'seismic':
                         if self.stf_type in stf_catalog.keys():
@@ -517,7 +528,8 @@ class ProblemConfig(Object):
                 else:
                     variables += vars_catalog[datatype]
             else:
-                raise ValueError('Datatype %s not supported for type of'
+                raise ValueError(
+                    'Datatype %s not supported for type of'
                     ' problem! Supported datatype are: %s' % (
                         datatype, ', '.join(
                             '"%s"' % d for d in vars_catalog.keys())))
@@ -525,7 +537,8 @@ class ProblemConfig(Object):
         unique_variables = utility.unique_list(variables)
 
         if len(unique_variables) == 0:
-            raise Exception('Mode and datatype combination not implemented'
+            raise Exception(
+                'Mode and datatype combination not implemented'
                 ' or not resolvable with given datatypes.')
 
         return unique_variables
@@ -669,7 +682,7 @@ class SamplerConfig(Object):
 
     def set_parameters(self, **kwargs):
 
-        if self.name == None:
+        if self.name is None:
             logger.info('Sampler not defined, using default sampler: SMC')
             self.name = 'SMC'
 
@@ -716,17 +729,18 @@ class BEATconfig(Object, Cloneable):
 
         hypers = dict()
         for name in hypernames:
-            logger.info('Added hyperparameter %s to config and '
+            logger.info(
+                'Added hyperparameter %s to config and '
                 'model setup!' % name)
 
             defaultb_name = 'hypers'
             hypers[name] = Parameter(
                 name=name,
-                lower=num.ones(1, dtype=num.float) * \
+                lower=num.ones(1, dtype=tconfig.floatX) *
                     default_bounds[defaultb_name][0],
-                upper=num.ones(1, dtype=num.float) * \
+                upper=num.ones(1, dtype=tconfig.floatX) *
                     default_bounds[defaultb_name][1],
-                testvalue=num.ones(1, dtype=num.float) * \
+                testvalue=num.ones(1, dtype=tconfig.floatX) *
                     num.mean(default_bounds[defaultb_name])
                                     )
 
@@ -792,10 +806,12 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
         elif mode == 'interseismic':
             c.event = model.Event(lat=10., lon=10., depth=0.)
             c.date = 'dummy'
-            logger.info('Interseismic mode! Using event as reference for the'
+            logger.info(
+                'Interseismic mode! Using event as reference for the'
                 ' stable block! Please update coordinates!')
         else:
-            logger.warn('No given date! Using dummy event!'
+            logger.warn(
+                'No given date! Using dummy event!'
                 ' Updating reference coordinates (spatial & temporal)'
                 ' necessary!')
             c.event = model.Event(duration=1.)
@@ -844,8 +860,8 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
         if gc is not None:
             logger.info('Taking information from geometry_config ...')
             n_sources = gc.problem_config.n_sources
-            point = {k: v.testvalue \
-                for k, v in gc.problem_config.priors.iteritems()}
+            point = {k: v.testvalue
+                     for k, v in gc.problem_config.priors.iteritems()}
             source_points = utility.split_point(point)
             reference_sources = [RectangularSource(
                 **source_points[i]) for i in range(n_sources)]
@@ -931,7 +947,8 @@ def load_config(project_dir, mode, update=False):
 
     if update:
         config.update_hypers()
-        logger.info('Updated hyper parameters! Previous hyper'
+        logger.info(
+            'Updated hyper parameters! Previous hyper'
            ' parameter bounds are invalid now!')
         dump(config, filename=config_fn)
 

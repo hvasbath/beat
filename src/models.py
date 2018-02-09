@@ -559,7 +559,9 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
                 sources=self.sources,
                 targets=crust_targets,
                 dataset=data,
-                plot=False, n_jobs=1)
+                plot=plot,
+                event=self.event,
+                n_jobs=1)
 
             cov_pv = utility.ensure_cov_psd(cov_pv)
 

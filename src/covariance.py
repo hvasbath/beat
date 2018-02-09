@@ -1,4 +1,5 @@
 from pyrocko import gf, trace
+
 import numpy as num
 from time import time
 
@@ -271,7 +272,7 @@ def seismic_cov_velocity_models(engine, sources, targets,
 
 
 def geodetic_cov_velocity_models(
-    engine, sources, targets, dataset, plot=False, n_jobs=1):
+        engine, sources, targets, dataset, plot=False, event=None, n_jobs=1):
     """
     Calculate model prediction uncertainty matrix with respect to uncertainties
     in the velocity model for geodetic targets using fomosto GF stores.
@@ -285,6 +286,8 @@ def geodetic_cov_velocity_models(
     sources : list
         of :py:class:`pyrocko.gf.seismosizer.Source` determines the covariance
         matrix
+    plot : boolean
+        if set, a plot is produced and not covariance matrix is returned
 
     Returns
     -------
@@ -295,7 +298,6 @@ def geodetic_cov_velocity_models(
         engine=engine,
         targets=targets,
         sources=sources,
-        plot=plot,
         outmode='stacked_arrays')
     t1 = time()
     logger.debug('Synthetics generation time %f' % (t1 - t0))
@@ -303,9 +305,17 @@ def geodetic_cov_velocity_models(
     synths = num.zeros((len(targets), dataset.samples))
     for i, disp in enumerate(displacements):
         synths[i, :] = (
-            disp[:, 0] * dataset.los_vector[:, 0] + \
-            disp[:, 1] * dataset.los_vector[:, 1] + \
+            disp[:, 0] * dataset.los_vector[:, 0] +
+            disp[:, 1] * dataset.los_vector[:, 1] +
             disp[:, 2] * dataset.los_vector[:, 2]) * dataset.odw
+
+    if plot:
+        from matplotlib import pyplot as plt
+        indexes = dataset.get_distances_to_event(event).argsort()
+        ax = plt.axes()
+        im = ax.matshow(synths)  # [:, indexes])
+        plt.colorbar(im)
+        plt.show()
 
     return num.cov(synths, rowvar=0)
 

@@ -507,6 +507,11 @@ class GeodeticDataset(gf.meta.MultiLocation):
             loc.lat, loc.lon, self.lats, self.lons)
         return self.north_shifts, self.east_shifts
 
+    def get_distances_to_event(self, loc):
+        north_shifts, east_shifts = orthodrome.latlon_to_ne_numpy(
+            loc.lat, loc.lon, self.lats, self.lons)
+        return num.sqrt(north_shifts ** 2 + east_shifts ** 2)
+
     @property
     def samples(self):
         if self.lats is not None:
