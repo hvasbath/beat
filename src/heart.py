@@ -684,6 +684,42 @@ class GPSDataset(object):
         return self.stations.iteritems()
 
 
+class Quadtree(Object):
+
+    llE = Array.T(shape=(None,), dtype=num.float, optional=True)
+    llN = Array.T(shape=(None,), dtype=num.float, optional=True)
+    sizeN = Array.T(shape=(None,), dtype=num.float, optional=True)
+    sizeE = Array.T(shape=(None,), dtype=num.float, optional=True)
+
+    def iter_leaves(self):
+        """
+        Iterator over the quadtree leaves, returns lower left easting and
+        northing together with the width and height
+        """
+        for E, N, se, sn in zip(self.llE, self.llN, self.sizeE, self.sizeN):
+            yield E, N, se, sn
+
+    @classmethod
+    def from_kite_quadtree(cls, quadtree, **kwargs):
+        llE = num.zeros(quadtree.nleaves)
+        llN = num.zeros(quadtree.nleaves)
+        sizeE = num.zeros(quadtree.nleaves)
+        sizeN = num.zeros(quadtree.nleaves)
+
+        for i, leaf in enumerate(quadtree.leaves):
+            llE[i] = leaf.llE
+            llN[i] = leaf.llN
+            sizeE[i] = leaf.sizeE
+            sizeN[i] = leaf.sizeN
+
+        d = dict(
+            llE=llE,
+            llN=llN,
+            sizeE=sizeE,
+            sizeN=sizeN)
+        return cls(**d)
+
+
 class IFG(GeodeticDataset):
     """
     Interferogram class as a dataset in the optimization.
@@ -745,8 +781,8 @@ class DiffIFG(IFG):
     reference_point = Tuple.T(2, Float.T(), optional=True)
     reference_value = Float.T(optional=True, default=0.0)
     displacement = Array.T(shape=(None,), dtype=num.float, optional=True)
-    quadtree = Array.T(
-        shape=(None,), dtype=num.float, optional=True,
+    quadtree = Quadtree.T(
+        optional=True, default=None,
         help='Quadtree corner coordinate information for plotting.')
     covariance = Covariance.T(
         optional=True,
@@ -789,42 +825,6 @@ class DiffIFG(IFG):
             heading=-num.rad2deg(scene.quadtree.leaf_phis) + 180,
             odw=num.ones_like(scene.quadtree.leaf_phis),
             quadtree=quadtree)
-        return cls(**d)
-
-
-class Quadtree(Object):
-
-    llE = Array.T(shape=(None,), dtype=num.float, optional=True)
-    llN = Array.T(shape=(None,), dtype=num.float, optional=True)
-    sizeN = Array.T(shape=(None,), dtype=num.float, optional=True)
-    sizeE = Array.T(shape=(None,), dtype=num.float, optional=True)
-
-    def iter_leaves(self):
-        """
-        Iterator over the quadtree leaves, returns lower left easting and
-        northing together with the width and height
-        """
-        for E, N, se, sn in zip(self.llE, self.llN, self.sizeE, self.sizeN):
-            yield E, N, se, sn
-
-    @classmethod
-    def from_kite_quadtree(cls, quadtree, **kwargs):
-        llE = num.zeros(quadtree.nleaves)
-        llN = num.zeros(quadtree.nleaves)
-        sizeE = num.zeros(quadtree.nleaves)
-        sizeN = num.zeros(quadtree.nleaves)
-
-        for i, leaf in enumerate(quadtree.leaves):
-            llE[i] = leaf.llE
-            llN[i] = leaf.llN
-            sizeE[i] = leaf.sizeE
-            sizeN[i] = leaf.sizeN
-
-        d = dict(
-            llE=llE,
-            llN=llN,
-            sizeE=sizeE,
-            sizeN=sizeN)
         return cls(**d)
 
 
