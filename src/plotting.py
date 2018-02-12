@@ -487,6 +487,26 @@ def get_result_point(stage, config, point_llk='max'):
     return point
 
 
+def plot_quadtree(ax, target):
+    """
+    Plot UnwrappedIFG displacements on the respective quadtree rectangle.
+    """
+    rectangles = []
+    for E, N, sE, sN in target.quadtree.iter_leaves():
+        rectangles.append(
+            Rectangle(
+                (E / km, N / km),
+                width=sE / km,
+                height=sN / km,
+                edgecolor='black'))
+
+    patch_col = PatchCollection(rectangles, match_original=True)
+    patch_col.set(array=target.displacement, cmap=plt.cm.jet)
+
+    ax.add_collection(patch_col)
+    return ax
+
+
 def plot_scene(ax, target, data, scattersize, colim,
                outmode='latlon', **kwargs):
     if outmode == 'latlon':
@@ -496,8 +516,11 @@ def plot_scene(ax, target, data, scattersize, colim,
         x = target.utme / km
         y = target.utmn / km
     elif outmode == 'local':
-        x = target.east_shifts / km
-        y = target.north_shifts / km
+        if target.quadtree is not None:
+            return plot_quadtree(ax, target)
+        else:
+            x = target.east_shifts / km
+            y = target.north_shifts / km
 
     return ax.scatter(
         x, y, scattersize, data,
@@ -624,7 +647,7 @@ def geodetic_fits(problem, stage, plot_options):
                     xs /= km
 
                 ax.plot(xs, ys, '-k', linewidth=1.0)
-            
+
                 ax.set_xlim(xlim)
                 ax.set_ylim(ylim)
 
@@ -1329,6 +1352,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     else:
         make_bins_flag = False
 
+    input_color = copy.deepcopy(color)
     for i in range(n_fig):
         coli, rowi = utility.mod_i(i, nrow)
 
@@ -1339,13 +1363,13 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                 pass
         else:
             v = varnames[i]
-
+            color = copy.deepcopy(input_color)
             for d in trace.get_values(
                     v, combine=combined, chains=chains, squeeze=False):
                 d = transform(d)
                 # iterate over columns in case varsize > 1
-                color = None
-                for e in d.T:
+
+                for isource, e in enumerate(d.T):
                     e = pmp.utils.make_2d(e)
 
                     if make_bins_flag:
@@ -1368,7 +1392,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
                     if color is None:
                         color = scolor('aluminium4')
-                    else:
+                    elif isource == 2:
                         color = light(color, 0.3)
 
                     if plot_style == 'kde':

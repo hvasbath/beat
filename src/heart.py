@@ -745,6 +745,9 @@ class DiffIFG(IFG):
     reference_point = Tuple.T(2, Float.T(), optional=True)
     reference_value = Float.T(optional=True, default=0.0)
     displacement = Array.T(shape=(None,), dtype=num.float, optional=True)
+    quadtree = Array.T(
+        shape=(None,), dtype=num.float, optional=True,
+        help='Quadtree corner coordinate information for plotting.')
     covariance = Covariance.T(
         optional=True,
         help=':py:class:`Covariance` that holds data'
@@ -770,8 +773,10 @@ class DiffIFG(IFG):
             lat0=scene.frame.llLat, lon0=scene.frame.llLon,
             north_m=locn, east_m=loce)
 
+        quadtree = Quadtree.from_kite_quadtree(scene.quadtree)
+
         utme, utmn = utility.lonlat_to_utm(lons, lats, scene.frame.utm_zone)
-        #lons, lats = utility.lonlat(utme, utmn, scene.frame.utm_zone)
+
         d = dict(
             name=scene.meta.filename,
             displacement=scene.quadtree.leaf_means,
@@ -782,7 +787,44 @@ class DiffIFG(IFG):
             covariance=covariance,
             incidence=90 - num.rad2deg(scene.quadtree.leaf_thetas),
             heading=-num.rad2deg(scene.quadtree.leaf_phis) + 180,
-            odw=num.ones_like(scene.quadtree.leaf_phis))
+            odw=num.ones_like(scene.quadtree.leaf_phis),
+            quadtree=quadtree)
+        return cls(**d)
+
+
+class Quadtree(Object):
+
+    llE = Array.T(shape=(None,), dtype=num.float, optional=True)
+    llN = Array.T(shape=(None,), dtype=num.float, optional=True)
+    sizeN = Array.T(shape=(None,), dtype=num.float, optional=True)
+    sizeE = Array.T(shape=(None,), dtype=num.float, optional=True)
+
+    def iter_leaves(self):
+        """
+        Iterator over the quadtree leaves, returns lower left easting and
+        northing together with the width and height
+        """
+        for E, N, se, sn in zip(self.llE, self.llN, self.sizeE, self.sizeN):
+            yield E, N, se, sn
+
+    @classmethod
+    def from_kite_quadtree(cls, quadtree, **kwargs):
+        llE = num.zeros(quadtree.nleaves)
+        llN = num.zeros(quadtree.nleaves)
+        sizeE = num.zeros(quadtree.nleaves)
+        sizeN = num.zeros(quadtree.nleaves)
+
+        for i, leaf in enumerate(quadtree.leaves):
+            llE[i] = leaf.llE
+            llN[i] = leaf.llN
+            sizeE[i] = leaf.sizeE
+            sizeN[i] = leaf.sizeN
+
+        d = dict(
+            llE=llE,
+            llN=llN,
+            sizeE=sizeE,
+            sizeN=sizeN)
         return cls(**d)
 
 
