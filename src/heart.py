@@ -489,6 +489,8 @@ class GeodeticDataset(gf.meta.MultiLocation):
     name = String.T(
         default='A',
         help='e.g. GPS station name or InSAR satellite track ')
+    utmn = Array.T(shape=(None,), dtype=num.float, optional=True)
+    utme = Array.T(shape=(None,), dtype=num.float, optional=True)
 
     def update_local_coords(self, loc):
         """
@@ -505,6 +507,11 @@ class GeodeticDataset(gf.meta.MultiLocation):
 
         self.north_shifts, self.east_shifts = orthodrome.latlon_to_ne_numpy(
             loc.lat, loc.lon, self.lats, self.lons)
+
+        if hasattr(self, 'quadtree'):
+            if self.quadtree is not None:
+                self.quadtree.update_local_coords(loc)
+
         return self.north_shifts, self.east_shifts
 
     def get_distances_to_event(self, loc):
@@ -684,10 +691,11 @@ class GPSDataset(object):
         return self.stations.iteritems()
 
 
-class Quadtree(Object):
-
-    llE = Array.T(shape=(None,), dtype=num.float, optional=True)
-    llN = Array.T(shape=(None,), dtype=num.float, optional=True)
+class Quadtree(GeodeticDataset):
+    """
+    In the point coordinates are assumed to be te lower left corner
+    of the quadtree leaves.
+    """
     sizeN = Array.T(shape=(None,), dtype=num.float, optional=True)
     sizeE = Array.T(shape=(None,), dtype=num.float, optional=True)
 
@@ -696,25 +704,34 @@ class Quadtree(Object):
         Iterator over the quadtree leaves, returns lower left easting and
         northing together with the width and height
         """
-        for E, N, se, sn in zip(self.llE, self.llN, self.sizeE, self.sizeN):
+        for E, N, se, sn in zip(
+                self.east_shift, self.north_shift, self.sizeE, self.sizeN):
             yield E, N, se, sn
 
     @classmethod
     def from_kite_quadtree(cls, quadtree, **kwargs):
-        llE = num.zeros(quadtree.nleaves)
-        llN = num.zeros(quadtree.nleaves)
+        east_shifts = num.zeros(quadtree.nleaves)
+        north_shifts = num.zeros(quadtree.nleaves)
         sizeE = num.zeros(quadtree.nleaves)
         sizeN = num.zeros(quadtree.nleaves)
 
         for i, leaf in enumerate(quadtree.leaves):
-            llE[i] = leaf.llE
-            llN[i] = leaf.llN
+            east_shifts[i] = leaf.llE
+            north_shifts[i] = leaf.llN
             sizeE[i] = leaf.sizeE
             sizeN[i] = leaf.sizeN
 
+        lats, lons = orthodrome.ne_to_latlon(
+            lat0=quadtree.frame.llLat, lon0=quadtree.frame.llLon,
+            north_m=north_shifts, east_m=east_shifts)
+
+        utme, utmn = utility.lonlat_to_utm(lons, lats, quadtree.frame.utm_zone)
+
         d = dict(
-            llE=llE,
-            llN=llN,
+            lats=lats,
+            lons=lons,
+            utme=utme,
+            utmn=utmn,
             sizeE=sizeE,
             sizeN=sizeN)
         return cls(**d)
@@ -734,8 +751,6 @@ class IFG(GeodeticDataset):
     incidence = Array.T(shape=(None,), dtype=num.float, optional=True)
     heading = Array.T(shape=(None,), dtype=num.float, optional=True)
     los_vector = Array.T(shape=(None, 3), dtype=num.float, optional=True)
-    utmn = Array.T(shape=(None,), dtype=num.float, optional=True)
-    utme = Array.T(shape=(None,), dtype=num.float, optional=True)
     satellite = String.T(default='Envisat')
 
     def __str__(self):
