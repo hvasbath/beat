@@ -705,7 +705,7 @@ class Quadtree(GeodeticDataset):
         northing together with the width and height
         """
         for E, N, se, sn in zip(
-                self.east_shift, self.north_shift, self.sizeE, self.sizeN):
+                self.east_shifts, self.north_shifts, self.sizeE, self.sizeN):
             yield E, N, se, sn
 
     @classmethod

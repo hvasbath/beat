@@ -487,7 +487,7 @@ def get_result_point(stage, config, point_llk='max'):
     return point
 
 
-def plot_quadtree(ax, target):
+def plot_quadtree(ax, data, target, cmap, colim, alpha=0.8):
     """
     Plot UnwrappedIFG displacements on the respective quadtree rectangle.
     """
@@ -500,11 +500,22 @@ def plot_quadtree(ax, target):
                 height=sN / km,
                 edgecolor='black'))
 
-    patch_col = PatchCollection(rectangles, match_original=True)
-    patch_col.set(array=target.displacement, cmap=plt.cm.jet)
+    patch_col = PatchCollection(
+        rectangles, match_original=True, alpha=alpha, linewidth=0.5)
+    patch_col.set(array=data, cmap=cmap)
+    patch_col.set_clim((-colim, colim))
+
+    E = target.quadtree.east_shifts
+    N = target.quadtree.north_shifts
+    xmin = E.min() / km
+    xmax = (E + target.quadtree.sizeE).max() / km
+    ymin = N.min() / km
+    ymax = (N + target.quadtree.sizeN).max() / km
 
     ax.add_collection(patch_col)
-    return ax
+    ax.set_xlim((xmin, xmax))
+    ax.set_ylim((ymin, ymax))
+    return patch_col
 
 
 def plot_scene(ax, target, data, scattersize, colim,
@@ -517,7 +528,8 @@ def plot_scene(ax, target, data, scattersize, colim,
         y = target.utmn / km
     elif outmode == 'local':
         if target.quadtree is not None:
-            return plot_quadtree(ax, target)
+            cmap = kwargs.pop('cmap', plt.cm.jet)
+            return plot_quadtree(ax, data, target, cmap, colim)
         else:
             x = target.east_shifts / km
             y = target.north_shifts / km
@@ -646,8 +658,7 @@ def geodetic_fits(problem, stage, plot_options):
                     ys /= km
                     xs /= km
 
-                ax.plot(xs, ys, '-k', linewidth=1.0)
-
+                ax.plot(xs, ys, '-k', linewidth=0.5)
                 ax.set_xlim(xlim)
                 ax.set_ylim(ylim)
 
