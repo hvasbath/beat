@@ -26,7 +26,7 @@ from pyrocko.fomosto import qseis, qssp
 
 from pyrocko.model import Station
 
-#from pyrocko.fomosto import qseis2d
+# from pyrocko.fomosto import qseis2d
 
 
 logger = logging.getLogger('heart')
@@ -89,18 +89,21 @@ class Covariance(Object):
     for one observation object.
     """
 
-    data = Array.T(shape=(None, None),
-                    dtype=tconfig.floatX,
-                    help='Data covariance matrix',
-                    optional=True)
-    pred_g = Array.T(shape=(None, None),
-                    dtype=tconfig.floatX,
-                    help='Model prediction covariance matrix, fault geometry',
-                    optional=True)
-    pred_v = Array.T(shape=(None, None),
-                    dtype=tconfig.floatX,
-                    help='Model prediction covariance matrix, velocity model',
-                    optional=True)
+    data = Array.T(
+        shape=(None, None),
+        dtype=tconfig.floatX,
+        help='Data covariance matrix',
+        optional=True)
+    pred_g = Array.T(
+        shape=(None, None),
+        dtype=tconfig.floatX,
+        help='Model prediction covariance matrix, fault geometry',
+        optional=True)
+    pred_v = Array.T(
+        shape=(None, None),
+        dtype=tconfig.floatX,
+        help='Model prediction covariance matrix, velocity model',
+        optional=True)
 
     def __init__(self, **kwargs):
         self.slnf = shared(0., borrow=True)
@@ -347,7 +350,8 @@ class Parameter(Object):
 
         if self.name not in physical_bounds.keys():
             if self.name[0:2] != 'h_':
-                raise TypeError('The parameter "%s" cannot'
+                raise TypeError(
+                    'The parameter "%s" cannot'
                     ' be optimized for!' % self.name)
             else:
                 name = 'h'
@@ -357,19 +361,21 @@ class Parameter(Object):
         if self.lower is not None:
             for i in range(self.dimension):
                 if self.upper[i] < self.lower[i]:
-                    raise ValueError('The upper parameter bound for'
+                    raise ValueError(
+                        'The upper parameter bound for'
                         ' parameter "%s" must be higher than the lower'
                         ' bound' % self.name)
 
                 if self.testvalue[i] > self.upper[i] or \
-                    self.testvalue[i] < self.lower[i]:
-                    raise ValueError('The testvalue of parameter "%s" has to'
+                        self.testvalue[i] < self.lower[i]:
+                    raise ValueError(
+                        'The testvalue of parameter "%s" has to'
                         ' be within the upper and lower bounds' % self.name)
 
                 phys_b = physical_bounds[name]
 
                 if self.upper[i] > phys_b[1] or \
-                    self.lower[i] < phys_b[0]:
+                        self.lower[i] < phys_b[0]:
                     raise ValueError(
                         'The parameter bounds (%f, %f) for "%s" are outside of'
                         ' physically meaningful values (%f, %f)!' % (
@@ -745,7 +751,7 @@ class IFG(GeodeticDataset):
     master = String.T(optional=True,
                       help='Acquisition time of master image YYYY-MM-DD')
     slave = String.T(optional=True,
-                      help='Acquisition time of slave image YYYY-MM-DD')
+                     help='Acquisition time of slave image YYYY-MM-DD')
     amplitude = Array.T(shape=(None,), dtype=num.float, optional=True)
     wrapped_phase = Array.T(shape=(None,), dtype=num.float, optional=True)
     incidence = Array.T(shape=(None,), dtype=num.float, optional=True)
@@ -778,9 +784,9 @@ class IFG(GeodeticDataset):
 
         Su = num.cos(num.deg2rad(self.incidence))
         Sn = - num.sin(num.deg2rad(self.incidence)) * \
-             num.cos(num.deg2rad(self.heading - 270))
+            num.cos(num.deg2rad(self.heading - 270))
         Se = - num.sin(num.deg2rad(self.incidence)) * \
-             num.sin(num.deg2rad(self.heading - 270))
+            num.sin(num.deg2rad(self.heading - 270))
         self.los_vector = num.array([Sn, Se, Su], dtype=num.float).T
         return self.los_vector
 
@@ -854,9 +860,9 @@ class GeodeticResult(Object):
 
 
 def init_seismic_targets(
-    stations, earth_model_name='ak135-f-average.m', channels=['T', 'Z'],
-    sample_rate=1.0, crust_inds=[0], interpolation='multilinear',
-    reference_location=None, blacklist=[]):
+        stations, earth_model_name='ak135-f-average.m', channels=['T', 'Z'],
+        sample_rate=1.0, crust_inds=[0], interpolation='multilinear',
+        reference_location=None, blacklist=[]):
     """
     Initiate a list of target objects given a list of indexes to the
     respective GF store velocity model variation index (crust_inds).
@@ -890,11 +896,12 @@ def init_seismic_targets(
     """
 
     if reference_location is None:
-        store_prefixes = [copy.deepcopy(station.station) \
-             for station in stations]
+        store_prefixes = [
+            copy.deepcopy(station.station) for station in stations]
     else:
-        store_prefixes = [copy.deepcopy(reference_location.station) \
-             for station in stations]
+        store_prefixes = [
+            copy.deepcopy(reference_location.station)
+            for station in stations]
 
     em_name = get_earth_model_prefix(earth_model_name)
 
@@ -905,8 +912,9 @@ def init_seismic_targets(
                 cha = station.get_channel(channel)
                 if cha is None:
                     if station.station not in blacklist:
-                        logger.warn('Channel %s for station does not exist!'
-                                ' Putting station into blacklist!')
+                        logger.warn(
+                            'Channel %s for station does not exist!'
+                            ' Putting station into blacklist!')
                         blacklist.append(station.station)
                 else:
                     targets.append(DynamicTarget(
@@ -965,8 +973,7 @@ def init_geodetic_targets(
         quantity='displacement',
         store_id='%s_%s_%.3fHz_%s' % (
             'statics', em_name, sample_rate, crust_ind))
-            for crust_ind in crust_inds
-                for d in datasets]
+        for crust_ind in crust_inds for d in datasets]
 
     return targets
 
@@ -1177,18 +1184,33 @@ def get_velocity_model(
     :class:`pyrocko.cake.LayeredModel`
     """
     gfc = gf_config
+    avail_models = cake.builtin_models()
+
+    if earth_model_name not in avail_models and earth_model_name != 'local':
+        raise NotImplementedError(
+            'Earthmodel name "%s" not available!'
+            ' Implemented models: %s' % (
+                earth_model_name, utility.list2string(avail_models)))
 
     if custom_velocity_model is not None:
         logger.info('Using custom model from config file')
-        global_model = cake.load_model(earth_model_name)
-        source_model = utility.join_models(
-            global_model, custom_velocity_model)
+        if earth_model_name == 'local':
+            logger.info(
+                'Using only custom velocity model, not pasting into '
+                'global background model.')
+            source_model = custom_velocity_model
+        else:
+            global_model = cake.load_model(earth_model_name)
+            source_model = utility.join_models(
+                global_model, custom_velocity_model).extract(depth_max='cmb')
 
     elif gfc.use_crust2:
+        logger.info('Using crust2 profile')
         # load velocity profile from CRUST2x2 and check for water layer
         profile = crust2x2.get_profile(location.lat, location.lon)
 
         if gfc.replace_water:
+            logger.debug('Replacing water layers! ...')
             thickness_lwater = profile.get_layer(crust2x2.LWATER)[0]
             if thickness_lwater > 0.0:
                 logger.info(
@@ -1212,11 +1234,16 @@ def get_velocity_model(
                 profile._elevation = 0.0
                 logger.info('New Lower crust layer thickness %f' %
                             profile.get_layer(crust2x2.LLOWERCRUST)[0])
+        else:
+            logger.debug('Not replacing water layers')
+
         source_model = cake.load_model(
-            earth_model_name, crust2_profile=profile)
+            earth_model_name, crust2_profile=profile).extract(depth_max='cmb')
 
     else:
-        source_model = cake.load_model(earth_model_name)
+        logger.info('Using global model ...')
+        source_model = cake.load_model(
+            earth_model_name).extract(depth_max='cmb')
 
     if crust_ind > 0:
         source_model = ensemble_earthmodel(
@@ -1369,12 +1396,6 @@ def choose_backend(
             'For near-field phases the "qseis" backend has to be used!')
 
     if code == 'qseis':
-        # find common basement layer
-        l = source_model.layer(receiver_basement_depth)
-        receiver_model = receiver_model.extract(
-            depth_max=l.ztop)
-        receiver_model.append(l)
-
         version = '2006a'
         if 'slowest' in waveforms or distances.min() < 1000 * km:
             logger.info(
@@ -1387,6 +1408,11 @@ def choose_backend(
             sw_algorithm = 0
             sw_flat_earth_transform = 0
         else:
+            # find common basement layer
+            common_basement = source_model.layer(receiver_basement_depth)
+            receiver_model = receiver_model.extract(
+                depth_max=common_basement.ztop)
+            receiver_model.append(common_basement)
             sw_algorithm = 1
             sw_flat_earth_transform = 1
 
@@ -1434,7 +1460,7 @@ def choose_backend(
         raise Exception('Backend not supported: %s' % code)
 
     # fill remaining fomosto params
-    fc.earthmodel_1d = source_model.extract(depth_max='cmb')
+    fc.earthmodel_1d = source_model
     fc.earthmodel_receiver_1d = receiver_model
     fc.modelling_code_id = code + '.' + version
 
@@ -2039,10 +2065,10 @@ def geo_construct_gf_linear(
                 for d, data in zip(disp, datasets):
                     logger.debug('Target %s' % data.__str__())
                     gfs_data.append((
-                        d[:, 0] * data.los_vector[:, 0] + \
-                        d[:, 1] * data.los_vector[:, 1] + \
-                        d[:, 2] * data.los_vector[:, 2]) * \
-                            data.odw)
+                        d[:, 0] * data.los_vector[:, 0] +
+                        d[:, 1] * data.los_vector[:, 1] +
+                        d[:, 2] * data.los_vector[:, 2]) *
+                        data.odw)
 
                 gfs.append(num.vstack(gfs_data).T)
 
@@ -2077,7 +2103,7 @@ def get_phase_arrival_time(engine, source, target, wavename):
     except gf.seismosizer.NoSuchStore:
         raise gf.seismosizer.NoSuchStore(
             'No such store with ID %s found, distance [deg] to event: %f ' % (
-            target.store_id, cake.m2d * dist))
+                target.store_id, cake.m2d * dist))
 
     depth = source.depth
     return store.t(wavename, (depth, dist)) + source.time
@@ -2166,7 +2192,8 @@ class WaveformMapping(object):
                 'Inconsistent number of datasets and targets!')
         elif self.n_t == 0:
             raise CollectionError(
-                'No data left in wavemap "%s" after applying the distance filter!'
+                'No data left in wavemap "%s" after applying the distance'
+                ' filter!'
                 'The distance range has to be adjusted or the wavemap needs to'
                 ' be deactivated by setting include=False!' % self.name)
         else:
@@ -2354,8 +2381,6 @@ class DataWaveformCollection(object):
         datasets = []
         for target in targets:
             nslc_id = target.codes
-          #  nslc_id[2] = ''   # remove location code
-          #  nslc_id = tuple(nslc_id)
             try:
                 dtrace = self._datasets[nslc_id]
                 datasets.append(dtrace)
@@ -2468,7 +2493,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     stackmodes = ['array', 'data', 'stacked_traces']
 
     if outmode not in stackmodes:
-        raise StackingError('Outmode "%s" not available! Available: %s' % 
+        raise StackingError(
+            'Outmode "%s" not available! Available: %s' %
             outmode, utility.list2string(stackmodes))
 
     taperers = []
@@ -2496,7 +2522,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     t_1 = time()
 
     logger.debug('Synthetics generation time: %f' % (t_1 - t_2))
-    #logger.debug('Details: %s \n' % response.stats)
+    # logger.debug('Details: %s \n' % response.stats)
 
     nt = len(targets)
     ns = len(sources)
@@ -2568,7 +2594,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
 
 def geo_synthetics(
-    engine, targets, sources, outmode='stacked_array', plot=False, nprocs=1):
+        engine, targets, sources, outmode='stacked_array', plot=False,
+        nprocs=1):
     """
     Calculate synthetic displacements for a given static fomosto Greens
     Function database for sources and targets on the earths surface.
