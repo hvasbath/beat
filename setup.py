@@ -24,26 +24,39 @@ with open(REQUIREMENTS_FILE) as f:
     install_reqs = f.read().splitlines()
 
 
+def bash_completions_dir():
+    from subprocess import Popen, PIPE
+
+    def q(c):
+        return Popen(c, stdout=PIPE).communicate()[0]
+
+    try:
+        d = q(['pkg-config', 'bash-completion', '--variable=completionsdir'])
+        return d.strip().decode('utf-8')
+    except Exception:
+        return None
+
+
 class custom_build_py(build_py):
     def run(self):
         build_py.run(self)
-        try:
-            shutil.copy('extras/beat', '/etc/bash_completion.d/beat')
-            print 'Installing beat bash_completion...'
-        except IOError as e:
-            import errno
-            if e.errno in (errno.EACCES, errno.ENOENT):
-                print e
-            else:
-                raise e
+        bd_dir = bash_completions_dir()
+        if bd_dir:
+            try:
+                shutil.copy('extras/beat', bd_dir)
+                print('Installing beat bash_completion to "%s"' % bd_dir)
+            except Exception:
+                print(
+                    'Could not install beat bash_completion to "%s" '
+                    '(continuing without)'
+                    % bd_dir)
 
 
 subpackages = ['beat.fast_sweeping']
 
 setup(
     cmdclass={
-        'build_py': custom_build_py
-                },
+        'build_py': custom_build_py},
     name='beat',
     description='Bayesian Earthquake Analysis Tool',
     version='1.0beta',
@@ -55,8 +68,8 @@ setup(
     scripts=['apps/beat'],
     package_data={'beat': []},
     ext_modules=[
-        Extension('fast_sweep_ext',
+        Extension(
+            'fast_sweep_ext',
             sources=[os.path.join('src/fast_sweeping', 'fast_sweep_ext.c')],
-            include_dirs=[numpy.get_include()])
-                ]
+            include_dirs=[numpy.get_include()])]
 )
