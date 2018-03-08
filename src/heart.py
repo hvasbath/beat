@@ -2351,8 +2351,9 @@ def geo_construct_gf_linear(
     """
 
     if os.path.exists(outpath) and not force:
-        logger.info("Green's Functions exist! Use --force to"
-                    " overwrite!")
+        logger.info(
+            "Green's Functions exist! Use --force to"
+            " overwrite!")
     else:
         out_gfs = {}
         for var in varnames:
@@ -2383,15 +2384,15 @@ def geo_construct_gf_linear(
 
 
 def seis_construct_gf_linear(
-    engine, targets, fault, risetimes,
-    lower_corner_f, upper_corner_f, cut_interval, 
-    outpath, saveflag=False):
+        engine, targets, fault, risetimes, dist_patches, risetimes,
+        lower_corner_f, upper_corner_f, cut_interval,
+        outpath, saveflag=False):
     """
     Create seismic Greens Function matrix for defined source geometry
     by convolution of the GFs with the source time function (STF).
 
     Parameters
-    ---------- 
+    ----------
     engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
         main path to directory containing the different Greensfunction stores
     targets - list of pyrocko target objects for respective phase to compute
@@ -2402,38 +2403,44 @@ def seis_construct_gf_linear(
         risetimes - vector of risetimes of the STF for each patch to convolve
         lower/upper_corner_f - frequency range for filtering the GFs after
                                convolution
-        cut_interval - list[time before, after] tapering each 
+        cut_interval - list[time before, after] tapering each
                        phase arrival (target)
 
         outpath - path for storage
         saveflag - boolean to save Library at outpath
+
     Returns
     -------
     GFLibrary : list of Greensfunctions in the form
-                    [targets][patches][risetimes, cut_interval]
-        GFTimes - list of respective times of begin, phase arrival and end of 
+                [targets][patches][risetimes, cut_interval]
+    GFTimes : list of respective times of begin, phase arrival and end of
                   traces in the form [targets][patches][start,arrival,end]
     """
 
     GFLibrary = []
     Times = []
-    print 'Storing GFLibrary in ',outpath
+    logger.info('Storing seismic linear GF Library under ', outpath)
+    npatches = len(dist_patches)
+    ntargets = len(targets)
 
-    for i in xrange(len(targets)):
-        GFLibrary.append([0] * len(dist_patches))
-        Times.append([0] * len(dist_patches))
+    for i in range(ntargets):
+        GFLibrary.append([0] * npatches)
+        Times.append([0] * npatches)
 
-    for p in range(len(dist_patches)):
-        patches_risetimes = []
-        print 'Patch Number ',p
-        
-        for r in risetimes:
-            copy = dist_patches[p].clone()
-            copy.update(risetime = r)
-            patches_risetimes.append(copy)
-        
-        for t in range(len(targets)):
-            response = engine.process(sources=patches_risetimes, targets=[targets[t]], nprocs=nprocs)
+    for i, patch in enumerate(dist_patches):
+        source_patches_risetimes = []
+        logger.info('Patch Number %i', i)
+
+        for risetime in risetimes:
+            pcopy = patch.clone()
+            pcopy.update(risetime=risetime)
+            source_patches_risetimes.append(copy)
+
+        for j, target in enumerate(targets):
+            response = engine.process(
+                sources=source_patches_risetimes,
+                targets=target)
+            
             # get wave arrival times
             store = engine.get_store(targets[t].store_id)
             sdist = targets[t].distance_to(dist_patches[p])
