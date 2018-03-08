@@ -42,8 +42,7 @@ lambda_sensors = {
     'ERS1': 0.05656461471698113,
     'ERS2': 0.056,          # needs updating
     'JERS': 0.23513133960784313,
-    'RadarSat2': 0.055465772433
-    }
+    'RadarSat2': 0.055465772433}
 
 
 class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
@@ -56,14 +55,18 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
     the HalfspaceTool from GertjanVanZwieten.
     """
 
-    width = Float.T(help='width of the fault [m]',
-                    default=1. * km)
-    length = Float.T(help='length of the fault [m]',
-                    default=1. * km)
-    slip = Float.T(help='slip of the fault [m]',
-                    default=1.)
-    opening = Float.T(help='opening of the fault [m]',
-                    default=0.)
+    width = Float.T(
+        help='width of the fault [m]',
+        default=1. * km)
+    length = Float.T(
+        help='length of the fault [m]',
+        default=1. * km)
+    slip = Float.T(
+        help='slip of the fault [m]',
+        default=1.)
+    opening = Float.T(
+        help='opening of the fault [m]',
+        default=0.)
 
     @property
     def dipvector(self):
@@ -85,7 +88,7 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
         return num.array(
             [num.cos(self.dip * d2r) * num.cos(self.strike * d2r),
              -num.cos(self.dip * d2r) * num.sin(self.strike * d2r),
-              num.sin(self.dip * d2r)])
+             num.sin(self.dip * d2r)])
 
     @property
     def strikevector(self):
@@ -269,8 +272,9 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
         return patches
 
     def outline(self, cs='xyz'):
-        points = outline_rect_source(self.strike, self.dip, self.length,
-                                     self.width)
+        points = gf.seismosizer.outline_rect_source(
+            self.strike, self.dip, self.length, self.width)
+
         center = self.center(self.width)
         points[:, 0] += center[0]
         points[:, 1] += center[1]
@@ -280,7 +284,7 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
         elif cs == 'xy':
             return points[:, :2]
         elif cs in ('latlon', 'lonlat'):
-            latlon = ne_to_latlon(
+            latlon = orthodrome.ne_to_latlon(
                 self.lat, self.lon, points[:, 0], points[:, 1])
 
             latlon = num.array(latlon).T
@@ -289,8 +293,9 @@ class RectangularSource(gf.DCSource, gf.seismosizer.Cloneable):
             else:
                 return latlon[:, ::-1]
 
-    def extent_source(self, extension_width, extension_length,
-                     patch_width, patch_length):
+    def extent_source(
+            self, extension_width, extension_length,
+            patch_width, patch_length):
         """
         Extend fault into all directions. Rounds dimensions to have no
         half-patches.
@@ -2150,15 +2155,15 @@ class FaultGeometry(gf.seismosizer.Cloneable):
 
     def _check_datatype(self, datatype):
         if datatype not in self.datatypes:
-            raise Exception('Datatype not included in FaultGeometry')
+            raise TypeError('Datatype not included in FaultGeometry')
 
     def _check_component(self, component):
         if component not in self.components:
-            raise Exception('Component not included in FaultGeometry')
+            raise TypeError('Component not included in FaultGeometry')
 
     def _check_index(self, index):
         if index > self.nsubfaults - 1:
-            raise Exception('Subfault not defined!')
+            raise TypeError('Subfault with index %i not defined!' % index)
 
     def get_subfault_key(self, index, datatype, component):
 
@@ -2212,6 +2217,16 @@ class FaultGeometry(gf.seismosizer.Cloneable):
         return subfault.patches(nl=npl, nw=npw, datatype=datatype)
 
     def get_all_patches(self, datatype=None, component=None):
+        """
+        Get all RectangularSource patches for the full complex fault.
+
+        Parameters
+        ----------
+        datatype : str
+            'geodetic' or 'seismic'
+        component : str
+            slip component to return may be %s
+        """ % utility.list2string(slip_directions.keys())
 
         patches = []
         for i in range(self.nsubfaults):
@@ -2253,6 +2268,8 @@ def discretize_sources(
         patch_width=5000., patch_length=5000., datatypes=['geodetic'],
         varnames=['']):
     """
+    Build complex discretized fault.
+
     Extend sources into all directions and discretize sources into patches.
     Rounds dimensions to have no half-patches.
 
@@ -2273,9 +2290,7 @@ def discretize_sources(
 
     Returns
     -------
-    dict with dict of varnames with list of:
-        :class:`pscmp.PsCmpRectangularSource` or
-        :class:`pyrocko.gf.seismosizer.RectangularSource`
+    :class:'FaultGeometry'
     """
 
     npls = []
@@ -2357,10 +2372,10 @@ def geo_construct_gf_linear(
     else:
         out_gfs = {}
         for var in varnames:
-            logger.debug('For slip component: %s' % var)
+            logger.info('For slip component: %s' % var)
 
             gfs = []
-            for source in fault.get_all_patches('geodetic', var):
+            for source in fault.get_all_patches('geodetic', component=var):
                 disp = geo_synthetics(
                     engine=engine,
                     targets=targets,
@@ -2384,7 +2399,7 @@ def geo_construct_gf_linear(
 
 
 def seis_construct_gf_linear(
-        engine, targets, fault, risetimes, dist_patches, risetimes,
+        engine, targets, fault, risetimes, varnames,
         lower_corner_f, upper_corner_f, cut_interval,
         outpath, saveflag=False):
     """
@@ -2420,74 +2435,83 @@ def seis_construct_gf_linear(
     GFLibrary = []
     Times = []
     logger.info('Storing seismic linear GF Library under ', outpath)
-    npatches = len(dist_patches)
+    npatches = fault.nsubfaults
     ntargets = len(targets)
 
     for i in range(ntargets):
         GFLibrary.append([0] * npatches)
         Times.append([0] * npatches)
 
-    for i, patch in enumerate(dist_patches):
-        source_patches_risetimes = []
-        logger.info('Patch Number %i', i)
+    for var in varnames:
+        logger.info('For slip component: %s' % var)
 
-        for risetime in risetimes:
-            pcopy = patch.clone()
-            pcopy.update(risetime=risetime)
-            source_patches_risetimes.append(copy)
+        for i, patch in enumerate(
+                fault.get_all_patches('seismic', component=var)):
 
-        for j, target in enumerate(targets):
-            response = engine.process(
-                sources=source_patches_risetimes,
-                targets=target)
-            
-            # get wave arrival times
-            store = engine.get_store(targets[t].store_id)
-            sdist = targets[t].distance_to(dist_patches[p])
-            sdepth = dist_patches[p].depth
-            if targets[t].codes[3] == 'T':
-                wave = 'any_S'
-            else:
-                wave = 'any_P'
+            source_patches_risetimes = []
+            logger.info('Patch Number %i', i)
 
-            # have to add event time as traces are with respect to that
-            arrival_time = store.t(wave, (sdepth, sdist)) + dist_patches[p].time
-            cut_start = arrival_time - cut_interval[0]
-            cut_end = arrival_time + cut_interval[1]
+            for risetime in risetimes:
+                pcopy = patch.clone()
+                pcopy.update(risetime=risetime)
+                source_patches_risetimes.append(copy)
 
-            GF_traces = response.pyrocko_traces()
-            # bandpass
-            _ = [GF_traces[rt].bandpass(corner_hp = lower_corner_f, corner_lp = upper_corner_f, order=4) for rt in range(len(GF_traces))]
+            for j, target in enumerate(targets):
 
-            # get trace times
-            trcs_tmax = num.array([GF_traces[rt].tmax for rt in range(len(GF_traces))]).max()
-            trcs_tmin = num.array([GF_traces[rt].tmin for rt in range(len(GF_traces))]).min()
+                traces, tmins = seis_synthetics(
+                    engine=engine,
+                    sources=source_patches_risetimes,
+                    targets=[target],
+                    arrival_taper=,
+                    wavename='any_P',
+                    filterer=None,
+                    reference_taperer=None,
+                    outmode='array')
 
 
-            # zero padding of traces
-            if trcs_tmin > cut_start:
-                trcs_tmin = cut_start
-            if trcs_tmax < cut_end:
-                trcs_tmax = cut_end
-            _ = [GF_traces[rt].extend(trcs_tmin, trcs_tmax) for rt in range(len(GF_traces))]
 
-            # tapering around phase arrivals
-            taperer = trace.CosTaper(cut_start, 
-                                     cut_start + 10,
-                                     cut_end - 10,
-                                     cut_end)
-            _ = [GF_traces[rt].taper(taperer,inplace=True,chop=True) for rt in range(len(GF_traces))]
+                # have to add event time as traces are with respect to that
+                arrival_time = store.t(wave, (sdepth, sdist)) + dist_patches[p].time
+                cut_start = arrival_time - cut_interval[0]
+                cut_end = arrival_time + cut_interval[1]
 
-            # bandpass again
-            _ = [GF_traces[rt].bandpass(corner_hp = lower_corner_f, corner_lp = upper_corner_f, order=4) for rt in range(len(GF_traces))]
+                GF_traces = response.pyrocko_traces()
 
-            # get trace times of tapered traces
-            trcs_tmax = num.array([GF_traces[rt].tmax for rt in range(len(GF_traces))]).max()
-            trcs_tmin = num.array([GF_traces[rt].tmin for rt in range(len(GF_traces))]).min()
+                post_process_trace(trace, taper, filterer, taper_tolerance_factor=0.,
+                       outmode=None)
 
-            # re-arranging to matrix and put into list
-            GFLibrary[t][p] = (num.vstack([GF_traces[rt].ydata for rt in xrange(len(patches_risetimes))]))
-            Times[t][p] = num.vstack([trcs_tmin, arrival_time, trcs_tmax])
+                # bandpass
+                _ = [GF_traces[rt].bandpass(corner_hp = lower_corner_f, corner_lp = upper_corner_f, order=4) for rt in range(len(GF_traces))]
+
+                # get trace times
+                trcs_tmax = num.array([GF_traces[rt].tmax for rt in range(len(GF_traces))]).max()
+                trcs_tmin = num.array([GF_traces[rt].tmin for rt in range(len(GF_traces))]).min()
+
+
+                # zero padding of traces
+                if trcs_tmin > cut_start:
+                    trcs_tmin = cut_start
+                if trcs_tmax < cut_end:
+                    trcs_tmax = cut_end
+                _ = [GF_traces[rt].extend(trcs_tmin, trcs_tmax) for rt in range(len(GF_traces))]
+
+                # tapering around phase arrivals
+                taperer = trace.CosTaper(cut_start, 
+                                         cut_start + 10,
+                                         cut_end - 10,
+                                         cut_end)
+                _ = [GF_traces[rt].taper(taperer,inplace=True,chop=True) for rt in range(len(GF_traces))]
+
+                # bandpass again
+                _ = [GF_traces[rt].bandpass(corner_hp = lower_corner_f, corner_lp = upper_corner_f, order=4) for rt in range(len(GF_traces))]
+
+                # get trace times of tapered traces
+                trcs_tmax = num.array([GF_traces[rt].tmax for rt in range(len(GF_traces))]).max()
+                trcs_tmin = num.array([GF_traces[rt].tmin for rt in range(len(GF_traces))]).min()
+
+                # re-arranging to matrix and put into list
+                GFLibrary[t][p] = (num.vstack([GF_traces[rt].ydata for rt in xrange(len(patches_risetimes))]))
+                Times[t][p] = num.vstack([trcs_tmin, arrival_time, trcs_tmax])
 
     if saveflag:
         with open(outpath,'w') as f:
@@ -2909,6 +2933,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     -------
     :class:`numpy.ndarray` or List of :class:`pyrocko.trace.Trace`
          with data each row-one target
+    :class:`numpy.ndarray` of tmins for traces
     """
     stackmodes = ['array', 'data', 'stacked_traces']
 

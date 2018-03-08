@@ -5,7 +5,8 @@ import os
 os.environ["OMP_NUM_THREADS"] = "1"
 
 import logging
-import sys, copy
+import sys
+import copy
 import shutil
 
 from optparse import OptionParser
@@ -27,32 +28,32 @@ logger = logging.getLogger('beat')
 
 
 def d2u(d):
-    return dict((k.replace('-','_'), v) for (k, v) in d.iteritems())
+    return dict((k.replace('-', '_'), v) for (k, v) in d.iteritems())
 
 
 subcommand_descriptions = {
-        'init':           'create a new EQ model project, use only event'
-                          ' name to skip catalog search',
-        'import':         'import data or results, from external format or '
-                          'modeling results, respectively',
-        'sample':         'sample the solution space of the problem',
-        'build_gfs':      'build GF stores',
-        'clone':          'clone EQ model project into new directory',
-        'plot':           'plot specified setups or results',
-        'check':          'check setup specific requirements',
-        'summarize':      'collect results and create statistics',
+    'init':           'create a new EQ model project, use only event'
+                      ' name to skip catalog search',
+    'import':         'import data or results, from external format or '
+                      'modeling results, respectively',
+    'sample':         'sample the solution space of the problem',
+    'build_gfs':      'build GF stores',
+    'clone':          'clone EQ model project into new directory',
+    'plot':           'plot specified setups or results',
+    'check':          'check setup specific requirements',
+    'summarize':      'collect results and create statistics',
 }
 
 subcommand_usages = {
-        'init':          'init <event_name> <event_date "YYYY-MM-DD"> '
-                         '[options]',
-        'import':        'import <event_name> [options]',
-        'sample':        'sample <event_name> [options]',
-        'build_gfs':     'build_gfs <event_name> [options]',
-        'clone':         'clone <event_name> <cloned_event_name> [options]',
-        'plot':          'plot <event_name> <plot_type> [options]',
-        'check':         'check <event_name> [options]',
-        'summarize':     'summarize <event_name> [options]',
+    'init':          'init <event_name> <event_date "YYYY-MM-DD"> '
+                     '[options]',
+    'import':        'import <event_name> [options]',
+    'sample':        'sample <event_name> [options]',
+    'build_gfs':     'build_gfs <event_name> [options]',
+    'clone':         'clone <event_name> <cloned_event_name> [options]',
+    'plot':          'plot <event_name> <plot_type> [options]',
+    'check':         'check <event_name> [options]',
+    'summarize':     'summarize <event_name> [options]',
 }
 
 subcommands = subcommand_descriptions.keys()
@@ -148,7 +149,7 @@ def cl_parse(command, args, setup=None, details=None):
 
     susage = '%s %s' % (program_name, usage[0])
     for s in usage[1:]:
-        susage += '\n%s%s %s' % (' '*7, program_name, s)
+        susage += '\n%s%s %s' % (' ' * 7, program_name, s)
 
     description = descr[0].upper() + descr[1:] + '.'
 
@@ -187,76 +188,87 @@ def command_init(args):
 
     def setup(parser):
 
-        parser.add_option('--min_mag', dest='min_mag', type=float,
+        parser.add_option(
+            '--min_mag', dest='min_mag', type=float,
             default=6.,
             help='Minimum Mw for event, for catalog search.'
                  ' Default: "6.0"')
 
-        parser.add_option('--main_path', dest='main_path', type='string',
+        parser.add_option(
+            '--main_path', dest='main_path', type='string',
             default='./',
             help='Main path (absolute) for creating directory structure.'
                  '  Default: current directory ./')
 
-        parser.add_option('--datatypes',
+        parser.add_option(
+            '--datatypes',
             default=['geodetic'], type='string',
             action='callback', callback=list_callback,
             help='Datatypes to include in the setup; "geodetic, seismic".')
 
-        parser.add_option('--mode', dest='mode',
-            choices=mode_choices ,
+        parser.add_option(
+            '--mode', dest='mode',
+            choices=mode_choices,
             default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' % \
-                list2string(mode_choices))
+            help='Inversion problem to solve; %s Default: "geometry"' %
+                 list2string(mode_choices))
 
-        parser.add_option('--source_type', dest='source_type',
+        parser.add_option(
+            '--source_type', dest='source_type',
             choices=config.source_names,
             default='RectangularSource',
             help='Source type to solve for; %s'
                  '. Default: "RectangularSource"' % (
                      '", "'.join(name for name in config.source_names)))
 
-        parser.add_option('--n_sources', dest='n_sources', type='int',
+        parser.add_option(
+            '--n_sources', dest='n_sources', type='int',
             default=1,
-            help='Integer Number of sources to invert for. Default: 1' )
+            help='Integer Number of sources to invert for. Default: 1')
 
-        parser.add_option('--waveforms', type='string',
+        parser.add_option(
+            '--waveforms', type='string',
             action='callback', callback=list_callback,
             default=['any_P', 'any_S'],
             help='Waveforms to include in the setup; "any_P, any_S, slowest".')
 
-        parser.add_option('--sampler', dest='sampler', type='string',
+        parser.add_option(
+            '--sampler', dest='sampler', type='string',
             default='SMC',
             help='Sampling algorithm to sample the solution space of the'
                  ' general problem; "SMC", "Metropolis". Default: "SMC"')
 
-        parser.add_option('--hyper_sampler', dest='hyper_sampler',
+        parser.add_option(
+            '--hyper_sampler', dest='hyper_sampler',
             type='string', default='Metropolis',
             help='Sampling algorithm to sample the solution space of the'
                  ' hyperparameters only; So far only "Metropolis" supported.'
                  'Default: "Metropolis"')
 
-        parser.add_option('--use_custom', dest='use_custom',
+        parser.add_option(
+            '--use_custom', dest='use_custom',
             action='store_true',
             help='If set, a slot for a custom velocity model is being created'
                  ' in the configuration file.')
 
-        parser.add_option('--individual_gfs', dest='individual_gfs',
+        parser.add_option(
+            '--individual_gfs', dest='individual_gfs',
             action='store_true',
             help="If set, Green's Function stores will be created individually"
                  " for each station!")
 
     parser, options, args = cl_parse('init', args, setup=setup)
 
-    l = len(args)
+    la = len(args)
 
-    if l > 2 or l < 1:
+    if la > 2 or la < 1:
         logger.error('Wrong number of input arguments!')
         parser.print_help()
         sys.exit(1)
 
-    if l == 2:
+    if la == 2:
         name, date = args
-    elif l == 1:
+    elif la == 1:
         logger.info(
             'Doing no catalog search for event information!')
         name = args[0]
@@ -331,8 +343,6 @@ def command_import(args):
         args, options, nargs_dict[command_str])
 
     c = config.load_config(project_dir, options.mode)
-
-    pc = c.problem_config
 
     if not options.results:
         if 'seismic' in options.datatypes:
@@ -441,24 +451,28 @@ def command_clone(args):
 
     def setup(parser):
 
-        parser.add_option('--main_path', dest='main_path', type='string',
+        parser.add_option(
+            '--main_path', dest='main_path', type='string',
             default='./',
             help='Main path (absolute) leading to folders of events that'
                  ' have been created by "init".'
                  ' Default: current directory: ./')
 
-        parser.add_option('--datatypes',
+        parser.add_option(
+            '--datatypes',
             default=['geodetic', 'seismic'], type='string',
             action='callback', callback=list_callback,
             help='Datatypes to clone; "geodetic, seismic".')
 
-        parser.add_option('--mode', dest='mode',
-            choices=mode_choices ,
+        parser.add_option(
+            '--mode', dest='mode',
+            choices=mode_choices,
             default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' % \
-                list2string(mode_choices))
+            help='Inversion problem to solve; %s Default: "geometry"' %
+                 list2string(mode_choices))
 
-        parser.add_option('--copy_data', dest='copy_data',
+        parser.add_option(
+            '--copy_data', dest='copy_data',
             action='store_true',
             help='If set, the imported data will be copied into the cloned'
                  ' directory.')
@@ -522,25 +536,29 @@ def command_clone(args):
         else:
             raise IOError('Config file: %s does not exist!' % config_fn)
 
+
 def command_sample(args):
 
     command_str = 'sample'
 
     def setup(parser):
-        parser.add_option('--mode', dest='mode',
-            choices=mode_choices ,
+        parser.add_option(
+            '--mode', dest='mode',
+            choices=mode_choices,
             default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' % \
-                list2string(mode_choices))
+            help='Inversion problem to solve; %s Default: "geometry"' %
+                 list2string(mode_choices))
 
-        parser.add_option('--main_path', dest='main_path', type='string',
+        parser.add_option(
+            '--main_path', dest='main_path', type='string',
             default='./',
             help='Main path (absolute) leading to folders of events that'
                  ' have been created by "init".'
                  ' Default: current directory: ./')
 
-        parser.add_option('--hypers', dest='hypers',
-                action='store_true', help='Sample hyperparameters only.')
+        parser.add_option(
+            '--hypers', dest='hypers',
+            action='store_true', help='Sample hyperparameters only.')
 
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
@@ -564,20 +582,23 @@ def command_summarize(args):
 
     def setup(parser):
 
-        parser.add_option('--main_path', dest='main_path', type='string',
+        parser.add_option(
+            '--main_path', dest='main_path', type='string',
             default='./',
             help='Main path (absolute) leading to folders of events that'
                  ' have been created by "init".'
                  ' Default: current directory: ./')
 
-        parser.add_option('--mode', dest='mode',
-            choices=mode_choices ,
+        parser.add_option(
+            '--mode', dest='mode',
+            choices=mode_choices,
             default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' % \
-                list2string(mode_choices))
+            help='Inversion problem to solve; %s Default: "geometry"' %
+                 list2string(mode_choices))
 
-        parser.add_option('--force', dest='force', action='store_true',
-                help='Overwrite existing files')
+        parser.add_option(
+            '--force', dest='force', action='store_true',
+            help='Overwrite existing files')
 
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
@@ -638,30 +659,35 @@ def command_build_gfs(args):
 
     def setup(parser):
 
-        parser.add_option('--main_path', dest='main_path', type='string',
+        parser.add_option(
+            '--main_path', dest='main_path', type='string',
             default='./',
             help='Main path (absolute) leading to folders of events that'
                  ' have been created by "init".'
                  ' Default: current directory: ./')
 
-        parser.add_option('--mode', dest='mode',
-            choices=mode_choices ,
+        parser.add_option(
+            '--mode', dest='mode',
+            choices=mode_choices,
             default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' % \
-                list2string(mode_choices))
+            help='Inversion problem to solve; %s Default: "geometry"' %
+                 list2string(mode_choices))
 
-        parser.add_option('--datatypes',
+        parser.add_option(
+            '--datatypes',
             default='geodetic', type='string',
             action='callback', callback=list_callback,
             help='Datatypes to calculate the GFs for; "geodetic, seismic".'
                  ' Default: "geodetic"')
 
-        parser.add_option('--force', dest='force', action='store_true',
-                help='Overwrite existing files')
+        parser.add_option(
+            '--force', dest='force', action='store_true',
+            help='Overwrite existing files')
 
-        parser.add_option('--execute', dest='execute', action='store_true',
-                help='Start actual GF calculations. If not set only'
-                     ' configuration files are being created')
+        parser.add_option(
+            '--execute', dest='execute', action='store_true',
+            help='Start actual GF calculations. If not set only'
+                 ' configuration files are being created')
 
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
@@ -732,11 +758,6 @@ def command_build_gfs(args):
             geodetic_data_path = os.path.join(
                 c.project_dir, config.geodetic_data_name)
 
-            datasets = utility.load_objects(geodetic_data_path)
-            for data in datasets:
-                if data.los_vector is None:
-                    data.update_los_vector()
-
             outdir = os.path.join(
                 c.project_dir, options.mode, config.linear_gf_dir_name)
             util.ensuredir(outdir)
@@ -774,6 +795,11 @@ def command_build_gfs(args):
                 config.dump_config(c)
 
             if options.execute:
+                datasets = utility.load_objects(geodetic_data_path)
+                for data in datasets:
+                    if data.los_vector is None:
+                        data.update_los_vector()
+
                 logger.info("Calculating linear Green's Functions...")
                 engine = LocalEngine(store_superdirs=[gf.store_superdir])
 
@@ -1029,7 +1055,7 @@ if __name__ == '__main__':
         if command == 'help' and args:
             acommand = args[0]
             if acommand in subcommands:
-                globals()['command_'+ acommand]([ '--help' ] )
+                globals()['command_' + acommand](['--help'])
 
         sys.exit('Usage: %s' % usage)
 
