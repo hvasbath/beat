@@ -2,6 +2,9 @@ from beat import heart
 import os
 import logging
 import collections
+from pyrock.trace import snuffle
+from theano import shared
+from theano import config as tconfig
 
 
 logger = logging.getLogger('ffy')
@@ -9,6 +12,127 @@ logger = logging.getLogger('ffy')
 
 PatchMap = collections.namedtuple(
     'PatchMap', 'count, slc, shp, npatches')
+
+
+gf_entries = ['risetimes', 'start_times', 'patches', 'targets']
+
+
+slip_directions = {
+    'Uparr': {'slip': 1., 'rake': 0.},
+    'Uperp': {'slip': 1., 'rake': -90.},
+    'Utensile': {'slip': 0., 'rake': 0., 'opening': 1.}}
+
+
+class GFLibraryError(Exception):
+    pass
+
+
+class SeismicGFLibrary(object):
+    """
+    Seismic Greens Funcion Library for the finite fault optimization.
+
+    Eases inspection of Greens Functions through interface to the snuffler.
+
+    Parameters
+    ----------
+    component : str
+        component of slip for which the library is valid
+    event : :class:`pyrocko.model.Event`
+        Event information for which the library is built
+    stations : list
+        of station : :class:`pyrocko.model.Station`
+    targets : list
+        containing :class:`pyrocko.gf.seismosizer.Target` Objects
+    """
+    def __init__(
+            self, component=None, event=None, targets=None, stations=None):
+
+        if component is None:
+            raise TypeError('Slip component is not defined')
+
+        self.component = component
+        self.event = event
+        self.targets = targets
+        self.stations = stations
+        self._gfmatrix = None
+        self._sgfmatrix = None
+
+    def setup(self, ntargets, npatches, nrisetimes, nstarttimes, nsamples):
+        if ntargets != self.nstations:
+            raise GFLibraryError(
+                'Number of stations and targets is inconsistent!'
+                'ntargets %i, nstations %i' % (ntargets, self.nstations))
+
+        if nrisetimes != nstarttimes:
+            raise GFLibraryError(
+                'Number of start-times and risetimes is inconsistent!')
+                ''
+
+        self._gfmatrix = num.zeros(
+            [ntargets, npatches, nrisetimes, nstarttimes, nsamples])
+        self._sgfmatrix = shared(self._gfmatrix, borrow=True)
+
+    def put(entries, target, patchidx, indexes):
+        self._check_setup()
+        tidx = self.target_index_mapping
+
+        self._gfmatrix[tidx, patchidx, ,:] = entries
+
+    def _check_setup(self):
+        if self._gfmatrix is None:
+            raise GFLibraryError(
+                'Seismic Greens Function Library is not set up!')
+
+    def target_index_mapping(self):
+        if self._target2index is None:
+            self._target2index = dict(
+                (target, i) for (i, target) in enumerate(
+                    self.targets))
+        return self._target2index
+
+    @property
+    def nstations(self):
+        return len(stations)
+
+    @property
+    def ntargets(self):
+        self._check_setup()
+        return self._gfmatrix.shape[0]
+
+    @property
+    def npatches(self):
+        self._check_setup()
+        return self._gfmatrix.shape[1]
+
+    @property
+    def nrisetimes(self):
+        self._check_setup()
+        return self._gfmatrix.shape[2]
+
+    @property
+    def nstarttimes(self):
+        self._check_setup()
+        return self._gfmatrix.shape[3]
+
+    @property
+    def nsamples(self):
+        self._check_setup()
+        return self._gfmatrix.shape[4]
+
+    def tstack():
+        c[0,:,rts,stt,:].reshape((self.nrisetimes, self.nsample)).T.dot(u)
+
+    def stack)()
+
+    def snuffle(entry='risetimes', targets=[], patches=[]):
+        """
+        Opens pyrocko's snuffler with the specified traces.
+
+        Parameters
+        ----------
+        """
+        traces = []
+        snuffle(traces, events=[self.event], stations=stations)
 
 
 class FaultOrdering(object):
@@ -38,12 +162,6 @@ class FaultOrdering(object):
             count += 1
 
         self.npatches = dim
-
-
-slip_directions = {
-    'Uparr': {'slip': 1., 'rake': 0.},
-    'Uperp': {'slip': 1., 'rake': -90.},
-    'Utensile': {'slip': 0., 'rake': 0., 'opening': 1.}}
 
 
 class FaultGeometry(gf.seismosizer.Cloneable):
