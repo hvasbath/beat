@@ -122,7 +122,7 @@ class SeismicGFLibrary(object):
     def tstack():
         c[0,:,rts,stt,:].reshape((self.nrisetimes, self.nsample)).T.dot(u)
 
-    def stack)()
+    def stack():
 
     def snuffle(entry='risetimes', targets=[], patches=[]):
         """
