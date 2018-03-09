@@ -2,7 +2,7 @@ from beat import heart, utility
 import os
 import logging
 import collections
-from pyrock.trace import snuffle
+from pyrock.trace import snuffle, Trace
 from theano import shared
 from theano import config as tconfig
 
@@ -143,7 +143,8 @@ class SeismicGFLibrary(object):
             tidx, patchidxs, risetimeidxs, starttimeidxs, :].reshape(
                 (self.nrisetimes, self.nsample)).T.dot(slips)
 
-    def snuffle(entry='risetimes', targets=[], patches=[]):
+    def snuffle(
+            targets=[], patchidxs=[0], risetimeidxs=[0], starttimeidxs=[0]):
         """
         Opens pyrocko's snuffler with the specified traces.
 
@@ -151,7 +152,21 @@ class SeismicGFLibrary(object):
         ----------
         """
         traces = []
-        snuffle(traces, events=[self.event], stations=stations)
+        display_stations = []
+        for target in targets:
+            tidx = target_index_mapping[target]
+            display_stations.append(self.stations[tidx])
+            for patch in patches:
+                for rtidx in risetimeidxs:
+                    for startidx in starttimeidxs:
+                        tr = Trace(
+                            ydata=self._gfmatrix[
+                                tidx, patch, rtidx, startidx, :],
+                            deltat=float(target.store_id.split('_')[3][0:5]),
+                            tmin=event.time)
+                        traces.append(tr)
+
+        snuffle(traces, events=[self.event], stations=display_stations)
 
     def _check_setup(self):
         if self._gfmatrix is None:
@@ -164,12 +179,6 @@ class SeismicGFLibrary(object):
                 (target, i) for (i, target) in enumerate(
                     self.targets))
         return self._target2index
-
-    def risetimes_index_mapping(risetimes):
-        if self._risetimes2index is None:
-            if self._mode == 'numpy':
-                self._risetimes2index = 
-
 
     @property
     def nstations(self):
