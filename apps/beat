@@ -751,6 +751,8 @@ def command_build_gfs(args):
                 logger.info('Seismic GF calculations successful!')
 
     elif options.mode == 'static':
+        from beat import ffi
+
         geo = 'geodetic'
         if geo in options.datatypes:
             gf = c.geodetic_config.gf_config
@@ -768,7 +770,7 @@ def command_build_gfs(args):
             varnames = [varname for varname in c.problem_config.priors.keys()]
 
             logger.info('Discretizing reference sources ...')
-            fault = heart.discretize_sources(
+            fault = ffi.discretize_sources(
                 varnames=varnames,
                 sources=gf.reference_sources,
                 extension_width=gf.extension_width,
@@ -817,7 +819,7 @@ def command_build_gfs(args):
                         crust_inds=[crust_ind],
                         sample_rate=gf.sample_rate)
 
-                    heart.geo_construct_gf_linear(
+                    ffi.geo_construct_gf_linear(
                         engine=engine,
                         outpath=outpath,
                         crust_ind=crust_ind,

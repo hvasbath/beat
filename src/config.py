@@ -36,15 +36,15 @@ block_vars = ['bl_azimuth', 'bl_amplitude']
 seis_vars = ['time', 'duration']
 
 source_names = '''
-ExplosionSource
-RectangularExplosionSource
-DCSource
-CLVDSource
-MTSource
-RectangularSource
-DoubleDCSource
-RingfaultSource
-'''.split()
+    ExplosionSource
+    RectangularExplosionSource
+    DCSource
+    CLVDSource
+    MTSource
+    RectangularSource
+    DoubleDCSource
+    RingfaultSource
+    '''.split()
 
 source_classes = [
     gf.ExplosionSource,
@@ -737,12 +737,11 @@ class BEATconfig(Object, Cloneable):
             hypers[name] = Parameter(
                 name=name,
                 lower=num.ones(1, dtype=tconfig.floatX) *
-                    default_bounds[defaultb_name][0],
+                default_bounds[defaultb_name][0],
                 upper=num.ones(1, dtype=tconfig.floatX) *
-                    default_bounds[defaultb_name][1],
+                default_bounds[defaultb_name][1],
                 testvalue=num.ones(1, dtype=tconfig.floatX) *
-                    num.mean(default_bounds[defaultb_name])
-                                    )
+                num.mean(default_bounds[defaultb_name]))
 
         self.problem_config.hyperparameters = hypers
         self.problem_config.validate_hypers()
@@ -949,7 +948,7 @@ def load_config(project_dir, mode, update=False):
         config.update_hypers()
         logger.info(
             'Updated hyper parameters! Previous hyper'
-           ' parameter bounds are invalid now!')
+            ' parameter bounds are invalid now!')
         dump(config, filename=config_fn)
 
     return config
