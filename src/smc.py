@@ -951,10 +951,10 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
         if draws < 10:
             chunksize = int(np.ceil(float(n_chains) / n_jobs))
             tps += 5.
-        else:   # draws > 10 and tps < 1.:
+        elif draws > 10 and tps < 1.:
+            chunksize = int(np.ceil(float(n_chains) / n_jobs))
+        else:
             chunksize = n_jobs
-#        else:
-#            chunksize = 1
 
         timeout += int(np.ceil(tps * draws)) * n_jobs
 
