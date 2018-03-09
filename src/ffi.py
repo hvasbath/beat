@@ -1,4 +1,4 @@
-from beat import heart
+from beat import heart, utility
 import os
 import logging
 import collections
@@ -56,6 +56,14 @@ class SeismicGFLibrary(object):
         self.stations = stations
         self._gfmatrix = None
         self._sgfmatrix = None
+        self._mode = 'numpy'
+        self._stack_switch = {
+            'numpy': self._gfmatrix,
+            'theano': self._sgfmatrix}
+
+        self._target2index = None
+        self._risetimes2index = None
+        self._starttimes2index = None
 
     def setup(self, ntargets, npatches, nrisetimes, nstarttimes, nsamples):
         if ntargets != self.nstations:
@@ -65,18 +73,85 @@ class SeismicGFLibrary(object):
 
         if nrisetimes != nstarttimes:
             raise GFLibraryError(
-                'Number of start-times and risetimes is inconsistent!')
-                ''
+                'Number of start-times and risetimes is inconsistent!'
+                'nrisetimes %i, nstarttimes %i' % (nrisetimes, nstarttimes))
 
         self._gfmatrix = num.zeros(
             [ntargets, npatches, nrisetimes, nstarttimes, nsamples])
-        self._sgfmatrix = shared(self._gfmatrix, borrow=True)
 
-    def put(entries, target, patchidx, indexes):
+    def init_optimization_mode(self):
+        logger.info('Setting linear seismic GF Library to optimization mode.')
+        self._sgfmatrix = shared(
+            self._gfmatrix.astype(tconfig.floatX), borrow=True)
+
+        self.set_stack_mode(mode='theano')
+
+    def put(entries, target, patchidx, starttimeidxs, risetimeidxs):
+        """
+        Fill the GF Library with synthetic traces.
+
+        Parameters
+        ----------
+        entries : :class:`numpy.ndarray`
+        """
+        if entries.shape[1] != self.nsamples:
+            raise GFLibraryError(
+                'Trace length of entries is not consistent with the library'
+                ' to be filled! Entries length: %i Library: %i.' % (
+                    entries.shape[0], self.nsamples))
+
         self._check_setup()
-        tidx = self.target_index_mapping
+        tidx = self.target_index_mapping[target]
 
-        self._gfmatrix[tidx, patchidx, ,:] = entries
+        self._gfmatrix[
+            tidx, patchidx, risetimeidxs, starttimeidxs, :] = entries
+
+    def set_stack_mode(mode='numpy'):
+        """
+        Sets mode on witch backend the stacking is working.
+        Dependend on that the input to the stack function has to be
+        either of :class:`numpy.ndarray` or of :class:`theano.tensor.Tensor`
+
+        Parameters
+        ----------
+        mode : str
+            on witch array to stack
+        """
+        available_modes = self._stack_switch.keys()
+        if mode not in available_modes:
+            raise GFLibraryError(
+                'Stacking mode %s not available! '
+                'Available modes: %s' % utility.list2string(available_modes))
+
+        self._mode = mode
+
+    def stack(target, patchidxs, starttimeidxs, risetimeidxs, slips):
+        """
+        Stack ALL samples of the traces from the GF Library of specified
+        target, patch, risetimes and starttimes.
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        :class:`numpy.ndarray` or of :class:`theano.tensor.Tensor` dependend
+        on stack mode
+        """
+        tidx = target_index_mapping[target]
+        return self._stack_switch[self._mode][
+            tidx, patchidxs, risetimeidxs, starttimeidxs, :].reshape(
+                (self.nrisetimes, self.nsample)).T.dot(slips)
+
+    def snuffle(entry='risetimes', targets=[], patches=[]):
+        """
+        Opens pyrocko's snuffler with the specified traces.
+
+        Parameters
+        ----------
+        """
+        traces = []
+        snuffle(traces, events=[self.event], stations=stations)
 
     def _check_setup(self):
         if self._gfmatrix is None:
@@ -89,6 +164,12 @@ class SeismicGFLibrary(object):
                 (target, i) for (i, target) in enumerate(
                     self.targets))
         return self._target2index
+
+    def risetimes_index_mapping(risetimes):
+        if self._risetimes2index is None:
+            if self._mode == 'numpy':
+                self._risetimes2index = 
+
 
     @property
     def nstations(self):
@@ -118,21 +199,6 @@ class SeismicGFLibrary(object):
     def nsamples(self):
         self._check_setup()
         return self._gfmatrix.shape[4]
-
-    def tstack():
-        c[0,:,rts,stt,:].reshape((self.nrisetimes, self.nsample)).T.dot(u)
-
-    def stack():
-
-    def snuffle(entry='risetimes', targets=[], patches=[]):
-        """
-        Opens pyrocko's snuffler with the specified traces.
-
-        Parameters
-        ----------
-        """
-        traces = []
-        snuffle(traces, events=[self.event], stations=stations)
 
 
 class FaultOrdering(object):
