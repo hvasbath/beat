@@ -271,8 +271,7 @@ class SMC(backend.ArrayStepSharedLLK):
     def astep(self, q0):
         if self.stage == 0:
             l_new = self.logp_forw(q0)
-
-            if not np.isfinite(l_new):
+            if not np.isfinite(l_new[self._llk_index]):
                 raise ValueError(
                     'Got NaN in likelihood evaluation! '
                     'Invalid model definition?')

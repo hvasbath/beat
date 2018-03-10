@@ -492,7 +492,7 @@ class ProblemConfig(Object):
                         dtype=tconfig.floatX) * upper,
                     testvalue=num.ones(
                         nvars,
-                        dtype=tconfig.floatX) * (lower + (upper / 2.)))
+                        dtype=tconfig.floatX) * (lower + (upper / 5.)))
 
     def select_variables(self):
         """
