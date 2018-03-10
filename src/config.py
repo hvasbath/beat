@@ -8,6 +8,7 @@ kinematic distributed slip.
 """
 import logging
 import os
+from collections import OrderedDict
 
 from pyrocko.guts import Object, List, String, Float, Int, Tuple, Bool, Dict
 from pyrocko.guts import load, dump, StringChoice
@@ -471,26 +472,27 @@ class ProblemConfig(Object):
         if variables is None:
             variables = self.select_variables()
 
-        self.priors = {}
+        self.priors = OrderedDict()
         for variable in variables:
             if variable in block_vars:
                 nvars = 1
             else:
                 nvars = self.n_sources
 
+            lower = default_bounds[variable][0]
+            upper = default_bounds[variable][1]
             self.priors[variable] = \
                 Parameter(
                     name=variable,
                     lower=num.ones(
                         nvars,
-                        dtype=tconfig.floatX) * default_bounds[variable][0],
+                        dtype=tconfig.floatX) * lower,
                     upper=num.ones(
                         nvars,
-                        dtype=tconfig.floatX) * default_bounds[variable][1],
+                        dtype=tconfig.floatX) * upper,
                     testvalue=num.ones(
                         nvars,
-                        dtype=tconfig.floatX) * num.mean(
-                        default_bounds[variable]))
+                        dtype=tconfig.floatX) * (lower + (upper / 2.)))
 
     def select_variables(self):
         """
@@ -736,13 +738,15 @@ class BEATconfig(Object, Cloneable):
             defaultb_name = 'hypers'
             hypers[name] = Parameter(
                 name=name,
-                lower=num.ones(1, dtype=tconfig.floatX) *
-                    default_bounds[defaultb_name][0],
-                upper=num.ones(1, dtype=tconfig.floatX) *
-                    default_bounds[defaultb_name][1],
-                testvalue=num.ones(1, dtype=tconfig.floatX) *
-                    num.mean(default_bounds[defaultb_name])
-                                    )
+                lower=num.ones(
+                    1, dtype=tconfig.floatX) *
+                default_bounds[defaultb_name][0],
+                upper=num.ones(
+                    1, dtype=tconfig.floatX) *
+                default_bounds[defaultb_name][1],
+                testvalue=num.ones(
+                    1, dtype=tconfig.floatX) *
+                num.mean(default_bounds[defaultb_name]))
 
         self.problem_config.hyperparameters = hypers
         self.problem_config.validate_hypers()
@@ -949,7 +953,7 @@ def load_config(project_dir, mode, update=False):
         config.update_hypers()
         logger.info(
             'Updated hyper parameters! Previous hyper'
-           ' parameter bounds are invalid now!')
+            ' parameter bounds are invalid now!')
         dump(config, filename=config_fn)
 
     return config
