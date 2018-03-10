@@ -5,7 +5,7 @@ import collections
 from pyrock.trace import snuffle, Trace
 from theano import shared
 from theano import config as tconfig
-
+from theano.tensor import tile
 
 logger = logging.getLogger('ffy')
 
@@ -101,7 +101,7 @@ class SeismicGFLibrary(object):
                     entries.shape[0], self.nsamples))
 
         self._check_setup()
-        tidx = self.target_index_mapping[target]
+        tidx = self.target_index_mapping()[target]
 
         self._gfmatrix[
             tidx, patchidx, risetimeidxs, starttimeidxs, :] = entries
@@ -138,10 +138,24 @@ class SeismicGFLibrary(object):
         :class:`numpy.ndarray` or of :class:`theano.tensor.Tensor` dependend
         on stack mode
         """
-        tidx = target_index_mapping[target]
+        tidx = self.target_index_mapping()[target]
         return self._stack_switch[self._mode][
             tidx, patchidxs, risetimeidxs, starttimeidxs, :].reshape(
-                (self.nrisetimes, self.nsample)).T.dot(slips)
+                (slips.shape[0], self.nsample)).T.dot(slips)
+
+    def stack_all(starttimeidxs, risetimeidxs, slips):
+        """
+        Stack all patches for all targets at once.
+
+        Returns
+        -------
+        matrix : size (ntargets, nsamples)
+        """
+        d = self._sgfmatrix[:, :, starttimeidxs, risetimeidxs, :].reshape(
+            (self.ntargets, self.npatches, self.nsamples))
+        u2d = tile(slips, self.ntargets).reshape(
+            (self.ntargets, self.npatches))
+        return tensor.batched_tensordot(d, u2d, (1, 1))
 
     def snuffle(
             targets=[], patchidxs=[0], risetimeidxs=[0], starttimeidxs=[0]):
@@ -153,8 +167,9 @@ class SeismicGFLibrary(object):
         """
         traces = []
         display_stations = []
+        t2i = self.target_index_mapping()
         for target in targets:
-            tidx = target_index_mapping[target]
+            tidx = t2i[target]
             display_stations.append(self.stations[tidx])
             for patch in patches:
                 for rtidx in risetimeidxs:
