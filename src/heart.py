@@ -2192,10 +2192,11 @@ class WaveformMapping(object):
                 'Inconsistent number of datasets and targets!')
         elif self.n_t == 0:
             raise CollectionError(
-                'No data left in wavemap "%s" after applying the distance'
-                ' filter!'
-                'The distance range has to be adjusted or the wavemap needs to'
-                ' be deactivated by setting include=False!' % self.name)
+                'No data left in wavemap "%s" after applying the distance '
+                'filter! Either (1) Adjust distance range (set "distances" '
+                ' parameter in beat.WaveformFitConfig, given in degrees '
+                ' epicentral distance) or (2) deactivate the wavemap '
+                'completely by setting include=False!' % self.name)
         else:
             logger.info('Consistent number of '
                         'datasets and targets in %s wavemap!' % self.name)
