@@ -1,11 +1,19 @@
 from beat import heart, utility
+
+import copy
 import os
 import logging
 import collections
-from pyrock.trace import snuffle, Trace
+
+from pyrocko.trace import snuffle, Trace
+from pyrocko import gf
+
 from theano import shared
 from theano import config as tconfig
-from theano.tensor import tile
+from theano.tensor import batched_dot
+
+import numpy as num
+
 
 logger = logging.getLogger('ffy')
 
@@ -45,7 +53,7 @@ class SeismicGFLibrary(object):
         containing :class:`pyrocko.gf.seismosizer.Target` Objects
     """
     def __init__(
-            self, component=None, event=None, targets=None, stations=None):
+            self, component=None, event=None, targets=[], stations=[]):
 
         if component is None:
             raise TypeError('Slip component is not defined')
@@ -64,6 +72,22 @@ class SeismicGFLibrary(object):
         self._target2index = None
         self._risetimes2index = None
         self._starttimes2index = None
+
+    def __str__(self):
+        s = '''
+            Seismic GF Library
+            ------------------
+            slip component: %s
+            ntargets: %i
+            npatches: %i
+            nrisetimes: %i
+            nstarttimes: %i
+            nsamples: %i
+            size: %i''' % (
+            self.component,
+            self.ntargets, self.npatches, self.nrisetimes,
+            self.nstarttimes, self.nsamples, self.size)
+        return s
 
     def setup(self, ntargets, npatches, nrisetimes, nstarttimes, nsamples):
         if ntargets != self.nstations:
@@ -86,14 +110,17 @@ class SeismicGFLibrary(object):
 
         self.set_stack_mode(mode='theano')
 
-    def put(entries, target, patchidx, starttimeidxs, risetimeidxs):
+    def put(self, entries, target, patchidx, risetimeidxs, starttimeidxs):
         """
-        Fill the GF Library with synthetic traces.
+        Fill the GF Library with synthetic traces for one target and one patch.
 
         Parameters
         ----------
-        entries : :class:`numpy.ndarray`
+        entries : 2d :class:`numpy.ndarray`
         """
+        if len(entries.shape) < 2:
+            raise ValueError('Entries have to be 2d arrays!')
+
         if entries.shape[1] != self.nsamples:
             raise GFLibraryError(
                 'Trace length of entries is not consistent with the library'
@@ -106,7 +133,7 @@ class SeismicGFLibrary(object):
         self._gfmatrix[
             tidx, patchidx, risetimeidxs, starttimeidxs, :] = entries
 
-    def set_stack_mode(mode='numpy'):
+    def set_stack_mode(self, mode='numpy'):
         """
         Sets mode on witch backend the stacking is working.
         Dependend on that the input to the stack function has to be
@@ -125,10 +152,11 @@ class SeismicGFLibrary(object):
 
         self._mode = mode
 
-    def stack(target, patchidxs, starttimeidxs, risetimeidxs, slips):
+    def stack(self, target, patchidxs, starttimeidxs, risetimeidxs, slips):
         """
-        Stack ALL samples of the traces from the GF Library of specified
-        target, patch, risetimes and starttimes.
+        Stack selected traces from the GF Library of specified
+        target, patch, risetimes and starttimes. Numpy or theano dependend
+        on the stack_mode
 
         Parameters
         ----------
@@ -143,22 +171,28 @@ class SeismicGFLibrary(object):
             tidx, patchidxs, risetimeidxs, starttimeidxs, :].reshape(
                 (slips.shape[0], self.nsample)).T.dot(slips)
 
-    def stack_all(starttimeidxs, risetimeidxs, slips):
+    def stack_all(self, starttimeidxs, risetimeidxs, slips):
         """
         Stack all patches for all targets at once.
+        In theano for efficient optimization.
+
+        Parameters
+        ----------
 
         Returns
         -------
         matrix : size (ntargets, nsamples)
+        option : tensor.batched_dot(sd.dimshuffle((1,0,2)), u).sum(axis=0)
         """
         d = self._sgfmatrix[:, :, starttimeidxs, risetimeidxs, :].reshape(
             (self.ntargets, self.npatches, self.nsamples))
-        u2d = tile(slips, self.ntargets).reshape(
-            (self.ntargets, self.npatches))
-        return tensor.batched_tensordot(d, u2d, (1, 1))
+        # u2d = tile(slips, self.ntargets).reshape(
+        #    (self.ntargets, self.npatches))
+        return batched_dot(d.dimshuffle((1, 0, 2)), slips).sum(axis=0)
 
     def snuffle(
-            targets=[], patchidxs=[0], risetimeidxs=[0], starttimeidxs=[0]):
+            self, targets=[], patchidxs=[0], risetimeidxs=[0],
+            starttimeidxs=[0]):
         """
         Opens pyrocko's snuffler with the specified traces.
 
@@ -171,14 +205,14 @@ class SeismicGFLibrary(object):
         for target in targets:
             tidx = t2i[target]
             display_stations.append(self.stations[tidx])
-            for patch in patches:
+            for patchidx in patchidxs:
                 for rtidx in risetimeidxs:
                     for startidx in starttimeidxs:
                         tr = Trace(
                             ydata=self._gfmatrix[
-                                tidx, patch, rtidx, startidx, :],
+                                tidx, patchidx, rtidx, startidx, :],
                             deltat=float(target.store_id.split('_')[3][0:5]),
-                            tmin=event.time)
+                            tmin=self.event.time)
                         traces.append(tr)
 
         snuffle(traces, events=[self.event], stations=display_stations)
@@ -197,7 +231,7 @@ class SeismicGFLibrary(object):
 
     @property
     def nstations(self):
-        return len(stations)
+        return len(self.stations)
 
     @property
     def ntargets(self):
@@ -223,6 +257,10 @@ class SeismicGFLibrary(object):
     def nsamples(self):
         self._check_setup()
         return self._gfmatrix.shape[4]
+
+    @property
+    def size(self):
+        return self._gfmatrix.size
 
 
 class FaultOrdering(object):
@@ -417,6 +455,10 @@ def discretize_sources(
     -------
     :class:'FaultGeometry'
     """
+    if 'seismic' in datatypes and patch_length != patch_width:
+        raise ValueError(
+            'Seismic kinematic fault optimization does only support'
+            ' square patches (yet)! Please adjust the discretization!')
 
     npls = []
     npws = []
@@ -501,7 +543,7 @@ def geo_construct_gf_linear(
 
             gfs = []
             for source in fault.get_all_patches('geodetic', component=var):
-                disp = geo_synthetics(
+                disp = heart.geo_synthetics(
                     engine=engine,
                     targets=targets,
                     sources=[source],
@@ -523,123 +565,123 @@ def geo_construct_gf_linear(
         utility.dump_objects(outpath, [out_gfs])
 
 
-def seis_construct_gf_linear(
-        engine, targets, fault, risetimes, varnames,
-        lower_corner_f, upper_corner_f, cut_interval,
-        outpath, saveflag=False):
-    """
-    Create seismic Greens Function matrix for defined source geometry
-    by convolution of the GFs with the source time function (STF).
+# def seis_construct_gf_linear(
+#         engine, targets, fault, risetimes, varnames,
+#         lower_corner_f, upper_corner_f, cut_interval,
+#         outpath, saveflag=False):
+#     """
+#     Create seismic Greens Function matrix for defined source geometry
+#     by convolution of the GFs with the source time function (STF).
 
-    Parameters
-    ----------
-    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
-        main path to directory containing the different Greensfunction stores
-    targets - list of pyrocko target objects for respective phase to compute
-    fault : :class:`FaultGeometry`
-        fault object that may comprise of several sub-faults. thus forming a
-        complex fault-geometry
+#     Parameters
+#     ----------
+#     engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+#         main path to directory containing the different Greensfunction stores
+#     targets - list of pyrocko target objects for respective phase to compute
+#     fault : :class:`FaultGeometry`
+#         fault object that may comprise of several sub-faults. thus forming a
+#         complex fault-geometry
 
-        risetimes - vector of risetimes of the STF for each patch to convolve
-        lower/upper_corner_f - frequency range for filtering the GFs after
-                               convolution
-        cut_interval - list[time before, after] tapering each
-                       phase arrival (target)
+#         risetimes - vector of risetimes of the STF for each patch to convolve
+#         lower/upper_corner_f - frequency range for filtering the GFs after
+#                                convolution
+#         cut_interval - list[time before, after] tapering each
+#                        phase arrival (target)
 
-        outpath - path for storage
-        saveflag - boolean to save Library at outpath
+#         outpath - path for storage
+#         saveflag - boolean to save Library at outpath
 
-    Returns
-    -------
-    GFLibrary : list of Greensfunctions in the form
-                [targets][patches][risetimes, cut_interval]
-    GFTimes : list of respective times of begin, phase arrival and end of
-                  traces in the form [targets][patches][start,arrival,end]
-    """
+#     Returns
+#     -------
+#     GFLibrary : list of Greensfunctions in the form
+#                 [targets][patches][risetimes, cut_interval]
+#     GFTimes : list of respective times of begin, phase arrival and end of
+#                   traces in the form [targets][patches][start,arrival,end]
+#     """
 
-    GFLibrary = []
-    Times = []
-    logger.info('Storing seismic linear GF Library under ', outpath)
-    npatches = fault.nsubfaults
-    ntargets = len(targets)
+#     GFLibrary = []
+#     Times = []
+#     logger.info('Storing seismic linear GF Library under ', outpath)
+#     npatches = fault.nsubfaults
+#     ntargets = len(targets)
 
-    for i in range(ntargets):
-        GFLibrary.append([0] * npatches)
-        Times.append([0] * npatches)
+#     for i in range(ntargets):
+#         GFLibrary.append([0] * npatches)
+#         Times.append([0] * npatches)
 
-    for var in varnames:
-        logger.info('For slip component: %s' % var)
+#     for var in varnames:
+#         logger.info('For slip component: %s' % var)
 
-        for i, patch in enumerate(
-                fault.get_all_patches('seismic', component=var)):
+#         for i, patch in enumerate(
+#                 fault.get_all_patches('seismic', component=var)):
 
-            source_patches_risetimes = []
-            logger.info('Patch Number %i', i)
+#             source_patches_risetimes = []
+#             logger.info('Patch Number %i', i)
 
-            for risetime in risetimes:
-                pcopy = patch.clone()
-                pcopy.update(risetime=risetime)
-                source_patches_risetimes.append(copy)
+#             for risetime in risetimes:
+#                 pcopy = patch.clone()
+#                 pcopy.update(risetime=risetime)
+#                 source_patches_risetimes.append(copy)
 
-            for j, target in enumerate(targets):
+#             for j, target in enumerate(targets):
 
-                traces, tmins = seis_synthetics(
-                    engine=engine,
-                    sources=source_patches_risetimes,
-                    targets=[target],
-                    arrival_taper=,
-                    wavename='any_P',
-                    filterer=None,
-                    reference_taperer=None,
-                    outmode='array')
-
-
-
-                # have to add event time as traces are with respect to that
-                arrival_time = store.t(wave, (sdepth, sdist)) + dist_patches[p].time
-                cut_start = arrival_time - cut_interval[0]
-                cut_end = arrival_time + cut_interval[1]
-
-                GF_traces = response.pyrocko_traces()
-
-                post_process_trace(trace, taper, filterer, taper_tolerance_factor=0.,
-                       outmode=None)
-
-                # bandpass
-                _ = [GF_traces[rt].bandpass(corner_hp = lower_corner_f, corner_lp = upper_corner_f, order=4) for rt in range(len(GF_traces))]
-
-                # get trace times
-                trcs_tmax = num.array([GF_traces[rt].tmax for rt in range(len(GF_traces))]).max()
-                trcs_tmin = num.array([GF_traces[rt].tmin for rt in range(len(GF_traces))]).min()
+#                 traces, tmins = seis_synthetics(
+#                     engine=engine,
+#                     sources=source_patches_risetimes,
+#                     targets=[target],
+#                     arrival_taper=,
+#                     wavename='any_P',
+#                     filterer=None,
+#                     reference_taperer=None,
+#                     outmode='array')
 
 
-                # zero padding of traces
-                if trcs_tmin > cut_start:
-                    trcs_tmin = cut_start
-                if trcs_tmax < cut_end:
-                    trcs_tmax = cut_end
-                _ = [GF_traces[rt].extend(trcs_tmin, trcs_tmax) for rt in range(len(GF_traces))]
 
-                # tapering around phase arrivals
-                taperer = trace.CosTaper(cut_start, 
-                                         cut_start + 10,
-                                         cut_end - 10,
-                                         cut_end)
-                _ = [GF_traces[rt].taper(taperer,inplace=True,chop=True) for rt in range(len(GF_traces))]
+#                 # have to add event time as traces are with respect to that
+#                 arrival_time = store.t(wave, (sdepth, sdist)) + dist_patches[p].time
+#                 cut_start = arrival_time - cut_interval[0]
+#                 cut_end = arrival_time + cut_interval[1]
 
-                # bandpass again
-                _ = [GF_traces[rt].bandpass(corner_hp = lower_corner_f, corner_lp = upper_corner_f, order=4) for rt in range(len(GF_traces))]
+#                 GF_traces = response.pyrocko_traces()
 
-                # get trace times of tapered traces
-                trcs_tmax = num.array([GF_traces[rt].tmax for rt in range(len(GF_traces))]).max()
-                trcs_tmin = num.array([GF_traces[rt].tmin for rt in range(len(GF_traces))]).min()
+#                 post_process_trace(trace, taper, filterer, taper_tolerance_factor=0.,
+#                        outmode=None)
 
-                # re-arranging to matrix and put into list
-                GFLibrary[t][p] = (num.vstack([GF_traces[rt].ydata for rt in xrange(len(patches_risetimes))]))
-                Times[t][p] = num.vstack([trcs_tmin, arrival_time, trcs_tmax])
+#                 # bandpass
+#                 _ = [GF_traces[rt].bandpass(corner_hp = lower_corner_f, corner_lp = upper_corner_f, order=4) for rt in range(len(GF_traces))]
 
-    if saveflag:
-        with open(outpath,'w') as f:
-            pickle.dump([GFLibrary, Times], f)
+#                 # get trace times
+#                 trcs_tmax = num.array([GF_traces[rt].tmax for rt in range(len(GF_traces))]).max()
+#                 trcs_tmin = num.array([GF_traces[rt].tmin for rt in range(len(GF_traces))]).min()
 
-    return GFLibrary, Times
+
+#                 # zero padding of traces
+#                 if trcs_tmin > cut_start:
+#                     trcs_tmin = cut_start
+#                 if trcs_tmax < cut_end:
+#                     trcs_tmax = cut_end
+#                 _ = [GF_traces[rt].extend(trcs_tmin, trcs_tmax) for rt in range(len(GF_traces))]
+
+#                 # tapering around phase arrivals
+#                 taperer = trace.CosTaper(cut_start, 
+#                                          cut_start + 10,
+#                                          cut_end - 10,
+#                                          cut_end)
+#                 _ = [GF_traces[rt].taper(taperer,inplace=True,chop=True) for rt in range(len(GF_traces))]
+
+#                 # bandpass again
+#                 _ = [GF_traces[rt].bandpass(corner_hp = lower_corner_f, corner_lp = upper_corner_f, order=4) for rt in range(len(GF_traces))]
+
+#                 # get trace times of tapered traces
+#                 trcs_tmax = num.array([GF_traces[rt].tmax for rt in range(len(GF_traces))]).max()
+#                 trcs_tmin = num.array([GF_traces[rt].tmin for rt in range(len(GF_traces))]).min()
+
+#                 # re-arranging to matrix and put into list
+#                 GFLibrary[t][p] = (num.vstack([GF_traces[rt].ydata for rt in xrange(len(patches_risetimes))]))
+#                 Times[t][p] = num.vstack([trcs_tmin, arrival_time, trcs_tmax])
+
+#     if saveflag:
+#         with open(outpath,'w') as f:
+#             pickle.dump([GFLibrary, Times], f)
+
+#     return GFLibrary, Times
