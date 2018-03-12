@@ -66,10 +66,6 @@ class SeismicGFLibrary(object):
         self._gfmatrix = None
         self._sgfmatrix = None
         self._mode = 'numpy'
-        self._stack_switch = {
-            'numpy': self._gfmatrix,
-            'theano': self._sgfmatrix}
-
         self._target2index = None
         self._risetimes2index = None
         self._starttimes2index = None
@@ -100,10 +96,14 @@ class SeismicGFLibrary(object):
             [ntargets, npatches, nrisetimes, nstarttimes, nsamples])
         self._patchidxs = num.arange(npatches, dtype='int16')
 
-    def init_optimization_mode(self):
+    def init_optimization(self):
         logger.info('Setting linear seismic GF Library to optimization mode.')
         self._sgfmatrix = shared(
             self._gfmatrix.astype(tconfig.floatX), borrow=True)
+
+        self._stack_switch = {
+            'numpy': self._gfmatrix,
+            'theano': self._sgfmatrix}
 
         self.set_stack_mode(mode='theano')
 
@@ -165,11 +165,10 @@ class SeismicGFLibrary(object):
         """
 
         tidx = self.target_index_mapping()[target]
-        print self._stack_switch
-        print self._stack_switch[self._mode]
+        print tidx
         return self._stack_switch[self._mode][
             tidx, patchidxs, risetimeidxs, starttimeidxs, :].reshape(
-                (slips.shape[0], self.nsample)).T.dot(slips)
+                (slips.shape[0], self.nsamples)).T.dot(slips)
 
     def stack_all(self, risetimeidxs, starttimeidxs, slips):
         """

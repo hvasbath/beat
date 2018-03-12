@@ -71,15 +71,15 @@ class FFITest(unittest.TestCase):
             logger.info('Calculation time numpy einsum: %f', (t1 - t0))
             return out_array
 
-        def prepare_theano(gfs):
-            theano_rts = tt.vector('rt_indxs', dtype='int16')
-            theano_stts = tt.vector('start_indxs', dtype='int16')
-            theano_slips = tt.dvector('slips')
-            gfs.init_optimization_mode()
+        def prepare_theano(gfs, runidx=0):
+            theano_rts = tt.vector('rt_indxs_%i' % runidx, dtype='int16')
+            theano_stts = tt.vector('start_indxs_%i' % runidx, dtype='int16')
+            theano_slips = tt.dvector('slips_%i' % runidx)
+            gfs.init_optimization()
             return theano_rts, theano_stts, theano_slips
 
         def theano_batched_dot(gfs, risetimeidxs, starttimeidxs, slips):
-            theano_rts, theano_stts, theano_slips = prepare_theano(gfs)
+            theano_rts, theano_stts, theano_slips = prepare_theano(gfs, 0)
 
             outstack = gfs.stack_all(
                 starttimeidxs=theano_stts,
@@ -97,22 +97,26 @@ class FFITest(unittest.TestCase):
             return out_array
 
         def theano_for_loop(gfs, risetimeidxs, starttimeidxs, slips):
-            theano_rts, theano_stts, theano_slips = prepare_theano(gfs)
+            theano_rts, theano_stts, theano_slips = prepare_theano(gfs, 1)
 
             patchidxs = range(gfs.npatches)
 
-            outstack = tt.zeros_like(
-                (gfs.ntargets, gfs.nsamples), tconfig.floatX)
+            outstack = tt.zeros((gfs.ntargets, gfs.nsamples), tconfig.floatX)
             for i, target in enumerate(gfs.targets):
+                print target
                 synths = gfs.stack(
-                    target, patchidxs, starttimeidxs, risetimeidxs, slips)
-                tt.set_subtensor(outstack[i:i + 1, 0:gfs.nsamples], synths)
+                    target=target,
+                    patchidxs=patchidxs,
+                    risetimeidxs=theano_rts,
+                    starttimeidxs=theano_stts,
+                    slips=theano_slips)
+                outstack = tt.set_subtensor(
+                    outstack[i:i + 1, 0:gfs.nsamples], synths)
 
             t0 = time()
             f = function([theano_slips, theano_rts, theano_stts], [outstack])
             t1 = time()
             logger.info('Compile time theano for loop: %f', (t1 - t0))
-
             out_array = f(slips, risetimeidxs, starttimeidxs)
             t2 = time()
             logger.info('Calculation time for loop: %f', (t2 - t1))
