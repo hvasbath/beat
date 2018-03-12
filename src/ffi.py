@@ -165,7 +165,6 @@ class SeismicGFLibrary(object):
         """
 
         tidx = self.target_index_mapping()[target]
-        print tidx
         return self._stack_switch[self._mode][
             tidx, patchidxs, risetimeidxs, starttimeidxs, :].reshape(
                 (slips.shape[0], self.nsamples)).T.dot(slips)
@@ -193,7 +192,8 @@ class SeismicGFLibrary(object):
             (self.ntargets, self.npatches, self.nsamples))
         # u2d = tile(slips, self.ntargets).reshape(
         #    (self.ntargets, self.npatches))
-        return batched_dot(d.dimshuffle((1, 0, 2)), slips).sum(axis=0)
+        return batched_dot(
+            d.dimshuffle((1, 0, 2)), slips).sum(axis=0)
 
     def snuffle(
             self, targets=[], patchidxs=[0], risetimeidxs=[0],

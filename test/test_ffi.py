@@ -63,7 +63,6 @@ class FFITest(unittest.TestCase):
             t0 = time()
             patchidxs = num.arange(gfs.npatches)
             d = gfs._gfmatrix[:, patchidxs, risetimeidxs, starttimeidxs, :]
-            print d, d.shape
             d1 = d.reshape(
                 (self.gfs.ntargets, self.gfs.npatches, self.gfs.nsamples))
             out_array = num.einsum('ijk->ik', d1 * u2d.T)
@@ -91,10 +90,10 @@ class FFITest(unittest.TestCase):
             t1 = time()
             logger.info('Compile time theano batched_dot: %f', (t1 - t0))
 
-            out_array = f(slips, risetimeidxs, starttimeidxs)
+            out_array = f(slips, risetimeidxs, starttimeidxs)[0]
             t2 = time()
             logger.info('Calculation time batched_dot: %f', (t2 - t1))
-            return out_array
+            return out_array.squeeze()
 
         def theano_for_loop(gfs, risetimeidxs, starttimeidxs, slips):
             theano_rts, theano_stts, theano_slips = prepare_theano(gfs, 1)
@@ -103,7 +102,6 @@ class FFITest(unittest.TestCase):
 
             outstack = tt.zeros((gfs.ntargets, gfs.nsamples), tconfig.floatX)
             for i, target in enumerate(gfs.targets):
-                print target
                 synths = gfs.stack(
                     target=target,
                     patchidxs=patchidxs,
@@ -117,10 +115,10 @@ class FFITest(unittest.TestCase):
             f = function([theano_slips, theano_rts, theano_stts], [outstack])
             t1 = time()
             logger.info('Compile time theano for loop: %f', (t1 - t0))
-            out_array = f(slips, risetimeidxs, starttimeidxs)
+            out_array = f(slips, risetimeidxs, starttimeidxs)[0]
             t2 = time()
             logger.info('Calculation time for loop: %f', (t2 - t1))
-            return out_array
+            return out_array.squeeze()
 
         risetimeidxs = num.random.randint(
             low=0, high=self.gfs.nrisetimes,
@@ -141,5 +139,5 @@ class FFITest(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    util.setup_logging('test_ffi', 'info')
+    util.setup_logging('test_ffi', 'debug')
     unittest.main()
