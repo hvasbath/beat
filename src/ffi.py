@@ -15,7 +15,7 @@ from theano.tensor import batched_dot
 import numpy as num
 
 
-logger = logging.getLogger('ffy')
+logger = logging.getLogger('ffi')
 
 
 PatchMap = collections.namedtuple(
@@ -62,6 +62,7 @@ class SeismicGFLibrary(object):
         self.event = event
         self.targets = targets
         self.stations = stations
+        self._patchidxs = None
         self._gfmatrix = None
         self._sgfmatrix = None
         self._mode = 'numpy'
@@ -95,13 +96,9 @@ class SeismicGFLibrary(object):
                 'Number of stations and targets is inconsistent!'
                 'ntargets %i, nstations %i' % (ntargets, self.nstations))
 
-        if nrisetimes != nstarttimes:
-            raise GFLibraryError(
-                'Number of start-times and risetimes is inconsistent!'
-                'nrisetimes %i, nstarttimes %i' % (nrisetimes, nstarttimes))
-
         self._gfmatrix = num.zeros(
             [ntargets, npatches, nrisetimes, nstarttimes, nsamples])
+        self._patchidxs = num.arange(npatches, dtype='int16')
 
     def init_optimization_mode(self):
         logger.info('Setting linear seismic GF Library to optimization mode.')
@@ -152,7 +149,7 @@ class SeismicGFLibrary(object):
 
         self._mode = mode
 
-    def stack(self, target, patchidxs, starttimeidxs, risetimeidxs, slips):
+    def stack(self, target, patchidxs, risetimeidxs, starttimeidxs, slips):
         """
         Stack selected traces from the GF Library of specified
         target, patch, risetimes and starttimes. Numpy or theano dependend
@@ -166,12 +163,15 @@ class SeismicGFLibrary(object):
         :class:`numpy.ndarray` or of :class:`theano.tensor.Tensor` dependend
         on stack mode
         """
+
         tidx = self.target_index_mapping()[target]
+        print self._stack_switch
+        print self._stack_switch[self._mode]
         return self._stack_switch[self._mode][
             tidx, patchidxs, risetimeidxs, starttimeidxs, :].reshape(
                 (slips.shape[0], self.nsample)).T.dot(slips)
 
-    def stack_all(self, starttimeidxs, risetimeidxs, slips):
+    def stack_all(self, risetimeidxs, starttimeidxs, slips):
         """
         Stack all patches for all targets at once.
         In theano for efficient optimization.
@@ -184,7 +184,13 @@ class SeismicGFLibrary(object):
         matrix : size (ntargets, nsamples)
         option : tensor.batched_dot(sd.dimshuffle((1,0,2)), u).sum(axis=0)
         """
-        d = self._sgfmatrix[:, :, starttimeidxs, risetimeidxs, :].reshape(
+        if self._sgfmatrix is None:
+            raise GFLibraryError(
+                'To use theano stacking optimization mode'
+                ' has to be initialised!')
+
+        d = self._sgfmatrix[
+            :, self._patchidxs, risetimeidxs, starttimeidxs, :].reshape(
             (self.ntargets, self.npatches, self.nsamples))
         # u2d = tile(slips, self.ntargets).reshape(
         #    (self.ntargets, self.npatches))
