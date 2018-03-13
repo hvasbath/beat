@@ -208,7 +208,7 @@ class GeoInterseismicSynthesizer(theano.Op):
         'lats', 'lons', 'engine', 'targets', 'sources', 'reference')
 
     def __init__(
-        self, lats, lons, engine, targets, sources, reference):
+            self, lats, lons, engine, targets, sources, reference):
         self.lats = tuple(lats)
         self.lons = tuple(lons)
         self.engine = engine
@@ -423,8 +423,7 @@ class SeisDataChopper(theano.Op):
 
     def infer_shape(self, node, input_shapes):
         nrow = len(self.traces)
-        ncol = int(num.ceil(self.sample_rate * \
-                (self.arrival_taper.d + num.abs(self.arrival_taper.a))))
+        ncol = int(num.ceil(self.sample_rate * self.arrival_taper.duration))
         return [(nrow, ncol)]
 
 

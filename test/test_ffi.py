@@ -23,14 +23,13 @@ class FFITest(unittest.TestCase):
         unittest.TestCase.__init__(self, *args, **kwargs)
 
         nsamples = 10
-        ntargets = 3
-        npatches = 4
-        nrisetimes = 5
-        nstarttimes = 7
-        nsamples = 20
+        ntargets = 30
+        npatches = 40
+        nrisetimes = 10
+        nstarttimes = 30
 
-        lats = [10., 35., -34.]
-        lons = [190., 260., 10.]
+        lats = num.random.randint(low=-90, high=90, size=ntargets)
+        lons = num.random.randint(low=-180, high=180, size=ntargets)
 
         stations = [model.Station(
             lat=lat, lon=lon) for lat, lon in zip(lats, lons)]

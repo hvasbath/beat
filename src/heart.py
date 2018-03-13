@@ -930,8 +930,7 @@ def init_seismic_targets(
                             store_prefixes[sta_num],
                             em_name,
                             sample_rate,
-                            crust_ind))
-                                   )
+                            crust_ind)))
     return targets
 
 
@@ -2164,7 +2163,7 @@ def post_process_trace(trace, taper, filterer, taper_tolerance_factor=0.,
     upper_cut = taper.d + tolerance
 
     if taper is not None and outmode != 'data':
-        trace.extend(lower_cut, upper_cut, fillmethod='repeat')
+        trace.extend(lower_cut, upper_cut, fillmethod='zeros')
         trace.taper(taper, inplace=True)
 
     if filterer is not None:
@@ -2409,7 +2408,7 @@ def geo_synthetics(
 
 
 def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
-                        tmins=None, plot=False, outmode='array', chop=True,
+                        tmins=None, plot=False, outmode='array',
                         taper_tolerance_factor=0.):
     """
     Taper and filter data_traces according to given taper and filterers.
