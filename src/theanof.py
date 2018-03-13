@@ -366,8 +366,7 @@ class SeisSynthesizer(theano.Op):
         synths = output[0]
         tmins = output[1]
 
-        point = {vname: i for vname, i in zip(
-                    self.varnames, inputs)}
+        point = {vname: i for vname, i in zip(self.varnames, inputs)}
 
         mpoint = utility.adjust_point_units(point)
 
@@ -389,8 +388,8 @@ class SeisSynthesizer(theano.Op):
     def infer_shape(self, node, input_shapes):
         nrow = len(self.targets)
         store = self.engine.get_store(self.targets[0].store_id)
-        ncol = int(num.ceil(store.config.sample_rate * \
-                (self.arrival_taper.d + self.arrival_taper.a)))
+        ncol = int(num.ceil(
+            store.config.sample_rate * self.arrival_taper.duration))
         return [(nrow, ncol), (nrow,)]
 
 

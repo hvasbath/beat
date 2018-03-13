@@ -36,6 +36,9 @@ class FFITest(unittest.TestCase):
 
         targets = [DynamicTarget(store_id='Test') for i in range(ntargets)]
 
+        wavemap = heart.WaveformMapping(
+            name='any_P', stations=stations, targets=targets)
+
         self.gfs = ffi.SeismicGFLibrary(
             targets=targets, stations=stations, component='uperp')
         self.gfs.setup(ntargets, npatches, nrisetimes, nstarttimes, nsamples)
@@ -76,12 +79,12 @@ class FFITest(unittest.TestCase):
             gfs.init_optimization()
             return theano_rts, theano_stts, theano_slips
 
-        def theano_batched_dot(gfs, risetimeidxs, starttimeidxs, slips):
+        def theano_batched_dot(gfs, risetimes, starttimes, slips):
             theano_rts, theano_stts, theano_slips = prepare_theano(gfs, 0)
 
             outstack = gfs.stack_all(
-                starttimeidxs=theano_stts,
-                risetimeidxs=theano_rts,
+                starttimes=theano_stts,
+                risetimes=theano_rts,
                 slips=theano_slips)
 
             t0 = time()
@@ -129,7 +132,7 @@ class FFITest(unittest.TestCase):
 
         outnum = reference_numpy(self.gfs, risetimeidxs, starttimeidxs, slips)
         outtheanobatch = theano_batched_dot(
-            self.gfs, risetimeidxs, starttimeidxs, slips)
+            self.gfs, risetimeidxs - 0.2, starttimeidxs - 0.3, slips)
         outtheanofor = theano_for_loop(
             self.gfs, risetimeidxs, starttimeidxs, slips)
 
