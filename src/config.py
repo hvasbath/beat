@@ -8,6 +8,7 @@ kinematic distributed slip.
 """
 import logging
 import os
+import collections
 
 from pyrocko.guts import Object, List, String, Float, Int, Tuple, Bool, Dict
 from pyrocko.guts import load, dump, StringChoice
@@ -74,7 +75,7 @@ interseismic_vars = [
 
 static_dist_vars = ['uparr', 'uperp']
 partial_kinematic_vars = [
-    'nucleation_x', 'nucleation_y', 'duration', 'velocity']
+    'nucleation_x', 'nucleation_y', 'durations', 'velocities']
 
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars
 
@@ -85,18 +86,14 @@ geometry_catalog = {
     'geodetic': source_catalog,
     'seismic': source_catalog}
 
-static_catalog = {
+ffi_catalog = {
     'geodetic': static_dist_vars,
-    'seismic': static_dist_vars}
-
-kinematic_catalog = {
     'seismic': kinematic_dist_vars}
 
-modes_catalog = {
-    'geometry': geometry_catalog,
-    'static': static_catalog,
-    'kinematic': kinematic_catalog,
-    'interseismic': interseismic_catalog}
+modes_catalog = collections.OrderedDict([
+    ['geometry', geometry_catalog],
+    ['ffi', ffi_catalog],
+    ['interseismic', interseismic_catalog]])
 
 moffdiag = (-1., 1.)
 mdiag = (-num.sqrt(2), num.sqrt(2))

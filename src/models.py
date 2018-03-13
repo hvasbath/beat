@@ -63,13 +63,13 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
         M = tt.cast(shared(data.samples, borrow=True), 'int16')
         hp_name = '_'.join(('h', data.typ))
 
-        logpts = tt.set_subtensor(logpts[l:l + 1],
-            (-0.5) * (data.covariance.slnf + \
-            (M * 2 * hyperparams[hp_name]) + \
-            (1 / tt.exp(hyperparams[hp_name] * 2)) * \
-            (residuals[l].dot(weights[l]).dot(residuals[l].T))
-                     )
-                                 )
+        logpts = tt.set_subtensor(
+            logpts[l:l + 1],
+            (-0.5) * (
+                data.covariance.slnf +
+                (M * 2 * hyperparams[hp_name]) +
+                (1 / tt.exp(hyperparams[hp_name] * 2)) *
+                (residuals[l].dot(weights[l]).dot(residuals[l].T))))
 
     return logpts
 
@@ -105,13 +105,13 @@ def multivariate_normal_chol(datasets, weights, hyperparams, residuals):
         hp_name = '_'.join(('h', data.typ))
         tmp = weights[l].dot(residuals[l])
 
-        logpts = tt.set_subtensor(logpts[l:l + 1],
-            (-0.5) * (data.covariance.slnf + \
-            (M * 2 * hyperparams[hp_name]) + \
-            (1 / tt.exp(hyperparams[hp_name] * 2)) * \
-            (tt.dot(tmp, tmp))
-                     )
-                                 )
+        logpts = tt.set_subtensor(
+            logpts[l:l + 1],
+            (-0.5) * (
+                data.covariance.slnf +
+                (M * 2 * hyperparams[hp_name]) +
+                (1 / tt.exp(hyperparams[hp_name] * 2)) *
+                (tt.dot(tmp, tmp))))
 
     return logpts
 
@@ -140,13 +140,12 @@ def hyper_normal(datasets, hyperparams, llks):
         M = data.samples
         hp_name = '_'.join(('h', data.typ))
 
-        logpts = tt.set_subtensor(logpts[k:k + 1],
-            (-0.5) * (data.covariance.slnf + \
-            (M * 2 * hyperparams[hp_name]) + \
-            (1 / tt.exp(hyperparams[hp_name] * 2)) * \
-                llks[k]
-                     )
-                                 )
+        logpts = tt.set_subtensor(
+            logpts[k:k + 1],
+            (-0.5) * (
+                data.covariance.slnf +
+                (M * 2 * hyperparams[hp_name]) +
+                (1 / tt.exp(hyperparams[hp_name] * 2)) * llks[k]))
 
     return logpts
 
@@ -466,11 +465,11 @@ class GeodeticSourceComposite(GeodeticComposite):
         disp = self.get_synths(self.input_rvs)
         t1 = time.time()
         logger.debug(
-            'Geodetic forward model on test model takes: %f' % \
-                (t1 - t0))
+            'Geodetic forward model on test model takes: %f' %
+            (t1 - t0))
 
-        los = (disp[:, 0] * self.lv[:, 0] + \
-               disp[:, 1] * self.lv[:, 1] + \
+        los = (disp[:, 0] * self.lv[:, 0] +
+               disp[:, 1] * self.lv[:, 1] +
                disp[:, 2] * self.lv[:, 2]) * self.odws
 
         residuals = self.Bij.srmap(
@@ -525,8 +524,8 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
         synths = []
         for disp, data in zip(displacements, self.datasets):
             synths.append((
-                disp[:, 0] * data.los_vector[:, 0] + \
-                disp[:, 1] * data.los_vector[:, 1] + \
+                disp[:, 0] * data.los_vector[:, 0] +
+                disp[:, 1] * data.los_vector[:, 1] +
                 disp[:, 2] * data.los_vector[:, 2]))
 
         return synths
@@ -624,8 +623,8 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
                 reference=self.event,
                 **bpoint)
             synths.append((
-                disp[:, 0] * data.los_vector[:, 0] + \
-                disp[:, 1] * data.los_vector[:, 1] + \
+                disp[:, 0] * data.los_vector[:, 0] +
+                disp[:, 1] * data.los_vector[:, 1] +
                 disp[:, 2] * data.los_vector[:, 2]))
 
         return synths
@@ -656,7 +655,7 @@ class SeismicComposite(Composite):
     def __init__(self, sc, event, project_dir, hypers=False):
 
         super(SeismicComposite, self).__init__()
-        
+
         logger.debug('Setting up seismic structure ...\n')
         self.name = 'seismic'
         self._like_name = 'seis_like'
@@ -912,10 +911,10 @@ class SeismicGeometryComposite(SeismicComposite):
                 pre_stack_cut=sc.pre_stack_cut)
 
             self.choppers[wc.name] = theanof.SeisDataChopper(
-               sample_rate=sc.gf_config.sample_rate,
-               traces=wmap.datasets,
-               arrival_taper=wc.arrival_taper,
-               filterer=wc.filterer)
+                sample_rate=sc.gf_config.sample_rate,
+                traces=wmap.datasets,
+                arrival_taper=wc.arrival_taper,
+                filterer=wc.filterer)
 
         self.config = sc
 
@@ -986,8 +985,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
         t3 = time.time()
         logger.debug(
-            'Teleseismic forward model on test model takes: %f' % \
-                (t3 - t2))
+            'Teleseismic forward model on test model takes: %f' % (t3 - t2))
 
         llk = pm.Deterministic(self._like_name, tt.concatenate((wlogpts)))
         return llk.sum()
@@ -1057,7 +1055,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 weights = wmap.get_weights([channel])
 
                 for station, dataset, weight in zip(
-                    wmap.stations, datasets, weights):
+                        wmap.stations, datasets, weights):
 
                     logger.debug('Channel %s of Station %s ' % (
                         channel, station.station))
@@ -1107,15 +1105,15 @@ class GeodeticDistributerComposite(GeodeticComposite):
         self.sgfs = {}
         self.gf_names = {}
 
-        self._mode = 'static'
-        self.gfpath = os.path.join(project_dir, self._mode,
-                         bconfig.linear_gf_dir_name)
+        self._mode = 'ffi'
+        self.gfpath = os.path.join(
+            project_dir, self._mode, bconfig.linear_gf_dir_name)
 
         self.shared_data = [
-            shared(data.displacement.astype(tconfig.floatX), borrow=True) \
+            shared(data.displacement.astype(tconfig.floatX), borrow=True)
             for data in self.datasets]
         self.shared_odws = [
-            shared(data.odw.astype(tconfig.floatX), borrow=True) \
+            shared(data.odw.astype(tconfig.floatX), borrow=True)
             for data in self.datasets]
 
     def load_gfs(self, crust_inds=None, make_shared=True):
@@ -1135,7 +1133,8 @@ class GeodeticDistributerComposite(GeodeticComposite):
             crust_inds = range(*self.config.gf_config.n_variations)
 
         for crust_ind in crust_inds:
-            gfpath = os.path.join(self.gfpath,
+            gfpath = os.path.join(
+                self.gfpath,
                 str(crust_ind) + '_' + bconfig.geodetic_linear_gf_name)
 
             self.gf_names[crust_ind] = gfpath
@@ -1143,9 +1142,9 @@ class GeodeticDistributerComposite(GeodeticComposite):
 
             if make_shared:
                 self.sgfs[crust_ind] = {param: [
-                    shared(gf.astype(tconfig.floatX), borrow=True) \
-                        for gf in gfs[param]] \
-                            for param in gfs.keys()}
+                    shared(gf.astype(tconfig.floatX), borrow=True)
+                    for gf in gfs[param]]
+                    for param in gfs.keys()}
             else:
                 self.gfs[crust_ind] = gfs
 
@@ -1253,23 +1252,26 @@ class SeismicDistributerComposite(SeismicComposite):
     sgfs = {}
     gf_names = {}
 
-    def __init__(self, gc, project_dir, hypers=False):
+    def __init__(self, sc, project_dir, hypers=False):
 
         super(SeismicDistributerComposite, self).__init__(
             sc, project_dir, hypers=hypers)
 
-        self._mode = 'kinematic'
-        self.gfpath = os.path.join(project_dir, self._mode,
-                         bconfig.linear_gf_dir_name)
+        self._mode = 'ffi'
+        self.gfpath = os.path.join(
+            project_dir, self._mode,
+            bconfig.linear_gf_dir_name)
 
         sgfc = sc.gf_config
 
         if sgfc.patch_width != sgfc.patch_length:
-            raise Exception('So far only square patches supported in kinematic'
-                ' model! - fast_sweping issues')
+            raise ValueError(
+                'So far only square patches supported in kinematic'
+                ' model! - fast_sweeping issues')
 
         if len(sgfc.reference_sources) > 1:
-            raise Exception('So far only one reference plane supported! - '
+            raise ValueError(
+                'So far only one reference plane supported! - '
                 'fast_sweeping issues')
 
         self.ext_reference_source = sgfc.reference_sources[0].extend_source(
@@ -1300,8 +1302,12 @@ class SeismicDistributerComposite(SeismicComposite):
         if crust_inds is None:
             crust_inds = range(self.gc.gf_config.n_variations + 1)
 
-        for crust_ind in crust_inds:
-            gfpath = os.path.join(self.gfpath,
+        for var in varnames:
+            for crust_ind in crust_inds:
+    
+
+            gfpath = os.path.join(
+                self.gfpath,
                 str(crust_ind) + '_' + bconfig.seismic_linear_gf_name)
 
             self.gf_names[crust_ind] = gfpath
@@ -1309,32 +1315,26 @@ class SeismicDistributerComposite(SeismicComposite):
 
             if make_shared:
                 self.sgfs[crust_ind] = {param: [
-                    shared(gf.astype(tconfig.floatX), borrow=True) \
-                        for gf in gfs[param]] \
-                            for param in gfs.keys()}
+                    shared(gf.astype(tconfig.floatX), borrow=True)
+                    for gf in gfs[param]]
+                    for param in gfs.keys()}
             else:
                 self.gfs[crust_ind] = gfs
 
     def get_formula(self, input_rvs, hyperparams):
 
-        #convert velocities to rupture onset
-        tzero = self.sweeper(
-                    (1 / input_rvs['velocity']),
-                    tt.round(nuc_x).astype('int16'),
-                    tt.round(nuc_y).astype('int16')).flatten()
+        # convert velocities to rupture onset
+        starttimes = self.sweeper(
+            (1 / input_rvs['velocity']),
+            tt.round(input_rvs['nucleation_x']).astype('int16'),
+            tt.round(input_rvs['nucleation_y']).astype('int16')).flatten()
 
-self.nuc_x, self.nuc_y
-
-    Synthetics = gfs.GF_stacking_2scan_complete_rtint(
-                    GFLIB_parr, GFLIB_perp,
-                    GFTIMES, CutInterval,
-                    m_risetime, tzero, m_parr, m_perp, deltat)
-
-    RES = CUT_DATA_TRCS - Synthetics
-    for k in range(ntargets):
-        # calculate likelihood
-        logpts_s = tt.set_subtensor(logpts_s[k:k + 1],
-                    (-0.5) * RES[k, :].dot(shared(ICxss[k])).dot(RES[k, :].T))
+        for wmap in self.wavemaps:
+            for rv, gfs
+                synthetics = gfs.stack_all(
+                    starttimes=starttimes,
+                    durations=input_rvs['durations'],
+                    slips=theano_slips)
 
 
         logpts = multivariate_normal(
@@ -1352,12 +1352,10 @@ geometry_composite_catalog = {
 
 distributer_composite_catalog = {
     'seismic': SeismicDistributerComposite,
-    'geodetic': GeodeticDistributerComposite,
-    }
+    'geodetic': GeodeticDistributerComposite}
 
 interseismic_composite_catalog = {
-    'geodetic': GeodeticInterseismicComposite,
-    }
+    'geodetic': GeodeticInterseismicComposite}
 
 
 class Problem(object):
@@ -1415,8 +1413,9 @@ class Problem(object):
                     '... Initiate Metropolis ... \n'
                     ' proposal_distribution %s, tune_interval=%i,'
                     ' n_jobs=%i \n' % (
-                    sc.parameters.proposal_dist, sc.parameters.tune_interval,
-                    sc.parameters.n_jobs))
+                        sc.parameters.proposal_dist,
+                        sc.parameters.tune_interval,
+                        sc.parameters.n_jobs))
 
                 t1 = time.time()
                 if hypers:
@@ -1524,8 +1523,8 @@ class Problem(object):
         pc = self.config.problem_config
 
         point = {param.name: param.random() for param in pc.priors.values()}
-        hps = {param.name: param.random() \
-            for param in pc.hyperparameters.values()}
+        hps = {param.name: param.random()
+               for param in pc.hyperparameters.values()}
 
         for k, v in hps.iteritems():
             point[k] = v
@@ -1536,6 +1535,13 @@ class Problem(object):
         """
         Evaluate problem setup and return random variables dictionary.
         Has to be executed in a "with model context"!
+
+        Returns
+        -------
+        rvs : dict
+            variable random variables
+        fixed_params : dict
+            fixed random parameters
         """
         pc = self.config.problem_config
 
@@ -1556,7 +1562,8 @@ class Problem(object):
             else:
                 logger.info(
                     'not solving for %s, got fixed at %s' % (
-                    param.name, utility.list_to_str(param.lower.flatten())))
+                        param.name,
+                        utility.list_to_str(param.lower.flatten())))
                 fixed_params[param.name] = param.lower
 
         return rvs, fixed_params
@@ -1586,8 +1593,8 @@ class Problem(object):
             else:
                 logger.info(
                     'not solving for %s, got fixed at %s' % (
-                    hyperpar.name,
-                    utility.list_to_str(hyperpar.lower.flatten())))
+                        hyperpar.name,
+                        utility.list_to_str(hyperpar.lower.flatten())))
                 hyperparams[hyperpar.name] = hyperpar.lower
 
         return hyperparams
@@ -1827,11 +1834,11 @@ class DistributionOptimizer(Problem):
         self.config = config
 
 
+problem_modes = bconfig.modes_catalog.keys()
 problem_catalog = {
-    bconfig.modes_catalog.keys()[0]: GeometryOptimizer,
-    bconfig.modes_catalog.keys()[1]: DistributionOptimizer,
-    bconfig.modes_catalog.keys()[2]: DistributionOptimizer,
-    bconfig.modes_catalog.keys()[3]: InterseismicOptimizer}
+    problem_modes[0]: GeometryOptimizer,
+    problem_modes[1]: DistributionOptimizer,
+    problem_modes[2]: InterseismicOptimizer}
 
 
 def sample(step, problem):
@@ -1908,15 +1915,15 @@ def estimate_hypers(step, problem):
         logger.info('Metropolis stage %i' % stage)
 
         if stage == 0:
-            point = {param.name: param.testvalue \
-                for param in pc.priors.values()}
+            point = {param.name: param.testvalue
+                     for param in pc.priors.values()}
         else:
-            point = {param.name: param.random() \
-                for param in pc.priors.values()}
+            point = {param.name: param.random()
+                     for param in pc.priors.values()}
 
         problem.outfolder = os.path.join(name, 'stage_%i' % stage)
-        start = {param.name: param.random() for param in \
-            pc.hyperparameters.itervalues()}
+        start = {param.name: param.random() for param in
+                 pc.hyperparameters.itervalues()}
 
         if pa.rm_flag:
             shutil.rmtree(problem.outfolder, ignore_errors=True)
@@ -1938,8 +1945,7 @@ def estimate_hypers(step, problem):
                     start=start,
                     model=hmodel,
                     chain=stage * pa.n_jobs,
-                    njobs=pa.n_jobs,
-                    ))
+                    njobs=pa.n_jobs))
 
         else:
             logger.debug('Loading existing results!')
@@ -1999,14 +2005,15 @@ def load_model(project_dir, mode, hypers=False, nobuild=False):
     pc = config.problem_config
 
     if hypers and len(pc.hyperparameters) == 0:
-        raise Exception('No hyperparameters specified!'
-        ' option --hypers not applicable')
+        raise ValueError(
+            'No hyperparameters specified!'
+            ' option --hypers not applicable')
 
     if pc.mode in problem_catalog.keys():
         problem = problem_catalog[pc.mode](config, hypers)
     else:
         logger.error('Modeling problem %s not supported' % pc.mode)
-        raise Exception('Model not supported')
+        raise ValueError('Model not supported')
 
     if not nobuild:
         if hypers:
@@ -2078,4 +2085,4 @@ class Stage(object):
 
             if 'params' in to_load:
                 self.step, self.updates = self.handler.load_sampler_params(
-                stage_number)
+                    stage_number)

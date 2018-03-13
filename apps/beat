@@ -95,7 +95,7 @@ nargs_dict = {
     'summarize': 1,
 }
 
-mode_choices = ['geometry', 'static', 'interseismic']
+mode_choices = ['geometry', 'ffi', 'interseismic']
 supported_geodetic_formats = ['matlab', 'ascii', 'kite']
 
 
@@ -419,7 +419,7 @@ def command_import(args):
         if options.mode == 'geometry':
             logger.warn('No previous modeling results to be imported!')
 
-        elif options.mode == 'static':
+        elif options.mode == 'ffi':
             logger.info('Importing non-linear modeling results, i.e.'
                         ' maximum likelihood result for source geometry.')
             problem = models.load_model(
@@ -697,140 +697,143 @@ def command_build_gfs(args):
     c = config.load_config(project_dir, options.mode)
 
     if options.mode in ['geometry', 'interseismic']:
-        if 'geodetic' in options.datatypes:
-            gc = c.geodetic_config
-            gf = c.geodetic_config.gf_config
-
-            for crust_ind in range(*gf.n_variations):
-                heart.geo_construct_gf(
-                    event=c.event,
-                    geodetic_config=gc,
-                    crust_ind=crust_ind,
-                    execute=options.execute,
-                    force=options.force)
-
-            if options.execute:
-                logger.info('Geodetic GF calculations successful!')
-
-        if 'seismic' in options.datatypes:
-            sc = c.seismic_config
-            sf = sc.gf_config
-
-            if sf.reference_location is None:
-                logger.info("Creating Green's Function stores individually"
-                            " for each station!")
-                seismic_data_path = os.path.join(
-                    c.project_dir, config.seismic_data_name)
-
-                stations, _ = utility.load_objects(seismic_data_path)
-                stations = utility.apply_station_blacklist(
-                    stations, sc.blacklist)
-                stations = utility.weed_stations(
-                    stations, c.event, distances=sc.distances)
-            else:
-                logger.info(
-                    "Creating one global Green's Function store, which is "
-                    "being used by all stations!")
-                stations = [sf.reference_location]
-                logger.info('Store name: %s' % sf.reference_location.station)
-
-            for crust_ind in range(*sf.n_variations):
-                heart.seis_construct_gf(
-                    stations=stations,
-                    event=c.event,
-                    seismic_config=sc,
-                    crust_ind=crust_ind,
-                    execute=options.execute,
-                    force=options.force)
-
-            if not options.execute:
-                logger.info('Seismic GF store configs successfully created! '
-                            'To start calculations set --execute!')
-
-            if options.execute:
-                logger.info('Seismic GF calculations successful!')
-
-    elif options.mode == 'static':
-        from beat import ffi
-
-        geo = 'geodetic'
-        if geo in options.datatypes:
-            gf = c.geodetic_config.gf_config
-
-            geodetic_data_path = os.path.join(
-                c.project_dir, config.geodetic_data_name)
-
-            outdir = os.path.join(
-                c.project_dir, options.mode, config.linear_gf_dir_name)
-            util.ensuredir(outdir)
-
-            for source in gf.reference_sources:
-                source.update(lat=c.event.lat, lon=c.event.lon)
-
-            varnames = [varname for varname in c.problem_config.priors.keys()]
-
-            logger.info('Discretizing reference sources ...')
-            fault = ffi.discretize_sources(
-                varnames=varnames,
-                sources=gf.reference_sources,
-                extension_width=gf.extension_width,
-                extension_length=gf.extension_length,
-                patch_width=gf.patch_width,
-                patch_length=gf.patch_length,
-                datatypes=[geo])
-
-            faultpath = os.path.join(outdir, config.fault_geometry_name)
-            if os.path.exists(faultpath) and not options.force:
-                logger.info("Discretized fault geometry exists! Use --force to"
-                            " overwrite!")
-                sys.exit(1)
-            else:
-                logger.info(
-                    'Storing discretized fault geometry to: %s' % faultpath)
-                utility.dump_objects(faultpath, [fault])
-
-                logger.info('Updating problem_config:')
-                logger.info(
-                    'Number of source-sub-patches: %i' % fault.nsubpatches)
-                c.problem_config.n_sources = fault.nsubpatches
-                c.problem_config.init_vars(varnames)
-                config.dump_config(c)
-
-            if options.execute:
-                datasets = utility.load_objects(geodetic_data_path)
-                for data in datasets:
-                    if data.los_vector is None:
-                        data.update_los_vector()
-
-                logger.info("Calculating linear Green's Functions...")
-                engine = LocalEngine(store_superdirs=[gf.store_superdir])
+        for datatype in options.datatypes:
+            if datatype == 'geodetic':
+                gc = c.geodetic_config
+                gf = c.geodetic_config.gf_config
 
                 for crust_ind in range(*gf.n_variations):
-                    outpath = os.path.join(
-                        outdir,
-                        str(crust_ind) + '_' +
-                        config.geodetic_linear_gf_name)
-                    logger.info('crust_ind %i' % crust_ind)
-
-                    targets = heart.init_geodetic_targets(
-                        datasets,
-                        earth_model_name='ak135-f-average.m',
-                        interpolation='multilinear',
-                        crust_inds=[crust_ind],
-                        sample_rate=gf.sample_rate)
-
-                    ffi.geo_construct_gf_linear(
-                        engine=engine,
-                        outpath=outpath,
+                    heart.geo_construct_gf(
+                        event=c.event,
+                        geodetic_config=gc,
                         crust_ind=crust_ind,
-                        datasets=datasets,
-                        targets=targets,
-                        fault=fault,
-                        varnames=varnames,
+                        execute=options.execute,
                         force=options.force)
 
+            elif datatype == 'seismic':
+                sc = c.seismic_config
+                sf = sc.gf_config
+
+                if sf.reference_location is None:
+                    logger.info("Creating Green's Function stores individually"
+                                " for each station!")
+                    seismic_data_path = os.path.join(
+                        c.project_dir, config.seismic_data_name)
+
+                    stations, _ = utility.load_objects(seismic_data_path)
+                    stations = utility.apply_station_blacklist(
+                        stations, sc.blacklist)
+                    stations = utility.weed_stations(
+                        stations, c.event, distances=sc.distances)
+                else:
+                    logger.info(
+                        "Creating one global Green's Function store, which is "
+                        "being used by all stations!")
+                    stations = [sf.reference_location]
+                    logger.info(
+                        'Store name: %s' % sf.reference_location.station)
+
+                for crust_ind in range(*sf.n_variations):
+                    heart.seis_construct_gf(
+                        stations=stations,
+                        event=c.event,
+                        seismic_config=sc,
+                        crust_ind=crust_ind,
+                        execute=options.execute,
+                        force=options.force)
             else:
-                logger.info('Did not run GF calculation. Use --execute!')
+                raise ValueError('Datatype %s not supported!' % datatype)
+
+            if not options.execute:
+                logger.info('%s GF store configs successfully created! '
+                            'To start calculations set --execute!' % datatype)
+
+            if options.execute:
+                logger.info('%s GF calculations successful!' % datatype)
+
+    elif options.mode == 'ffi':
+        from beat import ffi
+
+        gf = c.geodetic_config.gf_config
+
+        geodetic_data_path = os.path.join(
+            c.project_dir, config.geodetic_data_name)
+
+        outdir = os.path.join(
+            c.project_dir, options.mode, config.linear_gf_dir_name)
+        util.ensuredir(outdir)
+
+        for source in gf.reference_sources:
+            source.update(lat=c.event.lat, lon=c.event.lon)
+
+        varnames = [varname for varname in c.problem_config.priors.keys()]
+
+        logger.info('Discretizing reference sources ...')
+        fault = ffi.discretize_sources(
+            varnames=varnames,
+            sources=gf.reference_sources,
+            extension_width=gf.extension_width,
+            extension_length=gf.extension_length,
+            patch_width=gf.patch_width,
+            patch_length=gf.patch_length,
+            datatypes=options.datatypes)
+
+        faultpath = os.path.join(outdir, config.fault_geometry_name)
+        if os.path.exists(faultpath) and not options.force:
+            logger.info("Discretized fault geometry exists! Use --force to"
+                        " overwrite!")
+            sys.exit(1)
+        else:
+            logger.info(
+                'Storing discretized fault geometry to: %s' % faultpath)
+            utility.dump_objects(faultpath, [fault])
+
+            logger.info('Updating problem_config:')
+            logger.info(
+                'Number of source-sub-patches: %i' % fault.nsubpatches)
+            c.problem_config.n_sources = fault.nsubpatches
+            c.problem_config.init_vars(varnames)
+            config.dump_config(c)
+
+        if options.execute:
+            logger.info("Calculating linear Green's Functions")
+
+            for datatype in options.datatypes:
+                logger.info('for %s data ...' % datatype)
+                if datatype == 'geodetic':
+                    datasets = utility.load_objects(geodetic_data_path)
+                    for data in datasets:
+                        if data.los_vector is None:
+                            data.update_los_vector()
+
+                    engine = LocalEngine(store_superdirs=[gf.store_superdir])
+
+                    for crust_ind in range(*gf.n_variations):
+                        outpath = os.path.join(
+                            outdir,
+                            str(crust_ind) + '_' +
+                            config.geodetic_linear_gf_name)
+                        logger.info('crust_ind %i' % crust_ind)
+
+                        targets = heart.init_geodetic_targets(
+                            datasets,
+                            earth_model_name='ak135-f-average.m',
+                            interpolation='multilinear',
+                            crust_inds=[crust_ind],
+                            sample_rate=gf.sample_rate)
+
+                        ffi.geo_construct_gf_linear(
+                            engine=engine,
+                            outpath=outpath,
+                            crust_ind=crust_ind,
+                            datasets=datasets,
+                            targets=targets,
+                            fault=fault,
+                            varnames=varnames,
+                            force=options.force)
+
+        else:
+            logger.info('Did not run GF calculation. Use --execute!')
 
 
 def command_plot(args):

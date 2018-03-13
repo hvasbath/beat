@@ -24,13 +24,13 @@ PatchMap = collections.namedtuple(
     'PatchMap', 'count, slc, shp, npatches')
 
 
-gf_entries = ['risetimes', 'start_times', 'patches', 'targets']
+gf_entries = ['durations', 'start_times', 'patches', 'targets']
 
 
 slip_directions = {
-    'Uparr': {'slip': 1., 'rake': 0.},
-    'Uperp': {'slip': 1., 'rake': -90.},
-    'Utensile': {'slip': 0., 'rake': 0., 'opening': 1.}}
+    'uparr': {'slip': 1., 'rake': 0.},
+    'uperp': {'slip': 1., 'rake': -90.},
+    'utensile': {'slip': 0., 'rake': 0., 'opening': 1.}}
 
 
 class GFLibraryError(Exception):
@@ -90,7 +90,7 @@ class SeismicGFLibrary(GFLibrary):
     """
     def __init__(
             self, component=None, event=None, wavemap=None,
-            starttime_sampling=1., risetime_sampling=1.):
+            starttime_sampling=1., duration_sampling=1.):
 
         super(SeismicGFLibrary, self).__init__(
             component=component, event=event)
@@ -98,7 +98,7 @@ class SeismicGFLibrary(GFLibrary):
         self.datatype = 'seismic'
         self.wavemap = wavemap
         self.starttime_sampling = starttime_sampling
-        self.risetime_sampling = risetime_sampling
+        self.duration_sampling = duration_sampling
         self._tmins = None
 
     def __str__(self):
@@ -107,29 +107,29 @@ class SeismicGFLibrary(GFLibrary):
             ------------------
             slip component: %s
             starttime_sampling[s]: %f
-            risetime_sampling[s]: %f
+            duration_sampling[s]: %f
             ntargets: %i
             npatches: %i
-            nrisetimes: %i
+            ndurations: %i
             nstarttimes: %i
             nsamples: %i
             size: %i
             filesize [MB]: %f
             filename: %s''' % (
-            self.component, self.starttime_sampling, self.risetime_sampling,
-            self.ntargets, self.npatches, self.nrisetimes,
+            self.component, self.starttime_sampling, self.duration_sampling,
+            self.ntargets, self.npatches, self.ndurations,
             self.nstarttimes, self.nsamples, self.size, self.filesize,
             self.filename)
         return s
 
-    def setup(self, ntargets, npatches, nrisetimes, nstarttimes, nsamples):
+    def setup(self, ntargets, npatches, ndurations, nstarttimes, nsamples):
         if ntargets != self.nstations:
             raise GFLibraryError(
                 'Number of stations and targets is inconsistent!'
                 'ntargets %i, nstations %i' % (ntargets, self.nstations))
 
         self._gfmatrix = num.zeros(
-            [ntargets, npatches, nrisetimes, nstarttimes, nsamples])
+            [ntargets, npatches, ndurations, nstarttimes, nsamples])
         self._tmins = num.zeros([ntargets, npatches])
         self._patchidxs = num.arange(npatches, dtype='int16')
 
@@ -146,7 +146,7 @@ class SeismicGFLibrary(GFLibrary):
 
     def put(
             self, entries, tmin, target, patchidx,
-            risetimeidxs, starttimeidxs):
+            durationidxs, starttimeidxs):
         """
         Fill the GF Library with synthetic traces for one target and one patch.
 
@@ -167,7 +167,7 @@ class SeismicGFLibrary(GFLibrary):
         tidx = self.wavemap.target_index_mapping()[target]
 
         self._gfmatrix[
-            tidx, patchidx, risetimeidxs, starttimeidxs, :] = entries
+            tidx, patchidx, durationidxs, starttimeidxs, :] = entries
         self._tmins[tidx, patchidx] = tmin
 
     def trace_tmin(self, target, patchidx, starttimeidx):
@@ -194,10 +194,10 @@ class SeismicGFLibrary(GFLibrary):
 
         self._mode = mode
 
-    def stack(self, target, patchidxs, risetimeidxs, starttimeidxs, slips):
+    def stack(self, target, patchidxs, durationidxs, starttimeidxs, slips):
         """
         Stack selected traces from the GF Library of specified
-        target, patch, risetimes and starttimes. Numpy or theano dependend
+        target, patch, durations and starttimes. Numpy or theano dependend
         on the stack_mode
 
         Parameters
@@ -211,10 +211,10 @@ class SeismicGFLibrary(GFLibrary):
 
         tidx = self.wavemap.target_index_mapping()[target]
         return self._stack_switch[self._mode][
-            tidx, patchidxs, risetimeidxs, starttimeidxs, :].reshape(
+            tidx, patchidxs, durationidxs, starttimeidxs, :].reshape(
                 (slips.shape[0], self.nsamples)).T.dot(slips)
 
-    def stack_all(self, risetimes, starttimes, slips):
+    def stack_all(self, durations, starttimes, slips):
         """
         Stack all patches for all targets at once.
         In theano for efficient optimization.
@@ -234,17 +234,17 @@ class SeismicGFLibrary(GFLibrary):
 
         starttimeidxs = tt.round(
             starttimes / self.starttime_sampling).astype('int16')
-        risetimeidxs = tt.round(
-            risetimes / self.risetime_sampling).astype('int16')
+        durationidxs = tt.round(
+            durations / self.duration_sampling).astype('int16')
 
         d = self._sgfmatrix[
-            :, self._patchidxs, risetimeidxs, starttimeidxs, :].reshape(
+            :, self._patchidxs, durationidxs, starttimeidxs, :].reshape(
             (self.ntargets, self.npatches, self.nsamples))
-        return batched_dot(
+        return tt.batched_dot(
             d.dimshuffle((1, 0, 2)), slips).sum(axis=0)
 
     def snuffle(
-            self, targets=[], patchidxs=[0], risetimeidxs=[0],
+            self, targets=[], patchidxs=[0], durationidxs=[0],
             starttimeidxs=[0]):
         """
         Opens pyrocko's snuffler with the specified traces.
@@ -259,7 +259,7 @@ class SeismicGFLibrary(GFLibrary):
             tidx = t2i[target]
             display_stations.append(self.wavemap.stations[tidx])
             for patchidx in patchidxs:
-                for rtidx in risetimeidxs:
+                for rtidx in durationidxs:
                     for startidx in starttimeidxs:
                         tr = Trace(
                             ydata=self._gfmatrix[
@@ -286,7 +286,7 @@ class SeismicGFLibrary(GFLibrary):
         return self._gfmatrix.shape[1]
 
     @property
-    def nrisetimes(self):
+    def ndurations(self):
         self._check_setup()
         return self._gfmatrix.shape[2]
 
@@ -659,8 +659,8 @@ def geo_construct_gf_linear(
 
 
 def seis_construct_gf_linear(
-        engine, fault, risetime, varnames, wavemap, event,
-        velocity, starttime_sampling, risetime_sampling,
+        engine, fault, duration, varnames, wavemap, event,
+        velocity, starttime_sampling, duration_sampling,
         sample_rate, outdirectory, force):
     """
     Create seismic Greens Function matrix for defined source geometry
@@ -677,10 +677,10 @@ def seis_construct_gf_linear(
     fault : :class:`FaultGeometry`
         fault object that may comprise of several sub-faults. thus forming a
         complex fault-geometry
-    risetime : :class:`heart.Parameter`
-        prior of risetimes of the STF for each patch to convolve
-    risetime_sampling : float
-        incremental step size for precalculation of risetime GFs
+    durations : :class:`heart.Parameter`
+        prior of durations of the STF for each patch to convolve
+    duration_sampling : float
+        incremental step size for precalculation of duration GFs
     velocity : :class:`heart.Parameter`
         rupture velocity of earthquake prior
     starttime_sampling : float
@@ -700,48 +700,48 @@ def seis_construct_gf_linear(
         int(num.ceil(start_times.max() / starttime_sampling)))
     starttimes = (starttimeidxs * starttime_sampling).tolist()
 
-    risetimes = num.arange(
-        risetime.lower.min(), risetime.upper.max(), risetime_sampling)
-    risetimeidxs = num.ceil(
-        (risetimes - risetime.lower) / risetime_sampling)
+    durations = num.arange(
+        duration.lower.min(), duration.upper.max(), duration_sampling)
+    durationidxs = num.ceil(
+        (durations - duration.lower) / duration_sampling)
 
     logger.info(
-        'Calculating GFs for starttimes: %s \n risetimes: %s' %
-        (utility.list2string(starttimes), utility.list2string(risetimes)))
+        'Calculating GFs for starttimes: %s \n durations: %s' %
+        (utility.list2string(starttimes), utility.list2string(durations)))
 
     nstarttimes = len(starttimes)
     npatches = len(fault.nsubfaults)
     ntargets = len(wavemap.targets)
-    nrisetimes = risetimes.size
+    ndurations = durations.size
     nsamples = int(num.ceil(wavemap.arrival_taper.duration * sample_rate))
 
     for var in varnames:
         logger.info('For slip component: %s' % var)
         gfs = SeismicGFLibrary(
             component=var, event=event, wavemap=wavemap,
-            risetime_sampling=risetime_sampling,
+            duration_sampling=duration_sampling,
             starttime_sampling=starttime_sampling)
 
         outpath = os.path.join(outdirectory, gfs.filename)
         if not os.path.exists(outpath) or force:
-            gfs.setup(ntargets, npatches, nrisetimes, nstarttimes, nsamples)
+            gfs.setup(ntargets, npatches, ndurations, nstarttimes, nsamples)
 
             for patchidx, patch in enumerate(
                     fault.get_all_patches('seismic', component=var)):
 
-                source_patches_risetimes = []
+                source_patches_durations = []
                 logger.info('Patch Number %i', patchidx)
 
-                for risetime in risetimes:
+                for duration in durations:
                     pcopy = patch.clone()
-                    pcopy.update(risetime=risetime)
-                    source_patches_risetimes.append(copy)
+                    pcopy.update(duration=duration)
+                    source_patches_durations.append(copy)
 
                 for j, target in enumerate(wavemap.targets):
 
                     traces, tmins = heart.seis_synthetics(
                         engine=engine,
-                        sources=source_patches_risetimes,
+                        sources=source_patches_durations,
                         targets=[target],
                         arrival_taper=None,
                         wavename=wavemap.wavename,
@@ -764,7 +764,7 @@ def seis_construct_gf_linear(
                             traces=traces,
                             arrival_taper=wavemap.arrival_taper,
                             filterer=wavemap.filterer,
-                            tmins=num.ones(nrisetimes) * tmin,
+                            tmins=num.ones(ndurations) * tmin,
                             outmode='array')
 
                         gfs.put(
@@ -772,7 +772,7 @@ def seis_construct_gf_linear(
                             tmin=tmin,
                             target=target,
                             patchidx=patchidx,
-                            risetimeidxs=risetimeidxs,
+                            durationidxs=durationidxs,
                             starttimeidxs=starttime)
 
             logger.info('Storing seismic linear GF Library under ', outpath)
