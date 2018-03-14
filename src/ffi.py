@@ -1,4 +1,5 @@
-from beat import heart, utility
+from beat import heart
+from beat import utility as ut
 from beat.fast_sweeping import fast_sweep
 
 import copy
@@ -90,15 +91,20 @@ class SeismicGFLibrary(GFLibrary):
     """
     def __init__(
             self, component=None, event=None, wavemap=None,
-            starttime_sampling=1., duration_sampling=1.):
+            starttime_sampling=1., duration_sampling=1.,
+            starttime_min=0., duration_min=1.):
 
         super(SeismicGFLibrary, self).__init__(
             component=component, event=event)
 
         self.datatype = 'seismic'
         self.wavemap = wavemap
-        self.starttime_sampling = starttime_sampling
-        self.duration_sampling = duration_sampling
+        self.starttime_sampling = ut.scalar2floatX(
+            starttime_sampling, tconfig.floatX)
+        self.duration_sampling = ut.scalar2floatX(
+            duration_sampling, tconfig.floatX)
+        self.starttime_min = ut.scalar2int(starttime_min, tconfig.floatX)
+        self.duration_min = ut.scalar2int(duration_min, tconfig.floatX)
         self._tmins = None
 
     def __str__(self):
@@ -233,9 +239,11 @@ class SeismicGFLibrary(GFLibrary):
                 ' has to be initialised!')
 
         starttimeidxs = tt.round(
-            starttimes / self.starttime_sampling).astype('int16')
+            (starttimes - self.starttime_min) /
+            self.starttime_sampling).astype('int16')
         durationidxs = tt.round(
-            durations / self.duration_sampling).astype('int16')
+            (durations - self.duration_min) /
+            self.duration_sampling).astype('int16')
 
         d = self._sgfmatrix[
             :, self._patchidxs, durationidxs, starttimeidxs, :].reshape(
@@ -659,8 +667,9 @@ def geo_construct_gf_linear(
 
 
 def seis_construct_gf_linear(
-        engine, fault, duration, varnames, wavemap, event,
-        velocity, starttime_sampling, duration_sampling,
+        engine, fault, durations_prior, velocities_prior,
+        varnames, wavemap, event,
+        starttime_sampling, duration_sampling,
         sample_rate, outdirectory, force):
     """
     Create seismic Greens Function matrix for defined source geometry
@@ -681,7 +690,7 @@ def seis_construct_gf_linear(
         prior of durations of the STF for each patch to convolve
     duration_sampling : float
         incremental step size for precalculation of duration GFs
-    velocity : :class:`heart.Parameter`
+    velocities : :class:`heart.Parameter`
         rupture velocity of earthquake prior
     starttime_sampling : float
         incremental step size for precalculation of startime GFs
@@ -695,15 +704,17 @@ def seis_construct_gf_linear(
     """
 
     start_times = fault.get_subfault_starttime_bound(
-        index=0, rupture_velocities=velocity)
+        index=0, rupture_velocities=velocities_prior)
     starttimeidxs = num.arange(
         int(num.ceil(start_times.max() / starttime_sampling)))
     starttimes = (starttimeidxs * starttime_sampling).tolist()
 
     durations = num.arange(
-        duration.lower.min(), duration.upper.max(), duration_sampling)
+        durations_prior.lower.min(),
+        durations_prior.upper.max(),
+        duration_sampling)
     durationidxs = num.ceil(
-        (durations - duration.lower) / duration_sampling)
+        (durations - durations_prior.lower) / duration_sampling)
 
     logger.info(
         'Calculating GFs for starttimes: %s \n durations: %s' %

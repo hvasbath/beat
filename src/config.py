@@ -192,19 +192,10 @@ class GFConfig(Object):
         help='Start and end index to vary input velocity model. '
              'Important for the calculation of the model prediction covariance'
              ' matrix with respect to uncertainties in the velocity model.')
-    error_depth = Float.T(
-        default=0.1,
-        help='3sigma [%/100] error in velocity model layer depth, '
-             'translates to interval for varying the velocity model')
-    error_velocities = Float.T(
-        default=0.1,
-        help='3sigma [%/100] in velocity model layer wave-velocities, '
-             'translates to interval for varying the velocity model')
-    depth_limit_variation = Float.T(
-        default=600.,
-        help='Depth limit [km] for varying the velocity model. Below that '
-             'depth the velocity model is not varied based on the errors '
-             'defined above!')
+    earth_model_name = String.T(
+        default='ak135-f-average.m',
+        help='Name of the reference earthmodel, see '
+             'pyrocko.cake.builtin_models() for alternatives.')
 
 
 class NonlinearGFConfig(GFConfig):
@@ -214,10 +205,6 @@ class NonlinearGFConfig(GFConfig):
     created.
     """
 
-    earth_model_name = String.T(
-        default='ak135-f-average.m',
-        help='Name of the reference earthmodel, see '
-             'pyrocko.cake.builtin_models() for alternatives.')
     use_crust2 = Bool.T(
         default=True,
         help='Flag, for replacing the crust from the earthmodel'
@@ -247,6 +234,19 @@ class NonlinearGFConfig(GFConfig):
         default=1.,
         help='Distance spacing [km] for GF function grid w.r.t'
              ' reference_location.')
+    error_depth = Float.T(
+        default=0.1,
+        help='3sigma [%/100] error in velocity model layer depth, '
+             'translates to interval for varying the velocity model')
+    error_velocities = Float.T(
+        default=0.1,
+        help='3sigma [%/100] in velocity model layer wave-velocities, '
+             'translates to interval for varying the velocity model')
+    depth_limit_variation = Float.T(
+        default=600.,
+        help='Depth limit [km] for varying the velocity model. Below that '
+             'depth the velocity model is not varied based on the errors '
+             'defined above!')
     nworkers = Int.T(
         default=1,
         help='Number of processors to use for calculating the GFs')
@@ -322,6 +322,34 @@ class LinearGFConfig(GFConfig):
         help='Extend reference sources by this factor in each'
              ' strike-direction. 0.1 means extension of the fault by 10% in'
              ' each direction, i.e. 20% in total.')
+    sample_rate = Float.T(
+        default=2.,
+        help='Sample rate for the Greens Functions.')
+
+
+class SeismicLinearGFConfig(LinearGFConfig):
+    """
+    Config for seismic linear GreensFunction calculation parameters.
+    """
+    reference_location = ReferenceLocation.T(
+        default=None,
+        help="Reference location for the midpoint of the Green's Function "
+             "grid.",
+        optional=True)
+    duration_sampling = Float.T(
+        default=1.,
+        help="Calculate Green's Functions for varying Source Time Function"
+             " durations determined by prior bounds. Discretization between"
+             " is determined by duration sampling.")
+    starttime_sampling = Float.T(
+        default=1.,
+        help="Calculate Green's Functions for varying rupture onset times."
+             "These are determined by the (rupture) velocity prior bounds "
+             "and the hypocenter location.")
+
+
+class GeodeticLinearGFConfig(LinearGFConfig):
+    pass
 
 
 class WaveformFitConfig(Object):
@@ -413,6 +441,10 @@ class GeodeticConfig(Object):
         default=True,
         help='Flag for calculating the data covariance matrix based on the'
              ' pre P arrival data trace noise.')
+    interpolation = StringChoice.T(
+        choices=['nearest_neighbor', 'multilinear'],
+        default='multilinear',
+        help='GF interpolation scheme during synthetics generation')
     fit_plane = Bool.T(
         default=False,
         help='Flag for inverting for additional plane parameters on each'
@@ -845,34 +877,55 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
         else:
             c.seismic_config = None
 
-    elif mode == 'static':
+    elif mode == 'ffi':
 
         if source_type != 'RectangularSource':
             raise TypeError('Static distributed slip is so far only supported'
                             ' for RectangularSource(s)')
 
-        gc = load_config(c.project_dir, 'geometry')
+        gmc = load_config(c.project_dir, 'geometry')
 
-        if gc is not None:
+        if gmc is not None:
             logger.info('Taking information from geometry_config ...')
-            n_sources = gc.problem_config.n_sources
+            n_sources = gmc.problem_config.n_sources
             point = {k: v.testvalue
-                     for k, v in gc.problem_config.priors.iteritems()}
+                     for k, v in gmc.problem_config.priors.iteritems()}
             source_points = utility.split_point(point)
             reference_sources = [RectangularSource(
                 **source_points[i]) for i in range(n_sources)]
 
-            c.date = gc.date
-            c.event = gc.event
-            c.geodetic_config = gc.geodetic_config
-            c.geodetic_config.gf_config = LinearGFConfig(
-                store_superdir=gc.geodetic_config.gf_config.store_superdir,
-                n_variations=gc.geodetic_config.gf_config.n_variations,
-                reference_sources=reference_sources)
+            c.date = gmc.date
+            c.event = gmc.event
+
+            if 'geodetic' in datatypes:
+                gc = gmc.geodetic_config
+                lgf_config = GeodeticLinearGFConfig(
+                    earth_model_name=gc.gf_config.earth_model_name,
+                    store_superdir=gc.gf_config.store_superdir,
+                    n_variations=gc.gf_config.n_variations,
+                    reference_sources=reference_sources)
+                c.geodetic_config = gc
+                c.geodetic_config.gf_config = lgf_config
+
+            elif 'seismic' in datatypes:
+                sc = gc.seismic_config
+                lgf_config = SeismicLinearGFConfig(
+                    earth_model_name=sc.gf_config.earth_model_name,
+                    sample_rate=sc.gf_config.sample_rate,
+                    reference_location=sc.gf_config.reference_location,
+                    store_superdir=sc.gf_config.store_superdir,
+                    n_variations=sc.gf_config.n_variations,
+                    reference_sources=reference_sources)
+                c.seismic_config = sc
+                c.seismic_config.gf_config = lgf_config
         else:
-            logger.info('Found no geometry setup, init blank ...')
-            c.geodetic_config = GeodeticConfig(gf_config=LinearGFConfig())
-            c.date = 'dummy'
+            logger.warning('Found no geometry setup, ...')
+            raise ImportError(
+                'No geometry configuration file existing! Please initialise'
+                ' a "geometry" configuration ("beat init command"), update'
+                ' the Greens Function information and create GreensFunction'
+                ' stores for the non-linear problem.')
+
         logger.info(
             'Problem config has to be updated. After deciding on the patch'
             ' dimensions and extension factors please run: import')

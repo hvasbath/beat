@@ -754,36 +754,29 @@ def command_build_gfs(args):
     elif options.mode == 'ffi':
         from beat import ffi
 
-        gf = c.geodetic_config.gf_config
-
-        geodetic_data_path = os.path.join(
-            c.project_dir, config.geodetic_data_name)
-
+        varnames = [varname for varname in c.problem_config.priors.keys()]
         outdir = os.path.join(
             c.project_dir, options.mode, config.linear_gf_dir_name)
         util.ensuredir(outdir)
 
-        for source in gf.reference_sources:
-            source.update(lat=c.event.lat, lon=c.event.lon)
-
-        varnames = [varname for varname in c.problem_config.priors.keys()]
-
-        logger.info('Discretizing reference sources ...')
-        fault = ffi.discretize_sources(
-            varnames=varnames,
-            sources=gf.reference_sources,
-            extension_width=gf.extension_width,
-            extension_length=gf.extension_length,
-            patch_width=gf.patch_width,
-            patch_length=gf.patch_length,
-            datatypes=options.datatypes)
-
         faultpath = os.path.join(outdir, config.fault_geometry_name)
-        if os.path.exists(faultpath) and not options.force:
-            logger.info("Discretized fault geometry exists! Use --force to"
-                        " overwrite!")
-            sys.exit(1)
-        else:
+        if not os.path.exists(faultpath) or options.force:
+
+            gf = c[options.datatypes[0] + '_config'].gf_config
+
+            for source in gf.reference_sources:
+                source.update(lat=c.event.lat, lon=c.event.lon)
+
+            logger.info('Discretizing reference sources ...')
+            fault = ffi.discretize_sources(
+                varnames=varnames,
+                sources=gf.reference_sources,
+                extension_width=gf.extension_width,
+                extension_length=gf.extension_length,
+                patch_width=gf.patch_width,
+                patch_length=gf.patch_length,
+                datatypes=options.datatypes)
+
             logger.info(
                 'Storing discretized fault geometry to: %s' % faultpath)
             utility.dump_objects(faultpath, [fault])
@@ -795,11 +788,23 @@ def command_build_gfs(args):
             c.problem_config.init_vars(varnames)
             config.dump_config(c)
 
+        elif os.path.exists(faultpath):
+            logger.info("Discretized fault geometry exists! Use --force to"
+                        " overwrite!")
+            logger.info('Loading existing discretized fault')
+            fault = utility.load_objects(faultpath)[0]
+
         if options.execute:
             logger.info("Calculating linear Green's Functions")
 
             for datatype in options.datatypes:
                 logger.info('for %s data ...' % datatype)
+
+                gf = c.geodetic_config.gf_config
+
+                geodetic_data_path = os.path.join(
+                    c.project_dir, config.geodetic_data_name)
+
                 if datatype == 'geodetic':
                     datasets = utility.load_objects(geodetic_data_path)
                     for data in datasets:
@@ -817,8 +822,8 @@ def command_build_gfs(args):
 
                         targets = heart.init_geodetic_targets(
                             datasets,
-                            earth_model_name='ak135-f-average.m',
-                            interpolation='multilinear',
+                            earth_model_name=gf.earth_model_name,
+                            interpolation=c.geodetic_config.interpolation,
                             crust_inds=[crust_ind],
                             sample_rate=gf.sample_rate)
 
@@ -832,6 +837,35 @@ def command_build_gfs(args):
                             varnames=varnames,
                             force=options.force)
 
+                elif datatype == 'seismic':
+                    seismic_data_path = os.path.join(
+                        c.project_dir, config.seismic_data_name)
+                    sc = c.seismic_config
+                    gf = sc.gf_config
+
+                    datahandler = heart.init_datahandler(
+                        seismic_config=sc, seismic_data_path=seismic_data_path)
+
+                    engine = LocalEngine(store_superdirs=[gf.store_superdir])
+
+                    wavemaps = []
+                    for wc in sc.waveforms:
+                        wmap = heart.init_wavemap(
+                            waveformfit_config=wc, datahandler, c.event)
+
+                        ffi.seis_construct_gf_linear(
+                            engine=engine,
+                            fault=fault,
+                            durations=c.problem_config.priors['durations'],
+                            velocities=c.problem_config.priors['velocities'],
+                            varnames=varnames,
+                            wavemap=wmap,
+                            event=c.event,
+                            starttime_sampling=gf.starttime_sampling,
+                            duration_sampling=gf.duration_sampling,
+                            sample_rate=gf.sample_rate,
+                            outdirectory=outdir,
+                            force=options.force)
         else:
             logger.info('Did not run GF calculation. Use --execute!')
 

@@ -2143,6 +2143,73 @@ class DataWaveformCollection(object):
             channels=channels)
 
 
+def init_datahandler(seismic_config, seismic_data_path='./'):
+    """
+    Initialise datahandler.
+
+    Parameter
+    ---------
+    seismic_config : :class:`config.SeismicConfig`
+    seismic_data_path : str
+        absolute path to the directory of the seismic data
+
+    Returns
+    -------
+    datahandler : :class:`DataWaveformCollection`
+    """
+    sc = seismic_config
+
+    stations, data_traces = utility.load_objects(seismic_data_path)
+    wavenames = sc.get_waveform_names()
+
+    target_deltat = 1. / sc.gf_config.sample_rate
+
+    targets = init_seismic_targets(
+        stations,
+        earth_model_name=sc.gf_config.earth_model_name,
+        channels=sc.get_unique_channels(),
+        sample_rate=sc.gf_config.sample_rate,
+        crust_inds=[sc.gf_config.reference_model_idx],
+        reference_location=sc.gf_config.reference_location,
+        blacklist=sc.blacklist)
+
+    datahandler = DataWaveformCollection(stations, wavenames)
+    datahandler.add_datasets(
+        data_traces, location=sc.gf_config.reference_model_idx)
+    datahandler.downsample_datasets(target_deltat)
+    datahandler.add_targets(targets)
+    datahandler.station_blacklisting(sc.blacklist)
+    return datahandler
+
+
+def init_wavemap(waveformfit_config, datahandler=None, event=None):
+    """
+    Initialise wavemap, which sets targets, datasets and stations into
+    relation to the seismic Phase of interest and allows individual
+    specificiations.
+
+    Parameter
+    ---------
+    waveformfit_config : :class:`config.WaveformFitConfig`
+    datahandler : :class:`DataWaveformCollection`
+    event : :class:`pyrocko.model.Event`
+
+    Returns
+    -------
+    wmap : :class:`WaveformMapping`
+    """
+    wc = waveformfit_config
+    wmap = datahandler.get_waveform_mapping(wc.name, channels=wc.channels)
+    wmap.config = wc
+
+    wmap.station_distance_weeding(event, wc.distances)
+    wmap.update_interpolation(wc.interpolation)
+
+    logger.info('Number of seismic datasets for %s: %i ' % (
+        wmap.name, wmap.n_data))
+    return wmap
+
+
 def post_process_trace(trace, taper, filterer, taper_tolerance_factor=0.,
                        outmode=None):
     """

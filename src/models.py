@@ -383,7 +383,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         self.targets = heart.init_geodetic_targets(
             datasets=self.datasets,
             earth_model_name=gc.gf_config.earth_model_name,
-            interpolation='multilinear',
+            interpolation=gc.interpolation,
             crust_inds=[gc.gf_config.reference_model_idx],
             sample_rate=gc.gf_config.sample_rate)
 
@@ -548,7 +548,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
             crust_targets = heart.init_geodetic_targets(
                 datasets=[data],
                 earth_model_name=gc.gf_config.earth_model_name,
-                interpolation='nearest_neighbor',
+                interpolation=gc.interpolation,
                 crust_inds=range(*gc.gf_config.n_variations),
                 sample_rate=gc.gf_config.sample_rate)
 
@@ -666,41 +666,15 @@ class SeismicComposite(Composite):
 
         seismic_data_path = os.path.join(
             project_dir, bconfig.seismic_data_name)
-        stations, data_traces = utility.load_objects(
-            seismic_data_path)
 
-        wavenames = sc.get_waveform_names()
-
-        target_deltat = 1. / sc.gf_config.sample_rate
-
-        targets = heart.init_seismic_targets(
-            stations,
-            earth_model_name=sc.gf_config.earth_model_name,
-            channels=sc.get_unique_channels(),
-            sample_rate=sc.gf_config.sample_rate,
-            crust_inds=[sc.gf_config.reference_model_idx],
-            reference_location=sc.gf_config.reference_location,
-            blacklist=sc.blacklist)
-
-        self.datahandler = heart.DataWaveformCollection(stations, wavenames)
-        self.datahandler.add_datasets(
-            data_traces, location=sc.gf_config.reference_model_idx)
-        self.datahandler.downsample_datasets(target_deltat)
-        self.datahandler.add_targets(targets)
-        self.datahandler.station_blacklisting(sc.blacklist)
+        self.datahandler = heart.init_datahandler(
+            seismic_config=sc, seismic_data_path=seismic_data_path)
 
         self.wavemaps = []
         for wc in sc.waveforms:
             if wc.include:
-                wmap = self.datahandler.get_waveform_mapping(
-                    wc.name, channels=wc.channels)
-                wmap.config = wc
-
-                wmap.station_distance_weeding(event, wc.distances)
-                wmap.update_interpolation(wc.interpolation)
-
-                logger.info('Number of seismic datasets for %s: %i ' % (
-                    wmap.name, wmap.n_data))
+                wmap = heart.init_wavemap(
+                    waveformfit_config=wc, datahandler, event)
 
                 if sc.calc_data_cov:
                     logger.info(
@@ -1285,6 +1259,17 @@ class SeismicDistributerComposite(SeismicComposite):
 
         self.sweeper = theanof.Sweeper(
             patch_length / km, n_patches_strike, n_patches_dip)
+
+    def load_fault_geometry(self):
+        """
+        Load fault-geometry, i.e. discretized patches.
+
+        Returns
+        -------
+        :class:`heart.FaultGeometry`
+        """
+        return utility.load_objects(
+            os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
 
     def load_gfs(self, crust_inds=None, make_shared=True):
         """

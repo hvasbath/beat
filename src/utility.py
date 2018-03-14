@@ -19,7 +19,6 @@ from pyrocko import util, orthodrome, catalog
 from pyrocko.cake import m2d, LayeredModel, read_nd_model_str
 
 from pyrocko.gf.seismosizer import RectangularSource
-from beat.sources import MTSourceWithMagnitude
 
 import numpy as num
 from theano import config as tconfig
@@ -1174,6 +1173,13 @@ def scalar2floatX(a, floatX=tconfig.floatX):
         return num.float32(a)
     elif floatX == 'float64':
         return num.float64(a)
+
+
+def scalar2int(a, floatX=tconfig.floatX):
+    if floatX == 'float32':
+        return num.int16(a)
+    elif floatX == 'float64':
+        return num.int64(a)
 
 
 def PsGrnArray2LayeredModel(psgrn_input_path):
