@@ -629,9 +629,9 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
 
         return synths
 
-    def update_weights(point, n_jobs=1, plot=False):
+    def update_weights(self, point, n_jobs=1, plot=False):
         logger.warning('Not implemented yet!')
-        raise Exception('Not implemented yet!')
+        raise NotImplementedError('Not implemented yet!')
 
 
 class SeismicComposite(Composite):
@@ -789,8 +789,6 @@ class SeismicComposite(Composite):
         List with :class:`heart.SeismicResult`
         """
         logger.debug('Assembling seismic waveforms ...')
-
-        self.point2sources(point)
 
         syn_proc_traces, obs_proc_traces = self.get_synthetics(
             point, outmode='stacked_traces')
@@ -959,7 +957,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
         t3 = time.time()
         logger.debug(
-            'Teleseismic forward model on test model takes: %f' % (t3 - t2))
+            'Seismic forward model on test model takes: %f' % (t3 - t2))
 
         llk = pm.Deterministic(self._like_name, tt.concatenate((wlogpts)))
         return llk.sum()
@@ -1152,15 +1150,17 @@ class GeodeticDistributerComposite(GeodeticComposite):
         """
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs
+        ref_idx = self.config.geodetic_config.gf_config.reference_model_idx
 
         residuals = [None for i in range(self.n_t)]
         for t in range(self.n_t):
 
             mu = tt.zeros_like(self.data[t], tconfig.floatX)
             for var, rv in input_rvs.iteritems():
-                mu += tt.dot(self.sgfs[0][var][t], rv)
+                # use first loaded gf library
+                mu += tt.dot(self.sgfs[ref_idx][var][t], rv)
 
-            residuals[t] = self.shared_odws[t] * (self.shared_data[t] - mu)
+            residuals[t] = self.shared_odw[t] * (self.shared_data[t] - mu)
 
         if self.config.fit_plane:
             residuals = self.remove_ramps(residuals)
@@ -1215,6 +1215,10 @@ class GeodeticDistributerComposite(GeodeticComposite):
 
         return synthetics
 
+    def update_weights(self, point, n_jobs=1, plot=False):
+        logger.warning('Not implemented yet!')
+        raise NotImplementedError('Not implemented yet!')
+
 
 class SeismicDistributerComposite(SeismicComposite):
     """
@@ -1222,20 +1226,20 @@ class SeismicDistributerComposite(SeismicComposite):
     Distributed slip
     """
 
-    gfs = {}
-    sgfs = {}
-    gf_names = {}
-
     def __init__(self, sc, project_dir, hypers=False):
 
         super(SeismicDistributerComposite, self).__init__(
             sc, project_dir, hypers=hypers)
 
+        self.gfs = {}
+        self.gf_names = {}
+
+        self.slip_varnames = config.problem_config.get_slip_variables()
         self._mode = 'ffi'
         self.gfpath = os.path.join(
-            project_dir, self._mode,
-            bconfig.linear_gf_dir_name)
+            project_dir, self._mode, bconfig.linear_gf_dir_name)
 
+        self.config = sc
         sgfc = sc.gf_config
 
         if sgfc.patch_width != sgfc.patch_length:
@@ -1248,17 +1252,13 @@ class SeismicDistributerComposite(SeismicComposite):
                 'So far only one reference plane supported! - '
                 'fast_sweeping issues')
 
-        self.ext_reference_source = sgfc.reference_sources[0].extend_source(
-            sgfc.extension_width, sgfc.extension_length,
-            sgfc.patch_width, sgfc.patch_length)
-
-        n_patches_strike = self.ext_reference_source.get_n_patches(
-            sgfc.patch_length, 'length')
-        n_patches_dip = self.ext_reference_source.get_n_patches(
-            sgfc.patch_width, 'width')
+        self.fault = self.load_fault_geometry()
+        n_p_dip, n_p_strike = fault.get_subfault_discretization(index)
 
         self.sweeper = theanof.Sweeper(
-            patch_length / km, n_patches_strike, n_patches_dip)
+            sgfc.patch_length / km, n_p_strike, n_p_dip)
+
+!        self.chopper
 
     def load_fault_geometry(self):
         """
@@ -1270,6 +1270,9 @@ class SeismicDistributerComposite(SeismicComposite):
         """
         return utility.load_objects(
             os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
+
+    def get_gflibrary_key(crust_ind, wavename, component):
+        return '%i_%s_%s' % (crust_ind, wavename, component)
 
     def load_gfs(self, crust_inds=None, make_shared=True):
         """
@@ -1283,51 +1286,155 @@ class SeismicDistributerComposite(SeismicComposite):
         make_shared : bool
             if True transforms gfs to :class:`theano.shared` variables
         """
+        if not isinstance(crust_inds, list):
+            raise TypeError('crust_inds need to be a list!')
 
         if crust_inds is None:
-            crust_inds = range(self.gc.gf_config.n_variations + 1)
+            crust_inds = range(*self.config.gf_config.n_variations)
 
-        for var in varnames:
+        for wmap in self.wavemaps:
             for crust_ind in crust_inds:
-    
+                gfs = {}
+                gfpaths = {}
+                for var in self.slip_varnames:
+                    gflib_name = get_seismic_gf_name(
+                        datatype=self.name, component=var,
+                        wavename=wmap.wavename, crust_ind=crust_ind)
+                    gfpath = os.path.join(
+                        self.gfpath, gflib_name)
 
-            gfpath = os.path.join(
-                self.gfpath,
-                str(crust_ind) + '_' + bconfig.seismic_linear_gf_name)
+                    gflibrary = utility.load_objects(gfpath)[0]
 
-            self.gf_names[crust_ind] = gfpath
-            gfs = utility.load_objects(gfpath)[0]
+                    if make_shared:
+                        gflibrary.init_optimization()
 
-            if make_shared:
-                self.sgfs[crust_ind] = {param: [
-                    shared(gf.astype(tconfig.floatX), borrow=True)
-                    for gf in gfs[param]]
-                    for param in gfs.keys()}
-            else:
-                self.gfs[crust_ind] = gfs
+                key = self.get_gflibrary_key(
+                    crust_ind=crust_ind, wavename=wmap.wavename, component=var)
+                self.gf_names[key] = gfpath
+                self.gfs[key] = gfs
 
     def get_formula(self, input_rvs, hyperparams):
 
+        ref_idx = self.config.gf_config.reference_model_idx
+
+        # cut data according to wavemaps
+        self.sdatasets = []
+        for wmap in self.wavemaps:
+            key = self.get_gflibrary_key(
+                crust_ind=crust_ind,
+                wavename=wmap.wavename,
+                component=self.slip_varnames[0])
+
+            chopped_traces = heart.taper_filter_traces(
+                traces=wmap.datasets,
+                arrival_taper=wmap.arrival_taper,
+                filterer=wmap.filterer,
+ !  hypocentre             tmins=self.gfs[key]._tmins[:, 0],
+                outmode='array')
+            self.sdatasets.append(
+                shared(chopped_traces, borrow=True).astype(tconfig.floatX))
+
         # convert velocities to rupture onset
         starttimes = self.sweeper(
-            (1 / input_rvs['velocity']),
+            (1. / input_rvs['velocity']),
             tt.round(input_rvs['nucleation_x']).astype('int16'),
             tt.round(input_rvs['nucleation_y']).astype('int16')).flatten()
 
-        for wmap in self.wavemaps:
-            for rv, gfs
-                synthetics = gfs.stack_all(
+        wlogpts = []
+        for wmap, sdata in zip(self.wavemaps, self.sdatasets):
+            synthetics = tt.zeros_like(sdata, dtype=tconfig.floatX)
+            for var in self.slip_varnames:
+                key = self.get_gflibrary_key(
+                    crust_ind=ref_idx, wavename=wmap.wavename, component=var)
+                synthetics += self.gfs[key].stack_all(
                     starttimes=starttimes,
                     durations=input_rvs['durations'],
-                    slips=theano_slips)
+                    slips=input_rvs[var])
 
+                residuals = sdata - synthetics
 
-        logpts = multivariate_normal(
-            self.targets, self.weights, hyperparams, residuals)
+            logpts = multivariate_normal_chol(
+                wmap.datasets, wmap.weights, hyperparams, residuals)
 
-        llk = pm.Deterministic(self._like_name, logpts)
+            wlogpts.append(logpts)
 
+        t3 = time.time()
+        logger.debug(
+            'Seismic forward model on test model takes: %f' % (t3 - t2))
+
+        llk = pm.Deterministic(self._like_name, tt.concatenate((wlogpts)))
         return llk.sum()
+
+    def get_synthetics(self, point, kwargs):
+        """
+        Get synthetics for given point in solution space.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters
+        kwargs especially to change output of the forward model
+
+        Returns
+        -------
+        list with :class:`heart.SeismicDataset` synthetics for each target
+        """
+        ref_idx = self.config.gf_config.reference_model_idx
+        if len(self.gfs.keys()) == 0:
+            self.load_gfs(
+                crust_inds=[ref_idx],
+                make_shared=False)
+
+        tpoint = copy.deepcopy(point)
+
+        hps = self.config.get_hypernames()
+
+        for hyper in hps:
+            if hyper in tpoint:
+                tpoint.pop(hyper)
+
+        gf_params = self.gfs[0].keys()
+
+        for param in tpoint.keys():
+            if param not in gf_params:
+                tpoint.pop(param)
+
+        start_times = self.fault.get_subfault_starttimes(
+            index=0, rupture_velocities=tpoint['velocities'])
+
+        synth_traces = []
+        obs_traces = []
+        for wmap in self.wavemaps:
+            key = self.get_gflibrary_key(
+                crust_ind=ref_idx, wavename=wmap.wavename, component=var)
+
+            gflibrary = self.gfs[key]
+            synthetics = num.zeros((gflibrary.ntargets, gflibrary.nsamples))
+            for var in self.slip_varnames:
+                synthetics += self.gfs[key].stack_all(
+                    starttimes=starttimes,
+                    durations=tpoint['durations'],
+                    slips=tpoint[var]).eval()
+
+            for i in range(wmap.n_t):
+                synth_traces.append(
+                    trace.Trace(
+                        ydata=synthetics[i, 0],
+! hypocentral time????                        tmin=gflibrary._tmins[i, 0],
+                        deltat=gflibrary.deltat))
+
+            obs_traces.extend(heart.taper_filter_traces(
+                wmap.datasets,
+                arrival_taper=wmap.config.arrival_taper,
+                filterer=wmap.config.filterer,
+                tmins=gflibrary._tmins[:, 0],
+                **kwargs))
+
+        return synth_traces, obs_traces
+
+    def update_weights(self, point, n_jobs=1, plot=False):
+        logger.warning('Not implemented yet!')
+        raise NotImplementedError('Not implemented yet!')
 
 
 geometry_composite_catalog = {
@@ -1460,6 +1567,14 @@ class Problem(object):
                     self.rvs, mode, datatype=datatype)
                 fixed_rvs = utility.weed_input_rvs(
                     self.fixed_params, mode, datatype=datatype)
+
+                if mode == 'ffi':
+                    # do the optimization only on the reference velocity model
+                    logger.info("Loading %s Green's Functions" % datatype)
+                    data_config = self.config[datatype + '_config']
+                    composite.load_gfs(
+                        crust_inds=[data_config.gf_config.reference_model_idx])
+                    self.composites[datatype] = composite
 
                 total_llk += composite.get_formula(
                     input_rvs, fixed_rvs, self.hyperparams)
@@ -1809,12 +1924,6 @@ class DistributionOptimizer(Problem):
                 config.project_dir,
                 self.event,
                 hypers)
-
-            # do the optimization only on the reference velocity model
-            logger.info("Loading %s Green's Functions" % datatype)
-            composite.load_gfs(
-                crust_inds=[data_config.gf_config.reference_model_idx])
-            self.composites[datatype] = composite
 
         self.config = config
 

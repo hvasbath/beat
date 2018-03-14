@@ -72,6 +72,11 @@ class GFLibrary(object):
         return self.size * 8 / (1024. ** 2)
 
 
+def get_seismic_gf_name(datatype, component, wavename, crust_ind):
+    return '%s_%s_%s_%i.pkl' % (
+        datatype, component, wavename, crust_ind)
+
+
 class SeismicGFLibrary(GFLibrary):
     """
     Seismic Greens Funcion Library for the finite fault optimization.
@@ -177,6 +182,9 @@ class SeismicGFLibrary(GFLibrary):
         self._tmins[tidx, patchidx] = tmin
 
     def trace_tmin(self, target, patchidx, starttimeidx):
+        """
+        Returns trace time with respect to hypocentral trace.
+        """
         t2i = self.wavemap.target_index_mapping()
         return self._tmins[t2i[target], patchidx] + \
             (starttimeidx * self.starttime_sampling)
@@ -196,7 +204,7 @@ class SeismicGFLibrary(GFLibrary):
         if mode not in available_modes:
             raise GFLibraryError(
                 'Stacking mode %s not available! '
-                'Available modes: %s' % utility.list2string(available_modes))
+                'Available modes: %s' % ut.list2string(available_modes))
 
         self._mode = mode
 
@@ -272,12 +280,20 @@ class SeismicGFLibrary(GFLibrary):
                         tr = Trace(
                             ydata=self._gfmatrix[
                                 tidx, patchidx, rtidx, startidx, :],
-                            deltat=float(target.store_id.split('_')[3][0:5]),
+                            deltat=self.deltat,
                             tmin=self.trace_tmin(
                                 target, patchidx, starttimeidxs))
                         traces.append(tr)
 
         snuffle(traces, events=[self.event], stations=display_stations)
+
+    @property
+    def deltat(self):
+        return float(target.store_id.split('_')[3][0:5])
+
+    @property
+    def crust_ind(self):
+        return int(self.wavemap.targets.store_idore.split('_')[3])
 
     @property
     def nstations(self):
@@ -310,8 +326,9 @@ class SeismicGFLibrary(GFLibrary):
 
     @property
     def filename(self):
-        return '%s_%s_%s.pkl' % (
-            self.datatype, self.component, self.wavemap.wavename)
+        return get_seismic_gf_name(
+            self.datatype, self.component,
+            self.wavemap.wavename, self.crust_ind)
 
 
 class FaultOrdering(object):
@@ -448,7 +465,7 @@ class FaultGeometry(gf.seismosizer.Cloneable):
 
         subfault = self.get_subfault(
             index, datatype=datatype, component=component)
-        npw, npl = self.ordering.vmap[index].shp
+        npw, npl = self.get_subfault_discretization(index)
 
         return subfault.patches(nl=npl, nw=npw, datatype=datatype)
 
@@ -462,7 +479,7 @@ class FaultGeometry(gf.seismosizer.Cloneable):
             'geodetic' or 'seismic'
         component : str
             slip component to return may be %s
-        """ % utility.list2string(slip_directions.keys())
+        """ % ut.list2string(slip_directions.keys())
 
         patches = []
         for i in range(self.nsubfaults):
@@ -490,13 +507,30 @@ class FaultGeometry(gf.seismosizer.Cloneable):
         self._check_index(index)
         return self.ordering.vmap[index].slc
 
-    def get_subfault_starttime_bound(self, index, rupture_velocities):
+    def get_subfault_discretization(self, index):
+        """
+        Return number of patches in strike and dip-directions of a subfault.
+
+        Parameters
+        ----------
+        index : int
+            index to the subfault
+
+        Returns
+        -------
+        tuple (dip, strike)
+            number of patches in fault direction
+        """
+        self._check_index(index)
+        return self.ordering.vmap[index].shp
+
+    def get_subfault_starttimes(self, index, rupture_velocities):
         """
         Get maximum bound of start times of extending rupture along
         the sub-fault.
         """
 
-        npw, npl = self.ordering.vmap[index].shp
+        npw, npl = self.get_subfault_discretization(index)
         slownesses = 1. / rupture_velocities.reshape((npw, npl))
 
         subfault = self.get_subfault(
@@ -508,7 +542,7 @@ class FaultGeometry(gf.seismosizer.Cloneable):
             slownesses, patch_size / km,
             n_patch_strike=npl, n_patch_dip=npw,
             nuc_x=0, nuc_y=0)
-        return start_times.max()
+        return start_times
 
     @property
     def nsubfaults(self):
@@ -572,7 +606,7 @@ def discretize_sources(
         npls.append(int(num.ceil(ext_source.length / patch_length)))
         npws.append(int(num.ceil(ext_source.width / patch_width)))
 
-    ordering = utility.FaultOrdering(npls, npws)
+    ordering = FaultOrdering(npls, npws)
 
     fault = FaultGeometry(datatypes, varnames, ordering)
 
@@ -663,7 +697,7 @@ def geo_construct_gf_linear(
 
         out_gfs[var] = gfs
         logger.info("Dumping Green's Functions to %s" % outpath)
-        utility.dump_objects(outpath, [out_gfs])
+        ut.dump_objects(outpath, [out_gfs])
 
 
 def seis_construct_gf_linear(
@@ -703,8 +737,8 @@ def seis_construct_gf_linear(
         flag to overwrite existing linear GF Library
     """
 
-    start_times = fault.get_subfault_starttime_bound(
-        index=0, rupture_velocities=velocities_prior)
+    start_times = fault.get_subfault_starttimes(
+        index=0, rupture_velocities=velocities_prior.lower)
     starttimeidxs = num.arange(
         int(num.ceil(start_times.max() / starttime_sampling)))
     starttimes = (starttimeidxs * starttime_sampling).tolist()
@@ -718,7 +752,7 @@ def seis_construct_gf_linear(
 
     logger.info(
         'Calculating GFs for starttimes: %s \n durations: %s' %
-        (utility.list2string(starttimes), utility.list2string(durations)))
+        (ut.list2string(starttimes), ut.list2string(durations)))
 
     nstarttimes = len(starttimes)
     npatches = len(fault.nsubfaults)
@@ -731,7 +765,9 @@ def seis_construct_gf_linear(
         gfs = SeismicGFLibrary(
             component=var, event=event, wavemap=wavemap,
             duration_sampling=duration_sampling,
-            starttime_sampling=starttime_sampling)
+            starttime_sampling=starttime_sampling,
+            starttime_min=starttimes.min(),
+            duration_min=durations.min())
 
         outpath = os.path.join(outdirectory, gfs.filename)
         if not os.path.exists(outpath) or force:
@@ -773,8 +809,8 @@ def seis_construct_gf_linear(
 
                         synthetics_array = heart.taper_filter_traces(
                             traces=traces,
-                            arrival_taper=wavemap.arrival_taper,
-                            filterer=wavemap.filterer,
+                            arrival_taper=wavemap.config.arrival_taper,
+                            filterer=wavemap.config.filterer,
                             tmins=num.ones(ndurations) * tmin,
                             outmode='array')
 
@@ -788,7 +824,7 @@ def seis_construct_gf_linear(
 
             logger.info('Storing seismic linear GF Library under ', outpath)
 
-            utility.dump_objects(outpath, [gfs])
+            ut.dump_objects(outpath, [gfs])
 
         else:
             logger.info(

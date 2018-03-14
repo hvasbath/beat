@@ -133,14 +133,15 @@ default_bounds = dict(
     delta_depth=(0., 10.),
     distance=(0., 10.),
 
-    duration=(0., 20.),
+    duration=(0., 30.),
     peak_ratio=(0., 1.),
 
+    durations=(0., 30.),
     uparr=(-0.3, 6.),
     uperp=(-0.3, 4.),
     nucleation_x=(0., 10.),
     nucleation_y=(0., 7.),
-    velocity=(0.5, 4.2),
+    velocities=(0.5, 4.2),
 
     azimuth=(0, 180),
     amplitude=(1e10, 1e20),
@@ -164,7 +165,6 @@ geodetic_data_name = 'geodetic_data.pkl'
 linear_gf_dir_name = 'linear_gfs'
 fault_geometry_name = 'fault_geometry.pkl'
 geodetic_linear_gf_name = 'linear_geodetic_gfs.pkl'
-seismic_linear_gf_name = 'linear_seismic_gfs.pkl'
 
 sample_p_outname = 'sample.params'
 
@@ -460,9 +460,9 @@ class ProblemConfig(Object):
     Config for optimization problem to setup.
     """
     mode = StringChoice.T(
-        choices=['geometry', 'static', 'kinematic', 'interseismic'],
+        choices=['geometry', 'ffi', 'interseismic'],
         default='geometry',
-        help='Problem to solve: "geometry", "static", "kinematic",'
+        help='Problem to solve: "geometry", "ffi",'
              ' "interseismic"',)
     source_type = StringChoice.T(
         default='RectangularSource',
@@ -571,6 +571,20 @@ class ProblemConfig(Object):
                 ' or not resolvable with given datatypes.')
 
         return unique_variables
+
+    def get_slip_variables(self):
+        """
+        Return a list of slip variable names defined in the ProblemConfig.
+        """
+        if self.mode == 'ffi':
+            return [
+                var for var in static_dist_vars if var in self.priors.keys()]
+        elif self.mode == 'geometry':
+            return [
+                var for var in ['slip', 'magnitude']
+                if var in self.priors.keys()]
+        elif self.mode == 'interseismic':
+            return ['bl_amplitude']
 
     def set_decimation_factor(self):
         """

@@ -754,7 +754,7 @@ def command_build_gfs(args):
     elif options.mode == 'ffi':
         from beat import ffi
 
-        varnames = [varname for varname in c.problem_config.priors.keys()]
+        varnames = c.problem_config.get_slip_variables()
         outdir = os.path.join(
             c.project_dir, options.mode, config.linear_gf_dir_name)
         util.ensuredir(outdir)
