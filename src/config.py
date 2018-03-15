@@ -75,7 +75,7 @@ interseismic_vars = [
 
 static_dist_vars = ['uparr', 'uperp']
 partial_kinematic_vars = [
-    'nucleation_x', 'nucleation_y', 'durations', 'velocities']
+    'nucleation_strike', 'nucleation_dip', 'durations', 'velocities']
 
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars
 

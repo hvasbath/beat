@@ -88,11 +88,11 @@ class FFITest(unittest.TestCase):
                 slips=theano_slips)
 
             t0 = time()
-            f = function([theano_slips, theano_rts, theano_stts], [outstack])
+            f = function([theano_slips, theano_rts, theano_stts], outstack)
             t1 = time()
             logger.info('Compile time theano batched_dot: %f', (t1 - t0))
 
-            out_array = f(slips, durationidxs, starttimeidxs)[0]
+            out_array = f(slips, durationidxs, starttimeidxs)
             t2 = time()
             logger.info('Calculation time batched_dot: %f', (t2 - t1))
             return out_array.squeeze()
@@ -114,10 +114,10 @@ class FFITest(unittest.TestCase):
                     outstack[i:i + 1, 0:gfs.nsamples], synths)
 
             t0 = time()
-            f = function([theano_slips, theano_rts, theano_stts], [outstack])
+            f = function([theano_slips, theano_rts, theano_stts], outstack)
             t1 = time()
             logger.info('Compile time theano for loop: %f', (t1 - t0))
-            out_array = f(slips, durationidxs, starttimeidxs)[0]
+            out_array = f(slips, durationidxs, starttimeidxs)
             t2 = time()
             logger.info('Calculation time for loop: %f', (t2 - t1))
             return out_array.squeeze()

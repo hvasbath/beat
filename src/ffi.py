@@ -22,7 +22,7 @@ logger = logging.getLogger('ffi')
 
 
 PatchMap = collections.namedtuple(
-    'PatchMap', 'count, slc, shp, npatches')
+    'PatchMap', 'count, slc, shp, npatches, indexmap')
 
 
 gf_entries = ['durations', 'start_times', 'patches', 'targets']
@@ -346,6 +346,7 @@ class FaultOrdering(object):
     def __init__(self, npls, npws):
 
         self.vmap = []
+        self.smap = []
         dim = 0
         count = 0
 
@@ -353,7 +354,9 @@ class FaultOrdering(object):
             npatches = npl * npw
             slc = slice(dim, dim + npatches)
             shp = (npw, npl)
-            self.vmap.append(PatchMap(count, slc, shp, npatches))
+            indexes = num.arange(npatches).reshape(shp)
+            self.vmap.append(PatchMap(count, slc, shp, npatches, indexes))
+            self.smap.append(shared(indexes, borrow=True).astype('int16'))
             dim += npatches
             count += 1
 
@@ -543,6 +546,18 @@ class FaultGeometry(gf.seismosizer.Cloneable):
             n_patch_strike=npl, n_patch_dip=npw,
             nuc_x=0, nuc_y=0)
         return start_times
+
+    def patchmap(self, index):
+        """
+        Return mapping of strike and dip indexes to patch index.
+        """
+        return self.ordering.vmap[index].indexes
+
+    def spatchmap(self, index):
+        """
+        Return mapping of strike and dip indexes to patch index.
+        """
+        return self.ordering.smaps[index]
 
     @property
     def nsubfaults(self):
