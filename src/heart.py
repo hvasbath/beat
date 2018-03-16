@@ -1892,7 +1892,8 @@ class WaveformMapping(object):
         self.targets = targets
         self.channels = channels
 
-        self._update_trace_wavenames()
+        if self.datasets is not None:
+            self._update_trace_wavenames()
 
     def target_index_mapping(self):
         if self._target2index is None:

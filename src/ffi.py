@@ -16,6 +16,10 @@ import theano.tensor as tt
 
 import numpy as num
 
+
+backends = {'numpy': num, 'theano': tt}
+
+
 km = 1000.
 
 logger = logging.getLogger('ffi')
@@ -92,7 +96,8 @@ class SeismicGFLibrary(GFLibrary):
     stations : list
         of station : :class:`pyrocko.model.Station`
     targets : list
-        containing :class:`pyrocko.gf.seismosizer.Target` Objects
+        containing :class:`pyrocko.gf.seismosizer.Target` Objects or
+        :class:`heart.DynamicTarget` Objects
     """
     def __init__(
             self, component=None, event=None, wavemap=None,
@@ -143,6 +148,7 @@ class SeismicGFLibrary(GFLibrary):
             [ntargets, npatches, ndurations, nstarttimes, nsamples])
         self._tmins = num.zeros([ntargets, npatches])
         self._patchidxs = num.arange(npatches, dtype='int16')
+        self.set_stack_mode(mode='numpy')
 
     def init_optimization(self):
         logger.info('Setting linear seismic GF Library to optimization mode.')
@@ -157,13 +163,27 @@ class SeismicGFLibrary(GFLibrary):
 
     def put(
             self, entries, tmin, target, patchidx,
-            durationidxs, starttimeidxs):
+            durations, starttimes):
         """
         Fill the GF Library with synthetic traces for one target and one patch.
 
         Parameters
         ----------
         entries : 2d :class:`numpy.ndarray`
+            of synthetic trace data samples, the waveforms
+        tmin : float
+            tmin of the trace(s) if the hypocenter was in the location of this
+            patch
+        target : :class:`pyrocko.gf.seismosizer.Target` Objects or
+             :class:`heart.DynamicTarget` Objects
+        patchidx : int
+            index to patch (source) that is used to produce the synthetics
+        durationidxs : list or :class:`numpy.ndarray`
+            of indexes to the respective duration of the STFs that have been
+            used to create the synthetics
+        starttimeidxs : list or :class:`numpy.ndarray`
+            of indexes to the respective duration of the STFs that have been
+            used to create the synthetics
         """
         if len(entries.shape) < 2:
             raise ValueError('Entries have to be 2d arrays!')
@@ -176,6 +196,8 @@ class SeismicGFLibrary(GFLibrary):
 
         self._check_setup()
         tidx = self.wavemap.target_index_mapping()[target]
+        durationidxs = self.durations2idxs(durations)
+        starttimeidxs = self.starttimes2idxs(starttimes)
 
         self._gfmatrix[
             tidx, patchidx, durationidxs, starttimeidxs, :] = entries
@@ -207,6 +229,46 @@ class SeismicGFLibrary(GFLibrary):
                 'Available modes: %s' % ut.list2string(available_modes))
 
         self._mode = mode
+
+    def starttimes2idxs(self, starttimes):
+        """
+        Transforms starttimes into indexes to the GFLibrary.
+        Depending on the stacking mode of the GFLibrary theano or numpy
+        is used.
+
+        Parameters
+        ----------
+        starttimes [s]: :class:`numpy.ndarray` or :class:`theano.tensor.Tensor`
+            of the rupturing of the patch, float
+
+        Returns
+        -------
+        starttimeindexes : starttimes : :class:`numpy.ndarray` or
+            :class:`theano.tensor.Tensor`, int16
+        """
+        return backends[self._mode].round(
+            (starttimes - self.starttime_min) /
+            self.starttime_sampling).astype('int16')
+
+    def durations2idxs(self, durations):
+        """
+        Transforms durations into indexes to the GFLibrary.
+        Depending on the stacking mode of the GFLibrary theano or numpy
+        is used.
+
+        Parameters
+        ----------
+        durations [s] : :class:`numpy.ndarray` or :class:`theano.tensor.Tensor`
+            of the rupturing of the patch, float
+
+        Returns
+        -------
+        durationindexes : starttimes : :class:`numpy.ndarray` or
+            :class:`theano.tensor.Tensor`, int16
+        """
+        return backends[self._mode].round(
+            (durations - self.duration_min) /
+            self.duration_sampling).astype('int16')
 
     def stack(self, target, patchidxs, durationidxs, starttimeidxs, slips):
         """
@@ -241,17 +303,13 @@ class SeismicGFLibrary(GFLibrary):
         matrix : size (ntargets, nsamples)
         option : tensor.batched_dot(sd.dimshuffle((1,0,2)), u).sum(axis=0)
         """
-        if self._sgfmatrix is None:
+        if self._sgfmatrixs is None:
             raise GFLibraryError(
-                'To use theano stacking optimization mode'
+                'To use "stack_all" theano stacking optimization mode'
                 ' has to be initialised!')
 
-        starttimeidxs = tt.round(
-            (starttimes - self.starttime_min) /
-            self.starttime_sampling).astype('int16')
-        durationidxs = tt.round(
-            (durations - self.duration_min) /
-            self.duration_sampling).astype('int16')
+        durationidxs = self.durations2idxs(durations)
+        starttimeidxs = self.starttimes2idxs(starttimes)
 
         d = self._sgfmatrix[
             :, self._patchidxs, durationidxs, starttimeidxs, :].reshape(
@@ -289,7 +347,7 @@ class SeismicGFLibrary(GFLibrary):
 
     @property
     def deltat(self):
-        return float(target.store_id.split('_')[3][0:5])
+        return float(self.wavemap.targets[0].store_id.split('_')[3][0:5])
 
     @property
     def crust_ind(self):
@@ -297,7 +355,7 @@ class SeismicGFLibrary(GFLibrary):
 
     @property
     def nstations(self):
-        return len(self.stations)
+        return len(self.wavemap.stations)
 
     @property
     def ntargets(self):

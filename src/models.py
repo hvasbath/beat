@@ -674,7 +674,9 @@ class SeismicComposite(Composite):
         for wc in sc.waveforms:
             if wc.include:
                 wmap = heart.init_wavemap(
-                    waveformfit_config=wc, datahandler, event)
+                    waveformfit_config=wc,
+                    datahandler=self.datahandler,
+                    event=event)
 
                 if sc.calc_data_cov:
                     logger.info(

@@ -3,6 +3,7 @@ import logging
 from time import time
 from beat import ffi
 from beat.heart import DynamicTarget, WaveformMapping
+from beat.utility import get_uniform_random
 
 import numpy as num
 
@@ -28,6 +29,11 @@ class FFITest(unittest.TestCase):
         ndurations = 10
         nstarttimes = 30
 
+        starttimesmin = 0.
+!        starttimesmax =
+        durationsmin = 
+
+
         lats = num.random.randint(low=-90, high=90, size=ntargets)
         lons = num.random.randint(low=-180, high=180, size=ntargets)
 
@@ -49,9 +55,9 @@ class FFITest(unittest.TestCase):
             for patchidx in range(npatches):
                 for durationidx in range(ndurations):
                     starttimeidxs = range(nstarttimes)
-
+                    tmin = 
                     self.gfs.put(
-                        tracedata * durationidx, target, patchidx, durationidx,
+                        tracedata * durationidx, tmin, target, patchidx, durationidx,
                         starttimeidxs)
 
     def test_gf_setup(self):
@@ -64,6 +70,9 @@ class FFITest(unittest.TestCase):
                 slips, gfs.nsamples).reshape(gfs.nsamples, gfs.npatches)
             t0 = time()
             patchidxs = num.arange(gfs.npatches)
+ 
+!            gfs.starttimes2idxs
+
             d = gfs._gfmatrix[:, patchidxs, durationidxs, starttimeidxs, :]
             d1 = d.reshape(
                 (self.gfs.ntargets, self.gfs.npatches, self.gfs.nsamples))
@@ -122,9 +131,8 @@ class FFITest(unittest.TestCase):
             logger.info('Calculation time for loop: %f', (t2 - t1))
             return out_array.squeeze()
 
-        durationidxs = num.random.randint(
-            low=0, high=self.gfs.ndurations,
-            size=self.gfs.npatches, dtype='int16')
+!        durations = get_random_uniform(lower, upper, dimension=1)
+        
         starttimeidxs = num.random.randint(
             low=0, high=self.gfs.nstarttimes,
             size=self.gfs.npatches, dtype='int16')

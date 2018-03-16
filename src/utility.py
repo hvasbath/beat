@@ -1301,3 +1301,20 @@ def get_rotation_matrix(axis):
         return R[axis]
     else:
         raise Exception('axis has to be either string or list of strings!')
+
+
+def get_random_uniform(lower, upper, dimension=1):
+    """
+    Get uniform random values between given bounds
+
+    Parameters
+    ==========
+    lower : float
+    upper : float
+    dimension : size of result vector
+    """
+    values = (upper - lower) * num.random.rand(dimension) + lower
+    if dimension == 1:
+        return float(values)
+    else:
+        return values
