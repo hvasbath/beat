@@ -203,6 +203,13 @@ class ArrivalTaper(trace.Taper):
     def duration(self):
         return num.abs(self.a) + self.d
 
+    def nsamples(self, sample_rate):
+        """
+        Returns the number of samples a tapered trace would have given
+        its sample rate.
+        """
+        return int(num.ceil(sample_rate * self.duration))
+
     @property
     def fadein(self):
         return self.b - self.a

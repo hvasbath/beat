@@ -422,7 +422,7 @@ class SeisDataChopper(theano.Op):
 
     def infer_shape(self, node, input_shapes):
         nrow = len(self.traces)
-        ncol = int(num.ceil(self.sample_rate * self.arrival_taper.duration))
+        ncol = self.arrival_taper.nsamples(self.sample_rate)
         return [(nrow, ncol)]
 
 

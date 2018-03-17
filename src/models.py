@@ -16,6 +16,7 @@ from theano import config as tconfig
 from theano import shared
 from theano.printing import Print
 
+from beat import ffi
 from beat import theanof, heart, utility, smc, backend, metropolis
 from beat import covariance as cov
 from beat import config as bconfig
@@ -1256,13 +1257,13 @@ class SeismicDistributerComposite(SeismicComposite):
                 'fast_sweeping issues')
 
         self.fault = self.load_fault_geometry()
-        n_p_dip, n_p_strike = fault.get_subfault_discretization(index)
+        n_p_dip, n_p_strike = self.fault.get_subfault_discretization(0)
 
         self.sweeper = theanof.Sweeper(
             sgfc.patch_length / km, n_p_strike, n_p_dip)
 
         for wmap in self.wavemaps:
-            self.choppers[wavemap.name] = theanof.SeisDataChopper(
+            self.choppers[wmap.name] = theanof.SeisDataChopper(
                 sample_rate=sc.gf_config.sample_rate,
                 traces=wmap.datasets,
                 arrival_taper=wmap.config.arrival_taper,
@@ -1303,9 +1304,8 @@ class SeismicDistributerComposite(SeismicComposite):
         for wmap in self.wavemaps:
             for crust_ind in crust_inds:
                 gfs = {}
-                gfpaths = {}
                 for var in self.slip_varnames:
-                    gflib_name = get_seismic_gf_name(
+                    gflib_name = ffi.get_seismic_gf_name(
                         datatype=self.name, component=var,
                         wavename=wmap.name, crust_ind=crust_ind)
                     gfpath = os.path.join(
@@ -1327,6 +1327,7 @@ class SeismicDistributerComposite(SeismicComposite):
         nuc_strike = tt.round(input_rvs['nucleation_strike']).astype('int16')
         nuc_dip = tt.round(input_rvs['nucleation_dip']).astype('int16')
 
+        t2 = time.time()
         # convert velocities to rupture onset
         starttimes = self.sweeper(
             (1. / input_rvs['velocity']), nuc_strike, nuc_dip).flatten()
@@ -1342,10 +1343,10 @@ class SeismicDistributerComposite(SeismicComposite):
                     durations=input_rvs['durations'],
                     slips=input_rvs[var])
 
-                patch_idx = self.fault.spatchmap(0)[nuc_dip, nuc_strike]
+                patchidx = self.fault.spatchmap(0)[nuc_dip, nuc_strike]
                 # cut data according to wavemaps
-                data_trcs = self.choppers[wmap.name](
-                    self.gfs[key]._tmins[:, patch_idx])
+                data_traces = self.choppers[wmap.name](
+                    self.gfs[key].get_all_tmins(patchidx))
 
                 residuals = data_traces - synthetics
 
@@ -1356,7 +1357,7 @@ class SeismicDistributerComposite(SeismicComposite):
 
         t3 = time.time()
         logger.debug(
-            'Seismic forward model on test model takes: %f' % (t3 - t2))
+            'Seismic formula on test model takes: %f' % (t3 - t2))
 
         llk = pm.Deterministic(self._like_name, tt.concatenate((wlogpts)))
         return llk.sum()
@@ -1395,38 +1396,41 @@ class SeismicDistributerComposite(SeismicComposite):
             if param not in gf_params:
                 tpoint.pop(param)
 
-        start_times = self.fault.get_subfault_starttimes(
-            index=0, rupture_velocities=tpoint['velocities'])
+        starttimes = self.fault.get_subfault_starttimes(
+            index=0, rupture_velocities=tpoint['velocities']).flatten()
 
-        patch_idx = self.fault.patchmap(0)[
+        patchidx = self.fault.patchmap(0)[
             tpoint['nucleation_dip'], tpoint['nucleation_strike']]
 
         synth_traces = []
         obs_traces = []
         for wmap in self.wavemaps:
-            key = self.get_gflibrary_key(
-                crust_ind=ref_idx, wavename=wmap.name, component=var)
-
-            gflibrary = self.gfs[key]
-            synthetics = num.zeros((gflibrary.ntargets, gflibrary.nsamples))
+            synthetics = num.zeros(
+                (wmap.n_t, wmap.config.arrival_taper.nsamples(
+                    self.config.gf_config.sample_rate)))
             for var in self.slip_varnames:
+                key = self.get_gflibrary_key(
+                    crust_ind=ref_idx, wavename=wmap.name, component=var)
+
+                gflibrary = self.gfs[key]
+
                 synthetics += self.gfs[key].stack_all(
                     starttimes=starttimes,
                     durations=tpoint['durations'],
                     slips=tpoint[var]).eval()
 
-            for i in range(wmap.n_t):
+            for i, target in enumerate(wmap.targets):
                 synth_traces.append(
                     trace.Trace(
-                        ydata=synthetics[i, 0],
-                        tmin=gflibrary._tmins[i, patch_idx],
+                        ydata=synthetics[i, :],
+                        tmin=gflibrary.trace_tmin(target, patchidx, 0),
                         deltat=gflibrary.deltat))
 
             obs_traces.extend(heart.taper_filter_traces(
                 wmap.datasets,
                 arrival_taper=wmap.config.arrival_taper,
                 filterer=wmap.config.filterer,
-                tmins=gflibrary._tmins[:, 0],
+                tmins=gflibrary.get_all_tmins(patchidx),
                 **kwargs))
 
         return synth_traces, obs_traces

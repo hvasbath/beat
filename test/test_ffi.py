@@ -3,7 +3,7 @@ import logging
 from time import time
 from beat import ffi
 from beat.heart import DynamicTarget, WaveformMapping
-from beat.utility import get_uniform_random
+from beat.utility import get_random_uniform
 
 import numpy as num
 
@@ -26,13 +26,24 @@ class FFITest(unittest.TestCase):
         nsamples = 10
         ntargets = 30
         npatches = 40
-        ndurations = 10
-        nstarttimes = 30
 
-        starttimesmin = 0.
-!        starttimesmax =
-        durationsmin = 
+        self.times = get_random_uniform(300., 500., ntargets)
 
+        self.starttime_min = 0.
+        self.starttime_max = 15.
+        starttime_sampling = 0.5
+
+        self.duration_min = 5.
+        self.duration_max = 10.
+        duration_sampling = 0.5
+
+        durations = num.arange(
+            self.duration_min, self.duration_max, duration_sampling)
+        starttimes = num.arange(
+            self.starttime_min, self.starttime_max, starttime_sampling)
+
+        nstarttimes = starttimes.size
+        ndurations = durations.size
 
         lats = num.random.randint(low=-90, high=90, size=ntargets)
         lons = num.random.randint(low=-180, high=180, size=ntargets)
@@ -46,44 +57,42 @@ class FFITest(unittest.TestCase):
             name='any_P', stations=stations, targets=targets)
 
         self.gfs = ffi.SeismicGFLibrary(
-            wavemap=wavemap, component='uperp')
+            wavemap=wavemap, component='uperp',
+            duration_sampling=duration_sampling,
+            starttime_sampling=starttime_sampling,
+            starttime_min=self.starttime_min,
+            duration_min=self.duration_min)
         self.gfs.setup(ntargets, npatches, ndurations, nstarttimes, nsamples)
 
         tracedata = num.tile(
             num.arange(nsamples), nstarttimes).reshape((nstarttimes, nsamples))
-        for target in targets:
+        for i, target in enumerate(targets):
             for patchidx in range(npatches):
-                for durationidx in range(ndurations):
-                    starttimeidxs = range(nstarttimes)
-                    tmin = 
+                for duration in durations:
+                    tmin = self.times[i]
                     self.gfs.put(
-                        tracedata * durationidx, tmin, target, patchidx, durationidx,
-                        starttimeidxs)
+                        tracedata * i, tmin, target, patchidx, duration,
+                        starttimes)
 
     def test_gf_setup(self):
         print self.gfs
         # print self.gfs._gfmatrix
 
     def test_stacking(self):
-        def reference_numpy(gfs, durationidxs, starttimeidxs, slips):
-            u2d = num.tile(
-                slips, gfs.nsamples).reshape(gfs.nsamples, gfs.npatches)
+        def reference_numpy(gfs, durations, starttimes, slips):
             t0 = time()
-            patchidxs = num.arange(gfs.npatches)
- 
-!            gfs.starttimes2idxs
+            out_array = gfs.stack_all(
+                starttimes=starttimes,
+                durations=durations,
+                slips=slips)
 
-            d = gfs._gfmatrix[:, patchidxs, durationidxs, starttimeidxs, :]
-            d1 = d.reshape(
-                (self.gfs.ntargets, self.gfs.npatches, self.gfs.nsamples))
-            out_array = num.einsum('ijk->ik', d1 * u2d.T)
             t1 = time()
             logger.info('Calculation time numpy einsum: %f', (t1 - t0))
             return out_array
 
         def prepare_theano(gfs, runidx=0):
-            theano_rts = tt.vector('rt_indxs_%i' % runidx, dtype='int16')
-            theano_stts = tt.vector('start_indxs_%i' % runidx, dtype='int16')
+            theano_rts = tt.dvector('durations_%i' % runidx)
+            theano_stts = tt.dvector('starttimes_%i' % runidx)
             theano_slips = tt.dvector('slips_%i' % runidx)
             gfs.init_optimization()
             return theano_rts, theano_stts, theano_slips
@@ -131,16 +140,21 @@ class FFITest(unittest.TestCase):
             logger.info('Calculation time for loop: %f', (t2 - t1))
             return out_array.squeeze()
 
-!        durations = get_random_uniform(lower, upper, dimension=1)
-        
-        starttimeidxs = num.random.randint(
-            low=0, high=self.gfs.nstarttimes,
-            size=self.gfs.npatches, dtype='int16')
+        durations = get_random_uniform(
+            self.duration_min, self.duration_max, dimension=self.gfs.npatches)
+        starttimes = get_random_uniform(
+            self.starttime_min,
+            self.starttime_max,
+            dimension=self.gfs.npatches)
         slips = num.random.random(self.gfs.npatches)
 
-        outnum = reference_numpy(self.gfs, durationidxs, starttimeidxs, slips)
+        outnum = reference_numpy(self.gfs, durations, starttimes, slips)
         outtheanobatch = theano_batched_dot(
-            self.gfs, durationidxs - 0.2, starttimeidxs - 0.3, slips)
+            self.gfs, durations, starttimes, slips)
+
+        self.gfs.set_stack_mode('numpy')
+        durationidxs = self.gfs.durations2idxs(durations)
+        starttimeidxs = self.gfs.starttimes2idxs(starttimes)
         outtheanofor = theano_for_loop(
             self.gfs, durationidxs, starttimeidxs, slips)
 

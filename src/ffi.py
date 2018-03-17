@@ -53,7 +53,6 @@ class GFLibrary(object):
 
         self.component = component
         self.event = event
-        self._patchidxs = None
         self._gfmatrix = None
         self._sgfmatrix = None
         self._mode = 'numpy'
@@ -115,7 +114,6 @@ class SeismicGFLibrary(GFLibrary):
             duration_sampling, tconfig.floatX)
         self.starttime_min = ut.scalar2int(starttime_min, tconfig.floatX)
         self.duration_min = ut.scalar2int(duration_min, tconfig.floatX)
-        self._tmins = None
 
     def __str__(self):
         s = '''
@@ -147,13 +145,14 @@ class SeismicGFLibrary(GFLibrary):
         self._gfmatrix = num.zeros(
             [ntargets, npatches, ndurations, nstarttimes, nsamples])
         self._tmins = num.zeros([ntargets, npatches])
-        self._patchidxs = num.arange(npatches, dtype='int16')
         self.set_stack_mode(mode='numpy')
 
     def init_optimization(self):
         logger.info('Setting linear seismic GF Library to optimization mode.')
         self._sgfmatrix = shared(
             self._gfmatrix.astype(tconfig.floatX), borrow=True)
+        self._stmins = shared(
+            self._tmins.astype(tconfig.floatX), borrow=True)
 
         self._stack_switch = {
             'numpy': self._gfmatrix,
@@ -203,13 +202,27 @@ class SeismicGFLibrary(GFLibrary):
             tidx, patchidx, durationidxs, starttimeidxs, :] = entries
         self._tmins[tidx, patchidx] = tmin
 
-    def trace_tmin(self, target, patchidx, starttimeidx):
+    def trace_tmin(self, target, patchidx, starttimeidx=0):
         """
-        Returns trace time with respect to hypocentral trace.
+        Returns trace time of single target with respect to hypocentral trace.
         """
         t2i = self.wavemap.target_index_mapping()
         return self._tmins[t2i[target], patchidx] + \
             (starttimeidx * self.starttime_sampling)
+
+    def get_all_tmins(self, patchidx):
+        """
+        Returns tmins for all targets for specified hypocentral patch.
+        """
+        if self._mode == 'theano':
+            if self._stmins is None:
+                raise GFLibraryError(
+                    'To use "get_all_tmins" theano stacking optimization mode'
+                    ' has to be initialised!')
+            return self._stmins[:, patchidx]
+
+        elif self._mode == 'numpy':
+            return self._tmins[:, patchidx]
 
     def set_stack_mode(self, mode='numpy'):
         """
@@ -222,7 +235,7 @@ class SeismicGFLibrary(GFLibrary):
         mode : str
             on witch array to stack
         """
-        available_modes = self._stack_switch.keys()
+        available_modes = backends.keys()
         if mode not in available_modes:
             raise GFLibraryError(
                 'Stacking mode %s not available! '
@@ -303,19 +316,32 @@ class SeismicGFLibrary(GFLibrary):
         matrix : size (ntargets, nsamples)
         option : tensor.batched_dot(sd.dimshuffle((1,0,2)), u).sum(axis=0)
         """
-        if self._sgfmatrixs is None:
-            raise GFLibraryError(
-                'To use "stack_all" theano stacking optimization mode'
-                ' has to be initialised!')
-
         durationidxs = self.durations2idxs(durations)
         starttimeidxs = self.starttimes2idxs(starttimes)
 
-        d = self._sgfmatrix[
-            :, self._patchidxs, durationidxs, starttimeidxs, :].reshape(
-            (self.ntargets, self.npatches, self.nsamples))
-        return tt.batched_dot(
-            d.dimshuffle((1, 0, 2)), slips).sum(axis=0)
+        if self._mode == 'theano':
+            if self._sgfmatrixs is None:
+                raise GFLibraryError(
+                    'To use "stack_all" theano stacking optimization mode'
+                    ' has to be initialised!')
+
+!            patchidxs = self.fault.spatchmap(0).flatten()
+
+            d = self._sgfmatrix[
+                :, patchidxs, durationidxs, starttimeidxs, :].reshape(
+                (self.ntargets, self.npatches, self.nsamples))
+            return tt.batched_dot(
+                d.dimshuffle((1, 0, 2)), slips).sum(axis=0)
+
+        elif self._mode == 'numpy':
+            u2d = num.tile(
+                slips, self.nsamples).reshape((self.nsamples, self.npatches))
+ !           patchidxs = self.fault.patchmap(0).flatten()
+
+            d = self._gfmatrix[
+                :, patchidxs, durationidxs, starttimeidxs, :].reshape(
+                (self.ntargets, self.npatches, self.nsamples))
+            return num.einsum('ijk->ik', d * u2d.T)
 
     def snuffle(
             self, targets=[], patchidxs=[0], durationidxs=[0],
@@ -386,7 +412,7 @@ class SeismicGFLibrary(GFLibrary):
     def filename(self):
         return get_seismic_gf_name(
             self.datatype, self.component,
-            self.wavemap.wavename, self.crust_ind)
+            self.wavemap.name, self.crust_ind)
 
 
 class FaultOrdering(object):
@@ -820,8 +846,6 @@ def seis_construct_gf_linear(
         durations_prior.lower.min(),
         durations_prior.upper.max(),
         duration_sampling)
-    durationidxs = num.ceil(
-        (durations - durations_prior.lower) / duration_sampling)
 
     logger.info(
         'Calculating GFs for starttimes: %s \n durations: %s' %
@@ -864,7 +888,7 @@ def seis_construct_gf_linear(
                         sources=source_patches_durations,
                         targets=[target],
                         arrival_taper=None,
-                        wavename=wavemap.wavename,
+                        wavename=wavemap.name,
                         filterer=None,
                         reference_taperer=None,
                         outmode='traces')
@@ -873,12 +897,12 @@ def seis_construct_gf_linear(
                         engine=engine,
                         source=patch,
                         target=target,
-                        wavename=wavemap.wavename)
+                        wavename=wavemap.name)
 
-                    for starttime in starttimeidxs:
+                    for starttime in starttimes:
 
                         tmin = wavemap.arrival_taper.a + \
-                            arrival_time + starttime
+                            arrival_time - starttime
 
                         synthetics_array = heart.taper_filter_traces(
                             traces=traces,
@@ -892,8 +916,8 @@ def seis_construct_gf_linear(
                             tmin=tmin,
                             target=target,
                             patchidx=patchidx,
-                            durationidxs=durationidxs,
-                            starttimeidxs=starttime)
+                            durations=durations,
+                            starttimes=starttimes)
 
             logger.info('Storing seismic linear GF Library under ', outpath)
 

@@ -59,7 +59,7 @@ def get_rupture_times_numpy(
 
     Returns
     -------
-    tzero : :class:`numpy.NdArray`
+    tzero : :class:`numpy.NdArray` (n_patch_dip, n_patch_strike)
         rupture onset times in s after hypocentral time
     """
 
