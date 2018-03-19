@@ -26,24 +26,26 @@ class FFITest(unittest.TestCase):
         nsamples = 10
         ntargets = 30
         npatches = 40
+        sample_rate = 2.
 
         self.times = get_random_uniform(300., 500., ntargets)
 
         self.starttime_min = 0.
         self.starttime_max = 15.
         starttime_sampling = 0.5
+        nstarttimes = int((
+            self.starttime_max - self.starttime_min) / starttime_sampling) + 1
 
         self.duration_min = 5.
         self.duration_max = 10.
         duration_sampling = 0.5
+        self.ndurations = int((
+            self.duration_max - self.duration_min) / duration_sampling) + 1
 
-        durations = num.arange(
-            self.duration_min, self.duration_max, duration_sampling)
-        starttimes = num.arange(
-            self.starttime_min, self.starttime_max, starttime_sampling)
-
-        nstarttimes = starttimes.size
-        ndurations = durations.size
+        durations = num.linspace(
+            self.duration_min, self.duration_max, self.ndurations)
+        starttimes = num.linspace(
+            self.starttime_min, self.starttime_max, nstarttimes)
 
         lats = num.random.randint(low=-90, high=90, size=ntargets)
         lons = num.random.randint(low=-180, high=180, size=ntargets)
@@ -51,7 +53,8 @@ class FFITest(unittest.TestCase):
         stations = [model.Station(
             lat=lat, lon=lon) for lat, lon in zip(lats, lons)]
 
-        targets = [DynamicTarget(store_id='Test') for i in range(ntargets)]
+        targets = [
+            DynamicTarget(store_id='Test_em_2.000_0') for i in range(ntargets)]
 
         wavemap = WaveformMapping(
             name='any_P', stations=stations, targets=targets)
@@ -62,10 +65,12 @@ class FFITest(unittest.TestCase):
             starttime_sampling=starttime_sampling,
             starttime_min=self.starttime_min,
             duration_min=self.duration_min)
-        self.gfs.setup(ntargets, npatches, ndurations, nstarttimes, nsamples)
+        self.gfs.setup(
+            ntargets, npatches, self.ndurations, nstarttimes, nsamples)
 
         tracedata = num.tile(
             num.arange(nsamples), nstarttimes).reshape((nstarttimes, nsamples))
+
         for i, target in enumerate(targets):
             for patchidx in range(npatches):
                 for duration in durations:
@@ -90,15 +95,16 @@ class FFITest(unittest.TestCase):
             logger.info('Calculation time numpy einsum: %f', (t1 - t0))
             return out_array
 
-        def prepare_theano(gfs, runidx=0):
-            theano_rts = tt.dvector('durations_%i' % runidx)
-            theano_stts = tt.dvector('starttimes_%i' % runidx)
+        def prepare_theano(gfs, runidx=0, dtype='float64'):
+            theano_rts = tt.vector('durations_%i' % runidx, dtype=dtype)
+            theano_stts = tt.vector('starttimes_%i' % runidx, dtype=dtype)
             theano_slips = tt.dvector('slips_%i' % runidx)
             gfs.init_optimization()
             return theano_rts, theano_stts, theano_slips
 
         def theano_batched_dot(gfs, durations, starttimes, slips):
-            theano_rts, theano_stts, theano_slips = prepare_theano(gfs, 0)
+            theano_rts, theano_stts, theano_slips = prepare_theano(
+                gfs, 0, 'float64')
 
             outstack = gfs.stack_all(
                 starttimes=theano_stts,
@@ -110,18 +116,19 @@ class FFITest(unittest.TestCase):
             t1 = time()
             logger.info('Compile time theano batched_dot: %f', (t1 - t0))
 
-            out_array = f(slips, durationidxs, starttimeidxs)
+            out_array = f(slips, durations, starttimes)
             t2 = time()
             logger.info('Calculation time batched_dot: %f', (t2 - t1))
             return out_array.squeeze()
 
         def theano_for_loop(gfs, durationidxs, starttimeidxs, slips):
-            theano_rts, theano_stts, theano_slips = prepare_theano(gfs, 1)
+            theano_rts, theano_stts, theano_slips = prepare_theano(
+                gfs, 1, 'int16')
 
             patchidxs = range(gfs.npatches)
 
             outstack = tt.zeros((gfs.ntargets, gfs.nsamples), tconfig.floatX)
-            for i, target in enumerate(gfs.targets):
+            for i, target in enumerate(gfs.wavemap.targets):
                 synths = gfs.stack(
                     target=target,
                     patchidxs=patchidxs,
@@ -155,11 +162,20 @@ class FFITest(unittest.TestCase):
         self.gfs.set_stack_mode('numpy')
         durationidxs = self.gfs.durations2idxs(durations)
         starttimeidxs = self.gfs.starttimes2idxs(starttimes)
+
         outtheanofor = theano_for_loop(
             self.gfs, durationidxs, starttimeidxs, slips)
 
         num.testing.assert_allclose(outnum, outtheanobatch, rtol=0., atol=1e-6)
         num.testing.assert_allclose(outnum, outtheanofor, rtol=0., atol=1e-6)
+
+    def test_snuffle(self):
+
+        self.gfs.get_traces(
+            targets=self.gfs.wavemap.targets[0:2],
+            patchidxs=[0],
+            durationidxs=range(self.ndurations),
+            starttimeidxs=[0], plot=True)
 
 
 if __name__ == '__main__':

@@ -72,7 +72,7 @@ class GFLibrary(object):
         """
         Size of the library in MByte.
         """
-        return self.size * 8 / (1024. ** 2)
+        return self.size * 8. / (1024. ** 2)
 
 
 def get_seismic_gf_name(datatype, component, wavename, crust_ind):
@@ -114,6 +114,8 @@ class SeismicGFLibrary(GFLibrary):
             duration_sampling, tconfig.floatX)
         self.starttime_min = ut.scalar2int(starttime_min, tconfig.floatX)
         self.duration_min = ut.scalar2int(duration_min, tconfig.floatX)
+        self._sgfmatrix = None
+        self._stmins = None
 
     def __str__(self):
         s = '''
@@ -130,6 +132,7 @@ class SeismicGFLibrary(GFLibrary):
             size: %i
             filesize [MB]: %f
             filename: %s''' % (
+            self.datatype,
             self.component, self.starttime_sampling, self.duration_sampling,
             self.ntargets, self.npatches, self.ndurations,
             self.nstarttimes, self.nsamples, self.size, self.filesize,
@@ -145,6 +148,8 @@ class SeismicGFLibrary(GFLibrary):
         self._gfmatrix = num.zeros(
             [ntargets, npatches, ndurations, nstarttimes, nsamples])
         self._tmins = num.zeros([ntargets, npatches])
+        self._patchidxs = num.arange(npatches, dtype='int16')
+
         self.set_stack_mode(mode='numpy')
 
     def init_optimization(self):
@@ -153,6 +158,7 @@ class SeismicGFLibrary(GFLibrary):
             self._gfmatrix.astype(tconfig.floatX), borrow=True)
         self._stmins = shared(
             self._tmins.astype(tconfig.floatX), borrow=True)
+        self._spatchidxs = shared(self._patchidxs, borrow=True)
 
         self._stack_switch = {
             'numpy': self._gfmatrix,
@@ -184,6 +190,7 @@ class SeismicGFLibrary(GFLibrary):
             of indexes to the respective duration of the STFs that have been
             used to create the synthetics
         """
+
         if len(entries.shape) < 2:
             raise ValueError('Entries have to be 2d arrays!')
 
@@ -256,7 +263,7 @@ class SeismicGFLibrary(GFLibrary):
 
         Returns
         -------
-        starttimeindexes : starttimes : :class:`numpy.ndarray` or
+        starttimeidxs : starttimes : :class:`numpy.ndarray` or
             :class:`theano.tensor.Tensor`, int16
         """
         return backends[self._mode].round(
@@ -276,7 +283,7 @@ class SeismicGFLibrary(GFLibrary):
 
         Returns
         -------
-        durationindexes : starttimes : :class:`numpy.ndarray` or
+        durationidxs : starttimes : :class:`numpy.ndarray` or
             :class:`theano.tensor.Tensor`, int16
         """
         return backends[self._mode].round(
@@ -320,15 +327,13 @@ class SeismicGFLibrary(GFLibrary):
         starttimeidxs = self.starttimes2idxs(starttimes)
 
         if self._mode == 'theano':
-            if self._sgfmatrixs is None:
+            if self._sgfmatrix is None:
                 raise GFLibraryError(
                     'To use "stack_all" theano stacking optimization mode'
                     ' has to be initialised!')
 
-!            patchidxs = self.fault.spatchmap(0).flatten()
-
             d = self._sgfmatrix[
-                :, patchidxs, durationidxs, starttimeidxs, :].reshape(
+                :, self._spatchidxs, durationidxs, starttimeidxs, :].reshape(
                 (self.ntargets, self.npatches, self.nsamples))
             return tt.batched_dot(
                 d.dimshuffle((1, 0, 2)), slips).sum(axis=0)
@@ -336,17 +341,18 @@ class SeismicGFLibrary(GFLibrary):
         elif self._mode == 'numpy':
             u2d = num.tile(
                 slips, self.nsamples).reshape((self.nsamples, self.npatches))
- !           patchidxs = self.fault.patchmap(0).flatten()
 
             d = self._gfmatrix[
-                :, patchidxs, durationidxs, starttimeidxs, :].reshape(
+                :, self._patchidxs, durationidxs, starttimeidxs, :].reshape(
                 (self.ntargets, self.npatches, self.nsamples))
             return num.einsum('ijk->ik', d * u2d.T)
 
-    def snuffle(
+    def get_traces(
             self, targets=[], patchidxs=[0], durationidxs=[0],
-            starttimeidxs=[0]):
+            starttimeidxs=[0], plot=False):
         """
+        Return traces for specified indexes.
+        If plot is True:
         Opens pyrocko's snuffler with the specified traces.
 
         Parameters
@@ -357,27 +363,38 @@ class SeismicGFLibrary(GFLibrary):
         t2i = self.wavemap.target_index_mapping()
         for target in targets:
             tidx = t2i[target]
-            display_stations.append(self.wavemap.stations[tidx])
+            station = self.wavemap.stations[tidx]
+            display_stations.append(station)
             for patchidx in patchidxs:
-                for rtidx in durationidxs:
-                    for startidx in starttimeidxs:
+                for durationidx in durationidxs:
+                    for starttimeidx in starttimeidxs:
+                        ydata = self._gfmatrix[
+                            tidx, patchidx, durationidx, starttimeidx, :]
                         tr = Trace(
-                            ydata=self._gfmatrix[
-                                tidx, patchidx, rtidx, startidx, :],
+                            ydata=ydata,
                             deltat=self.deltat,
+                            network=station.network,
+                            station=station.station,
+                            location='%i_%i' % (durationidx, starttimeidx),
                             tmin=self.trace_tmin(
-                                target, patchidx, starttimeidxs))
+                                target, patchidx, starttimeidx))
                         traces.append(tr)
 
-        snuffle(traces, events=[self.event], stations=display_stations)
+        if plot:
+            if self.event is not None:
+                snuffle(traces, events=[self.event], stations=display_stations)
+            else:
+                snuffle(traces)
+        else:
+            return traces
 
     @property
     def deltat(self):
-        return float(self.wavemap.targets[0].store_id.split('_')[3][0:5])
+        return float(self.wavemap.targets[0].store_id.split('_')[2][0:5])
 
     @property
     def crust_ind(self):
-        return int(self.wavemap.targets.store_idore.split('_')[3])
+        return int(self.wavemap.targets[0].store_id.split('_')[3])
 
     @property
     def nstations(self):
@@ -438,7 +455,7 @@ class FaultOrdering(object):
             npatches = npl * npw
             slc = slice(dim, dim + npatches)
             shp = (npw, npl)
-            indexes = num.arange(npatches).reshape(shp)
+            indexes = num.arange(npatches, dtype='int16').reshape(shp)
             self.vmap.append(PatchMap(count, slc, shp, npatches, indexes))
             self.smap.append(shared(indexes, borrow=True).astype('int16'))
             dim += npatches
@@ -842,10 +859,15 @@ def seis_construct_gf_linear(
         int(num.ceil(start_times.max() / starttime_sampling)))
     starttimes = (starttimeidxs * starttime_sampling).tolist()
 
-    durations = num.arange(
+    ndurations = ut.error_not_whole((
+        (durations_prior.upper.max() -
+         durations_prior.upper.min()) / duration_sampling),
+        errstr='ndurations')
+
+    durations = num.linspace(
         durations_prior.lower.min(),
         durations_prior.upper.max(),
-        duration_sampling)
+        ndurations + 1)
 
     logger.info(
         'Calculating GFs for starttimes: %s \n durations: %s' %
@@ -854,7 +876,6 @@ def seis_construct_gf_linear(
     nstarttimes = len(starttimes)
     npatches = len(fault.nsubfaults)
     ntargets = len(wavemap.targets)
-    ndurations = durations.size
     nsamples = int(num.ceil(wavemap.arrival_taper.duration * sample_rate))
 
     for var in varnames:

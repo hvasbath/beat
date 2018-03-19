@@ -1168,6 +1168,16 @@ def check_hyper_flag(problem):
         return False
 
 
+def error_not_whole(f, errstr=''):
+    """
+    Test if float is a whole number, if not raise Error.
+    """
+    if f.is_integer():
+        return int(f)
+    else:
+        raise ValueError('%s : %f is not a whole number!' % (errstr, f))
+
+
 def scalar2floatX(a, floatX=tconfig.floatX):
     if floatX == 'float32':
         return num.float32(a)
