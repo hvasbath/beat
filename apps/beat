@@ -770,7 +770,8 @@ def command_build_gfs(args):
     elif options.mode == 'ffi':
         from beat import ffi
 
-        varnames = c.problem_config.get_slip_variables()
+        slip_varnames = c.problem_config.get_slip_variables()
+        varnames = c.problem_config.select_variables()
         outdir = os.path.join(
             c.project_dir, options.mode, config.linear_gf_dir_name)
         util.ensuredir(outdir)
@@ -785,7 +786,7 @@ def command_build_gfs(args):
 
             logger.info('Discretizing reference sources ...')
             fault = ffi.discretize_sources(
-                varnames=varnames,
+                varnames=slip_varnames,
                 sources=gf.reference_sources,
                 extension_width=gf.extension_width,
                 extension_length=gf.extension_length,
@@ -798,9 +799,8 @@ def command_build_gfs(args):
             utility.dump_objects(faultpath, [fault])
 
             logger.info('Updating problem_config:')
-            logger.info(
-                'Number of source-sub-patches: %i' % fault.nsubpatches)
-            c.problem_config.n_sources = fault.nsubpatches
+            logger.info('%s' % fault.__str__())
+            c.problem_config.n_sources = fault.npatches
             c.problem_config.init_vars(varnames)
             config.dump_config(c)
 
@@ -816,12 +816,12 @@ def command_build_gfs(args):
             for datatype in options.datatypes:
                 logger.info('for %s data ...' % datatype)
 
-                gf = c.geodetic_config.gf_config
-
-                geodetic_data_path = os.path.join(
-                    c.project_dir, config.geodetic_data_name)
-
                 if datatype == 'geodetic':
+                    gf = c.geodetic_config.gf_config
+
+                    geodetic_data_path = os.path.join(
+                        c.project_dir, config.geodetic_data_name)
+
                     datasets = utility.load_objects(geodetic_data_path)
                     for data in datasets:
                         if data.los_vector is None:
@@ -858,6 +858,7 @@ def command_build_gfs(args):
                         c.project_dir, config.seismic_data_name)
                     sc = c.seismic_config
                     gf = sc.gf_config
+                    pc = c.problem_config
 
                     datahandler = heart.init_datahandler(
                         seismic_config=sc, seismic_data_path=seismic_data_path)
@@ -873,8 +874,8 @@ def command_build_gfs(args):
                         ffi.seis_construct_gf_linear(
                             engine=engine,
                             fault=fault,
-                            durations=c.problem_config.priors['durations'],
-                            velocities=c.problem_config.priors['velocities'],
+                            durations_prior=pc.priors['durations'],
+                            velocities_prior=pc.priors['velocities'],
                             varnames=varnames,
                             wavemap=wmap,
                             event=c.event,

@@ -2234,11 +2234,11 @@ def post_process_trace(trace, taper, filterer, taper_tolerance_factor=0.,
         taper.fadein times this factor determines added tolerance
     """
 
-    tolerance = (taper.b - taper.a) * taper_tolerance_factor
-    lower_cut = taper.a - tolerance
-    upper_cut = taper.d + tolerance
-
     if taper is not None and outmode != 'data':
+        tolerance = (taper.b - taper.a) * taper_tolerance_factor
+        lower_cut = taper.a - tolerance
+        upper_cut = taper.d + tolerance
+
         trace.extend(lower_cut, upper_cut, fillmethod='zeros')
         trace.taper(taper, inplace=True)
 
@@ -2309,8 +2309,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
 
     if outmode not in stackmodes:
         raise StackingError(
-            'Outmode "%s" not available! Available: %s' %
-            outmode, utility.list2string(stackmodes))
+            'Outmode "%s" not available! Available: %s' % (
+                outmode, utility.list2string(stackmodes)))
 
     taperers = []
     tapp = taperers.append
@@ -2348,11 +2348,14 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     taper_index = [j for _ in range(ns) for j in range(nt)]
 
     for i, (source, target, tr) in enumerate(response.iter_results()):
-        ti = taper_index[i]
+        if arrival_taper is not None:
+            taper = taperers[taper_index[i]]
+        else:
+            taper = None
 
         post_process_trace(
             trace=tr,
-            taper=taperers[ti],
+            taper=taper,
             filterer=filterer,
             taper_tolerance_factor=taper_tolerance_factor,
             outmode=outmode)
@@ -2483,7 +2486,7 @@ def geo_synthetics(
         raise ValueError('Outmode %s not available' % outmode)
 
 
-def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
+def taper_filter_traces(traces, arrival_taper=None, filterer=None,
                         tmins=None, plot=False, outmode='array',
                         taper_tolerance_factor=0.):
     """
@@ -2492,7 +2495,7 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
 
     Parameters
     ----------
-    data_traces : List
+    traces : List
         containing :class:`pyrocko.trace.Trace` objects
     arrival_taper : :class:`ArrivalTaper`
     filterer : :class:`Filterer`
@@ -2514,7 +2517,7 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
 
     cut_traces = []
     ctpp = cut_traces.append
-    for i, tr in enumerate(data_traces):
+    for i, tr in enumerate(traces):
         cut_trace = tr.copy()
         tr.location = 'orig'
         cut_trace.location = 'copy'
@@ -2535,13 +2538,13 @@ def taper_filter_traces(data_traces, arrival_taper=None, filterer=None,
         ctpp(cut_trace)
 
     if plot:
-        trace.snuffle(cut_traces + data_traces)
+        trace.snuffle(cut_traces + traces)
 
     if outmode == 'array':
         if arrival_taper is not None:
             logger.debug('Returning chopped traces ...')
             return num.vstack(
-                [cut_traces[i].ydata for i in range(len(data_traces))])
+                [cut_traces[i].ydata for i in range(len(traces))])
         else:
             raise IOError('Cannot return array without tapering!')
     if outmode == 'stacked_traces' or outmode == 'data':

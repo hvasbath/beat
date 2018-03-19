@@ -417,8 +417,9 @@ class SeisDataChopper(theano.Op):
         tmins = inputs[0]
         z = output[0]
 
-        z[0] = heart.taper_filter_traces(self.traces, self.arrival_taper,
-                                         self.filterer, tmins)
+        z[0] = heart.taper_filter_traces(
+            self.traces, self.arrival_taper,
+            self.filterer, tmins)
 
     def infer_shape(self, node, input_shapes):
         nrow = len(self.traces)

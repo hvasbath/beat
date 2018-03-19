@@ -556,8 +556,9 @@ def update_source(source, **point):
             if source.stf is not None:
                 source.stf[k] = v
             else:
-                raise Exception('Please set a STF before updating its'
-                                    ' parameters.')
+                raise AttributeError(
+                    'Please set a STF before updating its'
+                    ' parameters.')
         else:
             source[k] = v
 

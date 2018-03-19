@@ -33,7 +33,8 @@ guts_prefix = 'beat'
 
 logger = logging.getLogger('config')
 
-block_vars = ['bl_azimuth', 'bl_amplitude']
+block_vars = [
+    'bl_azimuth', 'bl_amplitude', 'nucleation_strike', 'nucleation_dip']
 seis_vars = ['time', 'duration']
 
 source_names = '''
@@ -133,10 +134,10 @@ default_bounds = dict(
     delta_depth=(0., 10.),
     distance=(0., 10.),
 
-    duration=(0., 30.),
+    duration=(1., 30.),
     peak_ratio=(0., 1.),
 
-    durations=(0., 30.),
+    durations=(0.5, 29.5),
     uparr=(-0.3, 6.),
     uperp=(-0.3, 4.),
     nucleation_strike=(0., 10.),
@@ -915,6 +916,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
             n_sources = gmc.problem_config.n_sources
             point = {k: v.testvalue
                      for k, v in gmc.problem_config.priors.iteritems()}
+            point = utility.adjust_point_units(point)
             source_points = utility.split_point(point)
 
             reference_sources = init_reference_sources(
@@ -968,10 +970,6 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                 ' a "geometry" configuration ("beat init command"), update'
                 ' the Greens Function information and create GreensFunction'
                 ' stores for the non-linear problem.')
-
-        logger.info(
-            'Problem config has to be updated. After deciding on the patch'
-            ' dimensions and extension factors please run: import')
 
     c.problem_config = ProblemConfig(
         n_sources=n_sources, datatypes=datatypes, mode=mode,

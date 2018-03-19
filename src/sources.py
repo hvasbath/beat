@@ -32,14 +32,18 @@ class RectangularSource(gf.DCSource, Cloneable):
     the HalfspaceTool from GertjanVanZwieten.
     """
 
-    width = Float.T(help='width of the fault [m]',
-                    default=1. * km)
-    length = Float.T(help='length of the fault [m]',
-                    default=1. * km)
-    slip = Float.T(help='slip of the fault [m]',
-                    default=1.)
-    opening = Float.T(help='opening of the fault [m]',
-                    default=0.)
+    width = Float.T(
+        help='width of the fault [m]',
+        default=1. * km)
+    length = Float.T(
+        help='length of the fault [m]',
+        default=1. * km)
+    slip = Float.T(
+        help='slip of the fault [m]',
+        default=1.)
+    opening = Float.T(
+        help='opening of the fault [m]',
+        default=0.)
 
     @property
     def dipvector(self):
@@ -61,7 +65,7 @@ class RectangularSource(gf.DCSource, Cloneable):
         return num.array(
             [num.cos(self.dip * d2r) * num.cos(self.strike * d2r),
              -num.cos(self.dip * d2r) * num.sin(self.strike * d2r),
-              num.sin(self.dip * d2r)])
+             num.sin(self.dip * d2r)])
 
     @property
     def strikevector(self):
@@ -216,9 +220,10 @@ class RectangularSource(gf.DCSource, Cloneable):
                     elif datatype == 'geodetic':
                         patch.decimation_factor = 7
 
-                else:
-                    raise TypeError(
-                        "Datatype not supported either: 'seismic/geodetic'")
+                    else:
+                        raise TypeError(
+                            'Datatype "%s" not supported either: '
+                            '"seismic"/"geodetic"' % datatype)
 
                 patches.append(patch)
 
@@ -260,12 +265,13 @@ class RectangularSource(gf.DCSource, Cloneable):
         int
         """
         if dimension not in ['length', 'width']:
-            raise Exception('Invalid dimension!')
+            raise ValueError('Invalid dimension!')
 
         return int(num.ceil(self[dimension] / patch_size))
 
-    def extent_source(self, extension_width, extension_length,
-                     patch_width, patch_length):
+    def extent_source(
+            self, extension_width, extension_length,
+            patch_width, patch_length):
         """
         Extend fault into all directions. Rounds dimensions to have no
         half-patches.
@@ -290,9 +296,9 @@ class RectangularSource(gf.DCSource, Cloneable):
 
         l = self.length
         w = self.width
-
+        print l, w
         new_length = num.ceil((l + (2. * l * extension_length)) / km) * km
-        new_width = num.ceil((w + (2. * w * extension_length)) / km) * km
+        new_width = num.ceil((w + (2. * w * extension_width)) / km) * km
 
         npl = int(num.ceil(new_length / patch_length))
         npw = int(num.ceil(new_width / patch_width))
@@ -303,9 +309,11 @@ class RectangularSource(gf.DCSource, Cloneable):
             'Fault extended to length=%f, width=%f!' % (new_length, new_width))
 
         orig_center = s.center(s.width)
+        print 'orig', orig_center
         s.update(length=new_length, width=new_width)
-
+        print s, 'againorig center', orig_center
         top_center = s.center2top_depth(orig_center)
+        print top_center
 
         if top_center[2] < 0.:
             logger.info('Fault would intersect surface!'

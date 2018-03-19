@@ -119,19 +119,19 @@ class SeismicGFLibrary(GFLibrary):
 
     def __str__(self):
         s = '''
-            %s GF Library
-            ------------------
-            slip component: %s
-            starttime_sampling[s]: %f
-            duration_sampling[s]: %f
-            ntargets: %i
-            npatches: %i
-            ndurations: %i
-            nstarttimes: %i
-            nsamples: %i
-            size: %i
-            filesize [MB]: %f
-            filename: %s''' % (
+%s GF Library
+------------------
+slip component: %s
+starttime_sampling[s]: %f
+duration_sampling[s]: %f
+ntargets: %i
+npatches: %i
+ndurations: %i
+nstarttimes: %i
+nsamples: %i
+size: %i
+filesize [MB]: %f
+filename: %s''' % (
             self.datatype,
             self.component, self.starttime_sampling, self.duration_sampling,
             self.ntargets, self.npatches, self.ndurations,
@@ -390,11 +390,11 @@ class SeismicGFLibrary(GFLibrary):
 
     @property
     def deltat(self):
-        return float(self.wavemap.targets[0].store_id.split('_')[2][0:5])
+        return float(self.wavemap.targets[0].store_id.split('_')[-2][0:5])
 
     @property
     def crust_ind(self):
-        return int(self.wavemap.targets[0].store_id.split('_')[3])
+        return int(self.wavemap.targets[0].store_id.split('_')[-1])
 
     @property
     def nstations(self):
@@ -491,6 +491,14 @@ class FaultGeometry(gf.seismosizer.Cloneable):
         self.components = components
         self._ext_sources = {}
         self.ordering = ordering
+
+    def __str__(self):
+        s = '''
+Complex Fault Geometry
+number of subfaults: %i
+number of patches: %i ''' % (
+            self.nsubfaults, self.npatches)
+        return s
 
     def _check_datatype(self, datatype):
         if datatype not in self.datatypes:
@@ -665,8 +673,24 @@ class FaultGeometry(gf.seismosizer.Cloneable):
         return len(self.ordering.vmap)
 
     @property
-    def nsubpatches(self):
+    def npatches(self):
         return self.ordering.npatches
+
+    def patch_size_dip(self, index):
+        npw, npl = self.get_subfault_discretization(index)
+        subfault = self.get_subfault(
+            index=index,
+            datatype=self.datatypes[0],
+            component=self.components[0])
+        return subfault.width / npw
+
+    def patch_size_strike(self, index):
+        npw, npl = self.get_subfault_discretization(index)
+        subfault = self.get_subfault(
+            index=index,
+            datatype=self.datatypes[0],
+            component=self.components[0])
+        return subfault.length / npl
 
 
 def discretize_sources(
@@ -857,13 +881,13 @@ def seis_construct_gf_linear(
         index=0, rupture_velocities=velocities_prior.lower)
     starttimeidxs = num.arange(
         int(num.ceil(start_times.max() / starttime_sampling)))
-    starttimes = (starttimeidxs * starttime_sampling).tolist()
+    starttimes = starttimeidxs * starttime_sampling
 
     ndurations = ut.error_not_whole((
         (durations_prior.upper.max() -
-         durations_prior.upper.min()) / duration_sampling),
+         durations_prior.lower.min()) / duration_sampling),
         errstr='ndurations')
-
+    print ndurations
     durations = num.linspace(
         durations_prior.lower.min(),
         durations_prior.upper.max(),
@@ -874,9 +898,9 @@ def seis_construct_gf_linear(
         (ut.list2string(starttimes), ut.list2string(durations)))
 
     nstarttimes = len(starttimes)
-    npatches = len(fault.nsubfaults)
+    npatches = fault.npatches
     ntargets = len(wavemap.targets)
-    nsamples = int(num.ceil(wavemap.arrival_taper.duration * sample_rate))
+    nsamples = wavemap.config.arrival_taper.nsamples(sample_rate)
 
     for var in varnames:
         logger.info('For slip component: %s' % var)
@@ -899,8 +923,8 @@ def seis_construct_gf_linear(
 
                 for duration in durations:
                     pcopy = patch.clone()
-                    pcopy.update(duration=duration)
-                    source_patches_durations.append(copy)
+                    pcopy.stf.duration = duration
+                    source_patches_durations.append(pcopy)
 
                 for j, target in enumerate(wavemap.targets):
 
@@ -912,7 +936,7 @@ def seis_construct_gf_linear(
                         wavename=wavemap.name,
                         filterer=None,
                         reference_taperer=None,
-                        outmode='traces')
+                        outmode='data')
 
                     arrival_time = heart.get_phase_arrival_time(
                         engine=engine,
@@ -922,7 +946,7 @@ def seis_construct_gf_linear(
 
                     for starttime in starttimes:
 
-                        tmin = wavemap.arrival_taper.a + \
+                        tmin = wavemap.config.arrival_taper.a + \
                             arrival_time - starttime
 
                         synthetics_array = heart.taper_filter_traces(
