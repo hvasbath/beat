@@ -139,8 +139,8 @@ default_bounds = dict(
     durations=(0., 30.),
     uparr=(-0.3, 6.),
     uperp=(-0.3, 4.),
-    nucleation_x=(0., 10.),
-    nucleation_y=(0., 7.),
+    nucleation_strike=(0., 10.),
+    nucleation_dip=(0., 7.),
     velocities=(0.5, 4.2),
 
     azimuth=(0, 180),
@@ -795,6 +795,17 @@ class BEATconfig(Object, Cloneable):
             self.hyper_sampler_config = None
 
 
+def init_reference_sources(source_points, n_sources, stf_type):
+    reference_sources = []
+    for i in range(n_sources):
+        rf = RectangularSource(
+            stf=stf_catalog[stf_type]())
+        utility.update_source(rf, **source_points[i])
+        reference_sources.append(rf)
+
+    return reference_sources
+
+
 def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                 datatypes=['geodetic'],
                 mode='geometry', source_type='RectangularSource', n_sources=1,
@@ -905,31 +916,49 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
             point = {k: v.testvalue
                      for k, v in gmc.problem_config.priors.iteritems()}
             source_points = utility.split_point(point)
-            reference_sources = [RectangularSource(
-                **source_points[i]) for i in range(n_sources)]
+
+            reference_sources = init_reference_sources(
+                source_points, n_sources, gmc.problem_config.stf_type)
 
             c.date = gmc.date
             c.event = gmc.event
 
             if 'geodetic' in datatypes:
                 gc = gmc.geodetic_config
-                lgf_config = GeodeticLinearGFConfig(
-                    earth_model_name=gc.gf_config.earth_model_name,
-                    store_superdir=gc.gf_config.store_superdir,
-                    n_variations=gc.gf_config.n_variations,
-                    reference_sources=reference_sources)
+                if gc is None:
+                    logger.warning(
+                        'Asked for "geodetic" datatype but geometry config '
+                        'has no such datatype! Initialising default "geodetic"'
+                        ' linear config!')
+                    gc = GeodeticConfig()
+                    lgf_config = GeodeticLinearGFConfig()
+                else:
+                    lgf_config = GeodeticLinearGFConfig(
+                        earth_model_name=gc.gf_config.earth_model_name,
+                        store_superdir=gc.gf_config.store_superdir,
+                        n_variations=gc.gf_config.n_variations,
+                        reference_sources=reference_sources)
+
                 c.geodetic_config = gc
                 c.geodetic_config.gf_config = lgf_config
 
             elif 'seismic' in datatypes:
-                sc = gc.seismic_config
-                lgf_config = SeismicLinearGFConfig(
-                    earth_model_name=sc.gf_config.earth_model_name,
-                    sample_rate=sc.gf_config.sample_rate,
-                    reference_location=sc.gf_config.reference_location,
-                    store_superdir=sc.gf_config.store_superdir,
-                    n_variations=sc.gf_config.n_variations,
-                    reference_sources=reference_sources)
+                sc = gmc.seismic_config
+                if sc is None:
+                    logger.warning(
+                        'Asked for "seismic" datatype but geometry config '
+                        'has no such datatype! Initialising default "seismic"'
+                        ' linear config!')
+                    sc = SeismicConfig()
+                    lgf_config = SeismicLinearGFConfig()
+                else:
+                    lgf_config = SeismicLinearGFConfig(
+                        earth_model_name=sc.gf_config.earth_model_name,
+                        sample_rate=sc.gf_config.sample_rate,
+                        reference_location=sc.gf_config.reference_location,
+                        store_superdir=sc.gf_config.store_superdir,
+                        n_variations=sc.gf_config.n_variations,
+                        reference_sources=reference_sources)
                 c.seismic_config = sc
                 c.seismic_config.gf_config = lgf_config
         else:

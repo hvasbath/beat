@@ -313,11 +313,12 @@ physical_bounds = dict(
     duration=(0., 600.),
     peak_ratio=(0., 1.),
 
+    durations=(0., 600.),
     uparr=(-0.3, 150.),
     uperp=(-150., 150.),
-    nuc_x=(0., num.inf),
-    nuc_y=(0., num.inf),
-    velocity=(0.5, 7.0),
+    nucleation_strike=(0., num.inf),
+    nucleation_dip=(0., num.inf),
+    velocities=(0.5, 7.0),
 
     azimuth=(0, 360),
     amplitude=(1., 10e25),

@@ -437,8 +437,9 @@ def command_import(args):
 
             point = utility.adjust_point_units(point)
             source_points = utility.split_point(point)
-            reference_sources = [heart.RectangularSource(
-                **source_points[i]) for i in range(n_sources)]
+
+            reference_sources = config.init_reference_sources(
+                source_points, n_sources, c.problem_config.stf_type)
 
             c.geodetic_config.gf_config.reference_sources = reference_sources
             config.dump_config(c)
@@ -463,6 +464,14 @@ def command_clone(args):
             default=['geodetic', 'seismic'], type='string',
             action='callback', callback=list_callback,
             help='Datatypes to clone; "geodetic, seismic".')
+
+        parser.add_option(
+            '--source_type', dest='source_type',
+            choices=config.source_names,
+            default=None,
+            help='Source type to replace in config; %s'
+                 '. Default: "dont change"' % (
+                     '", "'.join(name for name in config.source_names)))
 
         parser.add_option(
             '--mode', dest='mode',
@@ -516,14 +525,21 @@ def command_clone(args):
                             cloned_dir, datatype + '_data.pkl')
                         shutil.copyfile(data_path, cloned_data_path)
 
-            old_priors = copy.deepcopy(c.problem_config.priors)
+            if options.source_type is None:
+                old_priors = copy.deepcopy(c.problem_config.priors)
 
-            c.problem_config.datatype = new_datatypes
-            new_priors = c.problem_config.select_variables()
+                c.problem_config.datatype = new_datatypes
+                new_priors = c.problem_config.select_variables()
 
-            for prior in new_priors:
-                if prior in old_priors.keys():
-                    c.problem_config.priors[prior] = old_priors[prior]
+                for prior in new_priors:
+                    if prior in old_priors.keys():
+                        c.problem_config.priors[prior] = old_priors[prior]
+
+            else:
+                logger.info('Replacing source with "%s"' % options.source_type)
+                c.problem_config.source_type = options.source_type
+                c.problem_config.init_vars()
+                c.problem_config.set_decimation_factor()
 
             old_hypers = copy.deepcopy(c.problem_config.hyperparameters)
 
@@ -848,10 +864,11 @@ def command_build_gfs(args):
 
                     engine = LocalEngine(store_superdirs=[gf.store_superdir])
 
-                    wavemaps = []
                     for wc in sc.waveforms:
                         wmap = heart.init_wavemap(
-                            waveformfit_config=wc, datahandler, c.event)
+                            waveformfit_config=wc,
+                            datahandler=datahandler,
+                            event=c.event)
 
                         ffi.seis_construct_gf_linear(
                             engine=engine,
