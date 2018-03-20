@@ -850,7 +850,7 @@ def command_build_gfs(args):
                             datasets=datasets,
                             targets=targets,
                             fault=fault,
-                            varnames=varnames,
+                            varnames=slip_varnames,
                             force=options.force)
 
                 elif datatype == 'seismic':
@@ -876,7 +876,7 @@ def command_build_gfs(args):
                             fault=fault,
                             durations_prior=pc.priors['durations'],
                             velocities_prior=pc.priors['velocities'],
-                            varnames=varnames,
+                            varnames=slip_varnames,
                             wavemap=wmap,
                             event=c.event,
                             starttime_sampling=gf.starttime_sampling,

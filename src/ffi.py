@@ -112,8 +112,8 @@ class SeismicGFLibrary(GFLibrary):
             starttime_sampling, tconfig.floatX)
         self.duration_sampling = ut.scalar2floatX(
             duration_sampling, tconfig.floatX)
-        self.starttime_min = ut.scalar2int(starttime_min, tconfig.floatX)
-        self.duration_min = ut.scalar2int(duration_min, tconfig.floatX)
+        self.starttime_min = ut.scalar2floatX(starttime_min, tconfig.floatX)
+        self.duration_min = ut.scalar2floatX(duration_min, tconfig.floatX)
         self._sgfmatrix = None
         self._stmins = None
 
@@ -390,7 +390,7 @@ filename: %s''' % (
 
     @property
     def deltat(self):
-        return float(self.wavemap.targets[0].store_id.split('_')[-2][0:5])
+        return 1. / float(self.wavemap.targets[0].store_id.split('_')[-2][0:5])
 
     @property
     def crust_ind(self):
@@ -886,12 +886,12 @@ def seis_construct_gf_linear(
     ndurations = ut.error_not_whole((
         (durations_prior.upper.max() -
          durations_prior.lower.min()) / duration_sampling),
-        errstr='ndurations')
-    print ndurations
+        errstr='ndurations') + 1
+
     durations = num.linspace(
         durations_prior.lower.min(),
         durations_prior.upper.max(),
-        ndurations + 1)
+        ndurations)
 
     logger.info(
         'Calculating GFs for starttimes: %s \n durations: %s' %
@@ -962,9 +962,9 @@ def seis_construct_gf_linear(
                             target=target,
                             patchidx=patchidx,
                             durations=durations,
-                            starttimes=starttimes)
+                            starttimes=starttime)
 
-            logger.info('Storing seismic linear GF Library under ', outpath)
+            logger.info('Storing seismic linear GF Library under %s' % outpath)
 
             ut.dump_objects(outpath, [gfs])
 

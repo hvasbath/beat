@@ -2234,14 +2234,6 @@ def post_process_trace(trace, taper, filterer, taper_tolerance_factor=0.,
         taper.fadein times this factor determines added tolerance
     """
 
-    if taper is not None and outmode != 'data':
-        tolerance = (taper.b - taper.a) * taper_tolerance_factor
-        lower_cut = taper.a - tolerance
-        upper_cut = taper.d + tolerance
-
-        trace.extend(lower_cut, upper_cut, fillmethod='zeros')
-        trace.taper(taper, inplace=True)
-
     if filterer is not None:
         # filter traces
 
@@ -2251,6 +2243,12 @@ def post_process_trace(trace, taper, filterer, taper_tolerance_factor=0.,
             order=filterer.order)
 
     if taper is not None and outmode != 'data':
+        tolerance = (taper.b - taper.a) * taper_tolerance_factor
+        lower_cut = taper.a - tolerance
+        upper_cut = taper.d + tolerance
+
+        trace.extend(lower_cut, upper_cut, fillmethod='zeros')
+        trace.taper(taper, inplace=True)
         trace.chop(tmin=lower_cut,
                    tmax=upper_cut)
 
