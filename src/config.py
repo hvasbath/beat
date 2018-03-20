@@ -737,6 +737,28 @@ class SamplerConfig(Object):
             self.parameters = SMCConfig(**kwargs)
 
 
+class GFLibaryConfig(Object):
+    """
+    Baseconfig for GF Libraries
+    """
+    component = String.T(default='uparr')
+    event = model.Event.T(default=model.Event.D())
+    datatype = String.T(default='undefined')
+    crust_ind = Int.T(default=0)
+
+
+class SeismicGFLibraryConfig(GFLibaryConfig):
+    """
+    Config for the linear Seismic GF Library for dumping and loading.
+    """
+    wave_config = WaveformFitConfig.T(default=WaveformFitConfig.D())
+    starttime_sampling = Float.T(default=0.5)
+    duration_sampling = Float.T(default=0.5)
+    starttime_min = Float.T(default=0.)
+    duration_min = Float.T(default=0.1)
+    dimensions = Tuple.T(5, Int.T(), default=(0, 0, 0, 0, 0))
+
+
 class BEATconfig(Object, Cloneable):
     """
     BEATconfig is the overarching configuration class, providing all the
