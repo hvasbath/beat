@@ -1,7 +1,7 @@
 from beat import heart
 from beat import utility as ut
 from beat.fast_sweeping import fast_sweep
-from beat.paripool import paripool
+from beat import paripool
 
 import copy
 import os
@@ -43,9 +43,8 @@ slip_directions = {
 
 def _init_shared(gfstofill, tminstofill):
     logger.debug('Accessing shared arrays!')
-    global gfmatrix, tmins
-    gfmatrix = gfstofill
-    tmins = tminstofill
+    paripool.gfmatrix = gfstofill
+    paripool.tmins = tminstofill
 
 
 class GFLibraryError(Exception):
@@ -225,9 +224,9 @@ filename: %s''' % (
         durationidxs = self.durations2idxs(durations)
         starttimeidxs = self.starttimes2idxs(starttimes)
 
-        if 'gfmatrix' in globals():
-            matrix = num.frombuffer(gfmatrix).reshape(self.dimensions)
-            times = num.frombuffer(tmins).reshape(
+        if hasattr(paripool, 'gfmatrix'):
+            matrix = num.frombuffer(paripool.gfmatrix).reshape(self.dimensions)
+            times = num.frombuffer(paripool.tmins).reshape(
                 (self.ntargets, self.npatches))
 
         elif self._gfmatrix is None:
@@ -981,6 +980,7 @@ def seis_construct_gf_linear(
     logger.info(
         'Calculating GFs for starttimes: %s \n durations: %s' %
         (ut.list2string(starttimes), ut.list2string(durations)))
+    logger.info('Using %i workers ...' % nworkers)
 
     nstarttimes = len(starttimes)
     npatches = fault.npatches
@@ -1014,7 +1014,7 @@ def seis_construct_gf_linear(
                     for patchidx, patch in enumerate(
                     fault.get_all_patches('seismic', component=var))]
 
-            p = paripool(
+            p = paripool.paripool(
                 _process_patch, work,
                 initializer=_init_shared,
                 initargs=(shared_gflibrary, shared_times), nprocs=nworkers)
