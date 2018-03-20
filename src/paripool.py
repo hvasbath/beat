@@ -100,8 +100,9 @@ def _pay_worker(worker):
     return overseer(worker.timeout)(worker.run)()
 
 
-def paripool(function, workpackage, nprocs=None, chunksize=1, timeout=0xFFFF,
-    initmessage=True):
+def paripool(
+        function, workpackage, nprocs=None, chunksize=1, timeout=0xFFFF,
+        initializer=None, initargs=()):
     """
     Initialises a pool of workers and executes a function in parallel by
     forking the process. Does forking once during initialisation.
@@ -119,11 +120,13 @@ def paripool(function, workpackage, nprocs=None, chunksize=1, timeout=0xFFFF,
         number of work packages to throw at workers in each instance
     timeout : int
         time [s] after which processes are killed, default: 65536s
-    initmessage : bool
-        log status message during initialisation, default: true
+    initialiser : function
+        to init pool with may be container for shared arrays
+    initargs : tuple
+        of arguments for the initialiser
     """
 
-    def start_message():
+    def start_message(*globals):
         logger.debug('Starting %s' % multiprocessing.current_process().name)
 
     def callback(result):
@@ -131,9 +134,6 @@ def paripool(function, workpackage, nprocs=None, chunksize=1, timeout=0xFFFF,
 
     if nprocs is None:
         nprocs = multiprocessing.cpu_count()
-
-    if not initmessage:
-        start_message = None
 
     if chunksize is None:
         chunksize = 1
@@ -145,14 +145,15 @@ def paripool(function, workpackage, nprocs=None, chunksize=1, timeout=0xFFFF,
     else:
         pool = multiprocessing.Pool(
             processes=nprocs,
-            initializer=start_message)
+            initializer=initializer,
+            initargs=initargs)
 
         logger.info('Worker timeout after %i second(s)' % timeout)
 
         workers = [
             WatchedWorker(function, work, timeout) for work in workpackage]
 
-        pool_timeout = int(len(workpackage) /3. * timeout / nprocs)
+        pool_timeout = int(len(workpackage) / 3. * timeout / nprocs)
         if pool_timeout < 100:
             pool_timeout = 100
 

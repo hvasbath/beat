@@ -197,6 +197,9 @@ class GFConfig(Object):
         default='ak135-f-average.m',
         help='Name of the reference earthmodel, see '
              'pyrocko.cake.builtin_models() for alternatives.')
+    nworkers = Int.T(
+        default=1,
+        help='Number of processors to use for calculating the GFs')
 
 
 class NonlinearGFConfig(GFConfig):
@@ -248,9 +251,6 @@ class NonlinearGFConfig(GFConfig):
         help='Depth limit [km] for varying the velocity model. Below that '
              'depth the velocity model is not varied based on the errors '
              'defined above!')
-    nworkers = Int.T(
-        default=1,
-        help='Number of processors to use for calculating the GFs')
 
 
 class SeismicGFConfig(NonlinearGFConfig):

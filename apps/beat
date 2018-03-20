@@ -879,6 +879,7 @@ def command_build_gfs(args):
                             varnames=slip_varnames,
                             wavemap=wmap,
                             event=c.event,
+                            nworkers=gf.nworkers,
                             starttime_sampling=gf.starttime_sampling,
                             duration_sampling=gf.duration_sampling,
                             sample_rate=gf.sample_rate,

@@ -66,7 +66,8 @@ class FFITest(unittest.TestCase):
             starttime_min=self.starttime_min,
             duration_min=self.duration_min)
         self.gfs.setup(
-            ntargets, npatches, self.ndurations, nstarttimes, nsamples)
+            ntargets, npatches, self.ndurations, nstarttimes,
+            nsamples, allocate=True)
 
         tracedata = num.tile(
             num.arange(nsamples), nstarttimes).reshape((nstarttimes, nsamples))

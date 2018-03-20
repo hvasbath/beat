@@ -1,11 +1,14 @@
 from beat import heart
 from beat import utility as ut
 from beat.fast_sweeping import fast_sweep
+from beat.paripool import paripool
 
 import copy
 import os
 import logging
 import collections
+
+from multiprocessing import RawArray
 
 from pyrocko.trace import snuffle, Trace
 from pyrocko import gf
@@ -38,6 +41,13 @@ slip_directions = {
     'utensile': {'slip': 0., 'rake': 0., 'opening': 1.}}
 
 
+def _init_shared(gfstofill, tminstofill):
+    logger.debug('Accessing shared arrays!')
+    global gfmatrix, tmins
+    gfmatrix = gfstofill
+    tmins = tminstofill
+
+
 class GFLibraryError(Exception):
     pass
 
@@ -59,13 +69,13 @@ class GFLibrary(object):
         self.datatype = ''
 
     def _check_setup(self):
-        if self._gfmatrix is None:
+        if sum(self.dimensions) == 0:
             raise GFLibraryError(
                 '%s Greens Function Library is not set up!' % self.datatype)
 
     @property
     def size(self):
-        return self._gfmatrix.size
+        return num.array(self.dimensions).prod()
 
     @property
     def filesize(self):
@@ -112,6 +122,7 @@ class SeismicGFLibrary(GFLibrary):
             starttime_sampling, tconfig.floatX)
         self.duration_sampling = ut.scalar2floatX(
             duration_sampling, tconfig.floatX)
+        self.dimensions = (0, 0, 0, 0, 0)
         self.starttime_min = ut.scalar2floatX(starttime_min, tconfig.floatX)
         self.duration_min = ut.scalar2floatX(duration_min, tconfig.floatX)
         self._sgfmatrix = None
@@ -139,20 +150,29 @@ filename: %s''' % (
             self.filename)
         return s
 
-    def setup(self, ntargets, npatches, ndurations, nstarttimes, nsamples):
+    def setup(
+            self, ntargets, npatches, ndurations,
+            nstarttimes, nsamples, allocate=False):
+
         if ntargets != self.nstations:
             raise GFLibraryError(
                 'Number of stations and targets is inconsistent!'
                 'ntargets %i, nstations %i' % (ntargets, self.nstations))
 
-        self._gfmatrix = num.zeros(
-            [ntargets, npatches, ndurations, nstarttimes, nsamples])
-        self._tmins = num.zeros([ntargets, npatches])
+        self.dimensions = (
+            ntargets, npatches, ndurations, nstarttimes, nsamples)
+
+        if allocate:
+            logger.info('Allocating GF Library')
+            self._gfmatrix = num.zeros(self.dimensions)
+            self._tmins = num.zeros([ntargets, npatches])
+
         self._patchidxs = num.arange(npatches, dtype='int16')
 
         self.set_stack_mode(mode='numpy')
 
     def init_optimization(self):
+
         logger.info('Setting linear seismic GF Library to optimization mode.')
         self._sgfmatrix = shared(
             self._gfmatrix.astype(tconfig.floatX), borrow=True)
@@ -201,13 +221,26 @@ filename: %s''' % (
                     entries.shape[0], self.nsamples))
 
         self._check_setup()
-        tidx = self.wavemap.target_index_mapping()[target]
+        targetidx = self.wavemap.target_index_mapping()[target]
         durationidxs = self.durations2idxs(durations)
         starttimeidxs = self.starttimes2idxs(starttimes)
 
-        self._gfmatrix[
-            tidx, patchidx, durationidxs, starttimeidxs, :] = entries
-        self._tmins[tidx, patchidx] = tmin
+        if 'gfmatrix' in globals():
+            matrix = num.frombuffer(gfmatrix).reshape(self.dimensions)
+            times = num.frombuffer(tmins).reshape(
+                (self.ntargets, self.npatches))
+
+        elif self._gfmatrix is None:
+            raise GFLibraryError(
+                'Neither shared nor standard GFLibrary is setup!')
+
+        else:
+            matrix = self._gfmatrix
+            times = self._tmins
+
+        _put(
+            matrix, times, targetidx, patchidx,
+            durationidxs, starttimeidxs, entries, tmin)
 
     def trace_tmin(self, target, patchidx, starttimeidx=0):
         """
@@ -402,28 +435,23 @@ filename: %s''' % (
 
     @property
     def ntargets(self):
-        self._check_setup()
-        return self._gfmatrix.shape[0]
+        return self.dimensions[0]
 
     @property
     def npatches(self):
-        self._check_setup()
-        return self._gfmatrix.shape[1]
+        return self.dimensions[1]
 
     @property
     def ndurations(self):
-        self._check_setup()
-        return self._gfmatrix.shape[2]
+        return self.dimensions[2]
 
     @property
     def nstarttimes(self):
-        self._check_setup()
-        return self._gfmatrix.shape[3]
+        return self.dimensions[3]
 
     @property
     def nsamples(self):
-        self._check_setup()
-        return self._gfmatrix.shape[4]
+        return self.dimensions[4]
 
     @property
     def filename(self):
@@ -840,11 +868,68 @@ def geo_construct_gf_linear(
         ut.dump_objects(outpath, [out_gfs])
 
 
+def _put(
+        matrix, times, targetidx, patchidx,
+        durationidxs, starttimeidxs, entries, tmin):
+
+    matrix[targetidx, patchidx, durationidxs, starttimeidxs, :] = entries
+    times[targetidx, patchidx] = tmin
+
+
+def _process_patch(engine, gfs, patch, patchidx, durations, starttimes):
+
+    source_patches_durations = []
+    logger.info('Patch Number %i', patchidx)
+
+    for duration in durations:
+        pcopy = patch.clone()
+        pcopy.stf.duration = duration
+        source_patches_durations.append(pcopy)
+
+    for j, target in enumerate(gfs.wavemap.targets):
+
+        traces, _ = heart.seis_synthetics(
+            engine=engine,
+            sources=source_patches_durations,
+            targets=[target],
+            arrival_taper=None,
+            wavename=gfs.wavemap.name,
+            filterer=None,
+            reference_taperer=None,
+            outmode='data')
+
+        arrival_time = heart.get_phase_arrival_time(
+            engine=engine,
+            source=patch,
+            target=target,
+            wavename=gfs.wavemap.name)
+
+        for starttime in starttimes:
+
+            tmin = gfs.wavemap.config.arrival_taper.a + \
+                arrival_time - starttime
+
+            synthetics_array = heart.taper_filter_traces(
+                traces=traces,
+                arrival_taper=gfs.wavemap.config.arrival_taper,
+                filterer=gfs.wavemap.config.filterer,
+                tmins=num.ones(durations.size) * tmin,
+                outmode='array')
+
+            gfs.put(
+                entries=synthetics_array,
+                tmin=tmin,
+                target=target,
+                patchidx=patchidx,
+                durations=durations,
+                starttimes=starttime)
+
+
 def seis_construct_gf_linear(
         engine, fault, durations_prior, velocities_prior,
-        varnames, wavemap, event,
-        starttime_sampling, duration_sampling,
-        sample_rate, outdirectory, force):
+        varnames, wavemap, event, nworkers=1,
+        starttime_sampling=1., duration_sampling=1.,
+        sample_rate=1., outdirectory='./', force=False):
     """
     Create seismic Greens Function matrix for defined source geometry
     by convolution of the GFs with the source time function (STF).
@@ -860,11 +945,11 @@ def seis_construct_gf_linear(
     fault : :class:`FaultGeometry`
         fault object that may comprise of several sub-faults. thus forming a
         complex fault-geometry
-    durations : :class:`heart.Parameter`
+    durations_prior : :class:`heart.Parameter`
         prior of durations of the STF for each patch to convolve
     duration_sampling : float
         incremental step size for precalculation of duration GFs
-    velocities : :class:`heart.Parameter`
+    velocities_prior : :class:`heart.Parameter`
         rupture velocity of earthquake prior
     starttime_sampling : float
         incremental step size for precalculation of startime GFs
@@ -913,56 +998,36 @@ def seis_construct_gf_linear(
 
         outpath = os.path.join(outdirectory, gfs.filename)
         if not os.path.exists(outpath) or force:
-            gfs.setup(ntargets, npatches, ndurations, nstarttimes, nsamples)
+            if nworkers < 2:
+                allocate = True
+            else:
+                allocate = False
 
-            for patchidx, patch in enumerate(
-                    fault.get_all_patches('seismic', component=var)):
+            gfs.setup(
+                ntargets, npatches, ndurations,
+                nstarttimes, nsamples, allocate=allocate)
 
-                source_patches_durations = []
-                logger.info('Patch Number %i', patchidx)
+            shared_gflibrary = RawArray('d', gfs.size)
+            shared_times = RawArray('d', gfs.ntargets * gfs.npatches)
 
-                for duration in durations:
-                    pcopy = patch.clone()
-                    pcopy.stf.duration = duration
-                    source_patches_durations.append(pcopy)
+            work = [(engine, gfs, patch, patchidx, durations, starttimes)
+                    for patchidx, patch in enumerate(
+                    fault.get_all_patches('seismic', component=var))]
 
-                for j, target in enumerate(wavemap.targets):
+            p = paripool(
+                _process_patch, work,
+                initializer=_init_shared,
+                initargs=(shared_gflibrary, shared_times), nprocs=nworkers)
 
-                    traces, tmins = heart.seis_synthetics(
-                        engine=engine,
-                        sources=source_patches_durations,
-                        targets=[target],
-                        arrival_taper=None,
-                        wavename=wavemap.name,
-                        filterer=None,
-                        reference_taperer=None,
-                        outmode='data')
+            for res in p:
+                pass
 
-                    arrival_time = heart.get_phase_arrival_time(
-                        engine=engine,
-                        source=patch,
-                        target=target,
-                        wavename=wavemap.name)
-
-                    for starttime in starttimes:
-
-                        tmin = wavemap.config.arrival_taper.a + \
-                            arrival_time - starttime
-
-                        synthetics_array = heart.taper_filter_traces(
-                            traces=traces,
-                            arrival_taper=wavemap.config.arrival_taper,
-                            filterer=wavemap.config.filterer,
-                            tmins=num.ones(ndurations) * tmin,
-                            outmode='array')
-
-                        gfs.put(
-                            entries=synthetics_array,
-                            tmin=tmin,
-                            target=target,
-                            patchidx=patchidx,
-                            durations=durations,
-                            starttimes=starttime)
+            if nworkers > 1:
+                # collect and store away
+                gfs._gfmatrix = num.frombuffer(
+                    shared_gflibrary).reshape(gfs.dimensions)
+                gfs._tmins = num.frombuffer(shared_times).reshape(
+                    (gfs.ntargets, gfs.npatches))
 
             logger.info('Storing seismic linear GF Library under %s' % outpath)
 
