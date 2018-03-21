@@ -1280,7 +1280,7 @@ class SeismicDistributerComposite(SeismicComposite):
         return utility.load_objects(
             os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
 
-    def get_gflibrary_key(crust_ind, wavename, component):
+    def get_gflibrary_key(self, crust_ind, wavename, component):
         return '%i_%s_%s' % (crust_ind, wavename, component)
 
     def load_gfs(self, crust_inds=None, make_shared=True):
@@ -1305,31 +1305,35 @@ class SeismicDistributerComposite(SeismicComposite):
             for crust_ind in crust_inds:
                 gfs = {}
                 for var in self.slip_varnames:
-                    gflib_name = ffi.get_gf_name(
+                    gflib_name = ffi.get_gf_prefix(
                         datatype=self.name, component=var,
                         wavename=wmap.config.name, crust_ind=crust_ind)
                     gfpath = os.path.join(
                         self.gfpath, gflib_name)
 
                     gfs = ffi.load_gf_library(
-                        directory=gfpath, filename=gflib_name)
+                        directory=self.gfpath, filename=gflib_name)
 
                     if make_shared:
                         gfs.init_optimization()
 
-                key = self.get_gflibrary_key(
-                    crust_ind=crust_ind,
-                    wavename=wmap.config.name,
-                    component=var)
+                    key = self.get_gflibrary_key(
+                        crust_ind=crust_ind,
+                        wavename=wmap.config.name,
+                        component=var)
 
-                self.gf_names[key] = gfpath
-                self.gfs[key] = gfs
+                    self.gf_names[key] = gfpath
+                    self.gfs[key] = gfs
 
-    def get_formula(self, input_rvs, hyperparams):
+    def get_formula(self, input_rvs, fixed_rvs, hyperparams):
+
+        self.input_rvs = input_rvs
+        self.fixed_rvs = fixed_rvs
 
         ref_idx = self.config.gf_config.reference_model_idx
-        nuc_strike = tt.round(input_rvs['nucleation_strike']).astype('int16')
-        nuc_dip = tt.round(input_rvs['nucleation_dip']).astype('int16')
+!fixed vars!!!
+!        nuc_strike = input_rvs['nucleation_strike']
+        nuc_dip = input_rvs['nucleation_dip']
 
         t2 = time.time()
         # convert velocities to rupture onset
@@ -1347,7 +1351,7 @@ class SeismicDistributerComposite(SeismicComposite):
                     durations=input_rvs['durations'],
                     slips=input_rvs[var])
 
-                patchidx = self.fault.spatchmap(0)[nuc_dip, nuc_strike]
+                patchidx = self.fault.spatchmap(0, nuc_dip, nuc_strike)
                 # cut data according to wavemaps
                 data_traces = self.choppers[wmap.name](
                     self.gfs[key].get_all_tmins(patchidx))
@@ -1366,7 +1370,7 @@ class SeismicDistributerComposite(SeismicComposite):
         llk = pm.Deterministic(self._like_name, tt.concatenate((wlogpts)))
         return llk.sum()
 
-    def get_synthetics(self, point, kwargs):
+    def get_synthetics(self, point, **kwargs):
         """
         Get synthetics for given point in solution space.
 
@@ -1394,17 +1398,11 @@ class SeismicDistributerComposite(SeismicComposite):
             if hyper in tpoint:
                 tpoint.pop(hyper)
 
-        gf_params = self.gfs[0].keys()
-
-        for param in tpoint.keys():
-            if param not in gf_params:
-                tpoint.pop(param)
-
         starttimes = self.fault.get_subfault_starttimes(
             index=0, rupture_velocities=tpoint['velocities']).flatten()
 
-        patchidx = self.fault.patchmap(0)[
-            tpoint['nucleation_dip'], tpoint['nucleation_strike']]
+        patchidx = self.fault.patchmap(
+            0, tpoint['nucleation_dip'], tpoint['nucleation_strike'])
 
         synth_traces = []
         obs_traces = []
@@ -1416,19 +1414,25 @@ class SeismicDistributerComposite(SeismicComposite):
                 key = self.get_gflibrary_key(
                     crust_ind=ref_idx, wavename=wmap.name, component=var)
 
-                gflibrary = self.gfs[key]
+                try:
+                    gflibrary = self.gfs[key]
+                except KeyError:
+                    raise KeyError(
+                        'GF library %s not loaded! Loaded GFs:'
+                        ' %s' % (key, utility.list2string(self.gfs.keys())))
 
-                synthetics += self.gfs[key].stack_all(
+                synthetics += gflibrary.stack_all(
                     starttimes=starttimes,
                     durations=tpoint['durations'],
-                    slips=tpoint[var]).eval()
+                    slips=tpoint[var])
 
             for i, target in enumerate(wmap.targets):
-                synth_traces.append(
-                    trace.Trace(
-                        ydata=synthetics[i, :],
-                        tmin=gflibrary.trace_tmin(target, patchidx, 0),
-                        deltat=gflibrary.deltat))
+                tr = trace.Trace(
+                    ydata=synthetics[i, :],
+                    tmin=gflibrary.trace_tmin(i, patchidx, 0),
+                    deltat=gflibrary.deltat)
+                tr.set_codes(*target.codes)
+                synth_traces.append(tr)
 
             obs_traces.extend(heart.taper_filter_traces(
                 wmap.datasets,
@@ -1587,7 +1591,8 @@ class Problem(object):
                     logger.info("Loading %s Green's Functions" % datatype)
                     data_config = self.config[datatype + '_config']
                     composite.load_gfs(
-                        crust_inds=[data_config.gf_config.reference_model_idx])
+                        crust_inds=[data_config.gf_config.reference_model_idx],
+                        make_shared=True)
                     self.composites[datatype] = composite
 
                 total_llk += composite.get_formula(

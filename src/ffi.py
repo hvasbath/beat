@@ -191,17 +191,17 @@ filename: %s''' % (
             self._gfmatrix = num.zeros(self.dimensions)
             self._tmins = num.zeros([ntargets, npatches])
 
-        self._patchidxs = num.arange(npatches, dtype='int16')
-
         self.set_stack_mode(mode='numpy')
 
     def init_optimization(self):
 
-        logger.info('Setting linear seismic GF Library to optimization mode.')
+        logger.info(
+            'Setting %s GF Library to optimization mode.' % self.filename)
         self._sgfmatrix = shared(
             self._gfmatrix.astype(tconfig.floatX), borrow=True)
         self._stmins = shared(
             self._tmins.astype(tconfig.floatX), borrow=True)
+
         self._spatchidxs = shared(self._patchidxs, borrow=True)
 
         self._stack_switch = {
@@ -496,6 +496,9 @@ filename: %s''' % (
             self.config.datatype, self.config.component,
             self.config.wave_config.name, self.config.crust_ind)
 
+    @property
+    def _patchidxs(self):
+        return num.arange(self.npatches, dtype='int16')
 
 class FaultOrdering(object):
     """
@@ -509,8 +512,10 @@ class FaultOrdering(object):
         of number of patches in dip-direction
     """
 
-    def __init__(self, npls, npws):
+    def __init__(self, npls, npws, patch_size_strike, patch_size_dip):
 
+        self.patch_size_dip = patch_size_dip
+        self.patch_size_strike = patch_size_strike
         self.vmap = []
         self.smap = []
         dim = 0
@@ -710,28 +715,37 @@ number of patches: %i ''' % (
         npw, npl = self.get_subfault_discretization(index)
         slownesses = 1. / rupture_velocities.reshape((npw, npl))
 
-        subfault = self.get_subfault(
-            index=index, datatype='seismic', component=self.components[0])
-
-        patch_size = subfault.width / npw
-
         start_times = fast_sweep.get_rupture_times_numpy(
-            slownesses, patch_size / km,
+            slownesses, self.ordering.patch_size_dip,
             n_patch_strike=npl, n_patch_dip=npw,
             nuc_x=0, nuc_y=0)
         return start_times
 
-    def patchmap(self, index):
+    def positions2idxs(self, position_dip, position_strike, backend='numpy'):
         """
-        Return mapping of strike and dip indexes to patch index.
+        Return patch index for given location on the fault.
         """
-        return self.ordering.vmap[index].indexes
+        dipidx = backends[backend].round(
+            position_dip / self.ordering.patch_size_dip).astype('int16')
+        strikeidx = backends[backend].round(
+            position_strike / self.ordering.patch_size_strike).astype('int16')
+        return dipidx, strikeidx
 
-    def spatchmap(self, index):
+    def patchmap(self, index, position_dip, position_strike):
         """
         Return mapping of strike and dip indexes to patch index.
         """
-        return self.ordering.smaps[index]
+        dipidx, strikeidx = self.positions2idxs(
+            position_dip, position_strike, backend='numpy')
+        return self.ordering.vmap[index].indexmap[dipidx, strikeidx]
+
+    def spatchmap(self, index, position_dip, position_strike):
+        """
+        Return mapping of strike and dip indexes to patch index.
+        """
+        dipidx, strikeidx = self.positions2idxs(
+            position_dip, position_strike, backend='theano')
+        return self.ordering.smaps[index][dipidx, strikeidx]
 
     @property
     def nsubfaults(self):
@@ -740,22 +754,6 @@ number of patches: %i ''' % (
     @property
     def npatches(self):
         return self.ordering.npatches
-
-    def patch_size_dip(self, index):
-        npw, npl = self.get_subfault_discretization(index)
-        subfault = self.get_subfault(
-            index=index,
-            datatype=self.datatypes[0],
-            component=self.components[0])
-        return subfault.width / npw
-
-    def patch_size_strike(self, index):
-        npw, npl = self.get_subfault_discretization(index)
-        subfault = self.get_subfault(
-            index=index,
-            datatype=self.datatypes[0],
-            component=self.components[0])
-        return subfault.length / npl
 
 
 def discretize_sources(
@@ -800,8 +798,8 @@ def discretize_sources(
             ' sweeping across sub-faults)!'
             ' nsources defined: %i' % nsources)
 
-    patch_length *= km
-    patch_width *= km
+    patch_length_m = patch_length * km
+    patch_width_m = patch_width * km
 
     npls = []
     npws = []
@@ -809,12 +807,13 @@ def discretize_sources(
         s = copy.deepcopy(source)
         ext_source = s.extent_source(
             extension_width, extension_length,
-            patch_width, patch_length)
+            patch_width_m, patch_length_m)
 
-        npls.append(int(num.ceil(ext_source.length / patch_length)))
-        npws.append(int(num.ceil(ext_source.width / patch_width)))
+        npls.append(int(num.ceil(ext_source.length / patch_length_m)))
+        npws.append(int(num.ceil(ext_source.width / patch_width_m)))
 
-    ordering = FaultOrdering(npls, npws)
+    ordering = FaultOrdering(
+        npls, npws, patch_size_strike=patch_length, patch_size_dip=patch_width)
 
     fault = FaultGeometry(datatypes, varnames, ordering)
 
@@ -833,12 +832,12 @@ def discretize_sources(
 
                 ext_source = s.extent_source(
                     extension_width, extension_length,
-                    patch_width, patch_length)
+                    patch_width_m, patch_length_m)
 
                 npls.append(
-                    ext_source.get_n_patches(patch_length, 'length'))
+                    ext_source.get_n_patches(patch_length_m, 'length'))
                 npws.append(
-                    ext_source.get_n_patches(patch_width, 'width'))
+                    ext_source.get_n_patches(patch_width_m, 'width'))
                 ext_sources.append(ext_source)
                 logger.info('Extended fault(s): \n %s' % ext_source.__str__())
 
