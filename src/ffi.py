@@ -24,9 +24,6 @@ import numpy as num
 
 gf_dtype = 'float64'
 
-# 8bytes times 16 numbers I have no clue why that is but the memmap
-# requires that offset
-gf_store_offset = 16 * 8
 backends = {'numpy': num, 'theano': tt}
 
 
@@ -86,7 +83,7 @@ class GFLibrary(object):
         return self.size * 8. / (1024. ** 2)
 
 
-def get_seismic_gf_prefix(datatype, component, wavename, crust_ind):
+def get_gf_prefix(datatype, component, wavename, crust_ind):
     return '%s_%s_%s_%i' % (
         datatype, component, wavename, crust_ind)
 
@@ -99,18 +96,14 @@ def load_gf_library(directory='', filename=None):
 
     gfs = SeismicGFLibrary()
     gfs.load_config(filename=inpath + '.yaml')
-    gfs._gfmatrix = num.memmap(
+    gfs._gfmatrix = num.load(
         inpath + '.traces.npy',
-        dtype=gf_dtype,
-        offset=gf_store_offset,
-        mode=('r'),
-        shape=gfs.config.dimensions)
-    gfs._tmins = num.memmap(
+        mmap_mode=('r'),
+        allow_pickle=False)
+    gfs._tmins = num.load(
         inpath + '.times.npy',
-        dtype=gf_dtype,
-        offset=gf_store_offset,
-        mode=('r'),
-        shape=gfs.config.dimensions[0:2])
+        mmap_mode=('r'),
+        allow_pickle=False)
     return gfs
 
 
@@ -126,17 +119,14 @@ class SeismicGFLibrary(GFLibrary):
         component of slip for which the library is valid
     event : :class:`pyrocko.model.Event`
         Event information for which the library is built
-    stations : list
-        of station : :class:`pyrocko.model.Station`
     targets : list
         containing :class:`pyrocko.gf.seismosizer.Target` Objects or
         :class:`heart.DynamicTarget` Objects
     """
-    def __init__(self, config=SeismicGFLibraryConfig(), stations=[]):
+    def __init__(self, config=SeismicGFLibraryConfig()):
 
         super(SeismicGFLibrary, self).__init__(config=config)
 
-        self.stations = stations
         self._sgfmatrix = None
         self._stmins = None
 
@@ -192,11 +182,6 @@ filename: %s''' % (
     def setup(
             self, ntargets, npatches, ndurations,
             nstarttimes, nsamples, allocate=False):
-
-        if ntargets != self.nstations:
-            raise GFLibraryError(
-                'Number of stations and targets is inconsistent!'
-                'ntargets %i, nstations %i' % (ntargets, self.nstations))
 
         self.dimensions = (
             ntargets, npatches, ndurations, nstarttimes, nsamples)
@@ -341,6 +326,18 @@ filename: %s''' % (
             (starttimes - self.starttime_min) /
             self.starttime_sampling).astype('int16')
 
+    def idxs2durations(self, idxs):
+        """
+        Map index to durations [s]
+        """
+        return idxs * self.duration_sampling + self.duration_min
+
+    def idxs2starttimes(self, idxs):
+        """
+        Map index to durations [s]
+        """
+        return idxs * self.starttime_sampling + self.starttime_min
+
     def durations2idxs(self, durations):
         """
         Transforms durations into indexes to the GFLibrary.
@@ -417,7 +414,7 @@ filename: %s''' % (
             return num.einsum('ijk->ik', d * u2d.T)
 
     def get_traces(
-            self, targetidxs=[], patchidxs=[0], durationidxs=[0],
+            self, targetidxs=[0], patchidxs=[0], durationidxs=[0],
             starttimeidxs=[0], plot=False):
         """
         Return traces for specified indexes.
@@ -428,10 +425,7 @@ filename: %s''' % (
         ----------
         """
         traces = []
-        display_stations = []
         for targetidx in targetidxs:
-            station = self.stations[targetidx]
-            display_stations.append(station)
             for patchidx in patchidxs:
                 for durationidx in durationidxs:
                     for starttimeidx in starttimeidxs:
@@ -440,18 +434,17 @@ filename: %s''' % (
                         tr = Trace(
                             ydata=ydata,
                             deltat=self.deltat,
-                            network=station.network,
-                            station=station.station,
-                            location='%i_%i' % (durationidx, starttimeidx),
+                            network=self.config.component,
+                            station=targetidx,
+                            channel='tau_%f' %
+                            self.idxs2durations(durationidx),
+                            location='patch_%i' % patchidx,
                             tmin=self.trace_tmin(
                                 targetidx, patchidx, starttimeidx))
                         traces.append(tr)
 
         if plot:
-            if self.event is not None:
-                snuffle(traces, events=[self.event], stations=display_stations)
-            else:
-                snuffle(traces)
+            snuffle(traces)
         else:
             return traces
 
@@ -503,7 +496,7 @@ filename: %s''' % (
 
     @property
     def filename(self):
-        return get_seismic_gf_prefix(
+        return get_gf_prefix(
             self.config.datatype, self.config.component,
             self.config.wave_config.name, self.config.crust_ind)
 
@@ -1051,7 +1044,7 @@ def seis_construct_gf_linear(
             starttime_min=float(starttimes.min()),
             duration_min=float(durations.min()))
 
-        gfs = SeismicGFLibrary(config=gfl_config, stations=wavemap.stations)
+        gfs = SeismicGFLibrary(config=gfl_config)
 
         outpath = os.path.join(outdirectory, gfs.filename + '.npz')
         if not os.path.exists(outpath) or force:

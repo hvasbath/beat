@@ -818,11 +818,10 @@ class BEATconfig(Object, Cloneable):
             self.hyper_sampler_config = None
 
 
-def init_reference_sources(source_points, n_sources, stf_type):
+def init_reference_sources(source_points, n_sources, source_type, stf_type):
     reference_sources = []
     for i in range(n_sources):
-        rf = RectangularSource(
-            stf=stf_catalog[stf_type]())
+        rf = source_catalog[source_type](stf=stf_catalog[stf_type]())
         utility.update_source(rf, **source_points[i])
         reference_sources.append(rf)
 
@@ -935,6 +934,13 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
 
         if gmc is not None:
             logger.info('Taking information from geometry_config ...')
+            if source_type != gmc.problem_config.source_type:
+                raise ValueError(
+                    'Specified reference source: "%s" differs from the'
+                    ' source that has been used previously in'
+                    ' "geometry" mode: "%s"!' % (
+                        source_type, gmc.problem_config.source_type))
+
             n_sources = gmc.problem_config.n_sources
             point = {k: v.testvalue
                      for k, v in gmc.problem_config.priors.iteritems()}
@@ -942,7 +948,8 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
             source_points = utility.split_point(point)
 
             reference_sources = init_reference_sources(
-                source_points, n_sources, gmc.problem_config.stf_type)
+                source_points, n_sources,
+                gmc.problem_config.source_type, gmc.problem_config.stf_type)
 
             c.date = gmc.date
             c.event = gmc.event

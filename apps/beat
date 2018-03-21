@@ -1066,7 +1066,7 @@ def command_check(args):
         parser.add_option(
             '--what',
             dest='what',
-            choices=['stores', 'traces'],
+            choices=['stores', 'traces', 'library'],
             default='stores',
             help='Setup item to check; "stores, traces", Default: "stores"')
 
@@ -1074,9 +1074,11 @@ def command_check(args):
 
     project_dir = get_project_directory(
         args, options, nargs_dict[command_str])
-
+    print options.mode
     problem = models.load_model(
         project_dir, options.mode, hypers=False, nobuild=True)
+
+    pc = problem.config.problem_config
 
     if options.what == 'stores':
         corrupted_stores = heart.check_problem_stores(
@@ -1093,6 +1095,33 @@ def command_check(args):
             trace.snuffle(
                 wmap.datasets, stations=wmap.stations, events=[sc.event])
 
+    elif options.what == 'library':
+        if options.mode != 'ffi':
+            raise ValueError(
+                'GF library exists only for "ffi" optimization mode.')
+        from beat import ffi
+
+        for datatype in options.datatypes:
+            for var in problem.config.problem_config.get_slip_variables():
+                outdir = os.path.join(
+                    problem.config.project_dir, options.mode,
+                    config.linear_gf_dir_name)
+                if datatype == 'seismic':
+                    sc = problem.config.seismic_config
+                    wavenames = sc.get_waveform_names()
+                    for wavename in wavenames:
+                        filename = ffi.get_gf_prefix(
+                            datatype, component=var,
+                            wavename=wavename,
+                            crust_ind=sc.gf_config.reference_model_idx)
+                gfs = ffi.load_gf_library(
+                    directory=outdir, filename=filename)
+
+                gfs.get_traces(
+                    targetidxs=range(gfs.ntargets),
+                    patchidxs=range(gfs.npatches),
+                    durationidxs=range(gfs.ndurations),
+                    starttimeidxs=range(gfs.nstarttimes), plot=True)
     else:
         raise ValueError('Subject what: %s is not available!' % options.what)
 
