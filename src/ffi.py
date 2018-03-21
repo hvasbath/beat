@@ -23,6 +23,9 @@ import numpy as num
 
 
 gf_dtype = 'float64'
+
+# 8bytes times 16 numbers I have no clue why that is but the memmap
+# requires that offset
 gf_store_offset = 16 * 8
 backends = {'numpy': num, 'theano': tt}
 
@@ -139,7 +142,7 @@ class SeismicGFLibrary(GFLibrary):
 
     def __str__(self):
         s = '''
-%s GF Library
+Seismic GF Library
 ------------------
 %s
 ntargets: %i
