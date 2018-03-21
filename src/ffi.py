@@ -415,11 +415,9 @@ filename: %s''' % (
 
     def get_traces(
             self, targetidxs=[0], patchidxs=[0], durationidxs=[0],
-            starttimeidxs=[0], plot=False):
+            starttimeidxs=[0]):
         """
         Return traces for specified indexes.
-        If plot is True:
-        Opens pyrocko's snuffler with the specified traces.
 
         Parameters
         ----------
@@ -435,18 +433,16 @@ filename: %s''' % (
                             ydata=ydata,
                             deltat=self.deltat,
                             network=self.config.component,
-                            station=targetidx,
-                            channel='tau_%f' %
-                            self.idxs2durations(durationidx),
-                            location='patch_%i' % patchidx,
+                            station='patch_%i' % patchidx,
+                            channel='tau_%.2f' % self.idxs2durations(
+                                durationidx),
+                            location='t0_%.2f' % self.idxs2starttimes(
+                                starttimeidx),
                             tmin=self.trace_tmin(
                                 targetidx, patchidx, starttimeidx))
                         traces.append(tr)
 
-        if plot:
-            snuffle(traces)
-        else:
-            return traces
+        return traces
 
     @property
     def deltat(self):
@@ -764,7 +760,7 @@ number of patches: %i ''' % (
 
 def discretize_sources(
         sources=None, extension_width=0.1, extension_length=0.1,
-        patch_width=5000., patch_length=5000., datatypes=['geodetic'],
+        patch_width=5., patch_length=5., datatypes=['geodetic'],
         varnames=['']):
     """
     Build complex discretized fault.
@@ -781,9 +777,9 @@ def discretize_sources(
     extension_length : float
         factor extend source in length (strike-direction)
     patch_width : float
-        Width [m] of subpatch in dip-direction
+        Width [km] of subpatch in dip-direction
     patch_length : float
-        Length [m] of subpatch in strike-direction
+        Length [km] of subpatch in strike-direction
     varnames : list
         of str with variable names that are being optimized for
 
@@ -803,6 +799,9 @@ def discretize_sources(
             ' only support one main fault (TODO fast'
             ' sweeping across sub-faults)!'
             ' nsources defined: %i' % nsources)
+
+    patch_length *= km
+    patch_width *= km
 
     npls = []
     npws = []
@@ -920,12 +919,14 @@ def _put(
 def _process_patch(
         engine, gfs, targets, patch, patchidx, durations, starttimes):
 
+    patch.time += gfs.config.event.time
     source_patches_durations = []
     logger.info('Patch Number %i', patchidx)
 
     for duration in durations:
         pcopy = patch.clone()
         pcopy.stf.duration = duration
+        print 'source_time', pcopy.time
         source_patches_durations.append(pcopy)
 
     for j, target in enumerate(targets):
@@ -950,7 +951,7 @@ def _process_patch(
 
             tmin = gfs.config.wave_config.arrival_taper.a + \
                 arrival_time - starttime
-
+            print 'tmin', tmin
             synthetics_array = heart.taper_filter_traces(
                 traces=traces,
                 arrival_taper=gfs.config.wave_config.arrival_taper,

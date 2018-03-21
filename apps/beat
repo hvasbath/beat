@@ -17,6 +17,7 @@ from beat.metropolis import get_trace_stats
 from beat.utility import list2string
 
 from pyrocko import model, util
+from pyrocko.trace import snuffle
 from pyrocko.gf import LocalEngine
 
 from pyrocko.guts import load, dump
@@ -1074,11 +1075,9 @@ def command_check(args):
 
     project_dir = get_project_directory(
         args, options, nargs_dict[command_str])
-    print options.mode
+
     problem = models.load_model(
         project_dir, options.mode, hypers=False, nobuild=True)
-
-    pc = problem.config.problem_config
 
     if options.what == 'stores':
         corrupted_stores = heart.check_problem_stores(
@@ -1089,39 +1088,45 @@ def command_check(args):
             logger.warn('Store(s) with empty traces! : %s ' % store_ids)
 
     elif options.what == 'traces':
-        from pyrocko import trace
         sc = problem.composites['seismic']
         for wmap in sc.wavemaps:
-            trace.snuffle(
+            snuffle(
                 wmap.datasets, stations=wmap.stations, events=[sc.event])
 
     elif options.what == 'library':
         if options.mode != 'ffi':
-            raise ValueError(
+            logger.warning(
                 'GF library exists only for "ffi" optimization mode.')
-        from beat import ffi
+        else:
+            from beat import ffi
 
-        for datatype in options.datatypes:
-            for var in problem.config.problem_config.get_slip_variables():
-                outdir = os.path.join(
-                    problem.config.project_dir, options.mode,
-                    config.linear_gf_dir_name)
-                if datatype == 'seismic':
-                    sc = problem.config.seismic_config
-                    wavenames = sc.get_waveform_names()
-                    for wavename in wavenames:
-                        filename = ffi.get_gf_prefix(
-                            datatype, component=var,
-                            wavename=wavename,
-                            crust_ind=sc.gf_config.reference_model_idx)
-                gfs = ffi.load_gf_library(
-                    directory=outdir, filename=filename)
+            for datatype in options.datatypes:
+                for var in problem.config.problem_config.get_slip_variables():
+                    outdir = os.path.join(
+                        problem.config.project_dir, options.mode,
+                        config.linear_gf_dir_name)
+                    if datatype == 'seismic':
+                        sc = problem.config.seismic_config
+                        scomp = problem.composites['seismic']
 
-                gfs.get_traces(
-                    targetidxs=range(gfs.ntargets),
-                    patchidxs=range(gfs.npatches),
-                    durationidxs=range(gfs.ndurations),
-                    starttimeidxs=range(gfs.nstarttimes), plot=True)
+                        for wmap in scomp.wavemaps:
+                            filename = ffi.get_gf_prefix(
+                                datatype, component=var,
+                                wavename=wmap.config.name,
+                                crust_ind=sc.gf_config.reference_model_idx)
+
+                            logger.info(
+                                'Loading Greens Functions'
+                                ' Library %s for first target' % filename)
+                            gfs = ffi.load_gf_library(
+                                directory=outdir, filename=filename)
+
+                            trs = gfs.get_traces(
+                                targetidxs=[0],
+                                patchidxs=range(gfs.npatches),
+                                durationidxs=range(gfs.ndurations),
+                                starttimeidxs=range(gfs.nstarttimes))
+                            snuffle(trs)
     else:
         raise ValueError('Subject what: %s is not available!' % options.what)
 

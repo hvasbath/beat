@@ -1229,16 +1229,16 @@ class SeismicDistributerComposite(SeismicComposite):
     Distributed slip
     """
 
-    def __init__(self, sc, project_dir, hypers=False):
+    def __init__(self, sc, project_dir, event, hypers=False):
 
         super(SeismicDistributerComposite, self).__init__(
-            sc, project_dir, hypers=hypers)
+            sc, event, project_dir, hypers=hypers)
 
         self.gfs = {}
         self.gf_names = {}
         self.choppers = {}
 
-        self.slip_varnames = config.problem_config.get_slip_variables()
+        self.slip_varnames = bconfig.static_dist_vars
         self._mode = 'ffi'
         self.gfpath = os.path.join(
             project_dir, self._mode, bconfig.linear_gf_dir_name)
@@ -1260,7 +1260,7 @@ class SeismicDistributerComposite(SeismicComposite):
         n_p_dip, n_p_strike = self.fault.get_subfault_discretization(0)
 
         self.sweeper = theanof.Sweeper(
-            sgfc.patch_length / km, n_p_strike, n_p_dip)
+            sgfc.patch_length, n_p_strike, n_p_dip)
 
         for wmap in self.wavemaps:
             self.choppers[wmap.name] = theanof.SeisDataChopper(
@@ -1305,19 +1305,23 @@ class SeismicDistributerComposite(SeismicComposite):
             for crust_ind in crust_inds:
                 gfs = {}
                 for var in self.slip_varnames:
-                    gflib_name = ffi.get_seismic_gf_name(
+                    gflib_name = ffi.get_gf_name(
                         datatype=self.name, component=var,
-                        wavename=wmap.name, crust_ind=crust_ind)
+                        wavename=wmap.config.name, crust_ind=crust_ind)
                     gfpath = os.path.join(
                         self.gfpath, gflib_name)
 
-                    gflibrary = utility.load_objects(gfpath)[0]
+                    gfs = ffi.load_gf_library(
+                        directory=gfpath, filename=gflib_name)
 
                     if make_shared:
-                        gflibrary.init_optimization()
+                        gfs.init_optimization()
 
                 key = self.get_gflibrary_key(
-                    crust_ind=crust_ind, wavename=wmap.name, component=var)
+                    crust_ind=crust_ind,
+                    wavename=wmap.config.name,
+                    component=var)
+
                 self.gf_names[key] = gfpath
                 self.gfs[key] = gfs
 
@@ -1464,7 +1468,7 @@ class Problem(object):
     """
 
     def __init__(self, config, hypers=False):
-        self.event = None
+
         self.model = None
 
         self._like_name = 'like'
@@ -1475,6 +1479,13 @@ class Problem(object):
 
         logger.info('Analysing problem ...')
         logger.info('---------------------\n')
+
+        # Load event
+        if config.event is None:
+            logger.warn('Found no event information!')
+            raise AttributeError('Problem config has no event information!')
+        else:
+            self.event = config.event
 
         self.config = config
 
@@ -1796,12 +1807,6 @@ class SourceOptimizer(Problem):
 
         pc = config.problem_config
 
-        # Load event
-        if config.event is None:
-            logger.warn('Found no event information!')
-        else:
-            self.event = config.event
-
         # Init sources
         self.sources = []
         for i in range(pc.n_sources):
@@ -1922,11 +1927,13 @@ class DistributionOptimizer(Problem):
 
         for datatype in config.problem_config.datatypes:
             data_config = config[datatype + '_config']
-            composite = distributer_composite_catalog[datatype](
-                data_config,
-                config.project_dir,
-                self.event,
-                hypers)
+
+            self.composites[datatype] = distributer_composite_catalog[
+                datatype](
+                    data_config,
+                    config.project_dir,
+                    self.event,
+                    hypers)
 
         self.config = config
 

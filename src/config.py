@@ -307,11 +307,11 @@ class LinearGFConfig(GFConfig):
         RectangularSource.T(),
         help='Geometry of the reference source(s) to fix')
     patch_width = Float.T(
-        default=5. * km,
-        help='Patch width [m] to divide reference sources')
+        default=5.,
+        help='Patch width [km] to divide reference sources')
     patch_length = Float.T(
-        default=5. * km,
-        help='Patch length [m] to divide reference sources')
+        default=5.,
+        help='Patch length [km] to divide reference sources')
     extension_width = Float.T(
         default=0.1,
         help='Extend reference sources by this factor in each'
