@@ -913,8 +913,9 @@ def init_seismic_targets(
                 if cha is None:
                     if station.station not in blacklist:
                         logger.warn(
-                            'Channel %s for station does not exist!'
-                            ' Putting station into blacklist!')
+                            'Channel "%s" for station "%s" does not exist!'
+                            ' Putting station into blacklist!' % (
+                                channel, station.station))
                         blacklist.append(station.station)
                 else:
                     targets.append(DynamicTarget(
@@ -931,8 +932,7 @@ def init_seismic_targets(
                             store_prefixes[sta_num],
                             em_name,
                             sample_rate,
-                            crust_ind))
-                                   )
+                            crust_ind)))
     return targets
 
 

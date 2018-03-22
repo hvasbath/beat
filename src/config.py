@@ -807,6 +807,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
         if date is not None and not mode == 'interseismic':
             c.event = utility.search_catalog(
                 date=date, min_magnitude=min_magnitude)
+
         elif mode == 'interseismic':
             c.event = model.Event(lat=10., lon=10., depth=0.)
             c.date = 'dummy'
@@ -900,6 +901,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
     c.update_hypers()
     c.problem_config.validate_priors()
 
+    c.regularize()
     c.validate()
 
     logger.info('Project_directory: %s \n' % c.project_dir)
