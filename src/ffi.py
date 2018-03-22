@@ -129,6 +129,7 @@ class SeismicGFLibrary(GFLibrary):
 
         self._sgfmatrix = None
         self._stmins = None
+        self._patchidxs = num.arange(self.npatches, dtype='int16')
 
     def __str__(self):
         s = '''
@@ -496,9 +497,6 @@ filename: %s''' % (
             self.config.datatype, self.config.component,
             self.config.wave_config.name, self.config.crust_ind)
 
-    @property
-    def _patchidxs(self):
-        return num.arange(self.npatches, dtype='int16')
 
 class FaultOrdering(object):
     """
