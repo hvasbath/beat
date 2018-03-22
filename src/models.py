@@ -1330,19 +1330,27 @@ class SeismicDistributerComposite(SeismicComposite):
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs
 
+        logger.info(
+            'Seismic optimization on: \n '
+            '%s' % ', '.join(self.input_rvs.keys()))
+
+        self.input_rvs.update(fixed_rvs)
+
         ref_idx = self.config.gf_config.reference_model_idx
-!fixed vars!!!
-!        nuc_strike = input_rvs['nucleation_strike']
+
+        nuc_strike = input_rvs['nucleation_strike']
         nuc_dip = input_rvs['nucleation_dip']
 
         t2 = time.time()
         # convert velocities to rupture onset
         starttimes = self.sweeper(
-            (1. / input_rvs['velocity']), nuc_strike, nuc_dip).flatten()
+            (1. / input_rvs['velocities']), nuc_strike, nuc_dip).flatten()
 
         wlogpts = []
-        for wmap, sdata in zip(self.wavemaps, self.sdatasets):
-            synthetics = tt.zeros_like(sdata, dtype=tconfig.floatX)
+        for wmap in self.wavemaps:
+            synthetics = tt.zeros(
+                (wmap.n_t, wmap.config.arrival_taper.nsamples),
+                dtype=tconfig.floatX)
             for var in self.slip_varnames:
                 key = self.get_gflibrary_key(
                     crust_ind=ref_idx, wavename=wmap.name, component=var)
