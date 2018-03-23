@@ -296,7 +296,7 @@ class RectangularSource(gf.DCSource, Cloneable):
 
         l = self.length
         w = self.width
-        print l, w
+
         new_length = num.ceil((l + (2. * l * extension_length)) / km) * km
         new_width = num.ceil((w + (2. * w * extension_width)) / km) * km
 
@@ -309,11 +309,10 @@ class RectangularSource(gf.DCSource, Cloneable):
             'Fault extended to length=%f, width=%f!' % (new_length, new_width))
 
         orig_center = s.center(s.width)
-        print 'orig', orig_center
+
         s.update(length=new_length, width=new_width)
-        print s, 'againorig center', orig_center
+
         top_center = s.center2top_depth(orig_center)
-        print top_center
 
         if top_center[2] < 0.:
             logger.info('Fault would intersect surface!'
