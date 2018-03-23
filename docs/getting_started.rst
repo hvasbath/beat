@@ -66,8 +66,8 @@ For example to optimize for a Full Moment Tensor for the Landers EQ by using sei
 
 This will create project directory called LandersEQ in the current directory.
 Within the directoy you will see that there have been two files created:
-    - BEAT_log.txt 
-    - geometry_config.yaml 
+  - BEAT_log.txt 
+  - geometry_config.yaml 
 
 The first file is a logging file where all the executed comments and outputs are written to. In case something goes wrong this log file helps to find the error.
 For now it contains::
@@ -640,59 +640,59 @@ With the following command the reference fault is set up and discretized into pa
 
     beat build_gfs FFIproject --mode='ffi' --datatypes='seismic'
 
-The output might look like this:
+The output might look like this::
 
-ffi          - INFO     Discretizing seismic source(s)
-ffi          - INFO     uparr slip component
-sources      - INFO     Fault extended to length=12500.000000, width=5000.000000!
-ffi          - INFO     Extended fault(s): 
- --- !beat.sources.RectangularSource
-lat: 50.410785
-lon: -150.305465
-elevation: 0.0
-depth: 1000.0
-time: 1970-01-01 00:00:00
-stf: !pf.HalfSinusoidSTF
-  duration: 15.0
-  anchor: 0.0
-stf_mode: post
-magnitude: 6.0
-strike: 90.0
-dip: 67.5
-rake: 0.0
-width: 5000.0
-length: 12500.0
-slip: 1.0
-opening: 0.0
+    ffi          - INFO     Discretizing seismic source(s)
+    ffi          - INFO     uparr slip component
+    sources      - INFO     Fault extended to length=12500.000000, width=5000.000000!
+    ffi          - INFO     Extended fault(s): 
+     --- !beat.sources.RectangularSource
+    lat: 50.410785
+    lon: -150.305465
+    elevation: 0.0
+    depth: 1000.0
+    time: 1970-01-01 00:00:00
+    stf: !pf.HalfSinusoidSTF
+      duration: 15.0
+      anchor: 0.0
+    stf_mode: post
+    magnitude: 6.0
+    strike: 90.0
+    dip: 67.5
+    rake: 0.0
+    width: 5000.0
+    length: 12500.0
+    slip: 1.0
+    opening: 0.0
 
-ffi          - INFO     uperp slip component
-sources      - INFO     Fault extended to length=12500.000000, width=5000.000000!
-ffi          - INFO     Extended fault(s): 
- --- !beat.sources.RectangularSource
-lat: 50.410785
-lon: -150.305465
-elevation: 0.0
-depth: 1000.0
-time: 1970-01-01 00:00:00
-stf: !pf.HalfSinusoidSTF
-  duration: 15.0
-  anchor: 0.0
-stf_mode: post
-magnitude: 6.0
-strike: 90.0
-dip: 67.5
-rake: -90.0
-width: 5000.0
-length: 12500.0
-slip: 1.0
-opening: 0.0
+    ffi          - INFO     uperp slip component
+    sources      - INFO     Fault extended to length=12500.000000, width=5000.000000!
+    ffi          - INFO     Extended fault(s): 
+     --- !beat.sources.RectangularSource
+    lat: 50.410785
+    lon: -150.305465
+    elevation: 0.0
+    depth: 1000.0
+    time: 1970-01-01 00:00:00
+    stf: !pf.HalfSinusoidSTF
+      duration: 15.0
+      anchor: 0.0
+    stf_mode: post
+    magnitude: 6.0
+    strike: 90.0
+    dip: 67.5
+    rake: -90.0
+    width: 5000.0
+    length: 12500.0
+    slip: 1.0
+    opening: 0.0
 
-beat         - INFO     Storing discretized fault geometry to: /home/vasyurhm/BEATS/Waskahigan2Rect/ffi/linear_gfs/fault_geometry.pkl
-beat         - INFO     Updating problem_config:
-beat         - INFO     
-Complex Fault Geometry
-number of subfaults: 1
-number of patches: 10
+    beat         - INFO     Storing discretized fault geometry to: /home/vasyurhm/BEATS/Waskahigan2Rect/ffi/linear_gfs/fault_geometry.pkl
+    beat         - INFO     Updating problem_config:
+    beat         - INFO     
+    Complex Fault Geometry
+    number of subfaults: 1
+    number of patches: 10
 
 This shows the new parameters of the extended reference source. The "width" and "length" are rounded to full mutliples of the "patch_length" and "patch_width" parameters.
 Also we see here the rake directions of the slip parallel and slip perpendicular directions.
