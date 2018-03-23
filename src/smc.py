@@ -82,8 +82,8 @@ class LaplaceProposal(Proposal):
         size = (self.s.shape)
         if num_draws:
             size += (num_draws,)
-        return (standard_exponential(size=size)
-              - standard_exponential(size=size)).T * self.s
+        return (standard_exponential(size=size) -
+                standard_exponential(size=size)).T * self.s
 
 
 class PoissonProposal(Proposal):
@@ -105,8 +105,7 @@ proposal_dists = {
     'Poisson': PoissonProposal,
     'Normal': NormalProposal,
     'Laplace': LaplaceProposal,
-    'MultivariateNormal': MultivariateNormalProposal,
-        }
+    'MultivariateNormal': MultivariateNormalProposal}
 
 
 def choose_proposal(proposal_name, scale=1.):
@@ -246,7 +245,7 @@ class SMC(backend.ArrayStepSharedLLK):
         self.array_population = np.zeros(n_chains)
         for i in range(self.n_chains):
             dummy = pm.Point({v.name: v.random() for v in vars},
-                                                            model=model)
+                             model=model)
             self.population.append(dummy)
 
         self.population[0] = model.test_point
@@ -262,11 +261,9 @@ class SMC(backend.ArrayStepSharedLLK):
     def time_per_sample(self, n_points):
         tps = np.zeros((n_points))
         for i in range(n_points):
-            print self.bij.ordering.vmap
-            print self.population[i]
             q = self.bij.map(self.population[i])
             t0 = time.time()
-            print self.logp_forw(q)
+            self.logp_forw(q)
             t1 = time.time()
             tps[i] = t1 - t0
         return tps.mean()
@@ -295,10 +292,11 @@ class SMC(backend.ArrayStepSharedLLK):
                 self.steps_until_tune = self.tune_interval
                 self.accepted = 0
 
-            logger.debug('Get delta: Chain_%i step_%i' % (
+            logger.debug(
+                'Get delta: Chain_%i step_%i' % (
                     self.chain_index, self.stage_sample))
             delta = self.proposal_samples_array[self.stage_sample, :] * \
-                                                                self.scaling
+                self.scaling
 
             if self.any_discrete:
                 if self.all_discrete:
@@ -307,7 +305,7 @@ class SMC(backend.ArrayStepSharedLLK):
                     q = (q0 + delta).astype(int)
                 else:
                     delta[self.discrete] = np.round(
-                                        delta[self.discrete], 0).astype(int)
+                        delta[self.discrete], 0).astype(int)
                     q = q0 + delta
                     q = q[self.discrete].astype(int)
             else:
@@ -325,20 +323,21 @@ class SMC(backend.ArrayStepSharedLLK):
                     logger.debug('Calc llk: Chain_%i step_%i' % (
                         self.chain_index, self.stage_sample))
 
-                    l = self.logp_forw(q)
+                    lp = self.logp_forw(q)
 
                     logger.debug('Select llk: Chain_%i step_%i' % (
                         self.chain_index, self.stage_sample))
 
                     q_new, accepted = pm.metropolis.metrop_select(
-                        self.beta * (l[self._llk_index] - l0[self._llk_index]),
+                        self.beta * (
+                            lp[self._llk_index] - l0[self._llk_index]),
                         q, q0)
 
                     if accepted:
                         logger.debug('Accepted: Chain_%i step_%i' % (
                             self.chain_index, self.stage_sample))
                         self.accepted += 1
-                        l_new = l
+                        l_new = lp
                         self.chain_previous_lpoint[self.chain_index] = l_new
                     else:
                         logger.debug('Rejected: Chain_%i step_%i' % (
@@ -352,21 +351,22 @@ class SMC(backend.ArrayStepSharedLLK):
                 logger.debug('Calc llk: Chain_%i step_%i' % (
                     self.chain_index, self.stage_sample))
 
-                l = self.logp_forw(q)
+                lp = self.logp_forw(q)
                 logger.debug('Select: Chain_%i step_%i' % (
                     self.chain_index, self.stage_sample))
                 q_new, accepted = pm.metropolis.metrop_select(
-                    self.beta * (l[self._llk_index] - l0[self._llk_index]),
+                    self.beta * (lp[self._llk_index] - l0[self._llk_index]),
                     q, q0)
 
                 if accepted:
                     self.accepted += 1
-                    l_new = l
+                    l_new = lp
                     self.chain_previous_lpoint[self.chain_index] = l_new
                 else:
                     l_new = l0
 
-            logger.debug('Counters: Chain_%i step_%i' % (
+            logger.debug(
+                'Counters: Chain_%i step_%i' % (
                     self.chain_index, self.stage_sample))
             self.steps_until_tune -= 1
             self.stage_sample += 1
@@ -375,7 +375,8 @@ class SMC(backend.ArrayStepSharedLLK):
             if self.stage_sample == self.n_steps:
                 self.stage_sample = 0
 
-            logger.debug('End step: Chain_%i step_%i' % (
+            logger.debug(
+                'End step: Chain_%i step_%i' % (
                     self.chain_index, self.stage_sample))
         return q_new, l_new
 
@@ -400,8 +401,9 @@ class SMC(backend.ArrayStepSharedLLK):
 
         while up_beta - low_beta > 1e-6:
             current_beta = (low_beta + up_beta) / 2.
-            temp = np.exp((current_beta - self.beta) * \
-                           (self.likelihoods - self.likelihoods.max()))
+            temp = np.exp(
+                (current_beta - self.beta) *
+                (self.likelihoods - self.likelihoods.max()))
             cov_temp = np.std(temp) / np.mean(temp)
             if cov_temp > self.coef_variation:
                 up_beta = current_beta
@@ -430,8 +432,8 @@ class SMC(backend.ArrayStepSharedLLK):
 
         cov = utility.ensure_cov_psd(cov)
         if np.isnan(cov).any() or np.isinf(cov).any():
-            raise ValueError('Sample covariances not valid! Likely "n_chains"'
-                            ' is too small!')
+            raise ValueError(
+                'Sample covariances contains Inf or NaN!')
         return cov
 
     def select_end_points(self, mtrace):
@@ -453,8 +455,8 @@ class SMC(backend.ArrayStepSharedLLK):
             Array of likelihoods of the trace end-points
         """
 
-        array_population = np.zeros((self.n_chains,
-                                      self.ordering.size))
+        array_population = np.zeros(
+            (self.n_chains, self.ordering.size))
 
         n_steps = len(mtrace)
 
@@ -498,8 +500,8 @@ class SMC(backend.ArrayStepSharedLLK):
             all unobservedRV values, including dataset likelihoods
         """
 
-        array_population = np.zeros((self.n_chains,
-                                      self.lordering.size))
+        array_population = np.zeros(
+            (self.n_chains, self.lordering.size))
 
         n_steps = len(mtrace)
 
@@ -578,8 +580,9 @@ class SMC(backend.ArrayStepSharedLLK):
         self.__dict__.update(state)
 
 
-def init_stage(stage_handler, step, stage, model, n_jobs=1,
-         progressbar=False, update=None, rm_flag=False):
+def init_stage(
+        stage_handler, step, stage, model, n_jobs=1,
+        progressbar=False, update=None, rm_flag=False):
     """
     Examine starting point of sampling, reload stages and initialise steps.
     """
@@ -602,7 +605,8 @@ def init_stage(stage_handler, step, stage, model, n_jobs=1,
     return chains, step, update
 
 
-def update_last_samples(homepath, step,
+def update_last_samples(
+        homepath, step,
         progressbar=False, model=None, n_jobs=1, rm_flag=False):
     """
     Resampling the last stage samples with the updated covariances and
@@ -644,9 +648,10 @@ def update_last_samples(homepath, step,
     return mtrace
 
 
-def ATMIP_sample(n_steps, step=None, start=None, homepath=None, chain=0,
-                  stage=0, n_jobs=1, tune=None, progressbar=False,
-                  model=None, update=None, random_seed=None, rm_flag=False):
+def ATMIP_sample(
+        n_steps, step=None, start=None, homepath=None, chain=0,
+        stage=0, n_jobs=1, tune=None, progressbar=False,
+        model=None, update=None, random_seed=None, rm_flag=False):
     """
     (C)ATMIP sampling algorithm
     (Cascading - (C) not always relevant)
@@ -780,7 +785,7 @@ def ATMIP_sample(n_steps, step=None, start=None, homepath=None, chain=0,
             mtrace = _iter_parallel_chains(**sample_args)
 
             step.population, step.array_population, step.likelihoods = \
-                                    step.select_end_points(mtrace)
+                step.select_end_points(mtrace)
 
             if update is not None:
                 logger.info('Updating Covariances ...')
@@ -820,8 +825,8 @@ def ATMIP_sample(n_steps, step=None, start=None, homepath=None, chain=0,
         logger.info('Sample final stage')
         step.stage = -1
 
-        temp = np.exp((1 - step.old_beta) * \
-            (step.likelihoods - step.likelihoods.max()))
+        temp = np.exp((1 - step.old_beta) *
+                      (step.likelihoods - step.likelihoods.max()))
         step.weights = temp / np.sum(temp)
         step.covariance = step.calc_covariance()
         step.proposal_dist = choose_proposal(
@@ -913,7 +918,8 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
         yield trace
 
 
-def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
+def _iter_parallel_chains(
+        draws, step, stage_path, progressbar, model, n_jobs,
         chains=None):
     """
     Do Metropolis sampling over all the chains with each chain being
@@ -944,7 +950,7 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
         random_seeds = [randint(max_int) for _ in range(n_chains)]
 
         work = [(draws, step, step.population[step.resampling_indexes[chain]],
-            trace, chain, None, progressbar, model, rseed)
+                trace, chain, None, progressbar, model, rseed)
                 for chain, rseed, trace in zip(
                     chains, random_seeds, trace_list)]
 
@@ -953,10 +959,10 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
         if draws < 10:
             chunksize = int(np.ceil(float(n_chains) / n_jobs))
             tps += 5.
-        else:   # draws > 10 and tps < 1.:
+        elif draws > 10 and tps < 1.:
+            chunksize = int(np.ceil(float(n_chains) / n_jobs))
+        else:
             chunksize = n_jobs
-#        else:
-#            chunksize = 1
 
         timeout += int(np.ceil(tps * draws)) * n_jobs
 
@@ -976,7 +982,8 @@ def _iter_parallel_chains(draws, step, stage_path, progressbar, model, n_jobs,
         n_chains = len(corrupted_chains)
 
         if n_chains > 0:
-            logger.warning('%i Chains not finished sampling,'
+            logger.warning(
+                '%i Chains not finished sampling,'
                 ' restarting ...' % n_chains)
 
         chains = corrupted_chains

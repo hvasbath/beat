@@ -466,8 +466,6 @@ class Sweeper(theano.Op):
 
     def perform(self, node, inputs, output):
         slownesses, nuc_dip, nuc_strike = inputs
-        print slownesses, nuc_dip, nuc_strike
-        print slownesses.__class__, nuc_dip.__class__, nuc_strike.__class__
         z = output[0]
         logger.debug('Fast sweeping ..%s.' % self.implementation)
         if self.implementation == 'c':
