@@ -2526,6 +2526,7 @@ def taper_filter_traces(traces, arrival_taper=None, filterer=None,
         else:
             taper = None
 
+        logger.debug('Filtering, tapering, chopping ...')
         post_process_trace(
             trace=cut_trace,
             taper=taper,

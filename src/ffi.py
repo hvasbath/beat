@@ -64,6 +64,7 @@ class GFLibrary(object):
         self.config = config
         self._gfmatrix = None
         self._sgfmatrix = None
+        self._patchidxs = None
         self._mode = 'numpy'
 
     def _check_setup(self):
@@ -82,6 +83,11 @@ class GFLibrary(object):
         """
         return self.size * 8. / (1024. ** 2)
 
+    @property
+    def patchidxs(self):
+        if self._patchidxs is None:
+            self._patchidxs = num.arange(self.npatches, dtype='int16')
+        return self._patchidxs
 
 def get_gf_prefix(datatype, component, wavename, crust_ind):
     return '%s_%s_%s_%i' % (
@@ -129,7 +135,6 @@ class SeismicGFLibrary(GFLibrary):
 
         self._sgfmatrix = None
         self._stmins = None
-        self._patchidxs = num.arange(self.npatches, dtype='int16')
 
     def __str__(self):
         s = '''
@@ -203,7 +208,7 @@ filename: %s''' % (
         self._stmins = shared(
             self._tmins.astype(tconfig.floatX), borrow=True)
 
-        self._spatchidxs = shared(self._patchidxs, borrow=True)
+        self.spatchidxs = shared(self.patchidxs, borrow=True)
 
         self._stack_switch = {
             'numpy': self._gfmatrix,
@@ -219,7 +224,7 @@ filename: %s''' % (
 
         Parameters
         ----------
-        entries : 2d :class:`numpy.ndarray`
+        entries : 2d :class:`numpy.NdArray`
             of synthetic trace data samples, the waveforms
         tmin : float
             tmin of the trace(s) if the hypocenter was in the location of this
@@ -228,10 +233,10 @@ filename: %s''' % (
             index to target
         patchidx : int
             index to patch (source) that is used to produce the synthetics
-        durationidxs : list or :class:`numpy.ndarray`
+        durationidxs : list or :class:`numpy.NdArray`
             of indexes to the respective duration of the STFs that have been
             used to create the synthetics
-        starttimeidxs : list or :class:`numpy.ndarray`
+        starttimeidxs : list or :class:`numpy.NdArray`
             of indexes to the respective duration of the STFs that have been
             used to create the synthetics
         """
@@ -400,7 +405,7 @@ filename: %s''' % (
                     ' has to be initialised!')
 
             d = self._sgfmatrix[
-                :, self._spatchidxs, durationidxs, starttimeidxs, :].reshape(
+                :, self.spatchidxs, durationidxs, starttimeidxs, :].reshape(
                 (self.ntargets, self.npatches, self.nsamples))
             return tt.batched_dot(
                 d.dimshuffle((1, 0, 2)), slips).sum(axis=0)
@@ -410,7 +415,7 @@ filename: %s''' % (
                 slips, self.nsamples).reshape((self.nsamples, self.npatches))
 
             d = self._gfmatrix[
-                :, self._patchidxs, durationidxs, starttimeidxs, :].reshape(
+                :, self.patchidxs, durationidxs, starttimeidxs, :].reshape(
                 (self.ntargets, self.npatches, self.nsamples))
             return num.einsum('ijk->ik', d * u2d.T)
 
@@ -534,6 +539,28 @@ class FaultOrdering(object):
 
 class FaultGeometryError(Exception):
     pass
+
+
+def positions2idxs(positions, cell_size, backend='numpy'):
+    """
+    Return index to a grid with a given cell size.npatches
+
+    Parameters
+    ----------
+    positions : :class:`numpy.NdArray` float
+        of positions
+    cell_size : float
+        size of grid cells
+    backend : str
+    """
+    available_backends = backends.keys()
+    if backend not in available_backends:
+        raise NotImplementedError(
+            'Backend not supported! Options: %s' %
+            ut.list2string(available_backends))
+
+    return backends[backend].round((positions - (
+        cell_size / 2.)) / cell_size).astype('int16')
 
 
 class FaultGeometry(gf.seismosizer.Cloneable):
@@ -704,7 +731,8 @@ number of patches: %i ''' % (
         self._check_index(index)
         return self.ordering.vmap[index].shp
 
-    def get_subfault_starttimes(self, index, rupture_velocities):
+    def get_subfault_starttimes(
+            self, index, rupture_velocities, nuc_dip_idx, nuc_strike_idx):
         """
         Get maximum bound of start times of extending rupture along
         the sub-fault.
@@ -716,34 +744,45 @@ number of patches: %i ''' % (
         start_times = fast_sweep.get_rupture_times_numpy(
             slownesses, self.ordering.patch_size_dip,
             n_patch_strike=npl, n_patch_dip=npw,
-            nuc_x=0, nuc_y=0)
+            nuc_x=nuc_strike_idx, nuc_y=nuc_dip_idx)
         return start_times
 
-    def positions2idxs(self, position_dip, position_strike, backend='numpy'):
+    def fault_locations2idxs(
+            self, positions_dip, positions_strike, backend='numpy'):
         """
-        Return patch index for given location on the fault.
+        Return patch indexes for given location on the fault.
+
+        Parameters
+        ----------
+        positions_dip : :class:`numpy.NdArray` float
+            of positions in dip direction of the fault
+        positions_strike : :class:`numpy.NdArray` float
+            of positions in strike direction of the fault
+        backend : str
+            which implementation backend to use
         """
-        dipidx = backends[backend].round(
-            position_dip / self.ordering.patch_size_dip).astype('int16')
-        strikeidx = backends[backend].round(
-            position_strike / self.ordering.patch_size_strike).astype('int16')
+
+        dipidx = positions2idxs(
+            positions=positions_dip,
+            cell_size=self.ordering.patch_size_dip,
+            backend=backend)
+        strikeidx = positions2idxs(
+            positions=positions_strike,
+            cell_size=self.ordering.patch_size_strike,
+            backend=backend)
         return dipidx, strikeidx
 
-    def patchmap(self, index, position_dip, position_strike):
+    def patchmap(self, index, dipidx, strikeidx):
         """
         Return mapping of strike and dip indexes to patch index.
         """
-        dipidx, strikeidx = self.positions2idxs(
-            position_dip, position_strike, backend='numpy')
         return self.ordering.vmap[index].indexmap[dipidx, strikeidx]
 
-    def spatchmap(self, index, position_dip, position_strike):
+    def spatchmap(self, index, dipidx, strikeidx):
         """
         Return mapping of strike and dip indexes to patch index.
         """
-        dipidx, strikeidx = self.positions2idxs(
-            position_dip, position_strike, backend='theano')
-        return self.ordering.smaps[index][dipidx, strikeidx]
+        return self.ordering.smap[index][dipidx, strikeidx]
 
     @property
     def nsubfaults(self):
@@ -923,7 +962,6 @@ def _process_patch(
     for duration in durations:
         pcopy = patch.clone()
         pcopy.stf.duration = duration
-        print 'source_time', pcopy.time
         source_patches_durations.append(pcopy)
 
     for j, target in enumerate(targets):
@@ -948,7 +986,7 @@ def _process_patch(
 
             tmin = gfs.config.wave_config.arrival_taper.a + \
                 arrival_time - starttime
-            print 'tmin', tmin
+
             synthetics_array = heart.taper_filter_traces(
                 traces=traces,
                 arrival_taper=gfs.config.wave_config.arrival_taper,
@@ -1002,8 +1040,11 @@ def seis_construct_gf_linear(
         flag to overwrite existing linear GF Library
     """
 
+    # get starttimes for hypocenter at corner of fault
     start_times = fault.get_subfault_starttimes(
-        index=0, rupture_velocities=velocities_prior.lower)
+        index=0, rupture_velocities=velocities_prior.lower,
+        nuc_dip_idx=0, nuc_strike_idx=0)
+
     starttimeidxs = num.arange(
         int(num.ceil(start_times.max() / starttime_sampling)))
     starttimes = starttimeidxs * starttime_sampling

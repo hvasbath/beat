@@ -6,6 +6,8 @@ Far future:
     include a 'def grad:' -method to each Op in order to enable the use of
     gradient based optimization algorithms
 """
+import logging
+
 from beat import heart, utility, interseismic
 from beat.fast_sweeping import fast_sweep
 
@@ -17,6 +19,7 @@ import theano
 import numpy as num
 
 km = 1000.
+logger = logging.getLogger('theanof')
 
 
 class GeoSynthesizer(theano.Op):
@@ -441,12 +444,16 @@ class Sweeper(theano.Op):
         number of patches in dip-direction
     """
 
-    __props__ = ('patch_size', 'n_patch_dip', 'n_patch_strike')
+    __props__ = ('patch_size', 'n_patch_dip', 'n_patch_strike',
+                 'implementation')
 
-    def __init__(self, patch_size, n_patch_strike, n_patch_dip):
+    def __init__(
+            self, patch_size, n_patch_dip, n_patch_strike, implementation):
+
         self.patch_size = num.float64(patch_size)
         self.n_patch_dip = n_patch_dip
         self.n_patch_strike = n_patch_strike
+        self.implementation = implementation
 
     def make_node(self, *inputs):
         inlist = []
@@ -458,14 +465,28 @@ class Sweeper(theano.Op):
         return theano.Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
-        slownesses, nuc_strike, nuc_dip = inputs
-
+        slownesses, nuc_dip, nuc_strike = inputs
+        print slownesses, nuc_dip, nuc_strike
+        print slownesses.__class__, nuc_dip.__class__, nuc_strike.__class__
         z = output[0]
+        logger.debug('Fast sweeping ..%s.' % self.implementation)
+        if self.implementation == 'c':
+            z[0] = fast_sweep.fast_sweep_ext.fast_sweep(
+                slownesses, self.patch_size, int(nuc_strike), int(nuc_dip),
+                self.n_patch_strike, self.n_patch_dip)
 
-        z[0] = fast_sweep.fast_sweep_ext.fast_sweep(
-            slownesses, self.patch_size,
-            int(nuc_strike), int(nuc_dip),
-            self.n_patch_strike, self.n_patch_dip)
+        elif self.implementation == 'numpy':
+            z[0] = fast_sweep.get_rupture_times_numpy(
+                slownesses.reshape((self.n_patch_dip, self.n_patch_strike)),
+                self.patch_size, self.n_patch_strike,
+                self.n_patch_dip, nuc_strike, nuc_dip).flatten()
+
+        else:
+            raise NotImplementedError(
+                'Fast sweeping for implementation %s not'
+                ' implemented!' % self.implementation)
+
+        logger.debug('Done sweeping!')
 
     def infer_shape(self, node, input_shapes):
         return [(self.n_patch_dip * self.n_patch_strike, )]

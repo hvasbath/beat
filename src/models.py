@@ -1237,6 +1237,7 @@ class SeismicDistributerComposite(SeismicComposite):
         self.gfs = {}
         self.gf_names = {}
         self.choppers = {}
+        self.sweep_implementation = 'c'
 
         self.slip_varnames = bconfig.static_dist_vars
         self._mode = 'ffi'
@@ -1259,8 +1260,10 @@ class SeismicDistributerComposite(SeismicComposite):
         self.fault = self.load_fault_geometry()
         n_p_dip, n_p_strike = self.fault.get_subfault_discretization(0)
 
+        logger.info('Fault discretized to %s [km]'
+                    ' patches.' % sgfc.patch_length)
         self.sweeper = theanof.Sweeper(
-            sgfc.patch_length, n_p_strike, n_p_dip)
+            sgfc.patch_length, n_p_dip, n_p_strike, self.sweep_implementation)
 
         for wmap in self.wavemaps:
             self.choppers[wmap.name] = theanof.SeisDataChopper(
@@ -1343,15 +1346,26 @@ class SeismicDistributerComposite(SeismicComposite):
 
         t2 = time.time()
         # convert velocities to rupture onset
+        logger.debug('Fast sweeping ...')
+
+        nuc_dip_idx, nuc_strike_idx = self.fault.fault_locations2idxs(
+            positions_dip=nuc_dip,
+            positions_strike=nuc_strike,
+            backend='theano')
+
         starttimes = self.sweeper(
-            (1. / input_rvs['velocities']), nuc_strike, nuc_dip).flatten()
+            (1. / input_rvs['velocities']), nuc_dip_idx, nuc_strike_idx)
 
         wlogpts = []
         for wmap in self.wavemaps:
+            logger.debug('Stacking %s phase ...' % wmap.config.name)
             synthetics = tt.zeros(
-                (wmap.n_t, wmap.config.arrival_taper.nsamples),
+                (wmap.n_t, wmap.config.arrival_taper.nsamples(
+                    self.config.gf_config.sample_rate)),
                 dtype=tconfig.floatX)
+
             for var in self.slip_varnames:
+                logger.debug('Stacking %s variable' % var)
                 key = self.get_gflibrary_key(
                     crust_ind=ref_idx, wavename=wmap.name, component=var)
                 synthetics += self.gfs[key].stack_all(
@@ -1359,13 +1373,18 @@ class SeismicDistributerComposite(SeismicComposite):
                     durations=input_rvs['durations'],
                     slips=input_rvs[var])
 
-                patchidx = self.fault.spatchmap(0, nuc_dip, nuc_strike)
-                # cut data according to wavemaps
-                data_traces = self.choppers[wmap.name](
-                    self.gfs[key].get_all_tmins(patchidx))
+            logger.debug('Get hypocenter location ...')
+            patchidx = self.fault.spatchmap(
+                0, dipidx=nuc_dip_idx, strikeidx=nuc_strike_idx)
 
-                residuals = data_traces - synthetics
+            # cut data according to wavemaps
+            logger.debug('Cut data accordingly')
+            data_traces = self.choppers[wmap.name](
+                self.gfs[key].get_all_tmins(patchidx))
 
+            residuals = data_traces - synthetics
+
+            logger.debug('Calculating likelihoods ...')
             logpts = multivariate_normal_chol(
                 wmap.datasets, wmap.weights, hyperparams, residuals)
 
@@ -1406,11 +1425,19 @@ class SeismicDistributerComposite(SeismicComposite):
             if hyper in tpoint:
                 tpoint.pop(hyper)
 
+        nuc_dip_idx, nuc_strike_idx = self.fault.fault_locations2idxs(
+            positions_dip=tpoint['nucleation_dip'],
+            positions_strike=tpoint['nucleation_strike'],
+            backend='numpy')
+
         starttimes = self.fault.get_subfault_starttimes(
-            index=0, rupture_velocities=tpoint['velocities']).flatten()
+            index=0,
+            rupture_velocities=tpoint['velocities'],
+            nuc_dip_idx=nuc_dip_idx,
+            nuc_strike_idx=nuc_strike_idx).flatten()
 
         patchidx = self.fault.patchmap(
-            0, tpoint['nucleation_dip'], tpoint['nucleation_strike'])
+            index=0, dipidx=nuc_dip_idx, strikeidx=nuc_strike_idx)
 
         synth_traces = []
         obs_traces = []

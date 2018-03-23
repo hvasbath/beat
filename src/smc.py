@@ -262,9 +262,11 @@ class SMC(backend.ArrayStepSharedLLK):
     def time_per_sample(self, n_points):
         tps = np.zeros((n_points))
         for i in range(n_points):
+            print self.bij.ordering.vmap
+            print self.population[i]
             q = self.bij.map(self.population[i])
             t0 = time.time()
-            self.logp_forw(q)
+            print self.logp_forw(q)
             t1 = time.time()
             tps[i] = t1 - t0
         return tps.mean()

@@ -41,6 +41,7 @@ class FastSweepingTestCase(unittest.TestCase):
             slownesses, self.patch_size / km,
             self.n_patch_strike, self.n_patch_dip,
             self.nuc_x, self.nuc_y)
+        print 'np', numpy_start_times
         t1 = time()
 
         logger.info('done numpy fast_sweeping in %f' % (t1 - t0))
@@ -65,15 +66,14 @@ class FastSweepingTestCase(unittest.TestCase):
             slownesses, patch_size, nuc_x, nuc_y)
 
         t0 = time()
-        f = function([slownesses, nuc_x, nuc_y],
-                     [theano_start_times])
+        f = function([slownesses, nuc_x, nuc_y], theano_start_times)
         t1 = time()
         theano_start_times = f(Slownesses, self.nuc_x, self.nuc_y)
         t2 = time()
 
         logger.info('Theano compile time %f' % (t1 - t0))
         logger.info('done Theano fast_sweeping in %f' % (t2 - t1))
-        return theano_start_times[0]
+        return theano_start_times
 
     def _theano_c_wrapper(self):
 
@@ -89,16 +89,16 @@ class FastSweepingTestCase(unittest.TestCase):
         nuc_y.tag.test_value = self.nuc_y
 
         cleanup = theanof.Sweeper(
-            self.patch_size / km, self.n_patch_strike, self.n_patch_dip)
+            self.patch_size / km, self.n_patch_dip, self.n_patch_strike, 'c')
 
-        start_times = cleanup(slownesses, nuc_x, nuc_y)
+        start_times = cleanup(slownesses, nuc_y, nuc_x)
 
         t0 = time()
-        f = function([slownesses, nuc_x, nuc_y], [start_times])
+        f = function([slownesses, nuc_y, nuc_x], start_times)
         t1 = time()
         theano_c_wrap_start_times = f(
-            Slownesses.flatten('F'), self.nuc_x, self.nuc_y)[0].reshape(
-            self.n_patch_dip, self.n_patch_strike, order='F')
+            Slownesses.flatten(), self.nuc_y, self.nuc_x)
+        print 'tc', theano_c_wrap_start_times
         t2 = time()
         logger.info('Theano C wrapper compile time %f' % (t1 - t0))
         logger.info('done theano C wrapper fast_sweeping in %f' % (t2 - t1))
@@ -109,18 +109,17 @@ class FastSweepingTestCase(unittest.TestCase):
 
         t0 = time()
         c_start_times = fast_sweep.get_rupture_times_c(
-            slownesses.flatten('F'), self.patch_size / km,
+            slownesses.flatten(), self.patch_size / km,
             self.n_patch_strike, self.n_patch_dip,
-            self.nuc_x, self.nuc_y).reshape(
-            self.n_patch_dip, self.n_patch_strike, order='F')
+            self.nuc_x, self.nuc_y)
         t1 = time()
-
+        print 'c', c_start_times
         logger.info('done c fast_sweeping in %f' % (t1 - t0))
         return c_start_times
 
     def test_differences(self):
-        np_i = self._numpy_implementation()
-        t_i = self._theano_implementation()
+        np_i = self._numpy_implementation().flatten()
+        t_i = self._theano_implementation().flatten()
         c_i = self._c_implementation()
         tc_i = self._theano_c_wrapper()
 
