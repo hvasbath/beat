@@ -28,7 +28,7 @@ Will display::
       --datatypes=DATATYPES
                             Datatypes to include in the setup; "geodetic,
                             seismic".
-      --mode=MODE           Inversion problem to solve; "geometry", "static",
+      --mode=MODE           Inversion problem to solve; "geometry", "ffi",
                             "interseismic" Default: "geometry"
       --source_type=SOURCE_TYPE
                             Source type to solve for; ExplosionSource",
@@ -513,6 +513,20 @@ One should have in mind that for large grids with high sample-rate the stores mi
 Lastly, we start the store calculation with::
 
     beat build_gf Cascadia --execute --datatypes='seismic'
+
+
+How to setup a Finite Fault Optimization
+----------------------------------------
+In a finite fault optimization in beat a pre-defined RectangularSource (reference fault) is discretized into sub-patches.
+Each of these sub-patches may have up to 4 parameters to be optimized for. In the static case (geodetic data) these are two slip-parameters
+perpendicular and parallel to the rake direction of the reference fault. In the kinematic case there is the temporal evolution of the rupture
+considered as well. So there are additional parameters: (1) the rupture nucleation point from which the rupture originates and propagates accross the fault
+following the eikonal equation, (2) the slip-duration and the rupture velocity accross each sub-patch. Each sub-patch is considered to be active only once.
+Optimizing for the rupture nucleation point makes the problem non-linear.
+
+To do so 
+
+beat build_gfs Waskahigan2Rect --mode='ffi' --datatypes='seismic' --force --execute
 
 
 sample
