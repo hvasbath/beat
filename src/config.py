@@ -522,6 +522,21 @@ class ProblemConfig(Object):
                         dtype=tconfig.floatX) * num.mean(
                         default_bounds[variable]))
 
+    def set_vars(self, bounds_dict):
+        """
+        Set variable bounds to given bounds.
+        """
+        for variable, bounds in bounds_dict.items():
+            if variable in self.priors.keys():
+                param = self.priors[variable]
+                param.lower = num.atleast_1d(bounds[0])
+                param.upper = num.atleast_1d(bounds[1])
+                param.testvalue = num.atleast_1d(num.mean(bounds))
+            else:
+                logger.warning(
+                    'Prior for variable %s does not exist!'
+                    ' Setting bounds faiaed!' % variable)
+
     def select_variables(self):
         """
         Return model variables depending on problem config.

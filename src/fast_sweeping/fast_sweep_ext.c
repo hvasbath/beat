@@ -114,6 +114,7 @@ void upwind(float64_t NewVal[1], float64_t *StartTime, npy_intp i, npy_intp j, f
 }
 
 void fast_sweep(float64_t *Slowness, float64_t *StartTime, float64_t PatchSize, npy_intp HypoInStk, npy_intp HypoInDip, npy_intp NumInStk, npy_intp NumInDip){
+    /* convention for the fault orientation here is dip-direction along columns and strike-direction along rows of the start-times*/
     int num_iter;
     npy_intp i, j, ii;
     npy_intp PatchNum;

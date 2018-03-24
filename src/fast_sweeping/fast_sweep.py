@@ -50,11 +50,18 @@ def get_rupture_times_c(
     -------
     tzero : :class:`numpy.NdArray` 1d (n_patch_dip * n_patch_strike)
         rupture onset times in s after hypocentral time
+
+    Notes
+    -----
+    Here we call the C-implementation on purpose with swapped
+    strike and dip directions, because we need the
+    fault dipping in row directions of the array.
+    The C-implementation has it along columns!!!
     """
     return fast_sweep_ext.fast_sweep(
         slowness, patch_size,
-        nuc_x, nuc_y,
-        n_patch_strike, n_patch_dip)
+        nuc_y, nuc_x,
+        n_patch_dip, n_patch_strike)
 
 
 def get_rupture_times_numpy(

@@ -28,6 +28,9 @@ from pymc3.backends.base import MultiTrace
 logger = logging.getLogger('beat')
 
 
+km = 1000.
+
+
 def d2u(d):
     return dict((k.replace('-', '_'), v) for (k, v) in d.iteritems())
 
@@ -804,6 +807,16 @@ def command_build_gfs(args):
             logger.info('%s' % fault.__str__())
             c.problem_config.n_sources = fault.npatches
             c.problem_config.init_vars(varnames)
+
+            ext_source = fault.get_subfault(
+                0, datatype='seismic', component='uparr')
+
+            new_bounds = {
+                'nucleation_strike': (0., ext_source.length / km),
+                'nucleation_dip': (0., ext_source.width / km)
+            }
+
+            c.problem_config.set_vars(new_bounds)
             config.dump_config(c)
 
         elif os.path.exists(faultpath):

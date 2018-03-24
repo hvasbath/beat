@@ -465,13 +465,40 @@ class Sweeper(theano.Op):
         return theano.Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
+        """
+        Return start-times of rupturing patches with respect to
+        given hypocenter.
+
+        Parameters
+        ----------
+        slownesses : float, vector
+            inverse of the rupture velocity across each patch
+        nuc_dip : int, scalar
+            rupture nucleation point on the fault in dip-direction,
+            index to patch
+        nuc_strike : int, scalar
+            rupture nucleation point on the fault in strike-direction,
+            index to patch
+
+        Returns
+        -------
+        starttimes : float, vector
+
+        Notes
+        -----
+        Here we call the C-implementation on purpose with swapped
+        strike and dip directions, because we need the
+        fault dipping in row directions of the array.
+        The C-implementation has it along columns!!!
+        """
         slownesses, nuc_dip, nuc_strike = inputs
         z = output[0]
         logger.debug('Fast sweeping ..%s.' % self.implementation)
         if self.implementation == 'c':
+            #
             z[0] = fast_sweep.fast_sweep_ext.fast_sweep(
-                slownesses, self.patch_size, int(nuc_strike), int(nuc_dip),
-                self.n_patch_strike, self.n_patch_dip)
+                slownesses, self.patch_size, int(nuc_dip), int(nuc_strike),
+                self.n_patch_dip, self.n_patch_strike)
 
         elif self.implementation == 'numpy':
             z[0] = fast_sweep.get_rupture_times_numpy(
