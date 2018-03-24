@@ -696,7 +696,7 @@ The output might look like this::
 
 This shows the new parameters of the extended reference source. The "width" and "length" are rounded to full mutliples of the "patch_length" and "patch_width" parameters.
 Also we see here the rake directions of the slip parallel and slip perpendicular directions.
-Now the hypocentral location bounds need to be manually adjusted to be within the bounds of the extended fault dimensions! To allow for potential rupture nucleation all along the reference fault in the example, the priors of "nucleation_strike" and "nucleation_dip" would need to be set to be between (0, 12.5)[km] and (0,5)[km], respectively! (In the future this will set automatically)
+The hypocentral location bounds have been adjusted to be within the bounds of the extended fault dimensions! To allow for potential rupture nucleation all along the reference fault in the example, the priors of "nucleation_strike" and "nucleation_dip" were set to be between (0, 12.5)[km] and (0,5)[km], respectively! Of course, the ounds may be set also manually to custom values within the fault dimensions!
 
 Finally, we need to pay attention to the "waveforms" under "seismic_config".::
 
