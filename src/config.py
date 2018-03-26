@@ -535,7 +535,7 @@ class ProblemConfig(Object):
             else:
                 logger.warning(
                     'Prior for variable %s does not exist!'
-                    ' Setting bounds faiaed!' % variable)
+                    ' Bounds not updated!' % variable)
 
     def select_variables(self):
         """
@@ -760,6 +760,13 @@ class GFLibaryConfig(Object):
     event = model.Event.T(default=model.Event.D())
     datatype = String.T(default='undefined')
     crust_ind = Int.T(default=0)
+
+
+class GeodeticGFLibraryConfig(GFLibaryConfig):
+    """
+    Config for the linear Geodetic GF Library for dumping and loading.
+    """
+    dimensions = Tuple.T(2, Int.T(), default=(0, 0))
 
 
 class SeismicGFLibraryConfig(GFLibaryConfig):

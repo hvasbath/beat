@@ -838,9 +838,6 @@ def command_build_gfs(args):
                         c.project_dir, config.geodetic_data_name)
 
                     datasets = utility.load_objects(geodetic_data_path)
-                    for data in datasets:
-                        if data.los_vector is None:
-                            data.update_los_vector()
 
                     engine = LocalEngine(store_superdirs=[gf.store_superdir])
 

@@ -89,6 +89,46 @@ class GFLibrary(object):
             self._patchidxs = num.arange(self.npatches, dtype='int16')
         return self._patchidxs
 
+    def save_config(self, outdir='', filename=None):
+
+        filename = '%s.yaml' % self.filename
+        outpath = os.path.join(outdir, filename)
+        logger.debug('Dumping GF config to %s' % outpath)
+        header = 'beat.ffi.%s YAML Config' % self.__name__
+        self.config.regularize()
+        self.config.validate()
+        self.config.dump(filename=outpath, header=header)
+
+    def load_config(self, filename):
+
+        try:
+            config = load(filename=filename)
+        except IOError:
+            raise IOError(
+                'Cannot load config, file %s does not exist!' % filename)
+
+        self.config = config
+
+    def set_stack_mode(self, mode='numpy'):
+        """
+        Sets mode on witch backend the stacking is working.
+        Dependend on that the input to the stack function has to be
+        either of :class:`numpy.ndarray` or of :class:`theano.tensor.Tensor`
+
+        Parameters
+        ----------
+        mode : str
+            on witch array to stack
+        """
+        available_modes = backends.keys()
+        if mode not in available_modes:
+            raise GFLibraryError(
+                'Stacking mode %s not available! '
+                'Available modes: %s' % ut.list2string(available_modes))
+
+        self._mode = mode
+
+
 def get_gf_prefix(datatype, component, wavename, crust_ind):
     return '%s_%s_%s_%i' % (
         datatype, component, wavename, crust_ind)
@@ -113,6 +153,147 @@ def load_gf_library(directory='', filename=None):
     return gfs
 
 
+class GeodeticGFLibrary(GFLibrary):
+    """
+    Seismic Greens Funcion Library for the finite fault optimization.
+
+    Parameters
+    ----------
+    config : :class:`SeismicGFLibraryConfig`
+    """
+    def __init__(self, config=SeismicGFLibraryConfig()):
+
+        super(GeodeticGFLibrary, self).__init__(config=config)
+
+        self._sgfmatrix = None
+
+    def __str__(self):
+        s = '''
+Geodetic GF Library
+------------------
+%s
+npatches: %i
+nsamples: %i
+size: %i
+filesize [MB]: %f
+filename: %s''' % (
+            self.config.dump(),
+            self.npatches, self.nsamples,
+            self.size, self.filesize,
+            self.filename)
+        return s
+
+   def save(self, outdir='', filename=None):
+        """
+        Save GFLibrary data and config file.
+        """
+        filename = filename or '%s' % self.filename
+        outpath = os.path.join(outdir, filename)
+        logger.info('Dumping GF Library to %s' % outpath)
+        num.save(outpath + '.traces', arr=self._gfmatrix, allow_pickle=False)
+        self.save_config(outdir=outdir, filename=filename)
+
+    def setup(
+            self, npatches, nsamples, allocate=False):
+
+        self.dimensions = (npatches, nsamples)
+
+        if allocate:
+            logger.info('Allocating GF Library')
+            self._gfmatrix = num.zeros(self.dimensions)
+
+        self.set_stack_mode(mode='numpy')
+
+    def init_optimization(self):
+
+        logger.info(
+            'Setting %s GF Library to optimization mode.' % self.filename)
+        self._sgfmatrix = shared(
+            self._gfmatrix.astype(tconfig.floatX), borrow=True)
+
+        self.spatchidxs = shared(self.patchidxs, borrow=True)
+
+        self._stack_switch = {
+            'numpy': self._gfmatrix,
+            'theano': self._sgfmatrix}
+
+        self.set_stack_mode(mode='theano')
+
+    def put(
+            self, entries, patchidx):
+        """
+        Fill the GF Library with synthetic traces for one target and one patch.
+
+        Parameters
+        ----------
+        entries : 2d :class:`numpy.NdArray`
+            of synthetic trace data samples, the waveforms
+        patchidx : int
+            index to patch (source) that is used to produce the synthetics
+        """
+
+        if len(entries.shape) < 1:
+            raise ValueError('Entries have to be 1d arrays!')
+
+        if entries.shape[0] != self.nsamples:
+            raise GFLibraryError(
+                'Trace length of entries is not consistent with the library'
+                ' to be filled! Entries length: %i Library: %i.' % (
+                    entries.shape[0], self.nsamples))
+
+        self._check_setup()
+
+        if hasattr(paripool, 'gfmatrix'):
+            matrix = num.frombuffer(paripool.gfmatrix).reshape(self.dimensions)
+
+        elif self._gfmatrix is None:
+            raise GFLibraryError(
+                'Neither shared nor standard GFLibrary is setup!')
+
+        else:
+            matrix = self._gfmatrix
+
+        _put_geodetic(matrix, patchidx, entries)
+
+    def stack_all(self, slips):
+        """
+        Stack all patches for all targets at once.
+        In theano for efficient optimization.
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+        matrix : size (nsamples)
+        """
+
+        if self._mode == 'theano':
+            if self._sgfmatrix is None:
+                raise GFLibraryError(
+                    'To use "stack_all" theano stacking optimization mode'
+                    ' has to be initialised!')
+
+            return self._sgfmatrix.T.dot(slips)
+
+        elif self._mode == 'numpy':
+            return self._gfmatrix.T.dot(slips)
+
+    @property
+    def nsamples(self):
+        return self.dimensions[0]
+
+    @property
+    def npatches(self):
+        return self.dimensions[1]
+
+    @property
+    def filename(self):
+        return get_gf_prefix(
+            self.config.datatype, self.config.component,
+            'static', self.config.crust_ind)
+
+
 class SeismicGFLibrary(GFLibrary):
     """
     Seismic Greens Funcion Library for the finite fault optimization.
@@ -121,13 +302,7 @@ class SeismicGFLibrary(GFLibrary):
 
     Parameters
     ----------
-    component : str
-        component of slip for which the library is valid
-    event : :class:`pyrocko.model.Event`
-        Event information for which the library is built
-    targets : list
-        containing :class:`pyrocko.gf.seismosizer.Target` Objects or
-        :class:`heart.DynamicTarget` Objects
+    config : :class:`SeismicGFLibraryConfig`
     """
     def __init__(self, config=SeismicGFLibraryConfig()):
 
@@ -165,25 +340,6 @@ filename: %s''' % (
         num.save(outpath + '.traces', arr=self._gfmatrix, allow_pickle=False)
         num.save(outpath + '.times', arr=self._tmins, allow_pickle=False)
         self.save_config(outdir=outdir, filename=filename)
-
-    def save_config(self, outdir='', filename=None):
-
-        filename = '%s.yaml' % self.filename
-        outpath = os.path.join(outdir, filename)
-        logger.debug('Dumping GF config to %s' % outpath)
-        header = 'beat.ffi.SeismicGFLibrary YAML Config'
-        self.config.validate()
-        self.config.dump(filename=outpath, header=header)
-
-    def load_config(self, filename):
-
-        try:
-            config = load(filename=filename)
-        except IOError:
-            raise IOError(
-                'Cannot load config, file %s does not exist!' % filename)
-
-        self.config = config
 
     def setup(
             self, ntargets, npatches, ndurations,
@@ -268,7 +424,7 @@ filename: %s''' % (
             matrix = self._gfmatrix
             times = self._tmins
 
-        _put(
+        _put_seismic(
             matrix, times, targetidx, patchidx,
             durationidxs, starttimeidxs, entries, tmin)
 
@@ -292,25 +448,6 @@ filename: %s''' % (
 
         elif self._mode == 'numpy':
             return self._tmins[:, patchidx]
-
-    def set_stack_mode(self, mode='numpy'):
-        """
-        Sets mode on witch backend the stacking is working.
-        Dependend on that the input to the stack function has to be
-        either of :class:`numpy.ndarray` or of :class:`theano.tensor.Tensor`
-
-        Parameters
-        ----------
-        mode : str
-            on witch array to stack
-        """
-        available_modes = backends.keys()
-        if mode not in available_modes:
-            raise GFLibraryError(
-                'Stacking mode %s not available! '
-                'Available modes: %s' % ut.list2string(available_modes))
-
-        self._mode = mode
 
     def starttimes2idxs(self, starttimes):
         """
@@ -883,8 +1020,24 @@ def discretize_sources(
     return fault
 
 
+def _process_patch_geodetic(
+    engine, gfs, targets, patch, patchidx, los_vectors, odws):
+
+    logger.debug('Calculating synthetics ...')
+    disp = heart.geo_synthetics(
+        engine=engine,
+        targets=targets,
+        sources=[patch],
+        outmode='stacked_array')
+
+    logger.debug('Applying LOS vector ...')
+    los_disp = (disp * los_vectors).sum(axis=1) * odws
+
+    gfs.put(entries=los_disp, patchidx=patchidx)
+
+
 def geo_construct_gf_linear(
-        engine, outpath, crust_ind=0, datasets=None,
+        engine, outdirectory, crust_ind=0, datasets=None,
         targets=None, fault=None, varnames=[''], force=False):
     """
     Create geodetic Greens Function matrix for defined source geometry.
@@ -911,40 +1064,61 @@ def geo_construct_gf_linear(
         Force to overwrite existing files.
     """
 
-    if os.path.exists(outpath) and not force:
-        logger.info(
-            "Green's Functions exist! Use --force to"
-            " overwrite!")
-    else:
-        out_gfs = {}
-        for var in varnames:
-            logger.info('For slip component: %s' % var)
+    _, los_vectors, odws, _ = heart.concatenate_datasets(datasets)
 
-            gfs = []
-            for source in fault.get_all_patches('geodetic', component=var):
-                disp = heart.geo_synthetics(
-                    engine=engine,
-                    targets=targets,
-                    sources=[source],
-                    outmode='stacked_arrays')
+    nsamples = odws.size
 
-                gfs_data = []
-                for d, data in zip(disp, datasets):
-                    logger.debug('Target %s' % data.__str__())
-                    gfs_data.append((
-                        d[:, 0] * data.los_vector[:, 0] +
-                        d[:, 1] * data.los_vector[:, 1] +
-                        d[:, 2] * data.los_vector[:, 2]) *
-                        data.odw)
+    for var in varnames:     
+        logger.info('For slip component: %s' % var)
 
-                gfs.append(num.vstack(gfs_data).T)
+        gfl_config = GeodeticGFLibraryConfig(
+            component=var,
+            dimensions=(npatches, nsamples),
+            event=event,
+            crust_ind=crust_ind,
+            datatype='geodetic')
+        gfs = GeodeticGFLibrary(config=gfl_config)
 
-        out_gfs[var] = gfs
-        logger.info("Dumping Green's Functions to %s" % outpath)
-        ut.dump_objects(outpath, [out_gfs])
+        outpath = os.path.join(outdirectory, gfs.filename + '.npz')
+        if not os.path.exists(outpath) or force:
+            if nworkers < 2:
+                allocate = True
+            else:
+                allocate = False
+
+            gfs.setup(npatches, nsamples, allocate=allocate)
+
+            shared_gflibrary = RawArray('d', gfs.size)
+
+            work = [
+                (engine, gfs, targets, patch, patchidx, los_vectors, odws)
+                for patchidx, patch in enumerate(
+                    fault.get_all_patches('geodetic', component=var))]
+
+            p = paripool.paripool(
+                _process_patch_geodetic, work,
+                initializer=_init_shared,
+                initargs=(shared_gflibrary, None), nprocs=nworkers)
+
+            for res in p:
+                pass
+
+            if nworkers > 1:
+                # collect and store away
+                gfs._gfmatrix = num.frombuffer(
+                    shared_gflibrary).reshape(gfs.dimensions)
+
+            logger.info('Storing geodetic linear GF Library ...')
+
+            gfs.save(outdir=outdirectory)
+
+        else:
+            logger.info(
+                'GF Library exists at path: %s. '
+                'Use --force to overwrite!' % outpath)
 
 
-def _put(
+def _put_seismic(
         matrix, times, targetidx, patchidx,
         durationidxs, starttimeidxs, entries, tmin):
 
@@ -952,7 +1126,13 @@ def _put(
     times[targetidx, patchidx] = tmin
 
 
-def _process_patch(
+def _put_geodetic(
+        matrix, patchidx, entries):
+
+    matrix[patchidx, :] = entries
+
+
+def _process_patch_seismic(
         engine, gfs, targets, patch, patchidx, durations, starttimes):
 
     patch.time += gfs.config.event.time
@@ -1106,7 +1286,7 @@ def seis_construct_gf_linear(
                     fault.get_all_patches('seismic', component=var))]
 
             p = paripool.paripool(
-                _process_patch, work,
+                _process_patch_seismic, work,
                 initializer=_init_shared,
                 initargs=(shared_gflibrary, shared_times), nprocs=nworkers)
 

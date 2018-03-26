@@ -2152,6 +2152,37 @@ class DataWaveformCollection(object):
             channels=channels)
 
 
+def concatenate_datasets(datasets):
+    """
+    Concatenate datasets to single arrays
+
+    Parameters
+    ----------
+    datasets : list
+        of :class:`GeodeticDataset`
+
+    Returns
+    -------
+    datasets : 1d :class:numpy.NdArray` n x 1
+    los_vectors : 2d :class:numpy.NdArray` n x 3
+    odws : 1d :class:numpy.NdArray` n x 1
+    Bij : :class:`utility.ListToArrayBijection`
+    """
+
+    _disp_list = [data.displacement for data in self.datasets]
+    _odws_list = [data.odw for data in self.datasets]
+    _lv_list = [data.update_los_vector() for data in self.datasets]
+
+    # merge geodetic data to calculate residuals on single array
+    ordering = utility.ListArrayOrdering(_disp_list, intype='numpy')
+    Bij = utility.ListToArrayBijection(ordering, _disp_list)
+
+    odws = Bij.fmap(_odws_list).astype(tconfig.floatX)
+    datasets = Bij.fmap(_disp_list).astype(tconfig.floatX)
+    los_vectors = Bij.f3map(_lv_list).astype(tconfig.floatX)
+    return datasets, los_vectors, odws, Bij
+
+
 def init_datahandler(seismic_config, seismic_data_path='./'):
     """
     Initialise datahandler.

@@ -241,6 +241,24 @@ class GeodeticComposite(Composite):
 
         logger.info('Number of geodetic datasets: %i ' % self.n_t)
 
+        # init geodetic targets
+        self.targets = heart.init_geodetic_targets(
+            datasets=self.datasets,
+            earth_model_name=gc.gf_config.earth_model_name,
+            interpolation=gc.interpolation,
+            crust_inds=[gc.gf_config.reference_model_idx],
+            sample_rate=gc.gf_config.sample_rate)
+
+        # merge geodetic data to calculate residuals on single array
+        datasets, los_vectors, odws, self.Bij = heart.concatenate_datasets(
+            self.datasets)
+        logger.info(
+            'Number of geodetic data points: %i ' % self.Bij.ordering.size)
+
+        self.sdata = shared(datasets, borrow=True)
+        self.slos_vectors = shared(los_vectors, borrow=True)
+        self.sodws = shared(odws, borrow=True)
+
         if gc.calc_data_cov:
             logger.warn('Covariance estimation not implemented (yet)!'
                         ' Using imported covariances!')
@@ -381,31 +399,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         self.engine = gf.LocalEngine(
             store_superdirs=[gc.gf_config.store_superdir])
 
-        self.targets = heart.init_geodetic_targets(
-            datasets=self.datasets,
-            earth_model_name=gc.gf_config.earth_model_name,
-            interpolation=gc.interpolation,
-            crust_inds=[gc.gf_config.reference_model_idx],
-            sample_rate=gc.gf_config.sample_rate)
-
         self.sources = sources
-
-        _disp_list = [data.displacement for data in self.datasets]
-        _odws_list = [data.odw for data in self.datasets]
-        _lv_list = [data.update_los_vector() for data in self.datasets]
-
-        # merge geodetic data to calculate residuals on single array
-        ordering = utility.ListArrayOrdering(_disp_list, intype='numpy')
-        self.Bij = utility.ListToArrayBijection(ordering, _disp_list)
-
-        odws = self.Bij.fmap(_odws_list)
-
-        logger.info(
-            'Number of geodetic data points: %i ' % ordering.size)
-
-        self.wdata = shared(self.Bij.fmap(_disp_list) * odws, borrow=True)
-        self.lv = shared(self.Bij.f3map(_lv_list), borrow=True)
-        self.odws = shared(odws, borrow=True)
 
     def point2sources(self, point):
         """
@@ -469,12 +463,10 @@ class GeodeticSourceComposite(GeodeticComposite):
             'Geodetic forward model on test model takes: %f' %
             (t1 - t0))
 
-        los = (disp[:, 0] * self.lv[:, 0] +
-               disp[:, 1] * self.lv[:, 1] +
-               disp[:, 2] * self.lv[:, 2]) * self.odws
+        los_disp = (disp * self.slos_vectors).sum(axis=1)
 
         residuals = self.Bij.srmap(
-            tt.cast((self.wdata - los), tconfig.floatX))
+            tt.cast((self.sdata - los_disp) * self.sodws, tconfig.floatX))
 
         if self.config.fit_plane:
             residuals = self.remove_ramps(residuals)
@@ -525,9 +517,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
         synths = []
         for disp, data in zip(displacements, self.datasets):
             synths.append((
-                disp[:, 0] * data.los_vector[:, 0] +
-                disp[:, 1] * data.los_vector[:, 1] +
-                disp[:, 2] * data.los_vector[:, 2]))
+                disp * data.los_vector).sum(axis=1))
 
         return synths
 
@@ -624,9 +614,7 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
                 reference=self.event,
                 **bpoint)
             synths.append((
-                disp[:, 0] * data.los_vector[:, 0] +
-                disp[:, 1] * data.los_vector[:, 1] +
-                disp[:, 2] * data.los_vector[:, 2]))
+                disp * data.los_vector).sum(axis=1))
 
         return synths
 
@@ -1077,19 +1065,14 @@ class GeodeticDistributerComposite(GeodeticComposite):
             gc, project_dir, event, hypers=hypers)
 
         self.gfs = {}
-        self.sgfs = {}
         self.gf_names = {}
 
         self._mode = 'ffi'
         self.gfpath = os.path.join(
             project_dir, self._mode, bconfig.linear_gf_dir_name)
 
-        self.shared_data = [
-            shared(data.displacement.astype(tconfig.floatX), borrow=True)
-            for data in self.datasets]
-        self.shared_odws = [
-            shared(data.odw.astype(tconfig.floatX), borrow=True)
-            for data in self.datasets]
+    def get_gflibrary_key(self, crust_ind, wavename, component):
+        return '%i_%s_%s' % (crust_ind, wavename, component)
 
     def load_gfs(self, crust_inds=None, make_shared=True):
         """
@@ -1103,25 +1086,34 @@ class GeodeticDistributerComposite(GeodeticComposite):
         make_shared : bool
             if True transforms gfs to :class:`theano.shared` variables
         """
+        if not isinstance(crust_inds, list):
+            raise TypeError('crust_inds need to be a list!')
 
         if crust_inds is None:
             crust_inds = range(*self.config.gf_config.n_variations)
 
         for crust_ind in crust_inds:
-            gfpath = os.path.join(
-                self.gfpath,
-                str(crust_ind) + '_' + bconfig.geodetic_linear_gf_name)
+            gfs = {}
+            for var in self.slip_varnames:
+                gflib_name = ffi.get_gf_prefix(
+                    datatype=self.name, component=var,
+                    wavename='static', crust_ind=crust_ind)
+                gfpath = os.path.join(
+                    self.gfpath, gflib_name)
 
-            self.gf_names[crust_ind] = gfpath
-            gfs = utility.load_objects(gfpath)[0]
+                gfs = ffi.load_gf_library(
+                    directory=self.gfpath, filename=gflib_name)
 
-            if make_shared:
-                self.sgfs[crust_ind] = {param: [
-                    shared(gf.astype(tconfig.floatX), borrow=True)
-                    for gf in gfs[param]]
-                    for param in gfs.keys()}
-            else:
-                self.gfs[crust_ind] = gfs
+                if make_shared:
+                    gfs.init_optimization()
+
+                key = self.get_gflibrary_key(
+                    crust_ind=crust_ind,
+                    wavename='static',
+                    component=var)
+
+                self.gf_names[key] = gfpath
+                self.gfs[key] = gfs
 
     def load_fault_geometry(self):
         """
@@ -1155,15 +1147,16 @@ class GeodeticDistributerComposite(GeodeticComposite):
         self.fixed_rvs = fixed_rvs
         ref_idx = self.config.geodetic_config.gf_config.reference_model_idx
 
-        residuals = [None for i in range(self.n_t)]
-        for t in range(self.n_t):
+        mu = tt.zeros((self.Bij.ordering.size), tconfig.floatX)
+        for var, rv in input_rvs.iteritems():
+            key = self.get_gflibrary_key(
+                    crust_ind=ref_idx,
+                    wavename='static',
+                    component=var)
+            mu += self.gfs[key].stack_all(slips=rv)
 
-            mu = tt.zeros_like(self.data[t], tconfig.floatX)
-            for var, rv in input_rvs.iteritems():
-                # use first loaded gf library
-                mu += tt.dot(self.sgfs[ref_idx][var][t], rv)
-
-            residuals[t] = self.shared_odw[t] * (self.shared_data[t] - mu)
+        residuals = self.Bij.srmap(
+            tt.cast((self.sdata - mu) * self.sodws, tconfig.floatX))
 
         if self.config.fit_plane:
             residuals = self.remove_ramps(residuals)
@@ -1208,15 +1201,15 @@ class GeodeticDistributerComposite(GeodeticComposite):
             if param not in gf_params:
                 tpoint.pop(param)
 
-        synthetics = []
-        for i, data in enumerate(self.datasets):
+        mu = num.zeros((self.Bij.ordering.size))
+        for var, rv in tpoint.iteritems():
+            key = self.get_gflibrary_key(
+                    crust_ind=ref_idx,
+                    wavename='static',
+                    component=var)
+            mu += self.gfs[key].stack_all(slips=rv)
 
-            mu = num.zeros_like(data.displacement)
-            for var, rv in tpoint.iteritems():
-                mu += num.dot(self.gfs[0][var][i], rv)
-                synthetics.append(mu)
-
-        return synthetics
+        return self.Bij.rmap(mu)
 
     def update_weights(self, point, n_jobs=1, plot=False):
         logger.warning('Not implemented yet!')
