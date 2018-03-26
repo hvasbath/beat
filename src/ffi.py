@@ -139,17 +139,30 @@ def load_gf_library(directory='', filename=None):
     Loading GF Library config and initialise memmaps for Traces and times.
     """
     inpath = os.path.join(directory, filename)
+    datatype = filename.split('_')[0]
 
-    gfs = SeismicGFLibrary()
-    gfs.load_config(filename=inpath + '.yaml')
-    gfs._gfmatrix = num.load(
-        inpath + '.traces.npy',
-        mmap_mode=('r'),
-        allow_pickle=False)
-    gfs._tmins = num.load(
-        inpath + '.times.npy',
-        mmap_mode=('r'),
-        allow_pickle=False)
+    if datatype == 'seismic':
+        gfs = SeismicGFLibrary()
+        gfs.load_config(filename=inpath + '.yaml')
+        gfs._gfmatrix = num.load(
+            inpath + '.traces.npy',
+            mmap_mode=('r'),
+            allow_pickle=False)
+        gfs._tmins = num.load(
+            inpath + '.times.npy',
+            mmap_mode=('r'),
+            allow_pickle=False)
+
+    elif datatype == 'geodetic':
+        gfs = GeodeticGFLibrary()
+        gfs.load_config(filename=inpath + '.yaml')
+        gfs._gfmatrix = num.load(
+            inpath + '.traces.npy',
+            mmap_mode=('r'),
+            allow_pickle=False)
+
+    else:
+        raise ValueError('datatype "%s" not supported!' % datatype)
     return gfs
 
 
