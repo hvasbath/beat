@@ -138,7 +138,7 @@ default_bounds = dict(
     peak_ratio=(0., 1.),
 
     durations=(0.5, 29.5),
-    uparr=(-0.3, 6.),
+    uparr=(-0.05, 6.),
     uperp=(-0.3, 4.),
     nucleation_strike=(0., 10.),
     nucleation_dip=(0., 7.),
@@ -843,7 +843,8 @@ class BEATconfig(Object, Cloneable):
 def init_reference_sources(source_points, n_sources, source_type, stf_type):
     reference_sources = []
     for i in range(n_sources):
-        rf = source_catalog[source_type](stf=stf_catalog[stf_type]())
+        #rf = source_catalog[source_type](stf=stf_catalog[stf_type]()) maybe future if several meshtypes
+        rf = RectangularSource(stf=stf_catalog[stf_type]())
         utility.update_source(rf, **source_points[i])
         reference_sources.append(rf)
 
@@ -990,7 +991,8 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                         earth_model_name=gc.gf_config.earth_model_name,
                         store_superdir=gc.gf_config.store_superdir,
                         n_variations=gc.gf_config.n_variations,
-                        reference_sources=reference_sources)
+                        reference_sources=reference_sources,
+                        sample_rate=gc.gf_config.sample_rate)
 
                 c.geodetic_config = gc
                 c.geodetic_config.gf_config = lgf_config
@@ -1037,6 +1039,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
     c.update_hypers()
     c.problem_config.validate_priors()
 
+    c.regularize()
     c.validate()
 
     logger.info('Project_directory: %s \n' % c.project_dir)

@@ -109,7 +109,7 @@ def multivariate_normal_chol(datasets, weights, hyperparams, residuals):
         logpts = tt.set_subtensor(
             logpts[l:l + 1],
             (-0.5) * (
-                data.covariance.slnf +
+                data.covariance.slnf.astype(tconfig.floatX) +
                 (M * 2 * hyperparams[hp_name]) +
                 (1 / tt.exp(hyperparams[hp_name] * 2)) *
                 (tt.dot(tmp, tmp))))
@@ -274,6 +274,7 @@ class GeodeticComposite(Composite):
 
             choli = data.covariance.chol_inverse
             self.weights.append(shared(choli, borrow=True))
+            data.covariance.update_slnf()
 
         if gc.fit_plane:
             logger.info('Fit residual ramp selected!')
@@ -1067,6 +1068,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
         self.gfs = {}
         self.gf_names = {}
 
+        self.slip_varnames = bconfig.static_dist_vars
         self._mode = 'ffi'
         self.gfpath = os.path.join(
             project_dir, self._mode, bconfig.linear_gf_dir_name)
@@ -1145,7 +1147,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
         """
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs
-        ref_idx = self.config.geodetic_config.gf_config.reference_model_idx
+        ref_idx = self.config.gf_config.reference_model_idx
 
         mu = tt.zeros((self.Bij.ordering.size), tconfig.floatX)
         for var, rv in input_rvs.iteritems():
@@ -1182,9 +1184,11 @@ class GeodeticDistributerComposite(GeodeticComposite):
         -------
         list with :class:`numpy.ndarray` synthetics for each target
         """
+
+        ref_idx = self.config.gf_config.reference_model_idx
         if len(self.gfs.keys()) == 0:
             self.load_gfs(
-                crust_inds=[self.config.gf_config.reference_model_idx],
+                crust_inds=[ref_idx],
                 make_shared=False)
 
         tpoint = copy.deepcopy(point)
@@ -1195,10 +1199,8 @@ class GeodeticDistributerComposite(GeodeticComposite):
             if hyper in tpoint:
                 tpoint.pop(hyper)
 
-        gf_params = self.gfs[0].keys()
-
         for param in tpoint.keys():
-            if param not in gf_params:
+            if param not in self.slip_varnames:
                 tpoint.pop(param)
 
         mu = num.zeros((self.Bij.ordering.size))

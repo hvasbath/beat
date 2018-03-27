@@ -183,6 +183,7 @@ class Covariance(Object):
         (for theano models).
         """
         self.slnf.set_value(self.log_norm_factor)
+        self.slnf.astype(tconfig.floatX)
 
 
 class ArrivalTaper(trace.Taper):
@@ -314,7 +315,7 @@ physical_bounds = dict(
     peak_ratio=(0., 1.),
 
     durations=(0., 600.),
-    uparr=(-0.3, 150.),
+    uparr=(-0.1, 150.),
     uperp=(-150., 150.),
     nucleation_strike=(0., num.inf),
     nucleation_dip=(0., num.inf),
@@ -2169,9 +2170,12 @@ def concatenate_datasets(datasets):
     Bij : :class:`utility.ListToArrayBijection`
     """
 
-    _disp_list = [data.displacement for data in self.datasets]
-    _odws_list = [data.odw for data in self.datasets]
-    _lv_list = [data.update_los_vector() for data in self.datasets]
+    _disp_list = [data.displacement.astype(tconfig.floatX)
+                  for data in datasets]
+    _odws_list = [data.odw.astype(tconfig.floatX)
+                  for data in datasets]
+    _lv_list = [data.update_los_vector().astype(tconfig.floatX)
+                for data in datasets]
 
     # merge geodetic data to calculate residuals on single array
     ordering = utility.ListArrayOrdering(_disp_list, intype='numpy')

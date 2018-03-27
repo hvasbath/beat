@@ -2,7 +2,7 @@ from beat import heart
 from beat import utility as ut
 from beat.fast_sweeping import fast_sweep
 from beat import paripool
-from beat.config import SeismicGFLibraryConfig
+from beat.config import SeismicGFLibraryConfig, GeodeticGFLibraryConfig
 
 import copy
 import os
@@ -94,7 +94,7 @@ class GFLibrary(object):
         filename = '%s.yaml' % self.filename
         outpath = os.path.join(outdir, filename)
         logger.debug('Dumping GF config to %s' % outpath)
-        header = 'beat.ffi.%s YAML Config' % self.__name__
+        header = 'beat.ffi.%s YAML Config' % self.__class__.__name__
         self.config.regularize()
         self.config.validate()
         self.config.dump(filename=outpath, header=header)
@@ -196,7 +196,7 @@ filename: %s''' % (
             self.filename)
         return s
 
-   def save(self, outdir='', filename=None):
+    def save(self, outdir='', filename=None):
         """
         Save GFLibrary data and config file.
         """
@@ -294,11 +294,11 @@ filename: %s''' % (
 
     @property
     def nsamples(self):
-        return self.dimensions[0]
+        return self.config.dimensions[1]
 
     @property
     def npatches(self):
-        return self.dimensions[1]
+        return self.config.dimensions[0]
 
     @property
     def filename(self):
@@ -747,7 +747,7 @@ number of patches: %i ''' % (
 
     def _check_datatype(self, datatype):
         if datatype not in self.datatypes:
-            raise TypeError('Datatype not included in FaultGeometry')
+            raise TypeError('Datatype "%s" not included in FaultGeometry' % datatype)
 
     def _check_component(self, component):
         if component not in self.components:
@@ -1036,6 +1036,7 @@ def discretize_sources(
 def _process_patch_geodetic(
     engine, gfs, targets, patch, patchidx, los_vectors, odws):
 
+    logger.info('Patch Number %i', patchidx)
     logger.debug('Calculating synthetics ...')
     disp = heart.geo_synthetics(
         engine=engine,
@@ -1051,7 +1052,8 @@ def _process_patch_geodetic(
 
 def geo_construct_gf_linear(
         engine, outdirectory, crust_ind=0, datasets=None,
-        targets=None, fault=None, varnames=[''], force=False):
+        targets=None, fault=None, varnames=[''], force=False,
+        event=None, nworkers=1):
     """
     Create geodetic Greens Function matrix for defined source geometry.
 
@@ -1080,6 +1082,8 @@ def geo_construct_gf_linear(
     _, los_vectors, odws, _ = heart.concatenate_datasets(datasets)
 
     nsamples = odws.size
+    npatches = fault.npatches
+    logger.info('Using %i workers ...' % nworkers)
 
     for var in varnames:     
         logger.info('For slip component: %s' % var)

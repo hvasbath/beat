@@ -696,7 +696,7 @@ def command_build_gfs(args):
 
         parser.add_option(
             '--datatypes',
-            default='geodetic', type='string',
+            default=['geodetic'], type='string',
             action='callback', callback=list_callback,
             help='Datatypes to calculate the GFs for; "geodetic, seismic".'
                  ' Default: "geodetic"')
@@ -783,21 +783,25 @@ def command_build_gfs(args):
 
         faultpath = os.path.join(outdir, config.fault_geometry_name)
         if not os.path.exists(faultpath) or options.force:
+            for datatype in options.datatypes:
+                try:
+                    gf = c[datatype + '_config'].gf_config
+                except AttributeError:
+                    raise AttributeError(
+                        'Datatype "%s" not existing in config!' % datatype)
 
-            gf = c[options.datatypes[0] + '_config'].gf_config
+                for source in gf.reference_sources:
+                    source.update(lat=c.event.lat, lon=c.event.lon)
 
-            for source in gf.reference_sources:
-                source.update(lat=c.event.lat, lon=c.event.lon)
-
-            logger.info('Discretizing reference sources ...')
-            fault = ffi.discretize_sources(
-                varnames=slip_varnames,
-                sources=gf.reference_sources,
-                extension_width=gf.extension_width,
-                extension_length=gf.extension_length,
-                patch_width=gf.patch_width,
-                patch_length=gf.patch_length,
-                datatypes=options.datatypes)
+                logger.info('Discretizing reference sources ...')
+                fault = ffi.discretize_sources(
+                    varnames=slip_varnames,
+                    sources=gf.reference_sources,
+                    extension_width=gf.extension_width,
+                    extension_length=gf.extension_length,
+                    patch_width=gf.patch_width,
+                    patch_length=gf.patch_length,
+                    datatypes=options.datatypes)
 
             logger.info(
                 'Storing discretized fault geometry to: %s' % faultpath)
@@ -809,7 +813,7 @@ def command_build_gfs(args):
             c.problem_config.init_vars(varnames)
 
             ext_source = fault.get_subfault(
-                0, datatype='seismic', component='uparr')
+                0, datatype=options.datatypes[0], component='uparr')
 
             new_bounds = {
                 'nucleation_strike': (0., ext_source.length / km),
@@ -842,10 +846,6 @@ def command_build_gfs(args):
                     engine = LocalEngine(store_superdirs=[gf.store_superdir])
 
                     for crust_ind in range(*gf.n_variations):
-                        outpath = os.path.join(
-                            outdir,
-                            str(crust_ind) + '_' +
-                            config.geodetic_linear_gf_name)
                         logger.info('crust_ind %i' % crust_ind)
 
                         targets = heart.init_geodetic_targets(
@@ -857,10 +857,12 @@ def command_build_gfs(args):
 
                         ffi.geo_construct_gf_linear(
                             engine=engine,
-                            outpath=outpath,
+                            outdirectory=outdir,
+                            event=c.event,
                             crust_ind=crust_ind,
                             datasets=datasets,
                             targets=targets,
+                            nworkers=gf.nworkers,
                             fault=fault,
                             varnames=slip_varnames,
                             force=options.force)
@@ -872,31 +874,35 @@ def command_build_gfs(args):
                     gf = sc.gf_config
                     pc = c.problem_config
 
-                    datahandler = heart.init_datahandler(
-                        seismic_config=sc, seismic_data_path=seismic_data_path)
-
                     engine = LocalEngine(store_superdirs=[gf.store_superdir])
 
-                    for wc in sc.waveforms:
-                        wmap = heart.init_wavemap(
-                            waveformfit_config=wc,
-                            datahandler=datahandler,
-                            event=c.event)
+                    for crust_ind in range(*gf.n_variations):
+                        logger.info('crust_ind %i' % crust_ind)
+                        sc.gf_config.reference_model_idx = crust_ind
+                        datahandler = heart.init_datahandler(
+                            seismic_config=sc,
+                            seismic_data_path=seismic_data_path)
 
-                        ffi.seis_construct_gf_linear(
-                            engine=engine,
-                            fault=fault,
-                            durations_prior=pc.priors['durations'],
-                            velocities_prior=pc.priors['velocities'],
-                            varnames=slip_varnames,
-                            wavemap=wmap,
-                            event=c.event,
-                            nworkers=gf.nworkers,
-                            starttime_sampling=gf.starttime_sampling,
-                            duration_sampling=gf.duration_sampling,
-                            sample_rate=gf.sample_rate,
-                            outdirectory=outdir,
-                            force=options.force)
+                        for wc in sc.waveforms:
+                            wmap = heart.init_wavemap(
+                                waveformfit_config=wc,
+                                datahandler=datahandler,
+                                event=c.event)
+
+                            ffi.seis_construct_gf_linear(
+                                engine=engine,
+                                fault=fault,
+                                durations_prior=pc.priors['durations'],
+                                velocities_prior=pc.priors['velocities'],
+                                varnames=slip_varnames,
+                                wavemap=wmap,
+                                event=c.event,
+                                nworkers=gf.nworkers,
+                                starttime_sampling=gf.starttime_sampling,
+                                duration_sampling=gf.duration_sampling,
+                                sample_rate=gf.sample_rate,
+                                outdirectory=outdir,
+                                force=options.force)
         else:
             logger.info('Did not run GF calculation. Use --execute!')
 
