@@ -31,7 +31,7 @@ from pymc3.vartypes import discrete_types
 from pymc3.theanof import inputvars
 from pymc3.theanof import make_shared_replacements, join_nonshared_inputs
 
-from beat import backend, utility, paripool
+from beat import backend, utility, parallel
 
 from numpy.random import normal, standard_cauchy, standard_exponential, \
     poisson
@@ -850,12 +850,12 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
 
     shared_params = [
         sparam for sparam in step.logp_forw.get_shared()
-        if sparam.name in paripool._tobememshared]
+        if sparam.name in parallel._tobememshared]
 
     if len(shared_params) > 0:
         logger.debug('Accessing shared memory')
-        paripool.borrow_all_memories(
-            shared_params, paripool._shared_memory.values())
+        parallel.borrow_all_memories(
+            shared_params, parallel._shared_memory.values())
 
     sampling = _iter_sample(draws, step, start, trace, chain,
                             tune, model, random_seed)
@@ -978,16 +978,16 @@ def _iter_parallel_chains(
         if n_jobs > 1:
             shared_params = [
                 sparam for sparam in step.logp_forw.get_shared()
-                if sparam.name in paripool._tobememshared]
+                if sparam.name in parallel._tobememshared]
 
             logger.info(
                 'Data to be memory shared: %s' %
                 utility.list2string(shared_params))
 
             if len(shared_params) > 0:
-                if len(paripool._shared_memory.keys()) == 0:
+                if len(parallel._shared_memory.keys()) == 0:
                     logger.info('Putting data into shared memory ...')
-                    paripool.memshare_sparams(shared_params)
+                    parallel.memshare_sparams(shared_params)
                 else:
                     logger.info('Data already in shared memory!')
 
@@ -997,7 +997,7 @@ def _iter_parallel_chains(
         else:
             logger.info('Not using shared memory.')
 
-        p = paripool.paripool(
+        p = parallel.paripool(
             _sample, work,
             chunksize=chunksize,
             timeout=timeout,

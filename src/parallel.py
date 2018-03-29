@@ -8,8 +8,9 @@ import numpy as num
 from collections import OrderedDict
 
 
-logger = getLogger('paripool')
+logger = getLogger('parallel')
 
+# for sharing memory across processes
 _shared_memory = OrderedDict()
 _tobememshared = set([])
 

@@ -1,7 +1,7 @@
 from beat import heart
 from beat import utility as ut
 from beat.fast_sweeping import fast_sweep
-from beat import paripool
+from beat import parallel
 from beat.config import SeismicGFLibraryConfig, GeodeticGFLibraryConfig
 
 import copy
@@ -47,8 +47,8 @@ slip_directions = {
 
 def _init_shared(gfstofill, tminstofill):
     logger.debug('Accessing shared arrays!')
-    paripool.gfmatrix = gfstofill
-    paripool.tmins = tminstofill
+    parallel.gfmatrix = gfstofill
+    parallel.tmins = tminstofill
 
 
 class GFLibraryError(Exception):
@@ -224,7 +224,7 @@ filename: %s''' % (
         self._sgfmatrix = shared(
             self._gfmatrix.astype(tconfig.floatX),
             name=self.filename, borrow=True)
-        paripool.memshare([self.filename])
+        parallel.memshare([self.filename])
 
         self.spatchidxs = shared(
             self.patchidxs, name='geo_patchidx_vec', borrow=True)
@@ -259,8 +259,8 @@ filename: %s''' % (
 
         self._check_setup()
 
-        if hasattr(paripool, 'gfmatrix'):
-            matrix = num.frombuffer(paripool.gfmatrix).reshape(self.dimensions)
+        if hasattr(parallel, 'gfmatrix'):
+            matrix = num.frombuffer(parallel.gfmatrix).reshape(self.dimensions)
 
         elif self._gfmatrix is None:
             raise GFLibraryError(
@@ -378,7 +378,7 @@ filename: %s''' % (
         self._sgfmatrix = shared(
             self._gfmatrix.astype(tconfig.floatX),
             name=self.filename, borrow=True)
-        paripool.memshare([self.filename])
+        parallel.memshare([self.filename])
 
         self._stmins = shared(
             self._tmins.astype(tconfig.floatX),
@@ -433,9 +433,9 @@ filename: %s''' % (
         durationidxs = self.durations2idxs(durations)
         starttimeidxs = self.starttimes2idxs(starttimes)
 
-        if hasattr(paripool, 'gfmatrix'):
-            matrix = num.frombuffer(paripool.gfmatrix).reshape(self.dimensions)
-            times = num.frombuffer(paripool.tmins).reshape(
+        if hasattr(parallel, 'gfmatrix'):
+            matrix = num.frombuffer(parallel.gfmatrix).reshape(self.dimensions)
+            times = num.frombuffer(parallel.tmins).reshape(
                 (self.ntargets, self.npatches))
 
         elif self._gfmatrix is None:
@@ -1125,7 +1125,7 @@ def geo_construct_gf_linear(
                 for patchidx, patch in enumerate(
                     fault.get_all_patches('geodetic', component=var))]
 
-            p = paripool.paripool(
+            p = parallel.paripool(
                 _process_patch_geodetic, work,
                 initializer=_init_shared,
                 initargs=(shared_gflibrary, None), nprocs=nworkers)
@@ -1315,7 +1315,7 @@ def seis_construct_gf_linear(
                 for patchidx, patch in enumerate(
                     fault.get_all_patches('seismic', component=var))]
 
-            p = paripool.paripool(
+            p = parallel.paripool(
                 _process_patch_seismic, work,
                 initializer=_init_shared,
                 initargs=(shared_gflibrary, shared_times), nprocs=nworkers)
