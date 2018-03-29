@@ -857,9 +857,6 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
         paripool.borrow_all_memories(
             shared_params, paripool._shared_memory.values())
 
-    for p in shared_params:
-        print 'working on sharedp', id(p)
-
     sampling = _iter_sample(draws, step, start, trace, chain,
                             tune, model, random_seed)
 
@@ -982,7 +979,7 @@ def _iter_parallel_chains(
             shared_params = [
                 sparam for sparam in step.logp_forw.get_shared()
                 if sparam.name in paripool._tobememshared]
-            print paripool._tobememshared
+
             logger.info(
                 'Data to be memory shared: %s' %
                 utility.list2string(shared_params))
