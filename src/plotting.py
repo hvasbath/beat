@@ -9,7 +9,7 @@ import os
 import logging
 import copy
 
-from beat import utility, backend
+from beat import utility
 from beat.models import Stage
 from beat.metropolis import get_trace_stats
 from beat.heart import init_seismic_targets, init_geodetic_targets
@@ -36,7 +36,8 @@ logger = logging.getLogger('plotting')
 km = 1000.
 
 
-__all__ = ['PlotOptions', 'correlation_plot', 'correlation_plot_hist',
+__all__ = [
+    'PlotOptions', 'correlation_plot', 'correlation_plot_hist',
     'get_result_point', 'seismic_fits', 'geodetic_fits', 'traceplot',
     'select_transform']
 
@@ -90,8 +91,7 @@ plot_units = {
     'duration': u_s,
     'peak_ratio': u_hyp,
     'h_': u_hyp,
-    'like': u_hyp,
-            }
+    'like': u_hyp}
 
 
 def hypername(varname):
@@ -188,7 +188,8 @@ def kde2plot(x, y, grid=200, ax=None, **kwargs):
     return ax
 
 
-def correlation_plot(mtrace, varnames=None,
+def correlation_plot(
+        mtrace, varnames=None,
         transform=lambda x: x, figsize=None, cmap=None, grid=200, point=None,
         point_style='.', point_color='white', point_size='8'):
     """

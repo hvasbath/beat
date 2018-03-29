@@ -26,11 +26,12 @@ import pandas as pd
 import logging
 import shutil
 
-import pymc3
 from pymc3.model import modelcontext
 from pymc3.backends import base, ndarray
 from pymc3.backends import tracetab as ttab
 from pymc3.blocking import DictToArrayBijection, ArrayOrdering
+
+from pymc3.step_methods.arraystep import BlockedStep
 
 from beat import utility, config
 from pyrocko import util
@@ -38,7 +39,7 @@ from pyrocko import util
 logger = logging.getLogger('backend')
 
 
-class ArrayStepSharedLLK(pymc3.arraystep.BlockedStep):
+class ArrayStepSharedLLK(BlockedStep):
     """
     Modified ArrayStepShared To handle returned larger point including the
     likelihood values.
@@ -108,8 +109,8 @@ class BaseSMCTrace(object):
         self.vars = vars
         self.varnames = [var.name for var in vars]
 
-        ## Get variable shapes. Most backends will need this
-        ## information.
+        # Get variable shapes. Most backends will need this
+        # information.
 
         self.var_shapes_list = [var.tag.test_value.shape for var in vars]
         self.var_dtypes_list = [var.tag.test_value.dtype for var in vars]
@@ -162,8 +163,6 @@ class TextChain(BaseSMCTrace):
         self.df = None
         self.corrupted_flag = False
 
-    ## Sampling methods
-
     def setup(self, draws, chain):
         """
         Perform chain-specific setup.
@@ -210,13 +209,14 @@ class TextChain(BaseSMCTrace):
             try:
                 self.df = pd.read_csv(self.filename)
             except pd.parser.EmptyDataError:
-                logger.warn('Trace %s is empty and needs to be resampled!' % \
+                logger.warn(
+                    'Trace %s is empty and needs to be resampled!' %
                     self.filename)
                 os.remove(self.filename)
                 self.corrupted_flag = True
             except pd.io.common.CParserError:
-                logger.warn('Trace %s has wrong size!' % \
-                    self.filename)
+                logger.warn(
+                    'Trace %s has wrong size!' % self.filename)
                 self.corrupted_flag = True
                 os.remove(self.filename)
 

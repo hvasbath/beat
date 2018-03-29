@@ -3,8 +3,10 @@ import time
 import copy
 import shutil
 
-import pymc3 as pm
-from pymc3 import Metropolis
+from pymc3 import Uniform, Model, Deterministic, Potential
+from pymc3 import Metropolis, sample
+from pymc3.backends.base import merge_traces
+from pymc3.backends import text
 
 from pyrocko import gf, util, trace
 from pyrocko.guts import Object
@@ -61,7 +63,8 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
     logpts = tt.zeros((n_t), tconfig.floatX)
 
     for l, data in enumerate(datasets):
-        M = tt.cast(shared(data.samples, name='nsamples', borrow=True), 'int16')
+        M = tt.cast(shared(
+            data.samples, name='nsamples', borrow=True), 'int16')
         hp_name = '_'.join(('h', data.typ))
 
         logpts = tt.set_subtensor(
@@ -102,7 +105,8 @@ def multivariate_normal_chol(datasets, weights, hyperparams, residuals):
     logpts = tt.zeros((n_t), tconfig.floatX)
 
     for l, data in enumerate(datasets):
-        M = tt.cast(shared(data.samples, name='nsamples', borrow=True), 'int16')
+        M = tt.cast(shared(
+            data.samples, name='nsamples', borrow=True), 'int16')
         hp_name = '_'.join(('h', data.typ))
         tmp = weights[l].dot(residuals[l])
 
@@ -188,7 +192,7 @@ class Composite(Object):
         within a with model context.
         """
         logpts = hyper_normal(self.datasets, hyperparams, self._llks)
-        llk = pm.Deterministic(self._like_name, logpts)
+        llk = Deterministic(self._like_name, logpts)
         return llk.sum()
 
     def apply(self, composite):
@@ -256,7 +260,7 @@ class GeodeticComposite(Composite):
             'Number of geodetic data points: %i ' % self.Bij.ordering.size)
 
         self.sdata = shared(datasets, name='geodetic_data', borrow=True)
-        self.slos_vectors = shared(los_vectors, name='los_vectors', borrow=True)
+        self.slos_vectors = shared(los_vectors, name='los_vecs', borrow=True)
         self.sodws = shared(odws, name='odws', borrow=True)
 
         if gc.calc_data_cov:
@@ -286,10 +290,10 @@ class GeodeticComposite(Composite):
                     locy, locx = data.update_local_coords(self.event)
                     self._slocx.append(
                         shared(locx.astype(tconfig.floatX) / km,
-                            name='localx_%s' % j, borrow=True))
+                               name='localx_%s' % j, borrow=True))
                     self._slocy.append(
                         shared(locy.astype(tconfig.floatX) / km,
-                            name='localy_%s' % j, borrow=True))
+                               name='localy_%s' % j, borrow=True))
                 else:
                     logger.debug('Appending placeholder for non-SAR data!')
                     self._slocx.append(None)
@@ -344,7 +348,7 @@ class GeodeticComposite(Composite):
 
         for i, data in enumerate(self.datasets):
             if isinstance(data, heart.DiffIFG):
-                self.ramp_params[data.name] = pm.Uniform(
+                self.ramp_params[data.name] = Uniform(
                     data.name + '_ramp',
                     shape=(2,),
                     lower=bconfig.default_bounds['ramp'][0],
@@ -479,7 +483,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         logpts = multivariate_normal_chol(
             self.datasets, self.weights, hyperparams, residuals)
 
-        llk = pm.Deterministic(self._like_name, logpts)
+        llk = Deterministic(self._like_name, logpts)
         return llk.sum()
 
 
@@ -716,8 +720,11 @@ class SeismicComposite(Composite):
                         logger.warn('Data covariance is identity matrix!'
                                     ' Please double check!!!')
                     icov = trc.covariance.chol_inverse
-                    weights.append(shared(icov,
-                        name='seis_%s_weight_%i' % (wc.name, t), borrow=True))
+                    weights.append(
+                        shared(
+                            icov,
+                            name='seis_%s_weight_%i' % (wc.name, t),
+                            borrow=True))
 
                 wmap.add_weights(weights)
 
@@ -731,7 +738,8 @@ class SeismicComposite(Composite):
             self._llks = []
             for t in range(self.n_t):
                 self._llks.append(
-                    shared(num.array([1.]), name='seis_llk_%i' % t, borrow=True))
+                    shared(
+                        num.array([1.]), name='seis_llk_%i' % t, borrow=True))
 
     def get_unique_stations(self):
         sl = [wmap.stations for wmap in self.wavemaps]
@@ -957,7 +965,7 @@ class SeismicGeometryComposite(SeismicComposite):
         logger.debug(
             'Seismic forward model on test model takes: %f' % (t3 - t2))
 
-        llk = pm.Deterministic(self._like_name, tt.concatenate((wlogpts)))
+        llk = Deterministic(self._like_name, tt.concatenate((wlogpts)))
         return llk.sum()
 
     def get_synthetics(self, point, **kwargs):
@@ -1158,9 +1166,9 @@ class GeodeticDistributerComposite(GeodeticComposite):
         mu = tt.zeros((self.Bij.ordering.size), tconfig.floatX)
         for var, rv in input_rvs.iteritems():
             key = self.get_gflibrary_key(
-                    crust_ind=ref_idx,
-                    wavename='static',
-                    component=var)
+                crust_ind=ref_idx,
+                wavename='static',
+                component=var)
             mu += self.gfs[key].stack_all(slips=rv)
 
         residuals = self.Bij.srmap(
@@ -1172,7 +1180,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
         logpts = multivariate_normal_chol(
             self.datasets, self.weights, hyperparams, residuals)
 
-        llk = pm.Deterministic(self._like_name, logpts)
+        llk = Deterministic(self._like_name, logpts)
 
         return llk.sum()
 
@@ -1212,9 +1220,9 @@ class GeodeticDistributerComposite(GeodeticComposite):
         mu = num.zeros((self.Bij.ordering.size))
         for var, rv in tpoint.iteritems():
             key = self.get_gflibrary_key(
-                    crust_ind=ref_idx,
-                    wavename='static',
-                    component=var)
+                crust_ind=ref_idx,
+                wavename='static',
+                component=var)
             mu += self.gfs[key].stack_all(slips=rv)
 
         return self.Bij.rmap(mu)
@@ -1395,7 +1403,7 @@ class SeismicDistributerComposite(SeismicComposite):
         logger.debug(
             'Seismic formula on test model takes: %f' % (t3 - t2))
 
-        llk = pm.Deterministic(self._like_name, tt.concatenate((wlogpts)))
+        llk = Deterministic(self._like_name, tt.concatenate((wlogpts)))
         return llk.sum()
 
     def get_synthetics(self, point, **kwargs):
@@ -1608,7 +1616,7 @@ class Problem(object):
 
         mode = self.config.problem_config.mode
 
-        with pm.Model() as self.model:
+        with Model() as self.model:
 
             self.rvs, self.fixed_params = self.get_random_variables()
 
@@ -1635,10 +1643,10 @@ class Problem(object):
                     input_rvs, fixed_rvs, self.hyperparams)
 
             # deterministic RV to write out llks to file
-            like = pm.Deterministic('tmp', total_llk)
+            like = Deterministic('tmp', total_llk)
 
             # will overwrite deterministic name ...
-            llk = pm.Potential(self._like_name, like)
+            llk = Potential(self._like_name, like)
             logger.info('Model building was successful!')
 
     def built_hyper_model(self):
@@ -1658,7 +1666,7 @@ class Problem(object):
 
         self.update_llks(point)
 
-        with pm.Model() as self.model:
+        with Model() as self.model:
 
             self.hyperparams = self.get_hyperparams()
 
@@ -1667,8 +1675,8 @@ class Problem(object):
             for composite in self.composites.itervalues():
                 total_llk += composite.get_hyper_formula(self.hyperparams)
 
-            like = pm.Deterministic('tmp', total_llk)
-            llk = pm.Potential(self._like_name, like)
+            like = Deterministic('tmp', total_llk)
+            llk = Potential(self._like_name, like)
             logger.info('Hyper model building was successful!')
 
     def get_random_point(self):
@@ -1706,7 +1714,7 @@ class Problem(object):
         fixed_params = dict()
         for param in pc.priors.itervalues():
             if not num.array_equal(param.lower, param.upper):
-                rvs[param.name] = pm.Uniform(
+                rvs[param.name] = Uniform(
                     param.name,
                     shape=param.dimension,
                     lower=param.lower,
@@ -1737,7 +1745,7 @@ class Problem(object):
 
         for hp_name, hyperpar in pc.hyperparameters.iteritems():
             if not num.array_equal(hyperpar.lower, hyperpar.upper):
-                hyperparams[hp_name] = pm.Uniform(
+                hyperparams[hp_name] = Uniform(
                     hyperpar.name,
                     shape=hyperpar.dimension,
                     lower=hyperpar.lower,
@@ -2081,10 +2089,10 @@ def estimate_hypers(step, problem):
 
             problem.update_llks(point)
             with problem.model as hmodel:
-                mtraces.append(pm.sample(
+                mtraces.append(sample(
                     draws=pa.n_steps,
                     step=step,
-                    trace=pm.backends.Text(
+                    trace=text.Text(
                         name=problem.outfolder,
                         model=hmodel),
                     start=start,
@@ -2094,15 +2102,15 @@ def estimate_hypers(step, problem):
 
         else:
             logger.debug('Loading existing results!')
-            mtraces.append(pm.backends.text.load(
+            mtraces.append(text.load(
                 name=problem.outfolder, model=problem.model))
 
-    mtrace = pm.backends.base.merge_traces(mtraces)
+    mtrace = merge_traces(mtraces)
     outname = os.path.join(name, 'stage_final')
 
     if not os.path.exists(outname):
         util.ensuredir(outname)
-        pm.backends.text.dump(name=outname, trace=mtrace)
+        text.dump(name=outname, trace=mtrace)
 
     n_steps = pa.n_steps
 
