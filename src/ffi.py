@@ -222,9 +222,11 @@ filename: %s''' % (
         logger.info(
             'Setting %s GF Library to optimization mode.' % self.filename)
         self._sgfmatrix = shared(
-            self._gfmatrix.astype(tconfig.floatX), borrow=True)
+            self._gfmatrix.astype(tconfig.floatX),
+            name=self.filename, borrow=True)
 
-        self.spatchidxs = shared(self.patchidxs, borrow=True)
+        self.spatchidxs = shared(
+            self.patchidxs, name='geo_patchidx_vec', borrow=True)
 
         self._stack_switch = {
             'numpy': self._gfmatrix,
@@ -373,11 +375,15 @@ filename: %s''' % (
         logger.info(
             'Setting %s GF Library to optimization mode.' % self.filename)
         self._sgfmatrix = shared(
-            self._gfmatrix.astype(tconfig.floatX), borrow=True)
+            self._gfmatrix.astype(tconfig.floatX),
+            name=self.filename, borrow=True)
         self._stmins = shared(
-            self._tmins.astype(tconfig.floatX), borrow=True)
+            self._tmins.astype(tconfig.floatX),
+            name=self.filename + '_tmins',
+            borrow=True)
 
-        self.spatchidxs = shared(self.patchidxs, borrow=True)
+        self.spatchidxs = shared(
+            self.patchidxs, name='seis_patchidx_vec', borrow=True)
 
         self._stack_switch = {
             'numpy': self._gfmatrix,
@@ -680,7 +686,10 @@ class FaultOrdering(object):
             shp = (npw, npl)
             indexes = num.arange(npatches, dtype='int16').reshape(shp)
             self.vmap.append(PatchMap(count, slc, shp, npatches, indexes))
-            self.smap.append(shared(indexes, borrow=True).astype('int16'))
+            self.smap.append(shared(
+                indexes,
+                name='patchidx_array_%i' % count,
+                borrow=True).astype('int16'))
             dim += npatches
             count += 1
 
@@ -747,7 +756,8 @@ number of patches: %i ''' % (
 
     def _check_datatype(self, datatype):
         if datatype not in self.datatypes:
-            raise TypeError('Datatype "%s" not included in FaultGeometry' % datatype)
+            raise TypeError(
+                'Datatype "%s" not included in FaultGeometry' % datatype)
 
     def _check_component(self, component):
         if component not in self.components:
@@ -1034,7 +1044,7 @@ def discretize_sources(
 
 
 def _process_patch_geodetic(
-    engine, gfs, targets, patch, patchidx, los_vectors, odws):
+        engine, gfs, targets, patch, patchidx, los_vectors, odws):
 
     logger.info('Patch Number %i', patchidx)
     logger.debug('Calculating synthetics ...')
@@ -1085,7 +1095,7 @@ def geo_construct_gf_linear(
     npatches = fault.npatches
     logger.info('Using %i workers ...' % nworkers)
 
-    for var in varnames:     
+    for var in varnames:
         logger.info('For slip component: %s' % var)
 
         gfl_config = GeodeticGFLibraryConfig(

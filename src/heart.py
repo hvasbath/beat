@@ -105,7 +105,7 @@ class Covariance(Object):
         optional=True)
 
     def __init__(self, **kwargs):
-        self.slnf = shared(0., borrow=True)
+        self.slnf = shared(0., name='cov_normalisation', borrow=True)
         Object.__init__(self, **kwargs)
         self.update_slnf()
 

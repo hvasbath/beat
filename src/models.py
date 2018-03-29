@@ -61,7 +61,7 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
     logpts = tt.zeros((n_t), tconfig.floatX)
 
     for l, data in enumerate(datasets):
-        M = tt.cast(shared(data.samples, borrow=True), 'int16')
+        M = tt.cast(shared(data.samples, name='nsamples', borrow=True), 'int16')
         hp_name = '_'.join(('h', data.typ))
 
         logpts = tt.set_subtensor(
@@ -102,7 +102,7 @@ def multivariate_normal_chol(datasets, weights, hyperparams, residuals):
     logpts = tt.zeros((n_t), tconfig.floatX)
 
     for l, data in enumerate(datasets):
-        M = tt.cast(shared(data.samples, borrow=True), 'int16')
+        M = tt.cast(shared(data.samples, name='nsamples', borrow=True), 'int16')
         hp_name = '_'.join(('h', data.typ))
         tmp = weights[l].dot(residuals[l])
 
@@ -255,9 +255,9 @@ class GeodeticComposite(Composite):
         logger.info(
             'Number of geodetic data points: %i ' % self.Bij.ordering.size)
 
-        self.sdata = shared(datasets, borrow=True)
-        self.slos_vectors = shared(los_vectors, borrow=True)
-        self.sodws = shared(odws, borrow=True)
+        self.sdata = shared(datasets, name='geodetic_data', borrow=True)
+        self.slos_vectors = shared(los_vectors, name='los_vectors', borrow=True)
+        self.sodws = shared(odws, name='odws', borrow=True)
 
         if gc.calc_data_cov:
             logger.warn('Covariance estimation not implemented (yet)!'
@@ -267,26 +267,29 @@ class GeodeticComposite(Composite):
                         ' covariances \n')
 
         self.weights = []
-        for data in self.datasets:
+        for i, data in enumerate(self.datasets):
             if int(data.covariance.data.sum()) == data.ncoords:
                 logger.warn('Data covariance is identity matrix!'
                             ' Please double check!!!')
 
             choli = data.covariance.chol_inverse
-            self.weights.append(shared(choli, borrow=True))
+            self.weights.append(
+                shared(choli, name='geo_weight_%i' % i, borrow=True))
             data.covariance.update_slnf()
 
         if gc.fit_plane:
             logger.info('Fit residual ramp selected!')
             self._slocx = []
             self._slocy = []
-            for data in self.datasets:
+            for j, data in enumerate(self.datasets):
                 if isinstance(data, heart.DiffIFG):
                     locy, locx = data.update_local_coords(self.event)
-                    self._slocx.append(shared(
-                        locx.astype(tconfig.floatX) / km, borrow=True))
-                    self._slocy.append(shared(
-                        locy.astype(tconfig.floatX) / km, borrow=True))
+                    self._slocx.append(
+                        shared(locx.astype(tconfig.floatX) / km,
+                            name='localx_%s' % j, borrow=True))
+                    self._slocy.append(
+                        shared(locy.astype(tconfig.floatX) / km,
+                            name='localy_%s' % j, borrow=True))
                 else:
                     logger.debug('Appending placeholder for non-SAR data!')
                     self._slocx.append(None)
@@ -297,7 +300,8 @@ class GeodeticComposite(Composite):
         if hypers:
             self._llks = []
             for t in range(self.n_t):
-                self._llks.append(shared(num.array([1.]), borrow=True))
+                self._llks.append(shared(
+                    num.array([1.]), name='geo_llk_%i' % t, borrow=True))
 
     @property
     def n_t(self):
@@ -712,7 +716,8 @@ class SeismicComposite(Composite):
                         logger.warn('Data covariance is identity matrix!'
                                     ' Please double check!!!')
                     icov = trc.covariance.chol_inverse
-                    weights.append(shared(icov, borrow=True))
+                    weights.append(shared(icov,
+                        name='seis_%s_weight_%i' % (wc.name, t), borrow=True))
 
                 wmap.add_weights(weights)
 
@@ -725,7 +730,8 @@ class SeismicComposite(Composite):
         if hypers:
             self._llks = []
             for t in range(self.n_t):
-                self._llks.append(shared(num.array([1.]), borrow=True))
+                self._llks.append(
+                    shared(num.array([1.]), name='seis_llk_%i' % t, borrow=True))
 
     def get_unique_stations(self):
         sl = [wmap.stations for wmap in self.wavemaps]
