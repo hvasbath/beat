@@ -5,12 +5,13 @@ from functools import wraps
 import signal
 from itertools import count
 import numpy as num
+from collections import OrderedDict
 
 
 logger = getLogger('paripool')
 
-shared_memory = []
-tobememshared = set([])
+_shared_memory = OrderedDict()
+_tobememshared = set([])
 
 
 def exception_tracer(func):
@@ -198,8 +199,8 @@ def memshare(parameternames):
                 'Parameter cannot be memshared! Invalid name! "%s" '
                 'Has to be of type "string"' % paramname)
 
-    print 'parmaeters in tobesharedlist', tobememshared
-    tobememshared.update(parameternames)
+    print 'parmaeters in tobesharedlist', _tobememshared
+    _tobememshared.update(parameternames)
 
 
 def memshare_sparams(shared_params):
@@ -240,7 +241,7 @@ def memshare_sparams(shared_params):
     Then you can use this memory in child processes
     (See usage of `borrow_memory`)
     """
-    memshared_instances = []
+
     for param in shared_params:
         original = param.get_value(True, True)
         size = original.size
@@ -253,9 +254,7 @@ def memshare_sparams(shared_params):
         wrapped.shape = shape
 
         param.set_value(wrapped, borrow=True)
-        memshared_instances.append(ctypes)
-
-    return memshared_instances
+        _shared_memory[param.name] = ctypes
 
 
 def borrow_memory(shared_param, memshared_instance):
@@ -308,6 +307,7 @@ def borrow_memory(shared_param, memshared_instance):
     param_value = num.frombuffer(memshared_instance)
     param_value.shape = shared_param.get_value(True, True).shape
     shared_param.set_value(param_value, borrow=True)
+    print id(shared_param)
 
 
 def borrow_all_memories(shared_params, memshared_instances):
