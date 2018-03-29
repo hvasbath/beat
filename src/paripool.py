@@ -9,6 +9,9 @@ import numpy as num
 
 logger = getLogger('paripool')
 
+shared_memory = []
+tobememshared = set([])
+
 
 def exception_tracer(func):
     """
@@ -179,6 +182,26 @@ def paripool(
             multiprocessing.process._current_process._counter = count(1)
 
 
+def memshare(parameternames):
+    """
+    Add parameters to set of variables that are to be put into shared
+    memory.
+
+    Parameters
+    ----------
+    paremeternames : list of str
+        off names to :class:`theano.tensor.sharedvar.TensorSharedVariable`
+    """
+    for paramname in parameternames:
+        if not isinstance(paramname, str):
+            raise ValueError(
+                'Parameter cannot be memshared! Invalid name! "%s" '
+                'Has to be of type "string"' % paramname)
+
+    print 'parmaeters in tobesharedlist', tobememshared
+    tobememshared.update(parameternames)
+
+
 def memshare_sparams(shared_params):
     """
     For each parameter in a list of Theano TensorSharedVariable
@@ -223,7 +246,7 @@ def memshare_sparams(shared_params):
         size = original.size
         shape = original.shape
         original.shape = size
-
+        logger.debug('Allocating %s' % param.name)
         ctypes = multiprocessing.RawArray(
             'f' if original.dtype == num.float32 else 'd', original)
         wrapped = num.frombuffer(ctypes, dtype=original.dtype, count=size)
@@ -281,13 +304,13 @@ def borrow_memory(shared_param, memshared_instance):
                 model.update_fun(dataset, dataset_labels)
     See `borrow_all_memories` for list usage.
     """
-
+    logger.debug('%s' % shared_param.name)
     param_value = num.frombuffer(memshared_instance)
     param_value.shape = shared_param.get_value(True, True).shape
     shared_param.set_value(param_value, borrow=True)
 
 
-def borrow_all_memories(params, memshared_instances):
+def borrow_all_memories(shared_params, memshared_instances):
     """
     Run theano_borrow_memory on a list of params and shared memory
     sharedctypes.
@@ -305,5 +328,6 @@ def borrow_all_memories(params, memshared_instances):
     Same as `borrow_memory` but for lists of shared memories and
     theano variables. See `borrow_memory`
     """
-    for param, memory_handler in zip(params, memory_handlers):
-        borrow_memory(param, memory_handler)
+    for shared_param, memshared_instance in zip(
+            shared_params, memshared_instances):
+        borrow_memory(shared_param, memshared_instance)

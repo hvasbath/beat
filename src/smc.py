@@ -918,6 +918,11 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
         yield trace
 
 
+def share_memory(shared_params, memshared_instances):
+    logger.debug('Accessing shared memory')
+    paripool.borrow_all_memories(shared_params, memshared_instances)
+
+
 def _iter_parallel_chains(
         draws, step, stage_path, progressbar, model, n_jobs,
         chains=None):
@@ -966,8 +971,36 @@ def _iter_parallel_chains(
 
         timeout += int(np.ceil(tps * draws)) * n_jobs
 
-        p = paripool.paripool(
-            _sample, work, chunksize=chunksize, timeout=timeout, nprocs=n_jobs)
+        if n_jobs > 1:
+            shared_params = [
+                sparam for sparam in step.logp_forw.get_shared()
+                if sparam.name in paripool.tobememshared]
+            print paripool.tobememshared
+            logger.info(
+                'Data to be memory shared: %s' %
+                utility.list2string(shared_params))
+
+            if len(paripool.shared_memory) == 0 and len(shared_params) > 0:
+                logger.info('Putting data into shared memory ...')
+                paripool.shared_memory = paripool.memshare_sparams(
+                    shared_params)
+            else:
+                logger.info('Data already in shared memory!')
+
+            p = paripool.paripool(
+                _sample, work,
+                initializer=share_memory,
+                initargs=(shared_params, paripool.shared_memory),
+                chunksize=chunksize,
+                timeout=timeout,
+                nprocs=n_jobs)
+        else:
+            logger.info('Not using shared memory.')
+            p = paripool.paripool(
+                _sample, work,
+                chunksize=chunksize,
+                timeout=timeout,
+                nprocs=n_jobs)
 
         logger.info('Sampling ...')
 

@@ -224,6 +224,7 @@ filename: %s''' % (
         self._sgfmatrix = shared(
             self._gfmatrix.astype(tconfig.floatX),
             name=self.filename, borrow=True)
+        paripool.memshare([self.filename])
 
         self.spatchidxs = shared(
             self.patchidxs, name='geo_patchidx_vec', borrow=True)
@@ -377,6 +378,8 @@ filename: %s''' % (
         self._sgfmatrix = shared(
             self._gfmatrix.astype(tconfig.floatX),
             name=self.filename, borrow=True)
+        paripool.memshare([self.filename])
+
         self._stmins = shared(
             self._tmins.astype(tconfig.floatX),
             name=self.filename + '_tmins',
