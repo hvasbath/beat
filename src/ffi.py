@@ -672,6 +672,10 @@ class FaultOrdering(object):
         of number of patches in strike-direction
     npws : list
         of number of patches in dip-direction
+    patch_size_strike : float
+        patch size in strike-direction [km]
+    patch_size_dip : float
+        patch size in dip-direction [km]
     """
 
     def __init__(self, npls, npws, patch_size_strike, patch_size_dip):
@@ -710,7 +714,7 @@ def positions2idxs(positions, cell_size, backend='numpy'):
     Parameters
     ----------
     positions : :class:`numpy.NdArray` float
-        of positions
+        of positions [km]
     cell_size : float
         size of grid cells
     backend : str
@@ -899,6 +903,17 @@ number of patches: %i ''' % (
         """
         Get maximum bound of start times of extending rupture along
         the sub-fault.
+
+        Parameters
+        ----------
+        index : int
+            index to the subfault
+        rupture_velocities : :class:`numpy.NdArray`
+            of rupture velocities for each patch, (N x 1) for N patches [km/s]
+        nuc_dip_idx : int
+            rupture nucleation idx to patch in dip-direction
+        nuc_strike_idx : int
+            rupture nucleation idx to patch in strike-direction  
         """
 
         npw, npl = self.get_subfault_discretization(index)
@@ -918,11 +933,11 @@ number of patches: %i ''' % (
         Parameters
         ----------
         positions_dip : :class:`numpy.NdArray` float
-            of positions in dip direction of the fault
+            of positions in dip direction of the fault [km]
         positions_strike : :class:`numpy.NdArray` float
-            of positions in strike direction of the fault
+            of positions in strike direction of the fault [km]
         backend : str
-            which implementation backend to use
+            which implementation backend to use [numpy/theano]
         """
 
         dipidx = positions2idxs(
@@ -1333,6 +1348,7 @@ def seis_construct_gf_linear(
             logger.info('Storing seismic linear GF Library ...')
 
             gfs.save(outdir=outdirectory)
+            del gfs
 
         else:
             logger.info(

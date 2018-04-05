@@ -907,7 +907,12 @@ def seismic_fits(problem, stage, plot_options):
     # gcm_max = d['like']
 
     results = composite.assemble_results(point)
-    source = composite.sources[0]
+    try:
+        source = composite.sources[0]
+    except AttributeError:
+        logger.info('FFI waveform fit, using reference source ...')
+        source = composite.config.gf_config.reference_sources[0]
+        source.time += problem.config.event.time
 
     logger.info('Plotting waveforms ...')
     target_to_result = {}

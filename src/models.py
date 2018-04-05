@@ -1465,6 +1465,7 @@ class SeismicDistributerComposite(SeismicComposite):
                         'GF library %s not loaded! Loaded GFs:'
                         ' %s' % (key, utility.list2string(self.gfs.keys())))
 
+                gflibrary.set_stack_mode('numpy')
                 synthetics += gflibrary.stack_all(
                     starttimes=starttimes,
                     durations=tpoint['durations'],

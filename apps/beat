@@ -807,10 +807,12 @@ def command_build_gfs(args):
                 'Storing discretized fault geometry to: %s' % faultpath)
             utility.dump_objects(faultpath, [fault])
 
-            logger.info('Updating problem_config:')
-            logger.info('%s' % fault.__str__())
-            c.problem_config.n_sources = fault.npatches
-            c.problem_config.init_vars(varnames)
+            if c.problem_config.n_sources != fault.npatches:
+                logger.info(
+                    'Fault discretization changed! Updating problem_config:')
+                logger.info('%s' % fault.__str__())
+                c.problem_config.n_sources = fault.npatches
+                c.problem_config.init_vars(varnames)
 
             ext_source = fault.get_subfault(
                 0, datatype=options.datatypes[0], component='uparr')

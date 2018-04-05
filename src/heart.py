@@ -2547,7 +2547,6 @@ def taper_filter_traces(traces, arrival_taper=None, filterer=None,
         with tapered and filtered data traces, rows different traces,
         columns temporal values
     """
-
     cut_traces = []
     ctpp = cut_traces.append
     for i, tr in enumerate(traces):
