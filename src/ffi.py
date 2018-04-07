@@ -68,7 +68,7 @@ class GFLibrary(object):
         self._mode = 'numpy'
 
     def _check_setup(self):
-        if sum(self.dimensions) == 0:
+        if sum(self.config.dimensions) == 0:
             raise GFLibraryError(
                 '%s Greens Function Library is not set up!' % self.datatype)
 
@@ -269,7 +269,7 @@ filename: %s''' % (
         else:
             matrix = self._gfmatrix
 
-        _put_geodetic(matrix, patchidx, entries)
+        matrix[patchidx, :] = entries
 
     def stack_all(self, slips):
         """
@@ -367,7 +367,7 @@ filename: %s''' % (
         if allocate:
             logger.info('Allocating GF Library')
             self._gfmatrix = num.zeros(self.dimensions)
-            self._tmins = num.zeros([ntargets, npatches])
+            self._tmins = num.zeros([ntargets, npatches + 1])
 
         self.set_stack_mode(mode='numpy')
 
@@ -394,8 +394,36 @@ filename: %s''' % (
 
         self.set_stack_mode(mode='theano')
 
+    def set_patch_time(self, targetidx, patchidx, tmin):
+        """
+        Fill the GF Library with trace times for one target and one patch.
+
+        Parameters
+        ----------
+        targetidx : int
+            index to target
+        patchidx : int
+            index to patch (source) that is assumed to be hypocenter
+        tmin : float
+            tmin of the trace(s) if the hypocenter was in the location of this
+            patch
+        """
+
+        if hasattr(parallel, 'tmins'):
+            times = num.frombuffer(parallel.tmins).reshape(
+                (self.ntargets, self.npatches + 1))
+
+        elif self._tmins is None:
+            raise GFLibraryError(
+                'Neither shared nor standard GFLibrary is setup!')
+
+        else:
+            times = self._tmins
+
+        times[targetidx, patchidx] = tmin
+
     def put(
-            self, entries, tmin, targetidx, patchidx,
+            self, entries, targetidx, patchidx,
             durations, starttimes):
         """
         Fill the GF Library with synthetic traces for one target and one patch.
@@ -404,10 +432,7 @@ filename: %s''' % (
         ----------
         entries : 2d :class:`numpy.NdArray`
             of synthetic trace data samples, the waveforms
-        tmin : float
-            tmin of the trace(s) if the hypocenter was in the location of this
-            patch
-        target : int
+        targetidx : int
             index to target
         patchidx : int
             index to patch (source) that is used to produce the synthetics
@@ -435,8 +460,6 @@ filename: %s''' % (
 
         if hasattr(parallel, 'gfmatrix'):
             matrix = num.frombuffer(parallel.gfmatrix).reshape(self.dimensions)
-            times = num.frombuffer(parallel.tmins).reshape(
-                (self.ntargets, self.npatches))
 
         elif self._gfmatrix is None:
             raise GFLibraryError(
@@ -444,18 +467,14 @@ filename: %s''' % (
 
         else:
             matrix = self._gfmatrix
-            times = self._tmins
 
-        _put_seismic(
-            matrix, times, targetidx, patchidx,
-            durationidxs, starttimeidxs, entries, tmin)
+        matrix[targetidx, patchidx, durationidxs, starttimeidxs, :] = entries
 
-    def trace_tmin(self, targetidx, patchidx, starttimeidx=0):
+    def trace_tmin(self, targetidx, patchidx):
         """
         Returns trace time of single target with respect to hypocentral trace.
         """
-        return self._tmins[targetidx, patchidx] + (
-            starttimeidx * self.starttime_sampling)
+        return float(self._tmins[targetidx, patchidx])
 
     def get_all_tmins(self, patchidx):
         """
@@ -597,17 +616,20 @@ filename: %s''' % (
                         tr = Trace(
                             ydata=ydata,
                             deltat=self.deltat,
-                            network=self.config.component,
+                            network='target_%i' % targetidx,
                             station='patch_%i' % patchidx,
                             channel='tau_%.2f' % self.idxs2durations(
                                 durationidx),
                             location='t0_%.2f' % self.idxs2starttimes(
                                 starttimeidx),
-                            tmin=self.trace_tmin(
-                                targetidx, patchidx, starttimeidx))
+                            tmin=self.trace_tmin(targetidx, -1))
                         traces.append(tr)
 
         return traces
+
+    @property
+    def reference_times(self):
+        return self._tmins[:, -1]
 
     @property
     def deltat(self):
@@ -1163,20 +1185,6 @@ def geo_construct_gf_linear(
                 'Use --force to overwrite!' % outpath)
 
 
-def _put_seismic(
-        matrix, times, targetidx, patchidx,
-        durationidxs, starttimeidxs, entries, tmin):
-
-    matrix[targetidx, patchidx, durationidxs, starttimeidxs, :] = entries
-    times[targetidx, patchidx] = tmin
-
-
-def _put_geodetic(
-        matrix, patchidx, entries):
-
-    matrix[patchidx, :] = entries
-
-
 def _process_patch_seismic(
         engine, gfs, targets, patch, patchidx, durations, starttimes):
 
@@ -1201,16 +1209,29 @@ def _process_patch_seismic(
             reference_taperer=None,
             outmode='data')
 
+        # getting patch related arrival time for hypocenter
         arrival_time = heart.get_phase_arrival_time(
             engine=engine,
             source=patch,
             target=target,
             wavename=gfs.config.wave_config.name)
 
-        for starttime in starttimes:
+        ptmin = gfs.config.wave_config.arrival_taper.a + arrival_time
+        gfs.set_patch_time(targetidx=j, patchidx=patchidx, tmin=ptmin)
 
-            tmin = gfs.config.wave_config.arrival_taper.a + \
-                arrival_time - starttime
+        # getting event related arrival time valid for all patches
+        # as common reference
+        arrival_time = heart.get_phase_arrival_time(
+            engine=engine,
+            source=gfs.config.event,
+            target=target,
+            wavename=gfs.config.wave_config.name)
+
+        ref_tmin = gfs.config.wave_config.arrival_taper.a + arrival_time
+        gfs.set_patch_time(targetidx=j, patchidx=-1, tmin=ref_tmin)
+
+        for starttime in starttimes:
+            tmin = ref_tmin - starttime
 
             synthetics_array = heart.taper_filter_traces(
                 traces=traces,
@@ -1221,7 +1242,6 @@ def _process_patch_seismic(
 
             gfs.put(
                 entries=synthetics_array,
-                tmin=tmin,
                 targetidx=j,
                 patchidx=patchidx,
                 durations=durations,
@@ -1322,7 +1342,7 @@ def seis_construct_gf_linear(
                 nstarttimes, nsamples, allocate=allocate)
 
             shared_gflibrary = RawArray('d', gfs.size)
-            shared_times = RawArray('d', gfs.ntargets * gfs.npatches)
+            shared_times = RawArray('d', gfs.ntargets * (gfs.npatches + 1))
 
             work = [
                 (engine, gfs, wavemap.targets,
@@ -1343,7 +1363,7 @@ def seis_construct_gf_linear(
                 gfs._gfmatrix = num.frombuffer(
                     shared_gflibrary).reshape(gfs.dimensions)
                 gfs._tmins = num.frombuffer(shared_times).reshape(
-                    (gfs.ntargets, gfs.npatches))
+                    (gfs.ntargets, gfs.npatches + 1))
 
             logger.info('Storing seismic linear GF Library ...')
 

@@ -809,6 +809,7 @@ class SeismicComposite(Composite):
 
         results = []
         for i, (obs_tr, at) in enumerate(zip(obs_proc_traces, ats)):
+
             dtrace = obs_tr.copy()
             dtrace.set_ydata(
                 (obs_tr.get_ydata() - syn_proc_traces[i].get_ydata()))
@@ -1389,7 +1390,8 @@ class SeismicDistributerComposite(SeismicComposite):
             # cut data according to wavemaps
             logger.debug('Cut data accordingly')
             data_traces = self.choppers[wmap.name](
-                self.gfs[key].get_all_tmins(patchidx))
+                self.gfs[key].get_all_tmins(
+                    patchidx) + input_rvs['time_shift'])
 
             residuals = data_traces - synthetics
 
@@ -1474,8 +1476,10 @@ class SeismicDistributerComposite(SeismicComposite):
             for i, target in enumerate(wmap.targets):
                 tr = trace.Trace(
                     ydata=synthetics[i, :],
-                    tmin=gflibrary.trace_tmin(i, patchidx, 0),
+                    tmin=float(
+                        gflibrary.reference_times[i] + tpoint['time_shift']),
                     deltat=gflibrary.deltat)
+
                 tr.set_codes(*target.codes)
                 synth_traces.append(tr)
 
@@ -1483,7 +1487,7 @@ class SeismicDistributerComposite(SeismicComposite):
                 wmap.datasets,
                 arrival_taper=wmap.config.arrival_taper,
                 filterer=wmap.config.filterer,
-                tmins=gflibrary.get_all_tmins(patchidx),
+                tmins=(gflibrary.get_all_tmins(patchidx)),
                 **kwargs))
 
         return synth_traces, obs_traces

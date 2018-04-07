@@ -34,7 +34,7 @@ guts_prefix = 'beat'
 logger = logging.getLogger('config')
 
 block_vars = [
-    'bl_azimuth', 'bl_amplitude', 'nucleation_strike', 'nucleation_dip']
+    'bl_azimuth', 'bl_amplitude', 'nucleation_strike', 'nucleation_dip', 'time_shift']
 seis_vars = ['time', 'duration']
 
 source_names = '''
@@ -76,7 +76,7 @@ interseismic_vars = [
 
 static_dist_vars = ['uparr', 'uperp']
 partial_kinematic_vars = [
-    'nucleation_strike', 'nucleation_dip', 'durations', 'velocities']
+    'nucleation_strike', 'nucleation_dip', 'durations', 'velocities', 'time_shift']
 
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars
 
@@ -130,6 +130,7 @@ default_bounds = dict(
     diameter=(5., 10.),
     mix=(0, 1),
     time=(-3., 3.),
+    time_shift=(-3., 3.),
     delta_time=(0., 10.),
     delta_depth=(0., 10.),
     distance=(0., 10.),

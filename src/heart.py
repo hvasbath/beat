@@ -307,6 +307,7 @@ physical_bounds = dict(
     slip=(0., 150.),
     magnitude=(-5., 10.),
     time=(-300., 300.),
+    time_shift=(-300., 300.),
     delta_time=(0., 100.),
     delta_depth=(0., 300.),
     distance=(0., 300.),
@@ -2551,8 +2552,7 @@ def taper_filter_traces(traces, arrival_taper=None, filterer=None,
     ctpp = cut_traces.append
     for i, tr in enumerate(traces):
         cut_trace = tr.copy()
-        tr.location = 'orig'
-        cut_trace.location = 'copy'
+        cut_trace.set_location('copy')
 
         if arrival_taper is not None:
             taper = arrival_taper.get_pyrocko_taper(
@@ -2561,6 +2561,7 @@ def taper_filter_traces(traces, arrival_taper=None, filterer=None,
             taper = None
 
         logger.debug('Filtering, tapering, chopping ...')
+
         post_process_trace(
             trace=cut_trace,
             taper=taper,
