@@ -207,7 +207,7 @@ class Composite(Object):
         """
 
         for i, weight in enumerate(composite.weights):
-            A = weight.get_value()
+            A = weight.get_value(borrow=True)
             self.weights[i].set_value(A)
 
 

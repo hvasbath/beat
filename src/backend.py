@@ -336,9 +336,9 @@ class TextStage(object):
             prev = stage_number - 1
 
         logger.info('Loading parameters from completed stage {}'.format(prev))
-        step, updates = utility.load_objects(self.atmip_path(prev))
-        step.stage = stage_number
-        return step, updates
+        sampler_state, updates = utility.load_objects(self.atmip_path(prev))
+        sampler_state['stage'] = stage_number
+        return sampler_state, updates
 
     def dump_atmip_params(self, stage_number, outlist):
         """

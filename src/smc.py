@@ -258,6 +258,45 @@ class SMC(backend.ArrayStepSharedLLK):
 
         super(SMC, self).__init__(vars, out_vars, shared)
 
+    def _sampler_state_blacklist(self):
+        """
+        Returns sampler attributes that are not saved.
+        """
+        bl = ['population',
+              'array_population',
+              'likelihoods',
+              'check_bnd',
+              'logp_forw',
+              'proposal_samples_array',
+              'vars',
+              '_BlockedStep__newargs']
+        return bl
+
+    def get_sampler_state(self):
+        """
+        Return dictionary of sampler state.
+
+        Returns
+        -------
+        dict of sampler state
+        """
+
+        blacklist = self._sampler_state_blacklist()
+        return {k: v for k, v in self.__dict__.items() if k not in blacklist}
+
+    def apply_sampler_state(self, state):
+        """
+        Update sampler state to given state
+        (obtained by 'get_sampler_state')
+
+        Parameters
+        ----------
+        state : dict
+            with sampler parameters
+        """
+        for k, v in state.items():
+            setattr(self, k, v)
+
     def time_per_sample(self, n_points):
         tps = np.zeros((n_points))
         for i in range(n_points):
@@ -592,7 +631,8 @@ def init_stage(
             step.stage = stage
             draws = 1
         else:
-            step, updates = stage_handler.load_sampler_params(stage)
+            sampler_state, updates = stage_handler.load_sampler_params(stage)
+            step.apply_sampler_state(sampler_state)
             draws = step.n_steps
 
             if update is not None:
@@ -801,7 +841,7 @@ def ATMIP_sample(
             if step.beta > 1.:
                 logger.info('Beta > 1.: %f' % step.beta)
                 step.beta = 1.
-                outparam_list = [step, update]
+                outparam_list = [step.get_sampler_state(), update]
                 stage_handler.dump_atmip_params(step.stage, outparam_list)
                 if stage == -1:
                     chains = []
@@ -815,7 +855,7 @@ def ATMIP_sample(
                 step.chain_previous_lpoint = \
                     step.get_chain_previous_lpoint(mtrace)
 
-                outparam_list = [step, update]
+                outparam_list = [step.get_sampler_state(), update]
                 stage_handler.dump_atmip_params(step.stage, outparam_list)
 
                 step.stage += 1
@@ -840,7 +880,7 @@ def ATMIP_sample(
         sample_args['chains'] = chains
         _iter_parallel_chains(**sample_args)
 
-        outparam_list = [step, update]
+        outparam_list = [step.get_sampler_state(), update]
         stage_handler.dump_atmip_params(step.stage, outparam_list)
         logger.info('Finished sampling!')
 
