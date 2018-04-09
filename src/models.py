@@ -4,7 +4,7 @@ import copy
 import shutil
 
 from pymc3 import Uniform, Model, Deterministic, Potential
-from pymc3 import Metropolis, sample
+from pymc3 import Metropolis, sample as pymc_sample
 from pymc3.backends.base import merge_traces
 from pymc3.backends import text
 
@@ -2094,7 +2094,7 @@ def estimate_hypers(step, problem):
 
             problem.update_llks(point)
             with problem.model as hmodel:
-                mtraces.append(sample(
+                mtraces.append(pymc_sample(
                     draws=pa.n_steps,
                     step=step,
                     trace=text.Text(

@@ -2272,7 +2272,6 @@ def post_process_trace(trace, taper, filterer, taper_tolerance_factor=0.,
 
     if filterer is not None:
         # filter traces
-
         trace.bandpass(
             corner_hp=filterer.lower_corner,
             corner_lp=filterer.upper_corner,
