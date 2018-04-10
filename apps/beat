@@ -641,7 +641,11 @@ def command_summarize(args):
         rtrace.setup(
             draws=sc_params.n_chains * sc_params.n_steps, chain=0)
 
-        source = problem.sources[0]
+        if hasattr(problem, 'sources'):
+            source = problem.sources[0]
+        else:
+            source = None
+
         for chain in stage.mtrace.chains:
             for idx in [-1]:
                 point = stage.mtrace.point(idx=idx, chain=chain)
@@ -656,7 +660,7 @@ def command_summarize(args):
                     jpoint = utility.join_points(ldicts)
                     point.update(jpoint)
 
-                lpoint = stage.step.lij.dmap(point)
+                lpoint = stage.step['lij'].dmap(point)
                 rtrace.record(lpoint, draw=chain)
 
         rtrace = MultiTrace([rtrace])

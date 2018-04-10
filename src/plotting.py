@@ -1920,20 +1920,16 @@ def fault_slip_distribution(patches, slip, alpha=0.9):
     axes.add_collection(pa_col)
     cb = fig.colorbar(pa_col)
     cb.set_label('slip [m]')
+    axes.set_aspect('equal', adjustable='box')
     return fig, axes
 
 
-def draw_static_dist(problem, po):
+def draw_slip_dist(problem, po):
 
-    datatype = 'geodetic'
-
-    if datatype not in problem.composites.keys():
-        raise Exception('No geodetic composite defined for this problem!')
-
-    gc = problem.composites[datatype]
+    datatype, gc = problem.composites.items()[0]
 
     fault = gc.load_fault_geometry()
-    priorvars = problem.config.problem_config.priors.keys()
+    priorvars = problem.config.problem_config.get_slip_variables()
 
     if po.reference is not None:
         tmp = num.zeros_like(po.reference[priorvars[0]])
@@ -1942,7 +1938,7 @@ def draw_static_dist(problem, po):
 
         slip = num.sqrt(tmp)
     else:
-        raise Exception('Not implemented yet!')
+        raise NotImplementedError('Not implemented yet!')
         # todo load inversion results
 
     figs = []
@@ -1953,8 +1949,8 @@ def draw_static_dist(problem, po):
         fig, axs = fault_slip_distribution(patches, slip[slc])
         figs.append(fig)
         outpaths.append(os.path.join(
-                problem.outfolder, po.figure_dir,
-                'static_slip_dist_subfault_%i.%s' % (i, po.outformat)))
+            problem.outfolder, po.figure_dir,
+            'static_slip_dist_subfault_%i.%s' % (i, po.outformat)))
 
     if po.outformat == 'display':
         plt.show()
@@ -1970,7 +1966,7 @@ plots_catalog = {
     'waveform_fits': draw_seismic_fits,
     'scene_fits': draw_geodetic_fits,
     'velocity_models': draw_earthmodels,
-    'static_slip_dist': draw_static_dist,
+    'slip_distribution': draw_slip_dist,
                 }
 
 
