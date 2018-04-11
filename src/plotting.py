@@ -478,7 +478,11 @@ def get_result_point(stage, config, point_llk='max'):
         point = pdict[point_llk]
 
     elif config.sampler_config.name == 'SMC':
-        _, _, llk = stage.step.select_end_points(stage.mtrace)
+        llk = stage.mtrace.get_values(
+            varname=stage.step['likelihood_name'],
+            burn=stage.step['n_steps'] - 1,
+            combine=True)
+
         posterior_idxs = utility.get_fit_indexes(llk)
 
         n_steps = config.sampler_config.parameters.n_steps - 1
@@ -1862,66 +1866,77 @@ def draw_earthmodels(problem, plot_options):
                 fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
-def fault_slip_distribution(patches, slip, alpha=0.9):
+def fault_slip_distribution(fault, quantiles, alpha=0.9, ntickmarks=5):
     """
     Draw discretized fault geometry rotated to the 2-d view of the foot-wall
     of the fault.
 
     Parameters
     ----------
-    patches : list
-        of RectangularSources
+    fault : 
+
+    df_summary : 
     """
 
-    fig, axes = plt.subplots(
-            nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
+    fig, ax = plt.subplots(
+        nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
 
-    p0 = patches[0]
-    rotmat = mt.euler_to_matrix(p0.dip * mt.d2r, p0.strike * mt.d2r, 0.0)
-    r0 = p0.outline().dot(rotmat.T)
-    width = num.abs((r0[0, 0] - r0[1, 0]) / km)
-    height = num.abs((r0[1, 1] - r0[2, 1]) / km)
+    height = fault.ordering.patch_size_dip
+    width = fault.ordering.patch_size_strike
 
-    draw_patches = []
-    lls = []
-    for patch in patches:
-        rotcoord = num.array(patch.outline().dot(rotmat.T)) / km
-        ll = rotcoord[0, :-1].flatten()
-        ll[-1] *= -1
-        draw_patches.append(
-            Rectangle(ll, width=width, height=height, edgecolor='black'))
-        lls.append(ll)
+    figs = []
+    axs = []
+    for i in range(fault.nsubfaults):
+        ext_source = fault.get_subfault(i)
+        rotmat = mt.euler_to_matrix(
+            ext_source.dip * mt.d2r, ext_source.strike * mt.d2r, 0.0)
 
-    llsa = num.vstack(lls)
-    lower = llsa.min(axis=0)
-    upper = llsa.max(axis=0)
-    xlim = [lower[0], upper[0] + width]
-    ylim = [lower[1], upper[1] + height]
+        draw_patches = []
+        lls = []
+        for patch in fault.get_subfault_patches(i):
+            rotcoord = num.array(patch.outline().dot(rotmat.T)) / km
+            ll = rotcoord[0, :-1].flatten()
+            ll[-1] *= -1
+            draw_patches.append(
+                Rectangle(ll, width=width, height=height, edgecolor='black'))
+            lls.append(ll)
 
-    np_w = int(num.round((xlim[1] - xlim[0]) / width))
-    np_h = int(num.round((ylim[1] - ylim[0]) / height))
+        llsa = num.vstack(lls)
+        lower = llsa.min(axis=0)
+        upper = llsa.max(axis=0)
+        xlim = [lower[0], upper[0] + width]
+        ylim = [lower[1], upper[1] + height]
 
-    xticklabels = num.arange(np_w + 1) * width
-    yticklabels = num.arange(np_h, -1, -1) * height
+        np_h, np_w = fault.get_subfault_discretization(i)
 
-    axes.set_xlim(*xlim)
-    axes.set_ylim(*ylim)
-    axes.set_xlabel('strike-direction [km]')
-    axes.set_ylabel('dip-direction [km]')
-    axes.set_xticks(num.arange(xlim[0], xlim[1] + width, width))
-    axes.set_yticks(num.arange(ylim[0], ylim[1] + height, height))
-    axes.set_xticklabels(xticklabels)
-    axes.set_yticklabels(yticklabels)
+        ax.set_xlim(*xlim)
+        ax.set_ylim(*ylim)
 
-    scm = slip_colormap(100)
-    pa_col = PatchCollection(draw_patches, alpha=alpha, match_original=True)
-    pa_col.set(array=slip, cmap=scm)
+        ax.set_xlabel('strike-direction [km]')
+        ax.set_ylabel('dip-direction [km]')
 
-    axes.add_collection(pa_col)
-    cb = fig.colorbar(pa_col)
-    cb.set_label('slip [m]')
-    axes.set_aspect('equal', adjustable='box')
-    return fig, axes
+        xticker = tick.MaxNLocator(nbins=ntickmarks)
+        yticker = tick.MaxNLocator(nbins=ntickmarks)
+
+        ax.get_xaxis().set_major_locator(xticker)
+        ax.get_yaxis().set_major_locator(yticker)
+
+        scm = slip_colormap(100)
+        pa_col = PatchCollection(
+            draw_patches, alpha=alpha, match_original=True)
+        pa_col.set(array=slip, cmap=scm)
+        ax.add_collection(pa_col)
+
+        if 'seismic' in fault.datasets:
+!            fault.get_subfault_starttimes
+            ax.contour(x,y,z)
+
+
+        cb = fig.colorbar(pa_col)
+        cb.set_label('slip [m]')
+        ax.set_aspect('equal', adjustable='box')
+
+    return figs, axs
 
 
 def draw_slip_dist(problem, po):
@@ -1936,26 +1951,26 @@ def draw_slip_dist(problem, po):
         for v in priorvars:
             tmp += num.power(po.reference[v], 2)
 
-        slip = num.sqrt(tmp)
+!        slip = num.sqrt(tmp)
     else:
-        raise NotImplementedError('Not implemented yet!')
-        # todo load inversion results
+        from pandas import DataFrame
+        from pymc3 import df_summary, quantiles
 
-    figs = []
-    outpaths = []
-    for i in range(fault.nsubfaults):
-        patches = fault.get_subfault_patches(i, datatype)
-        slc = fault.get_patch_indexes(i)
-        fig, axs = fault_slip_distribution(patches, slip[slc])
-        figs.append(fig)
-        outpaths.append(os.path.join(
-            problem.outfolder, po.figure_dir,
-            'static_slip_dist_subfault_%i.%s' % (i, po.outformat)))
+        def trace_quantiles(x):
+            return DataFrame(quantiles(x))
+
+        quantiles = df_summary(mtrace, stat_funcs=[trace_quantiles])
+
+!    figs, axs = fault_slip_distribution(fault, quantiles)
 
     if po.outformat == 'display':
         plt.show()
     else:
-        for fig, outpath in zip(figs, outpaths):
+        for i, fig in enumerate(figs):
+            outpath = os.path.join(
+                problem.outfolder, po.figure_dir,
+                'slip_dist_subfault_%i.%s' % (i, po.outformat))
+
             logger.info('saving figure to %s' % outpath)
             fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 

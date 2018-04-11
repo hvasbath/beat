@@ -332,6 +332,8 @@ class TextStage(object):
                 prev = self.highest_sampled_stage()
             else:
                 prev = stage_number
+        elif stage_number == -2:
+            prev = stage_number + 1
         else:
             prev = stage_number - 1
 

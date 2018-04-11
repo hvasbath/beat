@@ -829,15 +829,33 @@ number of patches: %i ''' % (
                 raise FaultGeometryError(
                     'Subfault already specified in geometry!')
 
+    def _assign_datatype(self, datatype):
+        if datatype is None:
+            return self.datatypes[0]
+        else:
+            return datatype
+
+    def _assign_component(self, component):
+        if component is None:
+            return self.components[0]
+        else:
+            return component
+
     def iter_subfaults(self, datatype=None, component=None):
         """
         Iterator over subfaults.
         """
+        datatype = self._assign_datatype(datatype)
+        component = self._assign_component(component)
+
         for i in range(self.nsubfaults):
             yield self.get_subfault(
                 index=i, datatype=datatype, component=component)
 
     def get_subfault(self, index, datatype=None, component=None):
+
+        datatype = self._assign_datatype(datatype)
+        component = self._assign_component(component)
 
         source_key = self.get_subfault_key(index, datatype, component)
 
@@ -859,6 +877,9 @@ number of patches: %i ''' % (
         """
         self._check_index(index)
 
+        datatype = self._assign_datatype(datatype)
+        component = self._assign_component(component)
+
         subfault = self.get_subfault(
             index, datatype=datatype, component=component)
         npw, npl = self.get_subfault_discretization(index)
@@ -876,6 +897,9 @@ number of patches: %i ''' % (
         component : str
             slip component to return may be %s
         """ % ut.list2string(slip_directions.keys())
+
+        datatype = self._assign_datatype(datatype)
+        component = self._assign_component(component)
 
         patches = []
         for i in range(self.nsubfaults):
