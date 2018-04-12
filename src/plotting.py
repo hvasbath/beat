@@ -550,6 +550,8 @@ def geodetic_fits(problem, stage, plot_options):
     """
     from pyrocko.dataset import gshhg
 
+    mode = problem.config.problem_config.mode
+
     scattersize = 16
     fontsize = 10
     fontsize_title = 12
@@ -561,9 +563,16 @@ def geodetic_fits(problem, stage, plot_options):
 
     composite = problem.composites['geodetic']
 
+    try:
+        sources = composite.sources
+    except AttributeError:
+        logger.info('FFI waveform fit, using reference source ...')
+        sources = composite.config.gf_config.reference_sources
+
     if po.reference is not None:
-        composite.point2sources(po.reference)
-        ref_sources = copy.deepcopy(composite.sources)
+        if mode != 'ffi':
+            composite.point2sources(po.reference)
+            ref_sources = copy.deepcopy(composite.sources)
         point = po.reference
     else:
         point = get_result_point(stage, problem.config, po.post_llk)
@@ -588,12 +597,12 @@ def geodetic_fits(problem, stage, plot_options):
             nrows=ndmax, ncols=nxmax, figsize=mpl_papersize('a4', 'portrait'))
         fig.tight_layout()
         fig.subplots_adjust(
-                        left=0.08,
-                        right=1.0 - 0.03,
-                        bottom=0.06,
-                        top=1.0 - 0.06,
-                        wspace=0.,
-                        hspace=0.3)
+            left=0.08,
+            right=1.0 - 0.03,
+            bottom=0.06,
+            top=1.0 - 0.06,
+            wspace=0.,
+            hspace=0.3)
         figures.append(fig)
         axes.append(ax)
 
@@ -777,9 +786,9 @@ def geodetic_fits(problem, stage, plot_options):
 
             draw_sources(
                 axes[figidx][rowidx, 1],
-                composite.sources, po, color=syn_color)
+                sources, po, color=syn_color)
 
-            if po.reference is not None:
+            if po.reference is not None and mode != 'ffi':
                 draw_sources(
                     axes[figidx][rowidx, 1],
                     ref_sources, po, color=ref_color)
@@ -1866,7 +1875,9 @@ def draw_earthmodels(problem, plot_options):
                 fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
-def fault_slip_distribution(fault, quantiles, alpha=0.9, ntickmarks=5):
+def fault_slip_distribution(
+        fault, mtrace=None, transform=lambda x: x, alpha=0.9, ntickmarks=5,
+        ncontours=100, reference=None):
     """
     Draw discretized fault geometry rotated to the 2-d view of the foot-wall
     of the fault.
@@ -1875,8 +1886,8 @@ def fault_slip_distribution(fault, quantiles, alpha=0.9, ntickmarks=5):
     ----------
     fault : 
 
-    df_summary : 
     """
+    slip 
 
     fig, ax = plt.subplots(
         nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
@@ -1925,12 +1936,55 @@ def fault_slip_distribution(fault, quantiles, alpha=0.9, ntickmarks=5):
         pa_col = PatchCollection(
             draw_patches, alpha=alpha, match_original=True)
         pa_col.set(array=slip, cmap=scm)
+
         ax.add_collection(pa_col)
 
-        if 'seismic' in fault.datasets:
-!            fault.get_subfault_starttimes
-            ax.contour(x,y,z)
+        # patch central locations
+        hpd = fault.ordering.patch_size_dip / 2.
+        hps = fault.ordering.patch_size_strike / 2.
 
+        xvec = num.linspace(hps, ext_source.length / km - hps, np_w)
+        yvec = num.linspace(ext_source.width / km - hpd, hpd, np_h)
+
+        xgr, ygr = num.meshgrid(xvec, yvec)
+
+        if 'seismic' in fault.datasets:
+
+            if mtrace is not None:
+                nuc_dip = transform(mtrace.get_values(
+                    'nucleation_dip', combine=True, squeeze=True))
+                nuc_strike = transform(mtrace.get_values(
+                    'nucleation_strike', combine=True, squeeze=True))
+                velocities = transform(mtrace.get_values(
+                    'velocities', combine=True, squeeze=True))
+
+                nchains = nuc_dip.size
+                csteps = num.floor(nchains / ncontours)
+                for i in range(0, nchains, csteps):
+                    nuc_dip_idx, nuc_strike_idx = fault.fault_locations2idxs(
+                        nuc_dip, nuc_strike, backend='numpy')
+                    sts = fault.get_subfault_starttimes(
+                        0, velocities[i, :], nuc_dip_idx, nuc_strike_idx)
+
+                    ax.contour(xgr, ygr, sts, colors='gray', alpha=0.01)
+
+            ref_starttimes = fault.point2starttimes(reference)
+            contours = ax.contour(xgr, ygr, ref_starttimes, colors='black')
+            plt.clabel(contours, inline=True, fontsize=10)
+
+        if mtrace is not None:
+            uparr = transform(mtrace.get_values(
+                'uparr', combine=True, squeeze=True))
+            uperp = transform(mtrace.get_values(
+                'uperp', combine=True, squeeze=True))
+            udummy = num.zeros_like(uparr)
+
+            U = num.hstack([uparr.ravel(), uperp.ravel(), udummy.ravel()])
+!
+            slipvecrotmat = mt.euler_to_matrix(
+                0.0, 0.0, ext_source.rake * mt.d2r)
+            rot_u = U.dot(slipvecrotmat.T)
+            ax.quiver(xgr.ravel(), ygr.ravel(), rot_u[:, 0], rot_u[:, 0])
 
         cb = fig.colorbar(pa_col)
         cb.set_label('slip [m]')
@@ -1939,29 +1993,44 @@ def fault_slip_distribution(fault, quantiles, alpha=0.9, ntickmarks=5):
     return figs, axs
 
 
+class ModeError(Exception):
+    pass
+
+
 def draw_slip_dist(problem, po):
+
+    mode = problem.config.problem_config.mode
+
+    if mode != 'ffi':
+        raise ModeError(
+            'Wrong optimization mode: %s! This plot '
+            'variant is only valid for "ffi" mode' % mode)
 
     datatype, gc = problem.composites.items()[0]
 
     fault = gc.load_fault_geometry()
-    priorvars = problem.config.problem_config.get_slip_variables()
 
-    if po.reference is not None:
-        tmp = num.zeros_like(po.reference[priorvars[0]])
-        for v in priorvars:
-            tmp += num.power(po.reference[v], 2)
-
-!        slip = num.sqrt(tmp)
+    sc = problem.config.sampler_config
+    if po.load_stage is None and not sc.name == 'SMC':
+        draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
+    if po.load_stage == -2:
+        draws = None
     else:
-        from pandas import DataFrame
-        from pymc3 import df_summary, quantiles
+        draws = sc.parameters.n_steps
 
-        def trace_quantiles(x):
-            return DataFrame(quantiles(x))
+    transform = select_transform(sc=sc, n_steps=draws)
 
-        quantiles = df_summary(mtrace, stat_funcs=[trace_quantiles])
+    stage = Stage(homepath=problem.outfolder)
+    stage.load_results(
+        model=problem.model, stage_number=po.load_stage, load='trace')
 
-!    figs, axs = fault_slip_distribution(fault, quantiles)
+    if po.reference is None:
+        reference = get_result_point(stage, problem.config, po.post_llk)
+    else:
+        reference = po.reference
+
+    figs, axs = fault_slip_distribution(
+        fault, stage.mtrace, transform=transform, reference=reference)
 
     if po.outformat == 'display':
         plt.show()

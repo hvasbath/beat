@@ -944,6 +944,20 @@ number of patches: %i ''' % (
         self._check_index(index)
         return self.ordering.vmap[index].shp
 
+    def point2starttimes(self, point, index=0):
+        """
+        Calculate starttimes for point in solution space.
+        """
+
+        nuc_dip = point['nucleation_dip']
+        nuc_strike = point['nucleation_strike']
+        velocities = point['velocities']
+
+        nuc_dip_idx, nuc_strike_idx = self.fault_locations2idxs(
+            nuc_dip, nuc_strike, backend='numpy')
+        return self.get_subfault_starttimes(
+            index, velocities, nuc_dip_idx, nuc_strike_idx)
+
     def get_subfault_starttimes(
             self, index, rupture_velocities, nuc_dip_idx, nuc_strike_idx):
         """
