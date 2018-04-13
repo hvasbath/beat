@@ -1887,10 +1887,11 @@ def fault_slip_distribution(
     fault : 
 
     """
-    slip 
+    reference_slip = num.sqrt(
+        reference['uperp'] ** 2 + reference['uparr'] ** 2)
 
     fig, ax = plt.subplots(
-        nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
+        nrows=1, ncols=1, figsize=mpl_papersize('a4', 'landscape'))
 
     height = fault.ordering.patch_size_dip
     width = fault.ordering.patch_size_strike
@@ -1935,7 +1936,7 @@ def fault_slip_distribution(
         scm = slip_colormap(100)
         pa_col = PatchCollection(
             draw_patches, alpha=alpha, match_original=True)
-        pa_col.set(array=slip, cmap=scm)
+        pa_col.set(array=reference_slip, cmap=scm)
 
         ax.add_collection(pa_col)
 
@@ -1973,18 +1974,48 @@ def fault_slip_distribution(
             plt.clabel(contours, inline=True, fontsize=10)
 
         if mtrace is not None:
-            uparr = transform(mtrace.get_values(
-                'uparr', combine=True, squeeze=True))
-            uperp = transform(mtrace.get_values(
-                'uperp', combine=True, squeeze=True))
-            udummy = num.zeros_like(uparr)
+            uparr = transform(
+                mtrace.get_values('uparr', combine=True, squeeze=True))
+            uperp = transform(
+                mtrace.get_values('uperp', combine=True, squeeze=True))
 
-            U = num.hstack([uparr.ravel(), uperp.ravel(), udummy.ravel()])
-!
+            uparrstd = uparr.std(axis=0)
+            uperpstd = uperp.std(axis=0)
+
+            uparrmean = uparr.mean(axis=0)
+            uperpmean = uperp.mean(axis=0)
+
+            angles = num.arctan2(uperpmean, uparrmean) * 180. / (
+                num.pi + ext_source.rake)
+            slips = num.sqrt((uperpmean ** 2 + uparrmean ** 2)).ravel()
+            slipsx = num.cos(angles * num.pi / 180.) * slips
+            slipsy = num.sin(angles * num.pi / 180.) * slips
+            quiver_legend_length = num.floor(num.max(slips) * 10.) / 10.
+
+            # slip arrows of mean slip on patches
+            quivers = ax.quiver(
+                xgr.ravel(), ygr.ravel(), slipsx, slipsy,
+                units='dots', angles=angles, width=1.)
+
+            plt.quiverkey(
+                quivers, width / 4., height / 4., quiver_legend_length,
+                '%i [m]' % quiver_legend_length)
+
             slipvecrotmat = mt.euler_to_matrix(
                 0.0, 0.0, ext_source.rake * mt.d2r)
-            rot_u = U.dot(slipvecrotmat.T)
-            ax.quiver(xgr.ravel(), ygr.ravel(), rot_u[:, 0], rot_u[:, 0])
+
+            circle = num.linspace(0, 2 * num.pi, 100)
+            # 2sigma error ellipses
+            for i, (upe, upa) in enumerate(zip(uperpstd, uparrstd)):
+                ellipse_x = 2 * upa * num.cos(circle)
+                ellipse_y = 2 * upe * num.sin(circle)
+                ellipse = num.vstack(
+                    [ellipse_x, ellipse_y, num.zeros_like(ellipse_x)]).T
+                rot_ellipse = ellipse.dot(slipvecrotmat)
+
+                xcoords = xgr.ravel()[i] + rot_ellipse[:, 0] + slipsx[i]
+                ycoords = ygr.ravel()[i] + rot_ellipse[:, 1] + slipsy[i]
+                ax.plot(xcoords, ycoords, '-k', linewidth=0.5)
 
         cb = fig.colorbar(pa_col)
         cb.set_label('slip [m]')
