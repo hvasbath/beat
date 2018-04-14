@@ -1899,27 +1899,24 @@ def fault_slip_distribution(
     figs = []
     axs = []
     for i in range(fault.nsubfaults):
+        np_h, np_w = fault.get_subfault_discretization(i)
         ext_source = fault.get_subfault(i)
-        rotmat = mt.euler_to_matrix(
-            ext_source.dip * mt.d2r, ext_source.strike * mt.d2r, 0.0)
 
         draw_patches = []
         lls = []
-        for patch in fault.get_subfault_patches(i):
-            rotcoord = num.array(patch.outline().dot(rotmat.T)) / km
-            ll = rotcoord[0, :-1].flatten()
-            ll[-1] *= -1
-            draw_patches.append(
-                Rectangle(ll, width=width, height=height, edgecolor='black'))
-            lls.append(ll)
+        for patch_dip_ll in range(np_h, 0, -1):
+            for patch_strike_ll in range(np_w):
+                ll = [patch_strike_ll * width, patch_dip_ll * height - height]
+                draw_patches.append(
+                    Rectangle(
+                        ll, width=width, height=height, edgecolor='black'))
+                lls.append(ll)
 
         llsa = num.vstack(lls)
         lower = llsa.min(axis=0)
         upper = llsa.max(axis=0)
         xlim = [lower[0], upper[0] + width]
         ylim = [lower[1], upper[1] + height]
-
-        np_h, np_w = fault.get_subfault_discretization(i)
 
         ax.set_xlim(*xlim)
         ax.set_ylim(*ylim)
@@ -1949,8 +1946,7 @@ def fault_slip_distribution(
 
         xgr, ygr = num.meshgrid(xvec, yvec)
 
-        if 'seismic' in fault.datasets:
-
+        if 'seismic' in fault.datatypes:
             if mtrace is not None:
                 nuc_dip = transform(mtrace.get_values(
                     'nucleation_dip', combine=True, squeeze=True))
@@ -1960,7 +1956,7 @@ def fault_slip_distribution(
                     'velocities', combine=True, squeeze=True))
 
                 nchains = nuc_dip.size
-                csteps = num.floor(nchains / ncontours)
+                csteps = int(num.floor(nchains / ncontours))
                 for i in range(0, nchains, csteps):
                     nuc_dip_idx, nuc_strike_idx = fault.fault_locations2idxs(
                         nuc_dip, nuc_strike, backend='numpy')
@@ -1985,8 +1981,9 @@ def fault_slip_distribution(
             uparrmean = uparr.mean(axis=0)
             uperpmean = uperp.mean(axis=0)
 
-            angles = num.arctan2(uperpmean, uparrmean) * 180. / (
-                num.pi + ext_source.rake)
+            angles = num.arctan2(uperpmean, uparrmean) * \
+                (180. / num.pi) + ext_source.rake
+
             slips = num.sqrt((uperpmean ** 2 + uparrmean ** 2)).ravel()
             slipsx = num.cos(angles * num.pi / 180.) * slips
             slipsy = num.sin(angles * num.pi / 180.) * slips
@@ -2020,6 +2017,8 @@ def fault_slip_distribution(
         cb = fig.colorbar(pa_col)
         cb.set_label('slip [m]')
         ax.set_aspect('equal', adjustable='box')
+        figs.append(fig)
+        axs.append(ax)
 
     return figs, axs
 
@@ -2045,7 +2044,7 @@ def draw_slip_dist(problem, po):
     if po.load_stage is None and not sc.name == 'SMC':
         draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
     if po.load_stage == -2:
-        draws = None
+        raise ValueError('Slip distribution plot cannot be made for stage-2')
     else:
         draws = sc.parameters.n_steps
 
@@ -2053,7 +2052,7 @@ def draw_slip_dist(problem, po):
 
     stage = Stage(homepath=problem.outfolder)
     stage.load_results(
-        model=problem.model, stage_number=po.load_stage, load='trace')
+        model=problem.model, stage_number=po.load_stage, load='full')
 
     if po.reference is None:
         reference = get_result_point(stage, problem.config, po.post_llk)
