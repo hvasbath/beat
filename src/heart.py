@@ -174,6 +174,7 @@ class Covariance(Object):
         Following Duputel et al. 2014
         """
         N = self.data.shape[0]
+
         ldet_x = num.log(num.diag(self.chol)).sum() * 2.
         return utility.scalar2floatX((N * num.log(2 * num.pi)) + ldet_x)
 

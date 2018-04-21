@@ -1233,6 +1233,73 @@ class GeodeticDistributerComposite(GeodeticComposite):
         raise NotImplementedError('Not implemented yet!')
 
 
+class SmoothingDistributerComposite():
+
+    def __init__(self, project_dir):
+
+        self._mode = 'ffi'
+        self.slip_varnames = bconfig.static_dist_vars
+        self.gfpath = os.path.join(
+            project_dir, self._mode, bconfig.linear_gf_dir_name)
+
+        self.fault = self.load_fault_geometry()
+
+        # only one subfault so far, smoothing across and fast-sweep
+        # not implemented for more yet
+
+        sop = self.fault.get_subfault_smoothing_operator(0).astype(
+            tconfig.floatX)
+
+        self.sdet_shared_smoothing_op = shared(heart.log_determinant(
+            sop.T * sop, inverse=False), borrow=True)
+
+        self.shared_smoothing_op = shared(sop, borrow=True)
+
+    def load_fault_geometry(self):
+        """
+        Load fault-geometry, i.e. discretized patches.
+
+        Returns
+        -------
+        :class:`heart.FaultGeometry`
+        """
+        return utility.load_objects(
+            os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
+
+    def get_formula(self, input_rvs, fixed_rvs, hyperparams):
+        """
+        Get smoothing likelihood formula for the model built. Has to be called
+        within a with model context.
+        Part of the pymc3 model.
+
+        Parameters
+        ----------
+        input_rvs : dict
+            of :class:`pymc3.distribution.Distribution`
+        fixed_rvs : dict
+            of :class:`numpy.array` here only dummy
+        hyperparams : dict
+            of :class:`pymc3.distribution.Distribution`
+
+        Returns
+        -------
+        posterior_llk : :class:`theano.tensor.Tensor`
+        """
+        logger.info('Initialising Laplacian smoothing operator ...')
+
+        self.input_rvs.update(fixed_rvs)
+
+        synthetics = tt.zeros(1, 1)
+        for var in self.slip_varnames:
+            Ls = self.shared_smoothing_op * input_rvs[var]
+            M =
+
+        # figure put on paper first!!!
+  !!          synthetics += self.sdet_shared_smoothing_op + (-0.5) * (
+    !            +
+                (M * 2 * hyperparams[hp_name]) +
+                (1 / tt.exp(hyperparams[hp_name] * 2)) * Ls.T.dot(Ls)
+
 class SeismicDistributerComposite(SeismicComposite):
     """
     Comprises how to solve the seismic (kinematic) linear forward model.
@@ -1504,7 +1571,8 @@ geometry_composite_catalog = {
 
 distributer_composite_catalog = {
     'seismic': SeismicDistributerComposite,
-    'geodetic': GeodeticDistributerComposite}
+    'geodetic': GeodeticDistributerComposite,
+    'smoothing': SmoothingDistributerComposite}
 
 interseismic_composite_catalog = {
     'geodetic': GeodeticInterseismicComposite}
@@ -1642,7 +1710,6 @@ class Problem(object):
                     composite.load_gfs(
                         crust_inds=[data_config.gf_config.reference_model_idx],
                         make_shared=True)
-                    self.composites[datatype] = composite
 
                 total_llk += composite.get_formula(
                     input_rvs, fixed_rvs, self.hyperparams)

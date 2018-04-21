@@ -816,6 +816,8 @@ class BEATconfig(Object, Cloneable):
         if self.seismic_config is not None:
             hypernames.extend(self.seismic_config.get_hypernames())
 
+!
+
         hypers = dict()
         for name in hypernames:
             logger.info(
