@@ -973,7 +973,7 @@ number of patches: %i ''' % (
         nuc_dip_idx : int
             rupture nucleation idx to patch in dip-direction
         nuc_strike_idx : int
-            rupture nucleation idx to patch in strike-direction  
+            rupture nucleation idx to patch in strike-direction
         """
 
         npw, npl = self.get_subfault_discretization(index)
@@ -984,6 +984,27 @@ number of patches: %i ''' % (
             n_patch_strike=npl, n_patch_dip=npw,
             nuc_x=nuc_strike_idx, nuc_y=nuc_dip_idx)
         return start_times
+
+    def get_subfault_smoothing_operator(self, index):
+        """
+        Get second order Laplacian smoothing operator.
+
+        This is beeing used to smooth the slip-distribution
+        in the optimization.
+
+
+        Returns
+        -------
+        :class:`numpy.Ndarray`
+            (n_patch_strike + n_patch_dip) x (n_patch_strike + n_patch_dip)
+        """
+
+        npw, npl = self.get_subfault_discretization(index)
+        return get_smoothing_operator(
+            n_patch_strike=npl,
+            n_patch_dip=npw,
+            patch_size_strike=self.ordering.patch_size_strike,
+            patch_size_dip=self.ordering.patch_size_dip)
 
     def fault_locations2idxs(
             self, positions_dip, positions_strike, backend='numpy'):
@@ -1412,3 +1433,84 @@ def seis_construct_gf_linear(
             logger.info(
                 'GF Library exists at path: %s. '
                 'Use --force to overwrite!' % outpath)
+
+
+def _patch_locations(n_patch_strike, n_patch_dip):
+    """
+    Determines from patch locations the neighboring patches
+
+    Parameters
+    ----------
+    n_patch_strike : int
+        number of patches in strike direction
+    n_patch_dip : int
+        number of patches in dip direction
+
+    Returns
+    -------
+    :class:`numpy.Ndarray`
+        (n_patch_strike + n_patch_dip) x 4
+    """
+    n_patches = n_patch_dip * n_patch_strike
+
+    zeros_strike = num.zeros(n_patch_strike)
+    zeros_dip = num.zeros(n_patch_dip)
+
+    dmat = num.ones((n_patches, 4))
+    dmat[0:n_patch_strike, 0] = zeros_strike
+    dmat[-n_patch_strike:, 1] = zeros_strike
+    dmat[0::n_patch_strike, 2] = zeros_dip
+    dmat[n_patch_strike - 1::n_patch_strike, 3] = zeros_dip
+    return dmat
+
+
+def get_smoothing_operator(
+        n_patch_strike, n_patch_dip, patch_size_strike, patch_size_dip):
+    """
+    Get second order Laplacian smoothing operator.
+
+    This is beeing used to smooth the slip-distribution in the optimization.
+
+    Parameters
+    ----------
+    n_patch_strike : int
+        number of patches in strike direction
+    n_patch_dip : int
+        number of patches in dip direction
+    patch_size_strike : float
+        size of patches along strike-direction [km]
+    patch_size_dip : float
+        size of patches along dip-direction [km]
+
+    Returns
+    -------
+    :class:`numpy.Ndarray`
+        (n_patch_strike + n_patch_dip) x (n_patch_strike + n_patch_dip)
+    """
+    n_patches = n_patch_dip * n_patch_strike
+
+    dmat = _patch_locations(
+        n_patch_strike=n_patch_strike, n_patch_dip=n_patch_dip)
+
+    smooth_op = num.zeros((n_patches, n_patches))
+
+    delta_l_dip = 1. / (patch_size_dip ** 2)
+    delta_l_strike = 1. / (patch_size_strike ** 2)
+    deltas = num.array(
+        [delta_l_dip, delta_l_dip, delta_l_strike, delta_l_strike])
+
+    for i in range(n_patches):
+        flags = dmat[i, :]
+
+        smooth_op[i, i] = -1 * flags.dot(deltas)
+
+        if flags[0] == 1:
+            smooth_op[i, i - n_patch_strike] = delta_l_dip
+        if flags[1] == 1:
+            smooth_op[i, i + n_patch_strike] = delta_l_dip
+        if flags[2] == 1:
+            smooth_op[i, i - 1] = delta_l_strike
+        if flags[3] == 1:
+            smooth_op[i, i + 1] = delta_l_strike
+
+    return smooth_op
