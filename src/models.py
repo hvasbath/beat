@@ -1235,7 +1235,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
 
 class SmoothingDistributerComposite():
 
-    def __init__(self, project_dir):
+    def __init__(self, project_dir, hypers):
 
         self._mode = 'ffi'
         self.slip_varnames = bconfig.static_dist_vars
@@ -1243,17 +1243,30 @@ class SmoothingDistributerComposite():
             project_dir, self._mode, bconfig.linear_gf_dir_name)
 
         self.fault = self.load_fault_geometry()
+        self.spatches = shared(self.fault.npatches, borrow=True)
+        self._like_name = 'laplacian_like'
 
         # only one subfault so far, smoothing across and fast-sweep
         # not implemented for more yet
 
-        sop = self.fault.get_subfault_smoothing_operator(0).astype(
-            tconfig.floatX)
+        self.smoothing_op = \
+            self.fault.get_subfault_smoothing_operator(0).astype(
+                tconfig.floatX)
 
-        self.sdet_shared_smoothing_op = shared(heart.log_determinant(
-            sop.T * sop, inverse=False), borrow=True)
+        self.sdet_shared_smoothing_op = shared(
+            heart.log_determinant(
+                self.smoothing_op.T * self.smoothing_op, inverse=False),
+            borrow=True)
 
-        self.shared_smoothing_op = shared(sop, borrow=True)
+        self.shared_smoothing_op = shared(self.smoothing_op, borrow=True)
+
+        if hypers:
+            self._llks = []
+            for varname in self.slip_varnames:
+                self._llks.append(shared(
+                    num.array([1.]),
+                    name='laplacian_llk_%s' % varname,
+                    borrow=True))
 
     def load_fault_geometry(self):
         """
@@ -1265,6 +1278,16 @@ class SmoothingDistributerComposite():
         """
         return utility.load_objects(
             os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
+
+    def _eval_prior(self, hyperparam, exponent):
+        """
+        Evaluate model parameter independend part of the smoothness prior.
+        """
+        return (-0.5) * \
+            (-self.sdet_shared_smoothing_op +
+             (self.spatches * tt.log(2 * num.pi) *
+              2 * hyperparam) +
+             (1. / tt.exp(hyperparam * 2) * exponent))
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams):
         """
@@ -1287,18 +1310,52 @@ class SmoothingDistributerComposite():
         """
         logger.info('Initialising Laplacian smoothing operator ...')
 
+        hp_name = bconfig.hyper_name_laplacian
         self.input_rvs.update(fixed_rvs)
 
-        synthetics = tt.zeros(1, 1)
+        llk = tt.zeros(1, 1)
         for var in self.slip_varnames:
             Ls = self.shared_smoothing_op * input_rvs[var]
-            M =
+            exponent = Ls.T.dot(Ls)
 
-        # figure put on paper first!!!
-  !!          synthetics += self.sdet_shared_smoothing_op + (-0.5) * (
-    !            +
-                (M * 2 * hyperparams[hp_name]) +
-                (1 / tt.exp(hyperparams[hp_name] * 2)) * Ls.T.dot(Ls)
+            llk += self._eval_prior(hyperparams[hp_name], exponent=exponent)
+
+        return llk
+
+    def update_llks(self, point):
+        """
+        Update posterior likelihoods (in place) of the composite w.r.t.
+        one point in the solution space.
+
+        Parameters
+        ----------
+        point : dict
+            with numpy array-like items and variable name keys
+        """
+        for l, varname in enumerate(self.slip_varnames):
+            Ls = self.smoothing_op * point[varname]
+            _llk = Ls.T.dot(Ls)
+            self._llks[l].set_value(_llk)
+
+    def get_hyper_formula(self, hyperparams):
+        """
+        Get likelihood formula for the hyper model built. Has to be called
+        within a with model context.
+        """
+
+        logpts = tt.zeros((self.n_t), tconfig.floatX)
+        for k in range(self.n_t):
+            logpt = self._eval_prior(
+                hyperparams[bconfig.hyper_name_laplacian], self._llks[k])
+            logpts = tt.set_subtensor(logpts[k:k + 1], logpt)
+
+        llk = Deterministic(self._like_name, logpts)
+        return llk.sum()
+
+    @property
+    def n_t(self):
+        return len(self.slip_varnames)
+
 
 class SeismicDistributerComposite(SeismicComposite):
     """

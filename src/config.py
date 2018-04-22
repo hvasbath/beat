@@ -96,6 +96,8 @@ modes_catalog = collections.OrderedDict([
     ['ffi', ffi_catalog],
     ['interseismic', interseismic_catalog]])
 
+hyper_name_laplacian = 'h_laplacian'
+
 moffdiag = (-1., 1.)
 mdiag = (-num.sqrt(2), num.sqrt(2))
 
@@ -457,6 +459,21 @@ class GeodeticConfig(Object):
         return ['_'.join(('h', typ)) for typ in self.types]
 
 
+class ModeConfig(Object):
+    """
+    BaseConfig for optimization mode specific configuration.
+    """
+    pass
+
+
+class FFIConfig(ModeConfig):
+
+    regularization = StringChoice.T(
+        default='none',
+        choices=['laplacian', 'trans-dimensional', 'none'],
+        help='Flag for regularization in distributed slip-optimization.')
+
+
 class ProblemConfig(Object):
     """
     Config for optimization problem to setup.
@@ -466,6 +483,9 @@ class ProblemConfig(Object):
         default='geometry',
         help='Problem to solve: "geometry", "ffi",'
              ' "interseismic"',)
+    mode_config = ModeConfig.T(
+        optional=True,
+        help='Global optimization mode specific parameters.')
     source_type = StringChoice.T(
         default='RectangularSource',
         choices=source_names,
@@ -489,6 +509,17 @@ class ProblemConfig(Object):
         help='Hyperparameters to weight different types of datatypes.')
     priors = Dict.T(
         help='Priors of the variables in question.')
+
+    def __init__(self, **kwargs):
+
+        mode = 'mode'
+        if mode in kwargs:
+            omode = kwargs[mode]
+
+            if omode == 'ffi':
+                kwargs['mode_config'] = FFIConfig()
+
+        Object.__init__(self, **kwargs)
 
     def init_vars(self, variables=None):
         """
@@ -816,7 +847,9 @@ class BEATconfig(Object, Cloneable):
         if self.seismic_config is not None:
             hypernames.extend(self.seismic_config.get_hypernames())
 
-!
+        if self.problem_config.mode == 'ffi':
+            if self.problem_config.mode_config.regularization == 'laplacian':
+                hypernames.append(hyper_name_laplacian)
 
         hypers = dict()
         for name in hypernames:
