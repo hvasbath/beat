@@ -1081,7 +1081,7 @@ def command_check(args):
 
         parser.add_option(
             '--datatypes',
-            default=['geodetic', ' seismic'],
+            default=[' seismic'],
             type='string',
             action='callback',
             callback=list_callback,
@@ -1093,6 +1093,15 @@ def command_check(args):
             choices=['stores', 'traces', 'library'],
             default='stores',
             help='Setup item to check; "stores, traces", Default: "stores"')
+
+        parser.add_option(
+            '--targets',
+            default=[0],
+            type='string',
+            action='callback',
+            callback=list_callback,
+            help='Indexes to targets to display.'
+            )
 
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
@@ -1140,12 +1149,16 @@ def command_check(args):
 
                             logger.info(
                                 'Loading Greens Functions'
-                                ' Library %s for first target' % filename)
+                                ' Library %s for %s target' % (
+                                    filename,
+                                    utility.list2string(options.targets)))
                             gfs = ffi.load_gf_library(
                                 directory=outdir, filename=filename)
 
+                            targets = [
+                                int(target) for target in options.targets]
                             trs = gfs.get_traces(
-                                targetidxs=[0],
+                                targetidxs=targets,
                                 patchidxs=range(gfs.npatches),
                                 durationidxs=range(gfs.ndurations),
                                 starttimeidxs=range(gfs.nstarttimes))
