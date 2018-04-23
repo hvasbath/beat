@@ -1887,6 +1887,32 @@ def fault_slip_distribution(
     fault : 
 
     """
+
+    def draw_quivers(
+            ax, uperp, uparr, xgr, ygr, rake, color='black',
+            draw_legend=False):
+
+        angles = num.arctan2(uperp, uparr) * \
+            (180. / num.pi) + rake
+
+        slips = num.sqrt((uperp ** 2 + uparr ** 2)).ravel()
+        slipsx = num.cos(angles * num.pi / 180.) * slips
+        slipsy = num.sin(angles * num.pi / 180.) * slips
+
+        # slip arrows of mean slip on patches
+        quivers = ax.quiver(
+            xgr.ravel(), ygr.ravel(), slipsx, slipsy,
+            units='dots', angles=angles, width=1., color=color)
+
+        if draw_legend:
+            quiver_legend_length = num.floor(num.max(slips) * 10.) / 10.
+
+            plt.quiverkey(
+                quivers, width / 4., height / 4., quiver_legend_length,
+                '%i [m]' % quiver_legend_length)
+
+        return slipsx, slipsy
+
     reference_slip = num.sqrt(
         reference['uperp'] ** 2 + reference['uparr'] ** 2)
 
@@ -1963,7 +1989,7 @@ def fault_slip_distribution(
                     sts = fault.get_subfault_starttimes(
                         0, velocities[i, :], nuc_dip_idx, nuc_strike_idx)
 
-                    ax.contour(xgr, ygr, sts, colors='gray', alpha=0.01)
+                    ax.contour(xgr, ygr, sts, colors='gray', alpha=0.1)
 
             ref_starttimes = fault.point2starttimes(reference)
             contours = ax.contour(xgr, ygr, ref_starttimes, colors='black')
@@ -1981,22 +2007,9 @@ def fault_slip_distribution(
             uparrmean = uparr.mean(axis=0)
             uperpmean = uperp.mean(axis=0)
 
-            angles = num.arctan2(uperpmean, uparrmean) * \
-                (180. / num.pi) + ext_source.rake
-
-            slips = num.sqrt((uperpmean ** 2 + uparrmean ** 2)).ravel()
-            slipsx = num.cos(angles * num.pi / 180.) * slips
-            slipsy = num.sin(angles * num.pi / 180.) * slips
-            quiver_legend_length = num.floor(num.max(slips) * 10.) / 10.
-
-            # slip arrows of mean slip on patches
-            quivers = ax.quiver(
-                xgr.ravel(), ygr.ravel(), slipsx, slipsy,
-                units='dots', angles=angles, width=1.)
-
-            plt.quiverkey(
-                quivers, width / 4., height / 4., quiver_legend_length,
-                '%i [m]' % quiver_legend_length)
+            slipsx, slipsy = draw_quivers(
+                ax, uperpmean, uparrmean, xgr, ygr,
+                ext_source.rake, color='grey', draw_legend=False)
 
             slipvecrotmat = mt.euler_to_matrix(
                 0.0, 0.0, ext_source.rake * mt.d2r)
@@ -2013,6 +2026,10 @@ def fault_slip_distribution(
                 xcoords = xgr.ravel()[i] + rot_ellipse[:, 0] + slipsx[i]
                 ycoords = ygr.ravel()[i] + rot_ellipse[:, 1] + slipsy[i]
                 ax.plot(xcoords, ycoords, '-k', linewidth=0.5)
+
+        draw_quivers(
+            ax, reference['uperp'], reference['uparr'], xgr, ygr,
+            ext_source.rake, color='black', draw_legend=False)
 
         cb = fig.colorbar(pa_col)
         cb.set_label('slip [m]')
@@ -2056,11 +2073,15 @@ def draw_slip_dist(problem, po):
 
     if po.reference is None:
         reference = get_result_point(stage, problem.config, po.post_llk)
+        llk_str = po.post_llk
+        mtrace = stage.mtrace
     else:
         reference = po.reference
+        llk_str = 'ref'
+        mtrace = None
 
     figs, axs = fault_slip_distribution(
-        fault, stage.mtrace, transform=transform, reference=reference)
+        fault, mtrace, transform=transform, reference=reference)
 
     if po.outformat == 'display':
         plt.show()
@@ -2068,7 +2089,7 @@ def draw_slip_dist(problem, po):
         for i, fig in enumerate(figs):
             outpath = os.path.join(
                 problem.outfolder, po.figure_dir,
-                'slip_dist_subfault_%i.%s' % (i, po.outformat))
+                'slip_dist_subfault_%i_%s.%s' % (i, llk_str, po.outformat))
 
             logger.info('saving figure to %s' % outpath)
             fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
