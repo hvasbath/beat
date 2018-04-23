@@ -513,11 +513,13 @@ class ProblemConfig(Object):
     def __init__(self, **kwargs):
 
         mode = 'mode'
+        mode_config = 'mode_config'
         if mode in kwargs:
             omode = kwargs[mode]
 
             if omode == 'ffi':
-                kwargs['mode_config'] = FFIConfig()
+                if mode_config not in kwargs:
+                    kwargs[mode_config] = FFIConfig()
 
         Object.__init__(self, **kwargs)
 

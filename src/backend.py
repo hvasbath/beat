@@ -208,7 +208,7 @@ class TextChain(BaseSMCTrace):
         if self.df is None:
             try:
                 self.df = pd.read_csv(self.filename)
-            except pd.parser.EmptyDataError:
+            except pd.errors.EmptyDataError:
                 logger.warn(
                     'Trace %s is empty and needs to be resampled!' %
                     self.filename)

@@ -26,6 +26,8 @@ from beat.interseismic import geo_backslip_synthetics, seperate_point
 
 import logging
 
+# disable theano rounding warning
+tconfig.warn.round = False
 
 km = 1000.
 
@@ -1233,7 +1235,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
         raise NotImplementedError('Not implemented yet!')
 
 
-class SmoothingDistributerComposite():
+class LaplacianDistributerComposite():
 
     def __init__(self, project_dir, hypers):
 
@@ -1310,17 +1312,23 @@ class SmoothingDistributerComposite():
         """
         logger.info('Initialising Laplacian smoothing operator ...')
 
+        self.input_rvs = input_rvs
+        self.fixed_rvs = fixed_rvs
+
         hp_name = bconfig.hyper_name_laplacian
         self.input_rvs.update(fixed_rvs)
 
-        llk = tt.zeros(1, 1)
-        for var in self.slip_varnames:
-            Ls = self.shared_smoothing_op * input_rvs[var]
+        logpts = tt.zeros((self.n_t), tconfig.floatX)
+        for l, var in enumerate(self.slip_varnames):
+            Ls = self.shared_smoothing_op.dot(input_rvs[var])
             exponent = Ls.T.dot(Ls)
 
-            llk += self._eval_prior(hyperparams[hp_name], exponent=exponent)
+            logpts = tt.set_subtensor(
+                logpts[l:l + 1],
+                self._eval_prior(hyperparams[hp_name], exponent=exponent))
 
-        return llk
+        llk = Deterministic(self._like_name, logpts)
+        return llk.sum()
 
     def update_llks(self, point):
         """
@@ -1333,8 +1341,8 @@ class SmoothingDistributerComposite():
             with numpy array-like items and variable name keys
         """
         for l, varname in enumerate(self.slip_varnames):
-            Ls = self.smoothing_op * point[varname]
-            _llk = Ls.T.dot(Ls)
+            Ls = self.smoothing_op.dot(point[varname])
+            _llk = num.asarray([Ls.T.dot(Ls)])
             self._llks[l].set_value(_llk)
 
     def get_hyper_formula(self, hyperparams):
@@ -1629,7 +1637,7 @@ geometry_composite_catalog = {
 distributer_composite_catalog = {
     'seismic': SeismicDistributerComposite,
     'geodetic': GeodeticDistributerComposite,
-    'smoothing': SmoothingDistributerComposite}
+    'laplacian': LaplacianDistributerComposite}
 
 interseismic_composite_catalog = {
     'geodetic': GeodeticInterseismicComposite}
@@ -1755,18 +1763,21 @@ class Problem(object):
             total_llk = tt.zeros((1), tconfig.floatX)
 
             for datatype, composite in self.composites.iteritems():
-                input_rvs = utility.weed_input_rvs(
-                    self.rvs, mode, datatype=datatype)
-                fixed_rvs = utility.weed_input_rvs(
-                    self.fixed_params, mode, datatype=datatype)
+                if datatype in bconfig.modes_catalog[mode].keys():
+                    input_rvs = utility.weed_input_rvs(
+                        self.rvs, mode, datatype=datatype)
+                    fixed_rvs = utility.weed_input_rvs(
+                        self.fixed_params, mode, datatype=datatype)
 
-                if mode == 'ffi':
-                    # do the optimization only on the reference velocity model
-                    logger.info("Loading %s Green's Functions" % datatype)
-                    data_config = self.config[datatype + '_config']
-                    composite.load_gfs(
-                        crust_inds=[data_config.gf_config.reference_model_idx],
-                        make_shared=True)
+                    if mode == 'ffi':
+                        # do the optimization only on the
+                        # reference velocity model
+                        logger.info("Loading %s Green's Functions" % datatype)
+                        data_config = self.config[datatype + '_config']
+                        composite.load_gfs(
+                            crust_inds=[
+                                data_config.gf_config.reference_model_idx],
+                            make_shared=True)
 
                 total_llk += composite.get_formula(
                     input_rvs, fixed_rvs, self.hyperparams)
@@ -2112,6 +2123,13 @@ class DistributionOptimizer(Problem):
                     config.project_dir,
                     self.event,
                     hypers)
+
+        regularization = config.problem_config.mode_config.regularization
+        try:
+            self.composites[regularization] = distributer_composite_catalog[
+                regularization](config.project_dir, hypers)
+        except KeyError:
+            logger.info('Using "%s" regularization ...' % regularization)
 
         self.config = config
 
