@@ -1513,7 +1513,8 @@ class SeismicDistributerComposite(SeismicComposite):
                 synthetics += self.gfs[key].stack_all(
                     starttimes=starttimes,
                     durations=input_rvs['durations'],
-                    slips=input_rvs[var])
+                    slips=input_rvs[var],
+                    interpolation=wmap.interpolation)
 
             logger.debug('Get hypocenter location ...')
             patchidx = self.fault.spatchmap(
@@ -1603,7 +1604,8 @@ class SeismicDistributerComposite(SeismicComposite):
                 synthetics += gflibrary.stack_all(
                     starttimes=starttimes,
                     durations=tpoint['durations'],
-                    slips=tpoint[var])
+                    slips=tpoint[var],
+                    interpolation=wmap.interpolation)
 
             for i, target in enumerate(wmap.targets):
                 tr = trace.Trace(

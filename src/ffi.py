@@ -67,6 +67,13 @@ class GFLibrary(object):
         self._patchidxs = None
         self._mode = 'numpy'
 
+    def _check_mode_init(self, mode):
+        if mode == 'theano':
+            if self._sgfmatrix is None:
+                raise GFLibraryError(
+                    'To use "stack_all" theano stacking optimization mode'
+                    ' has to be initialised!')
+
     def _check_setup(self):
         if sum(self.config.dimensions) == 0:
             raise GFLibraryError(
@@ -88,6 +95,13 @@ class GFLibrary(object):
         if self._patchidxs is None:
             self._patchidxs = num.arange(self.npatches, dtype='int16')
         return self._patchidxs
+
+    @property
+    def sw_patchidxs(self):
+        if self._mode == 'numpy':
+            return self.patchidxs
+        elif self._mode == 'theano':
+            return self.spatchidxs
 
     def save_config(self, outdir='', filename=None):
 
@@ -283,17 +297,8 @@ filename: %s''' % (
         -------
         matrix : size (nsamples)
         """
-
-        if self._mode == 'theano':
-            if self._sgfmatrix is None:
-                raise GFLibraryError(
-                    'To use "stack_all" theano stacking optimization mode'
-                    ' has to be initialised!')
-
-            return self._sgfmatrix.T.dot(slips)
-
-        elif self._mode == 'numpy':
-            return self._gfmatrix.T.dot(slips)
+        self._check_mode_init(self._mode)
+        return self.stack_switch[self._mode].T.dot(slips)
 
     @property
     def nsamples(self):
@@ -490,7 +495,7 @@ filename: %s''' % (
         elif self._mode == 'numpy':
             return self._tmins[:, patchidx]
 
-    def starttimes2idxs(self, starttimes):
+    def starttimes2idxs(self, starttimes, interpolation='nearest_neighbor'):
         """
         Transforms starttimes into indexes to the GFLibrary.
         Depending on the stacking mode of the GFLibrary theano or numpy
@@ -505,10 +510,23 @@ filename: %s''' % (
         -------
         starttimeidxs : starttimes : :class:`numpy.ndarray` or
             :class:`theano.tensor.Tensor`, int16
+            (output depends on interpolation scheme,
+             if multilinear interpolation factors are returned as well)
         """
-        return backends[self._mode].round(
-            (starttimes - self.starttime_min) /
-            self.starttime_sampling).astype('int16')
+        if interpolation == 'nearest_neighbor':
+            return backends[self._mode].round(
+                (starttimes - self.starttime_min) /
+                self.starttime_sampling).astype('int16'), None
+        elif interpolation == 'multilinear':
+            dstarttimes = (starttimes - self.starttime_min) / \
+                self.starttime_sampling
+            ceil_starttimes = backends[self._mode].ceil(
+                dstarttimes).astype('int16')
+            factors = ceil_starttimes - dstarttimes
+            return ceil_starttimes, factors
+        else:
+            raise NotImplementedError(
+                'Interpolation scheme %s not implemented!' % interpolation)
 
     def idxs2durations(self, idxs):
         """
@@ -522,7 +540,7 @@ filename: %s''' % (
         """
         return idxs * self.starttime_sampling + self.starttime_min
 
-    def durations2idxs(self, durations):
+    def durations2idxs(self, durations, interpolation='nearest_neighbor'):
         """
         Transforms durations into indexes to the GFLibrary.
         Depending on the stacking mode of the GFLibrary theano or numpy
@@ -538,9 +556,20 @@ filename: %s''' % (
         durationidxs : starttimes : :class:`numpy.ndarray` or
             :class:`theano.tensor.Tensor`, int16
         """
-        return backends[self._mode].round(
-            (durations - self.duration_min) /
-            self.duration_sampling).astype('int16')
+        if interpolation == 'nearest_neighbor':
+            return backends[self._mode].round(
+                (durations - self.duration_min) /
+                self.duration_sampling).astype('int16'), None
+        elif interpolation == 'multilinear':
+            ddurations = (durations - self.duration_min) / \
+                self.duration_sampling
+            ceil_durations = backends[self._mode].ceil(
+                ddurations).astype('int16')
+            factors = ceil_durations - ddurations
+            return ceil_durations, factors
+        else:
+            raise NotImplementedError(
+                'Interpolation scheme %s not implemented!' % interpolation)
 
     def stack(self, targetidx, patchidxs, durationidxs, starttimeidxs, slips):
         """
@@ -560,7 +589,9 @@ filename: %s''' % (
             targetidx, patchidxs, durationidxs, starttimeidxs, :].reshape(
                 (slips.shape[0], self.nsamples)).T.dot(slips)
 
-    def stack_all(self, durations, starttimes, slips):
+    def stack_all(
+            self, durations, starttimes, slips,
+            interpolation='nearest_neighbor'):
         """
         Stack all patches for all targets at once.
         In theano for efficient optimization.
@@ -573,29 +604,68 @@ filename: %s''' % (
         matrix : size (ntargets, nsamples)
         option : tensor.batched_dot(sd.dimshuffle((1,0,2)), u).sum(axis=0)
         """
-        durationidxs = self.durations2idxs(durations)
-        starttimeidxs = self.starttimes2idxs(starttimes)
+
+        self._check_mode_init(self._mode)
+
+        durationidxs, rt_factors = self.durations2idxs(
+            durations, interpolation=interpolation)
+        starttimeidxs, st_factors = self.starttimes2idxs(
+            starttimes, interpolation=interpolation)
+
+        if interpolation == 'nearest_neighbor':
+
+            nslips = 1
+            cd = self._stack_switch[self._mode][
+                :, self.sw_patchidxs,
+                durationidxs, starttimeidxs, :].reshape(
+                    (self.ntargets, self.npatches, self.nsamples))
+            cslips = slips
+
+        elif interpolation == 'multilinear':
+
+            nslips = 4
+            d_st_ceil_rt_ceil = self._stack_switch[self._mode][
+                :, self.sw_patchidxs,
+                durationidxs, starttimeidxs, :].reshape(
+                (self.ntargets, self.npatches, self.nsamples))
+            d_st_floor_rt_ceil = self._stack_switch[self._mode][
+                :, self.sw_patchidxs,
+                durationidxs, starttimeidxs - 1, :].reshape(
+                (self.ntargets, self.npatches, self.nsamples))
+            d_st_ceil_rt_floor = self._stack_switch[self._mode][
+                :, self.sw_patchidxs,
+                durationidxs - 1, starttimeidxs, :].reshape(
+                (self.ntargets, self.npatches, self.nsamples))
+            d_st_floor_rt_floor = self._stack_switch[self._mode][
+                :, self.sw_patchidxs,
+                durationidxs - 1, starttimeidxs - 1, :].reshape(
+                (self.ntargets, self.npatches, self.nsamples))
+
+            s_st_ceil_rt_ceil = (1 - st_factors) * (1 - rt_factors) * slips
+            s_st_floor_rt_ceil = st_factors * (1. - rt_factors) * slips
+            s_st_ceil_rt_floor = (1 - st_factors) * rt_factors * slips
+            s_st_floor_rt_floor = st_factors * rt_factors * slips
+
+            cd = backends[self._mode].concatenate(
+                [d_st_ceil_rt_ceil, d_st_floor_rt_ceil,
+                 d_st_ceil_rt_floor, d_st_floor_rt_floor], axis=1)
+            cslips = backends[self._mode].concatenate(
+                [s_st_ceil_rt_ceil, s_st_floor_rt_ceil,
+                 s_st_ceil_rt_floor, s_st_floor_rt_floor])
+
+        else:
+            raise NotImplementedError(
+                'Interpolation scheme %s not implemented!' % interpolation)
 
         if self._mode == 'theano':
-            if self._sgfmatrix is None:
-                raise GFLibraryError(
-                    'To use "stack_all" theano stacking optimization mode'
-                    ' has to be initialised!')
-
-            d = self._sgfmatrix[
-                :, self.spatchidxs, durationidxs, starttimeidxs, :].reshape(
-                (self.ntargets, self.npatches, self.nsamples))
             return tt.batched_dot(
-                d.dimshuffle((1, 0, 2)), slips).sum(axis=0)
+                cd.dimshuffle((1, 0, 2)), cslips).sum(axis=0)
 
         elif self._mode == 'numpy':
             u2d = num.tile(
-                slips, self.nsamples).reshape((self.nsamples, self.npatches))
-
-            d = self._gfmatrix[
-                :, self.patchidxs, durationidxs, starttimeidxs, :].reshape(
-                (self.ntargets, self.npatches, self.nsamples))
-            return num.einsum('ijk->ik', d * u2d.T)
+                cslips, self.nsamples).reshape(
+                    (self.nsamples, self.npatches * nslips))
+            return num.einsum('ijk->ik', cd * u2d.T)
 
     def get_traces(
             self, targetidxs=[0], patchidxs=[0], durationidxs=[0],

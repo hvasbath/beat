@@ -76,6 +76,10 @@ plot_units = {
     'bl_amplitude': u_m,
     'locking_depth': u_km,
 
+    'nucleation_dip': u_km,
+    'nucleation_strike': u_km,
+    'time_shift': u_s,
+
     'mnn': u_nm,
     'mee': u_nm,
     'mdd': u_nm,
