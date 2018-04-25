@@ -248,7 +248,7 @@ class SMC(backend.ArrayStepSharedLLK):
                              model=model)
             self.population.append(dummy)
 
-        self.population[0] = model.test_point
+#        self.population[0] = model.test_point
 
         self.chain_previous_lpoint = copy.deepcopy(self.population)
 

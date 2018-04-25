@@ -66,6 +66,7 @@ class GFLibrary(object):
         self._sgfmatrix = None
         self._patchidxs = None
         self._mode = 'numpy'
+        self._stack_switch = {}
 
     def _check_mode_init(self, mode):
         if mode == 'theano':
@@ -177,6 +178,8 @@ def load_gf_library(directory='', filename=None):
 
     else:
         raise ValueError('datatype "%s" not supported!' % datatype)
+
+    gfs._stack_switch['numpy'] = gfs._gfmatrix
     return gfs
 
 

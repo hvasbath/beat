@@ -2090,13 +2090,13 @@ def draw_slip_dist(problem, po):
     if po.outformat == 'display':
         plt.show()
     else:
-        for i, fig in enumerate(figs):
-            outpath = os.path.join(
-                problem.outfolder, po.figure_dir,
-                'slip_dist_subfault_%i_%s.%s' % (i, llk_str, po.outformat))
+        outpath = os.path.join(
+            problem.outfolder, po.figure_dir,
+            'slip_dist_%s.%s' % (llk_str, po.outformat))
 
-            logger.info('saving figure to %s' % outpath)
-            fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
+        with PdfPages(outpath) as opdf:
+            for fig in figs:
+                opdf.savefig(fig, dpi=po.dpi)
 
 
 plots_catalog = {

@@ -1514,7 +1514,7 @@ class SeismicDistributerComposite(SeismicComposite):
                     starttimes=starttimes,
                     durations=input_rvs['durations'],
                     slips=input_rvs[var],
-                    interpolation=wmap.interpolation)
+                    interpolation=wmap.config.interpolation)
 
             logger.debug('Get hypocenter location ...')
             patchidx = self.fault.spatchmap(
@@ -1605,7 +1605,7 @@ class SeismicDistributerComposite(SeismicComposite):
                     starttimes=starttimes,
                     durations=tpoint['durations'],
                     slips=tpoint[var],
-                    interpolation=wmap.interpolation)
+                    interpolation=wmap.config.interpolation)
 
             for i, target in enumerate(wmap.targets):
                 tr = trace.Trace(
