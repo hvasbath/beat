@@ -1903,10 +1903,11 @@ def fault_slip_distribution(
         slipsx = num.cos(angles * num.pi / 180.) * slips
         slipsy = num.sin(angles * num.pi / 180.) * slips
 
-        # slip arrows of mean slip on patches
+        # slip arrows of slip on patches
         quivers = ax.quiver(
             xgr.ravel(), ygr.ravel(), slipsx, slipsy,
-            units='dots', angles=angles, width=1., color=color)
+            units='dots', angles='xy', scale_units='xy', scale=1,
+            width=1., color=color)
 
         if draw_legend:
             quiver_legend_length = num.floor(num.max(slips) * 10.) / 10.
@@ -2033,7 +2034,7 @@ def fault_slip_distribution(
 
         draw_quivers(
             ax, reference['uperp'], reference['uparr'], xgr, ygr,
-            ext_source.rake, color='black', draw_legend=False)
+            ext_source.rake, color='black', draw_legend=True)
 
         cb = fig.colorbar(pa_col)
         cb.set_label('slip [m]')
@@ -2094,6 +2095,7 @@ def draw_slip_dist(problem, po):
             problem.outfolder, po.figure_dir,
             'slip_dist_%s.%s' % (llk_str, po.outformat))
 
+        logger.info('Storing slip-distribution to: %s' % outpath)
         with PdfPages(outpath) as opdf:
             for fig in figs:
                 opdf.savefig(fig, dpi=po.dpi)
