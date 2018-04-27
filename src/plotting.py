@@ -1894,12 +1894,18 @@ def fault_slip_distribution(
 
     def draw_quivers(
             ax, uperp, uparr, xgr, ygr, rake, color='black',
-            draw_legend=False):
+            draw_legend=False, normalisation=None):
 
         angles = num.arctan2(uperp, uparr) * \
             (180. / num.pi) + rake
 
         slips = num.sqrt((uperp ** 2 + uparr ** 2)).ravel()
+
+        if normalisation is None:
+            normalisation = slips.max() * num.abs(ygr[1, 0] - ygr[0, 0])
+
+        slips /= normalisation
+
         slipsx = num.cos(angles * num.pi / 180.) * slips
         slipsy = num.sin(angles * num.pi / 180.) * slips
 
@@ -1910,13 +1916,14 @@ def fault_slip_distribution(
             width=1., color=color)
 
         if draw_legend:
-            quiver_legend_length = num.floor(num.max(slips) * 10.) / 10.
+            quiver_legend_length = int(num.floor(
+                num.max(slips * normalisation) * 10.) / 10.)
 
             plt.quiverkey(
-                quivers, width / 4., height / 4., quiver_legend_length,
+                quivers, width / 6., height / 6., quiver_legend_length,
                 '%i [m]' % quiver_legend_length)
 
-        return slipsx, slipsy
+        return quivers, normalisation
 
     reference_slip = num.sqrt(
         reference['uperp'] ** 2 + reference['uparr'] ** 2)
@@ -2006,15 +2013,16 @@ def fault_slip_distribution(
             uperp = transform(
                 mtrace.get_values('uperp', combine=True, squeeze=True))
 
-            uparrstd = uparr.std(axis=0)
-            uperpstd = uperp.std(axis=0)
-
             uparrmean = uparr.mean(axis=0)
             uperpmean = uperp.mean(axis=0)
 
-            slipsx, slipsy = draw_quivers(
+            quivers, normalisation = draw_quivers(
                 ax, uperpmean, uparrmean, xgr, ygr,
-                ext_source.rake, color='grey', draw_legend=False)
+                ext_source.rake, color='grey',
+                draw_legend=False)
+
+            uparrstd = uparr.std(axis=0) / normalisation
+            uperpstd = uperp.std(axis=0) / normalisation
 
             slipvecrotmat = mt.euler_to_matrix(
                 0.0, 0.0, ext_source.rake * mt.d2r)
@@ -2028,13 +2036,14 @@ def fault_slip_distribution(
                     [ellipse_x, ellipse_y, num.zeros_like(ellipse_x)]).T
                 rot_ellipse = ellipse.dot(slipvecrotmat)
 
-                xcoords = xgr.ravel()[i] + rot_ellipse[:, 0] + slipsx[i]
-                ycoords = ygr.ravel()[i] + rot_ellipse[:, 1] + slipsy[i]
+                xcoords = xgr.ravel()[i] + rot_ellipse[:, 0] + quivers.U[i]
+                ycoords = ygr.ravel()[i] + rot_ellipse[:, 1] + quivers.V[i]
                 ax.plot(xcoords, ycoords, '-k', linewidth=0.5)
 
         draw_quivers(
             ax, reference['uperp'], reference['uparr'], xgr, ygr,
-            ext_source.rake, color='black', draw_legend=True)
+            ext_source.rake, color='black', draw_legend=True,
+            normalisation=normalisation)
 
         cb = fig.colorbar(pa_col)
         cb.set_label('slip [m]')
