@@ -1,7 +1,8 @@
 import voronoi_ext
+import numpy as num
 
 
-def get_voronoi_cell_indexes(
+def get_voronoi_cell_indexes_c(
         gf_points_dip, gf_points_strike,
         voronoi_points_dip, voronoi_points_strike):
     """
@@ -26,3 +27,24 @@ def get_voronoi_cell_indexes(
     return voronoi_ext.voronoi(
         gf_points_dip, gf_points_strike,
         voronoi_points_dip, voronoi_points_strike)
+
+
+def get_voronoi_cell_indexes_numpy(
+        gf_points_dip, gf_points_strike,
+        voronoi_points_dip, voronoi_points_strike):
+
+    n_voros = voronoi_points_dip.size
+    n_gfs = gf_points_dip.size
+
+    gfs_dip_arr = num.tile(gf_points_dip, n_voros)
+    gfs_strike_arr = num.tile(gf_points_strike, n_voros)
+
+    voro_dips_arr = num.repeat(voronoi_points_dip, n_gfs)
+    voro_strike_arr = num.repeat(voronoi_points_strike, n_gfs)
+
+    distances = num.sqrt(
+        (gfs_dip_arr - voro_dips_arr) ** 2. +
+        (gfs_strike_arr - voro_strike_arr) ** 2.).reshape(
+            (n_voros, n_gfs))
+
+    return distances.argmin(axis=0)
