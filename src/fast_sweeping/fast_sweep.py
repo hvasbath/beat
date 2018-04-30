@@ -31,7 +31,7 @@ def get_rupture_times_c(
     Parameters
     ----------
     slowness : :class:`numpy.NdArray`
-        Matrix (2d, n_patch_dip x n_patch_strike) of slownesses of
+        Matrix (2d, ( 1 x n_patch_dip * n_patch_strike) of slownesses of
         rupture on patches 1 / rupture_velocity [s / km]
     patch_size : float
         Size of slip patches [km]
