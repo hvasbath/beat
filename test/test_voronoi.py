@@ -2,6 +2,8 @@ import unittest
 import logging
 from time import time
 
+import numpy as num
+
 from beat.utility import get_random_uniform
 from beat.voronoi import voronoi
 from pyrocko import util
@@ -39,8 +41,9 @@ class VoronoiTestCase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
 
-        self.n_gfs = 400
-        self.n_voro = 50
+        self.plot = 0
+        self.n_gfs = 1000
+        self.n_voro = 100
 
         fault_length = 30. * km
         fault_width = 10. * km
@@ -62,17 +65,31 @@ class VoronoiTestCase(unittest.TestCase):
     def test_voronoi_discretization(self):
 
         t0 = time()
-        gf2voro_idxs = voronoi.get_voronoi_cell_indexes(
+        gf2voro_idxs_c = voronoi.get_voronoi_cell_indexes_c(
             self.gf_points_dip, self.gf_points_strike,
             self.voronoi_points_dip, self.voronoi_points_strike)
         t1 = time()
         logger.info(
-            'Discretization on %i GFs with %i '
+            'Discretization with C on %i GFs with %i '
             'voronoi_nodes took: %f' % (self.n_gfs, self.n_voro, (t1 - t0)))
 
-        plot_voronoi_cell_discretization(
+        t2 = time()
+        gf2voro_idxs_numpy = voronoi.get_voronoi_cell_indexes_numpy(
             self.gf_points_dip, self.gf_points_strike,
-            self.voronoi_points_dip, self.voronoi_points_strike, gf2voro_idxs)
+            self.voronoi_points_dip, self.voronoi_points_strike)
+        t3 = time()
+        logger.info(
+            'Discretization with numpy on %i GFs with %i '
+            'voronoi_nodes took: %f' % (self.n_gfs, self.n_voro, (t3 - t2)))
+
+        num.testing.assert_allclose(
+            gf2voro_idxs_c, gf2voro_idxs_numpy, rtol=0., atol=1e-6)
+
+        if self.plot:
+            plot_voronoi_cell_discretization(
+                self.gf_points_dip, self.gf_points_strike,
+                self.voronoi_points_dip, self.voronoi_points_strike,
+                gf2voro_idxs)
 
 
 if __name__ == '__main__':

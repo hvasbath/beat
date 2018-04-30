@@ -57,13 +57,15 @@ void GetMinDistances(npy_intp *VOindx4GFPnt, float64_t *GFPoints_stk, float64_t 
 {
     // for now this is done brute force... => get distance from each to each and keep the smallest
     npy_intp     i,          j;
-    float64_t  CurrDist,    CurrClosest;
+    float64_t  CurrDist,    CurrClosest, dist_dip, dist_strike;
     //----------------------------
     for (i = 0; i < GFPntNum; i++)
     {   CurrClosest = 1.0E+99;
         for (j = 0; j < VOPntNum; j++)
         {
-            CurrDist = pow( ((GFPoints_stk[i] - VOPoints_stk[j])*(GFPoints_stk[i] - VOPoints_stk[j])  +  (GFPoints_dip[i] - VOPoints_dip[j])*(GFPoints_dip[i] - VOPoints_dip[j])),0.5);
+            dist_strike = GFPoints_stk[i] - VOPoints_stk[j];
+            dist_dip = GFPoints_dip[i] - VOPoints_dip[j];
+            CurrDist = pow( ((dist_strike*dist_strike) + (dist_dip*dist_dip)), 0.5);
             if (CurrDist < CurrClosest)
             {   CurrClosest     = CurrDist;
                 VOindx4GFPnt[i] = j;
