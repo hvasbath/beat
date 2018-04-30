@@ -71,5 +71,10 @@ setup(
         Extension(
             'fast_sweep_ext',
             sources=[os.path.join('src/fast_sweeping', 'fast_sweep_ext.c')],
+            include_dirs=[numpy.get_include()]),
+        Extension(
+            'voronoi_ext',
+            extra_compile_args=['-lm'],
+            sources=[os.path.join('src/voronoi', 'voronoi_ext.c')],
             include_dirs=[numpy.get_include()])]
 )

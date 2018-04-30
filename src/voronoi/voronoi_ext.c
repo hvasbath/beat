@@ -17,34 +17,34 @@ int good_array(PyObject* o, int typenum, npy_intp size_want, int ndim_want, npy_
     int i;
 
     if (!PyArray_Check(o)) {
-        PyErr_SetString(FastSweepExtError, "not a NumPy array" );
+        PyErr_SetString(VoronoiExtError, "not a NumPy array" );
         return 0;
     }
 
     if (PyArray_TYPE((PyArrayObject*)o) != typenum) {
-        PyErr_SetString(FastSweepExtError, "array of unexpected type");
+        PyErr_SetString(VoronoiExtError, "array of unexpected type");
         return 0;
     }
 
     if (!PyArray_ISCARRAY((PyArrayObject*)o)) {
-        PyErr_SetString(FastSweepExtError, "array is not contiguous or not well behaved");
+        PyErr_SetString(VoronoiExtError, "array is not contiguous or not well behaved");
         return 0;
     }
 
     if (size_want != -1 && size_want != PyArray_SIZE((PyArrayObject*)o)) {
-        PyErr_SetString(FastSweepExtError, "array is of unexpected size");
+        PyErr_SetString(VoronoiExtError, "array is of unexpected size");
         return 0;
     }
 
     if (ndim_want != -1 && ndim_want != PyArray_NDIM((PyArrayObject*)o)) {
-        PyErr_SetString(FastSweepExtError, "array is of unexpected ndim");
+        PyErr_SetString(VoronoiExtError, "array is of unexpected ndim");
         return 0;
     }
 
     if (ndim_want != -1 && shape_want != NULL) {
         for (i=0; i<ndim_want; i++) {
             if (shape_want[i] != -1 && shape_want[i] != PyArray_DIMS((PyArrayObject*)o)[i]) {
-                PyErr_SetString(FastSweepExtError, "array is of unexpected shape");
+                PyErr_SetString(VoronoiExtError, "array is of unexpected shape");
             return 0;
             }
         }
@@ -57,7 +57,7 @@ void GetMinDistances(npy_intp *VOindx4GFPnt, float64_t *GFPoints_stk, float64_t 
 {
     // for now this is done brute force... => get distance from each to each and keep the smallest
     npy_intp     i,          j;
-    float64_t  CurrDist,    Curnpy_intprClosest;
+    float64_t  CurrDist,    CurrClosest;
     //----------------------------
     for (i = 0; i < GFPntNum; i++)
     {   CurrClosest = 1.0E+99;
@@ -80,37 +80,41 @@ PyObject* w_voronoi(PyObject *dummy, PyObject *args){
 
     PyArrayObject *c_gf_points_dip, *c_gf_points_strike, *c_voronoi_points_dip, *c_voronoi_points_strike, *gf2voro_idxs_arr;
 
-    float64_t *gf_dips, *gf_strikes, *voro_dips, *voro_strikes, *gf2voro_idxs;
-    npy_intp n_gfs, n_voros, arr_size[1];
+    float64_t *gf_dips, *gf_strikes, *voro_dips, *voro_strikes;
+    npy_intp n_gfs[1], n_voros[1], *gf2voro_idxs;
 
     (void) dummy;
 
     if (!PyArg_ParseTuple(args, "OOOO", &gf_points_dip, &gf_points_strike, &voronoi_points_dip, &voronoi_points_strike)){
-        PyErr_SetString(FastSweepExtError, "Invalid call to voronoi! \n usage: voronoi(gf_points_dip, gf_points_strike, voronoi_points_dip, voronoi_points_strike)");
+        PyErr_SetString(VoronoiExtError, "Invalid call to voronoi! \n usage: voronoi(gf_points_dip, gf_points_strike, voronoi_points_dip, voronoi_points_strike)");
         return NULL;
     }
 
-    n_gfs = PyArray_SIZE((PyArrayObject*) gf_points_dip);
-//    printf("size matrix: %lu\n", PyArray_SIZE((PyArrayObject*) slowness_arr));
-//    printf("ndim matrix: %i\n", PyArray_NDIM((PyArrayObject*) slowness_arr));
-    if (!good_array(gf_points_dip, NPY_FLOAT64, n_gfs, -1, NULL)){
+    n_gfs[0] = PyArray_SIZE((PyArrayObject*) gf_points_dip);
+    // printf("size matrix: %lu\n", PyArray_SIZE((PyArrayObject*) gf_points_dip));
+    // printf("ndim matrix: %i\n", PyArray_NDIM((PyArrayObject*) gf_points_dip));
+    if (!good_array(gf_points_dip, NPY_FLOAT64, n_gfs[0], -1, NULL)){
         return NULL;
     }
 
-    n_gfs = PyArray_SIZE((PyArrayObject*) gf_points_strike);
-    if (!good_array(gf_points_strike, NPY_FLOAT64, n_gfs, -1, NULL)){
+    n_gfs[0] = PyArray_SIZE((PyArrayObject*) gf_points_strike);
+    if (!good_array(gf_points_strike, NPY_FLOAT64, n_gfs[0], -1, NULL)){
         return NULL;
     }
 
-    gf2voro_idxs_arr = (PyArrayObject*) PyArray_EMPTY(1, n_gfs, NPY_INT32, 0);
-
-    n_voros = PyArray_SIZE((PyArrayObject*) voronoi_points_dip);
-    if (!good_array(voronoi_points_dip, NPY_FLOAT64, n_voros, -1, NULL)){
+    gf2voro_idxs_arr = (PyArrayObject*) PyArray_EMPTY(1, n_gfs, NPY_INT64, 0);
+    if (gf2voro_idxs_arr==NULL){
+        PyErr_SetString(VoronoiExtError, "Failed to allocate index_matrix!");
         return NULL;
     }
 
-    n_voros = PyArray_SIZE((PyArrayObject*) voronoi_points_strike);
-    if (!good_array(voronoi_points_strike, NPY_FLOAT64, n_voros, -1, NULL)){
+    n_voros[0] = PyArray_SIZE((PyArrayObject*) voronoi_points_dip);
+    if (!good_array(voronoi_points_dip, NPY_FLOAT64, n_voros[0], -1, NULL)){
+        return NULL;
+    }
+
+    n_voros[0] = PyArray_SIZE((PyArrayObject*) voronoi_points_strike);
+    if (!good_array(voronoi_points_strike, NPY_FLOAT64, n_voros[0], -1, NULL)){
         return NULL;
     }
 
@@ -126,7 +130,7 @@ PyObject* w_voronoi(PyObject *dummy, PyObject *args){
     voro_strikes = PyArray_DATA(c_voronoi_points_strike); 
     gf2voro_idxs = PyArray_DATA(gf2voro_idxs_arr);
 
-    GetMinDistances(gf2voro_idxs, gf_strikes, gf_dips, voro_strikes, voro_dips, n_gfs, n_voros);
+    GetMinDistances(gf2voro_idxs, gf_strikes, gf_dips, voro_strikes, voro_dips, n_gfs[0], n_voros[0]);
 
     Py_DECREF(c_gf_points_dip);
     Py_DECREF(c_gf_points_strike);
