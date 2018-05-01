@@ -11,7 +11,9 @@ import shutil
 
 from optparse import OptionParser
 
-from beat import heart, config, utility, models, inputf, plotting, backend
+from beat import heart, config, utility, inputf, plotting
+from beat.models import load_model, Stage, estimate_hypers, sample
+from beat.backend import TextChain
 from beat.sources import MTSourceWithMagnitude
 from beat.metropolis import get_trace_stats
 from beat.utility import list2string
@@ -426,9 +428,9 @@ def command_import(args):
         elif options.mode == 'ffi':
             logger.info('Importing non-linear modeling results, i.e.'
                         ' maximum likelihood result for source geometry.')
-            problem = models.load_model(
+            problem = load_model(
                 c.project_dir, 'geometry', hypers=False)
-            stage = models.load_stage(
+            stage = load_stage(
                 problem, stage_number='final', load='full')
 
             point = plotting.get_result_point(stage, problem.config, 'max')
@@ -586,15 +588,15 @@ def command_sample(args):
     project_dir = get_project_directory(
         args, options, nargs_dict[command_str])
 
-    problem = models.load_model(
+    problem = load_model(
         project_dir, options.mode, options.hypers)
 
     step = problem.init_sampler(hypers=options.hypers)
 
     if options.hypers:
-        models.estimate_hypers(step, problem)
+        estimate_hypers(step, problem)
     else:
-        models.sample(step, problem)
+        sample(step, problem)
 
 
 def command_summarize(args):
@@ -637,7 +639,7 @@ def command_summarize(args):
     if not os.path.exists(
             os.path.join(stage_path, 'chain-0.csv')) or options.force:
 
-        rtrace = backend.TextChain(stage_path, model=problem.model)
+        rtrace = TextChain(stage_path, model=problem.model)
         rtrace.setup(
             draws=sc_params.n_chains * sc_params.n_steps, chain=0)
 
