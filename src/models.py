@@ -19,7 +19,8 @@ from theano import shared
 from theano.printing import Print
 
 from beat import ffi
-from beat import theanof, heart, utility, smc, backend, metropolis
+from beat import theanof, heart, utility, backend
+from beat.sampler import metropolis, smc
 from beat import covariance as cov
 from beat import config as bconfig
 from beat.interseismic import geo_backslip_synthetics, seperate_point

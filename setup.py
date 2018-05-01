@@ -52,7 +52,10 @@ class custom_build_py(build_py):
                     % bd_dir)
 
 
-subpackages = ['beat.fast_sweeping', 'beat.voronoi']
+subpackages = [
+    'beat.fast_sweeping',
+    'beat.voronoi',
+    'beat.sampler']
 
 setup(
     cmdclass={

@@ -24,8 +24,6 @@ from pyrocko.gf import LocalEngine
 
 from pyrocko.guts import load, dump
 
-from pymc3 import summary
-from pymc3.backends.base import MultiTrace
 
 logger = logging.getLogger('beat')
 
@@ -600,6 +598,9 @@ def command_sample(args):
 
 
 def command_summarize(args):
+
+    from pymc3 import summary
+    from pymc3.backends.base import MultiTrace
 
     command_str = 'summarize'
 
