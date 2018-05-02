@@ -133,7 +133,8 @@ default_bounds = dict(
     diameter=(5., 10.),
     mix=(0, 1),
     time=(-3., 3.),
-    time_shift=(-3., 3.),
+    time_shift=(-5., 5.),
+
     delta_time=(0., 10.),
     delta_depth=(0., 10.),
     distance=(0., 10.),
@@ -396,6 +397,9 @@ class SeismicConfig(Object):
         default=True,
         help='Cut the GF traces before stacking around the specified arrival'
              ' taper')
+    station_corrections = Bool.T(
+        default=False,
+        help='If set, optimize for time shift for each station.')
     waveforms = List.T(WaveformFitConfig.T(default=WaveformFitConfig.D()))
     gf_config = GFConfig.T(default=SeismicGFConfig.D())
 
@@ -506,9 +510,19 @@ class ProblemConfig(Object):
         default=1,
         help='Number of Sub-sources to solve for')
     datatypes = List.T(default=['geodetic'])
+    dataset_specific_residual_noise_estimation = Bool.T(
+        default=False,
+        help='If set, for EACH DATASET specific hyperparameter estimation.'
+             'For seismic data: n_hypers = nstations * nchannels.'
+             'For geodetic data: n_hypers = nimages (SAR) or '
+             'nstations * ncomponents (GPS).'
+             'If false one hyperparameter for each DATATYPE and '
+             'displacement COMPONENT.')
     hyperparameters = Dict.T(
+        default=OrderedDict(),
         help='Hyperparameters to weight different types of datatypes.')
     priors = Dict.T(
+        default=OrderedDict(),
         help='Priors of the variables in question.')
 
     def __init__(self, **kwargs):
@@ -524,7 +538,7 @@ class ProblemConfig(Object):
 
         Object.__init__(self, **kwargs)
 
-    def init_vars(self, variables=None):
+    def init_vars(self, variables=None, nvars=None):
         """
         Initiate priors based on the problem mode and datatypes.
 
@@ -536,12 +550,16 @@ class ProblemConfig(Object):
         if variables is None:
             variables = self.select_variables()
 
-        self.priors = OrderedDict()
+        if self.priors is None:
+            self.priors = OrderedDict()
+
         for variable in variables:
-            if variable in block_vars:
-                nvars = 1
-            else:
-                nvars = self.n_sources
+
+            if nvars is None:
+                if variable in block_vars:
+                    nvars = 1
+                else:
+                    nvars = self.n_sources
 
             lower = default_bounds[variable][0]
             upper = default_bounds[variable][1]

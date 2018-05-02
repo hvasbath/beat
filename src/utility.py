@@ -42,6 +42,56 @@ d2r = num.pi / 180.
 km = 1000.
 
 
+class Counter(object):
+    """
+    Counts calls of types with string_ids. Repeated calls with the same
+    string id increase the count.
+    """
+
+    def __init__(self):
+        self.d = dict()
+
+    def __call__(self, string):
+
+        if string not in self.d:
+            self.d[string] = 0
+        else:
+            self.d[string] += 1
+        return self.d[string]
+
+    def reset(self):
+        self.d = dict()
+
+
+class FaultOrdering(object):
+    """
+    A mapping of source patches to the arrays of optimization results.
+
+    Parameters
+    ----------
+    npls : list
+        of number of patches in strike-direction
+    npws : list
+        of number of patches in dip-direction
+    """
+
+    def __init__(self, npls, npws):
+
+        self.vmap = []
+        dim = 0
+        count = 0
+
+        for npl, npw in zip(npls, npws):
+            npatches = npl * npw
+            slc = slice(dim, dim + npatches)
+            shp = (npw, npl)
+            self.vmap.append(PatchMap(count, slc, shp, npatches))
+            dim += npatches
+            count += 1
+
+        self.npatches = dim
+
+
 class ListArrayOrdering(object):
     """
     An ordering for a list to an array space. Takes also non theano.tensors.
@@ -350,7 +400,7 @@ def weed_data_traces(data_traces, stations):
 def weed_targets(targets, stations):
     """
     Throw out targets belonging to stations that are not in the
-    stations list. Keeps list orders!
+    stations list. Keeps list orders and returns new list!
 
     Parameters
     ----------

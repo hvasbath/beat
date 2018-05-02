@@ -276,7 +276,7 @@ class SeismicResult(Object):
     llk = Float.T(default=0., optional=True)
     taper = trace.Taper.T(optional=True)
 
-sqrt2 = num.sqrt(2)
+sqrt2 = num.sqrt(2.)
 
 physical_bounds = dict(
     east_shift=(-500., 500.),
@@ -307,8 +307,10 @@ physical_bounds = dict(
     width=(0., 500.),
     slip=(0., 150.),
     magnitude=(-5., 10.),
+
     time=(-300., 300.),
-    time_shift=(-300., 300.),
+    time_shift=(-40., 40.),
+
     delta_time=(0., 100.),
     delta_depth=(0., 300.),
     distance=(0., 300.),
@@ -395,16 +397,24 @@ class Parameter(Object):
             raise ValueError(
                 'Parameter bounds for "%s" have to be defined!' % self.name)
 
-    def random(self):
+    def random(self, dimension=None):
         """
         Create random samples within the parameter bounds.
+
+        Parameters
+        ----------
+        dimensions : int
+            number of draws from distribution
 
         Returns
         -------
         :class:`numpy.ndarray` of size (n, m)
         """
+        if dimension is None:
+            dimension = self.dimension
+
         return (self.upper - self.lower) * num.random.rand(
-            self.dimension) + self.lower
+            dimension) + self.lower
 
     @property
     def dimension(self):
@@ -1699,7 +1709,7 @@ def geo_construct_gf(
     elif not execute and not os.path.exists(traces_path):
         logger.info('Geo GFs can be created in directory: %s ! '
                     '(execute=True necessary)! GF params: \n' % store_dir)
-        print fomosto_config, c
+        print(fomosto_config, c)
     else:
         logger.info('Traces exist use force=True to overwrite!')
 
@@ -1775,7 +1785,7 @@ def geo_construct_gf_psgrn(
     if not execute:
         logger.info('Geo GFs can be created in directory: %s ! '
                     '(execute=True necessary)! GF params: \n' % c.psgrn_outdir)
-        print c
+        print(c)
 
     if execute:
         logger.info('Creating Geo GFs in directory: %s' % c.psgrn_outdir)
@@ -1895,7 +1905,7 @@ class WaveformMapping(object):
     _target2index = None
 
     def __init__(self, name, stations, weights=None, channels=['Z'],
-                 datasets=None, targets=None):
+                 datasets=None, targets=None, station_correction_idxs=None):
 
         self.name = name
         self.stations = stations
@@ -1903,6 +1913,9 @@ class WaveformMapping(object):
         self.datasets = datasets
         self.targets = targets
         self.channels = channels
+        self._station_correction_reference = copy.deepcopy(
+            station_correction_idxs)
+        self.station_correction_idxs = station_correction_idxs
 
         if self.datasets is not None:
             self._update_trace_wavenames()
@@ -1924,6 +1937,10 @@ class WaveformMapping(object):
         self.weights = weights
 
     def station_distance_weeding(self, event, distances):
+        """
+        Weed stations and related objects based on distances.
+        Works only a single time after init!
+        """
         self.stations = utility.weed_stations(
             self.stations, event, distances=distances)
 
@@ -1933,6 +1950,14 @@ class WaveformMapping(object):
 
         if self.n_t > 0:
             self.targets = utility.weed_targets(self.targets, self.stations)
+
+            # update station_correction_idx
+            target_idxs = num.array(
+                [self.target_index_mapping()[target]
+                 for target in self.targets])
+            self.station_correction_idxs = \
+                self._station_correction_reference[target_idxs]
+
             self._target2index = None   # reset mapping
 
         self.check_consistency()
@@ -2016,6 +2041,8 @@ class DataWaveformCollection(object):
     _targets = OrderedDict()
     _datasets = OrderedDict()
     _target2index = None
+    _station2index = None
+    _station_correction_indexes = None
 
     def __init__(self, stations, waveforms=None):
         self.stations = stations
@@ -2075,6 +2102,43 @@ class DataWaveformCollection(object):
                 (target, i) for (i, target) in enumerate(
                     self._targets.values()))
         return self._target2index
+
+    def station_index_mapping(self):
+        if self._station2index is None:
+            self._station2index = dict(
+                (station, i) for (i, station) in enumerate(
+                    self.stations))
+        return self._station2index
+
+    def get_station_correction_idxs(self, targets):
+        """
+        Returns array of indexes to problem stations,
+
+        Paremeters
+        ----------
+        targets : list
+            containing :class:`DynamicTarget` Objects
+
+        Notes
+        -----
+        Not to mix up with the wavemap specific stations!
+        """
+
+        if self._station_correction_indexes is None:
+            s2i = self.station_index_mapping()
+
+            snames2stations = utility.gather(
+                self.stations, lambda t: t.station)
+
+            s2corr_idxs = []
+            for target in targets:
+                idx = s2i[snames2stations[target.codes[1]][0]]
+                s2corr_idxs.append(idx)
+
+            self._station_correction_indexes = num.array(
+                s2corr_idxs, dtype='int16')
+
+        return self._station_correction_indexes
 
     def get_waveform_names(self):
         return self.waveforms
@@ -2154,7 +2218,8 @@ class DataWaveformCollection(object):
             stations=copy.deepcopy(self.stations),
             datasets=copy.deepcopy(datasets),
             targets=copy.deepcopy(targets),
-            channels=channels)
+            channels=channels,
+            station_correction_idxs=self.get_station_correction_idxs(targets))
 
 
 def concatenate_datasets(datasets):

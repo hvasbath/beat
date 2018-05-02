@@ -85,7 +85,8 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
     return logpts
 
 
-def multivariate_normal_chol(datasets, weights, hyperparams, residuals):
+def multivariate_normal_chol(
+        datasets, weights, hyperparams, residuals, hp_specific=False):
     """
     Calculate posterior Likelihood of a Multivariate Normal distribution.
     Assumes weights to be the inverse cholesky decomposed lower triangle
@@ -103,6 +104,9 @@ def multivariate_normal_chol(datasets, weights, hyperparams, residuals):
     hyperparams : dict
         of :class:`theano.`
     residual : list or array of model residuals
+    hp_specific : boolean
+        if true, the hyperparameters have to be arrays size equal to
+        the number of datasets, if false size: 1.
 
     Returns
     -------
@@ -110,25 +114,32 @@ def multivariate_normal_chol(datasets, weights, hyperparams, residuals):
     """
     n_t = len(datasets)
     logpts = tt.zeros((n_t), tconfig.floatX)
+    count = utility.Counter()
 
     for l, data in enumerate(datasets):
         M = tt.cast(shared(
             data.samples, name='nsamples', borrow=True), 'int16')
         hp_name = '_'.join(('h', data.typ))
+
+        if hp_specific:
+            hp = hyperparams[hp_name][count(hp_name)]
+        else:
+            hp = hyperparams[hp_name]
+
         tmp = weights[l].dot(residuals[l])
 
         logpts = tt.set_subtensor(
             logpts[l:l + 1],
             (-0.5) * (
-                data.covariance.slnf.astype(tconfig.floatX) +
-                (M * 2 * hyperparams[hp_name]) +
-                (1 / tt.exp(hyperparams[hp_name] * 2)) *
+                data.covariance.slnf +
+                (M * 2 * hp) +
+                (1 / tt.exp(hp * 2)) *
                 (tt.dot(tmp, tmp))))
 
     return logpts
 
 
-def hyper_normal(datasets, hyperparams, llks):
+def hyper_normal(datasets, hyperparams, llks, hp_specific=False):
     """
     Calculate posterior Likelihood only dependent on hyperparameters.
 
@@ -139,25 +150,34 @@ def hyper_normal(datasets, hyperparams, llks):
     hyperparams : dict
         of :class:`theano.`
     llks : posterior likelihoods
+    hp_specific : boolean
+        if true, the hyperparameters have to be arrays size equal to
+        the number of datasets, if false size: 1.
 
     Returns
     -------
     array_like
     """
     n_t = len(datasets)
-
     logpts = tt.zeros((n_t), tconfig.floatX)
+    count = utility.Counter()
 
     for k, data in enumerate(datasets):
         M = data.samples
         hp_name = '_'.join(('h', data.typ))
 
+        if hp_specific:
+            hp = hyperparams[hp_name][count(hp_name)]
+        else:
+            hp = hyperparams[hp_name]
+
         logpts = tt.set_subtensor(
             logpts[k:k + 1],
             (-0.5) * (
                 data.covariance.slnf +
-                (M * 2 * hyperparams[hp_name]) +
-                (1 / tt.exp(hyperparams[hp_name] * 2)) * llks[k]))
+                (M * 2 * hp) +
+                (1 / tt.exp(hp * 2)) *
+                llks[k]))
 
     return logpts
 
@@ -189,17 +209,24 @@ class Composite(object):
 
         self.input_rvs = {}
         self.fixed_rvs = {}
+        self.hierarchicals = None
         self.name = None
         self._like_name = None
         self.config = None
 
-    def get_hyper_formula(self, hyperparams):
+    def get_hyper_formula(self, hyperparams, problem_config):
         """
         Get likelihood formula for the hyper model built. Has to be called
         within a with model context.
+
+        problem_config : :class:`config.ProblemConfig`
         """
-        logpts = hyper_normal(self.datasets, hyperparams, self._llks)
-        llk = Deterministic(self._like_name, logpts)
+
+        hp_specific = problem_config.dataset_specific_residual_noise_estimation
+        logpts = hyper_normal(
+            self.datasets, hyperparams, self._llks,
+            hp_specific=hp_specific)
+        llk = pm.Deterministic(self._like_name, logpts)
         return llk.sum()
 
     def apply(self, composite):
@@ -347,26 +374,44 @@ class GeodeticComposite(Composite):
 
         return results
 
+    def init_hierarchicals(self):
+
+        self.hierarchicals = {}
+        if self.config.fit_plane:
+            logger.info('Estimating ramp for each dataset...')
+            for i, data in enumerate(self.datasets):
+                if isinstance(data, heart.DiffIFG):
+
+                    kwargs = dict(
+                        name=data.name + '_ramp',
+                        shape=(2,),
+                        lower=bconfig.default_bounds['ramp'][0],
+                        upper=bconfig.default_bounds['ramp'][1],
+                        testval=0.,
+                        transform=None,
+                        dtype=tconfig.floatX)
+                    try:
+                        self.hierarchicals[data.name] = pm.Uniform(**kwargs)
+
+                    except TypeError:
+                        kwargs.pop('name')
+                        self.hierarchicals[data.name] = \
+                            pm.Uniform.dist(**kwargs)
+
+        logger.info(
+            'Initialized %i hierarchical parameters '
+            '(ramps).' % len(self.hierarchicals.keys()))
+
     def remove_ramps(self, residuals):
         """
         Remove an orbital ramp from the residual displacements
         """
-        self.ramp_params = {}
 
         for i, data in enumerate(self.datasets):
             if isinstance(data, heart.DiffIFG):
-                self.ramp_params[data.name] = Uniform(
-                    data.name + '_ramp',
-                    shape=(2,),
-                    lower=bconfig.default_bounds['ramp'][0],
-                    upper=bconfig.default_bounds['ramp'][1],
-                    testval=0.,
-                    transform=None,
-                    dtype=tconfig.floatX)
-
                 residuals[i] -= get_ramp_displacement(
                     self._slocx[i], self._slocy[i],
-                    self.ramp_params[data.name])
+                    self.hierarchicals[data.name])
 
         return residuals
 
@@ -448,7 +493,8 @@ class GeodeticSourceComposite(GeodeticComposite):
             # reset source time may result in store error otherwise
             source.time = 0.
 
-    def get_formula(self, input_rvs, fixed_rvs, hyperparams):
+    def get_formula(
+            self, input_rvs, fixed_rvs, hyperparams, problem_config):
         """
         Get geodetic likelihood formula for the model built. Has to be called
         within a with model context.
@@ -462,11 +508,14 @@ class GeodeticSourceComposite(GeodeticComposite):
             of :class:`numpy.array`
         hyperparams : dict
             of :class:`pymc3.distribution.Distribution`
+        problem_config : :class:`config.ProblemConfig`
 
         Returns
         -------
         posterior_llk : :class:`theano.tensor.Tensor`
         """
+        hp_specific = problem_config.dataset_specific_residual_noise_estimation
+
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs
 
@@ -488,11 +537,13 @@ class GeodeticSourceComposite(GeodeticComposite):
         residuals = self.Bij.srmap(
             tt.cast((self.sdata - los_disp) * self.sodws, tconfig.floatX))
 
+        self.init_hierarchicals()
         if self.config.fit_plane:
             residuals = self.remove_ramps(residuals)
 
         logpts = multivariate_normal_chol(
-            self.datasets, self.weights, hyperparams, residuals)
+            self.datasets, self.weights, hyperparams, residuals,
+            hp_specific=hp_specific)
 
         llk = Deterministic(self._like_name, logpts)
         return llk.sum()
@@ -671,6 +722,9 @@ class SeismicComposite(Composite):
         self.name = 'seismic'
         self._like_name = 'seis_like'
 
+        if sc.station_corrections:
+            self.correction_name = 'time_shift'
+
         self.event = event
         self.engine = gf.LocalEngine(
             store_superdirs=[sc.gf_config.store_superdir])
@@ -757,6 +811,39 @@ class SeismicComposite(Composite):
     def __getstate__(self):
         self.engine.close_cashed_stores()
         return self.__dict__.copy()
+
+    def init_hierarchicals(self):
+        """
+        Initialise random variables for temporal station corrections.
+        """
+        self.hierarchicals = {}
+        if self.config.station_corrections:
+            nhierarchs = len(self.get_unique_stations())
+            logger.info(
+                'Estimating time shift for each station...')
+            kwargs = dict(
+                name=self.correction_name,
+                shape=nhierarchs,
+                lower=bconfig.default_bounds[self.correction_name][0],
+                upper=bconfig.default_bounds[self.correction_name][1],
+                testval=0.,
+                transform=None,
+                dtype=tconfig.floatX)
+
+            try:
+                station_corrs_rv = pm.Uniform(**kwargs)
+
+            except TypeError:
+                kwargs.pop('name')
+                station_corrs_rv = pm.Uniform.dist(**kwargs)
+
+            self.hierarchicals[self.correction_name] = station_corrs_rv
+        else:
+            nhierarchs = 0
+
+        logger.info(
+            'Initialized %i hierarchical parameters for '
+            'station corrections.' % nhierarchs)
 
     def get_unique_stations(self):
         sl = [wmap.stations for wmap in self.wavemaps]
@@ -891,6 +978,9 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.sources = sources
 
+        if self.config.station_corrections:
+            self.correction_name = 'time_shift'
+
         if not hypers:
             # syntetics generation
             logger.debug('Initialising synthetics functions ... \n')
@@ -943,7 +1033,8 @@ class SeismicGeometryComposite(SeismicComposite):
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
 
-    def get_formula(self, input_rvs, fixed_rvs, hyperparams):
+    def get_formula(
+            self, input_rvs, fixed_rvs, hyperparams, problem_config):
         """
         Get seismic likelihood formula for the model built. Has to be called
         within a with model context.
@@ -956,11 +1047,14 @@ class SeismicGeometryComposite(SeismicComposite):
             of :class:`numpy.array`
         hyperparams : dict
             of :class:`pymc3.distribution.Distribution`
+        problem_config : :class:`config.ProblemConfig`
 
         Returns
         -------
         posterior_llk : :class:`theano.tensor.Tensor`
         """
+        hp_specific = problem_config.dataset_specific_residual_noise_estimation
+
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs
 
@@ -970,19 +1064,29 @@ class SeismicGeometryComposite(SeismicComposite):
 
         t2 = time.time()
         wlogpts = []
+
+        self.init_hierarchicals()
+
         for wmap in self.wavemaps:
             synths, tmins = self.synthesizers[wmap.name](self.input_rvs)
+
+            if hasattr(self, 'correction_name'):
+                tmins += self.hierarchicals[
+                    self.correction_name][wmap.station_correction_idxs]
+
             data_trcs = self.choppers[wmap.name](tmins)
             residuals = data_trcs - synths
 
             logpts = multivariate_normal_chol(
-                wmap.datasets, wmap.weights, hyperparams, residuals)
+                wmap.datasets, wmap.weights, hyperparams, residuals,
+                hp_specific=hp_specific)
 
             wlogpts.append(logpts)
 
         t3 = time.time()
         logger.debug(
-            'Seismic forward model on test model takes: %f' % (t3 - t2))
+            'Teleseismic forward model on test model takes: %f' %
+            (t3 - t2))
 
         llk = Deterministic(self._like_name, tt.concatenate((wlogpts)))
         return llk.sum()
@@ -1002,6 +1106,7 @@ class SeismicGeometryComposite(SeismicComposite):
         -------
         default: array of synthetics for all targets
         """
+
         self.point2sources(point)
 
         sc = self.config
@@ -1019,14 +1124,24 @@ class SeismicGeometryComposite(SeismicComposite):
                 filterer=wc.filterer,
                 pre_stack_cut=sc.pre_stack_cut,
                 **kwargs)
-            synths.extend(synthetics)
 
-            obs.extend(heart.taper_filter_traces(
+            if self.config.station_corrections:
+                sh = point[
+                    self.correction_name][wmap.station_correction_idxs]
+                for i, tr in enumerate(synthetics):
+                    tr.tmin += sh[i]
+                    tr.tmax += sh[i]
+
+            synths.extend(synthetics)
+            
+            obs_tr = heart.taper_filter_traces(
                 wmap.datasets,
                 arrival_taper=wc.arrival_taper,
                 filterer=wc.filterer,
                 tmins=tmins,
-                **kwargs))
+                **kwargs)
+
+            obs.extend(obs_tr)
 
         return synths, obs
 
@@ -1665,6 +1780,19 @@ interseismic_composite_catalog = {
     'geodetic': GeodeticInterseismicComposite}
 
 
+class InconsistentNumberHyperparametersError(Exception):
+
+    context = 'Configuration file has to be updated!' + \
+              ' Hyperparameters have to be re-estimated. \n' + \
+              ' Please run "beat sample <project_dir> --hypers"'
+
+    def __init__(self, errmess=''):
+        self.errmess = errmess
+
+    def __str__(self):
+        return '\n%s\n%s' % (self.errmess, self.context)
+
+
 class Problem(object):
     """
     Overarching class for the optimization problems to be solved.
@@ -1775,7 +1903,7 @@ class Problem(object):
 
         logger.info('... Building model ...\n')
 
-        mode = self.config.problem_config.mode
+        pc = self.config.problem_config
 
         with Model() as self.model:
 
@@ -1786,13 +1914,13 @@ class Problem(object):
             total_llk = tt.zeros((1), tconfig.floatX)
 
             for datatype, composite in self.composites.iteritems():
-                if datatype in bconfig.modes_catalog[mode].keys():
+                if datatype in bconfig.modes_catalog[pc.mode].keys():
                     input_rvs = utility.weed_input_rvs(
-                        self.rvs, mode, datatype=datatype)
+                        self.rvs, pc.mode, datatype=datatype)
                     fixed_rvs = utility.weed_input_rvs(
-                        self.fixed_params, mode, datatype=datatype)
+                        self.fixed_params, pc.mode, datatype=datatype)
 
-                    if mode == 'ffi':
+                    if pc.mode == 'ffi':
                         # do the optimization only on the
                         # reference velocity model
                         logger.info("Loading %s Green's Functions" % datatype)
@@ -1802,8 +1930,8 @@ class Problem(object):
                                 data_config.gf_config.reference_model_idx],
                             make_shared=True)
 
-                total_llk += composite.get_formula(
-                    input_rvs, fixed_rvs, self.hyperparams)
+                    total_llk += composite.get_formula(
+                        input_rvs, fixed_rvs, self.hyperparams, pc)
 
             # deterministic RV to write out llks to file
             like = Deterministic('tmp', total_llk)
@@ -1823,7 +1951,7 @@ class Problem(object):
 
         pc = self.config.problem_config
 
-        point = {}
+        point = self.get_random_point(include=['hierarchicals', 'prioŕs'])
         for param in pc.priors.values():
             point[param.name] = param.testvalue
 
@@ -1836,24 +1964,39 @@ class Problem(object):
             total_llk = tt.zeros((1), tconfig.floatX)
 
             for composite in self.composites.itervalues():
-                total_llk += composite.get_hyper_formula(self.hyperparams)
+                total_llk += composite.get_hyper_formula(self.hyperparams, pc)
 
             like = Deterministic('tmp', total_llk)
             llk = Potential(self._like_name, like)
             logger.info('Hyper model building was successful!')
 
-    def get_random_point(self):
+    def get_random_point(self, include=['priors', 'hierarchicals', 'hypers']):
         """
         Get random point in solution space.
         """
         pc = self.config.problem_config
 
-        point = {param.name: param.random() for param in pc.priors.values()}
-        hps = {param.name: param.random()
-               for param in pc.hyperparameters.values()}
+        point = {}
+        if 'hierarchicals' in include:
+            if self.hierarchicals is None:
+                self.init_hierarchicals()
 
-        for k, v in hps.iteritems():
-            point[k] = v
+            for name, param in self.hierarchicals.items():
+                point[name] = param.random()
+
+        if 'priors' in include:
+            dummy = {
+                param.name: param.random() for param in pc.priors.values()}
+            point.update(dummy)
+
+        if 'hypers' in include:
+            if len(self.hyperparams) == 0:
+                self.hyperparams = self.get_hyperparams()
+
+            hps = {hp_name: param.random()
+                   for hp_name, param in self.hyperparams.iteritems()}
+
+            point.update(hps)
 
         return point
 
@@ -1900,29 +2043,61 @@ class Problem(object):
         Has to be executed in a "with model context"!
         """
         pc = self.config.problem_config
+        hyperparameters = copy.deepcopy(pc.hyperparameters)
 
         hyperparams = {}
-        n_hyp = len(pc.hyperparameters.keys())
+        n_hyp = 0
+        for datatype, composite in self.composites.items():
+            hypernames = composite.config.get_hypernames()
 
-        logger.debug('Optimization for %i hyperparemeters', n_hyp)
+            for hp_name in hypernames:
+                if hp_name in hyperparameters.keys():
+                    hyperpar = hyperparameters.pop(hp_name)
 
-        for hp_name, hyperpar in pc.hyperparameters.iteritems():
-            if not num.array_equal(hyperpar.lower, hyperpar.upper):
-                hyperparams[hp_name] = Uniform(
-                    hyperpar.name,
-                    shape=hyperpar.dimension,
-                    lower=hyperpar.lower,
-                    upper=hyperpar.upper,
-                    testval=hyperpar.testvalue,
-                    dtype=tconfig.floatX,
-                    transform=None)
-            else:
-                logger.info(
-                    'not solving for %s, got fixed at %s' % (
-                        hyperpar.name,
-                        utility.list_to_str(hyperpar.lower.flatten())))
-                hyperparams[hyperpar.name] = hyperpar.lower
+                    if pc.dataset_specific_residual_noise_estimation:
+                        ndata = len(composite.get_unique_stations())
+                    else:
+                        ndata = 1
 
+                else:
+                    raise InconsistentNumberHyperparametersError(
+                        'Datasets and -types require additional '
+                        ' hyperparameter(s): %s!' % hp_name)
+
+                if not num.array_equal(hyperpar.lower, hyperpar.upper):
+                    dimension = hyperpar.dimension * ndata
+
+                    kwargs = dict(
+                        name=hyperpar.name,
+                        shape=dimension,
+                        lower=num.repeat(hyperpar.lower, ndata),
+                        upper=num.repeat(hyperpar.upper, ndata),
+                        testval=num.repeat(hyperpar.testvalue, ndata),
+                        dtype=tconfig.floatX,
+                        transform=None)
+
+                    try:
+                        hyperparams[hp_name] = pm.Uniform(**kwargs)
+
+                    except TypeError:
+                        kwargs.pop('name')
+                        hyperparams[hp_name] = pm.Uniform.dist(**kwargs)
+
+                    n_hyp += dimension
+
+                else:
+                    logger.info(
+                        'not solving for %s, got fixed at %s' % (
+                            hyperpar.name,
+                            utility.list_to_str(hyperpar.lower.flatten())))
+                    hyperparams[hyperpar.name] = hyperpar.lower
+
+        if len(hyperparameters) > 0:
+            raise InconsistentNumberHyperparametersError(
+                'There are hyperparameters in config file, which are not'
+                ' covered by datasets/datatypes.')
+
+        logger.info('Optimization for %i hyperparemeters in total!', n_hyp)
         return hyperparams
 
     def update_llks(self, point):
@@ -1998,6 +2173,27 @@ class Problem(object):
 
         for composite in self.composites.itervalues():
             d[composite.name] = composite.get_synthetics(point, outmode='data')
+
+        return d
+
+    def init_hierarchicals(self):
+        """
+        Initialise hierarchical random variables of all composites.
+        """
+        for composite in self.composites.values():
+            composite.init_hierarchicals()
+
+    @property
+    def hierarchicals(self):
+        """
+        Return dictionary of all hierarchical variables of the problem.
+        """
+        d = {}
+        for composite in self.composites.values():
+            if composite.hierarchicals is not None:
+                d.update(composite.hierarchicals)
+            else:
+                d = None
 
         return d
 
@@ -2230,6 +2426,7 @@ def estimate_hypers(step, problem):
     name = problem.outfolder
     util.ensuredir(name)
 
+<<<<<<< HEAD
     stage_handler = backend.TextStage(problem.outfolder)
     chains, step, update = init_stage(
         stage_handler=stage_handler,
@@ -2257,21 +2454,70 @@ def estimate_hypers(step, problem):
             initializer=init_chain_hypers,
             initargs=(problem,),
             chunksize=int(pa.n_chains / pa.n_jobs))
+=======
+    mtraces = []
+    for stage in range(pa.n_stages):
+        logger.info('Metropolis stage %i' % stage)
 
+        point = problem.get_random_point(
+            include=['priors', 'hierarchicals'])
+
+        if stage == 0:
+            # put testpoint in there
+            for param in pc.priors.values():
+                point[param.name] = param.testvalue
+
+        problem.outfolder = os.path.join(name, 'stage_%i' % stage)
+        start = problem.get_random_point(include=['hypers'])
+
+        if pa.rm_flag:
+            shutil.rmtree(problem.outfolder, ignore_errors=True)
+
+        if not os.path.exists(problem.outfolder):
+            logger.debug('Sampling ...')
+            if sc0.parameters.update_covariances:
+                logger.info('Updating Covariances ...')
+                problem.update_weights(point)
+
+            problem.update_llks(point)
+            with problem.model as hmodel:
+                mtraces.append(pm.sample(
+                    draws=pa.n_steps,
+                    step=step,
+                    trace=pm.backends.Text(
+                        name=problem.outfolder,
+                        model=hmodel),
+                    start=start,
+                    model=hmodel,
+                    chain=stage * pa.n_jobs,
+                    njobs=pa.n_jobs,
+                    ))
+
+        else:
+            logger.debug('Loading existing results!')
+            mtraces.append(pm.backends.text.load(
+                name=problem.outfolder, model=problem.model))
+
+    mtrace = pm.backends.base.merge_traces(mtraces)
+    outname = os.path.join(name, 'stage_final')
+
+    if not os.path.exists(outname):
+        util.ensuredir(outname)
+        pm.backends.text.dump(name=outname, trace=mtrace)
+
+    n_steps = pa.n_steps
     for v, i in pc.hyperparameters.iteritems():
         d = mtrace.get_values(
             v, combine=True, burn=int(pa.n_steps * pa.burn),
             thin=pa.thin, squeeze=True)
 
-        lower = num.floor(d.min(axis=0)) - 2.
-        upper = num.ceil(d.max(axis=0)) + 2.
-
+        lower = num.floor(d.min()) - 2.
+        upper = num.ceil(d.max()) + 2.
         logger.info('Updating hyperparameter %s from %f, %f to %f, %f' % (
             v, i.lower, i.upper, lower, upper))
-
-        pc.hyperparameters[v].lower = lower
-        pc.hyperparameters[v].upper = upper
-        pc.hyperparameters[v].testvalue = (upper + lower) / 2.
+        pc.hyperparameters[v].lower = num.atleast_1d(lower)
+        pc.hyperparameters[v].upper = num.atleast_1d(upper)
+        pc.hyperparameters[v].testvalue = num.atleast_1d((upper + lower) / 2.)
 
     config_file_name = 'config_' + pc.mode + '.yaml'
     conf_out = os.path.join(problem.config.project_dir, config_file_name)
