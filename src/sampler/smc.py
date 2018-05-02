@@ -13,11 +13,6 @@ Various significant updates July, August 2016
 """
 
 import numpy as np
-from numpy.random import seed, randint
-
-import multiprocessing as mp
-import pymc3 as pm
-from tqdm import tqdm
 
 import logging
 import os
@@ -26,15 +21,15 @@ import theano
 import copy
 import time
 
-from pymc3.model import modelcontext
+from pymc3 import metropolis
+from pymc3.model import modelcontext, Point
 from pymc3.vartypes import discrete_types
 from pymc3.theanof import inputvars
 from pymc3.theanof import make_shared_replacements, join_nonshared_inputs
 
-from beat import backend, utility, parallel
-
-from numpy.random import normal, standard_cauchy, standard_exponential, \
-    poisson
+from beat import backend, utility
+from .base import iter_parallel_chains
+from.base import choose_proposal
 
 
 __all__ = [
@@ -42,87 +37,10 @@ __all__ = [
     'ATMIP_sample',
     'update_last_samples',
     'init_stage',
-    'logp_forw',
-    '_iter_parallel_chains']
+    'logp_forw']
+
 
 logger = logging.getLogger('smc')
-
-
-class Proposal(object):
-    """
-    Proposal distributions modified from pymc3 to initially create all the
-    Proposal steps without repeated execution of the RNG- significant speedup!
-
-    Parameters
-    ----------
-    s : :class:`numpy.ndarray`
-    """
-    def __init__(self, s):
-        self.s = np.atleast_1d(s)
-
-
-class NormalProposal(Proposal):
-    def __call__(self, num_draws=None):
-        size = (self.s.shape)
-        if num_draws:
-            size += (num_draws,)
-        return normal(scale=self.s[0], size=size).T
-
-
-class CauchyProposal(Proposal):
-    def __call__(self, num_draws=None):
-        size = (self.s.shape)
-        if num_draws:
-            size += (num_draws,)
-        return standard_cauchy(size=size).T * self.s
-
-
-class LaplaceProposal(Proposal):
-    def __call__(self, num_draws=None):
-        size = (self.s.shape)
-        if num_draws:
-            size += (num_draws,)
-        return (standard_exponential(size=size) -
-                standard_exponential(size=size)).T * self.s
-
-
-class PoissonProposal(Proposal):
-    def __call__(self, num_draws=None):
-        size = (self.s.shape)
-        if num_draws:
-            size += (num_draws,)
-        return poisson(lam=self.s, size=size).T - self.s
-
-
-class MultivariateNormalProposal(Proposal):
-    def __call__(self, num_draws=None):
-        return np.random.multivariate_normal(
-            mean=np.zeros(self.s.shape[0]), cov=self.s, size=num_draws)
-
-
-proposal_dists = {
-    'Cauchy': CauchyProposal,
-    'Poisson': PoissonProposal,
-    'Normal': NormalProposal,
-    'Laplace': LaplaceProposal,
-    'MultivariateNormal': MultivariateNormalProposal}
-
-
-def choose_proposal(proposal_name, scale=1.):
-    """
-    Initialises and selects proposal distribution.
-
-    Parameters
-    ----------
-    proposal_name : string
-        Name of the proposal distribution to initialise
-    scale : float or :class:`numpy.ndarray`
-
-    Returns
-    -------
-    class:`pymc3.Proposal` Object
-    """
-    return proposal_dists[proposal_name](scale)
 
 
 class SMC(backend.ArrayStepSharedLLK):
@@ -244,9 +162,8 @@ class SMC(backend.ArrayStepSharedLLK):
         self.population = []
         self.array_population = np.zeros(n_chains)
         for i in range(self.n_chains):
-            dummy = pm.Point({v.name: v.random() for v in vars},
-                             model=model)
-            self.population.append(dummy)
+            self.population.append(
+                Point({v.name: v.random() for v in vars}, model=model))
 
 #        self.population[0] = model.test_point
 
@@ -323,7 +240,7 @@ class SMC(backend.ArrayStepSharedLLK):
                     self.chain_index, self.stage_sample))
 
                 self.scaling = utility.scalar2floatX(
-                    pm.metropolis.tune(
+                    metropolis.tune(
                         self.scaling,
                         self.accepted / float(self.tune_interval)))
 
@@ -367,7 +284,7 @@ class SMC(backend.ArrayStepSharedLLK):
                     logger.debug('Select llk: Chain_%i step_%i' % (
                         self.chain_index, self.stage_sample))
 
-                    q_new, accepted = pm.metropolis.metrop_select(
+                    q_new, accepted = metropolis.metrop_select(
                         self.beta * (
                             lp[self._llk_index] - l0[self._llk_index]),
                         q, q0)
@@ -393,7 +310,7 @@ class SMC(backend.ArrayStepSharedLLK):
                 lp = self.logp_forw(q)
                 logger.debug('Select: Chain_%i step_%i' % (
                     self.chain_index, self.stage_sample))
-                q_new, accepted = pm.metropolis.metrop_select(
+                q_new, accepted = metropolis.metrop_select(
                     self.beta * (lp[self._llk_index] - l0[self._llk_index]),
                     q, q0)
 
@@ -681,7 +598,7 @@ def update_last_samples(
         'n_jobs': n_jobs,
         'chains': chains}
 
-    mtrace = _iter_parallel_chains(**sample_args)
+    mtrace = iter_parallel_chains(**sample_args)
 
     step.stage = tmp_stage
 
@@ -757,7 +674,7 @@ def ATMIP_sample(
         `link <https://gji.oxfordjournals.org/content/194/3/1701.full>`__
     """
 
-    model = pm.modelcontext(model)
+    model = modelcontext(model)
     step.n_steps = int(n_steps)
 
     if n_steps < 1:
@@ -822,7 +739,7 @@ def ATMIP_sample(
                 'n_jobs': n_jobs,
                 'chains': chains}
 
-            mtrace = _iter_parallel_chains(**sample_args)
+            mtrace = iter_parallel_chains(**sample_args)
 
             step.population, step.array_population, step.likelihoods = \
                 step.select_end_points(mtrace)
@@ -878,191 +795,11 @@ def ATMIP_sample(
         sample_args['step'] = step
         sample_args['stage_path'] = stage_handler.stage_path(step.stage)
         sample_args['chains'] = chains
-        _iter_parallel_chains(**sample_args)
+        iter_parallel_chains(**sample_args)
 
         outparam_list = [step.get_sampler_state(), update]
         stage_handler.dump_atmip_params(step.stage, outparam_list)
         logger.info('Finished sampling!')
-
-
-def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
-            progressbar=True, model=None, random_seed=-1):
-
-    shared_params = [
-        sparam for sparam in step.logp_forw.get_shared()
-        if sparam.name in parallel._tobememshared]
-
-    if len(shared_params) > 0:
-        logger.debug('Accessing shared memory')
-        parallel.borrow_all_memories(
-            shared_params, parallel._shared_memory.values())
-
-    sampling = _iter_sample(draws, step, start, trace, chain,
-                            tune, model, random_seed)
-
-    if progressbar:
-        try:
-            current = mp.current_process()
-            n = current._identity[0]
-        except IndexError:
-            # in case of only one used core ...
-            n = 1
-
-        sampling = tqdm(
-            sampling,
-            total=draws,
-            desc='chain: %i worker %i' % (chain, n),
-            position=n,
-            leave=False,
-            ncols=65)
-    try:
-        for strace in sampling:
-            pass
-
-    except KeyboardInterrupt:
-        raise
-
-    return chain
-
-
-def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
-                 model=None, random_seed=-1):
-    """
-    Modified from :func:`pymc3.sampling._iter_sample` to be more efficient with
-    the SMC algorithm.
-    """
-
-    model = modelcontext(model)
-
-    draws = int(draws)
-
-    if draws < 1:
-        raise ValueError('Argument `draws` should be above 0.')
-
-    if start is None:
-        start = {}
-
-    if random_seed != -1:
-        seed(random_seed)
-
-    try:
-        step = pm.step_methods.CompoundStep(step)
-    except TypeError:
-        pass
-
-    point = pm.Point(start, model=model)
-
-    step.chain_index = chain
-
-    trace.setup(draws, chain)
-    for i in range(draws):
-        if i == tune:
-            step = pm.sampling.stop_tuning(step)
-
-        logger.debug('Step: Chain_%i step_%i' % (chain, i))
-        point, out_list = step.step(point)
-        logger.debug('Start Record: Chain_%i step_%i' % (chain, i))
-        trace.record(out_list, i)
-        logger.debug('End Record: Chain_%i step_%i' % (chain, i))
-        yield trace
-
-
-def _iter_parallel_chains(
-        draws, step, stage_path, progressbar, model, n_jobs,
-        chains=None):
-    """
-    Do Metropolis sampling over all the chains with each chain being
-    sampled 'draws' times. Parallel execution according to n_jobs.
-    If jobs hang for any reason they are being killed after an estimated
-    timeout. The chains in question are being rerun and the estimated timeout
-    is added again.
-    """
-    timeout = 0
-
-    if chains is None:
-        chains = list(range(step.n_chains))
-
-    n_chains = len(chains)
-
-    if n_chains == 0:
-        mtrace = backend.load_multitrace(dirname=stage_path, model=model)
-
-    # while is necessary if any worker times out - rerun in case
-    while n_chains > 0:
-        trace_list = []
-
-        logger.info('Initialising %i chain traces ...' % n_chains)
-        for chain in chains:
-            trace_list.append(backend.TextChain(stage_path, model=model))
-
-        max_int = np.iinfo(np.int32).max
-        random_seeds = [randint(max_int) for _ in range(n_chains)]
-
-        work = [(draws, step, step.population[step.resampling_indexes[chain]],
-                trace, chain, None, progressbar, model, rseed)
-                for chain, rseed, trace in zip(
-                    chains, random_seeds, trace_list)]
-
-        tps = step.time_per_sample(10)
-
-        if draws < 10:
-            chunksize = int(np.ceil(float(n_chains) / n_jobs))
-            tps += 5.
-        elif draws > 10 and tps < 1.:
-            chunksize = int(np.ceil(float(n_chains) / n_jobs))
-        else:
-            chunksize = n_jobs
-
-        timeout += int(np.ceil(tps * draws)) * n_jobs
-
-        if n_jobs > 1:
-            shared_params = [
-                sparam for sparam in step.logp_forw.get_shared()
-                if sparam.name in parallel._tobememshared]
-
-            logger.info(
-                'Data to be memory shared: %s' %
-                utility.list2string(shared_params))
-
-            if len(shared_params) > 0:
-                if len(parallel._shared_memory.keys()) == 0:
-                    logger.info('Putting data into shared memory ...')
-                    parallel.memshare_sparams(shared_params)
-                else:
-                    logger.info('Data already in shared memory!')
-
-            else:
-                logger.info('No data to be memshared!')
-
-        else:
-            logger.info('Not using shared memory.')
-
-        p = parallel.paripool(
-            _sample, work,
-            chunksize=chunksize,
-            timeout=timeout,
-            nprocs=n_jobs)
-
-        logger.info('Sampling ...')
-
-        for res in p:
-            pass
-
-        # return chain indexes that have been corrupted
-        mtrace = backend.load_multitrace(dirname=stage_path, model=model)
-        corrupted_chains = backend.check_multitrace(
-            mtrace, draws=draws, n_chains=step.n_chains)
-
-        n_chains = len(corrupted_chains)
-
-        if n_chains > 0:
-            logger.warning(
-                '%i Chains not finished sampling,'
-                ' restarting ...' % n_chains)
-
-        chains = corrupted_chains
-
-    return mtrace
 
 
 def tune(acc_rate):
