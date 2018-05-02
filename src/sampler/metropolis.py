@@ -12,8 +12,10 @@ import logging
 import numpy as num
 
 from beat import backend, utility
-from beat.smc import init_stage, _iter_parallel_chains, choose_proposal
-from beat.smc import update_last_samples
+from .smc import init_stage, update_last_samples
+
+from .base import iter_parallel_chains, choose_proposal
+
 from beat.config import sample_p_outname
 
 from pyrocko import util
@@ -36,7 +38,8 @@ def get_final_stage(homepath, n_stages, model):
         logger.info('Loading Metropolis stage %i' % stage)
         stage_outpath = os.path.join(homepath, 'stage_%i' % stage)
 
-        mtraces.append(backend.load(
+        mtraces.append(
+            backend.load(
                 name=stage_outpath, model=model))
 
     ctrace = backend.concatenate_traces(mtraces)
@@ -52,9 +55,10 @@ def get_final_stage(homepath, n_stages, model):
     pm.backends.text.dump(name=outname, trace=ctrace)
 
 
-def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
-            progressbar=False, stage=None, rm_flag=False,
-            step=None, model=None, n_jobs=1, update=None, burn=0.5, thin=2):
+def Metropolis_sample(
+        n_stages=10, n_steps=10000, trace=None, start=None,
+        progressbar=False, stage=None, rm_flag=False,
+        step=None, model=None, n_jobs=1, update=None, burn=0.5, thin=2):
     """
     Execute Metropolis algorithm repeatedly depending on the number of stages.
     The start point of each stage set to the end point of the previous stage.
@@ -126,20 +130,20 @@ def Metropolis_sample(n_stages=10, n_steps=10000, trace=None, start=None,
             step.stage = s
 
             sample_args = {
-                    'draws': draws,
-                    'step': step,
-                    'stage_path': stage_path,
-                    'progressbar': progressbar,
-                    'model': model,
-                    'n_jobs': n_jobs,
-                    'chains': chains}
+                'draws': draws,
+                'step': step,
+                'stage_path': stage_path,
+                'progressbar': progressbar,
+                'model': model,
+                'n_jobs': n_jobs,
+                'chains': chains}
 
-            _iter_parallel_chains(**sample_args)
+            iter_parallel_chains(**sample_args)
 
             mtrace = backend.load(stage_path, model)
 
             step.population, step.array_population, step.likelihoods = \
-                                    step.select_end_points(mtrace)
+                step.select_end_points(mtrace)
 
             pdict, step.covariance = get_trace_stats(
                 mtrace, step, burn, thin)
@@ -190,24 +194,23 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2):
 
     n_steps = len(mtrace)
 
-    array_population = num.zeros((step.n_jobs * int(
-                                    num.ceil(n_steps * (1 - burn) / thin)),
-                                    step.ordering.dimensions))
+    array_population = num.zeros(
+        (step.n_jobs * int(
+            num.ceil(n_steps * (1 - burn) / thin)),
+            step.ordering.dimensions))
 
     # collect end points of each chain and put into array
     for var, slc, shp, _ in step.ordering.vmap:
+        samples = mtrace.get_values(
+            varname=var,
+            burn=int(burn * n_steps),
+            thin=thin,
+            combine=True)
+
         if len(shp) == 0:
-            array_population[:, slc] = num.atleast_2d(
-                                mtrace.get_values(varname=var,
-                                            burn=int(burn * n_steps),
-                                            thin=thin,
-                                            combine=True)).T
+            array_population[:, slc] = num.atleast_2d(samples).T
         else:
-            array_population[:, slc] = mtrace.get_values(
-                                                varname=var,
-                                                burn=int(burn * n_steps),
-                                                thin=thin,
-                                                combine=True)
+            array_population[:, slc] = samples
 
     llks = mtrace.get_values(
         varname=step.likelihood_name,
@@ -225,5 +228,6 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2):
     if avar.sum() == 0.:
         logger.warn('Trace std not valid not enough samples! Use 1.')
         avar = 1.
+
     cov = num.eye(step.ordering.dimensions) * avar
     return d, cov
