@@ -93,5 +93,5 @@ class VoronoiTestCase(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    util.setup_logging('test_fast_sweeping', 'info')
+    util.setup_logging('test_voronoi', 'info')
     unittest.main()
