@@ -20,7 +20,7 @@ from theano.printing import Print
 
 from beat import ffi
 from beat import theanof, heart, utility, backend
-from beat.sampler import metropolis, smc
+from beat.sampler import metropolis, smc, base
 from beat import covariance as cov
 from beat import config as bconfig
 from beat.interseismic import geo_backslip_synthetics, seperate_point
@@ -35,8 +35,12 @@ km = 1000.
 
 logger = logging.getLogger('models')
 
-__all__ = ['GeometryOptimizer', 'DistributionOptimizer',
-           'sample', 'load_model']
+
+__all__ = [
+    'GeometryOptimizer',
+    'DistributionOptimizer',
+    'sample',
+    'load_model']
 
 
 def multivariate_normal(datasets, weights, hyperparams, residuals):
@@ -1716,7 +1720,7 @@ class Problem(object):
                 if hypers:
                     step = Metropolis(
                         tune_interval=sc.parameters.tune_interval,
-                        proposal_dist=smc.proposal_dists[
+                        proposal_dist=base.proposal_dists[
                             sc.parameters.proposal_dist])
                 else:
                     step = smc.SMC(
