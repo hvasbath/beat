@@ -4,7 +4,7 @@ import copy
 import shutil
 
 from pymc3 import Uniform, Model, Deterministic, Potential
-from pymc3 import Metropolis, sample as pymc_sample
+
 from pymc3.backends.base import merge_traces
 from pymc3.backends import text
 
@@ -20,7 +20,7 @@ from theano.printing import Print
 
 from beat import ffi
 from beat import theanof, heart, utility, backend
-from beat.sampler import metropolis, smc, base
+from beat import sampler
 from beat import covariance as cov
 from beat import config as bconfig
 from beat.interseismic import geo_backslip_synthetics, seperate_point
@@ -1718,12 +1718,13 @@ class Problem(object):
 
                 t1 = time.time()
                 if hypers:
-                    step = Metropolis(
+                    step = sampler.Metropolis(
+                        n_chains=sc.parameters.n_jobs,
+                        likelihood_name=self._like_name,
                         tune_interval=sc.parameters.tune_interval,
-                        proposal_dist=base.proposal_dists[
-                            sc.parameters.proposal_dist])
+                        proposal_name=sc.parameters.proposal_dist)
                 else:
-                    step = smc.SMC(
+                    step = sampler.SMC(
                         n_chains=sc.parameters.n_jobs,
                         tune_interval=sc.parameters.tune_interval,
                         likelihood_name=self._like_name,
@@ -1739,7 +1740,7 @@ class Problem(object):
                         sc.parameters.n_jobs))
 
                 t1 = time.time()
-                step = smc.SMC(
+                step = sampler.SMC(
                     n_chains=sc.parameters.n_chains,
                     tune_interval=sc.parameters.tune_interval,
                     coef_variation=sc.parameters.coef_variation,
@@ -2174,7 +2175,7 @@ def sample(step, problem):
         name = problem.outfolder
         util.ensuredir(name)
 
-        metropolis.Metropolis_sample(
+        sampler.Metropolis_sample(
             n_stages=pa.n_stages,
             n_steps=pa.n_steps,
             stage=pa.stage,
@@ -2191,7 +2192,7 @@ def sample(step, problem):
     elif sc.name == 'SMC':
         logger.info('... Starting ATMIP ...\n')
 
-        smc.ATMIP_sample(
+        sampler.ATMIP_sample(
             pa.n_steps,
             step=step,
             progressbar=sc.progressbar,
@@ -2217,7 +2218,6 @@ def estimate_hypers(step, problem):
     name = problem.outfolder
     util.ensuredir(name)
 
-    mtraces = []
     for stage in range(pa.n_stages):
         logger.info('Metropolis stage %i' % stage)
 
@@ -2243,21 +2243,21 @@ def estimate_hypers(step, problem):
 
             problem.update_llks(point)
             with problem.model as hmodel:
-                mtraces.append(pymc_sample(
-                    draws=pa.n_steps,
-                    step=step,
-                    trace=text.Text(
-                        name=problem.outfolder,
-                        model=hmodel),
-                    start=start,
-                    model=hmodel,
-                    chain=stage * pa.n_jobs,
-                    njobs=pa.n_jobs))
-
+  !              mtrace = sampler.Metropolis_sample(
+                    n_stages=10,
+                    n_steps=10000,
+                    homepath=None,
+                    start=None,
+                    progressbar=False,
+                    stage=None,
+                    rm_flag=False,
+                    step=None,
+                    model=None, n_jobs=1, update=None,
+                    burn=0.5, thin=2)
         else:
             logger.debug('Loading existing results!')
             mtraces.append(text.load(
-                name=problem.outfolder, model=problem.model))
+  !              name=problem.outfolder, model=problem.model))
 
     mtrace = merge_traces(mtraces)
     outname = os.path.join(name, 'stage_final')

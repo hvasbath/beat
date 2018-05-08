@@ -25,6 +25,13 @@ from tqdm import tqdm
 logger = logging.getLogger('base')
 
 
+__all__ = [
+    'choose_proposal',
+    'iter_parallel_chains',
+    'init_stage',
+    'proposal_dists']
+
+
 def multivariate_t_rvs(mean, cov, df=np.inf, size=1):
     """
     generate random variables of multivariate t distribution
