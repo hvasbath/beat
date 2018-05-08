@@ -7,27 +7,33 @@ the course of sampling the chain.
 import shutil
 import os
 from time import time
-import pymc3 as pm
+
 import logging
 from copy import deepcopy
 
 import numpy as num
 
-from beat import backend, utility
-from .smc import init_stage, update_last_samples
+from theano import config as tconfig
 
-from .base import iter_parallel_chains, choose_proposal, logp_forw
-
-import theano.config as tconfig
 from pymc3.vartypes import discrete_types
 from pymc3.model import modelcontext, Point
-from pymc3.metropolis import tune, metrop_select
-
+from pymc3.step_methods.metropolis import tune, metrop_select
 from pymc3.theanof import make_shared_replacements, inputvars
+from pymc3.backends import text
 
 from pyrocko import util
 
-__all__ = ['Metropolis_sample', 'get_trace_stats', 'get_final_stage']
+from beat import backend, utility
+from .base import iter_parallel_chains, choose_proposal, logp_forw, \
+    init_stage, update_last_samples
+
+
+__all__ = [
+    'Metropolis_sample',
+    'get_trace_stats',
+    'get_final_stage',
+    'Metropolis']
+
 
 logger = logging.getLogger('metropolis')
 
@@ -339,7 +345,7 @@ def get_final_stage(homepath, n_stages, model):
     util.ensuredir(outname)
     logger.info('Creating final Metropolis stage')
 
-    pm.backends.text.dump(name=outname, trace=ctrace)
+    text.dump(name=outname, trace=ctrace)
 
 
 def Metropolis_sample(
@@ -352,7 +358,7 @@ def Metropolis_sample(
     Update covariances if given.
     """
 
-    model = pm.modelcontext(model)
+    model = modelcontext(model)
     step.n_steps = int(n_steps)
 
     if n_steps < 1:

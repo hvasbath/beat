@@ -21,7 +21,7 @@ from pymc3.model import modelcontext
 from beat import backend, utility
 from .base import iter_parallel_chains, update_last_samples, init_stage, \
     choose_proposal
-from.metropolis import Metropolis
+from .metropolis import Metropolis
 
 
 __all__ = [

@@ -62,7 +62,7 @@ setup(
         'build_py': custom_build_py},
     name='beat',
     description='Bayesian Earthquake Analysis Tool',
-    version='1.0beta',
+    version='1.0rc1',
     author='Hannes Vasyuara-Bathke',
     author_email='hannes.vasyura-bathke@kaust.edu.sa',
     install_requires=install_reqs,
