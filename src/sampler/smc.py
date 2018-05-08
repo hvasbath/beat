@@ -15,35 +15,24 @@ Various significant updates July, August 2016
 import numpy as np
 
 import logging
-import os
-import shutil
-import theano
-import copy
-import time
 
-from pymc3 import metropolis
-from pymc3.model import modelcontext, Point
-from pymc3.vartypes import discrete_types
-from pymc3.theanof import inputvars
-from pymc3.theanof import make_shared_replacements, join_nonshared_inputs
+from pymc3.model import modelcontext
 
 from beat import backend, utility
-from .base import iter_parallel_chains
-from.base import choose_proposal
+from .base import iter_parallel_chains, update_last_samples, init_stage, \
+    choose_proposal
+from.metropolis import Metropolis
 
 
 __all__ = [
     'SMC',
-    'ATMIP_sample',
-    'update_last_samples',
-    'init_stage',
-    'logp_forw']
+    'ATMIP_sample']
 
 
 logger = logging.getLogger('smc')
 
 
-class SMC(backend.ArrayStepSharedLLK):
+class SMC(Metropolis):
     """
     Adaptive Transitional Markov-Chain Monte-Carlo sampler class.
 
@@ -106,74 +95,18 @@ class SMC(backend.ArrayStepSharedLLK):
                  proposal_name='MultivariateNormal',
                  coef_variation=1., **kwargs):
 
-        model = modelcontext(model)
-
-        if vars is None:
-            vars = model.vars
-
-        vars = inputvars(vars)
-
-        if out_vars is None:
-            out_vars = model.unobserved_RVs
-
-        out_varnames = [out_var.name for out_var in out_vars]
-
-        self.scaling = utility.scalar2floatX(np.atleast_1d(scale))
-
-        if covariance is None and proposal_name == 'MultivariateNormal':
-            self.covariance = np.eye(sum(v.dsize for v in vars))
-            scale = self.covariance
-        elif covariance is None:
-            scale = np.ones(sum(v.dsize for v in vars))
-        else:
-            scale = covariance
-
-        self.tune = tune
-        self.check_bnd = check_bound
-        self.tune_interval = tune_interval
-        self.steps_until_tune = tune_interval
-
-        self.proposal_name = proposal_name
-        self.proposal_dist = choose_proposal(
-            self.proposal_name, scale=scale)
-
-        self.proposal_samples_array = self.proposal_dist(n_chains)
-
-        self.stage_sample = 0
-        self.accepted = 0
+        super(SMC, self).__init__(
+            vars=vars, out_vars=out_vars, covariance=covariance, scale=scale,
+            n_chains=n_chains, tune=tune, tune_interval=tune_interval,
+            model=model, check_bound=check_bound,
+            likelihood_name=likelihood_name,
+            proposal_name=proposal_name, **kwargs)
 
         self.beta = 0
-        self.stage = 0
-        self.chain_index = 0
         self.resampling_indexes = np.arange(n_chains)
 
         self.coef_variation = coef_variation
-        self.n_chains = n_chains
         self.likelihoods = np.zeros(n_chains)
-
-        self.likelihood_name = likelihood_name
-        self._llk_index = out_varnames.index(likelihood_name)
-        self.discrete = np.concatenate(
-            [[v.dtype in discrete_types] * (v.dsize or 1) for v in vars])
-        self.any_discrete = self.discrete.any()
-        self.all_discrete = self.discrete.all()
-
-        # create initial population
-        self.population = []
-        self.array_population = np.zeros(n_chains)
-        for i in range(self.n_chains):
-            self.population.append(
-                Point({v.name: v.random() for v in vars}, model=model))
-
-#        self.population[0] = model.test_point
-
-        self.chain_previous_lpoint = copy.deepcopy(self.population)
-
-        shared = make_shared_replacements(vars, model)
-        self.logp_forw = logp_forw(out_vars, vars, shared)
-        self.check_bnd = logp_forw([model.varlogpt], vars, shared)
-
-        super(SMC, self).__init__(vars, out_vars, shared)
 
     def _sampler_state_blacklist(self):
         """
@@ -188,153 +121,6 @@ class SMC(backend.ArrayStepSharedLLK):
               'vars',
               '_BlockedStep__newargs']
         return bl
-
-    def get_sampler_state(self):
-        """
-        Return dictionary of sampler state.
-
-        Returns
-        -------
-        dict of sampler state
-        """
-
-        blacklist = self._sampler_state_blacklist()
-        return {k: v for k, v in self.__dict__.items() if k not in blacklist}
-
-    def apply_sampler_state(self, state):
-        """
-        Update sampler state to given state
-        (obtained by 'get_sampler_state')
-
-        Parameters
-        ----------
-        state : dict
-            with sampler parameters
-        """
-        for k, v in state.items():
-            setattr(self, k, v)
-
-    def time_per_sample(self, n_points):
-        tps = np.zeros((n_points))
-        for i in range(n_points):
-            q = self.bij.map(self.population[i])
-            t0 = time.time()
-            self.logp_forw(q)
-            t1 = time.time()
-            tps[i] = t1 - t0
-        return tps.mean()
-
-    def astep(self, q0):
-        if self.stage == 0:
-            l_new = self.logp_forw(q0)
-            q_new = q0
-
-        else:
-            if self.stage_sample == 0:
-                self.proposal_samples_array = self.proposal_dist(
-                    self.n_steps).astype(theano.config.floatX)
-
-            if not self.steps_until_tune and self.tune:
-                # Tune scaling parameter
-                logger.debug('Tuning: Chain_%i step_%i' % (
-                    self.chain_index, self.stage_sample))
-
-                self.scaling = utility.scalar2floatX(
-                    metropolis.tune(
-                        self.scaling,
-                        self.accepted / float(self.tune_interval)))
-
-                # Reset counter
-                self.steps_until_tune = self.tune_interval
-                self.accepted = 0
-
-            logger.debug(
-                'Get delta: Chain_%i step_%i' % (
-                    self.chain_index, self.stage_sample))
-            delta = self.proposal_samples_array[self.stage_sample, :] * \
-                self.scaling
-
-            if self.any_discrete:
-                if self.all_discrete:
-                    delta = np.round(delta, 0)
-                    q0 = q0.astype(int)
-                    q = (q0 + delta).astype(int)
-                else:
-                    delta[self.discrete] = np.round(
-                        delta[self.discrete], 0).astype(int)
-                    q = q0 + delta
-                    q = q[self.discrete].astype(int)
-            else:
-
-                q = q0 + delta
-
-            l0 = self.chain_previous_lpoint[self.chain_index]
-
-            if self.check_bnd:
-                logger.debug('Checking bound: Chain_%i step_%i' % (
-                    self.chain_index, self.stage_sample))
-                varlogp = self.check_bnd(q)
-
-                if np.isfinite(varlogp):
-                    logger.debug('Calc llk: Chain_%i step_%i' % (
-                        self.chain_index, self.stage_sample))
-
-                    lp = self.logp_forw(q)
-
-                    logger.debug('Select llk: Chain_%i step_%i' % (
-                        self.chain_index, self.stage_sample))
-
-                    q_new, accepted = metropolis.metrop_select(
-                        self.beta * (
-                            lp[self._llk_index] - l0[self._llk_index]),
-                        q, q0)
-
-                    if accepted:
-                        logger.debug('Accepted: Chain_%i step_%i' % (
-                            self.chain_index, self.stage_sample))
-                        self.accepted += 1
-                        l_new = lp
-                        self.chain_previous_lpoint[self.chain_index] = l_new
-                    else:
-                        logger.debug('Rejected: Chain_%i step_%i' % (
-                            self.chain_index, self.stage_sample))
-                        l_new = l0
-                else:
-                    q_new = q0
-                    l_new = l0
-
-            else:
-                logger.debug('Calc llk: Chain_%i step_%i' % (
-                    self.chain_index, self.stage_sample))
-
-                lp = self.logp_forw(q)
-                logger.debug('Select: Chain_%i step_%i' % (
-                    self.chain_index, self.stage_sample))
-                q_new, accepted = metropolis.metrop_select(
-                    self.beta * (lp[self._llk_index] - l0[self._llk_index]),
-                    q, q0)
-
-                if accepted:
-                    self.accepted += 1
-                    l_new = lp
-                    self.chain_previous_lpoint[self.chain_index] = l_new
-                else:
-                    l_new = l0
-
-            logger.debug(
-                'Counters: Chain_%i step_%i' % (
-                    self.chain_index, self.stage_sample))
-            self.steps_until_tune -= 1
-            self.stage_sample += 1
-
-            # reset sample counter
-            if self.stage_sample == self.n_steps:
-                self.stage_sample = 0
-
-            logger.debug(
-                'End step: Chain_%i step_%i' % (
-                    self.chain_index, self.stage_sample))
-        return q_new, l_new
 
     def calc_beta(self):
         """
@@ -536,75 +322,6 @@ class SMC(backend.ArrayStepSharedLLK):
         self.__dict__.update(state)
 
 
-def init_stage(
-        stage_handler, step, stage, model, n_jobs=1,
-        progressbar=False, update=None, rm_flag=False):
-    """
-    Examine starting point of sampling, reload stages and initialise steps.
-    """
-    with model:
-        if stage == 0:
-            # continue or start initial stage
-            step.stage = stage
-            draws = 1
-        else:
-            sampler_state, updates = stage_handler.load_sampler_params(stage)
-            step.apply_sampler_state(sampler_state)
-            draws = step.n_steps
-
-            if update is not None:
-                update.apply(updates)
-
-        stage_handler.clean_directory(stage, None, rm_flag)
-
-        chains = stage_handler.recover_existing_results(stage, draws, step)
-
-    return chains, step, update
-
-
-def update_last_samples(
-        homepath, step,
-        progressbar=False, model=None, n_jobs=1, rm_flag=False):
-    """
-    Resampling the last stage samples with the updated covariances and
-    accept the new sample.
-
-    Return
-    ------
-    mtrace : multitrace
-    """
-
-    tmp_stage = copy.deepcopy(step.stage)
-    logger.info('Updating last samples ...')
-    draws = 1
-    step.stage = 0
-    trans_stage_path = os.path.join(
-        homepath, 'trans_stage_%i' % tmp_stage)
-    logger.info('in %s' % trans_stage_path)
-
-    if os.path.exists(trans_stage_path) and rm_flag:
-        shutil.rmtree(trans_stage_path)
-
-    chains = None
-    # reset resampling indexes
-    step.resampling_indexes = np.arange(step.n_chains)
-
-    sample_args = {
-        'draws': draws,
-        'step': step,
-        'stage_path': trans_stage_path,
-        'progressbar': progressbar,
-        'model': model,
-        'n_jobs': n_jobs,
-        'chains': chains}
-
-    mtrace = iter_parallel_chains(**sample_args)
-
-    step.stage = tmp_stage
-
-    return mtrace
-
-
 def ATMIP_sample(
         n_steps, step=None, start=None, homepath=None, chain=0,
         stage=0, n_jobs=1, tune=None, progressbar=False,
@@ -710,7 +427,6 @@ def ATMIP_sample(
         stage_handler=stage_handler,
         step=step,
         stage=stage,
-        n_jobs=n_jobs,
         progressbar=progressbar,
         update=update,
         model=model,
@@ -820,22 +536,3 @@ def tune(acc_rate):
     a = 1. / 9
     b = 8. / 9
     return np.power((a + (b * acc_rate)), 2)
-
-
-def logp_forw(out_vars, vars, shared):
-    """
-    Compile Theano function of the model and the input and output variables.
-
-    Parameters
-    ----------
-    out_vars : List
-        containing :class:`pymc3.Distribution` for the output variables
-    vars : List
-        containing :class:`pymc3.Distribution` for the input variables
-    shared : List
-        containing :class:`theano.tensor.Tensor` for dependend shared data
-    """
-    out_list, inarray0 = join_nonshared_inputs(out_vars, vars, shared)
-    f = theano.function([inarray0], out_list)
-    f.trust_input = True
-    return f

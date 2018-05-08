@@ -6,23 +6,310 @@ the course of sampling the chain.
 
 import shutil
 import os
+from time import time
 import pymc3 as pm
 import logging
+from copy import deepcopy
 
 import numpy as num
 
 from beat import backend, utility
 from .smc import init_stage, update_last_samples
 
-from .base import iter_parallel_chains, choose_proposal
+from .base import iter_parallel_chains, choose_proposal, logp_forw
 
-from beat.config import sample_p_outname
+import theano.config as tconfig
+from pymc3.vartypes import discrete_types
+from pymc3.model import modelcontext, Point
+from pymc3.metropolis import tune, metrop_select
+
+from pymc3.theanof import make_shared_replacements, inputvars
 
 from pyrocko import util
 
 __all__ = ['Metropolis_sample', 'get_trace_stats', 'get_final_stage']
 
 logger = logging.getLogger('metropolis')
+
+
+class Metropolis(backend.ArrayStepSharedLLK):
+    """
+    Metropolis-Hastings sampler
+
+    Parameters
+    ----------
+    vars : list
+        List of variables for sampler
+    out_vars : list
+        List of output variables for trace recording. If empty unobserved_RVs
+        are taken.
+    n_chains : int
+        Number of chains per stage has to be a large number
+        of number of n_jobs (processors to be used) on the machine.
+    scaling : float
+        Factor applied to the proposal distribution i.e. the step size of the
+        Markov Chain
+    covariance : :class:`numpy.ndarray`
+        (n_chains x n_chains) for MutlivariateNormal, otherwise (n_chains)
+        Initial Covariance matrix for proposal distribution,
+        if None - identity matrix taken
+    likelihood_name : string
+        name of the :class:`pymc3.determinsitic` variable that contains the
+        model likelihood - defaults to 'like'
+    proposal_dist :
+        :class:`pymc3.metropolis.Proposal`
+        Type of proposal distribution, see
+        :module:`pymc3.step_methods.metropolis` for options
+    tune : boolean
+        Flag for adaptive scaling based on the acceptance rate
+    check_bound : boolean
+        Check if current sample lies outside of variable definition
+        speeds up computation as the forward model wont be executed
+        default: True
+    model : :class:`pymc3.Model`
+        Optional model for sampling step.
+        Defaults to None (taken from context).
+
+    References
+    ----------
+    .. [Ching2007] Ching, J. and Chen, Y. (2007).
+        Transitional Markov Chain Monte Carlo Method for Bayesian Model
+        Updating, Model Class Selection, and Model Averaging.
+        J. Eng. Mech., 10.1061/(ASCE)0733-9399(2007)133:7(816), 816-832.
+        `link <http://ascelibrary.org/doi/abs/10.1061/%28ASCE%290733-9399
+        %282007%29133:7%28816%29>`__
+    """
+
+    default_blocked = True
+
+    def __init__(self, vars=None, out_vars=None, covariance=None, scale=1.,
+                 n_chains=100, tune=True, tune_interval=100, model=None,
+                 check_bound=True, likelihood_name='like',
+                 proposal_name='MultivariateNormal', **kwargs):
+
+        model = modelcontext(model)
+
+        if vars is None:
+            vars = model.vars
+
+        vars = inputvars(vars)
+
+        if out_vars is None:
+            out_vars = model.unobserved_RVs
+
+        out_varnames = [out_var.name for out_var in out_vars]
+
+        self.scaling = utility.scalar2floatX(num.atleast_1d(scale))
+
+        if covariance is None and proposal_name == 'MultivariateNormal':
+            self.covariance = num.eye(sum(v.dsize for v in vars))
+            scale = self.covariance
+        elif covariance is None:
+            scale = num.ones(sum(v.dsize for v in vars))
+        else:
+            scale = covariance
+
+        self.tune = tune
+        self.check_bnd = check_bound
+        self.tune_interval = tune_interval
+        self.steps_until_tune = tune_interval
+
+        self.proposal_name = proposal_name
+        self.proposal_dist = choose_proposal(
+            self.proposal_name, scale=scale)
+
+        self.proposal_samples_array = self.proposal_dist(n_chains)
+
+        self.stage_sample = 0
+        self.accepted = 0
+
+        self.beta = 1.
+        self.stage = 0
+        self.chain_index = 0
+
+        self.n_chains = n_chains
+
+        self.likelihood_name = likelihood_name
+        self._llk_index = out_varnames.index(likelihood_name)
+        self.discrete = num.concatenate(
+            [[v.dtype in discrete_types] * (v.dsize or 1) for v in vars])
+        self.any_discrete = self.discrete.any()
+        self.all_discrete = self.discrete.all()
+
+        # create initial population
+        self.population = []
+        self.array_population = num.zeros(n_chains)
+        for i in range(self.n_chains):
+            self.population.append(
+                Point({v.name: v.random() for v in vars}, model=model))
+
+        self.chain_previous_lpoint = deepcopy(self.population)
+
+        shared = make_shared_replacements(vars, model)
+        self.logp_forw = logp_forw(out_vars, vars, shared)
+        self.check_bnd = logp_forw([model.varlogpt], vars, shared)
+
+        super(Metropolis, self).__init__(vars, out_vars, shared)
+
+    def _sampler_state_blacklist(self):
+        """
+        Returns sampler attributes that are not saved.
+        """
+        bl = ['population',
+              'array_population',
+              'check_bnd',
+              'logp_forw',
+              'proposal_samples_array',
+              'vars',
+              '_BlockedStep__newargs']
+        return bl
+
+    def get_sampler_state(self):
+        """
+        Return dictionary of sampler state.
+
+        Returns
+        -------
+        dict of sampler state
+        """
+
+        blacklist = self._sampler_state_blacklist()
+        return {k: v for k, v in self.__dict__.items() if k not in blacklist}
+
+    def apply_sampler_state(self, state):
+        """
+        Update sampler state to given state
+        (obtained by 'get_sampler_state')
+
+        Parameters
+        ----------
+        state : dict
+            with sampler parameters
+        """
+        for k, v in state.items():
+            setattr(self, k, v)
+
+    def time_per_sample(self, n_points):
+        tps = num.zeros((n_points))
+        for i in range(n_points):
+            q = self.bij.map(self.population[i])
+            t0 = time()
+            self.logp_forw(q)
+            t1 = time()
+            tps[i] = t1 - t0
+        return tps.mean()
+
+    def astep(self, q0):
+        if self.stage == 0:
+            l_new = self.logp_forw(q0)
+            q_new = q0
+
+        else:
+            if self.stage_sample == 0:
+                self.proposal_samples_array = self.proposal_dist(
+                    self.n_steps).astype(tconfig.floatX)
+
+            if not self.steps_until_tune and self.tune:
+                # Tune scaling parameter
+                logger.debug('Tuning: Chain_%i step_%i' % (
+                    self.chain_index, self.stage_sample))
+
+                self.scaling = utility.scalar2floatX(
+                    tune(
+                        self.scaling,
+                        self.accepted / float(self.tune_interval)))
+
+                # Reset counter
+                self.steps_until_tune = self.tune_interval
+                self.accepted = 0
+
+            logger.debug(
+                'Get delta: Chain_%i step_%i' % (
+                    self.chain_index, self.stage_sample))
+            delta = self.proposal_samples_array[self.stage_sample, :] * \
+                self.scaling
+
+            if self.any_discrete:
+                if self.all_discrete:
+                    delta = num.round(delta, 0)
+                    q0 = q0.astype(int)
+                    q = (q0 + delta).astype(int)
+                else:
+                    delta[self.discrete] = num.round(
+                        delta[self.discrete], 0).astype(int)
+                    q = q0 + delta
+                    q = q[self.discrete].astype(int)
+            else:
+
+                q = q0 + delta
+
+            l0 = self.chain_previous_lpoint[self.chain_index]
+
+            if self.check_bnd:
+                logger.debug('Checking bound: Chain_%i step_%i' % (
+                    self.chain_index, self.stage_sample))
+                varlogp = self.check_bnd(q)
+
+                if num.isfinite(varlogp):
+                    logger.debug('Calc llk: Chain_%i step_%i' % (
+                        self.chain_index, self.stage_sample))
+
+                    lp = self.logp_forw(q)
+
+                    logger.debug('Select llk: Chain_%i step_%i' % (
+                        self.chain_index, self.stage_sample))
+
+                    q_new, accepted = metrop_select(
+                        self.beta * (
+                            lp[self._llk_index] - l0[self._llk_index]),
+                        q, q0)
+
+                    if accepted:
+                        logger.debug('Accepted: Chain_%i step_%i' % (
+                            self.chain_index, self.stage_sample))
+                        self.accepted += 1
+                        l_new = lp
+                        self.chain_previous_lpoint[self.chain_index] = l_new
+                    else:
+                        logger.debug('Rejected: Chain_%i step_%i' % (
+                            self.chain_index, self.stage_sample))
+                        l_new = l0
+                else:
+                    q_new = q0
+                    l_new = l0
+
+            else:
+                logger.debug('Calc llk: Chain_%i step_%i' % (
+                    self.chain_index, self.stage_sample))
+
+                lp = self.logp_forw(q)
+                logger.debug('Select: Chain_%i step_%i' % (
+                    self.chain_index, self.stage_sample))
+                q_new, accepted = metrop_select(
+                    self.beta * (lp[self._llk_index] - l0[self._llk_index]),
+                    q, q0)
+
+                if accepted:
+                    self.accepted += 1
+                    l_new = lp
+                    self.chain_previous_lpoint[self.chain_index] = l_new
+                else:
+                    l_new = l0
+
+            logger.debug(
+                'Counters: Chain_%i step_%i' % (
+                    self.chain_index, self.stage_sample))
+            self.steps_until_tune -= 1
+            self.stage_sample += 1
+
+            # reset sample counter
+            if self.stage_sample == self.n_steps:
+                self.stage_sample = 0
+
+            logger.debug(
+                'End step: Chain_%i step_%i' % (
+                    self.chain_index, self.stage_sample))
+        return q_new, l_new
 
 
 def get_final_stage(homepath, n_stages, model):
@@ -56,7 +343,7 @@ def get_final_stage(homepath, n_stages, model):
 
 
 def Metropolis_sample(
-        n_stages=10, n_steps=10000, trace=None, start=None,
+        n_stages=10, n_steps=10000, homepath=None, start=None,
         progressbar=False, stage=None, rm_flag=False,
         step=None, model=None, n_jobs=1, update=None, burn=0.5, thin=2):
     """
@@ -69,13 +356,14 @@ def Metropolis_sample(
     step.n_steps = int(n_steps)
 
     if n_steps < 1:
-        raise Exception('Argument `n_steps` should be above 0.', exc_info=1)
+        raise TypeError('Argument `n_steps` should be above 0.', exc_info=1)
 
     if step is None:
-        raise Exception('Argument `step` has to be a TMCMC step object.')
+        raise TypeError('Argument `step` has to be a Metropolis step object.')
 
-    if trace is None:
-        raise Exception('Argument `trace` should be path to result_directory.')
+    if homepath is None:
+        raise TypeError(
+            'Argument `homepath` should be path to result_directory.')
 
     if n_jobs > 1:
         if not (step.n_chains / float(n_jobs)).is_integer():
@@ -94,83 +382,63 @@ def Metropolis_sample(
                             'a variable %s '
                             'as defined in `step`.' % step.likelihood_name)
 
-    homepath = trace
+    stage_handler = backend.TextStage(homepath)
 
     util.ensuredir(homepath)
 
     chains, step, update = init_stage(
-        homepath=homepath,
+        stage_handler=stage_handler,
         step=step,
         stage=stage,
-        n_jobs=n_jobs,
         progressbar=progressbar,
         update=update,
         model=model,
         rm_flag=rm_flag)
 
-    # set beta to 1 - standard Metropolis sampling
-    step.beta = 1.
-    step.n_jobs = n_jobs
-
     with model:
 
-        for s in range(int(stage), n_stages):
+        chains = stage_handler.clean_directory(step.stage, chains, rm_flag)
 
-            stage_path = os.path.join(homepath, 'stage_%i' % s)
-            logger.info('Sampling stage %s' % stage_path)
+        logger.info('Sampling stage ...')
 
-            if s == 0:
-                draws = 1
-            else:
-                draws = n_steps
+        draws = n_steps
 
-            if not os.path.exists(stage_path):
-                chains = None
+        step.stage = 1
 
-            step.stage = s
+        sample_args = {
+            'draws': draws,
+            'step': step,
+            'stage_path': stage_handler.stage_path(step.stage),
+            'progressbar': progressbar,
+            'model': model,
+            'n_jobs': n_jobs,
+            'chains': chains}
 
-            sample_args = {
-                'draws': draws,
-                'step': step,
-                'stage_path': stage_path,
-                'progressbar': progressbar,
-                'model': model,
-                'n_jobs': n_jobs,
-                'chains': chains}
+        mtrace = iter_parallel_chains(**sample_args)
 
-            iter_parallel_chains(**sample_args)
-
-            mtrace = backend.load(stage_path, model)
-
-            step.population, step.array_population, step.likelihoods = \
-                step.select_end_points(mtrace)
-
+        if step.proposal_name == 'MultivariateNormal':
             pdict, step.covariance = get_trace_stats(
                 mtrace, step, burn, thin)
 
-            if step.proposal_name == 'MultivariateNormal':
-                step.proposal_dist = choose_proposal(
-                    step.proposal_name, scale=step.covariance)
+            step.proposal_dist = choose_proposal(
+                step.proposal_name, scale=step.covariance)
 
-            if update is not None:
-                logger.info('Updating Covariances ...')
-                update.update_weights(pdict['dist_mean'], n_jobs=n_jobs)
+        if update is not None:
+            logger.info('Updating Covariances ...')
+            update.update_weights(pdict['dist_mean'], n_jobs=n_jobs)
 
-                mtrace = update_last_samples(
-                    homepath, step, progressbar, model, n_jobs, rm_flag)
+            mtrace = update_last_samples(
+                homepath, step, progressbar, model, n_jobs, rm_flag)
 
-            elif update is not None and stage == 0:
-                update.engine.close_cashed_stores()
+        elif update is not None and stage == 0:
+            update.engine.close_cashed_stores()
 
-            step.chain_previous_lpoint = step.get_chain_previous_lpoint(mtrace)
+        step.chain_previous_lpoint = step.get_chain_previous_lpoint(mtrace)
 
-            outpath = os.path.join(stage_path, sample_p_outname)
-            outparam_list = [step, update]
-            utility.dump_objects(outpath, outparam_list)
+        outparam_list = [step.get_sampler_state(), update]
+        stage_handler.dump_atmip_params(step.stage, outparam_list)
 
         get_final_stage(homepath, n_stages, model=model)
-        outpath = os.path.join(homepath, 'stage_final', sample_p_outname)
-        utility.dump_objects(outpath, outparam_list)
 
 
 def get_trace_stats(mtrace, step, burn=0.5, thin=2):

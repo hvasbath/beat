@@ -1,4 +1,8 @@
 import logging
+from copy import deepcopy
+import os
+import shutil
+
 from beat import parallel, backend
 from beat.utility import list2string
 
@@ -7,9 +11,12 @@ from numpy.random import normal, standard_cauchy, standard_exponential, \
     poisson
 import numpy as np
 
+from theano import function
+
 from pymc3.model import modelcontext, Point
 from pymc3 import CompoundStep
 from pymc3.sampling import stop_tuning
+from pymc3.theanof import join_nonshared_inputs
 
 import multiprocessing as mp
 from tqdm import tqdm
@@ -329,5 +336,93 @@ def iter_parallel_chains(
                 ' restarting ...' % n_chains)
 
         chains = corrupted_chains
+
+    return mtrace
+
+
+def logp_forw(out_vars, vars, shared):
+    """
+    Compile Theano function of the model and the input and output variables.
+
+    Parameters
+    ----------
+    out_vars : List
+        containing :class:`pymc3.Distribution` for the output variables
+    vars : List
+        containing :class:`pymc3.Distribution` for the input variables
+    shared : List
+        containing :class:`theano.tensor.Tensor` for dependend shared data
+    """
+    out_list, inarray0 = join_nonshared_inputs(out_vars, vars, shared)
+    f = function([inarray0], out_list)
+    f.trust_input = True
+    return f
+
+
+def init_stage(
+        stage_handler, step, stage, model,
+        progressbar=False, update=None, rm_flag=False):
+    """
+    Examine starting point of sampling, reload stages and initialise steps.
+    """
+    with model:
+        if stage == 0:
+            # continue or start initial stage
+            step.stage = stage
+            draws = 1
+        else:
+            sampler_state, updates = stage_handler.load_sampler_params(stage)
+            step.apply_sampler_state(sampler_state)
+            draws = step.n_steps
+
+            if update is not None:
+                update.apply(updates)
+
+        stage_handler.clean_directory(stage, None, rm_flag)
+
+        chains = stage_handler.recover_existing_results(stage, draws, step)
+
+    return chains, step, update
+
+
+def update_last_samples(
+        homepath, step,
+        progressbar=False, model=None, n_jobs=1, rm_flag=False):
+    """
+    Resampling the last stage samples with the updated covariances and
+    accept the new sample.
+
+    Return
+    ------
+    mtrace : multitrace
+    """
+
+    tmp_stage = deepcopy(step.stage)
+    logger.info('Updating last samples ...')
+    draws = 1
+    step.stage = 0
+    trans_stage_path = os.path.join(
+        homepath, 'trans_stage_%i' % tmp_stage)
+    logger.info('in %s' % trans_stage_path)
+
+    if os.path.exists(trans_stage_path) and rm_flag:
+        shutil.rmtree(trans_stage_path)
+
+    chains = None
+    # reset resampling indexes
+    step.resampling_indexes = np.arange(step.n_chains)
+
+    sample_args = {
+        'draws': draws,
+        'step': step,
+        'stage_path': trans_stage_path,
+        'progressbar': progressbar,
+        'model': model,
+        'n_jobs': n_jobs,
+        'chains': chains}
+
+    mtrace = iter_parallel_chains(**sample_args)
+
+    step.stage = tmp_stage
 
     return mtrace
