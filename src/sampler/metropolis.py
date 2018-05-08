@@ -86,7 +86,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
         %282007%29133:7%28816%29>`__
     """
 
-    default_blocked = True
+    default_blocked = False
 
     def __init__(self, vars=None, out_vars=None, covariance=None, scale=1.,
                  n_chains=100, tune=True, tune_interval=100, model=None,
@@ -444,7 +444,8 @@ def Metropolis_sample(
         outparam_list = [step.get_sampler_state(), update]
         stage_handler.dump_atmip_params(step.stage, outparam_list)
 
-        get_final_stage(homepath, n_stages, model=model)
+        # get_final_stage(homepath, n_stages, model=model)
+        return stage_handler.load_multitrace(step.stage, model=model)
 
 
 def get_trace_stats(mtrace, step, burn=0.5, thin=2):
