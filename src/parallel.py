@@ -15,6 +15,41 @@ _shared_memory = OrderedDict()
 _tobememshared = set([])
 
 
+def check_available_memory(filesize):
+    """
+    Checks if the system memory can handle the given filesize.
+
+    Parameters
+    ----------
+    filesize : float
+       in [Mb] megabyte
+    """
+    from psutil import virtual_memory
+    mem = virtual_memory()
+    avail_mem_mb = mem.available / (1080 ** 2)
+    phys_mem_mb = mem.total / (1080 ** 2)
+
+    logger.debug(
+        'Physical Memory [Mb] %f \n '
+        'Available Memory [Mb] %f \n ' % (phys_mem_mb, avail_mem_mb))
+
+    if filesize > phys_mem_mb:
+        raise MemoryError(
+            'Physical memory on this system: %f is to small for the'
+            ' FFI setup configuration! The problem complexity'
+            ' (please reduce the number of: patches, stations,'
+            ' starttimes or durations or reduce the sample rate'
+            ' of your data and synthetcs.)'
+            ' has to be reduced or the hardware needs to be'
+            ' upgraded!' % phys_mem_mb)
+
+    if filesize > avail_mem_mb:
+        logger.warn(
+            'The Greens Functino Library filesize is larger than'
+            ' the available memory. Likely it will use the SWAP which'
+            ' may result in extremely slowed down calculation times!')
+
+
 def exception_tracer(func):
     """
     Function decorator that returns a traceback if an Error is raised in

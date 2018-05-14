@@ -463,8 +463,8 @@ filename: %s''' % (
 
         self._check_setup()
 
-        durationidxs = self.durations2idxs(durations)
-        starttimeidxs = self.starttimes2idxs(starttimes)
+        durationidxs, _ = self.durations2idxs(durations)
+        starttimeidxs, _ = self.starttimes2idxs(starttimes)
 
         if hasattr(parallel, 'gfmatrix'):
             matrix = num.frombuffer(parallel.gfmatrix).reshape(self.dimensions)
@@ -475,6 +475,9 @@ filename: %s''' % (
 
         else:
             matrix = self._gfmatrix
+
+        logger.debug(
+            'targetidx %i, patchidx %i' % (targetidx, patchidx))
 
         matrix[targetidx, patchidx, durationidxs, starttimeidxs, :] = entries
 
@@ -511,7 +514,7 @@ filename: %s''' % (
 
         Returns
         -------
-        starttimeidxs : starttimes : :class:`numpy.ndarray` or
+        starttimeidxs, starttimes : :class:`numpy.ndarray` or
             :class:`theano.tensor.Tensor`, int16
             (output depends on interpolation scheme,
              if multilinear interpolation factors are returned as well)
@@ -556,7 +559,7 @@ filename: %s''' % (
 
         Returns
         -------
-        durationidxs : starttimes : :class:`numpy.ndarray` or
+        durationidxs, starttimes : :class:`numpy.ndarray` or
             :class:`theano.tensor.Tensor`, int16
         """
         if interpolation == 'nearest_neighbor':
@@ -1279,13 +1282,23 @@ def geo_construct_gf_linear(
         gfs = GeodeticGFLibrary(config=gfl_config)
 
         outpath = os.path.join(outdirectory, gfs.filename + '.npz')
-        if not os.path.exists(outpath) or force:
+
+        if os.path.exists(outpath) or not force:
+            logger.info(
+                'Library exists: %s. '
+                'Please use --force to override!' % outpath)
+
             if nworkers < 2:
                 allocate = True
             else:
                 allocate = False
 
             gfs.setup(npatches, nsamples, allocate=allocate)
+
+            logger.info(
+                "Setting up Green's Function Library: %s \n ", gfs.__str__())
+
+            parallel.check_available_memory(gfs.filesize)
 
             shared_gflibrary = RawArray('d', gfs.size)
 
@@ -1311,16 +1324,16 @@ def geo_construct_gf_linear(
 
             gfs.save(outdir=outdirectory)
 
-        else:
-            logger.info(
-                'GF Library exists at path: %s. '
-                'Use --force to overwrite!' % outpath)
-
 
 def _process_patch_seismic(
         engine, gfs, targets, patch, patchidx, durations, starttimes):
 
-    patch.time += gfs.config.event.time
+    if patch.time < heart.physical_bounds['time'][1]:
+        patch.time += gfs.config.event.time
+        logger.info('Adding event time to reference source time!')
+    else:
+        logger.info('Using reference source time ...')
+
     source_patches_durations = []
     logger.info('Patch Number %i', patchidx)
 
@@ -1418,6 +1431,7 @@ def seis_construct_gf_linear(
     """
 
     # get starttimes for hypocenter at corner of fault
+
     start_times = fault.get_subfault_starttimes(
         index=0, rupture_velocities=velocities_prior.lower,
         nuc_dip_idx=0, nuc_strike_idx=0)
@@ -1463,7 +1477,12 @@ def seis_construct_gf_linear(
         gfs = SeismicGFLibrary(config=gfl_config)
 
         outpath = os.path.join(outdirectory, gfs.filename + '.npz')
-        if not os.path.exists(outpath) or force:
+
+        if os.path.exists(outpath) or not force:
+            logger.info(
+                'Library exists: %s. '
+                'Please use --force to override!' % outpath)
+        else:
             if nworkers < 2:
                 allocate = True
             else:
@@ -1472,6 +1491,11 @@ def seis_construct_gf_linear(
             gfs.setup(
                 ntargets, npatches, ndurations,
                 nstarttimes, nsamples, allocate=allocate)
+
+            logger.info(
+                "Setting up Green's Function Library: %s \n ", gfs.__str__())
+
+            parallel.check_available_memory(gfs.filesize)
 
             shared_gflibrary = RawArray('d', gfs.size)
             shared_times = RawArray('d', gfs.ntargets * (gfs.npatches + 1))
@@ -1501,11 +1525,6 @@ def seis_construct_gf_linear(
 
             gfs.save(outdir=outdirectory)
             del gfs
-
-        else:
-            logger.info(
-                'GF Library exists at path: %s. '
-                'Use --force to overwrite!' % outpath)
 
 
 def _patch_locations(n_patch_strike, n_patch_dip):

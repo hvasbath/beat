@@ -145,7 +145,7 @@ class Covariance(Object):
         Invert DATA covariance Matrix.
         """
         if self.data is None:
-            raise Exception('No data covariance matrix defined!')
+            raise AttributeError('No data covariance matrix defined!')
         return num.linalg.inv(self.data).astype(tconfig.floatX)
 
     @property
@@ -544,7 +544,7 @@ class GeodeticDataset(gf.meta.MultiLocation):
         elif self.north_shifts is not None:
             n = self.north_shifts.size
         else:
-            raise Exception('No coordinates defined!')
+            raise ValueError('No coordinates defined!')
         return n
 
 
@@ -621,7 +621,7 @@ class GPSCompoundComponent(GeodeticDataset):
         elif self.name == 'U':
             c = num.array([0, 0, 1])
         else:
-            raise Exception('Component %s not supported' % self.component)
+            raise ValueError('Component %s not supported' % self.component)
 
         self.los_vector = num.tile(c, self.samples).reshape(self.samples, 3)
         return self.los_vector
@@ -651,14 +651,14 @@ class GPSDataset(object):
 
     def add_station(self, station, force=False):
         if not isinstance(station, GPSStation):
-            raise Exception(
+            raise TypeError(
                 'Input object is not a valid station of'
                 ' class: %s' % GPSStation)
 
         if station.name not in self.stations.keys() or force:
             self.stations[station.name] = station
         else:
-            raise Exception(
+            raise ValueError(
                 'Station %s already exists in dataset!' % station.name)
 
     def get_station(self, name):
@@ -688,7 +688,7 @@ class GPSDataset(object):
             variances = num.power(
                 num.array([c.sigma for c in stations_comps]), 2)
         else:
-            raise Exception(
+            raise ValueError(
                 'Requested component %s does not exist in the dataset' % name)
 
         return GPSCompoundComponent(
@@ -790,7 +790,7 @@ class IFG(GeodeticDataset):
         """
 
         if self.incidence.all() and self.heading.all() is None:
-            raise Exception('Incidence and Heading need to be provided!')
+            raise AttributeError('Incidence and Heading need to be provided!')
 
         Su = num.cos(num.deg2rad(self.incidence))
         Sn = - num.sin(num.deg2rad(self.incidence)) * \
@@ -1466,7 +1466,7 @@ def choose_backend(
         receiver_model.append(l)
 
     else:
-        raise Exception('Backend not supported: %s' % code)
+        raise NotImplementedError('Backend not supported: %s' % code)
 
     # fill remaining fomosto params
     fc.earthmodel_1d = source_model
@@ -2283,6 +2283,9 @@ def post_process_trace(trace, taper, filterer, taper_tolerance_factor=0.,
         lower_cut = taper.a - tolerance
         upper_cut = taper.d + tolerance
 
+        logger.debug('taper times: %s' % taper.__str__())
+        logger.debug('trace: %s' % trace.__str__())
+
         trace.extend(lower_cut, upper_cut, fillmethod='zeros')
         trace.taper(taper, inplace=True)
         trace.chop(tmin=lower_cut,
@@ -2560,7 +2563,9 @@ def taper_filter_traces(traces, arrival_taper=None, filterer=None,
         else:
             taper = None
 
-        logger.debug('Filtering, tapering, chopping ...')
+        logger.debug(
+            'Filtering, tapering, chopping ... '
+            'trace_samples: %i' % cut_trace.ydata.size)
 
         post_process_trace(
             trace=cut_trace,
