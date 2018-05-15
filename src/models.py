@@ -2175,8 +2175,7 @@ def sample(step, problem):
         name = problem.outfolder
         util.ensuredir(name)
 
-        sampler.Metropolis_sample(
-            n_stages=pa.n_stages,
+!!!!       sampler.Metropolis_sample(
             n_steps=pa.n_steps,
             stage=pa.stage,
             step=step,
@@ -2204,78 +2203,70 @@ def sample(step, problem):
             rm_flag=pa.rm_flag)
 
 
+def init_chain_hypers(problem):
+
+    pc = problem.config.problem_config
+    sc = problem.config.sampler_config
+
+!!!!    logger.info('Metropolis chain %i' % chain)
+
+    if chain == 0:
+        point = {param.name: param.testvalue
+                 for param in pc.priors.values()}
+    else:
+        point = {param.name: param.random()
+                 for param in pc.priors.values()}
+
+    problem.outfolder = os.path.join(name, 'stage_%i' % 1)
+    start = {param.name: param.random() for param in
+             pc.hyperparameters.itervalues()}
+
+    if pa.rm_flag:
+        shutil.rmtree(problem.outfolder, ignore_errors=True)
+
+    if sc.parameters.update_covariances:
+        logger.info('Updating Covariances ...')
+        problem.update_weights(point)
+
+    logger.info('Updating source point ...')
+    problem.update_llks(point)
+
+
 def estimate_hypers(step, problem):
     """
     Get initial estimates of the hyperparameters
     """
+    from beat.sampler.base import iter_parallel_chains
     logger.info('... Estimating hyperparameters ...')
 
     pc = problem.config.problem_config
-    sc0 = problem.config.sampler_config
     sc = problem.config.hyper_sampler_config
     pa = sc.parameters
 
     name = problem.outfolder
     util.ensuredir(name)
 
-    for stage in range(pa.n_stages):
-        logger.info('Metropolis stage %i' % stage)
-
-        if stage == 0:
-            point = {param.name: param.testvalue
-                     for param in pc.priors.values()}
-        else:
-            point = {param.name: param.random()
-                     for param in pc.priors.values()}
-
-        problem.outfolder = os.path.join(name, 'stage_%i' % stage)
-        start = {param.name: param.random() for param in
-                 pc.hyperparameters.itervalues()}
-
-        if pa.rm_flag:
-            shutil.rmtree(problem.outfolder, ignore_errors=True)
-
-        if not os.path.exists(problem.outfolder):
-            logger.debug('Sampling ...')
-            if sc0.parameters.update_covariances:
-                logger.info('Updating Covariances ...')
-                problem.update_weights(point)
-
-            problem.update_llks(point)
-            with problem.model as hmodel:
-  !              mtrace = sampler.Metropolis_sample(
-                    n_stages=10,
-                    n_steps=10000,
-                    homepath=None,
-                    start=None,
-                    progressbar=False,
-                    stage=None,
-                    rm_flag=False,
-                    step=None,
-                    model=None, n_jobs=1, update=None,
-                    burn=0.5, thin=2)
-        else:
-            logger.debug('Loading existing results!')
-            mtraces.append(text.load(
-  !              name=problem.outfolder, model=problem.model))
-
-    mtrace = merge_traces(mtraces)
-    outname = os.path.join(name, 'stage_final')
-
-    if not os.path.exists(outname):
-        util.ensuredir(outname)
-        text.dump(name=outname, trace=mtrace)
-
-    n_steps = pa.n_steps
+    mtrace = iter_parallel_chains(
+        draws=pa.n_steps,
+        step=step,
+!!!!!        stage_path=,
+        progressbar=True,
+        model=step.model,
+        n_jobs=pa.n_jobs, 
+        initializer=init_chain_hypers,
+        initargs=(problem), chunksize=1)
 
     for v, i in pc.hyperparameters.iteritems():
         d = mtrace.get_values(
-            v, combine=True, burn=int(n_steps * pa.burn),
+            v, combine=True, burn=int(pa.n_steps * pa.burn),
             thin=pa.thin, squeeze=True)
+
         lower = num.floor(d.min(axis=0)) - 2.
         upper = num.ceil(d.max(axis=0)) + 2.
+
         logger.info('Updating hyperparameter %s from %f, %f to %f, %f' % (
             v, i.lower, i.upper, lower, upper))
+
         pc.hyperparameters[v].lower = lower
         pc.hyperparameters[v].upper = upper
         pc.hyperparameters[v].testvalue = (upper + lower) / 2.

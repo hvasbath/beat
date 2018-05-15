@@ -161,10 +161,10 @@ def paripool(
         number of work packages to throw at workers in each instance
     timeout : int
         time [s] after which processes are killed, default: 65536s
-    initialiser : function
+    initializer : function
         to init pool with may be container for shared arrays
     initargs : tuple
-        of arguments for the initialiser
+        of arguments for the initializer
     """
 
     def start_message(*globals):

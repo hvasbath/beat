@@ -251,13 +251,42 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
 
 def iter_parallel_chains(
         draws, step, stage_path, progressbar, model, n_jobs,
-        chains=None):
+        chains=None, initializer=None, initargs=(), chunksize=None):
     """
     Do Metropolis sampling over all the chains with each chain being
     sampled 'draws' times. Parallel execution according to n_jobs.
     If jobs hang for any reason they are being killed after an estimated
     timeout. The chains in question are being rerun and the estimated timeout
     is added again.
+
+    Parameters
+    ----------
+    draws : int
+        number of steps that are taken within each Markov Chain
+    step : step object of the sampler class, e.g.:
+        :class:`beat.sampler.Metropolis`, :class:`beat.sampler.SMC`
+    stage_path : str
+        with absolute path to the directory where to store the sampling results
+    progressbar : boolean
+        flag for displaying a progressbar
+    model : :class:`pymc3.model.Model` instance
+        holds definition of the forward problem
+    n_jobs : int
+        number of jobs to run in parallel, must not be higher than the
+        number of CPUs
+    chains : list
+        of integers to the chain numbers, if None then all chains from the
+        step object are sampled
+    initializer : function
+        to run before execution of each sampling process
+    initargs : tuple
+        of arguments for the initializer
+    chunksize : int
+        number of chains to sample within each process
+
+    Returns
+    -------
+    MultiTrace object
     """
     timeout = 0
 
@@ -287,13 +316,14 @@ def iter_parallel_chains(
 
         tps = step.time_per_sample(10)
 
-        if draws < 10:
-            chunksize = int(np.ceil(float(n_chains) / n_jobs))
-            tps += 5.
-        elif draws > 10 and tps < 1.:
-            chunksize = int(np.ceil(float(n_chains) / n_jobs))
-        else:
-            chunksize = n_jobs
+        if chunksize is None:
+            if draws < 10:
+                chunksize = int(np.ceil(float(n_chains) / n_jobs))
+                tps += 5.
+            elif draws > 10 and tps < 1.:
+                chunksize = int(np.ceil(float(n_chains) / n_jobs))
+            else:
+                chunksize = n_jobs
 
         timeout += int(np.ceil(tps * draws)) * n_jobs
 
@@ -323,7 +353,9 @@ def iter_parallel_chains(
             _sample, work,
             chunksize=chunksize,
             timeout=timeout,
-            nprocs=n_jobs)
+            nprocs=n_jobs,
+            initializer=initializer,
+            initargs=initargs)
 
         logger.info('Sampling ...')
 

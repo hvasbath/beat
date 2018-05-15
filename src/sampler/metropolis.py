@@ -75,15 +75,6 @@ class Metropolis(backend.ArrayStepSharedLLK):
     model : :class:`pymc3.Model`
         Optional model for sampling step.
         Defaults to None (taken from context).
-
-    References
-    ----------
-    .. [Ching2007] Ching, J. and Chen, Y. (2007).
-        Transitional Markov Chain Monte Carlo Method for Bayesian Model
-        Updating, Model Class Selection, and Model Averaging.
-        J. Eng. Mech., 10.1061/(ASCE)0733-9399(2007)133:7(816), 816-832.
-        `link <http://ascelibrary.org/doi/abs/10.1061/%28ASCE%290733-9399
-        %282007%29133:7%28816%29>`__
     """
 
     default_blocked = False
@@ -349,13 +340,11 @@ def get_final_stage(homepath, n_stages, model):
 
 
 def Metropolis_sample(
-        n_stages=10, n_steps=10000, homepath=None, start=None,
+        n_steps=10000, homepath=None, start=None,
         progressbar=False, stage=None, rm_flag=False,
         step=None, model=None, n_jobs=1, update=None, burn=0.5, thin=2):
     """
-    Execute Metropolis algorithm repeatedly depending on the number of stages.
-    The start point of each stage set to the end point of the previous stage.
-    Update covariances if given.
+    Execute Metropolis algorithm repeatedly depending on the number of chains.
     """
 
     model = modelcontext(model)

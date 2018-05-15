@@ -673,25 +673,14 @@ class ProblemConfig(Object):
 
 
 class SamplerParameters(Object):
-    pass
 
-
-class MetropolisConfig(SamplerParameters):
-    """
-    Config for optimization parameters of the Adaptive Metropolis algorithm.
-    """
     n_jobs = Int.T(
         default=1,
         help='Number of processors to use, i.e. chains to sample in parallel.')
-    n_stages = Int.T(
-        default=10,
-        help='Number of stages to sample/ or points in solution spacce for'
-             ' hyperparameter estimation')
     n_steps = Int.T(default=25000,
                     help='Number of steps for the MC chain.')
-    stage = Int.T(default=0,
-                  help='Stage where to start/continue the sampling. Has to'
-                       ' be int, -1 for final stage')
+    n_chains = Int.T(default=1000,
+                     help='Number of Metropolis chains for sampling.')
     tune_interval = Int.T(
         default=50,
         help='Tune interval for adaptive tuning of Metropolis step size.')
@@ -699,11 +688,19 @@ class MetropolisConfig(SamplerParameters):
         default='Normal',
         help='Normal Proposal distribution, for Metropolis steps;'
              'Alternatives: Cauchy, Laplace, Poisson, MultivariateNormal')
-    update_covariances = Bool.T(
-        default=False,
-        optional=True,
-        help='Update model prediction covariance matrixes in transition '
-             'stages.')
+    check_bnd = Bool.T(
+        default=True,
+        help='Flag for checking whether proposed step lies within'
+             ' variable bounds.')
+
+    rm_flag = Bool.T(default=False,
+                     help='Remove existing results prior to sampling.')
+
+
+class MetropolisConfig(SamplerParameters):
+    """
+    Config for optimization parameters of the Adaptive Metropolis algorithm.
+    """
     thin = Int.T(
         default=2,
         help='Thinning parameter of the sampled trace. Every "thin"th sample'
@@ -712,24 +709,12 @@ class MetropolisConfig(SamplerParameters):
         default=0.5,
         help='Burn-in parameter between 0. and 1. to discard fraction of'
              ' samples from the beginning of the chain.')
-    rm_flag = Bool.T(default=False,
-                     help='Remove existing stage results prior to sampling.')
 
 
 class SMCConfig(SamplerParameters):
     """
     Config for optimization parameters of the SMC algorithm.
     """
-    n_chains = Int.T(default=1000,
-                     help='Number of Metropolis chains for sampling.')
-    n_steps = Int.T(default=100,
-                    help='Number of steps for each chain per stage.')
-    n_jobs = Int.T(
-        default=1,
-        help='Number of processors to use, i.e. chains to sample in parallel.')
-    tune_interval = Int.T(
-        default=10,
-        help='Tune interval for adaptive tuning of Metropolis step size.')
     coef_variation = Float.T(
         default=1.,
         help='Coefficient of variation, determines the similarity of the'
@@ -743,17 +728,12 @@ class SMCConfig(SamplerParameters):
         default='MultivariateNormal',
         help='Multivariate Normal Proposal distribution, for Metropolis steps'
              'alternatives need to be implemented')
-    check_bnd = Bool.T(
-        default=True,
-        help='Flag for checking whether proposed step lies within'
-             ' variable bounds.')
+
     update_covariances = Bool.T(
         default=True,
         optional=True,
         help='Update model prediction covariance matrixes in transition '
              'stages.')
-    rm_flag = Bool.T(default=False,
-                     help='Remove existing stage results prior to sampling.')
 
 
 class SamplerConfig(Object):
