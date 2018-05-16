@@ -2176,6 +2176,7 @@ def sample(step, problem):
         util.ensuredir(name)
 
 !!!!       sampler.Metropolis_sample(
+
             n_steps=pa.n_steps,
             stage=pa.stage,
             step=step,
