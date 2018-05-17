@@ -131,15 +131,20 @@ class WatchedWorker(object):
         time [s] after which worker is fired, default 65536s
     """
 
-    def __init__(self, task, work, timeout=0xFFFF):
+    def __init__(
+            self, task, work, initializer=None, initargs=(), timeout=0xFFFF):
         self.function = task
         self.work = work
         self.timeout = timeout
+        self.initializer = initializer
+        self.initargs = initargs
 
     def run(self):
         """
         Start working on the task!
         """
+        if self.initializer is not None:
+            self.initializer(*self.initargs)
         try:
             return self.function(*self.work)
         except TimeoutException:
@@ -151,6 +156,7 @@ def _pay_worker(worker):
     """
     Wrapping function for the pool start instance.
     """
+
     return overseer(worker.timeout)(worker.run)()
 
 
@@ -194,18 +200,20 @@ def paripool(
 
     if nprocs == 1:
         for work in workpackage:
+            if initializer is not None:
+                initializer(*initargs)
             yield [function(*work)]
 
     else:
-        pool = multiprocessing.Pool(
-            processes=nprocs,
-            initializer=initializer,
-            initargs=initargs)
+        pool = multiprocessing.Pool(processes=nprocs)
 
         logger.info('Worker timeout after %i second(s)' % timeout)
 
         workers = [
-            WatchedWorker(function, work, timeout) for work in workpackage]
+            WatchedWorker(
+                function, work,
+                initializer=initializer, initargs=initargs, timeout=timeout)
+            for work in workpackage]
 
         pool_timeout = int(len(workpackage) / 3. * timeout / nprocs)
         if pool_timeout < 100:

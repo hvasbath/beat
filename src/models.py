@@ -1720,7 +1720,7 @@ class Problem(object):
                 t1 = time.time()
                 if hypers:
                     step = sampler.Metropolis(
-                        n_chains=sc.parameters.n_jobs,
+                        n_chains=sc.parameters.n_chains,
                         likelihood_name=self._like_name,
                         tune_interval=sc.parameters.tune_interval,
                         proposal_name=sc.parameters.proposal_dist)
@@ -2203,34 +2203,11 @@ def sample(step, problem):
             rm_flag=pa.rm_flag)
 
 
-def init_chain_hypers(problem):
-
-    pc = problem.config.problem_config
-    sc = problem.config.sampler_config
-
-    n = get_process_id() - 1
-    logger.info('Metropolis chain %i' % n)
-
-    if n == 0:
-        point = {param.name: param.testvalue
-                 for param in pc.priors.values()}
-    else:
-        point = {param.name: param.random()
-                 for param in pc.priors.values()}
-
-    if sc.parameters.update_covariances:
-        logger.info('Updating Covariances ...')
-        problem.update_weights(point)
-
-    logger.info('Updating source point ...')
-    problem.update_llks(point)
-
-
 def estimate_hypers(step, problem):
     """
     Get initial estimates of the hyperparameters
     """
-    from beat.sampler.base import iter_parallel_chains, init_stage
+    from beat.sampler.base import iter_parallel_chains, init_stage, init_chain_hypers
     logger.info('... Estimating hyperparameters ...')
 
     pc = problem.config.problem_config
@@ -2244,22 +2221,29 @@ def estimate_hypers(step, problem):
     chains, step, update = init_stage(
         stage_handler=stage_handler,
         step=step,
-        stage=1,
-        progressbar=pa.progressbar,
+        stage=0,
+        progressbar=sc.progressbar,
         model=problem.model,
         rm_flag=pa.rm_flag)
 
-    chains = stage_handler.clean_directory(1, chains, pa.rm_flag)
+    # setting stage to 1 otherwise only one sample
+    step.stage = 1
+    step.n_steps = pa.n_steps
 
-    mtrace = iter_parallel_chains(
-        draws=pa.n_steps,
-        step=step,
-        stage_path=stage_handler.stage_path(1),
-        progressbar=True,
-        model=problem.model,
-        n_jobs=pa.n_jobs,
-        initializer=init_chain_hypers,
-        initargs=(problem), chunksize=1)
+###cannot theano functions in composites ...some dirty hack?
+!!!!   problem.composites = {}
+
+    with problem.model:
+        mtrace = iter_parallel_chains(
+            draws=pa.n_steps,
+            step=step,
+            stage_path=stage_handler.stage_path(1),
+            progressbar=True,
+            model=problem.model,
+            n_jobs=pa.n_jobs,
+            initializer=init_chain_hypers,
+            initargs=(problem,),
+            chunksize=1)
 
     for v, i in pc.hyperparameters.iteritems():
         d = mtrace.get_values(

@@ -124,6 +124,9 @@ class Metropolis(backend.ArrayStepSharedLLK):
         self.stage = 0
         self.chain_index = 0
 
+        # needed to use the same parallel implementation function as for SMC
+        self.resampling_indexes = num.arange(n_chains)
+
         self.n_chains = n_chains
 
         self.likelihood_name = likelihood_name
@@ -140,13 +143,15 @@ class Metropolis(backend.ArrayStepSharedLLK):
             self.population.append(
                 Point({v.name: v.random() for v in vars}, model=model))
 
-        self.chain_previous_lpoint = deepcopy(self.population)
-
         shared = make_shared_replacements(vars, model)
         self.logp_forw = logp_forw(out_vars, vars, shared)
         self.check_bnd = logp_forw([model.varlogpt], vars, shared)
 
         super(Metropolis, self).__init__(vars, out_vars, shared)
+
+        self.chain_previous_lpoint = [
+            self.lij.dmap(point) for point in self.population]
+        print self.chain_previous_lpoint
 
     def _sampler_state_blacklist(self):
         """
@@ -264,12 +269,16 @@ class Metropolis(backend.ArrayStepSharedLLK):
                     if accepted:
                         logger.debug('Accepted: Chain_%i step_%i' % (
                             self.chain_index, self.stage_sample))
+                        logger.debug('proposed: %f previous: %f' % (
+                            lp[self._llk_index], l0[self._llk_index]))
                         self.accepted += 1
                         l_new = lp
                         self.chain_previous_lpoint[self.chain_index] = l_new
                     else:
                         logger.debug('Rejected: Chain_%i step_%i' % (
                             self.chain_index, self.stage_sample))
+                        logger.debug('proposed: %f previous: %f' % (
+                            lp[self._llk_index], l0[self._llk_index]))
                         l_new = l0
                 else:
                     q_new = q0

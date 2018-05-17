@@ -244,6 +244,29 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
         yield trace
 
 
+def init_chain_hypers(problem):
+    print 'In init function!'
+    pc = problem.config.problem_config
+    sc = problem.config.sampler_config
+
+    n = parallel.get_process_id() - 1
+    logger.info('Metropolis chain %i' % n)
+
+    if n == 0:
+        point = {param.name: param.testvalue
+                 for param in pc.priors.values()}
+    else:
+        point = {param.name: param.random()
+                 for param in pc.priors.values()}
+
+    if sc.parameters.update_covariances:
+        logger.info('Updating Covariances ...')
+        problem.update_weights(point)
+
+    logger.info('Updating source point ...')
+    problem.update_llks(point)
+
+
 def iter_parallel_chains(
         draws, step, stage_path, progressbar, model, n_jobs,
         chains=None, initializer=None, initargs=(), chunksize=None):
@@ -289,6 +312,7 @@ def iter_parallel_chains(
         chains = list(range(step.n_chains))
 
     n_chains = len(chains)
+    print 'NUmber of chains', n_chains
 
     if n_chains == 0:
         mtrace = backend.load_multitrace(dirname=stage_path, model=model)
@@ -309,7 +333,7 @@ def iter_parallel_chains(
                 for chain, rseed, trace in zip(
                     chains, random_seeds, trace_list)]
 
-        tps = step.time_per_sample(10)
+        tps = step.time_per_sample(np.minimum(n_jobs, 10))
 
         if chunksize is None:
             if draws < 10:

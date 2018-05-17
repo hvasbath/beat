@@ -103,7 +103,6 @@ class SMC(Metropolis):
             proposal_name=proposal_name, **kwargs)
 
         self.beta = 0
-        self.resampling_indexes = np.arange(n_chains)
 
         self.coef_variation = coef_variation
         self.likelihoods = np.zeros(n_chains)

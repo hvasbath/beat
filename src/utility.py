@@ -94,6 +94,8 @@ class ListToArrayBijection(object):
     def dmap(self, dpt):
         """
         Maps values from dict space to List space
+        If variable expected from ordering is not in point
+        it is filled with a low dummy value -999999.
 
         Parameters
         ----------
@@ -104,10 +106,16 @@ class ListToArrayBijection(object):
         -------
         point
         """
+        dummy = -9.e40
         a_list = copy.copy(self.list_arrays)
 
-        for list_ind, _, _, _, var in self.ordering.vmap:
-            a_list[list_ind] = dpt[var].ravel()
+        for list_ind, _, shp, _, var in self.ordering.vmap:
+            try:
+                a_list[list_ind] = dpt[var].ravel()
+            except KeyError:
+                # Needed for initialisation of chain_l_point in Metropolis
+                a_list[list_ind] = num.atleast_1d(
+                    num.ones(shp) * dummy).ravel()
 
         return a_list
 
