@@ -15,6 +15,19 @@ _shared_memory = OrderedDict()
 _tobememshared = set([])
 
 
+def get_process_id():
+    """
+    Returns the process id of the current process
+    """
+    try:
+        current = multiprocessing.current_process()
+        n = current._identity[0]
+    except IndexError:
+        # in case of only one used core ...
+        n = 1
+    return n
+
+
 def check_available_memory(filesize):
     """
     Checks if the system memory can handle the given filesize.

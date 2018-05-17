@@ -183,12 +183,7 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
                             tune, model, random_seed)
 
     if progressbar:
-        try:
-            current = mp.current_process()
-            n = current._identity[0]
-        except IndexError:
-            # in case of only one used core ...
-            n = 1
+        n = parallel.get_process_id()
 
         sampling = tqdm(
             sampling,

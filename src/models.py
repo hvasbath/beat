@@ -23,6 +23,7 @@ from beat import theanof, heart, utility, backend
 from beat import sampler
 from beat import covariance as cov
 from beat import config as bconfig
+from beat.parallel import get_process_id
 from beat.interseismic import geo_backslip_synthetics, seperate_point
 
 import logging
@@ -2172,11 +2173,9 @@ def sample(step, problem):
     if sc.name == 'Metropolis':
         logger.info('... Starting Metropolis ...\n')
 
-        name = problem.outfolder
-        util.ensuredir(name)
+        util.ensuredir(problem.outfolder)
 
-!!!!       sampler.Metropolis_sample(
-
+        sampler.Metropolis_sample(
             n_steps=pa.n_steps,
             stage=pa.stage,
             step=step,
@@ -2209,21 +2208,15 @@ def init_chain_hypers(problem):
     pc = problem.config.problem_config
     sc = problem.config.sampler_config
 
-!!!!    logger.info('Metropolis chain %i' % chain)
+    n = get_process_id() - 1
+    logger.info('Metropolis chain %i' % n)
 
-    if chain == 0:
+    if n == 0:
         point = {param.name: param.testvalue
                  for param in pc.priors.values()}
     else:
         point = {param.name: param.random()
                  for param in pc.priors.values()}
-
-    problem.outfolder = os.path.join(name, 'stage_%i' % 1)
-    start = {param.name: param.random() for param in
-             pc.hyperparameters.itervalues()}
-
-    if pa.rm_flag:
-        shutil.rmtree(problem.outfolder, ignore_errors=True)
 
     if sc.parameters.update_covariances:
         logger.info('Updating Covariances ...')
@@ -2237,7 +2230,7 @@ def estimate_hypers(step, problem):
     """
     Get initial estimates of the hyperparameters
     """
-    from beat.sampler.base import iter_parallel_chains
+    from beat.sampler.base import iter_parallel_chains, init_stage
     logger.info('... Estimating hyperparameters ...')
 
     pc = problem.config.problem_config
@@ -2247,13 +2240,24 @@ def estimate_hypers(step, problem):
     name = problem.outfolder
     util.ensuredir(name)
 
+    stage_handler = backend.TextStage(problem.outfolder)
+    chains, step, update = init_stage(
+        stage_handler=stage_handler,
+        step=step,
+        stage=1,
+        progressbar=pa.progressbar,
+        model=problem.model,
+        rm_flag=pa.rm_flag)
+
+    chains = stage_handler.clean_directory(1, chains, pa.rm_flag)
+
     mtrace = iter_parallel_chains(
         draws=pa.n_steps,
         step=step,
-!!!!!        stage_path=,
+        stage_path=stage_handler.stage_path(1),
         progressbar=True,
-        model=step.model,
-        n_jobs=pa.n_jobs, 
+        model=problem.model,
+        n_jobs=pa.n_jobs,
         initializer=init_chain_hypers,
         initargs=(problem), chunksize=1)
 
