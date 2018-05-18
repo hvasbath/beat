@@ -9,7 +9,6 @@ from pymc3.backends.base import merge_traces
 from pymc3.backends import text
 
 from pyrocko import gf, util, trace
-from pyrocko.guts import Object
 
 import numpy as num
 
@@ -180,7 +179,7 @@ def get_ramp_displacement(slocx, slocy, ramp):
     return slocy * ramp[0] + slocx * ramp[1]
 
 
-class Composite(Object):
+class Composite(object):
     """
     Class that comprises the rules to formulate the problem. Has to be
     used by an overarching problem object.
@@ -418,6 +417,10 @@ class GeodeticSourceComposite(GeodeticComposite):
 
         self.sources = sources
 
+    def __getstate__(self):
+        self.engine.close_cashed_stores()
+        return self.__dict__.copy()
+
     def point2sources(self, point):
         """
         Updates the composite source(s) (in place) with the point values.
@@ -502,12 +505,13 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
         super(GeodeticGeometryComposite, self).__init__(
             gc, project_dir, sources, event, hypers=hypers)
 
-        # synthetics generation
-        logger.debug('Initialising synthetics functions ... \n')
-        self.get_synths = theanof.GeoSynthesizer(
-            engine=self.engine,
-            sources=self.sources,
-            targets=self.targets)
+        if not hypers:
+            # synthetics generation
+            logger.debug('Initialising synthetics functions ... \n')
+            self.get_synths = theanof.GeoSynthesizer(
+                engine=self.engine,
+                sources=self.sources,
+                targets=self.targets)
 
     def get_synthetics(self, point, **kwargs):
         """
@@ -589,16 +593,17 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
             if not isinstance(source, gf.RectangularSource):
                 raise TypeError('Sources have to be RectangularSources!')
 
-        self._lats = self.Bij.fmap([data.lats for data in self.datasets])
-        self._lons = self.Bij.fmap([data.lons for data in self.datasets])
+        if not hypers:
+            self._lats = self.Bij.fmap([data.lats for data in self.datasets])
+            self._lons = self.Bij.fmap([data.lons for data in self.datasets])
 
-        self.get_synths = theanof.GeoInterseismicSynthesizer(
-            lats=self._lats,
-            lons=self._lons,
-            engine=self.engine,
-            targets=self.targets,
-            sources=sources,
-            reference=event)
+            self.get_synths = theanof.GeoInterseismicSynthesizer(
+                lats=self._lats,
+                lons=self._lons,
+                engine=self.engine,
+                targets=self.targets,
+                sources=sources,
+                reference=event)
 
     def get_synthetics(self, point, **kwargs):
         """
@@ -749,6 +754,10 @@ class SeismicComposite(Composite):
                     shared(
                         num.array([1.]), name='seis_llk_%i' % t, borrow=True))
 
+    def __getstate__(self):
+        self.engine.close_cashed_stores()
+        return self.__dict__.copy()
+
     def get_unique_stations(self):
         sl = [wmap.stations for wmap in self.wavemaps]
         us = []
@@ -882,26 +891,27 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.sources = sources
 
-        # syntetics generation
-        logger.debug('Initialising synthetics functions ... \n')
-        for wmap in self.wavemaps:
-            wc = wmap.config
+        if not hypers:
+            # syntetics generation
+            logger.debug('Initialising synthetics functions ... \n')
+            for wmap in self.wavemaps:
+                wc = wmap.config
 
-            self.synthesizers[wc.name] = theanof.SeisSynthesizer(
-                engine=self.engine,
-                sources=self.sources,
-                targets=wmap.targets,
-                event=self.event,
-                arrival_taper=wc.arrival_taper,
-                wavename=wmap.name,
-                filterer=wc.filterer,
-                pre_stack_cut=sc.pre_stack_cut)
+                self.synthesizers[wc.name] = theanof.SeisSynthesizer(
+                    engine=self.engine,
+                    sources=self.sources,
+                    targets=wmap.targets,
+                    event=self.event,
+                    arrival_taper=wc.arrival_taper,
+                    wavename=wmap.name,
+                    filterer=wc.filterer,
+                    pre_stack_cut=sc.pre_stack_cut)
 
-            self.choppers[wc.name] = theanof.SeisDataChopper(
-                sample_rate=sc.gf_config.sample_rate,
-                traces=wmap.datasets,
-                arrival_taper=wc.arrival_taper,
-                filterer=wc.filterer)
+                self.choppers[wc.name] = theanof.SeisDataChopper(
+                    sample_rate=sc.gf_config.sample_rate,
+                    traces=wmap.datasets,
+                    arrival_taper=wc.arrival_taper,
+                    filterer=wc.filterer)
 
         self.config = sc
 
@@ -1410,15 +1420,19 @@ class SeismicDistributerComposite(SeismicComposite):
 
         logger.info('Fault discretized to %s [km]'
                     ' patches.' % sgfc.patch_length)
-        self.sweeper = theanof.Sweeper(
-            sgfc.patch_length, n_p_dip, n_p_strike, self.sweep_implementation)
+        if not hypers:
+            self.sweeper = theanof.Sweeper(
+                sgfc.patch_length,
+                n_p_dip,
+                n_p_strike,
+                self.sweep_implementation)
 
-        for wmap in self.wavemaps:
-            self.choppers[wmap.name] = theanof.SeisDataChopper(
-                sample_rate=sc.gf_config.sample_rate,
-                traces=wmap.datasets,
-                arrival_taper=wmap.config.arrival_taper,
-                filterer=wmap.config.filterer)
+            for wmap in self.wavemaps:
+                self.choppers[wmap.name] = theanof.SeisDataChopper(
+                    sample_rate=sc.gf_config.sample_rate,
+                    traces=wmap.datasets,
+                    arrival_taper=wmap.config.arrival_taper,
+                    filterer=wmap.config.filterer)
 
     def load_fault_geometry(self):
         """
@@ -2230,8 +2244,7 @@ def estimate_hypers(step, problem):
     step.stage = 1
     step.n_steps = pa.n_steps
 
-###cannot theano functions in composites ...some dirty hack?
-!!!!   problem.composites = {}
+    problem.composites['seismic']
 
     with problem.model:
         mtrace = iter_parallel_chains(
@@ -2243,7 +2256,7 @@ def estimate_hypers(step, problem):
             n_jobs=pa.n_jobs,
             initializer=init_chain_hypers,
             initargs=(problem,),
-            chunksize=1)
+            chunksize=int(pa.n_chains / pa.n_jobs))
 
     for v, i in pc.hyperparameters.iteritems():
         d = mtrace.get_values(

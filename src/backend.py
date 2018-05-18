@@ -35,6 +35,7 @@ from pymc3.step_methods.arraystep import BlockedStep
 
 from beat import utility, config
 from pyrocko import util
+from time import time
 
 logger = logging.getLogger('backend')
 
@@ -176,6 +177,7 @@ class TextChain(BaseSMCTrace):
         """
         logger.debug('SetupTrace: Chain_%i step_%i' % (chain, draws))
         self.chain = chain
+        self.buffer = []
         self.filename = os.path.join(self.name, 'chain-{}.csv'.format(chain))
 
         cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
@@ -185,6 +187,24 @@ class TextChain(BaseSMCTrace):
 
         with open(self.filename, 'w') as fh:
             fh.write(','.join(cnames) + '\n')
+
+    def empty_buffer(self):
+        self.buffer = []
+
+    def write_buffer(self, lpoint, draw):
+        self.buffer.append((lpoint, draw))
+
+    def record_buffer(self):
+        t0 = time()
+        logger.debug(
+            'Start Record: Chain_%i' % self.chain)
+        for lpoint, draw in self.buffer:
+            self.record(lpoint, draw)
+
+        t1 = time()
+        logger.debug('End Record: Chain_%i' % self.chain)
+        logger.debug('Writing to file took %f' % (t1 - t0))
+        self.empty_buffer()
 
     def record(self, lpoint, draw):
         """

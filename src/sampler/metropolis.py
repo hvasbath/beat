@@ -151,7 +151,6 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
         self.chain_previous_lpoint = [
             self.lij.dmap(point) for point in self.population]
-        print self.chain_previous_lpoint
 
     def _sampler_state_blacklist(self):
         """

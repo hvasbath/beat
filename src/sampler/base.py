@@ -198,6 +198,8 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
 
     except KeyboardInterrupt:
         raise
+    finally:
+        strace.record_buffer()
 
     return chain
 
@@ -238,32 +240,33 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
 
         logger.debug('Step: Chain_%i step_%i' % (chain, i))
         point, out_list = step.step(point)
-        logger.debug('Start Record: Chain_%i step_%i' % (chain, i))
-        trace.record(out_list, i)
-        logger.debug('End Record: Chain_%i step_%i' % (chain, i))
+
+        trace.write_buffer(out_list, i)
+
         yield trace
 
 
 def init_chain_hypers(problem):
-    print 'In init function!'
+    """
+    Use random source parameters and fix the source parameter dependend
+    parts of the forward model.
+
+    Parameters
+    ----------
+    problem : :class:`beat.models.Problem`
+    """
+
     pc = problem.config.problem_config
     sc = problem.config.sampler_config
 
-    n = parallel.get_process_id() - 1
-    logger.info('Metropolis chain %i' % n)
-
-    if n == 0:
-        point = {param.name: param.testvalue
-                 for param in pc.priors.values()}
-    else:
-        point = {param.name: param.random()
-                 for param in pc.priors.values()}
+    point = {param.name: param.random()
+             for param in pc.priors.values()}
 
     if sc.parameters.update_covariances:
         logger.info('Updating Covariances ...')
         problem.update_weights(point)
 
-    logger.info('Updating source point ...')
+    logger.debug('Updating source point ...')
     problem.update_llks(point)
 
 
@@ -312,7 +315,6 @@ def iter_parallel_chains(
         chains = list(range(step.n_chains))
 
     n_chains = len(chains)
-    print 'NUmber of chains', n_chains
 
     if n_chains == 0:
         mtrace = backend.load_multitrace(dirname=stage_path, model=model)
@@ -334,17 +336,17 @@ def iter_parallel_chains(
                     chains, random_seeds, trace_list)]
 
         tps = step.time_per_sample(np.minimum(n_jobs, 10))
+        logger.info('Serial time per sample: %f' % tps)
 
         if chunksize is None:
             if draws < 10:
                 chunksize = int(np.ceil(float(n_chains) / n_jobs))
-                tps += 5.
             elif draws > 10 and tps < 1.:
                 chunksize = int(np.ceil(float(n_chains) / n_jobs))
             else:
                 chunksize = n_jobs
 
-        timeout += int(np.ceil(tps * draws)) * n_jobs
+        timeout += int(np.ceil(tps * draws)) * n_jobs + 10
 
         if n_jobs > 1:
             shared_params = [
