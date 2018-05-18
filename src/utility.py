@@ -19,7 +19,6 @@ from pyrocko import util, orthodrome, catalog
 from pyrocko.cake import m2d, LayeredModel, read_nd_model_str
 
 from pyrocko.gf.seismosizer import RectangularSource
-from beat.sources import MTSourceWithMagnitude
 
 import numpy as num
 from theano import config as tconfig
@@ -30,8 +29,6 @@ from pyproj import Proj
 logger = logging.getLogger('utility')
 
 DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype, name')
-PatchMap = collections.namedtuple(
-    'PatchMap', 'count, slc, shp, npatches')
 
 kmtypes = set(['east_shift', 'north_shift', 'length', 'width', 'depth',
                'distance', 'delta_depth'])
@@ -43,35 +40,6 @@ hrpd = 24.
 
 d2r = num.pi / 180.
 km = 1000.
-
-
-class FaultOrdering(object):
-    """
-    A mapping of source patches to the arrays of optimization results.
-
-    Parameters
-    ----------
-    npls : list
-        of number of patches in strike-direction
-    npws : list
-        of number of patches in dip-direction
-    """
-
-    def __init__(self, npls, npws):
-
-        self.vmap = []
-        dim = 0
-        count = 0
-
-        for npl, npw in zip(npls, npws):
-            npatches = npl * npw
-            slc = slice(dim, dim + npatches)
-            shp = (npw, npl)
-            self.vmap.append(PatchMap(count, slc, shp, npatches))
-            dim += npatches
-            count += 1
-
-        self.npatches = dim
 
 
 class ListArrayOrdering(object):
@@ -126,6 +94,8 @@ class ListToArrayBijection(object):
     def dmap(self, dpt):
         """
         Maps values from dict space to List space
+        If variable expected from ordering is not in point
+        it is filled with a low dummy value -999999.
 
         Parameters
         ----------
@@ -136,10 +106,16 @@ class ListToArrayBijection(object):
         -------
         point
         """
+        dummy = -9.e40
         a_list = copy.copy(self.list_arrays)
 
-        for list_ind, _, _, _, var in self.ordering.vmap:
-            a_list[list_ind] = dpt[var].ravel()
+        for list_ind, _, shp, _, var in self.ordering.vmap:
+            try:
+                a_list[list_ind] = dpt[var].ravel()
+            except KeyError:
+                # Needed for initialisation of chain_l_point in Metropolis
+                a_list[list_ind] = num.atleast_1d(
+                    num.ones(shp) * dummy).ravel()
 
         return a_list
 
@@ -588,8 +564,9 @@ def update_source(source, **point):
             if source.stf is not None:
                 source.stf[k] = v
             else:
-                raise Exception('Please set a STF before updating its'
-                                    ' parameters.')
+                raise AttributeError(
+                    'Please set a STF before updating its'
+                    ' parameters.')
         else:
             source[k] = v
 
@@ -1200,11 +1177,28 @@ def check_hyper_flag(problem):
         return False
 
 
+def error_not_whole(f, errstr=''):
+    """
+    Test if float is a whole number, if not raise Error.
+    """
+    if f.is_integer():
+        return int(f)
+    else:
+        raise ValueError('%s : %f is not a whole number!' % (errstr, f))
+
+
 def scalar2floatX(a, floatX=tconfig.floatX):
     if floatX == 'float32':
         return num.float32(a)
     elif floatX == 'float64':
         return num.float64(a)
+
+
+def scalar2int(a, floatX=tconfig.floatX):
+    if floatX == 'float32':
+        return num.int16(a)
+    elif floatX == 'float64':
+        return num.int64(a)
 
 
 def PsGrnArray2LayeredModel(psgrn_input_path):
@@ -1326,3 +1320,20 @@ def get_rotation_matrix(axis):
         return R[axis]
     else:
         raise Exception('axis has to be either string or list of strings!')
+
+
+def get_random_uniform(lower, upper, dimension=1):
+    """
+    Get uniform random values between given bounds
+
+    Parameters
+    ==========
+    lower : float
+    upper : float
+    dimension : size of result vector
+    """
+    values = (upper - lower) * num.random.rand(dimension) + lower
+    if dimension == 1:
+        return float(values)
+    else:
+        return values

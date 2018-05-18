@@ -22,7 +22,7 @@ r2d = 180. / num.pi
 logger = logging.getLogger('sources')
 
 
-class RectangularSource(gf.DCSource, Cloneable):
+class RectangularSource(gf.RectangularSource):
     """
     Source for rectangular fault that unifies the necessary different source
     objects for teleseismic and geodetic computations.
@@ -31,15 +31,6 @@ class RectangularSource(gf.DCSource, Cloneable):
     Many of the methods of the RectangularSource have been modified from
     the HalfspaceTool from GertjanVanZwieten.
     """
-
-    width = Float.T(help='width of the fault [m]',
-                    default=1. * km)
-    length = Float.T(help='length of the fault [m]',
-                    default=1. * km)
-    slip = Float.T(help='slip of the fault [m]',
-                    default=1.)
-    opening = Float.T(help='opening of the fault [m]',
-                    default=0.)
 
     @property
     def dipvector(self):
@@ -61,7 +52,7 @@ class RectangularSource(gf.DCSource, Cloneable):
         return num.array(
             [num.cos(self.dip * d2r) * num.cos(self.strike * d2r),
              -num.cos(self.dip * d2r) * num.sin(self.strike * d2r),
-              num.sin(self.dip * d2r)])
+             num.sin(self.dip * d2r)])
 
     @property
     def strikevector(self):
@@ -206,47 +197,32 @@ class RectangularSource(gf.DCSource, Cloneable):
                     length=length, width=width, stf=self.stf,
                     time=self.time, slip=self.slip, anchor='center')
 
-                if nw == 1 and nl == 1:
-                    logger.warn(
-                        'RectangularSource for fault-geometry inversion'
-                        ' decimated!')
-                    if datatype == 'seismic':
-                        patch.decimation_factor = 20
-
-                    elif datatype == 'geodetic':
-                        patch.decimation_factor = 7
-
-                else:
-                    raise TypeError(
-                        "Datatype not supported either: 'seismic/geodetic'")
-
                 patches.append(patch)
 
         return patches
 
-    def outline(self, cs='xyz'):
-        points = outline_rect_source(self.strike, self.dip, self.length,
-                                     self.width)
-        center = self.center(self.width)
-        points[:, 0] += center[0]
-        points[:, 1] += center[1]
-        points[:, 2] += center[2]
-        if cs == 'xyz':
-            return points
-        elif cs == 'xy':
-            return points[:, :2]
-        elif cs in ('latlon', 'lonlat'):
-            latlon = ne_to_latlon(
-                self.lat, self.lon, points[:, 0], points[:, 1])
+    def get_n_patches(self, patch_size=1000., dimension='length'):
+        """
+        Return number of patches along dimension of the fault.
 
-            latlon = num.array(latlon).T
-            if cs == 'latlon':
-                return latlon
-            else:
-                return latlon[:, ::-1]
+        Parameters
+        ----------
+        patch_size : float
+            patch size [m] of desired sub-patches
+        dimension : str
 
-    def extent_source(self, extension_width, extension_length,
-                     patch_width, patch_length):
+        Returns
+        -------
+        int
+        """
+        if dimension not in ['length', 'width']:
+            raise ValueError('Invalid dimension!')
+
+        return int(num.ceil(self[dimension] / patch_size))
+
+    def extent_source(
+            self, extension_width, extension_length,
+            patch_width, patch_length):
         """
         Extend fault into all directions. Rounds dimensions to have no
         half-patches.
@@ -273,7 +249,7 @@ class RectangularSource(gf.DCSource, Cloneable):
         w = self.width
 
         new_length = num.ceil((l + (2. * l * extension_length)) / km) * km
-        new_width = num.ceil((w + (2. * w * extension_length)) / km) * km
+        new_width = num.ceil((w + (2. * w * extension_width)) / km) * km
 
         npl = int(num.ceil(new_length / patch_length))
         npw = int(num.ceil(new_width / patch_width))
@@ -284,6 +260,7 @@ class RectangularSource(gf.DCSource, Cloneable):
             'Fault extended to length=%f, width=%f!' % (new_length, new_width))
 
         orig_center = s.center(s.width)
+
         s.update(length=new_length, width=new_width)
 
         top_center = s.center2top_depth(orig_center)

@@ -52,14 +52,17 @@ class custom_build_py(build_py):
                     % bd_dir)
 
 
-subpackages = ['beat.fast_sweeping']
+subpackages = [
+    'beat.fast_sweeping',
+    'beat.voronoi',
+    'beat.sampler']
 
 setup(
     cmdclass={
         'build_py': custom_build_py},
     name='beat',
     description='Bayesian Earthquake Analysis Tool',
-    version='1.0beta',
+    version='1.0rc1',
     author='Hannes Vasyuara-Bathke',
     author_email='hannes.vasyura-bathke@kaust.edu.sa',
     install_requires=install_reqs,
@@ -71,5 +74,10 @@ setup(
         Extension(
             'fast_sweep_ext',
             sources=[os.path.join('src/fast_sweeping', 'fast_sweep_ext.c')],
+            include_dirs=[numpy.get_include()]),
+        Extension(
+            'voronoi_ext',
+            extra_compile_args=['-lm'],
+            sources=[os.path.join('src/voronoi', 'voronoi_ext.c')],
             include_dirs=[numpy.get_include()])]
 )

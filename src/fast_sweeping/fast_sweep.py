@@ -22,20 +22,50 @@ km = 1000.
 
 
 def get_rupture_times_c(
-    Slowness, patch_size, n_patch_strike, n_patch_dip, nuc_x, nuc_y):
+        slowness, patch_size, n_patch_strike, n_patch_dip, nuc_x, nuc_y):
     """
     C Implementation wrapper
 
     Slowness array has to be a flat array (1d).
+
+    Parameters
+    ----------
+    slowness : :class:`numpy.NdArray`
+        Matrix (2d, ( 1 x n_patch_dip * n_patch_strike) of slownesses of
+        rupture on patches 1 / rupture_velocity [s / km]
+    patch_size : float
+        Size of slip patches [km]
+    n_patch_strike : int
+        Number of patches in strike direction of fault-plane
+    n_patch_dip : int
+        Number of patches in dip direction of fault-plane
+    nuc_x : int
+        Nucleation point of rupture in patch coordinate system on fault
+        along strike [integer 0 left, n_patch_str right]
+    nuc_y : int
+        Nucleation point of rupture in patch coordinate system on fault
+        along dip [integer 0 top n_patch_dip bottom]
+
+    Returns
+    -------
+    tzero : :class:`numpy.NdArray` 1d (n_patch_dip * n_patch_strike)
+        rupture onset times in s after hypocentral time
+
+    Notes
+    -----
+    Here we call the C-implementation on purpose with swapped
+    strike and dip directions, because we need the
+    fault dipping in row directions of the array.
+    The C-implementation has it along columns!!!
     """
     return fast_sweep_ext.fast_sweep(
-        Slowness, patch_size,
-        nuc_x, nuc_y,
-        n_patch_strike, n_patch_dip)
+        slowness, patch_size,
+        nuc_y, nuc_x,
+        n_patch_dip, n_patch_strike)
 
 
 def get_rupture_times_numpy(
-    Slowness, patch_size, n_patch_strike, n_patch_dip, nuc_x, nuc_y):
+        Slowness, patch_size, n_patch_strike, n_patch_dip, nuc_x, nuc_y):
     """
     Numpy implementation for reference.
 
@@ -59,15 +89,15 @@ def get_rupture_times_numpy(
 
     Returns
     -------
-    tzero : :class:`numpy.NdArray`
+    tzero : :class:`numpy.NdArray` (n_patch_dip, n_patch_strike)
         rupture onset times in s after hypocentral time
     """
 
     StartTimes = num.ones((n_patch_dip, n_patch_strike)) * 1e8
     StartTimes[nuc_y, nuc_x] = 0
 
-    ### Upwind scheme ###
-    def upwind(dip_ind, str_ind, StartTimes, Slowness,
+    def upwind(
+            dip_ind, str_ind, StartTimes, Slowness,
             patch_sz, n_patch_dip, n_patch_strike):
         s1 = str_ind - 1
         d1 = dip_ind - 1

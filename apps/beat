@@ -5,54 +5,59 @@ import os
 os.environ["OMP_NUM_THREADS"] = "1"
 
 import logging
-import sys, copy
+import sys
+import copy
 import shutil
 
 from optparse import OptionParser
 
-from beat import heart, config, utility, models, inputf, plotting, backend
+from beat import heart, config, utility, inputf, plotting
+from beat.models import load_model, Stage, estimate_hypers, sample
+from beat.backend import TextChain
 from beat.sources import MTSourceWithMagnitude
 from beat.metropolis import get_trace_stats
 from beat.utility import list2string
 
 from pyrocko import model, util
+from pyrocko.trace import snuffle
 from pyrocko.gf import LocalEngine
 
 from pyrocko.guts import load, dump
 
-from pymc3 import summary
-from pymc3.backends.base import MultiTrace
 
 logger = logging.getLogger('beat')
 
 
+km = 1000.
+
+
 def d2u(d):
-    return dict((k.replace('-','_'), v) for (k, v) in d.iteritems())
+    return dict((k.replace('-', '_'), v) for (k, v) in d.iteritems())
 
 
 subcommand_descriptions = {
-        'init':           'create a new EQ model project, use only event'
-                          ' name to skip catalog search',
-        'import':         'import data or results, from external format or '
-                          'modeling results, respectively',
-        'sample':         'sample the solution space of the problem',
-        'build_gfs':      'build GF stores',
-        'clone':          'clone EQ model project into new directory',
-        'plot':           'plot specified setups or results',
-        'check':          'check setup specific requirements',
-        'summarize':      'collect results and create statistics',
+    'init':           'create a new EQ model project, use only event'
+                      ' name to skip catalog search',
+    'import':         'import data or results, from external format or '
+                      'modeling results, respectively',
+    'sample':         'sample the solution space of the problem',
+    'build_gfs':      'build GF stores',
+    'clone':          'clone EQ model project into new directory',
+    'plot':           'plot specified setups or results',
+    'check':          'check setup specific requirements',
+    'summarize':      'collect results and create statistics',
 }
 
 subcommand_usages = {
-        'init':          'init <event_name> <event_date "YYYY-MM-DD"> '
-                         '[options]',
-        'import':        'import <event_name> [options]',
-        'sample':        'sample <event_name> [options]',
-        'build_gfs':     'build_gfs <event_name> [options]',
-        'clone':         'clone <event_name> <cloned_event_name> [options]',
-        'plot':          'plot <event_name> <plot_type> [options]',
-        'check':         'check <event_name> [options]',
-        'summarize':     'summarize <event_name> [options]',
+    'init':          'init <event_name> <event_date "YYYY-MM-DD"> '
+                     '[options]',
+    'import':        'import <event_name> [options]',
+    'sample':        'sample <event_name> [options]',
+    'build_gfs':     'build_gfs <event_name> [options]',
+    'clone':         'clone <event_name> <cloned_event_name> [options]',
+    'plot':          'plot <event_name> <plot_type> [options]',
+    'check':         'check <event_name> [options]',
+    'summarize':     'summarize <event_name> [options]',
 }
 
 subcommands = subcommand_descriptions.keys()
@@ -94,7 +99,7 @@ nargs_dict = {
     'summarize': 1,
 }
 
-mode_choices = ['geometry', 'static', 'interseismic']
+mode_choices = ['geometry', 'ffi', 'interseismic']
 supported_geodetic_formats = ['matlab', 'ascii', 'kite']
 
 
@@ -148,7 +153,7 @@ def cl_parse(command, args, setup=None, details=None):
 
     susage = '%s %s' % (program_name, usage[0])
     for s in usage[1:]:
-        susage += '\n%s%s %s' % (' '*7, program_name, s)
+        susage += '\n%s%s %s' % (' ' * 7, program_name, s)
 
     description = descr[0].upper() + descr[1:] + '.'
 
@@ -187,76 +192,87 @@ def command_init(args):
 
     def setup(parser):
 
-        parser.add_option('--min_mag', dest='min_mag', type=float,
+        parser.add_option(
+            '--min_mag', dest='min_mag', type=float,
             default=6.,
             help='Minimum Mw for event, for catalog search.'
                  ' Default: "6.0"')
 
-        parser.add_option('--main_path', dest='main_path', type='string',
+        parser.add_option(
+            '--main_path', dest='main_path', type='string',
             default='./',
             help='Main path (absolute) for creating directory structure.'
                  '  Default: current directory ./')
 
-        parser.add_option('--datatypes',
+        parser.add_option(
+            '--datatypes',
             default=['geodetic'], type='string',
             action='callback', callback=list_callback,
             help='Datatypes to include in the setup; "geodetic, seismic".')
 
-        parser.add_option('--mode', dest='mode',
-            choices=mode_choices ,
+        parser.add_option(
+            '--mode', dest='mode',
+            choices=mode_choices,
             default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' % \
-                list2string(mode_choices))
+            help='Inversion problem to solve; %s Default: "geometry"' %
+                 list2string(mode_choices))
 
-        parser.add_option('--source_type', dest='source_type',
+        parser.add_option(
+            '--source_type', dest='source_type',
             choices=config.source_names,
             default='RectangularSource',
             help='Source type to solve for; %s'
                  '. Default: "RectangularSource"' % (
                      '", "'.join(name for name in config.source_names)))
 
-        parser.add_option('--n_sources', dest='n_sources', type='int',
+        parser.add_option(
+            '--n_sources', dest='n_sources', type='int',
             default=1,
-            help='Integer Number of sources to invert for. Default: 1' )
+            help='Integer Number of sources to invert for. Default: 1')
 
-        parser.add_option('--waveforms', type='string',
+        parser.add_option(
+            '--waveforms', type='string',
             action='callback', callback=list_callback,
             default=['any_P', 'any_S'],
             help='Waveforms to include in the setup; "any_P, any_S, slowest".')
 
-        parser.add_option('--sampler', dest='sampler', type='string',
+        parser.add_option(
+            '--sampler', dest='sampler', type='string',
             default='SMC',
             help='Sampling algorithm to sample the solution space of the'
                  ' general problem; "SMC", "Metropolis". Default: "SMC"')
 
-        parser.add_option('--hyper_sampler', dest='hyper_sampler',
+        parser.add_option(
+            '--hyper_sampler', dest='hyper_sampler',
             type='string', default='Metropolis',
             help='Sampling algorithm to sample the solution space of the'
                  ' hyperparameters only; So far only "Metropolis" supported.'
                  'Default: "Metropolis"')
 
-        parser.add_option('--use_custom', dest='use_custom',
+        parser.add_option(
+            '--use_custom', dest='use_custom',
             action='store_true',
             help='If set, a slot for a custom velocity model is being created'
                  ' in the configuration file.')
 
-        parser.add_option('--individual_gfs', dest='individual_gfs',
+        parser.add_option(
+            '--individual_gfs', dest='individual_gfs',
             action='store_true',
             help="If set, Green's Function stores will be created individually"
                  " for each station!")
 
     parser, options, args = cl_parse('init', args, setup=setup)
 
-    l = len(args)
+    la = len(args)
 
-    if l > 2 or l < 1:
+    if la > 2 or la < 1:
         logger.error('Wrong number of input arguments!')
         parser.print_help()
         sys.exit(1)
 
-    if l == 2:
+    if la == 2:
         name, date = args
-    elif l == 1:
+    elif la == 1:
         logger.info(
             'Doing no catalog search for event information!')
         name = args[0]
@@ -331,8 +347,6 @@ def command_import(args):
         args, options, nargs_dict[command_str])
 
     c = config.load_config(project_dir, options.mode)
-
-    pc = c.problem_config
 
     if not options.results:
         if 'seismic' in options.datatypes:
@@ -409,26 +423,28 @@ def command_import(args):
         if options.mode == 'geometry':
             logger.warn('No previous modeling results to be imported!')
 
-        elif options.mode == 'static':
+        elif options.mode == 'ffi':
             logger.info('Importing non-linear modeling results, i.e.'
                         ' maximum likelihood result for source geometry.')
-            problem = models.load_model(
+            problem = load_model(
                 c.project_dir, 'geometry', hypers=False)
-            stage = models.load_stage(
+            stage = load_stage(
                 problem, stage_number='final', load='full')
 
             point = plotting.get_result_point(stage, problem.config, 'max')
             n_sources = problem.config.problem_config.n_sources
 
-            source_params = config.geo_vars_geometry
+            source_params = problem.config.problem_config.priors.keys()
             for param in point.keys():
                 if param not in source_params:
                     point.pop(param)
 
             point = utility.adjust_point_units(point)
             source_points = utility.split_point(point)
-            reference_sources = [heart.RectangularSource(
-                **source_points[i]) for i in range(n_sources)]
+
+            reference_sources = config.init_reference_sources(
+                source_points, n_sources,
+                c.problem_config.source_type, c.problem_config.stf_type)
 
             c.geodetic_config.gf_config.reference_sources = reference_sources
             config.dump_config(c)
@@ -441,24 +457,36 @@ def command_clone(args):
 
     def setup(parser):
 
-        parser.add_option('--main_path', dest='main_path', type='string',
+        parser.add_option(
+            '--main_path', dest='main_path', type='string',
             default='./',
             help='Main path (absolute) leading to folders of events that'
                  ' have been created by "init".'
                  ' Default: current directory: ./')
 
-        parser.add_option('--datatypes',
+        parser.add_option(
+            '--datatypes',
             default=['geodetic', 'seismic'], type='string',
             action='callback', callback=list_callback,
             help='Datatypes to clone; "geodetic, seismic".')
 
-        parser.add_option('--mode', dest='mode',
-            choices=mode_choices ,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' % \
-                list2string(mode_choices))
+        parser.add_option(
+            '--source_type', dest='source_type',
+            choices=config.source_names,
+            default=None,
+            help='Source type to replace in config; %s'
+                 '. Default: "dont change"' % (
+                     '", "'.join(name for name in config.source_names)))
 
-        parser.add_option('--copy_data', dest='copy_data',
+        parser.add_option(
+            '--mode', dest='mode',
+            choices=mode_choices,
+            default='geometry',
+            help='Inversion problem to solve; %s Default: "geometry"' %
+                 list2string(mode_choices))
+
+        parser.add_option(
+            '--copy_data', dest='copy_data',
             action='store_true',
             help='If set, the imported data will be copied into the cloned'
                  ' directory.')
@@ -502,14 +530,21 @@ def command_clone(args):
                             cloned_dir, datatype + '_data.pkl')
                         shutil.copyfile(data_path, cloned_data_path)
 
-            old_priors = copy.deepcopy(c.problem_config.priors)
+            if options.source_type is None:
+                old_priors = copy.deepcopy(c.problem_config.priors)
 
-            c.problem_config.datatype = new_datatypes
-            new_priors = c.problem_config.select_variables()
+                c.problem_config.datatype = new_datatypes
+                new_priors = c.problem_config.select_variables()
 
-            for prior in new_priors:
-                if prior in old_priors.keys():
-                    c.problem_config.priors[prior] = old_priors[prior]
+                for prior in new_priors:
+                    if prior in old_priors.keys():
+                        c.problem_config.priors[prior] = old_priors[prior]
+
+            else:
+                logger.info('Replacing source with "%s"' % options.source_type)
+                c.problem_config.source_type = options.source_type
+                c.problem_config.init_vars()
+                c.problem_config.set_decimation_factor()
 
             old_hypers = copy.deepcopy(c.problem_config.hyperparameters)
 
@@ -522,62 +557,72 @@ def command_clone(args):
         else:
             raise IOError('Config file: %s does not exist!' % config_fn)
 
+
 def command_sample(args):
 
     command_str = 'sample'
 
     def setup(parser):
-        parser.add_option('--mode', dest='mode',
-            choices=mode_choices ,
+        parser.add_option(
+            '--mode', dest='mode',
+            choices=mode_choices,
             default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' % \
-                list2string(mode_choices))
+            help='Inversion problem to solve; %s Default: "geometry"' %
+                 list2string(mode_choices))
 
-        parser.add_option('--main_path', dest='main_path', type='string',
+        parser.add_option(
+            '--main_path', dest='main_path', type='string',
             default='./',
             help='Main path (absolute) leading to folders of events that'
                  ' have been created by "init".'
                  ' Default: current directory: ./')
 
-        parser.add_option('--hypers', dest='hypers',
-                action='store_true', help='Sample hyperparameters only.')
+        parser.add_option(
+            '--hypers', dest='hypers',
+            action='store_true', help='Sample hyperparameters only.')
 
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
     project_dir = get_project_directory(
         args, options, nargs_dict[command_str])
 
-    problem = models.load_model(
+    problem = load_model(
         project_dir, options.mode, options.hypers)
 
     step = problem.init_sampler(hypers=options.hypers)
 
     if options.hypers:
-        models.estimate_hypers(step, problem)
+        estimate_hypers(step, problem)
     else:
-        models.sample(step, problem)
+        sample(step, problem)
 
 
 def command_summarize(args):
+
+    from pymc3 import summary
+    from pymc3.backends.base import MultiTrace
 
     command_str = 'summarize'
 
     def setup(parser):
 
-        parser.add_option('--main_path', dest='main_path', type='string',
+        parser.add_option(
+            '--main_path', dest='main_path', type='string',
             default='./',
             help='Main path (absolute) leading to folders of events that'
                  ' have been created by "init".'
                  ' Default: current directory: ./')
 
-        parser.add_option('--mode', dest='mode',
-            choices=mode_choices ,
+        parser.add_option(
+            '--mode', dest='mode',
+            choices=mode_choices,
             default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' % \
-                list2string(mode_choices))
+            help='Inversion problem to solve; %s Default: "geometry"' %
+                 list2string(mode_choices))
 
-        parser.add_option('--force', dest='force', action='store_true',
-                help='Overwrite existing files')
+        parser.add_option(
+            '--force', dest='force', action='store_true',
+            help='Overwrite existing files')
 
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
@@ -595,11 +640,15 @@ def command_summarize(args):
     if not os.path.exists(
             os.path.join(stage_path, 'chain-0.csv')) or options.force:
 
-        rtrace = backend.TextChain(stage_path, model=problem.model)
+        rtrace = TextChain(stage_path, model=problem.model)
         rtrace.setup(
             draws=sc_params.n_chains * sc_params.n_steps, chain=0)
 
-        source = problem.sources[0]
+        if hasattr(problem, 'sources'):
+            source = problem.sources[0]
+        else:
+            source = None
+
         for chain in stage.mtrace.chains:
             for idx in [-1]:
                 point = stage.mtrace.point(idx=idx, chain=chain)
@@ -614,7 +663,7 @@ def command_summarize(args):
                     jpoint = utility.join_points(ldicts)
                     point.update(jpoint)
 
-                lpoint = stage.step.lij.dmap(point)
+                lpoint = stage.step['lij'].dmap(point)
                 rtrace.record(lpoint, draw=chain)
 
         rtrace = MultiTrace([rtrace])
@@ -638,30 +687,35 @@ def command_build_gfs(args):
 
     def setup(parser):
 
-        parser.add_option('--main_path', dest='main_path', type='string',
+        parser.add_option(
+            '--main_path', dest='main_path', type='string',
             default='./',
             help='Main path (absolute) leading to folders of events that'
                  ' have been created by "init".'
                  ' Default: current directory: ./')
 
-        parser.add_option('--mode', dest='mode',
-            choices=mode_choices ,
+        parser.add_option(
+            '--mode', dest='mode',
+            choices=mode_choices,
             default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' % \
-                list2string(mode_choices))
+            help='Inversion problem to solve; %s Default: "geometry"' %
+                 list2string(mode_choices))
 
-        parser.add_option('--datatypes',
-            default='geodetic', type='string',
+        parser.add_option(
+            '--datatypes',
+            default=['geodetic'], type='string',
             action='callback', callback=list_callback,
             help='Datatypes to calculate the GFs for; "geodetic, seismic".'
                  ' Default: "geodetic"')
 
-        parser.add_option('--force', dest='force', action='store_true',
-                help='Overwrite existing files')
+        parser.add_option(
+            '--force', dest='force', action='store_true',
+            help='Overwrite existing files')
 
-        parser.add_option('--execute', dest='execute', action='store_true',
-                help='Start actual GF calculations. If not set only'
-                     ' configuration files are being created')
+        parser.add_option(
+            '--execute', dest='execute', action='store_true',
+            help='Start actual GF calculations. If not set only'
+                 ' configuration files are being created')
 
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
@@ -671,138 +725,195 @@ def command_build_gfs(args):
     c = config.load_config(project_dir, options.mode)
 
     if options.mode in ['geometry', 'interseismic']:
-        if 'geodetic' in options.datatypes:
-            gc = c.geodetic_config
-            gf = c.geodetic_config.gf_config
-
-            for crust_ind in range(*gf.n_variations):
-                heart.geo_construct_gf(
-                    event=c.event,
-                    geodetic_config=gc,
-                    crust_ind=crust_ind,
-                    execute=options.execute,
-                    force=options.force)
-
-            if options.execute:
-                logger.info('Geodetic GF calculations successful!')
-
-        if 'seismic' in options.datatypes:
-            sc = c.seismic_config
-            sf = sc.gf_config
-
-            if sf.reference_location is None:
-                logger.info("Creating Green's Function stores individually"
-                            " for each station!")
-                seismic_data_path = os.path.join(
-                    c.project_dir, config.seismic_data_name)
-
-                stations, _ = utility.load_objects(seismic_data_path)
-                stations = utility.apply_station_blacklist(
-                    stations, sc.blacklist)
-                stations = utility.weed_stations(
-                    stations, c.event, distances=sc.distances)
-            else:
-                logger.info(
-                    "Creating one global Green's Function store, which is "
-                    "being used by all stations!")
-                stations = [sf.reference_location]
-                logger.info('Store name: %s' % sf.reference_location.station)
-
-            for crust_ind in range(*sf.n_variations):
-                heart.seis_construct_gf(
-                    stations=stations,
-                    event=c.event,
-                    seismic_config=sc,
-                    crust_ind=crust_ind,
-                    execute=options.execute,
-                    force=options.force)
-
-            if not options.execute:
-                logger.info('Seismic GF store configs successfully created! '
-                            'To start calculations set --execute!')
-
-            if options.execute:
-                logger.info('Seismic GF calculations successful!')
-
-    elif options.mode == 'static':
-        geo = 'geodetic'
-        if geo in options.datatypes:
-            gf = c.geodetic_config.gf_config
-
-            geodetic_data_path = os.path.join(
-                c.project_dir, config.geodetic_data_name)
-
-            datasets = utility.load_objects(geodetic_data_path)
-            for data in datasets:
-                if data.los_vector is None:
-                    data.update_los_vector()
-
-            outdir = os.path.join(
-                c.project_dir, options.mode, config.linear_gf_dir_name)
-            util.ensuredir(outdir)
-
-            for source in gf.reference_sources:
-                source.update(lat=c.event.lat, lon=c.event.lon)
-
-            varnames = [varname for varname in c.problem_config.priors.keys()]
-
-            logger.info('Discretizing reference sources ...')
-            fault = heart.discretize_sources(
-                varnames=varnames,
-                sources=gf.reference_sources,
-                extension_width=gf.extension_width,
-                extension_length=gf.extension_length,
-                patch_width=gf.patch_width,
-                patch_length=gf.patch_length,
-                datatypes=[geo])
-
-            faultpath = os.path.join(outdir, config.fault_geometry_name)
-            if os.path.exists(faultpath) and not options.force:
-                logger.info("Discretized fault geometry exists! Use --force to"
-                            " overwrite!")
-                sys.exit(1)
-            else:
-                logger.info(
-                    'Storing discretized fault geometry to: %s' % faultpath)
-                utility.dump_objects(faultpath, [fault])
-
-                logger.info('Updating problem_config:')
-                logger.info(
-                    'Number of source-sub-patches: %i' % fault.nsubpatches)
-                c.problem_config.n_sources = fault.nsubpatches
-                c.problem_config.init_vars(varnames)
-                config.dump_config(c)
-
-            if options.execute:
-                logger.info("Calculating linear Green's Functions...")
-                engine = LocalEngine(store_superdirs=[gf.store_superdir])
+        for datatype in options.datatypes:
+            if datatype == 'geodetic':
+                gc = c.geodetic_config
+                gf = c.geodetic_config.gf_config
 
                 for crust_ind in range(*gf.n_variations):
-                    outpath = os.path.join(
-                        outdir,
-                        str(crust_ind) + '_' +
-                        config.geodetic_linear_gf_name)
-                    logger.info('crust_ind %i' % crust_ind)
-
-                    targets = heart.init_geodetic_targets(
-                        datasets,
-                        earth_model_name='ak135-f-average.m',
-                        interpolation='multilinear',
-                        crust_inds=[crust_ind],
-                        sample_rate=gf.sample_rate)
-
-                    heart.geo_construct_gf_linear(
-                        engine=engine,
-                        outpath=outpath,
+                    heart.geo_construct_gf(
+                        event=c.event,
+                        geodetic_config=gc,
                         crust_ind=crust_ind,
-                        datasets=datasets,
-                        targets=targets,
-                        fault=fault,
-                        varnames=varnames,
+                        execute=options.execute,
                         force=options.force)
 
+            elif datatype == 'seismic':
+                sc = c.seismic_config
+                sf = sc.gf_config
+
+                if sf.reference_location is None:
+                    logger.info("Creating Green's Function stores individually"
+                                " for each station!")
+                    seismic_data_path = os.path.join(
+                        c.project_dir, config.seismic_data_name)
+
+                    stations, _ = utility.load_objects(seismic_data_path)
+                    stations = utility.apply_station_blacklist(
+                        stations, sc.blacklist)
+                    stations = utility.weed_stations(
+                        stations, c.event, distances=sc.distances)
+                else:
+                    logger.info(
+                        "Creating one global Green's Function store, which is "
+                        "being used by all stations!")
+                    stations = [sf.reference_location]
+                    logger.info(
+                        'Store name: %s' % sf.reference_location.station)
+
+                for crust_ind in range(*sf.n_variations):
+                    heart.seis_construct_gf(
+                        stations=stations,
+                        event=c.event,
+                        seismic_config=sc,
+                        crust_ind=crust_ind,
+                        execute=options.execute,
+                        force=options.force)
             else:
-                logger.info('Did not run GF calculation. Use --execute!')
+                raise ValueError('Datatype %s not supported!' % datatype)
+
+            if not options.execute:
+                logger.info('%s GF store configs successfully created! '
+                            'To start calculations set --execute!' % datatype)
+
+            if options.execute:
+                logger.info('%s GF calculations successful!' % datatype)
+
+    elif options.mode == 'ffi':
+        from beat import ffi
+
+        slip_varnames = c.problem_config.get_slip_variables()
+        varnames = c.problem_config.select_variables()
+        outdir = os.path.join(
+            c.project_dir, options.mode, config.linear_gf_dir_name)
+        util.ensuredir(outdir)
+
+        faultpath = os.path.join(outdir, config.fault_geometry_name)
+        if not os.path.exists(faultpath) or options.force:
+            for datatype in options.datatypes:
+                try:
+                    gf = c[datatype + '_config'].gf_config
+                except AttributeError:
+                    raise AttributeError(
+                        'Datatype "%s" not existing in config!' % datatype)
+
+                for source in gf.reference_sources:
+                    source.update(lat=c.event.lat, lon=c.event.lon)
+
+                logger.info('Discretizing reference sources ...')
+                fault = ffi.discretize_sources(
+                    varnames=slip_varnames,
+                    sources=gf.reference_sources,
+                    extension_width=gf.extension_width,
+                    extension_length=gf.extension_length,
+                    patch_width=gf.patch_width,
+                    patch_length=gf.patch_length,
+                    datatypes=options.datatypes)
+
+            logger.info(
+                'Storing discretized fault geometry to: %s' % faultpath)
+            utility.dump_objects(faultpath, [fault])
+
+            if c.problem_config.n_sources != fault.npatches:
+                logger.info(
+                    'Fault discretization changed! Updating problem_config:')
+                logger.info('%s' % fault.__str__())
+                c.problem_config.n_sources = fault.npatches
+                c.problem_config.init_vars(varnames)
+
+            ext_source = fault.get_subfault(
+                0, datatype=options.datatypes[0], component='uparr')
+
+            new_bounds = {
+                'nucleation_strike': (0., ext_source.length / km),
+                'nucleation_dip': (0., ext_source.width / km)
+            }
+
+            c.problem_config.set_vars(new_bounds)
+            config.dump_config(c)
+
+        elif os.path.exists(faultpath):
+            logger.info("Discretized fault geometry exists! Use --force to"
+                        " overwrite!")
+            logger.info('Loading existing discretized fault')
+            fault = utility.load_objects(faultpath)[0]
+
+        if options.execute:
+            logger.info("Calculating linear Green's Functions")
+
+            for datatype in options.datatypes:
+                logger.info('for %s data ...' % datatype)
+
+                if datatype == 'geodetic':
+                    gf = c.geodetic_config.gf_config
+
+                    geodetic_data_path = os.path.join(
+                        c.project_dir, config.geodetic_data_name)
+
+                    datasets = utility.load_objects(geodetic_data_path)
+
+                    engine = LocalEngine(store_superdirs=[gf.store_superdir])
+
+                    for crust_ind in range(*gf.n_variations):
+                        logger.info('crust_ind %i' % crust_ind)
+
+                        targets = heart.init_geodetic_targets(
+                            datasets,
+                            earth_model_name=gf.earth_model_name,
+                            interpolation=c.geodetic_config.interpolation,
+                            crust_inds=[crust_ind],
+                            sample_rate=gf.sample_rate)
+
+                        ffi.geo_construct_gf_linear(
+                            engine=engine,
+                            outdirectory=outdir,
+                            event=c.event,
+                            crust_ind=crust_ind,
+                            datasets=datasets,
+                            targets=targets,
+                            nworkers=gf.nworkers,
+                            fault=fault,
+                            varnames=slip_varnames,
+                            force=options.force)
+
+                elif datatype == 'seismic':
+                    seismic_data_path = os.path.join(
+                        c.project_dir, config.seismic_data_name)
+                    sc = c.seismic_config
+                    gf = sc.gf_config
+                    pc = c.problem_config
+
+                    engine = LocalEngine(store_superdirs=[gf.store_superdir])
+
+                    for crust_ind in range(*gf.n_variations):
+                        logger.info('crust_ind %i' % crust_ind)
+                        sc.gf_config.reference_model_idx = crust_ind
+                        datahandler = heart.init_datahandler(
+                            seismic_config=sc,
+                            seismic_data_path=seismic_data_path)
+
+                        for wc in sc.waveforms:
+                            wmap = heart.init_wavemap(
+                                waveformfit_config=wc,
+                                datahandler=datahandler,
+                                event=c.event)
+
+                            ffi.seis_construct_gf_linear(
+                                engine=engine,
+                                fault=fault,
+                                durations_prior=pc.priors['durations'],
+                                velocities_prior=pc.priors['velocities'],
+                                varnames=slip_varnames,
+                                wavemap=wmap,
+                                event=c.event,
+                                nworkers=gf.nworkers,
+                                starttime_sampling=gf.starttime_sampling,
+                                duration_sampling=gf.duration_sampling,
+                                sample_rate=gf.sample_rate,
+                                outdirectory=outdir,
+                                force=options.force)
+        else:
+            logger.info('Did not run GF calculation. Use --execute!')
 
 
 def command_plot(args):
@@ -973,7 +1084,7 @@ def command_check(args):
 
         parser.add_option(
             '--datatypes',
-            default=['geodetic', ' seismic'],
+            default=[' seismic'],
             type='string',
             action='callback',
             callback=list_callback,
@@ -982,9 +1093,18 @@ def command_check(args):
         parser.add_option(
             '--what',
             dest='what',
-            choices=['stores', 'traces'],
+            choices=['stores', 'traces', 'library'],
             default='stores',
             help='Setup item to check; "stores, traces", Default: "stores"')
+
+        parser.add_option(
+            '--targets',
+            default=[0],
+            type='string',
+            action='callback',
+            callback=list_callback,
+            help='Indexes to targets to display.'
+            )
 
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
@@ -1003,12 +1123,49 @@ def command_check(args):
             logger.warn('Store(s) with empty traces! : %s ' % store_ids)
 
     elif options.what == 'traces':
-        from pyrocko import trace
         sc = problem.composites['seismic']
         for wmap in sc.wavemaps:
-            trace.snuffle(
+            snuffle(
                 wmap.datasets, stations=wmap.stations, events=[sc.event])
 
+    elif options.what == 'library':
+        if options.mode != 'ffi':
+            logger.warning(
+                'GF library exists only for "ffi" optimization mode.')
+        else:
+            from beat import ffi
+
+            for datatype in options.datatypes:
+                for var in problem.config.problem_config.get_slip_variables():
+                    outdir = os.path.join(
+                        problem.config.project_dir, options.mode,
+                        config.linear_gf_dir_name)
+                    if datatype == 'seismic':
+                        sc = problem.config.seismic_config
+                        scomp = problem.composites['seismic']
+
+                        for wmap in scomp.wavemaps:
+                            filename = ffi.get_gf_prefix(
+                                datatype, component=var,
+                                wavename=wmap.config.name,
+                                crust_ind=sc.gf_config.reference_model_idx)
+
+                            logger.info(
+                                'Loading Greens Functions'
+                                ' Library %s for %s target' % (
+                                    filename,
+                                    utility.list2string(options.targets)))
+                            gfs = ffi.load_gf_library(
+                                directory=outdir, filename=filename)
+
+                            targets = [
+                                int(target) for target in options.targets]
+                            trs = gfs.get_traces(
+                                targetidxs=targets,
+                                patchidxs=range(gfs.npatches),
+                                durationidxs=range(gfs.ndurations),
+                                starttimeidxs=range(gfs.nstarttimes))
+                            snuffle(trs)
     else:
         raise ValueError('Subject what: %s is not available!' % options.what)
 
@@ -1029,7 +1186,7 @@ if __name__ == '__main__':
         if command == 'help' and args:
             acommand = args[0]
             if acommand in subcommands:
-                globals()['command_'+ acommand]([ '--help' ] )
+                globals()['command_' + acommand](['--help'])
 
         sys.exit('Usage: %s' % usage)
 

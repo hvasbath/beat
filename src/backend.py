@@ -26,19 +26,21 @@ import pandas as pd
 import logging
 import shutil
 
-import pymc3
 from pymc3.model import modelcontext
 from pymc3.backends import base, ndarray
 from pymc3.backends import tracetab as ttab
 from pymc3.blocking import DictToArrayBijection, ArrayOrdering
 
+from pymc3.step_methods.arraystep import BlockedStep
+
 from beat import utility, config
 from pyrocko import util
+from time import time
 
 logger = logging.getLogger('backend')
 
 
-class ArrayStepSharedLLK(pymc3.arraystep.BlockedStep):
+class ArrayStepSharedLLK(BlockedStep):
     """
     Modified ArrayStepShared To handle returned larger point including the
     likelihood values.
@@ -108,8 +110,8 @@ class BaseSMCTrace(object):
         self.vars = vars
         self.varnames = [var.name for var in vars]
 
-        ## Get variable shapes. Most backends will need this
-        ## information.
+        # Get variable shapes. Most backends will need this
+        # information.
 
         self.var_shapes_list = [var.tag.test_value.shape for var in vars]
         self.var_dtypes_list = [var.tag.test_value.dtype for var in vars]
@@ -162,9 +164,7 @@ class TextChain(BaseSMCTrace):
         self.df = None
         self.corrupted_flag = False
 
-    ## Sampling methods
-
-    def setup(self, draws, chain):
+    def setup(self, draws, chain, buffer_size=5000):
         """
         Perform chain-specific setup.
 
@@ -177,6 +177,9 @@ class TextChain(BaseSMCTrace):
         """
         logger.debug('SetupTrace: Chain_%i step_%i' % (chain, draws))
         self.chain = chain
+        self.buffer = []
+        self.count = 0
+        self.buffer_size = buffer_size
         self.filename = os.path.join(self.name, 'chain-{}.csv'.format(chain))
 
         cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
@@ -186,6 +189,32 @@ class TextChain(BaseSMCTrace):
 
         with open(self.filename, 'w') as fh:
             fh.write(','.join(cnames) + '\n')
+
+    def empty_buffer(self):
+        self.buffer = []
+        self.count = 0
+
+    def write(self, lpoint, draw):
+        """
+        Write sampling results into buffer.
+        If buffer is full write it out to file.
+        """
+        self.buffer.append((lpoint, draw))
+        self.count += 1
+        if self.count == self.buffer_size:
+            self.record_buffer()
+
+    def record_buffer(self):
+        t0 = time()
+        logger.debug(
+            'Start Record: Chain_%i' % self.chain)
+        for lpoint, draw in self.buffer:
+            self.record(lpoint, draw)
+
+        t1 = time()
+        logger.debug('End Record: Chain_%i' % self.chain)
+        logger.debug('Writing to file took %f' % (t1 - t0))
+        self.empty_buffer()
 
     def record(self, lpoint, draw):
         """
@@ -209,14 +238,15 @@ class TextChain(BaseSMCTrace):
         if self.df is None:
             try:
                 self.df = pd.read_csv(self.filename)
-            except pd.parser.EmptyDataError:
-                logger.warn('Trace %s is empty and needs to be resampled!' % \
+            except pd.errors.EmptyDataError:
+                logger.warn(
+                    'Trace %s is empty and needs to be resampled!' %
                     self.filename)
                 os.remove(self.filename)
                 self.corrupted_flag = True
             except pd.io.common.CParserError:
-                logger.warn('Trace %s has wrong size!' % \
-                    self.filename)
+                logger.warn(
+                    'Trace %s has wrong size!' % self.filename)
                 self.corrupted_flag = True
                 os.remove(self.filename)
 
@@ -332,13 +362,15 @@ class TextStage(object):
                 prev = self.highest_sampled_stage()
             else:
                 prev = stage_number
+        elif stage_number == -2:
+            prev = stage_number + 1
         else:
             prev = stage_number - 1
 
         logger.info('Loading parameters from completed stage {}'.format(prev))
-        step, updates = utility.load_objects(self.atmip_path(prev))
-        step.stage = stage_number
-        return step, updates
+        sampler_state, updates = utility.load_objects(self.atmip_path(prev))
+        sampler_state['stage'] = stage_number
+        return sampler_state, updates
 
     def dump_atmip_params(self, stage_number, outlist):
         """

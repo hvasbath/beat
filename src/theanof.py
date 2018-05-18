@@ -6,6 +6,8 @@ Far future:
     include a 'def grad:' -method to each Op in order to enable the use of
     gradient based optimization algorithms
 """
+import logging
+
 from beat import heart, utility, interseismic
 from beat.fast_sweeping import fast_sweep
 
@@ -17,6 +19,7 @@ import theano
 import numpy as num
 
 km = 1000.
+logger = logging.getLogger('theanof')
 
 
 class GeoSynthesizer(theano.Op):
@@ -208,7 +211,7 @@ class GeoInterseismicSynthesizer(theano.Op):
         'lats', 'lons', 'engine', 'targets', 'sources', 'reference')
 
     def __init__(
-        self, lats, lons, engine, targets, sources, reference):
+            self, lats, lons, engine, targets, sources, reference):
         self.lats = tuple(lats)
         self.lons = tuple(lons)
         self.engine = engine
@@ -366,8 +369,7 @@ class SeisSynthesizer(theano.Op):
         synths = output[0]
         tmins = output[1]
 
-        point = {vname: i for vname, i in zip(
-                    self.varnames, inputs)}
+        point = {vname: i for vname, i in zip(self.varnames, inputs)}
 
         mpoint = utility.adjust_point_units(point)
 
@@ -389,8 +391,8 @@ class SeisSynthesizer(theano.Op):
     def infer_shape(self, node, input_shapes):
         nrow = len(self.targets)
         store = self.engine.get_store(self.targets[0].store_id)
-        ncol = int(num.ceil(store.config.sample_rate * \
-                (self.arrival_taper.d + self.arrival_taper.a)))
+        ncol = int(num.ceil(
+            store.config.sample_rate * self.arrival_taper.duration))
         return [(nrow, ncol), (nrow,)]
 
 
@@ -418,13 +420,13 @@ class SeisDataChopper(theano.Op):
         tmins = inputs[0]
         z = output[0]
 
-        z[0] = heart.taper_filter_traces(self.traces, self.arrival_taper,
-                                         self.filterer, tmins)
+        z[0] = heart.taper_filter_traces(
+            self.traces, self.arrival_taper,
+            self.filterer, tmins)
 
     def infer_shape(self, node, input_shapes):
         nrow = len(self.traces)
-        ncol = int(num.ceil(self.sample_rate * \
-                (self.arrival_taper.d + num.abs(self.arrival_taper.a))))
+        ncol = self.arrival_taper.nsamples(self.sample_rate)
         return [(nrow, ncol)]
 
 
@@ -442,12 +444,16 @@ class Sweeper(theano.Op):
         number of patches in dip-direction
     """
 
-    __props__ = ('patch_size', 'n_patch_dip', 'n_patch_strike')
+    __props__ = ('patch_size', 'n_patch_dip', 'n_patch_strike',
+                 'implementation')
 
-    def __init__(self, patch_size, n_patch_strike, n_patch_dip):
+    def __init__(
+            self, patch_size, n_patch_dip, n_patch_strike, implementation):
+
         self.patch_size = num.float64(patch_size)
         self.n_patch_dip = n_patch_dip
         self.n_patch_strike = n_patch_strike
+        self.implementation = implementation
 
     def make_node(self, *inputs):
         inlist = []
@@ -459,14 +465,53 @@ class Sweeper(theano.Op):
         return theano.Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
-        slownesses, nuc_strike, nuc_dip = inputs
+        """
+        Return start-times of rupturing patches with respect to
+        given hypocenter.
 
+        Parameters
+        ----------
+        slownesses : float, vector
+            inverse of the rupture velocity across each patch
+        nuc_dip : int, scalar
+            rupture nucleation point on the fault in dip-direction,
+            index to patch
+        nuc_strike : int, scalar
+            rupture nucleation point on the fault in strike-direction,
+            index to patch
+
+        Returns
+        -------
+        starttimes : float, vector
+
+        Notes
+        -----
+        Here we call the C-implementation on purpose with swapped
+        strike and dip directions, because we need the
+        fault dipping in row directions of the array.
+        The C-implementation has it along columns!!!
+        """
+        slownesses, nuc_dip, nuc_strike = inputs
         z = output[0]
+        logger.debug('Fast sweeping ..%s.' % self.implementation)
+        if self.implementation == 'c':
+            #
+            z[0] = fast_sweep.fast_sweep_ext.fast_sweep(
+                slownesses, self.patch_size, int(nuc_dip), int(nuc_strike),
+                self.n_patch_dip, self.n_patch_strike)
 
-        z[0] = fast_sweep.fast_sweep_ext.fast_sweep(
-            slownesses, self.patch_size,
-            int(nuc_strike), int(nuc_dip),
-            self.n_patch_strike, self.n_patch_dip)
+        elif self.implementation == 'numpy':
+            z[0] = fast_sweep.get_rupture_times_numpy(
+                slownesses.reshape((self.n_patch_dip, self.n_patch_strike)),
+                self.patch_size, self.n_patch_strike,
+                self.n_patch_dip, nuc_strike, nuc_dip).flatten()
+
+        else:
+            raise NotImplementedError(
+                'Fast sweeping for implementation %s not'
+                ' implemented!' % self.implementation)
+
+        logger.debug('Done sweeping!')
 
     def infer_shape(self, node, input_shapes):
         return [(self.n_patch_dip * self.n_patch_strike, )]

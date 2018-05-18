@@ -9,7 +9,7 @@ import os
 import logging
 import copy
 
-from beat import utility, backend
+from beat import utility
 from beat.models import Stage
 from beat.metropolis import get_trace_stats
 from beat.heart import init_seismic_targets, init_geodetic_targets
@@ -36,7 +36,8 @@ logger = logging.getLogger('plotting')
 km = 1000.
 
 
-__all__ = ['PlotOptions', 'correlation_plot', 'correlation_plot_hist',
+__all__ = [
+    'PlotOptions', 'correlation_plot', 'correlation_plot_hist',
     'get_result_point', 'seismic_fits', 'geodetic_fits', 'traceplot',
     'select_transform']
 
@@ -75,6 +76,10 @@ plot_units = {
     'bl_amplitude': u_m,
     'locking_depth': u_km,
 
+    'nucleation_dip': u_km,
+    'nucleation_strike': u_km,
+    'time_shift': u_s,
+
     'mnn': u_nm,
     'mee': u_nm,
     'mdd': u_nm,
@@ -90,8 +95,7 @@ plot_units = {
     'duration': u_s,
     'peak_ratio': u_hyp,
     'h_': u_hyp,
-    'like': u_hyp,
-            }
+    'like': u_hyp}
 
 
 def hypername(varname):
@@ -188,7 +192,8 @@ def kde2plot(x, y, grid=200, ax=None, **kwargs):
     return ax
 
 
-def correlation_plot(mtrace, varnames=None,
+def correlation_plot(
+        mtrace, varnames=None,
         transform=lambda x: x, figsize=None, cmap=None, grid=200, point=None,
         point_style='.', point_color='white', point_size='8'):
     """
@@ -477,7 +482,11 @@ def get_result_point(stage, config, point_llk='max'):
         point = pdict[point_llk]
 
     elif config.sampler_config.name == 'SMC':
-        _, _, llk = stage.step.select_end_points(stage.mtrace)
+        llk = stage.mtrace.get_values(
+            varname=stage.step['likelihood_name'],
+            burn=stage.step['n_steps'] - 1,
+            combine=True)
+
         posterior_idxs = utility.get_fit_indexes(llk)
 
         n_steps = config.sampler_config.parameters.n_steps - 1
@@ -545,6 +554,8 @@ def geodetic_fits(problem, stage, plot_options):
     """
     from pyrocko.dataset import gshhg
 
+    mode = problem.config.problem_config.mode
+
     scattersize = 16
     fontsize = 10
     fontsize_title = 12
@@ -556,9 +567,16 @@ def geodetic_fits(problem, stage, plot_options):
 
     composite = problem.composites['geodetic']
 
+    try:
+        sources = composite.sources
+    except AttributeError:
+        logger.info('FFI waveform fit, using reference source ...')
+        sources = composite.config.gf_config.reference_sources
+
     if po.reference is not None:
-        composite.point2sources(po.reference)
-        ref_sources = copy.deepcopy(composite.sources)
+        if mode != 'ffi':
+            composite.point2sources(po.reference)
+            ref_sources = copy.deepcopy(composite.sources)
         point = po.reference
     else:
         point = get_result_point(stage, problem.config, po.post_llk)
@@ -583,12 +601,12 @@ def geodetic_fits(problem, stage, plot_options):
             nrows=ndmax, ncols=nxmax, figsize=mpl_papersize('a4', 'portrait'))
         fig.tight_layout()
         fig.subplots_adjust(
-                        left=0.08,
-                        right=1.0 - 0.03,
-                        bottom=0.06,
-                        top=1.0 - 0.06,
-                        wspace=0.,
-                        hspace=0.3)
+            left=0.08,
+            right=1.0 - 0.03,
+            bottom=0.06,
+            top=1.0 - 0.06,
+            wspace=0.,
+            hspace=0.3)
         figures.append(fig)
         axes.append(ax)
 
@@ -772,9 +790,9 @@ def geodetic_fits(problem, stage, plot_options):
 
             draw_sources(
                 axes[figidx][rowidx, 1],
-                composite.sources, po, color=syn_color)
+                sources, po, color=syn_color)
 
-            if po.reference is not None:
+            if po.reference is not None and mode != 'ffi':
                 draw_sources(
                     axes[figidx][rowidx, 1],
                     ref_sources, po, color=ref_color)
@@ -906,7 +924,12 @@ def seismic_fits(problem, stage, plot_options):
     # gcm_max = d['like']
 
     results = composite.assemble_results(point)
-    source = composite.sources[0]
+    try:
+        source = composite.sources[0]
+    except AttributeError:
+        logger.info('FFI waveform fit, using reference source ...')
+        source = composite.config.gf_config.reference_sources[0]
+        source.time += problem.config.event.time
 
     logger.info('Plotting waveforms ...')
     target_to_result = {}
@@ -1856,106 +1879,235 @@ def draw_earthmodels(problem, plot_options):
                 fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
-def fault_slip_distribution(patches, slip, alpha=0.9):
+def fault_slip_distribution(
+        fault, mtrace=None, transform=lambda x: x, alpha=0.9, ntickmarks=5,
+        ncontours=100, reference=None):
     """
     Draw discretized fault geometry rotated to the 2-d view of the foot-wall
     of the fault.
 
     Parameters
     ----------
-    patches : list
-        of RectangularSources
+    fault : 
+
     """
 
-    fig, axes = plt.subplots(
-            nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
+    def draw_quivers(
+            ax, uperp, uparr, xgr, ygr, rake, color='black',
+            draw_legend=False, normalisation=None):
 
-    p0 = patches[0]
-    rotmat = mt.euler_to_matrix(p0.dip * mt.d2r, p0.strike * mt.d2r, 0.0)
-    r0 = p0.outline().dot(rotmat.T)
-    width = num.abs((r0[0, 0] - r0[1, 0]) / km)
-    height = num.abs((r0[1, 1] - r0[2, 1]) / km)
+        angles = num.arctan2(uperp, uparr) * \
+            (180. / num.pi) + rake
 
-    draw_patches = []
-    lls = []
-    for patch in patches:
-        rotcoord = num.array(patch.outline().dot(rotmat.T)) / km
-        ll = rotcoord[0, :-1].flatten()
-        ll[-1] *= -1
-        draw_patches.append(
-            Rectangle(ll, width=width, height=height, edgecolor='black'))
-        lls.append(ll)
+        slips = num.sqrt((uperp ** 2 + uparr ** 2)).ravel()
 
-    llsa = num.vstack(lls)
-    lower = llsa.min(axis=0)
-    upper = llsa.max(axis=0)
-    xlim = [lower[0], upper[0] + width]
-    ylim = [lower[1], upper[1] + height]
+        if normalisation is None:
+            normalisation = slips.max() * num.abs(ygr[1, 0] - ygr[0, 0])
 
-    np_w = int(num.round((xlim[1] - xlim[0]) / width))
-    np_h = int(num.round((ylim[1] - ylim[0]) / height))
+        slips /= normalisation
 
-    xticklabels = num.arange(np_w + 1) * width
-    yticklabels = num.arange(np_h, -1, -1) * height
+        slipsx = num.cos(angles * num.pi / 180.) * slips
+        slipsy = num.sin(angles * num.pi / 180.) * slips
 
-    axes.set_xlim(*xlim)
-    axes.set_ylim(*ylim)
-    axes.set_xlabel('strike-direction [km]')
-    axes.set_ylabel('dip-direction [km]')
-    axes.set_xticks(num.arange(xlim[0], xlim[1] + width, width))
-    axes.set_yticks(num.arange(ylim[0], ylim[1] + height, height))
-    axes.set_xticklabels(xticklabels)
-    axes.set_yticklabels(yticklabels)
+        # slip arrows of slip on patches
+        quivers = ax.quiver(
+            xgr.ravel(), ygr.ravel(), slipsx, slipsy,
+            units='dots', angles='xy', scale_units='xy', scale=1,
+            width=1., color=color)
 
-    scm = slip_colormap(100)
-    pa_col = PatchCollection(draw_patches, alpha=alpha, match_original=True)
-    pa_col.set(array=slip, cmap=scm)
+        if draw_legend:
+            quiver_legend_length = int(num.floor(
+                num.max(slips * normalisation) * 10.) / 10.)
 
-    axes.add_collection(pa_col)
-    cb = fig.colorbar(pa_col)
-    cb.set_label('slip [m]')
-    return fig, axes
+            plt.quiverkey(
+                quivers, width / 6., height / 6., quiver_legend_length,
+                '%i [m]' % quiver_legend_length)
 
+        return quivers, normalisation
 
-def draw_static_dist(problem, po):
+    reference_slip = num.sqrt(
+        reference['uperp'] ** 2 + reference['uparr'] ** 2)
 
-    datatype = 'geodetic'
+    fig, ax = plt.subplots(
+        nrows=1, ncols=1, figsize=mpl_papersize('a4', 'landscape'))
 
-    if datatype not in problem.composites.keys():
-        raise Exception('No geodetic composite defined for this problem!')
-
-    gc = problem.composites[datatype]
-
-    fault = gc.load_fault_geometry()
-    priorvars = problem.config.problem_config.priors.keys()
-
-    if po.reference is not None:
-        tmp = num.zeros_like(po.reference[priorvars[0]])
-        for v in priorvars:
-            tmp += num.power(po.reference[v], 2)
-
-        slip = num.sqrt(tmp)
-    else:
-        raise Exception('Not implemented yet!')
-        # todo load inversion results
+    height = fault.ordering.patch_size_dip
+    width = fault.ordering.patch_size_strike
 
     figs = []
-    outpaths = []
+    axs = []
     for i in range(fault.nsubfaults):
-        patches = fault.get_subfault_patches(i, datatype)
-        slc = fault.get_patch_indexes(i)
-        fig, axs = fault_slip_distribution(patches, slip[slc])
+        np_h, np_w = fault.get_subfault_discretization(i)
+        ext_source = fault.get_subfault(i)
+
+        draw_patches = []
+        lls = []
+        for patch_dip_ll in range(np_h, 0, -1):
+            for patch_strike_ll in range(np_w):
+                ll = [patch_strike_ll * width, patch_dip_ll * height - height]
+                draw_patches.append(
+                    Rectangle(
+                        ll, width=width, height=height, edgecolor='black'))
+                lls.append(ll)
+
+        llsa = num.vstack(lls)
+        lower = llsa.min(axis=0)
+        upper = llsa.max(axis=0)
+        xlim = [lower[0], upper[0] + width]
+        ylim = [lower[1], upper[1] + height]
+
+        ax.set_xlim(*xlim)
+        ax.set_ylim(*ylim)
+
+        ax.set_xlabel('strike-direction [km]')
+        ax.set_ylabel('dip-direction [km]')
+
+        xticker = tick.MaxNLocator(nbins=ntickmarks)
+        yticker = tick.MaxNLocator(nbins=ntickmarks)
+
+        ax.get_xaxis().set_major_locator(xticker)
+        ax.get_yaxis().set_major_locator(yticker)
+
+        scm = slip_colormap(100)
+        pa_col = PatchCollection(
+            draw_patches, alpha=alpha, match_original=True)
+        pa_col.set(array=reference_slip, cmap=scm)
+
+        ax.add_collection(pa_col)
+
+        # patch central locations
+        hpd = fault.ordering.patch_size_dip / 2.
+        hps = fault.ordering.patch_size_strike / 2.
+
+        xvec = num.linspace(hps, ext_source.length / km - hps, np_w)
+        yvec = num.linspace(ext_source.width / km - hpd, hpd, np_h)
+
+        xgr, ygr = num.meshgrid(xvec, yvec)
+
+        if 'seismic' in fault.datatypes:
+            if mtrace is not None:
+                nuc_dip = transform(mtrace.get_values(
+                    'nucleation_dip', combine=True, squeeze=True))
+                nuc_strike = transform(mtrace.get_values(
+                    'nucleation_strike', combine=True, squeeze=True))
+                velocities = transform(mtrace.get_values(
+                    'velocities', combine=True, squeeze=True))
+
+                nchains = nuc_dip.size
+                csteps = int(num.floor(nchains / ncontours))
+                for i in range(0, nchains, csteps):
+                    nuc_dip_idx, nuc_strike_idx = fault.fault_locations2idxs(
+                        nuc_dip, nuc_strike, backend='numpy')
+                    sts = fault.get_subfault_starttimes(
+                        0, velocities[i, :], nuc_dip_idx, nuc_strike_idx)
+
+                    ax.contour(xgr, ygr, sts, colors='gray', alpha=0.1)
+
+            ref_starttimes = fault.point2starttimes(reference)
+            contours = ax.contour(xgr, ygr, ref_starttimes, colors='black')
+            plt.clabel(contours, inline=True, fontsize=10)
+
+        if mtrace is not None:
+            uparr = transform(
+                mtrace.get_values('uparr', combine=True, squeeze=True))
+            uperp = transform(
+                mtrace.get_values('uperp', combine=True, squeeze=True))
+
+            uparrmean = uparr.mean(axis=0)
+            uperpmean = uperp.mean(axis=0)
+
+            quivers, normalisation = draw_quivers(
+                ax, uperpmean, uparrmean, xgr, ygr,
+                ext_source.rake, color='grey',
+                draw_legend=False)
+
+            uparrstd = uparr.std(axis=0) / normalisation
+            uperpstd = uperp.std(axis=0) / normalisation
+
+            slipvecrotmat = mt.euler_to_matrix(
+                0.0, 0.0, ext_source.rake * mt.d2r)
+
+            circle = num.linspace(0, 2 * num.pi, 100)
+            # 2sigma error ellipses
+            for i, (upe, upa) in enumerate(zip(uperpstd, uparrstd)):
+                ellipse_x = 2 * upa * num.cos(circle)
+                ellipse_y = 2 * upe * num.sin(circle)
+                ellipse = num.vstack(
+                    [ellipse_x, ellipse_y, num.zeros_like(ellipse_x)]).T
+                rot_ellipse = ellipse.dot(slipvecrotmat)
+
+                xcoords = xgr.ravel()[i] + rot_ellipse[:, 0] + quivers.U[i]
+                ycoords = ygr.ravel()[i] + rot_ellipse[:, 1] + quivers.V[i]
+                ax.plot(xcoords, ycoords, '-k', linewidth=0.5)
+
+        draw_quivers(
+            ax, reference['uperp'], reference['uparr'], xgr, ygr,
+            ext_source.rake, color='black', draw_legend=True,
+            normalisation=normalisation)
+
+        cb = fig.colorbar(pa_col)
+        cb.set_label('slip [m]')
+        ax.set_aspect('equal', adjustable='box')
         figs.append(fig)
-        outpaths.append(os.path.join(
-                problem.outfolder, po.figure_dir,
-                'static_slip_dist_subfault_%i.%s' % (i, po.outformat)))
+        axs.append(ax)
+
+    return figs, axs
+
+
+class ModeError(Exception):
+    pass
+
+
+def draw_slip_dist(problem, po):
+
+    mode = problem.config.problem_config.mode
+
+    if mode != 'ffi':
+        raise ModeError(
+            'Wrong optimization mode: %s! This plot '
+            'variant is only valid for "ffi" mode' % mode)
+
+    datatype, gc = problem.composites.items()[0]
+
+    fault = gc.load_fault_geometry()
+
+    sc = problem.config.sampler_config
+    if po.load_stage is None and not sc.name == 'SMC':
+        draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
+    if po.load_stage == -2:
+        raise ValueError('Slip distribution plot cannot be made for stage-2')
+    else:
+        draws = sc.parameters.n_steps
+
+    transform = select_transform(sc=sc, n_steps=draws)
+
+    stage = Stage(homepath=problem.outfolder)
+    stage.load_results(
+        model=problem.model, stage_number=po.load_stage, load='full')
+
+    if po.reference is None:
+        reference = get_result_point(stage, problem.config, po.post_llk)
+        llk_str = po.post_llk
+        mtrace = stage.mtrace
+    else:
+        reference = po.reference
+        llk_str = 'ref'
+        mtrace = None
+
+    figs, axs = fault_slip_distribution(
+        fault, mtrace, transform=transform, reference=reference)
 
     if po.outformat == 'display':
         plt.show()
     else:
-        for fig, outpath in zip(figs, outpaths):
-            logger.info('saving figure to %s' % outpath)
-            fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
+        outpath = os.path.join(
+            problem.outfolder, po.figure_dir,
+            'slip_dist_%s.%s' % (llk_str, po.outformat))
+
+        logger.info('Storing slip-distribution to: %s' % outpath)
+        with PdfPages(outpath) as opdf:
+            for fig in figs:
+                opdf.savefig(fig, dpi=po.dpi)
 
 
 plots_catalog = {
@@ -1964,7 +2116,7 @@ plots_catalog = {
     'waveform_fits': draw_seismic_fits,
     'scene_fits': draw_geodetic_fits,
     'velocity_models': draw_earthmodels,
-    'static_slip_dist': draw_static_dist,
+    'slip_distribution': draw_slip_dist,
                 }
 
 

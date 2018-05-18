@@ -114,6 +114,7 @@ void upwind(float64_t NewVal[1], float64_t *StartTime, npy_intp i, npy_intp j, f
 }
 
 void fast_sweep(float64_t *Slowness, float64_t *StartTime, float64_t PatchSize, npy_intp HypoInStk, npy_intp HypoInDip, npy_intp NumInStk, npy_intp NumInDip){
+    /* convention for the fault orientation here is dip-direction along columns and strike-direction along rows of the start-times*/
     int num_iter;
     npy_intp i, j, ii;
     npy_intp PatchNum;
@@ -196,7 +197,7 @@ void fast_sweep(float64_t *Slowness, float64_t *StartTime, float64_t PatchSize, 
         }
         num_iter++;
     }
-
+    free(Time_old);
     return;
 }
 
@@ -221,9 +222,13 @@ PyObject* w_fast_sweep(PyObject *dummy, PyObject *args){
         return NULL;
     }
 
-    c_slowness_arr = PyArray_GETCONTIGUOUS((PyArrayObject*) slowness_arr);
-
     tzero_arr = (PyArrayObject*) PyArray_EMPTY(1, arr_size, NPY_FLOAT64, 0);
+    if (tzero_arr==NULL){
+        PyErr_SetString(FastSweepExtError, "Failed to allocate tzero!");
+        return NULL;
+    }
+
+    c_slowness_arr = PyArray_GETCONTIGUOUS((PyArrayObject*) slowness_arr);
 
     slowness = PyArray_DATA(c_slowness_arr);
     tzero = PyArray_DATA(tzero_arr);

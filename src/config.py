@@ -8,6 +8,7 @@ kinematic distributed slip.
 """
 import logging
 import os
+
 from collections import OrderedDict
 
 from pyrocko.guts import Object, List, String, Float, Int, Tuple, Bool, Dict
@@ -33,19 +34,20 @@ guts_prefix = 'beat'
 
 logger = logging.getLogger('config')
 
-block_vars = ['bl_azimuth', 'bl_amplitude']
+block_vars = [
+    'bl_azimuth', 'bl_amplitude', 'nucleation_strike', 'nucleation_dip', 'time_shift']
 seis_vars = ['time', 'duration']
 
 source_names = '''
-ExplosionSource
-RectangularExplosionSource
-DCSource
-CLVDSource
-MTSource
-RectangularSource
-DoubleDCSource
-RingfaultSource
-'''.split()
+    ExplosionSource
+    RectangularExplosionSource
+    DCSource
+    CLVDSource
+    MTSource
+    RectangularSource
+    DoubleDCSource
+    RingfaultSource
+    '''.split()
 
 source_classes = [
     gf.ExplosionSource,
@@ -75,7 +77,7 @@ interseismic_vars = [
 
 static_dist_vars = ['uparr', 'uperp']
 partial_kinematic_vars = [
-    'nucleation_x', 'nucleation_y', 'duration', 'velocity']
+    'nucleation_strike', 'nucleation_dip', 'durations', 'velocities', 'time_shift']
 
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars
 
@@ -86,18 +88,16 @@ geometry_catalog = {
     'geodetic': source_catalog,
     'seismic': source_catalog}
 
-static_catalog = {
+ffi_catalog = {
     'geodetic': static_dist_vars,
-    'seismic': static_dist_vars}
-
-kinematic_catalog = {
     'seismic': kinematic_dist_vars}
 
-modes_catalog = {
-    'geometry': geometry_catalog,
-    'static': static_catalog,
-    'kinematic': kinematic_catalog,
-    'interseismic': interseismic_catalog}
+modes_catalog = OrderedDict([
+    ['geometry', geometry_catalog],
+    ['ffi', ffi_catalog],
+    ['interseismic', interseismic_catalog]])
+
+hyper_name_laplacian = 'h_laplacian'
 
 moffdiag = (-1., 1.)
 mdiag = (-num.sqrt(2), num.sqrt(2))
@@ -133,18 +133,20 @@ default_bounds = dict(
     diameter=(5., 10.),
     mix=(0, 1),
     time=(-3., 3.),
+    time_shift=(-3., 3.),
     delta_time=(0., 10.),
     delta_depth=(0., 10.),
     distance=(0., 10.),
 
-    duration=(0., 20.),
+    duration=(1., 30.),
     peak_ratio=(0., 1.),
 
-    uparr=(-0.3, 6.),
+    durations=(0.5, 29.5),
+    uparr=(-0.05, 6.),
     uperp=(-0.3, 4.),
-    nucleation_x=(0., 10.),
-    nucleation_y=(0., 7.),
-    velocity=(0.5, 4.2),
+    nucleation_strike=(0., 10.),
+    nucleation_dip=(0., 7.),
+    velocities=(0.5, 4.2),
 
     azimuth=(0, 180),
     amplitude=(1e10, 1e20),
@@ -168,7 +170,6 @@ geodetic_data_name = 'geodetic_data.pkl'
 linear_gf_dir_name = 'linear_gfs'
 fault_geometry_name = 'fault_geometry.pkl'
 geodetic_linear_gf_name = 'linear_geodetic_gfs.pkl'
-seismic_static_linear_gf_name = 'linear_seismic_gfs.pkl'
 
 sample_p_outname = 'sample.params'
 
@@ -196,19 +197,13 @@ class GFConfig(Object):
         help='Start and end index to vary input velocity model. '
              'Important for the calculation of the model prediction covariance'
              ' matrix with respect to uncertainties in the velocity model.')
-    error_depth = Float.T(
-        default=0.1,
-        help='3sigma [%/100] error in velocity model layer depth, '
-             'translates to interval for varying the velocity model')
-    error_velocities = Float.T(
-        default=0.1,
-        help='3sigma [%/100] in velocity model layer wave-velocities, '
-             'translates to interval for varying the velocity model')
-    depth_limit_variation = Float.T(
-        default=600.,
-        help='Depth limit [km] for varying the velocity model. Below that '
-             'depth the velocity model is not varied based on the errors '
-             'defined above!')
+    earth_model_name = String.T(
+        default='ak135-f-average.m',
+        help='Name of the reference earthmodel, see '
+             'pyrocko.cake.builtin_models() for alternatives.')
+    nworkers = Int.T(
+        default=1,
+        help='Number of processors to use for calculating the GFs')
 
 
 class NonlinearGFConfig(GFConfig):
@@ -218,10 +213,6 @@ class NonlinearGFConfig(GFConfig):
     created.
     """
 
-    earth_model_name = String.T(
-        default='ak135-f-average.m',
-        help='Name of the reference earthmodel, see '
-             'pyrocko.cake.builtin_models() for alternatives.')
     use_crust2 = Bool.T(
         default=True,
         help='Flag, for replacing the crust from the earthmodel'
@@ -251,9 +242,19 @@ class NonlinearGFConfig(GFConfig):
         default=1.,
         help='Distance spacing [km] for GF function grid w.r.t'
              ' reference_location.')
-    nworkers = Int.T(
-        default=1,
-        help='Number of processors to use for calculating the GFs')
+    error_depth = Float.T(
+        default=0.1,
+        help='3sigma [%/100] error in velocity model layer depth, '
+             'translates to interval for varying the velocity model')
+    error_velocities = Float.T(
+        default=0.1,
+        help='3sigma [%/100] in velocity model layer wave-velocities, '
+             'translates to interval for varying the velocity model')
+    depth_limit_variation = Float.T(
+        default=600.,
+        help='Depth limit [km] for varying the velocity model. Below that '
+             'depth the velocity model is not varied based on the errors '
+             'defined above!')
 
 
 class SeismicGFConfig(NonlinearGFConfig):
@@ -310,11 +311,11 @@ class LinearGFConfig(GFConfig):
         RectangularSource.T(),
         help='Geometry of the reference source(s) to fix')
     patch_width = Float.T(
-        default=5. * km,
-        help='Patch width [m] to divide reference sources')
+        default=5.,
+        help='Patch width [km] to divide reference sources')
     patch_length = Float.T(
-        default=5. * km,
-        help='Patch length [m] to divide reference sources')
+        default=5.,
+        help='Patch length [km] to divide reference sources')
     extension_width = Float.T(
         default=0.1,
         help='Extend reference sources by this factor in each'
@@ -326,6 +327,34 @@ class LinearGFConfig(GFConfig):
         help='Extend reference sources by this factor in each'
              ' strike-direction. 0.1 means extension of the fault by 10% in'
              ' each direction, i.e. 20% in total.')
+    sample_rate = Float.T(
+        default=2.,
+        help='Sample rate for the Greens Functions.')
+
+
+class SeismicLinearGFConfig(LinearGFConfig):
+    """
+    Config for seismic linear GreensFunction calculation parameters.
+    """
+    reference_location = ReferenceLocation.T(
+        default=None,
+        help="Reference location for the midpoint of the Green's Function "
+             "grid.",
+        optional=True)
+    duration_sampling = Float.T(
+        default=1.,
+        help="Calculate Green's Functions for varying Source Time Function"
+             " durations determined by prior bounds. Discretization between"
+             " is determined by duration sampling.")
+    starttime_sampling = Float.T(
+        default=1.,
+        help="Calculate Green's Functions for varying rupture onset times."
+             "These are determined by the (rupture) velocity prior bounds "
+             "and the hypocenter location.")
+
+
+class GeodeticLinearGFConfig(LinearGFConfig):
+    pass
 
 
 class WaveformFitConfig(Object):
@@ -417,6 +446,10 @@ class GeodeticConfig(Object):
         default=True,
         help='Flag for calculating the data covariance matrix based on the'
              ' pre P arrival data trace noise.')
+    interpolation = StringChoice.T(
+        choices=['nearest_neighbor', 'multilinear'],
+        default='multilinear',
+        help='GF interpolation scheme during synthetics generation')
     fit_plane = Bool.T(
         default=False,
         help='Flag for inverting for additional plane parameters on each'
@@ -427,15 +460,33 @@ class GeodeticConfig(Object):
         return ['_'.join(('h', typ)) for typ in self.types]
 
 
+class ModeConfig(Object):
+    """
+    BaseConfig for optimization mode specific configuration.
+    """
+    pass
+
+
+class FFIConfig(ModeConfig):
+
+    regularization = StringChoice.T(
+        default='none',
+        choices=['laplacian', 'trans-dimensional', 'none'],
+        help='Flag for regularization in distributed slip-optimization.')
+
+
 class ProblemConfig(Object):
     """
     Config for optimization problem to setup.
     """
     mode = StringChoice.T(
-        choices=['geometry', 'static', 'kinematic', 'interseismic'],
+        choices=['geometry', 'ffi', 'interseismic'],
         default='geometry',
-        help='Problem to solve: "geometry", "static", "kinematic",'
+        help='Problem to solve: "geometry", "ffi",'
              ' "interseismic"',)
+    mode_config = ModeConfig.T(
+        optional=True,
+        help='Global optimization mode specific parameters.')
     source_type = StringChoice.T(
         default='RectangularSource',
         choices=source_names,
@@ -459,6 +510,19 @@ class ProblemConfig(Object):
         help='Hyperparameters to weight different types of datatypes.')
     priors = Dict.T(
         help='Priors of the variables in question.')
+
+    def __init__(self, **kwargs):
+
+        mode = 'mode'
+        mode_config = 'mode_config'
+        if mode in kwargs:
+            omode = kwargs[mode]
+
+            if omode == 'ffi':
+                if mode_config not in kwargs:
+                    kwargs[mode_config] = FFIConfig()
+
+        Object.__init__(self, **kwargs)
 
     def init_vars(self, variables=None):
         """
@@ -493,6 +557,21 @@ class ProblemConfig(Object):
                     testvalue=num.ones(
                         nvars,
                         dtype=tconfig.floatX) * (lower + (upper / 5.)))
+
+    def set_vars(self, bounds_dict):
+        """
+        Set variable bounds to given bounds.
+        """
+        for variable, bounds in bounds_dict.items():
+            if variable in self.priors.keys():
+                param = self.priors[variable]
+                param.lower = num.atleast_1d(bounds[0])
+                param.upper = num.atleast_1d(bounds[1])
+                param.testvalue = num.atleast_1d(num.mean(bounds))
+            else:
+                logger.warning(
+                    'Prior for variable %s does not exist!'
+                    ' Bounds not updated!' % variable)
 
     def select_variables(self):
         """
@@ -545,6 +624,20 @@ class ProblemConfig(Object):
 
         return unique_variables
 
+    def get_slip_variables(self):
+        """
+        Return a list of slip variable names defined in the ProblemConfig.
+        """
+        if self.mode == 'ffi':
+            return [
+                var for var in static_dist_vars if var in self.priors.keys()]
+        elif self.mode == 'geometry':
+            return [
+                var for var in ['slip', 'magnitude']
+                if var in self.priors.keys()]
+        elif self.mode == 'interseismic':
+            return ['bl_amplitude']
+
     def set_decimation_factor(self):
         """
         Determines the reduction of discretization of an extended source.
@@ -582,25 +675,14 @@ class ProblemConfig(Object):
 
 
 class SamplerParameters(Object):
-    pass
 
-
-class MetropolisConfig(SamplerParameters):
-    """
-    Config for optimization parameters of the Adaptive Metropolis algorithm.
-    """
     n_jobs = Int.T(
         default=1,
         help='Number of processors to use, i.e. chains to sample in parallel.')
-    n_stages = Int.T(
-        default=10,
-        help='Number of stages to sample/ or points in solution spacce for'
-             ' hyperparameter estimation')
     n_steps = Int.T(default=25000,
                     help='Number of steps for the MC chain.')
-    stage = Int.T(default=0,
-                  help='Stage where to start/continue the sampling. Has to'
-                       ' be int, -1 for final stage')
+    n_chains = Int.T(default=1000,
+                     help='Number of Metropolis chains for sampling.')
     tune_interval = Int.T(
         default=50,
         help='Tune interval for adaptive tuning of Metropolis step size.')
@@ -608,11 +690,19 @@ class MetropolisConfig(SamplerParameters):
         default='Normal',
         help='Normal Proposal distribution, for Metropolis steps;'
              'Alternatives: Cauchy, Laplace, Poisson, MultivariateNormal')
-    update_covariances = Bool.T(
-        default=False,
-        optional=True,
-        help='Update model prediction covariance matrixes in transition '
-             'stages.')
+    check_bnd = Bool.T(
+        default=True,
+        help='Flag for checking whether proposed step lies within'
+             ' variable bounds.')
+
+    rm_flag = Bool.T(default=False,
+                     help='Remove existing results prior to sampling.')
+
+
+class MetropolisConfig(SamplerParameters):
+    """
+    Config for optimization parameters of the Adaptive Metropolis algorithm.
+    """
     thin = Int.T(
         default=2,
         help='Thinning parameter of the sampled trace. Every "thin"th sample'
@@ -621,24 +711,12 @@ class MetropolisConfig(SamplerParameters):
         default=0.5,
         help='Burn-in parameter between 0. and 1. to discard fraction of'
              ' samples from the beginning of the chain.')
-    rm_flag = Bool.T(default=False,
-                     help='Remove existing stage results prior to sampling.')
 
 
 class SMCConfig(SamplerParameters):
     """
     Config for optimization parameters of the SMC algorithm.
     """
-    n_chains = Int.T(default=1000,
-                     help='Number of Metropolis chains for sampling.')
-    n_steps = Int.T(default=100,
-                    help='Number of steps for each chain per stage.')
-    n_jobs = Int.T(
-        default=1,
-        help='Number of processors to use, i.e. chains to sample in parallel.')
-    tune_interval = Int.T(
-        default=10,
-        help='Tune interval for adaptive tuning of Metropolis step size.')
     coef_variation = Float.T(
         default=1.,
         help='Coefficient of variation, determines the similarity of the'
@@ -652,17 +730,12 @@ class SMCConfig(SamplerParameters):
         default='MultivariateNormal',
         help='Multivariate Normal Proposal distribution, for Metropolis steps'
              'alternatives need to be implemented')
-    check_bnd = Bool.T(
-        default=True,
-        help='Flag for checking whether proposed step lies within'
-             ' variable bounds.')
+
     update_covariances = Bool.T(
         default=True,
         optional=True,
         help='Update model prediction covariance matrixes in transition '
              'stages.')
-    rm_flag = Bool.T(default=False,
-                     help='Remove existing stage results prior to sampling.')
 
 
 class SamplerConfig(Object):
@@ -693,6 +766,35 @@ class SamplerConfig(Object):
 
         if self.name == 'SMC':
             self.parameters = SMCConfig(**kwargs)
+
+
+class GFLibaryConfig(Object):
+    """
+    Baseconfig for GF Libraries
+    """
+    component = String.T(default='uparr')
+    event = model.Event.T(default=model.Event.D())
+    datatype = String.T(default='undefined')
+    crust_ind = Int.T(default=0)
+
+
+class GeodeticGFLibraryConfig(GFLibaryConfig):
+    """
+    Config for the linear Geodetic GF Library for dumping and loading.
+    """
+    dimensions = Tuple.T(2, Int.T(), default=(0, 0))
+
+
+class SeismicGFLibraryConfig(GFLibaryConfig):
+    """
+    Config for the linear Seismic GF Library for dumping and loading.
+    """
+    wave_config = WaveformFitConfig.T(default=WaveformFitConfig.D())
+    starttime_sampling = Float.T(default=0.5)
+    duration_sampling = Float.T(default=0.5)
+    starttime_min = Float.T(default=0.)
+    duration_min = Float.T(default=0.1)
+    dimensions = Tuple.T(5, Int.T(), default=(0, 0, 0, 0, 0))
 
 
 class BEATconfig(Object, Cloneable):
@@ -729,6 +831,10 @@ class BEATconfig(Object, Cloneable):
         if self.seismic_config is not None:
             hypernames.extend(self.seismic_config.get_hypernames())
 
+        if self.problem_config.mode == 'ffi':
+            if self.problem_config.mode_config.regularization == 'laplacian':
+                hypernames.append(hyper_name_laplacian)
+
         hypers = dict()
         for name in hypernames:
             logger.info(
@@ -738,14 +844,11 @@ class BEATconfig(Object, Cloneable):
             defaultb_name = 'hypers'
             hypers[name] = Parameter(
                 name=name,
-                lower=num.ones(
-                    1, dtype=tconfig.floatX) *
+                lower=num.ones(1, dtype=tconfig.floatX) *
                 default_bounds[defaultb_name][0],
-                upper=num.ones(
-                    1, dtype=tconfig.floatX) *
+                upper=num.ones(1, dtype=tconfig.floatX) *
                 default_bounds[defaultb_name][1],
-                testvalue=num.ones(
-                    1, dtype=tconfig.floatX) *
+                testvalue=num.ones(1, dtype=tconfig.floatX) *
                 num.mean(default_bounds[defaultb_name]))
 
         self.problem_config.hyperparameters = hypers
@@ -755,6 +858,17 @@ class BEATconfig(Object, Cloneable):
         logger.info('Number of hyperparameters! %i' % n_hypers)
         if n_hypers == 0:
             self.hyper_sampler_config = None
+
+
+def init_reference_sources(source_points, n_sources, source_type, stf_type):
+    reference_sources = []
+    for i in range(n_sources):
+        #rf = source_catalog[source_type](stf=stf_catalog[stf_type]()) maybe future if several meshtypes
+        rf = RectangularSource(stf=stf_catalog[stf_type]())
+        utility.update_source(rf, **source_points[i])
+        reference_sources.append(rf)
+
+    return reference_sources
 
 
 def init_config(name, date=None, min_magnitude=6.0, main_path='./',
@@ -854,37 +968,82 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
         else:
             c.seismic_config = None
 
-    elif mode == 'static':
+    elif mode == 'ffi':
 
         if source_type != 'RectangularSource':
             raise TypeError('Static distributed slip is so far only supported'
                             ' for RectangularSource(s)')
 
-        gc = load_config(c.project_dir, 'geometry')
+        gmc = load_config(c.project_dir, 'geometry')
 
-        if gc is not None:
+        if gmc is not None:
             logger.info('Taking information from geometry_config ...')
-            n_sources = gc.problem_config.n_sources
-            point = {k: v.testvalue
-                     for k, v in gc.problem_config.priors.iteritems()}
-            source_points = utility.split_point(point)
-            reference_sources = [RectangularSource(
-                **source_points[i]) for i in range(n_sources)]
+            if source_type != gmc.problem_config.source_type:
+                raise ValueError(
+                    'Specified reference source: "%s" differs from the'
+                    ' source that has been used previously in'
+                    ' "geometry" mode: "%s"!' % (
+                        source_type, gmc.problem_config.source_type))
 
-            c.date = gc.date
-            c.event = gc.event
-            c.geodetic_config = gc.geodetic_config
-            c.geodetic_config.gf_config = LinearGFConfig(
-                store_superdir=gc.geodetic_config.gf_config.store_superdir,
-                n_variations=gc.geodetic_config.gf_config.n_variations,
-                reference_sources=reference_sources)
+            n_sources = gmc.problem_config.n_sources
+            point = {k: v.testvalue
+                     for k, v in gmc.problem_config.priors.iteritems()}
+            point = utility.adjust_point_units(point)
+            source_points = utility.split_point(point)
+
+            reference_sources = init_reference_sources(
+                source_points, n_sources,
+                gmc.problem_config.source_type, gmc.problem_config.stf_type)
+
+            c.date = gmc.date
+            c.event = gmc.event
+
+            if 'geodetic' in datatypes:
+                gc = gmc.geodetic_config
+                if gc is None:
+                    logger.warning(
+                        'Asked for "geodetic" datatype but geometry config '
+                        'has no such datatype! Initialising default "geodetic"'
+                        ' linear config!')
+                    gc = GeodeticConfig()
+                    lgf_config = GeodeticLinearGFConfig()
+                else:
+                    lgf_config = GeodeticLinearGFConfig(
+                        earth_model_name=gc.gf_config.earth_model_name,
+                        store_superdir=gc.gf_config.store_superdir,
+                        n_variations=gc.gf_config.n_variations,
+                        reference_sources=reference_sources,
+                        sample_rate=gc.gf_config.sample_rate)
+
+                c.geodetic_config = gc
+                c.geodetic_config.gf_config = lgf_config
+
+            elif 'seismic' in datatypes:
+                sc = gmc.seismic_config
+                if sc is None:
+                    logger.warning(
+                        'Asked for "seismic" datatype but geometry config '
+                        'has no such datatype! Initialising default "seismic"'
+                        ' linear config!')
+                    sc = SeismicConfig()
+                    lgf_config = SeismicLinearGFConfig()
+                else:
+                    lgf_config = SeismicLinearGFConfig(
+                        earth_model_name=sc.gf_config.earth_model_name,
+                        sample_rate=sc.gf_config.sample_rate,
+                        reference_location=sc.gf_config.reference_location,
+                        store_superdir=sc.gf_config.store_superdir,
+                        n_variations=sc.gf_config.n_variations,
+                        reference_sources=reference_sources)
+                c.seismic_config = sc
+                c.seismic_config.gf_config = lgf_config
         else:
-            logger.info('Found no geometry setup, init blank ...')
-            c.geodetic_config = GeodeticConfig(gf_config=LinearGFConfig())
-            c.date = 'dummy'
-        logger.info(
-            'Problem config has to be updated. After deciding on the patch'
-            ' dimensions and extension factors please run: import')
+            logger.warning('Found no geometry setup, ...')
+            raise ImportError(
+                'No geometry configuration file existing! Please initialise'
+                ' a "geometry" configuration ("beat init command"), update'
+                ' the Greens Function information and create GreensFunction'
+                ' stores for the non-linear problem.')
 
     c.problem_config = ProblemConfig(
         n_sources=n_sources, datatypes=datatypes, mode=mode,
