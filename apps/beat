@@ -428,8 +428,10 @@ def command_import(args):
                         ' maximum likelihood result for source geometry.')
             problem = load_model(
                 c.project_dir, 'geometry', hypers=False)
-            stage = load_stage(
-                problem, stage_number='final', load='full')
+
+            stage = Stage(homepath=problem.outfolder)
+            stage.load_results(
+                model=problem.model, stage_number=-1, load='full')
 
             point = plotting.get_result_point(stage, problem.config, 'max')
             n_sources = problem.config.problem_config.n_sources
@@ -630,9 +632,9 @@ def command_summarize(args):
         args, options, nargs_dict[command_str])
 
     logger.info('Loading problem ...')
-    problem = models.load_model(project_dir, options.mode)
+    problem = load_model(project_dir, options.mode)
 
-    stage = models.Stage(homepath=problem.outfolder)
+    stage = Stage(homepath=problem.outfolder)
     stage.load_results(model=problem.model, stage_number=-1, load='full')
     stage_path = stage.handler.stage_path(-2)
 
@@ -1036,7 +1038,7 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
                             ' %s' % (plot, plots_avail))
 
     logger.info('Loading problem ...')
-    problem = models.load_model(
+    problem = load_model(
         project_dir, options.mode, options.hypers, options.nobuild)
 
     po = plotting.PlotOptions(
@@ -1103,15 +1105,14 @@ def command_check(args):
             type='string',
             action='callback',
             callback=list_callback,
-            help='Indexes to targets to display.'
-            )
+            help='Indexes to targets to display.')
 
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
     project_dir = get_project_directory(
         args, options, nargs_dict[command_str])
 
-    problem = models.load_model(
+    problem = load_model(
         project_dir, options.mode, hypers=False, nobuild=True)
 
     if options.what == 'stores':
