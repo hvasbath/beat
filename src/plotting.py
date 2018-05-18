@@ -11,7 +11,7 @@ import copy
 
 from beat import utility
 from beat.models import Stage
-from beat.metropolis import get_trace_stats
+from beat.sampler.metropolis import get_trace_stats
 from beat.heart import init_seismic_targets, init_geodetic_targets
 from beat.colormap import slip_colormap
 

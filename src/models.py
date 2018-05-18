@@ -2248,6 +2248,7 @@ def estimate_hypers(step, problem):
     with problem.model:
         mtrace = iter_parallel_chains(
             draws=pa.n_steps,
+            chains=chains,
             step=step,
             stage_path=stage_handler.stage_path(1),
             progressbar=True,

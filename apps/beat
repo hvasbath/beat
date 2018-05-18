@@ -15,7 +15,6 @@ from beat import heart, config, utility, inputf, plotting
 from beat.models import load_model, Stage, estimate_hypers, sample
 from beat.backend import TextChain
 from beat.sources import MTSourceWithMagnitude
-from beat.metropolis import get_trace_stats
 from beat.utility import list2string
 
 from pyrocko import model, util

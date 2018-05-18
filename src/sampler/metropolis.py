@@ -77,7 +77,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
         Defaults to None (taken from context).
     """
 
-    default_blocked = False
+    default_blocked = True
 
     def __init__(self, vars=None, out_vars=None, covariance=None, scale=1.,
                  n_chains=100, tune=True, tune_interval=100, model=None,

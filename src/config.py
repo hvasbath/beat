@@ -679,10 +679,6 @@ class SamplerParameters(Object):
     n_jobs = Int.T(
         default=1,
         help='Number of processors to use, i.e. chains to sample in parallel.')
-    n_steps = Int.T(default=25000,
-                    help='Number of steps for the MC chain.')
-    n_chains = Int.T(default=1000,
-                     help='Number of Metropolis chains for sampling.')
     tune_interval = Int.T(
         default=50,
         help='Tune interval for adaptive tuning of Metropolis step size.')
@@ -703,6 +699,10 @@ class MetropolisConfig(SamplerParameters):
     """
     Config for optimization parameters of the Adaptive Metropolis algorithm.
     """
+    n_steps = Int.T(default=25000,
+                    help='Number of steps for the MC chain.')
+    n_chains = Int.T(default=20,
+                     help='Number of Metropolis chains for sampling.')
     thin = Int.T(
         default=2,
         help='Thinning parameter of the sampled trace. Every "thin"th sample'
@@ -717,6 +717,10 @@ class SMCConfig(SamplerParameters):
     """
     Config for optimization parameters of the SMC algorithm.
     """
+    n_steps = Int.T(default=100,
+                    help='Number of steps for the MC chain.')
+    n_chains = Int.T(default=1000,
+                     help='Number of Metropolis chains for sampling.')
     coef_variation = Float.T(
         default=1.,
         help='Coefficient of variation, determines the similarity of the'
