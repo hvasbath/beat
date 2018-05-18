@@ -164,7 +164,7 @@ class TextChain(BaseSMCTrace):
         self.df = None
         self.corrupted_flag = False
 
-    def setup(self, draws, chain):
+    def setup(self, draws, chain, buffer_size=5000):
         """
         Perform chain-specific setup.
 
@@ -178,6 +178,8 @@ class TextChain(BaseSMCTrace):
         logger.debug('SetupTrace: Chain_%i step_%i' % (chain, draws))
         self.chain = chain
         self.buffer = []
+        self.count = 0
+        self.buffer_size = buffer_size
         self.filename = os.path.join(self.name, 'chain-{}.csv'.format(chain))
 
         cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
@@ -190,9 +192,17 @@ class TextChain(BaseSMCTrace):
 
     def empty_buffer(self):
         self.buffer = []
+        self.count = 0
 
-    def write_buffer(self, lpoint, draw):
+    def write(self, lpoint, draw):
+        """
+        Write sampling results into buffer.
+        If buffer is full write it out to file.
+        """
         self.buffer.append((lpoint, draw))
+        self.count += 1
+        if self.count == self.buffer_size:
+            self.record_buffer()
 
     def record_buffer(self):
         t0 = time()

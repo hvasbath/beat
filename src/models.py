@@ -2179,10 +2179,11 @@ def sample(step, problem):
     sc = problem.config.sampler_config
     pa = sc.parameters
 
-    if pa.update_covariances:
-        update = problem
-    else:
-        update = None
+    if hasattr(pa, 'update_covariances'):
+        if pa.update_covariances:
+            update = problem
+        else:
+            update = None
 
     if sc.name == 'Metropolis':
         logger.info('... Starting Metropolis ...\n')
@@ -2191,15 +2192,13 @@ def sample(step, problem):
 
         sampler.Metropolis_sample(
             n_steps=pa.n_steps,
-            stage=pa.stage,
             step=step,
             progressbar=sc.progressbar,
-            trace=problem.outfolder,
+            homepath=problem.outfolder,
             burn=pa.burn,
             thin=pa.thin,
             model=problem.model,
             n_jobs=pa.n_jobs,
-            update=update,
             rm_flag=pa.rm_flag)
 
     elif sc.name == 'SMC':

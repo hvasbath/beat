@@ -349,12 +349,14 @@ def get_final_stage(homepath, n_stages, model):
 
 def Metropolis_sample(
         n_steps=10000, homepath=None, start=None,
-        progressbar=False, stage=None, rm_flag=False,
+        progressbar=False, rm_flag=False,
         step=None, model=None, n_jobs=1, update=None, burn=0.5, thin=2):
     """
     Execute Metropolis algorithm repeatedly depending on the number of chains.
     """
 
+    # hardcoded stage here as there are no stages
+    stage = 1
     model = modelcontext(model)
     step.n_steps = int(n_steps)
 
@@ -392,7 +394,7 @@ def Metropolis_sample(
     chains, step, update = init_stage(
         stage_handler=stage_handler,
         step=step,
-        stage=stage,
+        stage=stage - 1,   # needs zero otherwise tries to load stage_0 results
         progressbar=progressbar,
         update=update,
         model=model,
@@ -406,7 +408,7 @@ def Metropolis_sample(
 
         draws = n_steps
 
-        step.stage = 1
+        step.stage = stage
 
         sample_args = {
             'draws': draws,

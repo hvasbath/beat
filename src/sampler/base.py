@@ -241,8 +241,7 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
         logger.debug('Step: Chain_%i step_%i' % (chain, i))
         point, out_list = step.step(point)
 
-        trace.write_buffer(out_list, i)
-
+        trace.write(out_list, i)
         yield trace
 
 
