@@ -161,9 +161,13 @@ def hyper_normal(datasets, hyperparams, llks, hp_specific=False):
     for k, data in enumerate(datasets):
         M = data.samples
         hp_name = '_'.join(('h', data.typ))
-
+#        print('hypername', hp_name)
         if hp_specific:
-            hp = hyperparams[hp_name][count(hp_name)]
+            idx = count(hp_name)
+#            print 'idx', idx
+            hp = hyperparams[hp_name][idx]
+#            Print('all')(hyperparams[hp_name])
+#            hp = Print('hyperparam %i %s' % (idx, hp_name))(hp)
         else:
             hp = hyperparams[hp_name]
 
@@ -974,7 +978,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.sources = sources
 
-        if self.config.station_corrections:
+        if sc.station_corrections:
             self.correction_name = 'time_shift'
 
         if not hypers:
