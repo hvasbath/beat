@@ -1,12 +1,8 @@
 import os
 import time
 import copy
-import shutil
 
 from pymc3 import Uniform, Model, Deterministic, Potential
-
-from pymc3.backends.base import merge_traces
-from pymc3.backends import text
 
 from pyrocko import gf, util, trace
 
@@ -22,7 +18,7 @@ from beat import theanof, heart, utility, backend
 from beat import sampler
 from beat import covariance as cov
 from beat import config as bconfig
-from beat.parallel import get_process_id
+
 from beat.interseismic import geo_backslip_synthetics, seperate_point
 
 import logging
@@ -226,7 +222,7 @@ class Composite(object):
         logpts = hyper_normal(
             self.datasets, hyperparams, self._llks,
             hp_specific=hp_specific)
-        llk = pm.Deterministic(self._like_name, logpts)
+        llk = Deterministic(self._like_name, logpts)
         return llk.sum()
 
     def apply(self, composite):
@@ -391,12 +387,12 @@ class GeodeticComposite(Composite):
                         transform=None,
                         dtype=tconfig.floatX)
                     try:
-                        self.hierarchicals[data.name] = pm.Uniform(**kwargs)
+                        self.hierarchicals[data.name] = Uniform(**kwargs)
 
                     except TypeError:
                         kwargs.pop('name')
                         self.hierarchicals[data.name] = \
-                            pm.Uniform.dist(**kwargs)
+                            Uniform.dist(**kwargs)
 
         logger.info(
             'Initialized %i hierarchical parameters '
@@ -831,11 +827,11 @@ class SeismicComposite(Composite):
                 dtype=tconfig.floatX)
 
             try:
-                station_corrs_rv = pm.Uniform(**kwargs)
+                station_corrs_rv = Uniform(**kwargs)
 
             except TypeError:
                 kwargs.pop('name')
-                station_corrs_rv = pm.Uniform.dist(**kwargs)
+                station_corrs_rv = Uniform.dist(**kwargs)
 
             self.hierarchicals[self.correction_name] = station_corrs_rv
         else:
@@ -1133,7 +1129,7 @@ class SeismicGeometryComposite(SeismicComposite):
                     tr.tmax += sh[i]
 
             synths.extend(synthetics)
-            
+
             obs_tr = heart.taper_filter_traces(
                 wmap.datasets,
                 arrival_taper=wc.arrival_taper,
@@ -2077,11 +2073,11 @@ class Problem(object):
                         transform=None)
 
                     try:
-                        hyperparams[hp_name] = pm.Uniform(**kwargs)
+                        hyperparams[hp_name] = Uniform(**kwargs)
 
                     except TypeError:
                         kwargs.pop('name')
-                        hyperparams[hp_name] = pm.Uniform.dist(**kwargs)
+                        hyperparams[hp_name] = Uniform.dist(**kwargs)
 
                     n_hyp += dimension
 
@@ -2416,7 +2412,9 @@ def estimate_hypers(step, problem):
     """
     Get initial estimates of the hyperparameters
     """
-    from beat.sampler.base import iter_parallel_chains, init_stage, init_chain_hypers
+    from beat.sampler.base import iter_parallel_chains, init_stage, \
+        init_chain_hypers
+
     logger.info('... Estimating hyperparameters ...')
 
     pc = problem.config.problem_config
@@ -2426,7 +2424,6 @@ def estimate_hypers(step, problem):
     name = problem.outfolder
     util.ensuredir(name)
 
-<<<<<<< HEAD
     stage_handler = backend.TextStage(problem.outfolder)
     chains, step, update = init_stage(
         stage_handler=stage_handler,
@@ -2454,58 +2451,7 @@ def estimate_hypers(step, problem):
             initializer=init_chain_hypers,
             initargs=(problem,),
             chunksize=int(pa.n_chains / pa.n_jobs))
-=======
-    mtraces = []
-    for stage in range(pa.n_stages):
-        logger.info('Metropolis stage %i' % stage)
 
-        point = problem.get_random_point(
-            include=['priors', 'hierarchicals'])
-
-        if stage == 0:
-            # put testpoint in there
-            for param in pc.priors.values():
-                point[param.name] = param.testvalue
-
-        problem.outfolder = os.path.join(name, 'stage_%i' % stage)
-        start = problem.get_random_point(include=['hypers'])
-
-        if pa.rm_flag:
-            shutil.rmtree(problem.outfolder, ignore_errors=True)
-
-        if not os.path.exists(problem.outfolder):
-            logger.debug('Sampling ...')
-            if sc0.parameters.update_covariances:
-                logger.info('Updating Covariances ...')
-                problem.update_weights(point)
-
-            problem.update_llks(point)
-            with problem.model as hmodel:
-                mtraces.append(pm.sample(
-                    draws=pa.n_steps,
-                    step=step,
-                    trace=pm.backends.Text(
-                        name=problem.outfolder,
-                        model=hmodel),
-                    start=start,
-                    model=hmodel,
-                    chain=stage * pa.n_jobs,
-                    njobs=pa.n_jobs,
-                    ))
-
-        else:
-            logger.debug('Loading existing results!')
-            mtraces.append(pm.backends.text.load(
-                name=problem.outfolder, model=problem.model))
-
-    mtrace = pm.backends.base.merge_traces(mtraces)
-    outname = os.path.join(name, 'stage_final')
-
-    if not os.path.exists(outname):
-        util.ensuredir(outname)
-        pm.backends.text.dump(name=outname, trace=mtrace)
-
-    n_steps = pa.n_steps
     for v, i in pc.hyperparameters.iteritems():
         d = mtrace.get_values(
             v, combine=True, burn=int(pa.n_steps * pa.burn),

@@ -276,6 +276,7 @@ class SeismicResult(Object):
     llk = Float.T(default=0., optional=True)
     taper = trace.Taper.T(optional=True)
 
+
 sqrt2 = num.sqrt(2.)
 
 physical_bounds = dict(
@@ -1469,12 +1470,12 @@ def choose_backend(
         conf.gf_directory = gf_directory
 
         # find common basement layer
-        l = source_model.layer(receiver_basement_depth)
+        layer = source_model.layer(receiver_basement_depth)
         conf.qseis_s_config.receiver_basement_depth = \
-            round(l.zbot / km, 1)
+            round(layer.zbot / km, 1)
         receiver_model = receiver_model.extract(
-            depth_max=l.ztop)
-        receiver_model.append(l)
+            depth_max=layer.ztop)
+        receiver_model.append(layer)
 
     else:
         raise NotImplementedError('Backend not supported: %s' % code)
@@ -1709,7 +1710,7 @@ def geo_construct_gf(
     elif not execute and not os.path.exists(traces_path):
         logger.info('Geo GFs can be created in directory: %s ! '
                     '(execute=True necessary)! GF params: \n' % store_dir)
-        print(fomosto_config, c)
+        print fomosto_config, c
     else:
         logger.info('Traces exist use force=True to overwrite!')
 
@@ -1785,7 +1786,7 @@ def geo_construct_gf_psgrn(
     if not execute:
         logger.info('Geo GFs can be created in directory: %s ! '
                     '(execute=True necessary)! GF params: \n' % c.psgrn_outdir)
-        print(c)
+        print c
 
     if execute:
         logger.info('Creating Geo GFs in directory: %s' % c.psgrn_outdir)
@@ -2041,7 +2042,6 @@ class DataWaveformCollection(object):
     _targets = OrderedDict()
     _datasets = OrderedDict()
     _target2index = None
-    _station2index = None
     _station_correction_indexes = None
 
     def __init__(self, stations, waveforms=None):
@@ -2103,13 +2103,6 @@ class DataWaveformCollection(object):
                     self._targets.values()))
         return self._target2index
 
-    def station_index_mapping(self):
-        if self._station2index is None:
-            self._station2index = dict(
-                (station, i) for (i, station) in enumerate(
-                    self.stations))
-        return self._station2index
-
     def get_station_correction_idxs(self, targets):
         """
         Returns array of indexes to problem stations,
@@ -2123,20 +2116,10 @@ class DataWaveformCollection(object):
         -----
         Not to mix up with the wavemap specific stations!
         """
-
         if self._station_correction_indexes is None:
-            s2i = self.station_index_mapping()
-
-            snames2stations = utility.gather(
-                self.stations, lambda t: t.station)
-
-            s2corr_idxs = []
-            for target in targets:
-                idx = s2i[snames2stations[target.codes[1]][0]]
-                s2corr_idxs.append(idx)
-
+            t2i = self.target_index_mapping()
             self._station_correction_indexes = num.array(
-                s2corr_idxs, dtype='int16')
+                [t2i[target] for target in targets], dtype='int16')
 
         return self._station_correction_indexes
 

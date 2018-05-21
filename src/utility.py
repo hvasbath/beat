@@ -63,35 +63,6 @@ class Counter(object):
         self.d = dict()
 
 
-class FaultOrdering(object):
-    """
-    A mapping of source patches to the arrays of optimization results.
-
-    Parameters
-    ----------
-    npls : list
-        of number of patches in strike-direction
-    npws : list
-        of number of patches in dip-direction
-    """
-
-    def __init__(self, npls, npws):
-
-        self.vmap = []
-        dim = 0
-        count = 0
-
-        for npl, npw in zip(npls, npws):
-            npatches = npl * npw
-            slc = slice(dim, dim + npatches)
-            shp = (npw, npl)
-            self.vmap.append(PatchMap(count, slc, shp, npatches))
-            dim += npatches
-            count += 1
-
-        self.npatches = dim
-
-
 class ListArrayOrdering(object):
     """
     An ordering for a list to an array space. Takes also non theano.tensors.
@@ -248,7 +219,7 @@ class ListToArrayBijection(object):
 
         for list_ind, slc, shp, dtype, _ in self.ordering.vmap:
             a_list[list_ind] = num.atleast_1d(
-                                        array)[slc].reshape(shp).astype(dtype)
+                array)[slc].reshape(shp).astype(dtype)
 
         return a_list
 
@@ -327,7 +298,8 @@ def weed_input_rvs(input_rvs, mode, datatype):
             weeded_input_rvs.discard(weed)
 
         else:
-            raise TypeError('Variables are not of proper format: %s !' % \
+            raise TypeError(
+                'Variables are not of proper format: %s !' %
                 weeded_input_rvs.__class__)
 
     return weeded_input_rvs
@@ -441,8 +413,8 @@ def downsample_traces(data_traces, deltat=None):
             try:
                 tr.downsample_to(deltat, snap=True, allow_upsample_max=5)
             except util.UnavailableDecimation as e:
-                logger.error('Cannot downsample %s.%s.%s.%s: %s' % (
-                                                            tr.nslc_id + (e,)))
+                logger.error(
+                    'Cannot downsample %s.%s.%s.%s: %s' % (tr.nslc_id + (e,)))
                 continue
 
 
@@ -578,11 +550,10 @@ def split_point(point):
 
 def join_points(ldicts):
     """
-    Join list of dicts into one dict with concatenating 
+    Join list of dicts into one dict with concatenating
     values of keys that are present in multiple dicts.
     """
-    
-    npoints = len(ldicts)
+
     keys = set([k for d in ldicts for k in d.iterkeys()])
 
     jpoint = {}
@@ -590,7 +561,6 @@ def join_points(ldicts):
         jvar = []
         for d in ldicts:
             jvar.append(d[k])
-
 
         jpoint[k] = num.array(jvar)
 
@@ -814,7 +784,7 @@ def RS_dipvector(source):
     return num.array(
         [num.cos(source.dip * d2r) * num.cos(source.strike * d2r),
          -num.cos(source.dip * d2r) * num.sin(source.strike * d2r),
-          num.sin(source.dip * d2r)])
+         num.sin(source.dip * d2r)])
 
 
 def strike_vector(strike, order='ENZ'):
@@ -954,8 +924,9 @@ def ensure_cov_psd(cov):
     try:
         num.linalg.cholesky(cov)
     except num.linalg.LinAlgError:
-        logger.debug('Cov_pv not positive definite!'
-                    ' Finding nearest psd matrix...')
+        logger.debug(
+            'Cov_pv not positive definite!'
+            ' Finding nearest psd matrix...')
         cov = repair_covariance(cov)
 
     return cov
@@ -1271,7 +1242,7 @@ def PsGrnArray2LayeredModel(psgrn_input_path):
         read_nd_model_str(
             re.sub('[\[\]]', '', num.array2string(
                 b, precision=4,
-                    formatter={'float_kind': lambda x: "%.3f" % x}))))
+                formatter={'float_kind': lambda x: "%.3f" % x}))))
 
 
 def list_to_str(l):

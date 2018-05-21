@@ -11,7 +11,7 @@ import collections
 
 from multiprocessing import RawArray
 
-from pyrocko.trace import snuffle, Trace
+from pyrocko.trace import Trace
 from pyrocko import gf
 from pyrocko.guts import load
 

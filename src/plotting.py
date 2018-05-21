@@ -1,5 +1,4 @@
 from pyrocko import cake_plot as cp
-from pyrocko import gf
 from pyrocko import orthodrome as otd
 
 from pymc3 import plots as pmp
@@ -236,12 +235,14 @@ def correlation_plot(
     if figsize is None:
         figsize = mpl_papersize('a4', 'landscape')
 
-    fig, axs = plt.subplots(sharey='row', sharex='col',
+    fig, axs = plt.subplots(
+        sharey='row', sharex='col',
         nrows=nvar - 1, ncols=nvar - 1, figsize=figsize)
 
     d = dict()
     for var in varnames:
-        d[var] = transform(mtrace.get_values(
+        d[var] = transform(
+            mtrace.get_values(
                 var, combine=True, squeeze=True))
 
     for k in range(nvar - 1):
@@ -254,7 +255,8 @@ def correlation_plot(
                 a, b, grid=grid, ax=axs[l - 1, k], cmap=cmap, aspect='auto')
 
             if point is not None:
-                axs[l - 1, k].plot(point[varnames[k]], point[varnames[l]],
+                axs[l - 1, k].plot(
+                    point[varnames[k]], point[varnames[l]],
                     color=point_color, marker=point_style,
                     markersize=point_size)
 
@@ -274,7 +276,8 @@ def correlation_plot(
     return fig, axs
 
 
-def correlation_plot_hist(mtrace, varnames=None,
+def correlation_plot_hist(
+        mtrace, varnames=None,
         transform=lambda x: x, figsize=None, hist_color='orange', cmap=None,
         grid=50, chains=None, ntickmarks=2, point=None,
         point_style='.', point_color='red', point_size='6', alpha=0.35):
@@ -330,13 +333,15 @@ def correlation_plot_hist(mtrace, varnames=None,
         else:
             figsize = mpl_papersize('a4', 'landscape')
 
-    fig, axs = plt.subplots(nrows=nvar, ncols=nvar, figsize=figsize,
-            subplot_kw={'adjustable': 'box-forced'})
+    fig, axs = plt.subplots(
+        nrows=nvar, ncols=nvar, figsize=figsize,
+        subplot_kw={'adjustable': 'box-forced'})
 
     d = dict()
 
     for var in varnames:
-        d[var] = transform(mtrace.get_values(
+        d[var] = transform(
+            mtrace.get_values(
                 var, chains=chains, combine=True, squeeze=True))
 
     for k in range(nvar):
@@ -377,7 +382,8 @@ def correlation_plot_hist(mtrace, varnames=None,
 
                 if point is not None:
                     if v_namea and v_nameb in point.keys():
-                        axs[l, k].plot(point[v_namea], point[v_nameb],
+                        axs[l, k].plot(
+                            point[v_namea], point[v_nameb],
                             color=point_color, marker=point_style,
                             markersize=point_size)
 
@@ -421,9 +427,9 @@ def plot(uwifg, point_size=20):
         determines the size of the scatter plot points
     """
 
-    #colim = num.max([disp.max(), num.abs(disp.min())])
     ax = plt.axes()
-    im = ax.scatter(uwifg.lons, uwifg.lats, point_size, uwifg.displacement,
+    im = ax.scatter(
+        uwifg.lons, uwifg.lats, point_size, uwifg.displacement,
         edgecolors='none')
     plt.colorbar(im)
     plt.title('Displacements [m] %s' % uwifg.name)
@@ -433,9 +439,10 @@ def plot(uwifg, point_size=20):
 def plot_cov(target, point_size=20):
 
     ax = plt.axes()
-    im = ax.scatter(target.lons, target.lats, point_size,
-             num.array(target.covariance.pred_v.sum(axis=0)).flatten(),
-             edgecolors='none')
+    im = ax.scatter(
+        target.lons, target.lats, point_size,
+        num.array(target.covariance.pred_v.sum(axis=0)).flatten(),
+        edgecolors='none')
     plt.colorbar(im)
     plt.title('Prediction Covariance [m2] %s' % target.name)
     plt.show()
@@ -694,12 +701,14 @@ def geodetic_fits(problem, stage, plot_options):
                 outline = utility.swap_columns(outline, 0, 1)
 
             if outline.shape[0] > 1:
-                ax.plot(outline[:, 0], outline[:, 1], '-',
+                ax.plot(
+                    outline[:, 0], outline[:, 1], '-',
                     linewidth=1.0, **kwargs)
                 ax.plot(
                     outline[0:2, 0], outline[0:2, 1], '-k', linewidth=1.0)
             else:
-                ax.plot(outline[:, 0], outline[:, 1], marker='*',
+                ax.plot(
+                    outline[:, 0], outline[:, 1], marker='*',
                     markersize=10, **kwargs)
 
     def cbtick(x):
@@ -806,7 +815,8 @@ def geodetic_fits(problem, stage, plot_options):
             dcbaxes = figures[figidx].add_axes([cbl + 0.3, cbb, cbw, cbh])
 
             cblabel = 'LOS displacement [m]'
-            cbs = plt.colorbar(syn,
+            cbs = plt.colorbar(
+                syn,
                 ax=axes[figidx][rowidx, 0],
                 ticks=cbtick(colims[tidx]),
                 cax=cbaxes,
@@ -814,7 +824,8 @@ def geodetic_fits(problem, stage, plot_options):
                 cmap=cmap)
             cbs.set_label(cblabel, fontsize=fontsize)
 
-            cbr = plt.colorbar(res,
+            cbr = plt.colorbar(
+                res,
                 ax=axes[figidx][rowidx, 2],
                 ticks=cbtick(dcolims[tidx]),
                 cax=dcbaxes,
@@ -1178,7 +1189,7 @@ def seismic_fits(problem, stage, plot_options):
                 azi = source.azibazi_to(target)[0]
                 infos.append(str_dist(dist))
                 infos.append(u'%.0f\u00B0' % azi)
-                #infos.append('%.3f' % gcms[itarget])
+                # infos.append('%.3f' % gcms[itarget])
                 axes2.annotate(
                     '\n'.join(infos),
                     xy=(0., 1.),
@@ -1236,8 +1247,9 @@ def draw_seismic_fits(problem, po):
                 opdf.savefig(fig)
 
 
-def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None,
-            ntickmarks=5, tstd=None):
+def histplot_op(
+        ax, data, reference=None, alpha=.35, color=None, bins=None,
+        ntickmarks=5, tstd=None):
     """
     Modified from pymc3. Additional color argument.
     """
@@ -1259,16 +1271,17 @@ def histplot_op(ax, data, reference=None, alpha=.35, color=None, bins=None,
         if bins is None:
             bins = int(num.ceil((maxd - mind) / step))
 
-        ax.hist(d, bins=bins, normed=True, stacked=True, alpha=alpha,
+        ax.hist(
+            d, bins=bins, normed=True, stacked=True, alpha=alpha,
             align='left', histtype='stepfilled', color=color, edgecolor=color)
 
-        l, r = ax.get_xlim()
+        left, right = ax.get_xlim()
         leftb = mind - tstd
         rightb = maxd + tstd
 
-        if l != 0.0 or r != 1.0:
-            leftb = num.minimum(leftb, l)
-            rightb = num.maximum(rightb, r)
+        if left != 0.0 or right != 1.0:
+            leftb = num.minimum(leftb, left)
+            rightb = num.maximum(rightb, right)
 
         ax.set_xlim(leftb, rightb)
         xax = ax.get_xaxis()
@@ -1438,7 +1451,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         axs[rowi, coli].autoscale(tight=False)
                         axs[rowi, coli].set_ylim(0)
                         xax = axs[rowi, coli].get_xaxis()
-                        #axs[rowi, coli].set_ylim([0, e.max()])
+                        # axs[rowi, coli].set_ylim([0, e.max()])
                         xticker = tick.MaxNLocator(nbins=5)
                         xax.set_major_locator(xticker)
                     else:
@@ -1455,7 +1468,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
                     if lines:
                         try:
-                            axs[rowi, coli].axvline(x=lines[v], color="k", lw=1.)
+                            axs[rowi, coli].axvline(
+                                x=lines[v], color="k", lw=1.)
                         except KeyError:
                             pass
 
@@ -1613,7 +1627,8 @@ def draw_posteriors(problem, plot_options):
                 figs.append(fig)
 
         else:
-            logger.info('plot for stage %s exists. Use force=True for'
+            logger.info(
+                'plot for stage %s exists. Use force=True for'
                 ' replotting!' % s)
 
     if format == 'display':
@@ -1676,7 +1691,7 @@ def draw_correlation_hist(problem, plot_options):
 
     outpath = os.path.join(
         problem.outfolder, po.figure_dir, 'corr_hist_%s_%s.%s' % (
-        stage.number, po.post_llk, po.outformat))
+            stage.number, po.post_llk, po.outformat))
 
     if not os.path.exists(outpath) or po.force:
         fig, axs = correlation_plot_hist(
@@ -1714,7 +1729,6 @@ def n_model_plot(models, axes=None, draw_bg=True, highlightidx=[]):
         vs = mod.profile('vs')
         axes.plot(vp, z, color=vp_c, lw=lw)
         axes.plot(vs, z, color=vs_c, lw=lw)
-
 
     cp.labelspace(axes)
     cp.labels_model(axes=axes)
@@ -1784,7 +1798,8 @@ def draw_earthmodels(problem, plot_options):
                 plot_stations = composite.get_unique_stations()
             else:
                 plot_stations = [composite.get_unique_stations()[0]]
-                plot_stations[0].station = sc.gf_config.reference_location.station
+                plot_stations[0].station = \
+                    sc.gf_config.reference_location.station
 
             for station in plot_stations:
                 outbasepath = os.path.join(
@@ -1843,7 +1858,7 @@ def draw_earthmodels(problem, plot_options):
                     store_superdir=composite.engine.store_superdirs[0],
                     targets=targets,
                     depth_max=gc.gf_config.source_depth_max * km)
-                models_dict[outpath] = models[0]  #select only source site
+                models_dict[outpath] = models[0]  # select only source site
 
             else:
                 logger.info(
@@ -1888,7 +1903,7 @@ def fault_slip_distribution(
 
     Parameters
     ----------
-    fault : 
+    fault : :class:`ffi.FaultGeometry`
 
     """
 
@@ -2116,8 +2131,7 @@ plots_catalog = {
     'waveform_fits': draw_seismic_fits,
     'scene_fits': draw_geodetic_fits,
     'velocity_models': draw_earthmodels,
-    'slip_distribution': draw_slip_dist,
-                }
+    'slip_distribution': draw_slip_dist}
 
 
 def available_plots():
