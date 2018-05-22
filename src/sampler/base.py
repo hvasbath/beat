@@ -255,11 +255,9 @@ def init_chain_hypers(problem):
     problem : :class:`beat.models.Problem`
     """
 
-    pc = problem.config.problem_config
     sc = problem.config.sampler_config
 
-    point = {param.name: param.random()
-             for param in pc.priors.values()}
+    point = problem.get_random_point(include=['hierarchicals', 'priors'])
 
     if sc.parameters.update_covariances:
         logger.info('Updating Covariances ...')

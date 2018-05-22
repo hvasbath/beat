@@ -1128,6 +1128,7 @@ class SeismicGeometryComposite(SeismicComposite):
             if self.config.station_corrections:
                 sh = point[
                     self.correction_name][wmap.station_correction_idxs]
+
                 for i, tr in enumerate(synthetics):
                     tr.tmin += sh[i]
                     tr.tmax += sh[i]
@@ -1951,7 +1952,7 @@ class Problem(object):
 
         pc = self.config.problem_config
 
-        point = self.get_random_point(include=['hierarchicals', 'prioŕs'])
+        point = self.get_random_point(include=['hierarchicals', 'priors'])
         for param in pc.priors.values():
             point[param.name] = param.testvalue
 
@@ -1987,6 +1988,7 @@ class Problem(object):
         if 'priors' in include:
             dummy = {
                 param.name: param.random() for param in pc.priors.values()}
+
             point.update(dummy)
 
         if 'hypers' in include:

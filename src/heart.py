@@ -2042,6 +2042,7 @@ class DataWaveformCollection(object):
     _targets = OrderedDict()
     _datasets = OrderedDict()
     _target2index = None
+    _station2index = None
     _station_correction_indexes = None
 
     def __init__(self, stations, waveforms=None):
@@ -2103,6 +2104,13 @@ class DataWaveformCollection(object):
                     self._targets.values()))
         return self._target2index
 
+    def station_index_mapping(self):
+        if self._station2index is None:
+            self._station2index = dict(
+                (station, i) for (i, station) in enumerate(
+                    self.stations))
+        return self._station2index
+
     def get_station_correction_idxs(self, targets):
         """
         Returns array of indexes to problem stations,
@@ -2116,10 +2124,20 @@ class DataWaveformCollection(object):
         -----
         Not to mix up with the wavemap specific stations!
         """
+
         if self._station_correction_indexes is None:
-            t2i = self.target_index_mapping()
+            s2i = self.station_index_mapping()
+
+            snames2stations = utility.gather(
+                self.stations, lambda t: t.station)
+
+            s2corr_idxs = []
+            for target in targets:
+                idx = s2i[snames2stations[target.codes[1]][0]]
+                s2corr_idxs.append(idx)
+
             self._station_correction_indexes = num.array(
-                [t2i[target] for target in targets], dtype='int16')
+                s2corr_idxs, dtype='int16')
 
         return self._station_correction_indexes
 
