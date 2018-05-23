@@ -422,6 +422,12 @@ class SeismicConfig(Object):
 
         return hids
 
+    def get_hierarchical_names(self):
+        if self.station_corrections:
+            return ['time_shift']
+        else:
+            return []
+
     def init_waveforms(self, wavenames):
         """
         Initialise waveform configurations.
@@ -462,6 +468,12 @@ class GeodeticConfig(Object):
 
     def get_hypernames(self):
         return ['_'.join(('h', typ)) for typ in self.types]
+
+    def get_hierarchical_names(self):
+        if self.fit_plane:
+            return [name + '_ramp' for name in self.names]
+        else:
+            return []
 
 
 class ModeConfig(Object):
@@ -520,12 +532,19 @@ class ProblemConfig(Object):
              'displacement COMPONENT.')
     hyperparameters = Dict.T(
         default=OrderedDict(),
-        help='Hyperparameters to weight different types of datatypes.')
+        help='Hyperparameters to estimate the noise in different'
+             ' types of datatypes.')
     priors = Dict.T(
         default=OrderedDict(),
         help='Priors of the variables in question.')
+    hierarchicals = Dict.T(
+        default=OrderedDict(),
+        help='Hierarchical parameters that affect the posterior'
+             ' likelihood, but do not affect the forward problem.'
+             ' Implemented: Temporal station corrections, orbital'
+             ' ramp estimation')
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs): 
 
         mode = 'mode'
         mode_config = 'mode_config'
@@ -687,6 +706,19 @@ class ProblemConfig(Object):
                 hp.validate_bounds()
 
             logger.info('All hyper-parameters ok!')
+
+        else:
+            logger.info('No hyper-parameters defined!')
+
+    def validate_hierarchicals(self):
+        """
+        Check if hierarchicals and their test values do not contradict!
+        """
+        if self.hierarchicals is not None:
+            for hp in self.hierarchicals.itervalues():
+                hp.validate_bounds()
+
+            logger.info('All hierarchical-parameters ok!')
 
         else:
             logger.info('No hyper-parameters defined!')
@@ -857,7 +889,7 @@ class BEATconfig(Object, Cloneable):
             if self.problem_config.mode_config.regularization == 'laplacian':
                 hypernames.append(hyper_name_laplacian)
 
-        hypers = dict()
+        hypers = OrderedDict()
         for name in hypernames:
             logger.info(
                 'Added hyperparameter %s to config and '
@@ -880,6 +912,47 @@ class BEATconfig(Object, Cloneable):
         logger.info('Number of hyperparameters! %i' % n_hypers)
         if n_hypers == 0:
             self.hyper_sampler_config = None
+
+    def update_hierarchicals(self):
+        """
+        Evaluate the whole config and initialise necessary
+        hierarchical parameters.
+        """
+
+        hierarnames = []
+        if self.geodetic_config is not None:
+            hierarnames.extend(self.geodetic_config.get_hierarchical_names())
+
+        if self.seismic_config is not None:
+            hierarnames.extend(self.seismic_config.get_hierarchical_names())
+
+        hierarchicals = OrderedDict()
+        for name in hierarnames:
+            logger.info(
+                'Added hierarchical parameter %s to config and '
+                'model setup!' % name)
+
+            if name == 'time_shift':
+                shp = 1
+                defaultb_name = name
+            else:
+                shp = 2
+                defaultb_name = 'ramp'
+
+            hierarchicals[name] = Parameter(
+                name=name,
+                lower=num.ones(shp, dtype=tconfig.floatX) *
+                default_bounds[defaultb_name][0],
+                upper=num.ones(1, dtype=tconfig.floatX) *
+                default_bounds[defaultb_name][1],
+                testvalue=num.ones(1, dtype=tconfig.floatX) *
+                num.mean(default_bounds[defaultb_name]))
+
+        self.problem_config.hierarchicals = hierarchicals
+        self.problem_config.validate_hierarchicals()
+
+        n_hierarchicals = len(hierarchicals)
+        logger.info('Number of hierarchicals! %i' % n_hierarchicals)
 
 
 def init_reference_sources(source_points, n_sources, source_type, stf_type):
@@ -1105,7 +1178,7 @@ def dump_config(config):
     dump(config, filename=conf_out)
 
 
-def load_config(project_dir, mode, update=False):
+def load_config(project_dir, mode, update=[]):
     """
     Load configuration file.
 
@@ -1115,11 +1188,16 @@ def load_config(project_dir, mode, update=False):
         path to the directory of the configuration file
     mode : str
         type of optimization problem: 'geometry' / 'static'/ 'kinematic'
+    update : list
+        of strings to update parameters
+        'hypers' or/and 'hierarchicals'
 
     Returns
     -------
     :class:`BEATconfig`
     """
+    updates_avail = ['hierarchicals', 'hypers']
+
     config_file_name = 'config_' + mode + '.yaml'
 
     config_fn = os.path.join(project_dir, config_file_name)
@@ -1132,11 +1210,21 @@ def load_config(project_dir, mode, update=False):
 
     config.problem_config.validate_priors()
 
-    if update:
-        config.update_hypers()
-        logger.info(
-            'Updated hyper parameters! Previous hyper'
-            ' parameter bounds are invalid now!')
+    for upd in update:
+        if upd not in updates_avail:
+            raise TypeError('Update not available for "%s"' % upd)
+
+    if len(update) > 0:
+        if 'hypers' in update:
+            config.update_hypers()
+            logger.info(
+                'Updated hyper parameters! Previous hyper'
+                ' parameter bounds are invalid now!')
+
+        if 'hierarchicals' in update:
+            config.update_hierarchicals()
+            logger.info('Updated hierarchicals.')
+
         dump(config, filename=config_fn)
 
     return config

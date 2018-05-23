@@ -39,6 +39,7 @@ subcommand_descriptions = {
                       ' name to skip catalog search',
     'import':         'import data or results, from external format or '
                       'modeling results, respectively',
+    'update':         'update configuration file',
     'sample':         'sample the solution space of the problem',
     'build_gfs':      'build GF stores',
     'clone':          'clone EQ model project into new directory',
@@ -51,6 +52,7 @@ subcommand_usages = {
     'init':          'init <event_name> <event_date "YYYY-MM-DD"> '
                      '[options]',
     'import':        'import <event_name> [options]',
+    'update':        'update <event_name> [options]',
     'sample':        'sample <event_name> [options]',
     'build_gfs':     'build_gfs <event_name> [options]',
     'clone':         'clone <event_name> <cloned_event_name> [options]',
@@ -74,6 +76,7 @@ Subcommands:
     init            %(init)s
     clone           %(clone)s
     import          %(import)s
+    update          %(update)s
     build_gfs       %(build_gfs)s
     sample          %(sample)s
     summarize       %(summarize)s
@@ -92,6 +95,7 @@ nargs_dict = {
     'clone': 2,
     'plot': 2,
     'import': 1,
+    'update': 1,
     'build_gfs': 1,
     'sample': 1,
     'check': 1,
@@ -450,6 +454,45 @@ def command_import(args):
             c.geodetic_config.gf_config.reference_sources = reference_sources
             config.dump_config(c)
             logger.info('Successfully updated config file!')
+
+
+def command_update(args):
+
+    command_str = 'update'
+
+    def setup(parser):
+
+        parser.add_option(
+            '--main_path',
+            dest='main_path',
+            type='string',
+            default='./',
+            help='Main path (absolute) leading to folders of events that'
+                 ' have been created by "init".'
+                 ' Default: current directory: ./')
+
+        parser.add_option(
+            '--parameters',
+            default=['hypers'], type='string',
+            action='callback', callback=list_callback,
+            help='Parameters to update; "hypers, hierarchicals". '
+                 'Default: ["hypers"]')
+
+        parser.add_option(
+            '--mode', dest='mode',
+            choices=mode_choices,
+            default='geometry',
+            help='Inversion problem to solve; %s Default: "geometry"' %
+                 list2string(mode_choices))
+
+    parser, options, args = cl_parse(command_str, args, setup=setup)
+
+    project_dir = get_project_directory(
+        args, options, nargs_dict[command_str])
+
+    print options.parameters
+    _ = config.load_config(
+        project_dir, options.mode, update=options.parameters)
 
 
 def command_clone(args):

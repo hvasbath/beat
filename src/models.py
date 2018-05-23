@@ -209,7 +209,8 @@ class Composite(object):
 
         self.input_rvs = {}
         self.fixed_rvs = {}
-        self.hierarchicals = None
+        self.hierarchicals = {}
+        self.hyperparams = {}
         self.name = None
         self._like_name = None
         self.config = None
@@ -374,20 +375,24 @@ class GeodeticComposite(Composite):
 
         return results
 
-    def init_hierarchicals(self):
-
-        self.hierarchicals = {}
+    def init_hierarchicals(self, problem_config):
+        """
+        Initialize hierarchical parameters.
+        Ramp estimation in azimuth and range direction of a radar scene.
+        """
+        hierarchicals = problem_catalog.hierarchicals
         if self.config.fit_plane:
             logger.info('Estimating ramp for each dataset...')
-            for i, data in enumerate(self.datasets):
+            for i, (data, param) in enumerate(
+                    zip(self.datasets, hierarchicals)):
                 if isinstance(data, heart.DiffIFG):
 
                     kwargs = dict(
-                        name=data.name + '_ramp',
-                        shape=(2,),
-                        lower=bconfig.default_bounds['ramp'][0],
-                        upper=bconfig.default_bounds['ramp'][1],
-                        testval=0.,
+                        name=param.name,
+                        shape=param.dimension,
+                        lower=param.lower,
+                        upper=param.upper,
+                        testval=param.testval,
                         transform=None,
                         dtype=tconfig.floatX)
                     try:
@@ -537,8 +542,8 @@ class GeodeticSourceComposite(GeodeticComposite):
         residuals = self.Bij.srmap(
             tt.cast((self.sdata - los_disp) * self.sodws, tconfig.floatX))
 
-        self.init_hierarchicals()
-        if self.config.fit_plane:
+        self.init_hierarchicals(problem_config)
+        if len(self.hierarchicals) > 0:
             residuals = self.remove_ramps(residuals)
 
         logpts = multivariate_normal_chol(
@@ -721,9 +726,7 @@ class SeismicComposite(Composite):
         logger.debug('Setting up seismic structure ...\n')
         self.name = 'seismic'
         self._like_name = 'seis_like'
-
-        if sc.station_corrections:
-            self.correction_name = 'time_shift'
+        self.correction_name = 'time_shift'
 
         self.event = event
         self.engine = gf.LocalEngine(
@@ -812,21 +815,21 @@ class SeismicComposite(Composite):
         self.engine.close_cashed_stores()
         return self.__dict__.copy()
 
-    def init_hierarchicals(self):
+    def init_hierarchicals(self, problem_config):
         """
         Initialise random variables for temporal station corrections.
         """
-        self.hierarchicals = {}
-        if self.config.station_corrections:
+        if self.correction_name in problem_config.hierarchicals:
             nhierarchs = len(self.get_unique_stations())
+            param = problem_config.hierarchicals[self.correction_name]
             logger.info(
                 'Estimating time shift for each station...')
             kwargs = dict(
                 name=self.correction_name,
                 shape=nhierarchs,
-                lower=bconfig.default_bounds[self.correction_name][0],
-                upper=bconfig.default_bounds[self.correction_name][1],
-                testval=0.,
+                lower=num.repeat(param.lower, nhierarchs),
+                upper=num.repeat(param.upper, nhierarchs),
+                testval=num.repeat(param.testvalue, nhierarchs),
                 transform=None,
                 dtype=tconfig.floatX)
 
@@ -840,10 +843,6 @@ class SeismicComposite(Composite):
             self.hierarchicals[self.correction_name] = station_corrs_rv
         else:
             nhierarchs = 0
-
-        logger.info(
-            'Initialized %i hierarchical parameters for '
-            'station corrections.' % nhierarchs)
 
     def get_unique_stations(self):
         sl = [wmap.stations for wmap in self.wavemaps]
@@ -1065,12 +1064,16 @@ class SeismicGeometryComposite(SeismicComposite):
         t2 = time.time()
         wlogpts = []
 
-        self.init_hierarchicals()
+        self.init_hierarchicals(problem_config)
+        if self.config.station_corrections:
+            logger.info(
+                'Initialized %i hierarchical parameters for '
+                'station corrections.' % len(self.get_unique_stations()))
 
         for wmap in self.wavemaps:
             synths, tmins = self.synthesizers[wmap.name](self.input_rvs)
 
-            if hasattr(self, 'correction_name'):
+            if len(self.hierarchicals) > 0:
                 tmins += self.hierarchicals[
                     self.correction_name][wmap.station_correction_idxs]
 
@@ -1910,7 +1913,7 @@ class Problem(object):
 
             self.rvs, self.fixed_params = self.get_random_variables()
 
-            self.hyperparams = self.get_hyperparams()
+            self.init_hyperparams()
 
             total_llk = tt.zeros((1), tconfig.floatX)
 
@@ -1960,7 +1963,7 @@ class Problem(object):
 
         with Model() as self.model:
 
-            self.hyperparams = self.get_hyperparams()
+            self.init_hyperparams()
 
             total_llk = tt.zeros((1), tconfig.floatX)
 
@@ -1979,7 +1982,7 @@ class Problem(object):
 
         point = {}
         if 'hierarchicals' in include:
-            if self.hierarchicals is None:
+            if len(self.hierarchicals) == 0:
                 self.init_hierarchicals()
 
             for name, param in self.hierarchicals.items():
@@ -1993,7 +1996,7 @@ class Problem(object):
 
         if 'hypers' in include:
             if len(self.hyperparams) == 0:
-                self.hyperparams = self.get_hyperparams()
+                self.init_hyperparams()
 
             hps = {hp_name: param.random()
                    for hp_name, param in self.hyperparams.iteritems()}
@@ -2039,16 +2042,16 @@ class Problem(object):
 
         return rvs, fixed_params
 
-    def get_hyperparams(self):
+    def init_hyperparams(self):
         """
         Evaluate problem setup and return hyperparameter dictionary.
-        Has to be executed in a "with model context"!
         """
         pc = self.config.problem_config
         hyperparameters = copy.deepcopy(pc.hyperparameters)
 
         hyperparams = {}
         n_hyp = 0
+        modelinit = True
         for datatype, composite in self.composites.items():
             hypernames = composite.config.get_hypernames()
 
@@ -2084,6 +2087,7 @@ class Problem(object):
                     except TypeError:
                         kwargs.pop('name')
                         hyperparams[hp_name] = Uniform.dist(**kwargs)
+                        modelinit = False
 
                     n_hyp += dimension
 
@@ -2099,8 +2103,10 @@ class Problem(object):
                 'There are hyperparameters in config file, which are not'
                 ' covered by datasets/datatypes.')
 
-        logger.info('Optimization for %i hyperparemeters in total!', n_hyp)
-        return hyperparams
+        if modelinit:
+            logger.info('Optimization for %i hyperparemeters in total!', n_hyp)
+
+        self.hyperparams = hyperparams
 
     def update_llks(self, point):
         """
@@ -2183,7 +2189,7 @@ class Problem(object):
         Initialise hierarchical random variables of all composites.
         """
         for composite in self.composites.values():
-            composite.init_hierarchicals()
+            composite.init_hierarchicals(self.config.problem_config)
 
     @property
     def hierarchicals(self):
@@ -2194,8 +2200,6 @@ class Problem(object):
         for composite in self.composites.values():
             if composite.hierarchicals is not None:
                 d.update(composite.hierarchicals)
-            else:
-                d = None
 
         return d
 
@@ -2490,7 +2494,7 @@ def load_model(project_dir, mode, hypers=False, nobuild=False):
         problem name to be loaded
     hypers : boolean
         flag to return hyper parameter estimation model instead of main model.
-    built : boolean
+    nobuild : boolean
         flag to do not build models
 
     Returns
@@ -2498,7 +2502,7 @@ def load_model(project_dir, mode, hypers=False, nobuild=False):
     problem : :class:`Problem`
     """
 
-    config = bconfig.load_config(project_dir, mode, update=hypers)
+    config = bconfig.load_config(project_dir, mode)
 
     pc = config.problem_config
 
