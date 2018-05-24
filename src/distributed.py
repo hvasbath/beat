@@ -10,6 +10,16 @@ import shutil
 logger = logging.getLogger('distributed')
 
 program_bins = {'mpi': 'mpiexec'}
+mpiargs_name = 'mpiinput'
+
+
+def enum(*sequential, **named):
+    """Handy way to fake an enumerated type in Python
+    http://stackoverflow.com/questions/36932/how-can-i-represent-an-enum-in-python
+    """
+    enums = dict(zip(sequential, range(len(sequential))), **named)
+    return type('Enum', (), enums)
+
 
 
 def have_backend():
@@ -101,8 +111,6 @@ class MPIRunner(object):
                 'mpiexec emitted something via stderr:\n\n%s'
                 % error_str.decode())
 
-            # errmess.append('qseis emitted something via stderr')
-
         if output_str.lower().find(b'error') != -1:
             errmess.append("the string 'error' appeared in output")
 
@@ -116,7 +124,7 @@ class MPIRunner(object):
 ===== begin mpiexec error =====
 %s===== end mpiexec error =====
 %s
-qseis has been invoked as "%s"
+mpiexec has been invoked as "%s"
 in the directory %s'''.lstrip() % (
                 output_str.decode(), error_str.decode(),
                 '\n'.join(errmess), program, self.tempdir))
@@ -131,3 +139,29 @@ in the directory %s'''.lstrip() % (
             else:
                 logger.warn(
                     'not removing temporary directory: %s' % self.tempdir)
+
+
+samplers = {
+    'pt': 'src/sampler/pt.py'
+}
+
+
+def run_mpi_sampler(sampler_name, sampler_args, keep_tmp, n_jobs):
+    from beat.info import project_root
+    from beat.utility import dump_objects, list2string
+
+    try:
+        sampler = samplers[sampler_name]
+    except KeyError:
+        raise NotImplementedError(
+            'Currently only samplers: %s supported!' %
+            list2string(samplers.keys()))
+
+    runner = MPIRunner(keep_tmp=keep_tmp)
+    args_path = pjoin(runner.tempdir, mpiargs_name)
+
+    dump_objects(args_path, sampler_args)
+
+    samplerdir = pjoin(project_root, sampler)
+    logger.info('sampler directory: %s' % samplerdir)
+    runner.run(samplerdir, n_jobs=n_jobs)

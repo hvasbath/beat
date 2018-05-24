@@ -9,12 +9,6 @@ from beat.utility import load_objects
 nsamples = 100
 
 
-def enum(*sequential, **named):
-    """Handy way to fake an enumerated type in Python
-    http://stackoverflow.com/questions/36932/how-can-i-represent-an-enum-in-python
-    """
-    enums = dict(zip(sequential, range(len(sequential))), **named)
-    return type('Enum', (), enums)
 
 
 def metrop_select(m1, m2):
@@ -27,7 +21,7 @@ def metrop_select(m1, m2):
         return m2, m1
 
 
-def master_process(comm, size, tags, status, nsamples):
+def master_process(comm, tags, status, nsamples):
 
     size = comm.size        # total number of processes
     num_workers = size - 1
@@ -76,11 +70,10 @@ def master_process(comm, size, tags, status, nsamples):
         active_workers -= 1
 
 
-def worker_process(comm, rank, tags, status):
+def worker_process(comm, tags, status):
     # Worker processes execute code below
-    rank = comm.rank        # rank of this process
     name = MPI.Get_processor_name()
-    print("I am a worker with rank %d on %s." % (rank, name))
+    print("I am a worker with rank %d on %s." % (comm.rank, name))
     comm.send(None, dest=0, tag=tags.READY)
 
     while True:
@@ -101,17 +94,20 @@ def worker_process(comm, rank, tags, status):
             break
 
 
-def pt_sample(nsamples):
+def pt_sample():
     # Define MPI message tags
-    tags = enum('READY', 'DONE', 'EXIT', 'START')
+    from beat import distributed
+    tags = distributed.enum('READY', 'DONE', 'EXIT', 'START')
 
     # Initializations and preliminaries
     comm = MPI.COMM_WORLD   # get MPI communicator object
     status = MPI.Status()   # get MPI status object
 
     if comm.rank == 0:
-        print 'Here'
-        master_process(comm, tags, status, nsamples)
+
+        args = load_objects(distributed.mpiargs_name)
+        print 'loaded args', args
+        master_process(comm, tags, status, *args)
     else:
         print 'worker'
         worker_process(comm, tags, status)
@@ -121,6 +117,4 @@ def pt_sample(nsamples):
 
 if __name__ == '__main__':
     print 'here main'
-    mpiinput = 'args.input'
-    args = load_objects(mpiinput)
-    pt_sample(*args)
+    pt_sample()
