@@ -1,32 +1,34 @@
 import logging
 import unittest
-from beat.distributed import MPIRunner
+from beat.distributed import MPIRunner, run_mpi_sampler
+from beat.info import project_root
 from pyrocko import util
 
 
 logger = logging.getLogger('test_distributed')
 
 
-class TestSeisComposite(unittest.TestCase):
+class TestDistributed(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.n_jobs = 4
-        self.beatpath = '/home/vasyurhm/Software/beat'
+        self.beatpath = project_root
 
     def test_mpi_runner(self):
 
         logger.info('testing')
         runner = MPIRunner()
-        runner.run(self.beatpath + '/test/pt_toy_example.py', n_jobs=self.n_jobs)
+        runner.run(
+            self.beatpath + '/test/pt_toy_example.py',
+            n_jobs=self.n_jobs)
         logger.info('successful!')
 
     def test_arg_passing(self):
-        self.beatpath = '/home/vasyurhm/Software/beat'
-        logger.info('testing')
-        runner = MPIRunner()
-        runner.run(beatpath + '/test/pt_toy_example.py', n_jobs=self.n_jobs)
-        logger.info('successful!')
+        nsamples = 100
+        sampler_args = [nsamples]
+        run_mpi_sampler('pt', sampler_args, keep_tmp=True, n_jobs=self.n_jobs)
+
 
 if __name__ == '__main__':
 
