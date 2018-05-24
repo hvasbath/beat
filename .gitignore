@@ -2,3 +2,4 @@ build
 *.pyc
 *~
 docs/_build
+src/info.py

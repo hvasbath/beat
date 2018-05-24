@@ -4,6 +4,7 @@ Parallel Tempering algorithm - TOYEXAMPLE with mpi4py
 """
 from mpi4py import MPI
 from numpy import random
+from beat.utility import load_objects
 
 nsamples = 100
 
@@ -26,8 +27,9 @@ def metrop_select(m1, m2):
         return m2, m1
 
 
-def master_process(comm, size, tags, status):
+def master_process(comm, size, tags, status, nsamples):
 
+    size = comm.size        # total number of processes
     num_workers = size - 1
     tasks = range(num_workers)
     chain = []
@@ -76,6 +78,7 @@ def master_process(comm, size, tags, status):
 
 def worker_process(comm, rank, tags, status):
     # Worker processes execute code below
+    rank = comm.rank        # rank of this process
     name = MPI.Get_processor_name()
     print("I am a worker with rank %d on %s." % (rank, name))
     comm.send(None, dest=0, tag=tags.READY)
@@ -98,26 +101,26 @@ def worker_process(comm, rank, tags, status):
             break
 
 
-def pt_sample():
+def pt_sample(nsamples):
     # Define MPI message tags
     tags = enum('READY', 'DONE', 'EXIT', 'START')
 
     # Initializations and preliminaries
     comm = MPI.COMM_WORLD   # get MPI communicator object
-    size = comm.size        # total number of processes
-    rank = comm.rank        # rank of this process
     status = MPI.Status()   # get MPI status object
 
-    if rank == 0:
+    if comm.rank == 0:
         print 'Here'
-        master_process(comm, size, tags, status)
+        master_process(comm, tags, status, nsamples)
     else:
         print 'worker'
-        worker_process(comm, rank, tags, status)
+        worker_process(comm, tags, status)
 
     print 'Done!'
 
 
 if __name__ == '__main__':
     print 'here main'
-    pt_sample()
+    mpiinput = 'args.input'
+    args = load_objects(mpiinput)
+    pt_sample(*args)
