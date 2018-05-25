@@ -5,6 +5,8 @@ from tempfile import mkdtemp
 import logging
 import signal
 import shutil
+import sys
+from beat.utility import list2string
 
 
 logger = logging.getLogger('distributed')
@@ -13,13 +15,19 @@ program_bins = {'mpi': 'mpiexec'}
 mpiargs_name = 'mpiinput'
 
 
+__all__ = [
+    'enum',
+    'run_mpi_sampler',
+    'MPIRunner']
+
+
 def enum(*sequential, **named):
-    """Handy way to fake an enumerated type in Python
+    """
+    Handy way to fake an enumerated type in Python
     http://stackoverflow.com/questions/36932/how-can-i-represent-an-enum-in-python
     """
     enums = dict(zip(sequential, range(len(sequential))), **named)
     return type('Enum', (), enums)
-
 
 
 def have_backend():
@@ -82,7 +90,8 @@ class MPIRunner(object):
         original = signal.signal(signal.SIGINT, signal_handler)
         try:
             try:
-                proc = Popen(commandstr.split(), stdout=PIPE, stderr=PIPE)
+                proc = Popen(
+                    commandstr.split(), stdout=sys.stdout, stderr=sys.stderr)
 
             except OSError:
                 os.chdir(old_wd)
@@ -90,7 +99,7 @@ class MPIRunner(object):
                     '''could not start "%s"''' % program)
 
             logger.debug('Running mpi with arguments: %s' % args)
-            (output_str, error_str) = proc.communicate()
+            proc.communicate()
 
         finally:
             signal.signal(signal.SIGINT, original)
@@ -98,36 +107,18 @@ class MPIRunner(object):
         if interrupted:
             raise KeyboardInterrupt()
 
-        logger.debug('===== begin mpiexec output =====\n'
-                     '%s===== end mpiexec output =====' % output_str.decode())
-
         errmess = []
         if proc.returncode != 0:
             errmess.append(
                 'mpiexec had a non-zero exit state: %i' % proc.returncode)
-
-        if error_str:
-            logger.warn(
-                'mpiexec emitted something via stderr:\n\n%s'
-                % error_str.decode())
-
-        if output_str.lower().find(b'error') != -1:
-            errmess.append("the string 'error' appeared in output")
 
         if errmess:
             self.keep_tmp = True
 
             os.chdir(old_wd)
             raise MPIError('''
-===== begin mpiexec output =====
-%s===== end mpiexec output =====
-===== begin mpiexec error =====
-%s===== end mpiexec error =====
-%s
 mpiexec has been invoked as "%s"
-in the directory %s'''.lstrip() % (
-                output_str.decode(), error_str.decode(),
-                '\n'.join(errmess), program, self.tempdir))
+in the directory %s'''.lstrip() % (program, self.tempdir))
 
     def __del__(self):
         if self.tempdir:
@@ -147,8 +138,27 @@ samplers = {
 
 
 def run_mpi_sampler(sampler_name, sampler_args, keep_tmp, n_jobs):
+    """
+    Execute a sampling algorithm that requires the call of mpiexec
+    as it uses MPI for parallelization.
+
+    A run directory is created unter '/tmp/' where the sampler
+    arguments are pickled and then reloaded by the MPI sampler
+    script.
+
+    Parameters
+    ----------
+    sampler_name : string
+        valid names: %s
+    sampler_args : list
+        of sampler arguments, order is important
+    keep_tmp : boolean
+        if true dont remove the run directory after execution
+    n_jobs : number of processors to call MPI with
+    """ % list2string(samplers.keys())
+
     from beat.info import project_root
-    from beat.utility import dump_objects, list2string
+    from beat.utility import dump_objects
 
     try:
         sampler = samplers[sampler_name]

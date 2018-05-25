@@ -29,7 +29,7 @@ from .base import iter_parallel_chains, choose_proposal, logp_forw, \
 
 
 __all__ = [
-    'Metropolis_sample',
+    'metropolis_sample',
     'get_trace_stats',
     'get_final_stage',
     'Metropolis']
@@ -352,7 +352,7 @@ def get_final_stage(homepath, n_stages, model):
     text.dump(name=outname, trace=ctrace)
 
 
-def Metropolis_sample(
+def metropolis_sample(
         n_steps=10000, homepath=None, start=None,
         progressbar=False, rm_flag=False,
         step=None, model=None, n_jobs=1, update=None, burn=0.5, thin=2):
