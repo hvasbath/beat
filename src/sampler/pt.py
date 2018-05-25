@@ -50,42 +50,39 @@ def master_process(
     chain = []
     active_workers = 0
     # start sampling of chains with given seed
-    print("Master starting with %d workers" % num_workers)
+    logger.info('Master starting with %d workers' % num_workers)
     for i in range(num_workers):
         comm.recv(source=MPI.ANY_SOURCE, tag=tags.READY, status=status)
         source = status.Get_source()
         comm.send(tasks[i], dest=source, tag=tags.START)
-        print("Sent task to worker %i" % source)
+        logger.debug('Sent task to worker %i' % source)
         active_workers += 1
-
-    logger.info("... Parallel tempering ...")
-    logger.info("--------------------------")
 
     while True:
         m1 = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
         source1 = status.Get_source()
-        print("Got sample 1 from worker %i" % source1)
+        logger.debug('Got sample 1 from worker %i' % source1)
         m2 = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
         source2 = status.Get_source()
-        print("Got sample 2 from worker %i" % source1)
+        logger.debug('Got sample 2 from worker %i' % source1)
 
         m1, m2 = metrop_select(m1, m2)
-        print('samples 1, 2 %i %i' % (m1, m2))
+
         chain.extend([m1, m2])
         if len(chain) < nsamples:
-            print("Sending states back to workers ...")
+            logger.debug('Sending states back to workers ...')
             comm.send(m1, dest=source1, tag=tags.START)
             comm.send(m2, dest=source2, tag=tags.START)
         else:
-            print('Requested number of samples reached!')
+            logger.info('Requested number of samples reached!')
             break
 
-    logger.info("Master finished! Chain complete!")
-    logger.debug("Fireing ...")
+    logger.info('Master finished! Chain complete!')
+    logger.debug('Firing ...')
     for i in range(1, size):
-        logger.debug('Sending pay sleve to %i' % i)
+        logger.debug('Sending pay cheque to %i' % i)
         comm.send(None, dest=i, tag=tags.EXIT)
-        logger.debug("Fired worker %i" % i)
+        logger.debug('Fired worker %i' % i)
         active_workers -= 1
 
     logger.info('Feierabend! Sampling finished!')
