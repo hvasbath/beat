@@ -169,7 +169,7 @@ def choose_proposal(proposal_name, scale=1.):
 
 def setup_chain_counter(n_chains, n_jobs):
     n_chains_worker = n_chains / n_jobs
-    frac_disp = n_chains_worker / 5
+    frac_disp = int(np.ceil(n_chains_worker / 5))
     parallel._shared_memory['chain_count'] = 0
     parallel._shared_memory['n_chains'] = n_chains_worker
     parallel._shared_memory['logger_steps'] = range(
@@ -356,7 +356,8 @@ def iter_parallel_chains(
     while n_chains > 0:
         trace_list = []
 
-        setup_chain_counter(n_chains, n_jobs)
+        if n_chains > 100:
+            setup_chain_counter(n_chains, n_jobs)
 
         logger.info('Initialising %i chain traces ...' % n_chains)
         for chain in chains:
