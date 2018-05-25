@@ -354,7 +354,7 @@ def get_final_stage(homepath, n_stages, model):
 
 def Metropolis_sample(
         n_steps=10000, homepath=None, start=None,
-        progressbar=False, rm_flag=False,
+        progressbar=False, rm_flag=False, buffer_size=5000,
         step=None, model=None, n_jobs=1, update=None, burn=0.5, thin=2):
     """
     Execute Metropolis algorithm repeatedly depending on the number of chains.
@@ -422,6 +422,7 @@ def Metropolis_sample(
             'progressbar': progressbar,
             'model': model,
             'n_jobs': n_jobs,
+            'buffer_size': buffer_size,
             'chains': chains}
 
         mtrace = iter_parallel_chains(**sample_args)

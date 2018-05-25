@@ -804,6 +804,10 @@ class SamplerConfig(Object):
     progressbar = Bool.T(
         default=True,
         help='Display progressbar(s) during sampling.')
+    buffer_size = Int.T(
+        default=5000,
+        help='number of samples after which the result '
+             'buffer is written to disk')
     parameters = SamplerParameters.T(
         default=SMCConfig.D(),
         optional=True,

@@ -167,6 +167,33 @@ def choose_proposal(proposal_name, scale=1.):
     return proposal_dists[proposal_name](scale)
 
 
+def setup_chain_counter(n_chains, n_jobs):
+    n_chains_worker = n_chains / n_jobs
+    frac_disp = n_chains_worker / 5
+    parallel._shared_memory['chain_count'] = 0
+    parallel._shared_memory['n_chains'] = n_chains_worker
+    parallel._shared_memory['logger_steps'] = range(
+        frac_disp, n_chains_worker + 1, frac_disp)
+
+
+def chain_counter(n):
+    """
+    Counts the number of finished SMC chains within the execution
+    of a pool.
+    """
+    try:
+        parallel._shared_memory['chain_count'] += 1
+        n_chains = parallel._shared_memory['n_chains']
+
+        chain_count = parallel._shared_memory['chain_count']
+        if chain_count in parallel._shared_memory['logger_steps']:
+            logger.info(
+                'Worker %i: Finished %i / %i chains' %
+                (n, chain_count, n_chains))
+    except KeyError:
+        pass
+
+
 def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
             progressbar=True, model=None, random_seed=-1):
 
@@ -182,9 +209,9 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
     sampling = _iter_sample(draws, step, start, trace, chain,
                             tune, model, random_seed)
 
-    if progressbar:
-        n = parallel.get_process_id()
+    n = parallel.get_process_id()
 
+    if progressbar:
         sampling = tqdm(
             sampling,
             total=draws,
@@ -199,6 +226,11 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
     except KeyboardInterrupt:
         raise
     finally:
+        if progressbar:
+            sampling.close()
+        else:
+            chain_counter(n)
+
         strace.record_buffer()
 
     return chain
@@ -269,7 +301,8 @@ def init_chain_hypers(problem):
 
 def iter_parallel_chains(
         draws, step, stage_path, progressbar, model, n_jobs,
-        chains=None, initializer=None, initargs=(), chunksize=None):
+        chains=None, initializer=None, initargs=(),
+        buffer_size=5000, chunksize=None):
     """
     Do Metropolis sampling over all the chains with each chain being
     sampled 'draws' times. Parallel execution according to n_jobs.
@@ -299,6 +332,9 @@ def iter_parallel_chains(
         to run before execution of each sampling process
     initargs : tuple
         of arguments for the initializer
+    buffer_size : int
+        this is the number of samples after which the buffer is written to disk
+        or if the chain end is reached
     chunksize : int
         number of chains to sample within each process
 
@@ -320,9 +356,14 @@ def iter_parallel_chains(
     while n_chains > 0:
         trace_list = []
 
+        setup_chain_counter(n_chains, n_jobs)
+
         logger.info('Initialising %i chain traces ...' % n_chains)
         for chain in chains:
-            trace_list.append(backend.TextChain(stage_path, model=model))
+            trace_list.append(
+                backend.TextChain(
+                    stage_path, model=model,
+                    buffer_size=buffer_size, progressbar=progressbar))
 
         max_int = np.iinfo(np.int32).max
         random_seeds = [randint(max_int) for _ in range(n_chains)]

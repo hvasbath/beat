@@ -2396,6 +2396,7 @@ def sample(step, problem):
             n_steps=pa.n_steps,
             step=step,
             progressbar=sc.progressbar,
+            buffer_size=sc.buffer_size,
             homepath=problem.outfolder,
             burn=pa.burn,
             thin=pa.thin,
@@ -2415,6 +2416,7 @@ def sample(step, problem):
             stage=pa.stage,
             update=update,
             homepath=problem.outfolder,
+            buffer_size=sc.buffer_size,
             rm_flag=pa.rm_flag)
 
 
@@ -2455,11 +2457,12 @@ def estimate_hypers(step, problem):
             chains=chains,
             step=step,
             stage_path=stage_handler.stage_path(1),
-            progressbar=True,
+            progressbar=sc.progressbar,
             model=problem.model,
             n_jobs=pa.n_jobs,
             initializer=init_chain_hypers,
             initargs=(problem,),
+            buffer_size=sc.buffer_size,
             chunksize=int(pa.n_chains / pa.n_jobs))
 
     for v, i in pc.hyperparameters.iteritems():

@@ -323,7 +323,7 @@ class SMC(Metropolis):
 
 def ATMIP_sample(
         n_steps, step=None, start=None, homepath=None, chain=0,
-        stage=0, n_jobs=1, tune=None, progressbar=False,
+        stage=0, n_jobs=1, tune=None, progressbar=False, buffer_size=5000,
         model=None, update=None, random_seed=None, rm_flag=False):
     """
     (C)ATMIP sampling algorithm
@@ -370,6 +370,9 @@ def ATMIP_sample(
         Result_folder for storing stages, will be created if not existing.
     progressbar : bool
         Flag for displaying a progress bar
+    buffer_size : int
+        this is the number of samples after which the buffer is written to disk
+        or if the chain end is reached
     model : :class:`pymc3.Model`
         (optional if in `with` context) has to contain deterministic
         variable name defined under step.likelihood_name' that contains the
@@ -452,7 +455,8 @@ def ATMIP_sample(
                 'progressbar': progressbar,
                 'model': model,
                 'n_jobs': n_jobs,
-                'chains': chains}
+                'chains': chains,
+                'buffer_size': buffer_size}
 
             mtrace = iter_parallel_chains(**sample_args)
 

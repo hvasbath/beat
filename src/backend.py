@@ -151,9 +151,18 @@ class TextChain(BaseSMCTrace):
     vars : list of variables
         Sampling values will be stored for these variables. If None,
         `model.unobserved_RVs` is used.
+    buffer_size : int
+        this is the number of samples after which the buffer is written to disk
+        or if the chain end is reached
+    progressbar : boolean
+        flag if a progressbar is active, if not a logmessage is printed
+        everytime the buffer is written to disk
     """
 
-    def __init__(self, name, model=None, vars=None):
+    def __init__(
+            self, name, model=None, vars=None,
+            buffer_size=5000, progressbar=False):
+
         if not os.path.exists(name):
             os.mkdir(name)
         super(TextChain, self).__init__(name, model, vars)
@@ -163,8 +172,11 @@ class TextChain(BaseSMCTrace):
         self.filename = None
         self.df = None
         self.corrupted_flag = False
+        self.progressbar = progressbar
+        self.buffer_size = buffer_size
+        self.stored_samples = 0
 
-    def setup(self, draws, chain, buffer_size=5000):
+    def setup(self, draws, chain):
         """
         Perform chain-specific setup.
 
@@ -179,7 +191,7 @@ class TextChain(BaseSMCTrace):
         self.chain = chain
         self.buffer = []
         self.count = 0
-        self.buffer_size = buffer_size
+        self.draws = draws
         self.filename = os.path.join(self.name, 'chain-{}.csv'.format(chain))
 
         cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
@@ -205,6 +217,16 @@ class TextChain(BaseSMCTrace):
             self.record_buffer()
 
     def record_buffer(self):
+
+        n_samples = len(self.buffer)
+        self.stored_samples += n_samples
+
+        if not self.progressbar:
+            if n_samples > self.buffer_size / 2:
+                logger.info(
+                    'Writing %i / %i samples of chain %i to disk...' %
+                    (self.stored_samples, self.draws, self.chain))
+
         t0 = time()
         logger.debug(
             'Start Record: Chain_%i' % self.chain)
