@@ -2405,7 +2405,7 @@ def sample(step, problem):
 
         util.ensuredir(problem.outfolder)
 
-        sampler.Metropolis_sample(
+        sampler.metropolis_sample(
             n_steps=pa.n_steps,
             step=step,
             progressbar=sc.progressbar,
@@ -2418,9 +2418,9 @@ def sample(step, problem):
             rm_flag=pa.rm_flag)
 
     elif sc.name == 'SMC':
-        logger.info('... Starting ATMIP ...\n')
+        logger.info('... Starting SMC ...\n')
 
-        sampler.ATMIP_sample(
+        sampler.smc_sample(
             pa.n_steps,
             step=step,
             progressbar=sc.progressbar,
@@ -2431,6 +2431,11 @@ def sample(step, problem):
             homepath=problem.outfolder,
             buffer_size=sc.buffer_size,
             rm_flag=pa.rm_flag)
+
+    elif sc.name == 'PT':
+        logger.info('... Starting Parallel Tempering ...\n')
+
+        sampler.pt_sample()
 
 
 def estimate_hypers(step, problem):
