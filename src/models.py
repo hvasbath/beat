@@ -9,8 +9,10 @@ from pyrocko import gf, util, trace
 import numpy as num
 
 import theano.tensor as tt
+
 from theano import config as tconfig
 from theano import shared
+
 from theano.printing import Print
 
 from beat import ffi
@@ -82,6 +84,68 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
 
 
 def multivariate_normal_chol(
+        datasets, weights, hyperparams, residuals, hp_specific=False,
+        sparse=False):
+    """
+    Calculate posterior Likelihood of a Multivariate Normal distribution.
+    Assumes weights to be the inverse cholesky decomposed lower triangle
+    of the Covariance matrix.
+    Can only be executed in a `with model context`.
+
+    Parameters
+    ----------
+    datasets : list
+        of :class:`heart.SeismicDataset` or :class:`heart.GeodeticDataset`
+    weights : list
+        of :class:`theano.shared`
+        Square matrix of the inverse of the lower triangular matrix of a
+        cholesky decomposed covariance matrix
+    hyperparams : dict
+        of :class:`theano.`
+    residual : list or array of model residuals
+    hp_specific : boolean
+        if true, the hyperparameters have to be arrays size equal to
+        the number of datasets, if false size: 1.
+    sparse : boolean
+
+    Returns
+    -------
+    array_like
+    """
+    if sparse:
+        import theano.sparse as ts
+        dot = ts.dot
+    else:
+        dot = tt.dot
+
+    n_t = len(datasets)
+    logpts = tt.zeros((n_t), tconfig.floatX)
+    count = utility.Counter()
+
+    for l, data in enumerate(datasets):
+        M = tt.cast(shared(
+            data.samples, name='nsamples', borrow=True), 'int16')
+        hp_name = '_'.join(('h', data.typ))
+
+        if hp_specific:
+            hp = hyperparams[hp_name][count(hp_name)]
+        else:
+            hp = hyperparams[hp_name]
+
+        tmp = dot(weights[l], (residuals[l]))
+
+        logpts = tt.set_subtensor(
+            logpts[l:l + 1],
+            (-0.5) * (
+                data.covariance.slnf +
+                (M * 2 * hp) +
+                (1 / tt.exp(hp * 2)) *
+                (dot(tmp, tmp))))
+
+    return logpts
+
+
+def multivariate_normal_bulk_chol(
         datasets, weights, hyperparams, residuals, hp_specific=False):
     """
     Calculate posterior Likelihood of a Multivariate Normal distribution.
@@ -108,32 +172,12 @@ def multivariate_normal_chol(
     -------
     array_like
     """
-    n_t = len(datasets)
-    logpts = tt.zeros((n_t), tconfig.floatX)
-    count = utility.Counter()
-
-    for l, data in enumerate(datasets):
-        M = tt.cast(shared(
-            data.samples, name='nsamples', borrow=True), 'int16')
-        hp_name = '_'.join(('h', data.typ))
-
-        if hp_specific:
-            hp = hyperparams[hp_name][count(hp_name)]
-        else:
-            hp = hyperparams[hp_name]
-
-        tmp = weights[l].dot(residuals[l])
-
-        logpts = tt.set_subtensor(
-            logpts[l:l + 1],
-            (-0.5) * (
-                data.covariance.slnf +
-                (M * 2 * hp) +
-                (1 / tt.exp(hp * 2)) *
-                (tt.dot(tmp, tmp))))
-
-    return logpts
-
+    pass
+#
+#tmp = tt.batched_dot(self.bulk_weights, self.residuals)
+#        print tmp.eval().shape
+#        print tt.power(tmp, 2).sum(1).eval()
+#        print tt.batched_dot(tmp.squeeze(), t
 
 def hyper_normal(datasets, hyperparams, llks, hp_specific=False):
     """
