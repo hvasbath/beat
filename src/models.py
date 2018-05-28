@@ -393,12 +393,26 @@ class GeodeticComposite(Composite):
         Initialize hierarchical parameters.
         Ramp estimation in azimuth and range direction of a radar scene.
         """
-        hierarchicals = problem_catalog.hierarchicals
+        hierarchicals = problem_config.hierarchicals
         if self.config.fit_plane:
             logger.info('Estimating ramp for each dataset...')
             for i, (data, param) in enumerate(
                     zip(self.datasets, hierarchicals)):
+
+                if not self.config.fit_plane and \
+                        data.name in hierarchicals:
+                        raise ConfigInconsistentError(
+                            'Plane removal disabled, but they are defined'
+                            ' in the problem configuration (hierarchicals)!')
+
                 if isinstance(data, heart.DiffIFG):
+
+                    if self.config.fit_plane and \
+                            data.name not in hierarchicals:
+                        raise ConfigInconsistentError(
+                            'Plane corrections enabled, but they are'
+                            ' not defined in the problem configuration!'
+                            ' (hierarchicals)')
 
                     kwargs = dict(
                         name=param.name,
@@ -714,6 +728,18 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         raise NotImplementedError('Not implemented yet!')
 
 
+class ConfigInconsistentError(Exception):
+
+    def __init__(self, errmess=''):
+        self.default = \
+            '\n Please run: ' \
+            '"beat update <project_dir> --parameters="hierarchicals"'
+        self.errmess = errmess
+
+    def __str__(self):
+        return self.errmess + self.default
+
+
 class SeismicComposite(Composite):
     """
     Comprises how to solve the non-linear seismic forward model.
@@ -832,6 +858,18 @@ class SeismicComposite(Composite):
         """
         Initialise random variables for temporal station corrections.
         """
+        if not self.config.station_corrections and \
+                self.correction_name in problem_config.hierarchicals:
+                raise ConfigInconsistentError(
+                    'Station corrections disabled, but they are defined'
+                    ' in the problem configuration!')
+
+        if self.config.station_corrections and \
+                self.correction_name not in problem_config.hierarchicals:
+                raise ConfigInconsistentError(
+                    'Station corrections enabled, but they are not defined'
+                    ' in the problem configuration!')
+
         if self.correction_name in problem_config.hierarchicals:
             nhierarchs = len(self.get_unique_stations())
             param = problem_config.hierarchicals[self.correction_name]
