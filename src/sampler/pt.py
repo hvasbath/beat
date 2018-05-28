@@ -6,7 +6,10 @@ from mpi4py import MPI
 from numpy import random
 from beat.utility import load_objects, list2string
 from beat import distributed
+from beat.sampler.base import _iter_sample
 from logging import getLogger
+from tqdm import tqdm
+from theano import config as tconfig
 
 
 logger = getLogger('pt')
@@ -24,6 +27,41 @@ def metrop_select(m1, m2):
     else:
         print('Accepted swap')
         return m2, m1
+
+
+def sample_pt_chain(
+        draws, step=None, start=None, trace=None, chain=0, tune=None,
+        progressbar=True, model=None, random_seed=-1):
+
+    sampling = _iter_sample(draws, step, start, trace, chain,
+                            tune, model, random_seed)
+
+    n = parallel.get_process_id()
+
+    if progressbar:
+        sampling = tqdm(
+            sampling,
+            total=draws,
+            desc='chain: %i worker %i' % (chain, n),
+            position=n,
+            leave=False,
+            ncols=65)
+    try:
+        for strace in sampling:
+            pass
+
+    except KeyboardInterrupt:
+        raise
+    finally:
+        if progressbar:
+            sampling.close()
+
+        outsamples = num.zeros(
+            (draws, step.ordering.size), dtype=tconfig.floatX)
+        for i, lpoint in enumerate(strace.buffer):
+            outsamples[i, :] = step.bij.map(step.lij.drmap(lpoint))
+
+    return outsamples
 
 
 def master_process(
