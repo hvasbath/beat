@@ -107,6 +107,9 @@ def multivariate_normal_chol(
         if true, the hyperparameters have to be arrays size equal to
         the number of datasets, if false size: 1.
     sparse : boolean
+        if the weight matrixes are sparse, this option may be set to speed
+        up the calculation, Note: the matrix need to be more than 60%
+        sparse to result in a speedup, e.g. identity matrix
 
     Returns
     -------
@@ -140,44 +143,10 @@ def multivariate_normal_chol(
                 data.covariance.slnf +
                 (M * 2 * hp) +
                 (1 / tt.exp(hp * 2)) *
-                (dot(tmp, tmp))))
+                (tt.dot(tmp, tmp))))
 
     return logpts
 
-
-def multivariate_normal_bulk_chol(
-        datasets, weights, hyperparams, residuals, hp_specific=False):
-    """
-    Calculate posterior Likelihood of a Multivariate Normal distribution.
-    Assumes weights to be the inverse cholesky decomposed lower triangle
-    of the Covariance matrix.
-    Can only be executed in a `with model context`.
-
-    Parameters
-    ----------
-    datasets : list
-        of :class:`heart.SeismicDataset` or :class:`heart.GeodeticDataset`
-    weights : list
-        of :class:`theano.shared`
-        Square matrix of the inverse of the lower triangular matrix of a
-        cholesky decomposed covariance matrix
-    hyperparams : dict
-        of :class:`theano.`
-    residual : list or array of model residuals
-    hp_specific : boolean
-        if true, the hyperparameters have to be arrays size equal to
-        the number of datasets, if false size: 1.
-
-    Returns
-    -------
-    array_like
-    """
-    pass
-#
-#tmp = tt.batched_dot(self.bulk_weights, self.residuals)
-#        print tmp.eval().shape
-#        print tt.power(tmp, 2).sum(1).eval()
-#        print tt.batched_dot(tmp.squeeze(), t
 
 def hyper_normal(datasets, hyperparams, llks, hp_specific=False):
     """

@@ -162,10 +162,15 @@ class Covariance(Object):
     @property
     def chol_inverse(self):
         """
-        Inverse of Cholesky decomposition of ALL uncertainty covariance
+        Inverse of Covariance matrix of ALL uncertainty covariance
         matrices. To be used as weight in the optimization.
+
+        Returns
+        -------
+        lower triangle of the cholesky decomposition
         """
-        return num.linalg.inv(self.chol).astype(tconfig.floatX)
+        return num.linalg.cholesky(
+            self.inverse).T.astype(tconfig.floatX)
 
     @property
     def log_norm_factor(self):

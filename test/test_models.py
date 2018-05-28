@@ -44,10 +44,10 @@ def make_weights(datasets, wtype, make_shared=False, sparse=False):
     weights = []
     for ds in datasets:
         if wtype == 'ichol':
-            w = ds.covariance.chol_inverse
+            w = num.linalg.inv(ds.covariance.chol)
             # print ds.covariance.chol_inverse
         elif wtype == 'icov_chol':
-            w = num.linalg.cholesky(ds.covariance.inverse).T
+            w = ds.covariance.chol_inverse
             # print w
 
         elif wtype == 'icov':
@@ -67,6 +67,11 @@ def make_weights(datasets, wtype, make_shared=False, sparse=False):
     return weights
 
 
+def get_bulk_weights(weights):
+    return tt.concatenate(
+        [C.reshape((1, n_samples, n_samples)) for C in weights], axis=0)
+
+
 class TestModels(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
@@ -77,26 +82,27 @@ class TestModels(unittest.TestCase):
         self.residuals = num.random.rand(
             n_datasets * n_samples).reshape(n_datasets, n_samples)
 
+        self.datasets = generate_toydata(n_datasets, n_samples)
+
     def test_mvn_cholesky(self):
         res = tt.matrix('residuals')
 
-        datasets = generate_toydata(n_datasets, n_samples)
-        ichol_weights = make_weights(datasets, 'ichol', True)
-        icov_chol_weights = make_weights(datasets, 'icov_chol', True)
-        icov_weights = make_weights(datasets, 'icov', True)
+        ichol_weights = make_weights(self.datasets, 'ichol', True)
+        icov_chol_weights = make_weights(self.datasets, 'icov_chol', True)
+        icov_weights = make_weights(self.datasets, 'icov', True)
 
         llk_ichol = multivariate_normal_chol(
-            datasets, ichol_weights,
+            self.datasets, ichol_weights,
             self.hyperparams, res, hp_specific=False)
         fichol = function([res], llk_ichol)
 
         llk_icov_chol = multivariate_normal_chol(
-            datasets, icov_chol_weights,
+            self.datasets, icov_chol_weights,
             self.hyperparams, res, hp_specific=False)
         ficov_chol = function([res], llk_icov_chol)
 
         llk_normal = multivariate_normal(
-            datasets, icov_weights,
+            self.datasets, icov_weights,
             self.hyperparams, res)
         fnorm = function([res], llk_normal)
 
@@ -120,19 +126,18 @@ class TestModels(unittest.TestCase):
 
         res = tt.matrix('residuals')
 
-        datasets = generate_toydata(n_datasets, n_samples)
-        ichol_weights = make_weights(datasets, 'ichol', True, sparse=True)
+        ichol_weights = make_weights(self.datasets, 'ichol', True, sparse=True)
         icov_chol_weights = make_weights(
-            datasets, 'icov_chol', True, sparse=True)
+            self.datasets, 'icov_chol', True, sparse=True)
 
         llk_ichol = multivariate_normal_chol(
-            datasets, ichol_weights,
-            self.hyperparams, res, hp_specific=False)
+            self.datasets, ichol_weights,
+            self.hyperparams, res, hp_specific=False, sparse=True)
         fichol = function([res], llk_ichol)
 
         llk_icov_chol = multivariate_normal_chol(
-            datasets, icov_chol_weights,
-            self.hyperparams, res, hp_specific=False)
+            self.datasets, icov_chol_weights,
+            self.hyperparams, res, hp_specific=False, sparse=True)
         ficov_chol = function([res], llk_icov_chol)
 
         t0 = time()
@@ -146,23 +151,58 @@ class TestModels(unittest.TestCase):
 
         assert_allclose(a, b, rtol=0., atol=1e-6)
 
-    def muh_test_muh(self):
+    def test_bulk(self):
 
+        def multivariate_normal_bulk_chol(
+                bulk_weights, hps, slnfs, residuals, hp_specific=False):
 
-        for residual, weight in zip(self.residuals, self.weights):
-            tmp = weight.dot(residual)
-            print tmp
-            print tmp.dot(tmp)
+            M = residuals.shape[1]
+            tmp = tt.batched_dot(bulk_weights, residuals)
+            llk = tt.power(tmp, 2).sum(1)
+            return (-0.5) * (
+                slnfs + (M * 2 * hps) + (1 / tt.exp(hps * 2)) * (llk))
 
-        self.bulk_weights = num.concatenate(
-            [num.atleast_3d(C).reshape(
-                1, n_samples, n_samples) for C in self.weights], axis=0)
+        res = tt.matrix('residuals')
+        ichol_weights = make_weights(self.datasets, 'ichol', True)
+        icov_weights = make_weights(self.datasets, 'icov', True)
+        icov_chol_weights = make_weights(self.datasets, 'icov_chol', True)
 
-        print self.bulk_weights.shape, self.residuals.shape
-        tmp = tt.batched_dot(self.bulk_weights, self.residuals)
-        print tmp.eval().shape
-        print tt.power(tmp, 2).sum(1).eval()
-#        print tt.batched_dot(tmp.squeeze(), tmp.squeeze()).eval()
+        ichol_bulk_weights = get_bulk_weights(ichol_weights)
+        icov_chol_bulk_weights = get_bulk_weights(icov_chol_weights)
+
+        slnfs = tt.concatenate(
+            [data.covariance.slnf.reshape((1,)) for data in self.datasets])
+
+        ichol_bulk_llk = multivariate_normal_bulk_chol(
+            bulk_weights=ichol_bulk_weights, hps=self.hyperparams['h_any_P_T'],
+            slnfs=slnfs, residuals=res)
+
+        icov_chol_bulk_llk = multivariate_normal_bulk_chol(
+            bulk_weights=icov_chol_bulk_weights,
+            hps=self.hyperparams['h_any_P_T'],
+            slnfs=slnfs, residuals=res)
+
+        llk_normal = multivariate_normal(
+            self.datasets, icov_weights,
+            self.hyperparams, res)
+
+        fnorm = function([res], llk_normal)
+        f_bulk_ichol = function([res], ichol_bulk_llk)
+        f_bulk_icov_chol = function([res], icov_chol_bulk_llk)
+
+        t0 = time()
+        a = f_bulk_ichol(self.residuals)
+        t1 = time()
+        b = f_bulk_icov_chol(self.residuals)
+        t2 = time()
+        c = fnorm(self.residuals)
+
+        logger.info('Bulk Ichol %f [s]' % (t1 - t0))
+        logger.info('Bulk Icov_chol %f [s]' % (t2 - t1))
+
+        assert_allclose(a, c, rtol=0., atol=1e-6)
+        assert_allclose(b, c, rtol=0., atol=1e-6)
+        assert_allclose(a, b, rtol=0., atol=1e-6)
 
     def test_mvn_chol_loopless(self):
         pass
