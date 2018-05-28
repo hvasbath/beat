@@ -6,10 +6,13 @@ from mpi4py import MPI
 from numpy import random
 from beat.utility import load_objects, list2string
 from beat import distributed
+
 from beat.sampler.base import _iter_sample
 from logging import getLogger
 from tqdm import tqdm
 from theano import config as tconfig
+
+from logging import getLogger
 
 
 logger = getLogger('pt')
