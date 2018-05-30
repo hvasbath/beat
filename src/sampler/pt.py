@@ -12,7 +12,7 @@ from numpy import random
 from beat.utility import load_objects, list2string
 from beat.sampler import distributed
 
-from beat.sampler.base import _iter_sample
+from beat.sampler.base import _iter_sample, Proposal
 from logging import getLogger
 from tqdm import tqdm
 from theano import config as tconfig
@@ -49,8 +49,9 @@ def sample_pt_chain(
 
     Parameters
     ----------
-    draws : int
+    draws : int or :class:`beat.sampler.base.Proposal`
         The number of samples to draw for each Markov-chain per stage
+        or a Proposal distribution
     step : :class:`sampler.metropolis.Metropolis`
         Metropolis initialisation object
     start : dict
@@ -75,9 +76,13 @@ def sample_pt_chain(
     -------
     :class:`numpy.NdArray` with end-point of the MarkovChain
     """
+    if isinstance(draws, Proposal):
+        n_steps = draws()
+    else:
+        n_steps = draws
 
-    step.n_steps = draws
-    sampling = _iter_sample(draws, step, start, trace, chain,
+    step.n_steps = n_steps
+    sampling = _iter_sample(n_steps, step, start, trace, chain,
                             tune, model, random_seed)
 
     n = parallel.get_process_id()
@@ -85,7 +90,7 @@ def sample_pt_chain(
     if progressbar:
         sampling = tqdm(
             sampling,
-            total=draws,
+            total=n_steps,
             desc='chain: %i worker %i' % (chain, n),
             position=n,
             leave=False,
@@ -103,7 +108,7 @@ def sample_pt_chain(
     return step.bij.map(step.lij.drmap(strace.buffer[-1]))
 
 
-def init_worker_packages(step, n_workers):
+def init_worker_packages(step, n_workers, swap_interval=(100, 200)):
 
     n_worker_post = n_workers / 2
     n_worker_temp = n_workers - n_worker_post
@@ -119,20 +124,25 @@ def init_worker_packages(step, n_workers):
         wstep.stage = 1
 
         package = {
-            draws
+            'draws': choose_proposal(
+                'DiscreteBoundedUniform',
+                lower=swap_interval[0], upper=swap_interval[1]),
             'step': wstep,
             'start': step.population[i],
             'chain': i,
-            'trace': backend.MemoryTrace(), tune=None,
-                progressbar=True, model=None, random_seed=-1
+            'trace': backend.MemoryTrace(),
+            tune=None,
+            progressbar=True,
+            model=None,
+            random_seed=-1}
 
 
     return betas
 
 
 def master_process(
-        comm, tags, status, step, n_samples,
-        homepath, progressbar, buffer_size, model, rm_flag):
+        comm, tags, status, step, n_samples, swap_interval,
+        homepath, progressbar, buffer_size, model, rm_flag, swap_interval):
     """
     Master process, that does the managing.
     Sends tasks to workers.
@@ -156,7 +166,8 @@ def master_process(
     # start sampling of chains with given seed
     logger.info('Master starting with %d workers' % n_workers)
     logger.info('Packing stuff for workers')
-    packages = init_worker_packages(step=step, n_workers=n_workers)
+    packages = init_worker_packages(
+        step=step, n_workers=n_workers, swap_interval=swap_interval)
 
     stage_handler = backend.TextStage(homepath)
     _ = stage_handler.clean_directory(stage, chains=None, rm_flag=rm_flag)
@@ -180,18 +191,22 @@ def master_process(
 
     while True:
         m1 = num.empty()
-        comm.Recv([m1, MPI.DOUBLE], source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+        comm.Recv([m1, MPI.DOUBLE],
+                  source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
         source1 = status.Get_source()
         logger.debug('Got sample 1 from worker %i' % source1)
 
         m2 = num.empty()
-        comm.Recv([m2, MPI.DOUBLE], source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+        comm.Recv([m2, MPI.DOUBLE],
+                  source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
         source2 = status.Get_source()
         logger.debug('Got sample 2 from worker %i' % source1)
 
         m1, m2 = metrop_select(m1, m2)
 
+        # TODO identify if worker beta == 1 then write out
         trace.write(m1)
+        trace.write(m2)
         if len(chain) < nsamples:
             logger.debug('Sending states back to workers ...')
             comm.send(m1, dest=source1, tag=tags.START)
@@ -239,7 +254,8 @@ def worker_process(comm, tags, status):
     while True:
         # TODO: make transd-compatible
         startarray = num.empty(step.ordering.size, dtype=tconfig.floatX)
-        comm.Recv([startarray, MPI.DOUBLE], tag=MPI.ANY_TAG, source=0, status=status)    
+        comm.Recv([startarray, MPI.DOUBLE],
+                  tag=MPI.ANY_TAG, source=0, status=status)
 
         tag = status.Get_tag()
         if tag == tags.START:
@@ -258,7 +274,8 @@ def worker_process(comm, tags, status):
 
 
 def pt_sample(
-        step, n_jobs, n_samples=100000, homepath='', progressbar=True,
+        step, n_jobs, n_samples=100000, swap_interval=(100, 300),
+        homepath='', progressbar=True,
         buffer_size=5000, model=None, rm_flag=False, keep_tmp=False):
     """
     Paralell Tempering algorithm
@@ -281,6 +298,10 @@ def pt_sample(
         paralell MC chains
     n_samples : int
         number of samples in the result trace, if reached sampling stops
+    swap_interval : tuple
+        interval for uniform random integer that determines the length
+        of each MarkovChain on each worker. The chain end values of workers
+        are proposed for swapping state and are written in the final trace
     homepath : string
         Result_folder for storing stages, will be created if not existing
     progressbar : bool
@@ -303,7 +324,7 @@ def pt_sample(
         raise ValueError(
             'Parallel Tempering requires at least 3 processors!')
 
-    sampler_args = [step, n_samples, homepath, progressbar,
+    sampler_args = [step, n_samples, swap_interval, homepath, progressbar,
                     buffer_size, model, rm_flag]
     distributed.run_mpi_sampler(
         sampler_name='pt',

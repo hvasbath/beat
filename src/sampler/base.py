@@ -205,14 +205,14 @@ def choose_proposal(proposal_name, **kwargs):
     ----------
     proposal_name : string
         Name of the proposal distribution to initialise
-        Available distributions: %s
+        See function available_proposals
     kwargs : dict
         of arguments to the proposal distribution
 
     Returns
     -------
     class:`pymc3.Proposal` Object
-    """ % list2string(available_proposals())
+    """
     return proposal_distributions[proposal_name](**kwargs)
 
 

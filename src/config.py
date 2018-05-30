@@ -757,6 +757,14 @@ class ParallelTemperingConfig(SamplerParameters):
         help='Number of processors to use, i.e. chains to sample in parallel.'
              ' A number < 3 will raise an Error, as this is the minimum'
              ' amount of processors needed. ')
+    swap_intervall = Tuple.T(
+        2, Int.T(),
+        default=(100, 300),
+        help='Interval for uniform random integer that is drawn to determine'
+             ' the length of MarkovChains on each worker. When chain is'
+             ' completed the last sample is returned for swapping state'
+             ' between chains. Consequently, lower number will result in'
+             ' more state swapping.')
     thin = Int.T(
         default=3,
         help='Thinning parameter of the sampled trace. Every "thin"th sample'
