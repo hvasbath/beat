@@ -2449,7 +2449,17 @@ def sample(step, problem):
     elif sc.name == 'PT':
         logger.info('... Starting Parallel Tempering ...\n')
 
-        sampler.pt_sample()
+        sampler.pt_sample(
+            step=step,
+            n_jobs=pa.n_jobs,
+            n_samples=pa.n_samples,
+            homepath=problem.outfolder,
+            progressbar=sc.progressbar,
+            model=problem.model,
+            rm_flag=pa.rm_flag)
+
+    else:
+        logger.error('Sampler "%s" not implemented.' % sc.name)
 
 
 def estimate_hypers(step, problem):

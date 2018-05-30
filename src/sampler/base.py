@@ -239,8 +239,7 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
 def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
                  model=None, random_seed=-1):
     """
-    Modified from :func:`pymc3.sampling._iter_sample` to be more efficient with
-    the SMC algorithm.
+    Modified from :func:`pymc3.sampling._iter_sample`
     """
 
     model = modelcontext(model)

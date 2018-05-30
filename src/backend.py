@@ -84,8 +84,8 @@ class ArrayStepSharedLLK(BlockedStep):
         return self.bij.rmap(apoint), alist
 
 
-class BaseSMCTrace(object):
-    """Base SMC trace object
+class BaseTrace(object):
+    """Base trace object
 
     Parameters
     ----------
@@ -137,7 +137,7 @@ class BaseSMCTrace(object):
         self.__dict__.update(state)
 
 
-class TextChain(BaseSMCTrace):
+class TextChain(BaseTrace):
     """
     Text trace object
 
@@ -176,7 +176,7 @@ class TextChain(BaseSMCTrace):
         self.buffer_size = buffer_size
         self.stored_samples = 0
 
-    def setup(self, draws, chain):
+    def setup(self, draws, chain, overwrite=True):
         """
         Perform chain-specific setup.
 
@@ -197,7 +197,11 @@ class TextChain(BaseSMCTrace):
         cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
 
         if os.path.exists(self.filename):
-            os.remove(self.filename)
+            if overwrite:
+                os.remove(self.filename)
+            else:
+                logger.info('Found existing trace, appending!')
+                return
 
         with open(self.filename, 'w') as fh:
             fh.write(','.join(cnames) + '\n')

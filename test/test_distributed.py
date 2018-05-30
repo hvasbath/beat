@@ -1,6 +1,6 @@
 import logging
 import unittest
-from beat.distributed import MPIRunner, run_mpi_sampler
+from beat.sampler.distributed import MPIRunner, run_mpi_sampler
 from beat.info import project_root
 from pyrocko import util
 

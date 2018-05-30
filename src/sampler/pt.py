@@ -10,7 +10,7 @@ os.environ["OMP_NUM_THREADS"] = "1"
 from mpi4py import MPI
 from numpy import random
 from beat.utility import load_objects, list2string
-from beat import distributed
+from beat.sampler import distributed
 
 from beat.sampler.base import _iter_sample
 from logging import getLogger
@@ -65,12 +65,7 @@ def sample_pt_chain(
         if progressbar:
             sampling.close()
 
-        outsamples = num.empty(
-            (draws, step.ordering.size), dtype=tconfig.floatX)
-        for i, lpoint in enumerate(strace.buffer):
-            outsamples[i, :] = step.bij.map(step.lij.drmap(lpoint))
-
-    return outsamples
+    return step.bij.map(step.lij.drmap(strace.buffer[-1]))
 
 
 def init_worker_packages(step, n_workers):
@@ -88,18 +83,21 @@ def init_worker_packages(step, n_workers):
         wstep.beta = beta
         wstep.stage = 1
 
-        package = {
+!!        package = {
+            draws
             'step': wstep,
             'start': step.population[i],
             'chain': i}
                     draws, step=None, start=None, trace=None, chain=0, tune=None,
                 progressbar=True, model=None, random_seed=-1
+
+
     return betas
 
 
 def master_process(
         comm, tags, status, step, n_samples,
-        homepath, progressbar, model, rm_flag):
+        homepath, progressbar, buffer_size, model, rm_flag):
     """
     Master process, that does the managing.
     Sends tasks to workers.
@@ -117,30 +115,48 @@ def master_process(
 
     size = comm.size        # total number of processes
     n_workers = size - 1
-    tasks = range(num_workers)
-    chain = []
+
+    stage = -1
     active_workers = 0
     # start sampling of chains with given seed
     logger.info('Master starting with %d workers' % n_workers)
+    logger.info('Packing stuff for workers')
+    packages = init_worker_packages(step=step, n_workers=n_workers)
+
+    stage_handler = backend.TextStage(homepath)
+    _ = stage_handler.clean_directory(stage, chains=None, rm_flag=rm_flag)
+
+    logger.info('Initializing result trace...')
+    trace = backend.TextChain(
+        stage_path=stage_handler.stage_path(stage),
+        model=model,
+        buffer_size=buffer_size,
+        progressbar=progressbar)
+    trace.setup(n_samples, 0, overwrite=False)
+    # TODO load starting points from existing trace
+
+    logger.info('Sending packages to workers...')
     for i in range(num_workers):
         comm.recv(source=MPI.ANY_SOURCE, tag=tags.READY, status=status)
         source = status.Get_source()
-        comm.send(tasks[i], dest=source, tag=tags.START)
+        comm.send(packages[i], dest=source, tag=tags.INIT)
         logger.debug('Sent task to worker %i' % source)
         active_workers += 1
 
-    m1 = num.empty()
     while True:
-        m1 = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+        m1 = num.empty()
+        comm.Recv([m1, MPI.DOUBLE], source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
         source1 = status.Get_source()
         logger.debug('Got sample 1 from worker %i' % source1)
-        m2 = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+
+        m2 = num.empty()
+        comm.Recv([m2, MPI.DOUBLE], source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
         source2 = status.Get_source()
         logger.debug('Got sample 2 from worker %i' % source1)
 
         m1, m2 = metrop_select(m1, m2)
 
-        chain.extend([m1, m2])
+        trace.write(m1)
         if len(chain) < nsamples:
             logger.debug('Sending states back to workers ...')
             comm.send(m1, dest=source1, tag=tags.START)
@@ -169,7 +185,7 @@ def worker_process(comm, tags, status):
     ----------
     comm : mpi.communicator
     tags : message tags
-    status : mpt.status object
+    status : mpi.status object
     """
     name = MPI.Get_processor_name()
     logger.debug(
@@ -177,19 +193,28 @@ def worker_process(comm, tags, status):
     comm.send(None, dest=0, tag=tags.READY)
 
     logger.debug('Worker %i recieving work package ...' % comm.rank)
-    kwargs = comm.recv(source=0, tag=MPI.ANY_TAG, status=status)
+    kwargs = comm.recv(source=0, tag=tag.INIT, status=status)
     logger.debug('Worker %i received package!' % comm.rank)
 
+    # do initial sampling
+    result = sample_pt_chain(**kwargs)
+    comm.Send([result, MPI.DOUBLE], dest=0, tag=tags.DONE)
+
+    # enter repeated sampling
     while True:
+        # TODO: make transd-compatible
+        startarray = num.empty(step.ordering.size, dtype=tconfig.floatX)
+        comm.Recv([startarray, MPI.DOUBLE], tag=MPI.ANY_TAG, source=0, status=status)    
 
         tag = status.Get_tag()
-
         if tag == tags.START:
-            # Do the work here
-            sample_pt_chain(**kwargs)
+            start = step.bij.map(startarray)    
+            kwargs['start'] = start
+
+            result = sample_pt_chain(**kwargs)
 
             logger.debug('Worker %i attempting to send ...' % comm.rank)
-            comm.send(result, dest=0, tag=tags.DONE)
+            comm.Send([result, MPI.DOUBLE], dest=0, tag=tags.DONE)
             logger.debug('Worker %i sent message successfully ...' % comm.rank)
         elif tag == tags.EXIT:
             logger.debug('Worker %i went through EXIT!' % comm.rank)
@@ -198,7 +223,7 @@ def worker_process(comm, tags, status):
 
 def pt_sample(
         step, n_jobs, n_samples=100000, homepath='', progressbar=True,
-        model=None, rm_flag=False, keep_tmp=False):
+        buffer_size=5000, model=None, rm_flag=False, keep_tmp=False):
     """
     Paralell Tempering algorithm
 
@@ -224,6 +249,9 @@ def pt_sample(
         Result_folder for storing stages, will be created if not existing
     progressbar : bool
         Flag for displaying a progress bar
+    buffer_size : int
+        this is the number of samples after which the buffer is written to disk
+        or if the chain end is reached
     model : :class:`pymc3.Model`
         (optional if in `with` context) has to contain deterministic
         variable name defined under step.likelihood_name' that contains the
@@ -239,7 +267,8 @@ def pt_sample(
         raise ValueError(
             'Parallel Tempering requires at least 3 processors!')
 
-    sampler_args = [step, n_samples, homepath, progressbar, model, rm_flag]
+    sampler_args = [step, n_samples, homepath, progressbar,
+                    buffer_size, model, rm_flag]
     distributed.run_mpi_sampler(
         sampler_name='pt',
         sampler_args=sampler_args,
@@ -249,7 +278,7 @@ def pt_sample(
 
 def _sample():
     # Define MPI message tags
-    tags = distributed.enum('READY', 'DONE', 'EXIT', 'START')
+    tags = distributed.enum('READY', 'INIT', 'DONE', 'EXIT', 'START')
 
     # Initializations and preliminaries
     comm = MPI.COMM_WORLD
@@ -263,9 +292,7 @@ def _sample():
     else:
         worker_process(comm, tags, status)
 
-    print 'Done!'
-
 
 if __name__ == '__main__':
-    print 'here main'
+
     _sample()
