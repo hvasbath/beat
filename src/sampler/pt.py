@@ -24,7 +24,8 @@ logger = getLogger('pt')
 
 
 __all__ = [
-    'pt_sample']
+    'pt_sample',
+    'sample_pt_chain']
 
 
 def metrop_select(m1, m2):
@@ -40,6 +41,40 @@ def metrop_select(m1, m2):
 def sample_pt_chain(
         draws, step=None, start=None, trace=None, chain=0, tune=None,
         progressbar=True, model=None, random_seed=-1):
+    """
+    Sample a single chain of the Parallel Tempering algorithm and return
+    the last sample of the chain.
+    Depending on the step object the MarkovChain can have various step
+    behaviour, e.g. Metropolis, NUTS, ...
+
+    Parameters
+    ----------
+    draws : int
+        The number of samples to draw for each Markov-chain per stage
+    step : :class:`sampler.metropolis.Metropolis`
+        Metropolis initialisation object
+    start : dict
+        Starting point in parameter space (or partial point)
+        Defaults to random draws from variables (defaults to empty dict)
+    chain : int
+        Chain number used to store sample in backend.
+    stage : int
+        Stage where to start or continue the calculation. It is possible to
+        continue after completed stages (stage should be the number of the
+        completed stage + 1). If None the start will be at stage = 0.
+    tune : int
+        Number of iterations to tune, if applicable (defaults to None)
+    progressbar : bool
+        Flag for displaying a progress bar
+    model : :class:`pymc3.Model`
+        (optional if in `with` context) has to contain deterministic
+        variable name defined under step.likelihood_name' that contains the
+        model likelihood
+
+    Returns
+    -------
+    :class:`numpy.NdArray` with end-point of the MarkovChain
+    """
 
     step.n_steps = draws
     sampling = _iter_sample(draws, step, start, trace, chain,
@@ -83,12 +118,12 @@ def init_worker_packages(step, n_workers):
         wstep.beta = beta
         wstep.stage = 1
 
-!!        package = {
+        package = {
             draws
             'step': wstep,
             'start': step.population[i],
-            'chain': i}
-                    draws, step=None, start=None, trace=None, chain=0, tune=None,
+            'chain': i,
+            'trace': backend.MemoryTrace(), tune=None,
                 progressbar=True, model=None, random_seed=-1
 
 
@@ -208,8 +243,9 @@ def worker_process(comm, tags, status):
 
         tag = status.Get_tag()
         if tag == tags.START:
-            start = step.bij.map(startarray)    
+            start = step.bij.map(startarray)
             kwargs['start'] = start
+            kwargs['draws'] = num.random.randint()
 
             result = sample_pt_chain(**kwargs)
 
