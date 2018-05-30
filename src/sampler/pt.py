@@ -2,6 +2,11 @@
 """
 Parallel Tempering algorithm with mpi4py
 """
+import os
+
+# disable internal(fine) blas parallelisation as we parallelise over chains
+os.environ["OMP_NUM_THREADS"] = "1"
+
 from mpi4py import MPI
 from numpy import random
 from beat.utility import load_objects, list2string
@@ -36,6 +41,7 @@ def sample_pt_chain(
         draws, step=None, start=None, trace=None, chain=0, tune=None,
         progressbar=True, model=None, random_seed=-1):
 
+    step.n_steps = draws
     sampling = _iter_sample(draws, step, start, trace, chain,
                             tune, model, random_seed)
 
@@ -59,12 +65,36 @@ def sample_pt_chain(
         if progressbar:
             sampling.close()
 
-        outsamples = num.zeros(
+        outsamples = num.empty(
             (draws, step.ordering.size), dtype=tconfig.floatX)
         for i, lpoint in enumerate(strace.buffer):
             outsamples[i, :] = step.bij.map(step.lij.drmap(lpoint))
 
     return outsamples
+
+
+def init_worker_packages(step, n_workers):
+
+    n_worker_post = n_workers / 2
+    n_worker_temp = n_workers - n_worker_post
+
+    betas_post = [1 for _ in range(n_worker_post)]
+    betas_temp = num.logspace(-5, 0, 4, endpoint=False).tolist()
+    betas = betas_temp + betas_post
+
+    packages = []
+    for i, beta in enumerate(betas):
+        wstep = deepcopy(step)
+        wstep.beta = beta
+        wstep.stage = 1
+
+        package = {
+            'step': wstep,
+            'start': step.population[i],
+            'chain': i}
+                    draws, step=None, start=None, trace=None, chain=0, tune=None,
+                progressbar=True, model=None, random_seed=-1
+    return betas
 
 
 def master_process(
@@ -86,12 +116,12 @@ def master_process(
     """
 
     size = comm.size        # total number of processes
-    num_workers = size - 1
+    n_workers = size - 1
     tasks = range(num_workers)
     chain = []
     active_workers = 0
     # start sampling of chains with given seed
-    logger.info('Master starting with %d workers' % num_workers)
+    logger.info('Master starting with %d workers' % n_workers)
     for i in range(num_workers):
         comm.recv(source=MPI.ANY_SOURCE, tag=tags.READY, status=status)
         source = status.Get_source()
@@ -99,6 +129,7 @@ def master_process(
         logger.debug('Sent task to worker %i' % source)
         active_workers += 1
 
+    m1 = num.empty()
     while True:
         m1 = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
         source1 = status.Get_source()
@@ -145,16 +176,17 @@ def worker_process(comm, tags, status):
         "Entering worker process with rank %d on %s." % (comm.rank, name))
     comm.send(None, dest=0, tag=tags.READY)
 
+    logger.debug('Worker %i recieving work package ...' % comm.rank)
+    kwargs = comm.recv(source=0, tag=MPI.ANY_TAG, status=status)
+    logger.debug('Worker %i received package!' % comm.rank)
+
     while True:
-        logger.debug('Worker %i recieving message ...' % comm.rank)
-        task = comm.recv(source=0, tag=MPI.ANY_TAG, status=status)
-        logger.debug('Worker %i received!' % comm.rank)
 
         tag = status.Get_tag()
 
         if tag == tags.START:
             # Do the work here
-!            result = task + 1
+            sample_pt_chain(**kwargs)
 
             logger.debug('Worker %i attempting to send ...' % comm.rank)
             comm.send(result, dest=0, tag=tags.DONE)
@@ -203,6 +235,10 @@ def pt_sample(
         If True the execution directory (under '/tmp/') is not being deleted
         after process finishes
     """
+    if n_jobs < 3:
+        raise ValueError(
+            'Parallel Tempering requires at least 3 processors!')
+
     sampler_args = [step, n_samples, homepath, progressbar, model, rm_flag]
     distributed.run_mpi_sampler(
         sampler_name='pt',

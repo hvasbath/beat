@@ -1909,6 +1909,20 @@ class Problem(object):
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
 
+            elif sc.name == 'PT':
+                logger.info(
+                    '... Initiate Metropolis for Parallel Tempering... \n'
+                    ' proposal_distribution %s, tune_interval=%i,'
+                    ' n_jobs=%i \n' % (
+                        sc.parameters.proposal_dist,
+                        sc.parameters.tune_interval,
+                        sc.parameters.n_jobs))
+                step = sampler.Metropolis(
+                    n_chains=sc.parameters.n_jobs - 1,
+                    likelihood_name=self._like_name,
+                    tune_interval=sc.parameters.tune_interval,
+                    proposal_name=sc.parameters.proposal_dist)
+
         return step
 
     def built_model(self):

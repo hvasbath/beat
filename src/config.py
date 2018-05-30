@@ -544,7 +544,7 @@ class ProblemConfig(Object):
              ' Implemented: Temporal station corrections, orbital'
              ' ramp estimation')
 
-    def __init__(self, **kwargs): 
+    def __init__(self, **kwargs):
 
         mode = 'mode'
         mode_config = 'mode_config'
@@ -743,6 +743,28 @@ class SamplerParameters(Object):
 
     rm_flag = Bool.T(default=False,
                      help='Remove existing results prior to sampling.')
+
+
+class ParallelTemperingConfig(SamplerParameters):
+
+    n_samples = Int.T(
+        default=1e5,
+        help='Number of samples of the posterior distribution.'
+             ' Only the samples of processors that sample from the posterior'
+             ' (beta=1) are kept.')
+    n_jobs = Int.T(
+        default=3,
+        help='Number of processors to use, i.e. chains to sample in parallel.'
+             ' A number < 3 will raise an Error, as this is the minimum'
+             ' amount of processors needed. ')
+    thin = Int.T(
+        default=3,
+        help='Thinning parameter of the sampled trace. Every "thin"th sample'
+             ' is taken.')
+    burn = Float.T(
+        default=0.5,
+        help='Burn-in parameter between 0. and 1. to discard fraction of'
+             ' samples from the beginning of the chain.')
 
 
 class MetropolisConfig(SamplerParameters):
