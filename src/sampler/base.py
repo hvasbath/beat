@@ -289,6 +289,9 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
                  model=None, random_seed=-1):
     """
     Modified from :func:`pymc3.sampling._iter_sample`
+
+    tune: int
+        adaptiv step-size scaling is stopped after this chain sample
     """
 
     model = modelcontext(model)

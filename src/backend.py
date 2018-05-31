@@ -285,7 +285,7 @@ class TextChain(BaseTrace):
         if self.df is None:
             return 0
         else:
-            return self.df.shape[0]
+            return self.df.shape[0] + len(self.buffer)
 
     def get_values(self, varname, burn=0, thin=1):
         """

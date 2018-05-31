@@ -2454,6 +2454,7 @@ def sample(step, problem):
             n_jobs=pa.n_jobs,
             n_samples=pa.n_samples,
             swap_interval=pa.swap_interval,
+            beta_tune_interval=pa.beta_tune_interval,
             homepath=problem.outfolder,
             progressbar=sc.progressbar,
             model=problem.model,

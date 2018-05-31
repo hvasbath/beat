@@ -765,6 +765,11 @@ class ParallelTemperingConfig(SamplerParameters):
              ' completed the last sample is returned for swapping state'
              ' between chains. Consequently, lower number will result in'
              ' more state swapping.')
+    beta_tune_interval = Int.T(
+        default=1e4,
+        help='Sample interval of master chain after which the chain swap'
+             ' acceptance is evaluated. High acceptance will result in'
+             ' closer spaced betas and vice versa.')
     thin = Int.T(
         default=3,
         help='Thinning parameter of the sampled trace. Every "thin"th sample'
