@@ -17,7 +17,10 @@ from logging import getLogger
 from tqdm import tqdm
 from theano import config as tconfig
 
+from pymc3.step_methods.metropolis import metrop_select
+
 from logging import getLogger
+from collections import OrderedDict
 
 
 logger = getLogger('pt')
@@ -25,103 +28,104 @@ logger = getLogger('pt')
 
 __all__ = [
     'pt_sample',
-    'sample_pt_chain']
+    'sample_pt_chain',
+    'PackageManager']
 
 
-def metrop_select(m1, m2):
-    u = random.rand()
-    if u < 0.5:
-        print('Rejected swap')
-        return m1, m2
-    else:
-        print('Accepted swap')
-        return m2, m1
-
-
-def sample_pt_chain(
-        draws, step=None, start=None, trace=None, chain=0, tune=None,
-        progressbar=True, model=None, random_seed=-1):
+class PackageManager(object):
     """
-    Sample a single chain of the Parallel Tempering algorithm and return
-    the last sample of the chain.
-    Depending on the step object the MarkovChain can have various step
-    behaviour, e.g. Metropolis, NUTS, ...
-
-    Parameters
-    ----------
-    draws : int or :class:`beat.sampler.base.Proposal`
-        The number of samples to draw for each Markov-chain per stage
-        or a Proposal distribution
-    step : :class:`sampler.metropolis.Metropolis`
-        Metropolis initialisation object
-    start : dict
-        Starting point in parameter space (or partial point)
-        Defaults to random draws from variables (defaults to empty dict)
-    chain : int
-        Chain number used to store sample in backend.
-    stage : int
-        Stage where to start or continue the calculation. It is possible to
-        continue after completed stages (stage should be the number of the
-        completed stage + 1). If None the start will be at stage = 0.
-    tune : int
-        Number of iterations to tune, if applicable (defaults to None)
-    progressbar : bool
-        Flag for displaying a progress bar
-    model : :class:`pymc3.Model`
-        (optional if in `with` context) has to contain deterministic
-        variable name defined under step.likelihood_name' that contains the
-        model likelihood
-
-    Returns
-    -------
-    :class:`numpy.NdArray` with end-point of the MarkovChain
+    Manages worker related work attributes and holds mappings
+    between workers, betas and counts acceptance of chain swaps.
     """
-    if isinstance(draws, Proposal):
-        n_steps = draws()
-    else:
-        n_steps = draws
+    _worker2index = None
 
-    step.n_steps = n_steps
-    sampling = _iter_sample(n_steps, step, start, trace, chain,
-                            tune, model, random_seed)
+    def __init__(self, n_workers, step):
 
-    n = parallel.get_process_id()
+        self.n_workers = n_workers
+        self.step = step
+        self.acceptance_matrix = num.zeros(
+            (n_workers, n_workers), dtype='int32')
+        self._worker_package_mapping = OrderedDict()
 
-    if progressbar:
-        sampling = tqdm(
-            sampling,
-            total=n_steps,
-            desc='chain: %i worker %i' % (chain, n),
-            position=n,
-            leave=False,
-            ncols=65)
-    try:
-        for strace in sampling:
-            pass
+    def get_betas(self):
+        """
+        Get temperature schedule for all the workers.
 
-    except KeyboardInterrupt:
-        raise
-    finally:
-        if progressbar:
-            sampling.close()
+        Returns
+        -------
+        list of inverse temperatures (betas)
+        """
+        n_worker_post = self.n_workers / 2
+        n_worker_temp = self.n_workers - n_worker_post
 
-    return step.bij.map(step.lij.drmap(strace.buffer[-1]))
+        betas_post = [1 for _ in range(n_worker_post)]
+        betas_temp = num.logspace(-5, 0, 4, endpoint=False).tolist()
+        return betas_temp + betas_post
+
+    @property
+    def workers(self):
+        return self._worker_package_mapping.keys()
+
+    def get_package(source, beta):
+        """
+        Register worker to the manager and get assigned work package.
+        The temperature is applied to the'work package.
+
+        Returns
+        -------
+        step : class:`beat.sampler.Metropolis`
+            object that contains the step method how to sample the
+            solution space
+        """
+        step = deepcopy(self.step)
+        step.beta = beta
+        step.stage = 1
+        self._worker_package_mapping[source] = step
+        return step
+
+    def propose_chain_swap(m1, m2, source1, source2):
+        step1 = self.worker2package(source1)
+        step2 = self.worker2package(source2)
+
+        llk1 = step1.lij.dmap(step1.bij.rmap(m1))
+        llk2 = step2.lij.dmap(step2.bij.rmap(m2))
+
+        _, accepted = metrop_select(
+            (step2.beta - step1.beta) * (
+                llk1[step1._llk_index] - llk2[step2._llk_index]),
+            q=m1, q0=m2)
+
+        self.register_swap(source1, source2, accepted)
+
+        if accepted:
+            return m1, m2
+        else:
+            return m2, m1
+
+    def register_swap(self, source1, source2, accepted):
+        w2i = self.worker_index_mapping()
+        self.acceptance_matrix[w2i[source1], w2i[source2]] += accepted
+
+    def worker_index_mapping(self):
+        if self._worker2index is None:
+            self._worker2index = dict(
+                (worker, i) for (i, worker) in enumerate(
+                    self.workers))
+        return self._worker2index
+
+    def worker2package(self, source):
+        return self._worker_package_mapping[source]
 
 
-def init_worker_packages(step, n_workers, swap_interval=(100, 200)):
 
-    n_worker_post = n_workers / 2
-    n_worker_temp = n_workers - n_worker_post
+def init_worker_packages(step, n_workers, swap_interval=(100, 200), progressbar=False):
 
-    betas_post = [1 for _ in range(n_worker_post)]
-    betas_temp = num.logspace(-5, 0, 4, endpoint=False).tolist()
-    betas = betas_temp + betas_post
+
 
     packages = []
     for i, beta in enumerate(betas):
-        wstep = deepcopy(step)
-        wstep.beta = beta
-        wstep.stage = 1
+        wstep = step deepcopy(self.step)
+
 
         package = {
             'draws': choose_proposal(
@@ -132,7 +136,7 @@ def init_worker_packages(step, n_workers, swap_interval=(100, 200)):
             'chain': i,
             'trace': backend.MemoryTrace(),
             tune=None,
-            progressbar=True,
+            'progressbar': progressbar,
             model=None,
             random_seed=-1}
 
@@ -271,6 +275,76 @@ def worker_process(comm, tags, status):
         elif tag == tags.EXIT:
             logger.debug('Worker %i went through EXIT!' % comm.rank)
             break
+
+
+def sample_pt_chain(
+        draws, step=None, start=None, trace=None, chain=0, tune=None,
+        progressbar=True, model=None, random_seed=-1):
+    """
+    Sample a single chain of the Parallel Tempering algorithm and return
+    the last sample of the chain.
+    Depending on the step object the MarkovChain can have various step
+    behaviour, e.g. Metropolis, NUTS, ...
+
+    Parameters
+    ----------
+    draws : int or :class:`beat.sampler.base.Proposal`
+        The number of samples to draw for each Markov-chain per stage
+        or a Proposal distribution
+    step : :class:`sampler.metropolis.Metropolis`
+        Metropolis initialisation object
+    start : dict
+        Starting point in parameter space (or partial point)
+        Defaults to random draws from variables (defaults to empty dict)
+    chain : int
+        Chain number used to store sample in backend.
+    stage : int
+        Stage where to start or continue the calculation. It is possible to
+        continue after completed stages (stage should be the number of the
+        completed stage + 1). If None the start will be at stage = 0.
+    tune : int
+        Number of iterations to tune, if applicable (defaults to None)
+    progressbar : bool
+        Flag for displaying a progress bar
+    model : :class:`pymc3.Model`
+        (optional if in `with` context) has to contain deterministic
+        variable name defined under step.likelihood_name' that contains the
+        model likelihood
+
+    Returns
+    -------
+    :class:`numpy.NdArray` with end-point of the MarkovChain
+    """
+    if isinstance(draws, Proposal):
+        n_steps = draws()
+    else:
+        n_steps = draws
+
+    step.n_steps = n_steps
+    sampling = _iter_sample(n_steps, step, start, trace, chain,
+                            tune, model, random_seed)
+
+    n = parallel.get_process_id()
+
+    if progressbar:
+        sampling = tqdm(
+            sampling,
+            total=n_steps,
+            desc='chain: %i worker %i' % (chain, n),
+            position=n,
+            leave=False,
+            ncols=65)
+    try:
+        for strace in sampling:
+            pass
+
+    except KeyboardInterrupt:
+        raise
+    finally:
+        if progressbar:
+            sampling.close()
+
+    return step.bij.map(step.lij.drmap(strace.buffer[-1]))
 
 
 def pt_sample(
