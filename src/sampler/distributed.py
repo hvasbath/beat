@@ -13,6 +13,7 @@ logger = logging.getLogger('distributed')
 
 program_bins = {'mpi': 'mpiexec'}
 mpiargs_name = 'mpiinput'
+pymc_model_name = 'modelgraph'
 
 
 __all__ = [
@@ -137,7 +138,7 @@ samplers = {
 }
 
 
-def run_mpi_sampler(sampler_name, sampler_args, keep_tmp, n_jobs):
+def run_mpi_sampler(sampler_name, model, sampler_args, keep_tmp, n_jobs):
     """
     Execute a sampling algorithm that requires the call of mpiexec
     as it uses MPI for parallelization.
@@ -150,6 +151,8 @@ def run_mpi_sampler(sampler_name, sampler_args, keep_tmp, n_jobs):
     ----------
     sampler_name : string
         valid names: %s
+    model : :class:`pymc3.model.Model`
+        that holds the forward model graph
     sampler_args : list
         of sampler arguments, order is important
     keep_tmp : boolean
@@ -169,7 +172,9 @@ def run_mpi_sampler(sampler_name, sampler_args, keep_tmp, n_jobs):
 
     runner = MPIRunner(keep_tmp=keep_tmp)
     args_path = pjoin(runner.tempdir, mpiargs_name)
+    model_path = pjoin(runner.tempdir, pymc_model_name)
 
+    dump_objects(model_path, model)
     dump_objects(args_path, sampler_args)
 
     samplerdir = pjoin(project_root, sampler)

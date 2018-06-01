@@ -1,7 +1,8 @@
 import pymc3 as pm
 import numpy as num
 import os
-from beat.sampler import pt, metropolis, utility, backend
+from beat.sampler import pt, metropolis
+from beat.backend import TextStage
 from tempfile import mkdtemp
 import shutil
 import logging
@@ -61,7 +62,7 @@ class TestPT(unittest.TestCase):
                            upper=2. * num.ones_like(mu1),
                            testval=-1. * num.ones_like(mu1),
                            transform=None)
-            like = pm.Deterministic('like', two_gaussians(X))
+            like = pm.Deterministic('tmp', two_gaussians(X))
             llk = pm.Potential('like', like)
 
         with PT_test:
@@ -81,9 +82,10 @@ class TestPT(unittest.TestCase):
             progressbar=True,
             buffer_size=self.buffer_size,
             model=PT_test,
-            rm_flag=False)
+            rm_flag=False,
+            keep_tmp=False)
 
-        stage_handler = backend.TextStage(test_folder)
+        stage_handler = TextStage(test_folder)
 
         mtrace = stage_handler.load_multitrace(-1, model=PT_test)
 

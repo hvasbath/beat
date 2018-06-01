@@ -63,7 +63,7 @@ class TemperingManager(object):
 
         self.n_workers = n_workers
         self.n_workers_posterior = self.n_workers / 2
-        self.n_workers_tempered = self.n_workers - self.n_worker_post
+        self.n_workers_tempered = self.n_workers - self.n_workers_posterior
         self._worker_package_mapping = OrderedDict()
         self._posterior_workers = None
         self._betas = None
@@ -73,7 +73,6 @@ class TemperingManager(object):
             (n_workers, n_workers), dtype='int32')
         self.beta_tune_interval = beta_tune_interval
 
-        self.betas = []
         self.current_scale = 1.
         self.history = SamplingHistory()
         self._worker_update_check = num.zeros(self.n_workers, dtype='bool')
@@ -156,8 +155,8 @@ class TemperingManager(object):
         """
         if self._betas is None:
             self._betas = [
-                step.beta
-                for step in self._worker_package_mapping.values()['step']]
+                package['step'].beta
+                for package in self._worker_package_mapping.values()]
 
         return self._betas
 
@@ -303,9 +302,9 @@ class TemperingManager(object):
 
 
 def master_process(
-        comm, tags, status, step, n_samples, swap_interval,
+        comm, tags, status, model, step, n_samples, swap_interval,
         beta_tune_interval, homepath, progressbar,
-        buffer_size, model, rm_flag):
+        buffer_size, rm_flag):
     """
     Master process, that does the managing.
     Sends tasks to workers.
@@ -344,7 +343,7 @@ def master_process(
 
     logger.info('Initializing result trace...')
     trace = TextChain(
-        stage_path=stage_handler.stage_path(stage),
+        name=stage_handler.stage_path(stage),
         model=model,
         buffer_size=buffer_size,
         progressbar=progressbar)
@@ -361,13 +360,13 @@ def master_process(
         active_workers += 1
 
     while True:
-        m1 = num.empty()
+        m1 = num.empty(manager.step.ordering.size)
         comm.Recv([m1, MPI.DOUBLE],
                   source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
         source1 = status.Get_source()
         logger.debug('Got sample 1 from worker %i' % source1)
 
-        m2 = num.empty()
+        m2 = num.empty(manager.step.ordering.size)
         comm.Recv([m2, MPI.DOUBLE],
                   source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
         source2 = status.Get_source()
@@ -594,9 +593,10 @@ def pt_sample(
             'Parallel Tempering requires at least 3 processors!')
 
     sampler_args = [step, n_samples, swap_interval, beta_tune_interval,
-                    homepath, progressbar, buffer_size, model, rm_flag]
+                    homepath, progressbar, buffer_size, rm_flag]
     distributed.run_mpi_sampler(
         sampler_name='pt',
+        model=model,
         sampler_args=sampler_args,
         keep_tmp=keep_tmp,
         n_jobs=n_jobs)
@@ -611,8 +611,11 @@ def _sample():
     status = MPI.Status()
 
     if comm.rank == 0:
-        logger.init('Loading passed arguments ...')
-        args = load_objects(distributed.mpiargs_name)
+        logger.info('Loading passed arguments ...')
+        model = load_objects(distributed.pymc_model_name)
+        with model:
+            arguments = load_objects(distributed.mpiargs_name)
+            args = [model] + arguments
 
         master_process(comm, tags, status, *args)
     else:

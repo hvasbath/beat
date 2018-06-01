@@ -414,7 +414,7 @@ def iter_parallel_chains(
         for chain in chains:
             trace_list.append(
                 backend.TextChain(
-                    stage_path, model=model,
+                    name=stage_path, model=model,
                     buffer_size=buffer_size, progressbar=progressbar))
 
         max_int = np.iinfo(np.int32).max

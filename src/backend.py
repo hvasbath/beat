@@ -455,8 +455,8 @@ class TextStage(object):
 
         Parameters
         ----------
-        name : str
-            Name of directory with files (one per chain)
+        stage : int
+            number of stage that should be loaded
         model : Model
             If None, the model is taken from the `with` context.
         Returns
