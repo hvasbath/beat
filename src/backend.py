@@ -137,6 +137,35 @@ class BaseTrace(object):
         self.__dict__.update(state)
 
 
+class MemoryTraceFullError(Exception):
+    pass
+
+
+class MemoryTrace(BaseTrace):
+    """
+    Slim memory trace object. Keeps points in a list in memory.
+    """
+    def __init__(self):
+        self.buffer = None
+
+    def setup(self, draws, chain):
+        self.draws = draws
+        self.chain = chain
+
+        self.buffer = [[] for b in range(draws)]
+
+    def write(self, lpoint, draw):
+        """
+        Write sampling results into buffer.
+        """
+        try:
+            self.buffer[draw] = lpoint
+        except IndexError:
+            raise MemoryTraceFullError(
+                'Allocated memory (draws: %i) of trace of '
+                'chain %i is full.' % (self.draws, self.chain))
+
+
 class TextChain(BaseTrace):
     """
     Text trace object
