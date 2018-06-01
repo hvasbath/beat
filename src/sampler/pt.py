@@ -65,6 +65,8 @@ class TemperingManager(object):
         self.n_workers_posterior = self.n_workers / 2
         self.n_workers_tempered = self.n_workers - self.n_worker_post
         self._worker_package_mapping = OrderedDict()
+        self._posterior_workers = None
+        self._betas = None
 
         self.step = step
         self.acceptance_matrix = num.zeros(
@@ -74,6 +76,7 @@ class TemperingManager(object):
         self.betas = []
         self.current_scale = 1.
         self.history = SamplingHistory()
+        self._worker_update_check = num.zeros(self.n_workers, dtype='bool')
 
         self._default_package_kwargs = {
             'draws': choose_proposal(
@@ -88,6 +91,26 @@ class TemperingManager(object):
             'model': model,
             'random_seed': -1,
         }
+
+    def worker_beta_updated(self, source, check=False):
+        """
+        Check if source beta is updated.
+
+        Parameters
+        ----------
+        source : int
+            mpi worker index
+        check : boolean
+            if True worker beta status is set to "updated"
+
+        Returns
+        -------
+        boolean, True if beta is updated
+        """
+        if not check:
+            return self._worker_update_check[source]
+        else:
+            self._worker_update_check[source] = check
 
     def update_betas(self, t_scale=None):
         """
@@ -114,7 +137,29 @@ class TemperingManager(object):
         temperature = num.power(
             10., num.arange(1, self.n_workers_tempered) * t_scale)
         betas_temp = (1. / temperature).tolist()
-        self.betas = betas_post + betas_temp
+        betas = betas_post + betas_temp
+
+        # updating worker packages
+        self._betas = None
+        for beta, package in zip(
+                betas, self._worker_package_mapping.values()):
+            package['step'].beta = beta
+
+        # reset worker process check
+        self._worker_update_check = num.zeros(self.n_workers, dtype='bool')
+
+    @property
+    def betas(self):
+        """
+        Inverse of Sampler Temperatures.
+        The lower the more likely a step is accepted.
+        """
+        if self._betas is None:
+            self._betas = [
+                step.beta
+                for step in self._worker_package_mapping.values()['step']]
+
+        return self._betas
 
     def record_tuning_history(self, acceptance=None):
         if self.current_scale is None:
@@ -134,12 +179,19 @@ class TemperingManager(object):
         Get worker source indexes greater, equal given beta.
         Workers in decreasing beta order.
         """
-        return num.array(
-            [source for source, package in self._worker_package_mapping.items()
-                if package['step'].beta >= beta])
+        return [
+            source for source, package in self._worker_package_mapping.items()
+            if package['step'].beta >= beta]
 
     def get_acceptance_swap(self, beta, beta_tune_interval):
-        worker_idxs = self.get_workers_above_beta(beta)
+        """
+        Returns acceptance rate for swapping states between chains.
+        """
+        logger.debug(
+            'Counting accepted swaps of '
+            'posterior chains with beta == %f', beta)
+
+        worker_idxs = self.get_workers_ge_beta(beta)
         tempered_worker = worker_idxs.pop()
 
         rowidxs, colidxs = num.meshgrid(worker_idxs, tempered_worker)
@@ -165,6 +217,16 @@ class TemperingManager(object):
     @property
     def workers(self):
         return self._worker_package_mapping.keys()
+
+    @property
+    def posterior_workers(self):
+        """
+        Worker indexes that are sampling from the posterior (beta == 1.)
+        """
+        if self._posterior_workers is None:
+            self._posterior_workers = self.get_workers_ge_beta(1.)
+
+        return self._posterior_workers
 
     def get_package(self, source, beta):
         """
@@ -313,22 +375,28 @@ def master_process(
 
         m1, m2 = manager.propose_chain_swap(m1, m2, source1, source2)
 
-        # TODO identify if worker beta == 1 then write out
-        trace.write(m1)
-        trace.write(m2)
+        # write results to trace if workers sample from posterior
+        for source, m in zip([source1, source2], [m1, m2]):
+            if source in manager.posterior_workers:
+                trace.write(m)
 
+        # beta updating
         steps_until_tune += 2
-
         if steps_until_tune >= beta_tune_interval:
             manager.tune_betas()
             steps_until_tune = 0
-# somehow broadcast/ scatter betas and propsal covariances
-!            comm.Send(betas)
 
         if len(trace) < n_samples:
             logger.debug('Sending states back to workers ...')
-            comm.Send(m1, dest=source1, tag=tags.START)
-            comm.Send(m2, dest=source2, tag=tags.START)
+            for source in [source1, source2]:
+                if not manager.worker_beta_updated(source1):
+                    comm.Send(
+                        manager.betas[source1, MPI.DOUBLE],
+                        dest=source1, tag=tags.BETA)
+                    manager.worker_beta_updated(source1, check=True)
+
+            comm.Send(m1, dest=source2, tag=tags.SAMPLE)
+            comm.Send(m2, dest=source2, tag=tags.SAMPLE)
         else:
             logger.info('Requested number of samples reached!')
             trace.record_buffer()
@@ -377,13 +445,13 @@ def worker_process(comm, tags, status):
     # enter repeated sampling
     while True:
         # TODO: make transd-compatible
-        startarray = num.empty(step.ordering.size, dtype=tconfig.floatX)
+        data = num.empty(step.ordering.size, dtype=tconfig.floatX)
         comm.Recv([startarray, MPI.DOUBLE],
                   tag=MPI.ANY_TAG, source=0, status=status)
 
         tag = status.Get_tag()
         if tag == tags.START:
-            start = step.bij.rmap(startarray)
+            start = step.bij.rmap(data)
             kwargs['start'] = start
 
             result = sample_pt_chain(**kwargs)
@@ -391,6 +459,11 @@ def worker_process(comm, tags, status):
             logger.debug('Worker %i attempting to send ...' % comm.rank)
             comm.Send([result, MPI.DOUBLE], dest=0, tag=tags.DONE)
             logger.debug('Worker %i sent message successfully ...' % comm.rank)
+
+        elif tag == tags.BETA:
+            logger.info('Updating beta to: %f on worker %i' % (data[0], comm.rank))
+            kwargs['step'].beta = data[0]
+
         elif tag == tags.EXIT:
             logger.debug('Worker %i went through EXIT!' % comm.rank)
             break
@@ -531,7 +604,7 @@ def pt_sample(
 
 def _sample():
     # Define MPI message tags
-    tags = distributed.enum('READY', 'INIT', 'DONE', 'EXIT', 'START')
+    tags = distributed.enum('READY', 'INIT', 'DONE', 'EXIT', 'SAMPLE', 'BETA')
 
     # Initializations and preliminaries
     comm = MPI.COMM_WORLD
