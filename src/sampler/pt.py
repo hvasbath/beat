@@ -38,15 +38,17 @@ __all__ = [
 class SamplingHistory(object):
 
     def __init__(self):
-        self.acceptances = []
+        self.acceptance = []
+        self.acceptance_matrixes = []
         self.t_scales = []
 
-    def record(self, acceptance, t_scale):
-        self.acceptances.append(acceptance)
+    def record(self, acceptance_matrix, t_scale, acceptance):
+        self.acceptance_matrixes.append(acceptance_matrix)
+        self.acceptance.append(acceptance)
         self.t_scales.append(t_scale)
 
 
-class PackageManager(object):
+class TemperingManager(object):
     """
     Manages worker related work attributes and holds mappings
     between workers, betas and counts acceptance of chain swaps.
@@ -69,6 +71,7 @@ class PackageManager(object):
             (n_workers, n_workers), dtype='int32')
         self.beta_tune_interval = beta_tune_interval
 
+        self.betas = []
         self.current_scale = 1.
         self.history = SamplingHistory()
 
@@ -86,9 +89,9 @@ class PackageManager(object):
             'random_seed': -1,
         }
 
-    def iter_betas(self, t_scale=None, update=False):
+    def update_betas(self, t_scale=None):
         """
-        Get annealing schedule for all the workers.
+        Update annealing schedule for all the workers.
 
         Parameters
         ----------
@@ -105,23 +108,23 @@ class PackageManager(object):
         if t_scale is None:
             t_scale = self.current_scale
 
-        if update:
-            self.current_scale = t_scale
+        self.current_scale = t_scale
 
         betas_post = [1 for _ in range(self.n_workers_posterior)]
         temperature = num.power(
             10., num.arange(1, self.n_workers_tempered) * t_scale)
         betas_temp = (1. / temperature).tolist()
-        yield betas_post + betas_temp
+        self.betas = betas_post + betas_temp
 
-    def record_tuning_history(self):
+    def record_tuning_history(self, acceptance=None):
         if self.current_scale is None:
             raise ValueError('No temperature scale to record!')
 
         if self.acceptance_matrix.sum() == 0:
             raise ValueError('No acceptance record!')
 
-        self.history.record(self.acceptance_matrix, self.current_scale)
+        self.history.record(
+            self.acceptance_matrix, self.current_scale, acceptance)
         self.current_scale = None
         self.acceptance_matrix = num.zeros(
             (self.n_workers, self.n_workers), dtype='int32')
@@ -140,24 +143,24 @@ class PackageManager(object):
         tempered_worker = worker_idxs.pop()
 
         rowidxs, colidxs = num.meshgrid(worker_idxs, tempered_worker)
-        return float(self.acceptance_matrix[
-            rowidxs, colidxs].sum()) / beta_tune_interval
+        return (
+            float(self.acceptance_matrix[rowidxs, colidxs].sum()) +
+            float(self.acceptance_matrix[colidxs, rowidxs].sum())) / \
+            beta_tune_interval
 
     def tune_betas(self):
         """
         Evaluate the acceptance rate of posterior workers and the
         lowest tempered worker
         """
-        betas = list(self.iter_betas())
-        beta = betas[self.n_workers_posterior]
+        beta = self.betas[self.n_workers_posterior]
         acceptance = self.get_acceptance_swap(beta, self.beta_tune_interval)
 
         t_scale = tune(self.current_scale, acceptance)
 
         # record scaling history
-        self.record_tuning_history()
-
-        return list(self.iter_betas(t_scale, update=True))
+        self.record_tuning_history(acceptance)
+        self.update_betas(t_scale)
 
     @property
     def workers(self):
@@ -261,10 +264,12 @@ def master_process(
 
     stage = -1
     active_workers = 0
+    steps_until_tune = 0
+
     # start sampling of chains with given seed
     logger.info('Master starting with %d workers' % n_workers)
     logger.info('Packing stuff for workers')
-    manager = PackageManager(
+    manager = TemperingManager(
         step=step,
         n_workers=n_workers,
         model=model,
@@ -285,7 +290,7 @@ def master_process(
     # TODO load starting points from existing trace
 
     logger.info('Sending work packages to workers...')
-    for beta in manager.iter_betas():
+    for beta in manager.betas:
         comm.recv(source=MPI.ANY_SOURCE, tag=tags.READY, status=status)
         source = status.Get_source()
         package = manager.get_package(source, beta)
@@ -312,10 +317,18 @@ def master_process(
         trace.write(m1)
         trace.write(m2)
 
+        steps_until_tune += 2
+
+        if steps_until_tune >= beta_tune_interval:
+            manager.tune_betas()
+            steps_until_tune = 0
+# somehow broadcast/ scatter betas and propsal covariances
+!            comm.Send(betas)
+
         if len(trace) < n_samples:
             logger.debug('Sending states back to workers ...')
-            comm.send(m1, dest=source1, tag=tags.START)
-            comm.send(m2, dest=source2, tag=tags.START)
+            comm.Send(m1, dest=source1, tag=tags.START)
+            comm.Send(m2, dest=source2, tag=tags.START)
         else:
             logger.info('Requested number of samples reached!')
             trace.record_buffer()
