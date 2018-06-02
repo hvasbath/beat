@@ -1918,7 +1918,7 @@ class Problem(object):
                         sc.parameters.tune_interval,
                         sc.parameters.n_jobs))
                 step = sampler.Metropolis(
-                    n_chains=sc.parameters.n_jobs - 1,
+                    n_chains=sc.parameters.n_jobs,
                     likelihood_name=self._like_name,
                     tune_interval=sc.parameters.tune_interval,
                     proposal_name=sc.parameters.proposal_dist)

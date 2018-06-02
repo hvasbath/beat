@@ -128,6 +128,7 @@ class NormalProposal(Proposal):
         size = (self.scale.shape)
         if num_draws:
             size += (num_draws,)
+        print self.scale, self.scale.shape, self.scale.__class__
         return normal(scale=self.scale[0], size=size).T
 
 

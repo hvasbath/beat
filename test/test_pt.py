@@ -67,7 +67,7 @@ class TestPT(unittest.TestCase):
 
         with PT_test:
             step = metropolis.Metropolis(
-                n_chains=n_jobs - 1,
+                n_chains=n_jobs,
                 likelihood_name=PT_test.deterministics[0].name,
                 proposal_name='Normal',
                 tune_interval=self.tune_interval)

@@ -13,6 +13,7 @@ import numpy as num
 from beat.utility import load_objects, list2string, gather
 from beat.sampler import distributed
 from beat.backend import MemoryTrace, TextChain, TextStage
+from beat.parallel import get_process_id
 
 from beat.sampler.base import _iter_sample, Proposal, choose_proposal
 from logging import getLogger
@@ -64,11 +65,14 @@ class TemperingManager(object):
         self.n_workers = n_workers
         self.n_workers_posterior = self.n_workers / 2
         self.n_workers_tempered = self.n_workers - self.n_workers_posterior
+
         self._worker_package_mapping = OrderedDict()
         self._posterior_workers = None
         self._betas = None
 
         self.step = step
+        self.model = model
+
         self.acceptance_matrix = num.zeros(
             (n_workers, n_workers), dtype='int32')
         self.beta_tune_interval = beta_tune_interval
@@ -138,14 +142,17 @@ class TemperingManager(object):
         betas_temp = (1. / temperature).tolist()
         betas = betas_post + betas_temp
 
-        # updating worker packages
-        self._betas = None
-        for beta, package in zip(
-                betas, self._worker_package_mapping.values()):
-            package['step'].beta = beta
+        if len(self._worker_package_mapping) > 0:
+            # updating worker packages
+            self._betas = None
+            for beta, package in zip(
+                    betas, self._worker_package_mapping.values()):
+                package['step'].beta = beta
 
-        # reset worker process check
-        self._worker_update_check = num.zeros(self.n_workers, dtype='bool')
+            # reset worker process check
+            self._worker_update_check = num.zeros(self.n_workers, dtype='bool')
+        else:
+            self._betas = betas
 
     @property
     def betas(self):
@@ -251,13 +258,15 @@ class TemperingManager(object):
         if source not in self._worker_package_mapping.keys():
             logger.info('Initializing new package for worker %i' % source)
             step = deepcopy(self.step)
+
             step.beta = beta
             step.stage = 1
-
+            print 'source ', source
+            print step.population, len(step.population)
             package = deepcopy(self._default_package_kwargs)
             package['chain'] = source
             package['start'] = step.population[source]
-            package['trace'] = MemoryTrace(source)
+            package['trace'] = MemoryTrace()
             package['step'] = step
 
             self._worker_package_mapping[source] = package
@@ -351,6 +360,7 @@ def master_process(
     # TODO load starting points from existing trace
 
     logger.info('Sending work packages to workers...')
+    manager.update_betas()
     for beta in manager.betas:
         comm.recv(source=MPI.ANY_SOURCE, tag=tags.READY, status=status)
         source = status.Get_source()
@@ -515,25 +525,12 @@ def sample_pt_chain(
     sampling = _iter_sample(n_steps, step, start, trace, chain,
                             tune, model, random_seed)
 
-    n = parallel.get_process_id()
-
-    if progressbar:
-        sampling = tqdm(
-            sampling,
-            total=n_steps,
-            desc='chain: %i worker %i' % (chain, n),
-            position=n,
-            leave=False,
-            ncols=65)
     try:
         for strace in sampling:
             pass
 
     except KeyboardInterrupt:
         raise
-    finally:
-        if progressbar:
-            sampling.close()
 
     return step.bij.map(step.lij.drmap(strace.buffer[-1]))
 
@@ -610,16 +607,17 @@ def _sample():
     comm = MPI.COMM_WORLD
     status = MPI.Status()
 
-    if comm.rank == 0:
-        logger.info('Loading passed arguments ...')
-        model = load_objects(distributed.pymc_model_name)
-        with model:
+    model = load_objects(distributed.pymc_model_name)
+    with model:
+        if comm.rank == 0:
+            logger.info('Loading passed arguments ...')
+
             arguments = load_objects(distributed.mpiargs_name)
             args = [model] + arguments
 
-        master_process(comm, tags, status, *args)
-    else:
-        worker_process(comm, tags, status)
+            master_process(comm, tags, status, *args)
+        else:
+            worker_process(comm, tags, status)
 
 
 if __name__ == '__main__':
