@@ -114,8 +114,8 @@ class DiscreteBoundedUniformProposal(Proposal):
 
         Returns
         -------
-        if size is provided a :class:`numpy.NdArray` is returned
-        the returned data type is determined by the data type of "discrete"
+        :class:`numpy.NdArray` is returned
+        the returned data type is determined by the data type of "scale"
         (default: int)
         """
         return (randint(
@@ -129,6 +129,7 @@ class NormalProposal(Proposal):
         if num_draws:
             size += (num_draws,)
         print self.scale, self.scale.shape, self.scale.__class__
+        print 'size', size
         return normal(scale=self.scale[0], size=size).T
 
 

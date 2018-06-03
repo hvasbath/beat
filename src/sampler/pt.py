@@ -3,6 +3,7 @@
 Parallel Tempering algorithm with mpi4py
 """
 import os
+import sys
 
 # disable internal(fine) blas parallelisation as we parallelise over chains
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -10,7 +11,7 @@ os.environ["OMP_NUM_THREADS"] = "1"
 from mpi4py import MPI
 import numpy as num
 
-from beat.utility import load_objects, list2string, gather
+from beat.utility import load_objects, list2string, gather, setup_logging
 from beat.sampler import distributed
 from beat.backend import MemoryTrace, TextChain, TextStage
 from beat.parallel import get_process_id
@@ -65,6 +66,7 @@ class TemperingManager(object):
         self.n_workers = n_workers
         self.n_workers_posterior = self.n_workers / 2
         self.n_workers_tempered = self.n_workers - self.n_workers_posterior
+        print 'worker numbers', self.n_workers, self.n_workers_posterior, self.n_workers_tempered
 
         self._worker_package_mapping = OrderedDict()
         self._posterior_workers = None
@@ -136,9 +138,9 @@ class TemperingManager(object):
 
         self.current_scale = t_scale
 
-        betas_post = [1 for _ in range(self.n_workers_posterior)]
+        betas_post = [1. for _ in range(self.n_workers_posterior)]
         temperature = num.power(
-            10., num.arange(1, self.n_workers_tempered) * t_scale)
+            10., num.arange(1, self.n_workers_tempered + 1) * t_scale)
         betas_temp = (1. / temperature).tolist()
         betas = betas_post + betas_temp
 
@@ -307,6 +309,7 @@ class TemperingManager(object):
         return self._worker2index
 
     def worker2package(self, source):
+        print 'mapped workers', self._worker_package_mapping.keys()
         return self._worker_package_mapping[source]
 
 
@@ -361,6 +364,7 @@ def master_process(
 
     logger.info('Sending work packages to workers...')
     manager.update_betas()
+    print 'betas', manager.betas
     for beta in manager.betas:
         comm.recv(source=MPI.ANY_SOURCE, tag=tags.READY, status=status)
         source = status.Get_source()
@@ -369,6 +373,8 @@ def master_process(
         logger.debug('Sent work package to worker %i' % source)
         active_workers += 1
 
+    print 'active workers',active_workers
+    count_sample = 0
     while True:
         m1 = num.empty(manager.step.ordering.size)
         comm.Recv([m1, MPI.DOUBLE],
@@ -387,10 +393,11 @@ def master_process(
         # write results to trace if workers sample from posterior
         for source, m in zip([source1, source2], [m1, m2]):
             if source in manager.posterior_workers:
-                trace.write(m)
+                count_sample += 1
+                trace.write(m, count_sample)
+                steps_until_tune += 1
 
         # beta updating
-        steps_until_tune += 2
         if steps_until_tune >= beta_tune_interval:
             manager.tune_betas()
             steps_until_tune = 0
@@ -455,7 +462,7 @@ def worker_process(comm, tags, status):
     while True:
         # TODO: make transd-compatible
         data = num.empty(step.ordering.size, dtype=tconfig.floatX)
-        comm.Recv([startarray, MPI.DOUBLE],
+        comm.Recv([data, MPI.DOUBLE],
                   tag=MPI.ANY_TAG, source=0, status=status)
 
         tag = status.Get_tag()
@@ -517,7 +524,7 @@ def sample_pt_chain(
     :class:`numpy.NdArray` with end-point of the MarkovChain
     """
     if isinstance(draws, Proposal):
-        n_steps = draws()
+        n_steps = int(draws())
     else:
         n_steps = draws
 
@@ -622,4 +629,5 @@ def _sample():
 
 if __name__ == '__main__':
 
+    setup_logging('', sys.argv[1], logfilename='BEAT_log.txt')
     _sample()
