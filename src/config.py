@@ -752,11 +752,11 @@ class ParallelTemperingConfig(SamplerParameters):
         help='Number of samples of the posterior distribution.'
              ' Only the samples of processors that sample from the posterior'
              ' (beta=1) are kept.')
-    n_jobs = Int.T(
-        default=3,
-        help='Number of processors to use, i.e. chains to sample in parallel.'
-             ' A number < 3 will raise an Error, as this is the minimum'
-             ' amount of processors needed. ')
+    n_chains = Int.T(
+        default=2,
+        help='Number of PT chains to sample in parallel.'
+             ' A number < 2 will raise an Error, as this is the minimum'
+             ' amount of chains needed. ')
     swap_intervall = Tuple.T(
         2, Int.T(),
         default=(100, 300),

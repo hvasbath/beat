@@ -128,8 +128,6 @@ class NormalProposal(Proposal):
         size = (self.scale.shape)
         if num_draws:
             size += (num_draws,)
-        print self.scale, self.scale.shape, self.scale.__class__
-        print 'size', size
         return normal(scale=self.scale[0], size=size).T
 
 
@@ -219,30 +217,31 @@ def choose_proposal(proposal_name, **kwargs):
 
 
 def setup_chain_counter(n_chains, n_jobs):
-    n_chains_worker = n_chains / n_jobs
-    frac_disp = int(np.ceil(n_chains_worker / 5))
-    parallel._shared_memory['chain_count'] = 0
-    parallel._shared_memory['n_chains'] = n_chains_worker
-    parallel._shared_memory['logger_steps'] = range(
-        frac_disp, n_chains_worker + 1, frac_disp)
+    counter = ChainCounter(n=n_chains, n_jobs=n_jobs)
+    parallel.counter = counter
 
 
-def chain_counter(n):
-    """
-    Counts the number of finished SMC chains within the execution
-    of a pool.
-    """
-    try:
-        parallel._shared_memory['chain_count'] += 1
-        n_chains = parallel._shared_memory['n_chains']
+class ChainCounter(object):
 
-        chain_count = parallel._shared_memory['chain_count']
-        if chain_count in parallel._shared_memory['logger_steps']:
-            logger.info(
-                'Worker %i: Finished %i / %i chains' %
-                (n, chain_count, n_chains))
-    except KeyError:
-        pass
+    def __init__(self, n, n_jobs, subject='chains'):
+
+        n_chains_worker = n / n_jobs
+        frac_disp = int(np.ceil(n_chains_worker / 5))
+        self.chain_count = 0
+        self.n_chains = n_chains_worker
+        self.subject = subject
+        self.logger_steps = range(
+            frac_disp, n_chains_worker + 1, frac_disp)
+
+    def __call__(self, i):
+        """
+        Counts the number of finished chains within the execution
+        of a pool.
+        """
+        self.chain_count += 1
+        logger.info(
+            'Worker %i: Finished %i / %i %s' %
+            (i, self.chain_count, self.n_chains, self.subject))
 
 
 def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
@@ -280,7 +279,7 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
         if progressbar:
             sampling.close()
         else:
-            chain_counter(n)
+            parallel.counter(n)
 
         strace.record_buffer()
 

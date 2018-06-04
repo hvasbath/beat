@@ -204,6 +204,7 @@ class TextChain(BaseTrace):
         self.progressbar = progressbar
         self.buffer_size = buffer_size
         self.stored_samples = 0
+        self.buffer = []
 
     def setup(self, draws, chain, overwrite=True):
         """
@@ -218,7 +219,6 @@ class TextChain(BaseTrace):
         """
         logger.debug('SetupTrace: Chain_%i step_%i' % (chain, draws))
         self.chain = chain
-        self.buffer = []
         self.count = 0
         self.draws = draws
         self.filename = os.path.join(self.name, 'chain-{}.csv'.format(chain))

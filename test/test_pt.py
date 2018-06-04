@@ -23,12 +23,14 @@ class TestPT(unittest.TestCase):
 
         logger.info('Test result in: \n %s' % self.test_folder_multi)
 
-        self.n_cpu = 3
-        self.n_samples = 1e3
+        self.n_chains = 8
+        self.n_samples = 2e3
         self.tune_interval = 25
         self.beta_tune_interval = 5e1
         self.swap_interval = (100, 300)
         self.buffer_size = self.n_samples / 20.
+        self.burn = 0.5
+        self.thin = 2
 
     def _test_sample(self, n_jobs, test_folder):
         logger.info('Running on %i cores...' % n_jobs)
@@ -74,12 +76,12 @@ class TestPT(unittest.TestCase):
 
         pt.pt_sample(
             step,
-            n_jobs=n_jobs,
+            n_chains=n_jobs,
             n_samples=self.n_samples,
             swap_interval=self.swap_interval,
             beta_tune_interval=self.beta_tune_interval,
             homepath=test_folder,
-            progressbar=True,
+            progressbar=False,
             buffer_size=self.buffer_size,
             model=PT_test,
             rm_flag=False,
@@ -89,16 +91,38 @@ class TestPT(unittest.TestCase):
 
         mtrace = stage_handler.load_multitrace(-1, model=PT_test)
 
+        n_steps = self.n_samples
+        burn = self.burn
+        thin = self.thin
+
+        def burn_sample(x):
+            if n_steps == 1:
+                return x
+            else:
+                nchains = int(x.shape[0] / n_steps)
+                xout = []
+                for i in range(nchains):
+                    nstart = int((n_steps * i) + (n_steps * burn))
+                    nend = int(n_steps * (i + 1) - 1)
+                    xout.append(x[nstart:nend:thin])
+
+                return num.vstack(xout)
+
+        from pymc3 import traceplot
+        from matplotlib import pyplot as plt
+        traceplot(mtrace, transform=burn_sample)
+        plt.show()
+
         d = mtrace.get_values('X', combine=True, squeeze=True)
         mu1d = num.abs(d).mean(axis=0)
 
         num.testing.assert_allclose(mu1, mu1d, rtol=0., atol=0.03)
 
     def test_multicore(self):
-        self._test_sample(self.n_cpu, self.test_folder_multi)
+        self._test_sample(self.n_chains, self.test_folder_multi)
 
-    #def tearDown(self):
-     #   shutil.rmtree(self.test_folder_multi)
+    def tearDown(self):
+        shutil.rmtree(self.test_folder_multi)
 
 
 if __name__ == '__main__':

@@ -1913,12 +1913,12 @@ class Problem(object):
                 logger.info(
                     '... Initiate Metropolis for Parallel Tempering... \n'
                     ' proposal_distribution %s, tune_interval=%i,'
-                    ' n_jobs=%i \n' % (
+                    ' n_chains=%i \n' % (
                         sc.parameters.proposal_dist,
                         sc.parameters.tune_interval,
-                        sc.parameters.n_jobs))
+                        sc.parameters.n_chains))
                 step = sampler.Metropolis(
-                    n_chains=sc.parameters.n_jobs,
+                    n_chains=sc.parameters.n_chains,
                     likelihood_name=self._like_name,
                     tune_interval=sc.parameters.tune_interval,
                     proposal_name=sc.parameters.proposal_dist)
@@ -2451,7 +2451,7 @@ def sample(step, problem):
 
         sampler.pt_sample(
             step=step,
-            n_jobs=pa.n_jobs,
+            n_chains=pa.n_chains,
             n_samples=pa.n_samples,
             swap_interval=pa.swap_interval,
             beta_tune_interval=pa.beta_tune_interval,

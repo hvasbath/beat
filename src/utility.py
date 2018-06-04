@@ -112,7 +112,7 @@ class ListToArrayBijection(object):
         self.ordering = ordering
         self.list_arrays = list_arrays
 
-    def dmap(self, dpt):
+    def d2l(self, dpt):
         """
         Maps values from dict space to List space
         If variable expected from ordering is not in point
@@ -140,7 +140,7 @@ class ListToArrayBijection(object):
 
         return a_list
 
-    def drmap(self, a_list):
+    def l2d(self, a_list):
         """
         Maps values from List space to dict space
 
@@ -160,7 +160,7 @@ class ListToArrayBijection(object):
 
         return point
 
-    def fmap(self, list_arrays):
+    def l2a(self, list_arrays):
         """
         Maps values from List space to array space
 
@@ -200,7 +200,7 @@ class ListToArrayBijection(object):
             array[slc, :] = list_arrays[list_ind]
         return array
 
-    def rmap(self, array):
+    def a2l(self, array):
         """
         Maps value from array space to List space
         Inverse operation of fmap.

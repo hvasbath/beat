@@ -263,7 +263,7 @@ class SMC(Metropolis):
         # map end array_endpoints to list lpoints and apply resampling
         for r_idx in self.resampling_indexes:
             chain_previous_lpoint.append(
-                self.lij.rmap(array_population[r_idx, :]))
+                self.lij.a2l(array_population[r_idx, :]))
 
         return chain_previous_lpoint
 

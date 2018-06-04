@@ -150,7 +150,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
         super(Metropolis, self).__init__(vars, out_vars, shared)
 
         self.chain_previous_lpoint = [
-            self.lij.dmap(point) for point in self.population]
+            self.lij.d2l(point) for point in self.population]
 
     def _sampler_state_blacklist(self):
         """
@@ -477,7 +477,7 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2):
     array_population = num.zeros(
         (step.n_jobs * int(
             num.ceil(n_steps * (1 - burn) / thin)),
-            step.ordering.dimensions))
+            step.ordering.size))
 
     # collect end points of each chain and put into array
     for var, slc, shp, _ in step.ordering.vmap:
@@ -509,5 +509,5 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2):
         logger.warn('Trace std not valid not enough samples! Use 1.')
         avar = 1.
 
-    cov = num.eye(step.ordering.dimensions) * avar
+    cov = num.eye(step.ordering.size) * avar
     return d, cov
