@@ -11,19 +11,21 @@ os.environ["OMP_NUM_THREADS"] = "1"
 from mpi4py import MPI
 import numpy as num
 
-from beat.utility import load_objects, list2string, gather, setup_logging
+from beat.utility import load_objects, list2string, gather, setup_logging, \
+    dump_objects
 from beat.sampler import distributed
 from beat.backend import MemoryTrace, TextChain, TextStage
 from beat.parallel import get_process_id
 from beat.sampler.base import _iter_sample, Proposal, choose_proposal, \
     ChainCounter
+from beat.config import sample_p_outname
 
 from tqdm import tqdm
 from logging import getLogger
 from tqdm import tqdm
 from theano import config as tconfig
 
-from pymc3.step_methods.metropolis import metrop_select, tune
+from pymc3.step_methods.metropolis import metrop_select
 
 from logging import getLogger
 from collections import OrderedDict
@@ -36,7 +38,88 @@ logger = getLogger('pt')
 __all__ = [
     'pt_sample',
     'sample_pt_chain',
-    'PackageManager']
+    'PackageManager',
+    'SamplingHistory',
+    'tune']
+
+
+def inv_tune(scale, acc_rate):
+    """
+    Tunes the temperature scaling parameter
+    according to the acceptance rate over the last tune_interval:
+    Inverse of tune.
+
+    Rate    Variance adaptation
+    ----    -------------------
+    <0.001        x 1.2
+    <0.05         x 1.1
+    <0.2          x 1.05
+    >0.5          x 0.95
+    >0.75         x 0.9
+    >0.95         x 0.8
+
+    """
+
+    # Switch statement
+    if acc_rate < 0.001:
+        # increase by 20 percent
+        scale *= 1.2
+    elif acc_rate < 0.05:
+        # increase by 10 percent
+        scale *= 1.1
+    elif acc_rate < 0.2:
+        # increase by 5 percent
+        scale *= 1.05
+    elif acc_rate > 0.95:
+        # reduce by 20 percent
+        scale *= 0.8
+    elif acc_rate > 0.75:
+        # reduce by 10
+        scale *= 0.9
+    elif acc_rate > 0.5:
+        # reduce by five percent
+        scale *= 0.95
+
+    return scale
+
+
+def tune(scale, acc_rate):
+    """
+    Tunes the temperature scaling parameter
+    according to the acceptance rate over the last tune_interval:
+
+    Rate    Variance adaptation
+    ----    -------------------
+    <0.001        x 0.8
+    <0.05         x 0.9
+    <0.2          x 0.95
+    >0.5          x 1.05
+    >0.75         x 1.1
+    >0.95         x 1.2
+
+    """
+
+    # Switch statement
+    if acc_rate < 0.001:
+        # reduce by 20 percent
+        scale *= 1.
+    elif acc_rate < 0.05:
+        # reduce by 10 percent
+        scale *= 1.
+    elif acc_rate < 0.2:
+        # reduce by 5 percent
+        scale *= 1.
+    elif acc_rate > 0.95:
+        # increase by 20 percent
+        scale *= 1.
+    elif acc_rate > 0.75:
+        # increase by 10
+        scale *= 1.
+    elif acc_rate > 0.5:
+        # increase by five percent
+        scale *= 1.
+
+    return scale
 
 
 class SamplingHistory(object):
@@ -45,6 +128,7 @@ class SamplingHistory(object):
         self.acceptance = []
         self.acceptance_matrixes = []
         self.t_scales = []
+        self.filename = sample_p_outname
 
     def record(self, acceptance_matrix, t_scale, acceptance):
         self.acceptance_matrixes.append(acceptance_matrix)
@@ -65,13 +149,17 @@ class TemperingManager(object):
             self, step, n_workers, model, progressbar,
             swap_interval, beta_tune_interval):
 
+        self.posterior_ratio = 0.2
         self.n_workers = n_workers
-        self.n_workers_posterior = self.n_workers / 2
-        self.n_workers_tempered = self.n_workers - self.n_workers_posterior
+        self.n_workers_posterior = int(self.n_workers * self.posterior_ratio)
+        self.n_workers_tempered = int(self.n_workers - self.n_workers_posterior)
+        print self.n_workers_posterior, self.n_workers_tempered
 
         self._worker_package_mapping = OrderedDict()
         self._posterior_workers = None
         self._betas = None
+        self._t_scale_min = 1.01
+        self._t_scale_max = 2.0
 
         self.step = step
         self.model = model
@@ -80,7 +168,7 @@ class TemperingManager(object):
             (n_workers, n_workers), dtype='int32')
         self.beta_tune_interval = beta_tune_interval
 
-        self.current_scale = 1.
+        self.current_scale = 1.1
         self.history = SamplingHistory()
         self._worker_update_check = num.zeros(self.n_workers, dtype='bool')
 
@@ -141,10 +229,13 @@ class TemperingManager(object):
         self.current_scale = t_scale
 
         betas_post = [1. for _ in range(self.n_workers_posterior)]
+        #temperature = num.power(
+        #    10., num.arange(1, self.n_workers_tempered + 1) * t_scale)
         temperature = num.power(
-            10., num.arange(1, self.n_workers_tempered + 1) * t_scale)
+            t_scale, num.arange(1, self.n_workers_tempered + 1))
         betas_temp = (1. / temperature).tolist()
         betas = betas_post + betas_temp
+        logger.info('Updated betas: %s', list2string(betas))
 
         if len(self._worker_package_mapping) > 0:
             # updating worker packages
@@ -183,6 +274,16 @@ class TemperingManager(object):
         self.current_scale = None
         self.acceptance_matrix = num.zeros(
             (self.n_workers, self.n_workers), dtype='int32')
+
+    def dump_history(self, save_dir=None):
+        if save_dir is None:
+            save_dir = os.getcwd()
+
+        #SamplingHistory.__module__ = "pt"
+        logger.info(
+            'Dumping sampler history to %s' % save_dir)
+        dump_objects(
+            os.path.join(save_dir, self.history.filename), self.history)
 
     def get_workers_ge_beta(self, beta):
         """
@@ -223,13 +324,23 @@ class TemperingManager(object):
     def tune_betas(self):
         """
         Evaluate the acceptance rate of posterior workers and the
-        lowest tempered worker
+        lowest tempered worker. This scaling here has the inverse
+        behaviour of metropolis step scaling! If there is little acceptance
+        more exploration is needed and lower beta values are desired.
         """
+
         beta = self.betas[self.n_workers_posterior]
+        #beta = self.betas[-1]
         acceptance = self.get_acceptance_swap(beta, self.beta_tune_interval)
         logger.debug('Acceptance rate', acceptance)
+
         t_scale = tune(self.current_scale, acceptance)
-        logger.debug('new temperature scale', t_scale)
+        if t_scale < self._t_scale_min:
+            t_scale = self._t_scale_min
+        elif t_scale > self._t_scale_max:
+            t_scale = self._t_scale_max
+
+        logger.debug('new temperature scale %f', t_scale)
 
         # record scaling history
         self.record_tuning_history(acceptance)
@@ -413,7 +524,7 @@ def master_process(
         for source, m in zip([source1, source2], [m1, m2]):
             if source in manager.posterior_workers:
                 count_sample += 1
-                counter(count_sample)
+                counter(source)
                 trace.write(m, count_sample)
                 steps_until_tune += 1
 
@@ -438,6 +549,8 @@ def master_process(
         else:
             logger.info('Requested number of samples reached!')
             trace.record_buffer()
+            manager.dump_history(
+                save_dir=stage_handler.stage_path(stage))
             break
 
     logger.info('Master finished! Chain complete!')
@@ -499,7 +612,7 @@ def worker_process(comm, tags, status):
             logger.debug('Worker %i sent message successfully ...' % comm.rank)
 
         elif tag == tags.BETA:
-            logger.info('Updating beta to: %f on worker %i' % (data[0], comm.rank))
+            logger.debug('Updating beta to: %f on worker %i' % (data[0], comm.rank))
             kwargs['step'].beta = data[0]
 
         elif tag == tags.EXIT:

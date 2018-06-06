@@ -1,15 +1,20 @@
 import pymc3 as pm
 import numpy as num
 import os
+
 from beat.sampler import pt, metropolis
+from beat.sampler.pt import SamplingHistory
 from beat.backend import TextStage
+from beat.utility import load_objects
+from beat.config import sample_p_outname
+
 from tempfile import mkdtemp
 import shutil
 import logging
 import theano.tensor as tt
 import unittest
 from pyrocko import util
-
+from pyrocko.plot import mpl_papersize
 
 logger = logging.getLogger('test_pt')
 
@@ -23,14 +28,14 @@ class TestPT(unittest.TestCase):
 
         logger.info('Test result in: \n %s' % self.test_folder_multi)
 
-        self.n_chains = 8
-        self.n_samples = 2e3
-        self.tune_interval = 25
-        self.beta_tune_interval = 5e1
-        self.swap_interval = (100, 300)
+        self.n_chains = 10
+        self.n_samples = int(5e4)
+        self.tune_interval = 50
+        self.beta_tune_interval = 5000
+        self.swap_interval = (5, 10)
         self.buffer_size = self.n_samples / 20.
-        self.burn = 0.5
-        self.thin = 2
+        self.burn = 0.3
+        self.thin = 1
 
     def _test_sample(self, n_jobs, test_folder):
         logger.info('Running on %i cores...' % n_jobs)
@@ -71,7 +76,7 @@ class TestPT(unittest.TestCase):
             step = metropolis.Metropolis(
                 n_chains=n_jobs,
                 likelihood_name=PT_test.deterministics[0].name,
-                proposal_name='Normal',
+                proposal_name='Cauchy',
                 tune_interval=self.tune_interval)
 
         pt.pt_sample(
@@ -90,6 +95,7 @@ class TestPT(unittest.TestCase):
         stage_handler = TextStage(test_folder)
 
         mtrace = stage_handler.load_multitrace(-1, model=PT_test)
+        history = load_objects(os.path.join(stage_handler.stage_path(-1), sample_p_outname))
 
         n_steps = self.n_samples
         burn = self.burn
@@ -111,6 +117,14 @@ class TestPT(unittest.TestCase):
         from pymc3 import traceplot
         from matplotlib import pyplot as plt
         traceplot(mtrace, transform=burn_sample)
+        fig, axes = plt.subplots(
+            nrows=1, ncols=2, figsize=mpl_papersize('a5', 'portrait'))
+        axes[0].plot(history.acceptance, 'r')
+        axes[0].set_ylabel('Acceptance ratio')
+        axes[0].set_xlabel('Update interval')
+        axes[1].plot(num.array(history.t_scales), 'k')
+        axes[1].set_ylabel('Temperature scaling')
+        axes[1].set_xlabel('Update interval')
         plt.show()
 
         d = mtrace.get_values('X', combine=True, squeeze=True)
@@ -121,8 +135,8 @@ class TestPT(unittest.TestCase):
     def test_multicore(self):
         self._test_sample(self.n_chains, self.test_folder_multi)
 
-    def tearDown(self):
-        shutil.rmtree(self.test_folder_multi)
+   # def tearDown(self):
+   #     shutil.rmtree(self.test_folder_multi)
 
 
 if __name__ == '__main__':

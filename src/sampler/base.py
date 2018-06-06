@@ -237,11 +237,17 @@ class ChainCounter(object):
         """
         Counts the number of finished chains within the execution
         of a pool.
+
+        Parameters
+        ----------
+        i : int
+            Process number
         """
         self.chain_count += 1
-        logger.info(
-            'Worker %i: Finished %i / %i %s' %
-            (i, self.chain_count, self.n_chains, self.subject))
+        if self.chain_count in self.logger_steps:
+            logger.info(
+                'Worker %i: Finished %i / %i %s' %
+                (i, self.chain_count, self.n_chains, self.subject))
 
 
 def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
