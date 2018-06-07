@@ -105,9 +105,9 @@ class Covariance(Object):
         optional=True)
 
     def __init__(self, **kwargs):
-        self.slnf = shared(0., name='cov_normalisation', borrow=True)
+        self.slog_pdet = shared(0., name='cov_normalisation', borrow=True)
         Object.__init__(self, **kwargs)
-        self.update_slnf()
+        self.update_slog_pdet()
 
     @property
     def p_total(self):
@@ -162,7 +162,8 @@ class Covariance(Object):
     @property
     def chol_inverse(self):
         """
-        Inverse of Covariance matrix of ALL uncertainty covariance
+        Cholesky decomposition of the Inverse of the Covariance matrix of
+        ALL uncertainty covariance
         matrices. To be used as weight in the optimization.
 
         Returns
@@ -173,23 +174,20 @@ class Covariance(Object):
             self.inverse).T.astype(tconfig.floatX)
 
     @property
-    def log_norm_factor(self):
+    def log_pdet(self):
         """
-        Calculate the normalisation factor of the posterior pdf.
-        Following Duputel et al. 2014
+        Calculate the log of the determinant of the total matrix.
         """
-        N = self.data.shape[0]
-
         ldet_x = num.log(num.diag(self.chol)).sum() * 2.
-        return utility.scalar2floatX((N * num.log(2 * num.pi)) + ldet_x)
+        return utility.scalar2floatX(ldet_x)
 
-    def update_slnf(self):
+    def update_slog_pdet(self):
         """
         Update shared variable with current log_norm_factor (lnf)
         (for theano models).
         """
-        self.slnf.set_value(self.log_norm_factor)
-        self.slnf.astype(tconfig.floatX)
+        self.slog_pdet.set_value(self.log_pdet)
+        self.slog_pdet.astype(tconfig.floatX)
 
 
 class ArrivalTaper(trace.Taper):

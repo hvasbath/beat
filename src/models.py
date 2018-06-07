@@ -29,7 +29,7 @@ import logging
 tconfig.warn.round = False
 
 km = 1000.
-
+log_2pi = num.log(2 * num.pi)
 
 logger = logging.getLogger('models')
 
@@ -71,12 +71,12 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
         M = tt.cast(shared(
             data.samples, name='nsamples', borrow=True), 'int16')
         hp_name = '_'.join(('h', data.typ))
-
+        norm = (M * (2 * hyperparams[hp_name] + log_2pi))
         logpts = tt.set_subtensor(
             logpts[l:l + 1],
             (-0.5) * (
-                data.covariance.slnf +
-                (M * 2 * hyperparams[hp_name]) +
+                data.covariance.slog_pdet +
+                norm +
                 (1 / tt.exp(hyperparams[hp_name] * 2)) *
                 (residuals[l].dot(weights[l]).dot(residuals[l].T))))
 
@@ -136,12 +136,12 @@ def multivariate_normal_chol(
             hp = hyperparams[hp_name]
 
         tmp = dot(weights[l], (residuals[l]))
-
+        norm = (M * (2 * hyperparams[hp_name] + log_2pi))
         logpts = tt.set_subtensor(
             logpts[l:l + 1],
             (-0.5) * (
-                data.covariance.slnf +
-                (M * 2 * hp) +
+                data.covariance.slog_pdet +
+                norm +
                 (1 / tt.exp(hp * 2)) *
                 (tt.dot(tmp, tmp))))
 
