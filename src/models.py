@@ -136,7 +136,7 @@ def multivariate_normal_chol(
             hp = hyperparams[hp_name]
 
         tmp = dot(weights[l], (residuals[l]))
-        norm = (M * (2 * hyperparams[hp_name] + log_2pi))
+        norm = (M * (2 * hp + log_2pi))
         logpts = tt.set_subtensor(
             logpts[l:l + 1],
             (-0.5) * (
