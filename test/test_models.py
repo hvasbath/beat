@@ -64,18 +64,12 @@ def multivariate_normal_nohypers(datasets, weights, hyperparams, residuals):
     for l, data in enumerate(datasets):
         M = tt.cast(shared(
             data.samples, name='nsamples', borrow=True), 'int16')
- #       print data.samples
-  #      residuals1 = Print('residuals_theano')(residuals[l, :])
-    #    hp_name = '_'.join(('h', data.typ))
         maha = residuals[l].dot(weights[l]).dot(residuals[l].T)
-#        maha = Print('maha1')(maha)
         slogpdet = Print('theano logpdet')(data.covariance.slog_pdet)
         logpts = tt.set_subtensor(
             logpts[l:l + 1],
             (-0.5) * (
                 M * log_2pi + slogpdet + maha
-  #              (M * 2 * hyperparams[hp_name]) +
-  #              (1 / tt.exp(hyperparams[hp_name] * 2)) *
                 ))
 
     return logpts
