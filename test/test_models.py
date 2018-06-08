@@ -80,7 +80,8 @@ def generate_toydata(n_datasets, n_samples):
     synthetics = []
     for d in range(n_datasets):
         a = num.atleast_2d(num.random.rand(n_samples))
-        C = a * a.T + num.eye(n_samples) * 0.001
+        # C = a * a.T + num.eye(n_samples) * 0.001
+        C = num.eye(n_samples) * 0.001
         kwargs = dict(
             ydata=num.random.rand(n_samples),
             tmin=0.,
@@ -135,13 +136,27 @@ class TestModels(unittest.TestCase):
 
         self.hyperparams = {'h_any_P_T': shared(0.)}
 
+        self.hyperparams_incl = {'h_any_P_T': 1.}
+        self.scaling = num.exp(2 * self.hyperparams_incl['h_any_P_T'])
+
         self.datasets, self.synthetics = generate_toydata(
             n_datasets, n_samples)
         self.residuals = num.vstack(
             [data.ydata - self.synthetics[i]
                 for i, data in enumerate(self.datasets)])
 
-    def test_reference_llk(self):
+    def test_scaling(self):
+
+        maha1 = -(1. / 2 * self.scaling) * \
+            self.residuals[0, :].dot(
+                self.datasets[0].covariance.inverse).dot(self.residuals[0, :])
+        cov_i_scaled = self.scaling * self.datasets[0].covariance.inverse
+        maha2 = -(1. / 2) * self.residuals[0, :].dot(
+            cov_i_scaled).dot(self.residuals[0, :])
+
+        assert_allclose(maha1, maha2, rtol=0., atol=1e-6)
+
+    def test_reference_llk_nohypers(self):
 
         res = tt.matrix('residuals')
 
@@ -218,7 +233,7 @@ class TestModels(unittest.TestCase):
         assert_allclose(d, c, rtol=0., atol=1e-6)
         assert_allclose(d, b, rtol=0., atol=1e-6)
 
-    def mtest_sparse(self):
+    def test_sparse(self):
 
         res = tt.matrix('residuals')
 
@@ -247,16 +262,18 @@ class TestModels(unittest.TestCase):
 
         assert_allclose(a, b, rtol=0., atol=1e-6)
 
-    def mtest_bulk(self):
+    def test_bulk(self):
 
         def multivariate_normal_bulk_chol(
-                bulk_weights, hps, slnfs, residuals, hp_specific=False):
+                bulk_weights, hps, slog_pdets, residuals, hp_specific=False):
 
             M = residuals.shape[1]
             tmp = tt.batched_dot(bulk_weights, residuals)
             llk = tt.power(tmp, 2).sum(1)
             return (-0.5) * (
-                slnfs + (M * 2 * hps) + (1 / tt.exp(hps * 2)) * (llk))
+                slog_pdets +
+                (M * (2 * hps + num.log(2 * num.pi))) +
+                (1 / tt.exp(hps * 2)) * (llk))
 
         res = tt.matrix('residuals')
         ichol_weights = make_weights(self.datasets, 'ichol', True)
@@ -266,17 +283,17 @@ class TestModels(unittest.TestCase):
         ichol_bulk_weights = get_bulk_weights(ichol_weights)
         icov_chol_bulk_weights = get_bulk_weights(icov_chol_weights)
 
-        slnfs = tt.concatenate(
-            [data.covariance.slnf.reshape((1,)) for data in self.datasets])
+        slog_pdets = tt.concatenate(
+            [data.covariance.slog_pdet.reshape((1,)) for data in self.datasets])
 
         ichol_bulk_llk = multivariate_normal_bulk_chol(
             bulk_weights=ichol_bulk_weights, hps=self.hyperparams['h_any_P_T'],
-            slnfs=slnfs, residuals=res)
+            slog_pdets=slog_pdets, residuals=res)
 
         icov_chol_bulk_llk = multivariate_normal_bulk_chol(
             bulk_weights=icov_chol_bulk_weights,
             hps=self.hyperparams['h_any_P_T'],
-            slnfs=slnfs, residuals=res)
+            slog_pdets=slog_pdets, residuals=res)
 
         llk_normal = multivariate_normal(
             self.datasets, icov_weights,
@@ -299,9 +316,6 @@ class TestModels(unittest.TestCase):
         assert_allclose(a, c, rtol=0., atol=1e-6)
         assert_allclose(b, c, rtol=0., atol=1e-6)
         assert_allclose(a, b, rtol=0., atol=1e-6)
-
-    def test_mvn_chol_loopless(self):
-        pass
 
 
 if __name__ == '__main__':

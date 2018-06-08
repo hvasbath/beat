@@ -489,16 +489,20 @@ def get_result_point(stage, config, point_llk='max'):
         point = pdict[point_llk]
 
     elif config.sampler_config.name == 'SMC':
+        n_steps = config.sampler_config.parameters.n_steps
         llk = stage.mtrace.get_values(
-            varname=stage.step['likelihood_name'],
-            burn=stage.step['n_steps'] - 1,
+            varname='like',
+            burn=n_steps - 1,
             combine=True)
 
         posterior_idxs = utility.get_fit_indexes(llk)
 
-        n_steps = config.sampler_config.parameters.n_steps - 1
-        point = stage.mtrace.point(
-            idx=n_steps, chain=posterior_idxs[point_llk])
+        if stage.number == -2:
+            point = stage.mtrace.point(idx=posterior_idxs[point_llk])
+        else:
+            idx = n_steps - 1
+            point = stage.mtrace.point(
+                idx=idx, chain=posterior_idxs[point_llk])
 
     return point
 
@@ -1223,7 +1227,7 @@ def draw_seismic_fits(problem, po):
     if po.reference is None:
         llk_str = po.post_llk
         stage.load_results(
-            model=problem.model, stage_number=po.load_stage, load='full')
+            model=problem.model, stage_number=po.load_stage, load='trace')
     else:
         llk_str = 'ref'
 

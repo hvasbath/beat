@@ -2642,3 +2642,12 @@ class Stage(object):
             if 'params' in to_load:
                 self.step, self.updates = self.handler.load_sampler_params(
                     stage_number)
+
+
+def load_stage(problem, stage_number, load='trace'):
+
+    stage = Stage(
+        homepath=problem.outfolder, stage_number=stage_number)
+    stage.load_results(
+        model=problem.model, stage_number=stage_number, load=load)
+    return stage
