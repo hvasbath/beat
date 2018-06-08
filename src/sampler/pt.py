@@ -101,23 +101,23 @@ def tune(scale, acc_rate):
 
     # Switch statement
     if acc_rate < 0.001:
-        # reduce by 20 percent
-        scale *= 1.
-    elif acc_rate < 0.05:
         # reduce by 10 percent
-        scale *= 1.
-    elif acc_rate < 0.2:
+        scale *= 0.9
+    elif acc_rate < 0.05:
         # reduce by 5 percent
-        scale *= 1.
+        scale *= 0.95
+    elif acc_rate < 0.2:
+        # reduce by 1 percent
+        scale *= 0.99
     elif acc_rate > 0.95:
-        # increase by 20 percent
-        scale *= 1.
+        # increase by 10 percent
+        scale *= 1.1
     elif acc_rate > 0.75:
-        # increase by 10
-        scale *= 1.
+        # increase by 5
+        scale *= 1.05
     elif acc_rate > 0.5:
-        # increase by five percent
-        scale *= 1.
+        # increase by one percent
+        scale *= 1.01
 
     return scale
 
@@ -127,13 +127,26 @@ class SamplingHistory(object):
     def __init__(self):
         self.acceptance = []
         self.acceptance_matrixes = []
+        self.sample_counts = []
         self.t_scales = []
         self.filename = sample_p_outname
+        self.__module__ = 'beat.sampler.pt'
 
-    def record(self, acceptance_matrix, t_scale, acceptance):
+    def record(self, sample_count, acceptance_matrix, t_scale, acceptance):
+        print sample_count, acceptance_matrix
+        self.sample_counts.append(sample_count)
         self.acceptance_matrixes.append(acceptance_matrix)
         self.acceptance.append(acceptance)
         self.t_scales.append(t_scale)
+
+    def __len__(self):
+        return len(self.acceptance)
+
+    def get_acceptance_matrixes_array(self):
+        return num.dstack(self.acceptance_matrixes)
+
+    def get_sample_counts_array(self):
+        return num.dstack(self.sample_counts)
 
 
 class TemperingManager(object):
@@ -147,12 +160,12 @@ class TemperingManager(object):
 
     def __init__(
             self, step, n_workers, model, progressbar,
-            swap_interval, beta_tune_interval):
+            swap_interval, beta_tune_interval, n_workers_posterior):
 
-        self.posterior_ratio = 0.2
         self.n_workers = n_workers
-        self.n_workers_posterior = int(self.n_workers * self.posterior_ratio)
-        self.n_workers_tempered = int(self.n_workers - self.n_workers_posterior)
+        self.n_workers_posterior = n_workers_posterior
+        self.n_workers_tempered = int(
+            self.n_workers - self.n_workers_posterior)
         print self.n_workers_posterior, self.n_workers_tempered
 
         self._worker_package_mapping = OrderedDict()
@@ -166,9 +179,12 @@ class TemperingManager(object):
 
         self.acceptance_matrix = num.zeros(
             (n_workers, n_workers), dtype='int32')
+        self.sample_count = num.zeros_like(self.acceptance_matrix)
         self.beta_tune_interval = beta_tune_interval
 
-        self.current_scale = 1.1
+        self.current_scale = 1.2
+
+        # make sampling history reloadable
         self.history = SamplingHistory()
         self._worker_update_check = num.zeros(self.n_workers, dtype='bool')
 
@@ -270,16 +286,17 @@ class TemperingManager(object):
             raise ValueError('No acceptance record!')
 
         self.history.record(
-            self.acceptance_matrix, self.current_scale, acceptance)
+            self.sample_count, self.acceptance_matrix,
+            self.current_scale, acceptance)
         self.current_scale = None
         self.acceptance_matrix = num.zeros(
             (self.n_workers, self.n_workers), dtype='int32')
+        self.sample_count = num.zeros_like(self.acceptance_matrix)
 
     def dump_history(self, save_dir=None):
         if save_dir is None:
             save_dir = os.getcwd()
 
-        #SamplingHistory.__module__ = "pt"
         logger.info(
             'Dumping sampler history to %s' % save_dir)
         dump_objects(
@@ -313,10 +330,18 @@ class TemperingManager(object):
         rowidxs -= 1
         colidxs -= 1
 
-        return (
-            float(self.acceptance_matrix[rowidxs, colidxs].sum()) +
-            float(self.acceptance_matrix[colidxs, rowidxs].sum())) / \
-            beta_tune_interval
+        n_samples = float(
+            self.sample_count[rowidxs, colidxs].sum() +
+            self.sample_count[colidxs, rowidxs].sum())
+        accepted_samples = float(
+            self.acceptance_matrix[rowidxs, colidxs].sum() +
+            self.acceptance_matrix[colidxs, rowidxs].sum())
+
+       # print n_samples, accepted_samples
+        if n_samples:
+            return accepted_samples / n_samples
+        else:
+            return n_samples
 
     def get_beta(self, source):
         return num.atleast_1d(self.betas[source - 1])
@@ -332,7 +357,7 @@ class TemperingManager(object):
         beta = self.betas[self.n_workers_posterior]
         #beta = self.betas[-1]
         acceptance = self.get_acceptance_swap(beta, self.beta_tune_interval)
-        logger.debug('Acceptance rate', acceptance)
+        logger.info('Acceptance rate: %f', acceptance)
 
         t_scale = tune(self.current_scale, acceptance)
         if t_scale < self._t_scale_min:
@@ -417,10 +442,13 @@ class TemperingManager(object):
         llk1 = step1.lij.a2l(m1)
         llk2 = step2.lij.a2l(m2)
 
-        _, accepted = metrop_select(
-            (step1.beta - step2.beta) * (
-                llk1[step1._llk_index] - llk2[step2._llk_index]),
-            q=m1, q0=m2)
+        alpha = (step2.beta - step1.beta) * (
+            llk1[step1._llk_index] - llk2[step2._llk_index])
+
+        if num.random.uniform() < alpha:
+            accepted = True
+        else:
+            accepted = False
 
         self.register_swap(source1, source2, accepted)
 
@@ -432,6 +460,7 @@ class TemperingManager(object):
     def register_swap(self, source1, source2, accepted):
         w2i = self.worker_index_mapping()
         self.acceptance_matrix[w2i[source1], w2i[source2]] += accepted
+        self.sample_count[w2i[source1], w2i[source2]] += 1
 
     def worker_index_mapping(self):
         if self._worker2index is None:
@@ -446,7 +475,7 @@ class TemperingManager(object):
 
 def master_process(
         comm, tags, status, model, step, n_samples, swap_interval,
-        beta_tune_interval, homepath, progressbar,
+        beta_tune_interval, n_workers_posterior, homepath, progressbar,
         buffer_size, rm_flag):
     """
     Master process, that does the managing.
@@ -466,6 +495,11 @@ def master_process(
     size = comm.size        # total number of processes
     n_workers = size - 1
 
+    if n_workers_posterior >= n_workers:
+        raise ValueError(
+            'Specified more workers that sample in the posterior,'
+            ' than there are total number of workers')
+
     stage = -1
     active_workers = 0
     steps_until_tune = 0
@@ -476,6 +510,7 @@ def master_process(
     manager = TemperingManager(
         step=step,
         n_workers=n_workers,
+        n_workers_posterior=n_workers_posterior,
         model=model,
         progressbar=progressbar,
         swap_interval=swap_interval,
@@ -506,6 +541,7 @@ def master_process(
     count_sample = 0
     counter = ChainCounter(n=n_samples, n_jobs=1)
     logger.info('Posterior workers %s', list2string(manager.posterior_workers))
+
     while True:
 
         m1 = num.empty(manager.step.lordering.size)
@@ -679,8 +715,9 @@ def sample_pt_chain(
 
 def pt_sample(
         step, n_chains, n_samples=100000, swap_interval=(100, 300),
-        beta_tune_interval=10000, homepath='', progressbar=True,
-        buffer_size=5000, model=None, rm_flag=False, keep_tmp=False):
+        beta_tune_interval=10000, n_workers_posterior=1, homepath='',
+        progressbar=True, buffer_size=5000, model=None, rm_flag=False,
+        keep_tmp=False):
     """
     Paralell Tempering algorithm
 
@@ -708,6 +745,8 @@ def pt_sample(
     beta_tune_interval : int
         Evaluate acceptance rate of chain swaps and tune betas similar
         to proposal step tuning
+    n_workers_posterior : int
+        number of workers that sample from the posterior distribution at beta=1
     homepath : string
         Result_folder for storing stages, will be created if not existing
     progressbar : bool
@@ -730,8 +769,10 @@ def pt_sample(
         raise ValueError(
             'Parallel Tempering requires at least 2 Markov Chains!')
 
-    sampler_args = [step, n_samples, swap_interval, beta_tune_interval,
-                    homepath, progressbar, buffer_size, rm_flag]
+    sampler_args = [
+        step, n_samples, swap_interval, beta_tune_interval,
+        n_workers_posterior, homepath, progressbar, buffer_size, rm_flag]
+
     distributed.run_mpi_sampler(
         sampler_name='pt',
         model=model,
@@ -751,6 +792,12 @@ def _sample():
 
     model = load_objects(distributed.pymc_model_name)
     with model:
+        for i in range(comm.size):
+            if i == comm.rank:
+                logger.info('Working %i' % i)
+
+        comm.Barrier()
+
         if comm.rank == 0:
             logger.info('Loading passed arguments ...')
 

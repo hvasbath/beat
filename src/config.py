@@ -770,6 +770,9 @@ class ParallelTemperingConfig(SamplerParameters):
         help='Sample interval of master chain after which the chain swap'
              ' acceptance is evaluated. High acceptance will result in'
              ' closer spaced betas and vice versa.')
+    n_chains_posterior = Int.T(
+        default=1,
+        help='Number of chains that sample from the posterior at beat=1.')
     thin = Int.T(
         default=3,
         help='Thinning parameter of the sampled trace. Every "thin"th sample'
