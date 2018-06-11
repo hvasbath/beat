@@ -445,7 +445,7 @@ class TemperingManager(object):
         alpha = (step2.beta - step1.beta) * (
             llk1[step1._llk_index] - llk2[step2._llk_index])
 
-        if num.random.uniform() < alpha:
+        if num.log(num.random.uniform()) < alpha:
             accepted = True
         else:
             accepted = False
