@@ -30,10 +30,10 @@ class TestPT(unittest.TestCase):
 
         self.n_chains = 8
         self.n_workers_posterior = 2
-        self.n_samples = int(5e4)
+        self.n_samples = int(7e4)
         self.tune_interval = 50
         self.beta_tune_interval = 5000
-        self.swap_interval = (5, 10)
+        self.swap_interval = (10, 15)
         self.buffer_size = self.n_samples / 20.
         self.burn = 0.3
         self.thin = 1

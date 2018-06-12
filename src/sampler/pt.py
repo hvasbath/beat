@@ -11,11 +11,11 @@ os.environ["OMP_NUM_THREADS"] = "1"
 from mpi4py import MPI
 import numpy as num
 
-from beat.utility import load_objects, list2string, gather, setup_logging, \
+from beat.utility import load_objects, list2string, setup_logging, \
     dump_objects
 from beat.sampler import distributed
 from beat.backend import MemoryTrace, TextChain, TextStage
-from beat.parallel import get_process_id
+
 from beat.sampler.base import _iter_sample, Proposal, choose_proposal, \
     ChainCounter
 from beat.config import sample_p_outname
@@ -24,8 +24,6 @@ from tqdm import tqdm
 from logging import getLogger
 from tqdm import tqdm
 from theano import config as tconfig
-
-from pymc3.step_methods.metropolis import metrop_select
 
 from logging import getLogger
 from collections import OrderedDict
@@ -38,49 +36,9 @@ logger = getLogger('pt')
 __all__ = [
     'pt_sample',
     'sample_pt_chain',
-    'PackageManager',
+    'TemperingManager',
     'SamplingHistory',
     'tune']
-
-
-def inv_tune(scale, acc_rate):
-    """
-    Tunes the temperature scaling parameter
-    according to the acceptance rate over the last tune_interval:
-    Inverse of tune.
-
-    Rate    Variance adaptation
-    ----    -------------------
-    <0.001        x 1.2
-    <0.05         x 1.1
-    <0.2          x 1.05
-    >0.5          x 0.95
-    >0.75         x 0.9
-    >0.95         x 0.8
-
-    """
-
-    # Switch statement
-    if acc_rate < 0.001:
-        # increase by 20 percent
-        scale *= 1.2
-    elif acc_rate < 0.05:
-        # increase by 10 percent
-        scale *= 1.1
-    elif acc_rate < 0.2:
-        # increase by 5 percent
-        scale *= 1.05
-    elif acc_rate > 0.95:
-        # reduce by 20 percent
-        scale *= 0.8
-    elif acc_rate > 0.75:
-        # reduce by 10
-        scale *= 0.9
-    elif acc_rate > 0.5:
-        # reduce by five percent
-        scale *= 0.95
-
-    return scale
 
 
 def tune(scale, acc_rate):
@@ -101,23 +59,23 @@ def tune(scale, acc_rate):
 
     # Switch statement
     if acc_rate < 0.001:
+        # reduce by 15 percent
+        scale *= 0.85
+    elif acc_rate < 0.05:
         # reduce by 10 percent
         scale *= 0.9
-    elif acc_rate < 0.05:
+    elif acc_rate < 0.2:
         # reduce by 5 percent
         scale *= 0.95
-    elif acc_rate < 0.2:
-        # reduce by 1 percent
-        scale *= 0.99
     elif acc_rate > 0.95:
-        # increase by 10 percent
-        scale *= 1.1
+        # increase by 15 percent
+        scale *= 1.15
     elif acc_rate > 0.75:
-        # increase by 5
-        scale *= 1.05
+        # increase by 10
+        scale *= 1.10
     elif acc_rate > 0.5:
-        # increase by one percent
-        scale *= 1.01
+        # increase by 5 percent
+        scale *= 1.05
 
     return scale
 
@@ -133,7 +91,7 @@ class SamplingHistory(object):
         self.__module__ = 'beat.sampler.pt'
 
     def record(self, sample_count, acceptance_matrix, t_scale, acceptance):
-        print sample_count, acceptance_matrix
+
         self.sample_counts.append(sample_count)
         self.acceptance_matrixes.append(acceptance_matrix)
         self.acceptance.append(acceptance)
@@ -166,7 +124,6 @@ class TemperingManager(object):
         self.n_workers_posterior = n_workers_posterior
         self.n_workers_tempered = int(
             self.n_workers - self.n_workers_posterior)
-        print self.n_workers_posterior, self.n_workers_tempered
 
         self._worker_package_mapping = OrderedDict()
         self._posterior_workers = None
@@ -245,8 +202,6 @@ class TemperingManager(object):
         self.current_scale = t_scale
 
         betas_post = [1. for _ in range(self.n_workers_posterior)]
-        #temperature = num.power(
-        #    10., num.arange(1, self.n_workers_tempered + 1) * t_scale)
         temperature = num.power(
             t_scale, num.arange(1, self.n_workers_tempered + 1))
         betas_temp = (1. / temperature).tolist()
@@ -337,7 +292,6 @@ class TemperingManager(object):
             self.acceptance_matrix[rowidxs, colidxs].sum() +
             self.acceptance_matrix[colidxs, rowidxs].sum())
 
-       # print n_samples, accepted_samples
         if n_samples:
             return accepted_samples / n_samples
         else:
@@ -355,7 +309,7 @@ class TemperingManager(object):
         """
 
         beta = self.betas[self.n_workers_posterior]
-        #beta = self.betas[-1]
+
         acceptance = self.get_acceptance_swap(beta, self.beta_tune_interval)
         logger.info('Acceptance rate: %f', acceptance)
 
