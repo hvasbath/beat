@@ -25,7 +25,7 @@ from pyrocko import util
 
 from beat import backend, utility
 from .base import iter_parallel_chains, choose_proposal, logp_forw, \
-    init_stage, update_last_samples
+    init_stage, update_last_samples, multivariate_proposals
 
 
 __all__ = [
@@ -98,7 +98,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
         self.scaling = utility.scalar2floatX(num.atleast_1d(scale))
 
-        if covariance is None and proposal_name == 'MultivariateNormal':
+        if covariance is None and proposal_name in multivariate_proposals:
             self.covariance = num.eye(sum(v.dsize for v in vars))
             scale = self.covariance
         elif covariance is None:

@@ -30,11 +30,11 @@ class TestPT(unittest.TestCase):
 
         self.n_chains = 8
         self.n_workers_posterior = 2
-        self.n_samples = int(7e4)
+        self.n_samples = int(3e4)
         self.tune_interval = 50
         self.beta_tune_interval = 5000
         self.swap_interval = (10, 15)
-        self.buffer_size = self.n_samples / 20.
+        self.buffer_size = self.n_samples / 10.
         self.burn = 0.3
         self.thin = 1
 
@@ -77,7 +77,7 @@ class TestPT(unittest.TestCase):
             step = metropolis.Metropolis(
                 n_chains=n_jobs,
                 likelihood_name=PT_test.deterministics[0].name,
-                proposal_name='Cauchy',
+                proposal_name='MultivariateCauchy',
                 tune_interval=self.tune_interval)
 
         pt.pt_sample(

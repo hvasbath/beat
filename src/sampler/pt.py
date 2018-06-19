@@ -17,7 +17,7 @@ from beat.sampler import distributed
 from beat.backend import MemoryTrace, TextChain, TextStage
 
 from beat.sampler.base import _iter_sample, Proposal, choose_proposal, \
-    ChainCounter
+    ChainCounter, multivariate_proposals
 from beat.config import sample_p_outname
 
 from tqdm import tqdm
@@ -117,7 +117,7 @@ class TemperingManager(object):
     _worker2index = None
 
     def __init__(
-            self, step, n_workers, model, progressbar,
+            self, step, n_workers, model, progressbar, buffer_size,
             swap_interval, beta_tune_interval, n_workers_posterior):
 
         self.n_workers = n_workers
@@ -133,6 +133,7 @@ class TemperingManager(object):
 
         self.step = step
         self.model = model
+        self.buffer_size = buffer_size
 
         self.acceptance_matrix = num.zeros(
             (n_workers, n_workers), dtype='int32')
@@ -369,7 +370,7 @@ class TemperingManager(object):
             package = deepcopy(self._default_package_kwargs)
             package['chain'] = chain
             package['start'] = step.population[chain]
-            package['trace'] = MemoryTrace()
+            package['trace'] = MemoryTrace(buffer_size=self.buffer_size)
             package['step'] = step
 
             logger.info(
@@ -467,6 +468,7 @@ def master_process(
         n_workers_posterior=n_workers_posterior,
         model=model,
         progressbar=progressbar,
+        buffer_size=buffer_size,
         swap_interval=swap_interval,
         beta_tune_interval=beta_tune_interval)
 
@@ -663,6 +665,14 @@ def sample_pt_chain(
 
     except KeyboardInterrupt:
         raise
+
+    if step.proposal_name in multivariate_proposals:
+        if strace.count > strace.buffer_size:
+            logger.debug(
+                'Evaluating sampled trace covariance at '
+                'sample %i' % strace.count)
+            cov = strace.get_sample_covariance(step.lij, step.beta)
+            step.proposal_dist = choose_proposal(step.proposal_name, scale=cov)
 
     return step.lij.l2a(strace.buffer[-1])
 

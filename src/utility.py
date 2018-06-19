@@ -95,6 +95,18 @@ class ListArrayOrdering(object):
             count += 1
 
         self.size = dim
+        self._keys = None
+
+    def __getitem__(self, key):
+        if self._keys is None:
+            self._keys = [vmap.name for vmap in self.vmap]
+
+        try:
+            return self.vmap[self._keys.index(key)]
+        except ValueError:
+            raise KeyError(
+                'Variable "%s" is not in the mapping!'
+                ' Mapped Variables: %s' % (key, list2string(self._keys)))
 
 
 class ListToArrayBijection(object):

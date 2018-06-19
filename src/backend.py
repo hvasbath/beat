@@ -34,6 +34,7 @@ from pymc3.blocking import DictToArrayBijection, ArrayOrdering
 from pymc3.step_methods.arraystep import BlockedStep
 
 from beat import utility, config
+from beat.covariance import calc_sample_covariance
 from pyrocko import util
 from time import time
 
@@ -137,7 +138,7 @@ class BaseTrace(object):
         self.__dict__.update(state)
 
 
-class MemoryTraceFullError(Exception):
+class MemoryTraceError(Exception):
     pass
 
 
@@ -145,25 +146,40 @@ class MemoryTrace(BaseTrace):
     """
     Slim memory trace object. Keeps points in a list in memory.
     """
-    def __init__(self):
+    def __init__(self, buffer_size=1000):
+        self.buffer_size = buffer_size
         self.buffer = None
+        self.count = 0
 
     def setup(self, draws, chain):
         self.draws = draws
         self.chain = chain
 
-        self.buffer = [[] for b in range(draws)]
+        if self.buffer is None:
+            self.buffer = []
 
     def write(self, lpoint, draw):
         """
         Write sampling results into buffer.
         """
-        try:
-            self.buffer[draw] = lpoint
-        except IndexError:
-            raise MemoryTraceFullError(
-                'Allocated memory (draws: %i) of trace of '
-                'chain %i is full.' % (self.draws, self.chain))
+        if self.buffer is not None:
+            self.count += 1
+            self.buffer.append(lpoint)
+        else:
+            raise MemoryTraceError('Trace is not setup!')
+
+    def get_sample_covariance(self, lij, beta):
+        """
+        Return sample Covariance matrix from buffer.
+        """
+        self.count -= self.buffer_size
+        if self.count < 0:
+            raise ValueError('Covariance has been updated already!')
+
+        cov = calc_sample_covariance(self.buffer, lij, beta=beta)
+        # reset buffer, keep last sample
+        self.buffer = [self.buffer[-1]]
+        return cov
 
 
 class TextChain(BaseTrace):
