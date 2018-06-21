@@ -16,7 +16,7 @@ try:
     import numpy
 except ImportError:
     class numpy():
-        def __inti__(self):
+        def __init__(self):
             pass
 
         @classmethod
@@ -126,7 +126,8 @@ class custom_build_py(build_py):
 subpackages = [
     'beat.fast_sweeping',
     'beat.voronoi',
-    'beat.sampler']
+    'beat.sampler',
+    'beat.models']
 
 setup(
     cmdclass={
