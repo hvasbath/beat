@@ -21,7 +21,7 @@ from pymc3.theanof import join_nonshared_inputs
 from tqdm import tqdm
 
 
-logger = logging.getLogger('base')
+logger = logging.getLogger('sampler.base')
 
 
 __all__ = [

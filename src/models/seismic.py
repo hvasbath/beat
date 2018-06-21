@@ -710,7 +710,7 @@ class SeismicDistributerComposite(SeismicComposite):
             logger.debug('Cut data accordingly')
             data_traces = self.choppers[wmap.name](
                 self.gfs[key].get_all_tmins(
-                    patchidx) + input_rvs['time_shift'])
+                    patchidx) + input_rvs['nucleation_time'])
 
             residuals = data_traces - synthetics
 
@@ -797,7 +797,8 @@ class SeismicDistributerComposite(SeismicComposite):
                 tr = Trace(
                     ydata=synthetics[i, :],
                     tmin=float(
-                        gflibrary.reference_times[i] + tpoint['time_shift']),
+                        gflibrary.reference_times[i] +
+                        tpoint['nucleation_time']),
                     deltat=gflibrary.deltat)
 
                 tr.set_codes(*target.codes)

@@ -327,6 +327,7 @@ physical_bounds = dict(
     uperp=(-150., 150.),
     nucleation_strike=(0., num.inf),
     nucleation_dip=(0., num.inf),
+    nucleation_time=(-40., 40.),
     velocities=(0.5, 7.0),
 
     azimuth=(0, 360),
