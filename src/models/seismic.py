@@ -16,7 +16,7 @@ from beat import theanof, utility
 from beat.ffi import load_gf_library, get_gf_prefix
 from beat import config as bconfig
 from beat import heart, covariance as cov
-from beat.models.problems import ConfigInconsistentError, Composite
+from beat.models.base import ConfigInconsistentError, Composite
 from beat.models.distributions import multivariate_normal_chol
 
 from pymc3 import Uniform, Deterministic
