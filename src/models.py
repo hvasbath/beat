@@ -187,7 +187,7 @@ def hyper_normal(datasets, hyperparams, llks, hp_specific=False):
         logpts = tt.set_subtensor(
             logpts[k:k + 1],
             (-0.5) * (
-                data.covariance.slnf +
+                data.covariance.slog_pdet +
                 (M * 2 * hp) +
                 (1 / tt.exp(hp * 2)) *
                 llks[k]))
@@ -327,7 +327,7 @@ class GeodeticComposite(Composite):
             choli = data.covariance.chol_inverse
             self.weights.append(
                 shared(choli, name='geo_weight_%i' % i, borrow=True))
-            data.covariance.update_slnf()
+            data.covariance.update_slog_pdet()
 
         if gc.fit_plane:
             logger.info('Fit residual ramp selected!')
@@ -662,7 +662,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
             data.covariance.pred_v = cov_pv
             choli = data.covariance.chol_inverse
             self.weights[i].set_value(choli)
-            data.covariance.update_slnf()
+            data.covariance.update_slog_pdet()
 
 
 class GeodeticInterseismicComposite(GeodeticSourceComposite):
@@ -1254,7 +1254,7 @@ class SeismicGeometryComposite(SeismicComposite):
                     t1 = time.time()
                     logger.debug('Calculate weight time %f' % (t1 - t0))
                     weight.set_value(choli)
-                    dataset.covariance.update_slnf()
+                    dataset.covariance.update_slog_pdet()
 
 
 class GeodeticDistributerComposite(GeodeticComposite):

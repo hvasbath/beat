@@ -285,7 +285,8 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
         if progressbar:
             sampling.close()
         else:
-            parallel.counter(n)
+            if hasattr(parallel, 'counter'):
+                parallel.counter(n)
 
         strace.record_buffer()
 
