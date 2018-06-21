@@ -119,7 +119,7 @@ class GeodeticComposite(Composite):
             choli = data.covariance.chol_inverse
             self.weights.append(
                 shared(choli, name='geo_weight_%i' % i, borrow=True))
-            data.covariance.update_slnf()
+            data.covariance.update_slog_pdet()
 
         if gc.fit_plane:
             logger.info('Fit residual ramp selected!')
@@ -454,7 +454,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
             data.covariance.pred_v = cov_pv
             choli = data.covariance.chol_inverse
             self.weights[i].set_value(choli)
-            data.covariance.update_slnf()
+            data.covariance.update_slog_pdet()
 
 
 class GeodeticInterseismicComposite(GeodeticSourceComposite):

@@ -544,7 +544,7 @@ class SeismicGeometryComposite(SeismicComposite):
                     t1 = time()
                     logger.debug('Calculate weight time %f' % (t1 - t0))
                     weight.set_value(choli)
-                    dataset.covariance.update_slnf()
+                    dataset.covariance.update_slog_pdet()
 
 
 class SeismicDistributerComposite(SeismicComposite):

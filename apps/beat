@@ -102,7 +102,7 @@ nargs_dict = {
     'summarize': 1,
 }
 
-mode_choices = ['geometry', 'ffi', 'interseismic']
+mode_choices = ['geometry', 'ffi']
 supported_geodetic_formats = ['matlab', 'ascii', 'kite']
 
 

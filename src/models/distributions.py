@@ -167,7 +167,7 @@ def hyper_normal(datasets, hyperparams, llks, hp_specific=False):
         logpts = tt.set_subtensor(
             logpts[k:k + 1],
             (-0.5) * (
-                data.covariance.slnf +
+                data.covariance.slog_pdet +
                 (M * 2 * hp) +
                 (1 / tt.exp(hp * 2)) *
                 llks[k]))
