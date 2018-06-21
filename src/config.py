@@ -35,7 +35,7 @@ guts_prefix = 'beat'
 logger = logging.getLogger('config')
 
 block_vars = [
-    'bl_azimuth', 'bl_amplitude', 'nucleation_strike', 'nucleation_dip', 'time_shift']
+    'bl_azimuth', 'bl_amplitude', 'nucleation_strike', 'nucleation_dip', 'nucleation_time']
 seis_vars = ['time', 'duration']
 
 source_names = '''
@@ -147,6 +147,7 @@ default_bounds = dict(
     uperp=(-0.3, 4.),
     nucleation_strike=(0., 10.),
     nucleation_dip=(0., 7.),
+    nucleation_time=(-5., 5.),
     velocities=(0.5, 4.2),
 
     azimuth=(0, 180),
