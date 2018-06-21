@@ -18,7 +18,6 @@ from pymc3 import CompoundStep
 from pymc3.sampling import stop_tuning
 from pymc3.theanof import join_nonshared_inputs
 
-import multiprocessing as mp
 from tqdm import tqdm
 
 
@@ -29,7 +28,7 @@ __all__ = [
     'choose_proposal',
     'iter_parallel_chains',
     'init_stage',
-    'proposal_dists']
+    'available_proposals']
 
 
 def multivariate_t_rvs(mean, cov, df=np.inf, size=1):
@@ -78,56 +77,96 @@ class Proposal(object):
 
     Parameters
     ----------
-    s : :class:`numpy.ndarray`
+    scale : :class:`numpy.ndarray`
     """
-    def __init__(self, s):
-        self.s = np.atleast_1d(s)
+    def __init__(self, scale):
+        self.scale = np.atleast_1d(scale)
+
+
+class DiscreteBoundedUniformProposal(Proposal):
+    """
+    Returns uniform random integerers witin provided bounds.
+
+    Parameters
+    ----------
+    lower : int
+        lower bound of interval (included), (default: 0)
+    upper : int
+        upper bound of interval (excluded), (default: 10)
+    scale : float or int
+        returned values are multiples of this value, (default: 1)
+    """
+    def __init__(self, lower=0, upper=10, scale=1):
+        self.lower = lower
+        self.upper = upper
+        super(DiscreteBoundedUniformProposal, self).__init__(scale)
+
+    def __call__(self, size=1):
+        """
+        Returns random numbers within specifications.
+
+        Parameters
+        ----------
+        size :  int or tuple of ints, optional
+            Output shape.  If the given shape is, e.g., ``(m, n, k)``, then
+            ``m * n * k`` samples are drawn.  Default is None, in which case a
+            single value is returned.
+
+        Returns
+        -------
+        :class:`numpy.NdArray` is returned
+        the returned data type is determined by the data type of "scale"
+        (default: int)
+        """
+        return (randint(
+            low=self.upper - self.lower, size=size) +
+            self.lower) * self.scale
 
 
 class NormalProposal(Proposal):
     def __call__(self, num_draws=None):
-        size = (self.s.shape)
+        size = (self.scale.shape)
         if num_draws:
             size += (num_draws,)
-        return normal(scale=self.s[0], size=size).T
+        return normal(scale=self.scale[0], size=size).T
 
 
 class CauchyProposal(Proposal):
     def __call__(self, num_draws=None):
-        size = (self.s.shape)
+        size = (self.scale.shape)
         if num_draws:
             size += (num_draws,)
-        return standard_cauchy(size=size).T * self.s
+        return standard_cauchy(size=size).T * self.scale
 
 
 class LaplaceProposal(Proposal):
     def __call__(self, num_draws=None):
-        size = (self.s.shape)
+        size = (self.scale.shape)
         if num_draws:
             size += (num_draws,)
         return (standard_exponential(size=size) -
-                standard_exponential(size=size)).T * self.s
+                standard_exponential(size=size)).T * self.scale
 
 
 class PoissonProposal(Proposal):
     def __call__(self, num_draws=None):
-        size = (self.s.shape)
+        size = (self.scale.shape)
         if num_draws:
             size += (num_draws,)
-        return poisson(lam=self.s, size=size).T - self.s
+        return poisson(lam=self.scale, size=size).T - self.scale
 
 
 class MultivariateNormalProposal(Proposal):
     def __call__(self, num_draws=None):
         return np.random.multivariate_normal(
-            mean=np.zeros(self.s.shape[0]), cov=self.s, size=num_draws)
+            mean=np.zeros(self.scale.shape[0]), cov=self.scale, size=num_draws)
 
 
 class MultivariateStudentTProposal(Proposal):
     def __call__(self, df, num_draws=None):
         return multivariate_t_rvs(
-            mean=np.zeros(self.s.shape[0]),
-            cov=self.s, df=df, size=num_draws)
+            mean=np.zeros(self.scale.shape[0]),
+            cov=self.scale, df=df, size=num_draws)
 
 
 class MultivariateCauchyProposal(Proposal):
@@ -137,20 +176,28 @@ class MultivariateCauchyProposal(Proposal):
     """
     def __call__(self, num_draws=None):
         return multivariate_t_rvs(
-            mean=np.zeros(self.s.shape[0]),
-            cov=self.s, df=1, size=num_draws)
+            mean=np.zeros(self.scale.shape[0]),
+            cov=self.scale, df=1, size=num_draws)
 
 
-proposal_dists = {
+proposal_distributions = {
     'Cauchy': CauchyProposal,
     'Poisson': PoissonProposal,
     'Normal': NormalProposal,
     'Laplace': LaplaceProposal,
     'MultivariateNormal': MultivariateNormalProposal,
-    'MultivariateCauchy': MultivariateCauchyProposal}
+    'MultivariateCauchy': MultivariateCauchyProposal,
+    'DiscreteBoundedUniform': DiscreteBoundedUniformProposal}
 
 
-def choose_proposal(proposal_name, scale=1.):
+multivariate_proposals = ['MultivariateCauchy', 'MultivariateNormal']
+
+
+def available_proposals():
+    return proposal_distributions.keys()
+
+
+def choose_proposal(proposal_name, **kwargs):
     """
     Initialises and selects proposal distribution.
 
@@ -158,40 +205,49 @@ def choose_proposal(proposal_name, scale=1.):
     ----------
     proposal_name : string
         Name of the proposal distribution to initialise
-    scale : float or :class:`numpy.ndarray`
+        See function available_proposals
+    kwargs : dict
+        of arguments to the proposal distribution
 
     Returns
     -------
     class:`pymc3.Proposal` Object
     """
-    return proposal_dists[proposal_name](scale)
+    return proposal_distributions[proposal_name](**kwargs)
 
 
 def setup_chain_counter(n_chains, n_jobs):
-    n_chains_worker = n_chains / n_jobs
-    frac_disp = int(np.ceil(n_chains_worker / 5))
-    parallel._shared_memory['chain_count'] = 0
-    parallel._shared_memory['n_chains'] = n_chains_worker
-    parallel._shared_memory['logger_steps'] = range(
-        frac_disp, n_chains_worker + 1, frac_disp)
+    counter = ChainCounter(n=n_chains, n_jobs=n_jobs)
+    parallel.counter = counter
 
 
-def chain_counter(n):
-    """
-    Counts the number of finished SMC chains within the execution
-    of a pool.
-    """
-    try:
-        parallel._shared_memory['chain_count'] += 1
-        n_chains = parallel._shared_memory['n_chains']
+class ChainCounter(object):
 
-        chain_count = parallel._shared_memory['chain_count']
-        if chain_count in parallel._shared_memory['logger_steps']:
+    def __init__(self, n, n_jobs, subject='chains'):
+
+        n_chains_worker = n / n_jobs
+        frac_disp = int(np.ceil(n_chains_worker / 5))
+        self.chain_count = 0
+        self.n_chains = n_chains_worker
+        self.subject = subject
+        self.logger_steps = range(
+            frac_disp, n_chains_worker + 1, frac_disp)
+
+    def __call__(self, i):
+        """
+        Counts the number of finished chains within the execution
+        of a pool.
+
+        Parameters
+        ----------
+        i : int
+            Process number
+        """
+        self.chain_count += 1
+        if self.chain_count in self.logger_steps:
             logger.info(
-                'Worker %i: Finished %i / %i chains' %
-                (n, chain_count, n_chains))
-    except KeyError:
-        pass
+                'Worker %i: Finished %i / %i %s' %
+                (i, self.chain_count, self.n_chains, self.subject))
 
 
 def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
@@ -229,7 +285,7 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
         if progressbar:
             sampling.close()
         else:
-            chain_counter(n)
+            parallel.counter(n)
 
         strace.record_buffer()
 
@@ -239,8 +295,10 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
 def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
                  model=None, random_seed=-1):
     """
-    Modified from :func:`pymc3.sampling._iter_sample` to be more efficient with
-    the SMC algorithm.
+    Modified from :func:`pymc3.sampling._iter_sample`
+
+    tune: int
+        adaptiv step-size scaling is stopped after this chain sample
     """
 
     model = modelcontext(model)
@@ -363,7 +421,7 @@ def iter_parallel_chains(
         for chain in chains:
             trace_list.append(
                 backend.TextChain(
-                    stage_path, model=model,
+                    name=stage_path, model=model,
                     buffer_size=buffer_size, progressbar=progressbar))
 
         max_int = np.iinfo(np.int32).max

@@ -544,7 +544,7 @@ class ProblemConfig(Object):
              ' Implemented: Temporal station corrections, orbital'
              ' ramp estimation')
 
-    def __init__(self, **kwargs): 
+    def __init__(self, **kwargs):
 
         mode = 'mode'
         mode_config = 'mode_config'
@@ -743,6 +743,44 @@ class SamplerParameters(Object):
 
     rm_flag = Bool.T(default=False,
                      help='Remove existing results prior to sampling.')
+
+
+class ParallelTemperingConfig(SamplerParameters):
+
+    n_samples = Int.T(
+        default=1e5,
+        help='Number of samples of the posterior distribution.'
+             ' Only the samples of processors that sample from the posterior'
+             ' (beta=1) are kept.')
+    n_chains = Int.T(
+        default=2,
+        help='Number of PT chains to sample in parallel.'
+             ' A number < 2 will raise an Error, as this is the minimum'
+             ' amount of chains needed. ')
+    swap_intervall = Tuple.T(
+        2, Int.T(),
+        default=(100, 300),
+        help='Interval for uniform random integer that is drawn to determine'
+             ' the length of MarkovChains on each worker. When chain is'
+             ' completed the last sample is returned for swapping state'
+             ' between chains. Consequently, lower number will result in'
+             ' more state swapping.')
+    beta_tune_interval = Int.T(
+        default=1e4,
+        help='Sample interval of master chain after which the chain swap'
+             ' acceptance is evaluated. High acceptance will result in'
+             ' closer spaced betas and vice versa.')
+    n_chains_posterior = Int.T(
+        default=1,
+        help='Number of chains that sample from the posterior at beat=1.')
+    thin = Int.T(
+        default=3,
+        help='Thinning parameter of the sampled trace. Every "thin"th sample'
+             ' is taken.')
+    burn = Float.T(
+        default=0.5,
+        help='Burn-in parameter between 0. and 1. to discard fraction of'
+             ' samples from the beginning of the chain.')
 
 
 class MetropolisConfig(SamplerParameters):

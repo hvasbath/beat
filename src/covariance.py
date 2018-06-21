@@ -7,6 +7,7 @@ import logging
 import copy
 
 from beat import heart
+from beat.utility import ensure_cov_psd
 
 
 logger = logging.getLogger('covariance')
@@ -358,3 +359,45 @@ def geodetic_cov_velocity_models_pscmp(
                 target.odw
 
     return num.cov(synths, rowvar=0)
+
+
+def calc_sample_covariance(lpoints, lij, beta):
+    """
+    Calculate trace covariance matrix based on given trace values.
+
+    Parameters
+    ----------
+    lpoints : list
+        of list points (e.g. buffer of traces)
+    lij : `beat.utility.ListArrayOrdering`
+        that holds orderings of RVs
+    beta : float
+        tempering parameter of the trace
+
+    Returns
+    -------
+    cov : :class:`numpy.ndarray`
+        weighted covariances (NumPy > 1.10. required)
+    """
+    n_points = len(lpoints)
+    population_array = num.zeros((n_points, lij.ordering.size))
+    for i, lpoint in enumerate(lpoints):
+        population_array[i, :] = lij.l2a(lpoint)
+
+    like_slc = lij.ordering['like'].slc
+    weights = population_array[:, like_slc]
+    population_array = num.delete(population_array, like_slc, axis=1)
+
+    temp_weights = num.exp(beta * (weights - weights.max()))
+
+    cov = num.cov(
+        population_array,
+        aweights=temp_weights.ravel(),
+        bias=False,
+        rowvar=0)
+
+    cov = ensure_cov_psd(cov)
+    if num.isnan(cov).any() or num.isinf(cov).any():
+        raise ValueError(
+            'Sample covariances contains Inf or NaN!')
+    return cov

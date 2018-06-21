@@ -26,7 +26,7 @@ from .metropolis import Metropolis
 
 __all__ = [
     'SMC',
-    'ATMIP_sample']
+    'smc_sample']
 
 
 logger = logging.getLogger('smc')
@@ -263,7 +263,7 @@ class SMC(Metropolis):
         # map end array_endpoints to list lpoints and apply resampling
         for r_idx in self.resampling_indexes:
             chain_previous_lpoint.append(
-                self.lij.rmap(array_population[r_idx, :]))
+                self.lij.a2l(array_population[r_idx, :]))
 
         return chain_previous_lpoint
 
@@ -321,13 +321,12 @@ class SMC(Metropolis):
         self.__dict__.update(state)
 
 
-def ATMIP_sample(
+def smc_sample(
         n_steps, step=None, start=None, homepath=None, chain=0,
         stage=0, n_jobs=1, tune=None, progressbar=False, buffer_size=5000,
         model=None, update=None, random_seed=None, rm_flag=False):
     """
-    (C)ATMIP sampling algorithm
-    (Cascading - (C) not always relevant)
+    Sequential Monte Carlo samlping
 
     Samples the solution space with n_chains of Metropolis chains, where each
     chain has n_steps iterations. Once finished, the sampled traces are

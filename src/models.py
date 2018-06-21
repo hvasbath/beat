@@ -1947,6 +1947,20 @@ class Problem(object):
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
 
+            elif sc.name == 'PT':
+                logger.info(
+                    '... Initiate Metropolis for Parallel Tempering... \n'
+                    ' proposal_distribution %s, tune_interval=%i,'
+                    ' n_chains=%i \n' % (
+                        sc.parameters.proposal_dist,
+                        sc.parameters.tune_interval,
+                        sc.parameters.n_chains))
+                step = sampler.Metropolis(
+                    n_chains=sc.parameters.n_chains,
+                    likelihood_name=self._like_name,
+                    tune_interval=sc.parameters.tune_interval,
+                    proposal_name=sc.parameters.proposal_dist)
+
         return step
 
     def built_model(self):
@@ -2443,7 +2457,7 @@ def sample(step, problem):
 
         util.ensuredir(problem.outfolder)
 
-        sampler.Metropolis_sample(
+        sampler.metropolis_sample(
             n_steps=pa.n_steps,
             step=step,
             progressbar=sc.progressbar,
@@ -2456,9 +2470,9 @@ def sample(step, problem):
             rm_flag=pa.rm_flag)
 
     elif sc.name == 'SMC':
-        logger.info('... Starting ATMIP ...\n')
+        logger.info('... Starting SMC ...\n')
 
-        sampler.ATMIP_sample(
+        sampler.smc_sample(
             pa.n_steps,
             step=step,
             progressbar=sc.progressbar,
@@ -2469,6 +2483,24 @@ def sample(step, problem):
             homepath=problem.outfolder,
             buffer_size=sc.buffer_size,
             rm_flag=pa.rm_flag)
+
+    elif sc.name == 'PT':
+        logger.info('... Starting Parallel Tempering ...\n')
+
+        sampler.pt_sample(
+            step=step,
+            n_chains=pa.n_chains,
+            n_samples=pa.n_samples,
+            swap_interval=pa.swap_interval,
+            beta_tune_interval=pa.beta_tune_interval,
+            n_workers_posterior=pa.n_chains_posterior,
+            homepath=problem.outfolder,
+            progressbar=sc.progressbar,
+            model=problem.model,
+            rm_flag=pa.rm_flag)
+
+    else:
+        logger.error('Sampler "%s" not implemented.' % sc.name)
 
 
 def estimate_hypers(step, problem):

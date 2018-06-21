@@ -25,11 +25,11 @@ from pyrocko import util
 
 from beat import backend, utility
 from .base import iter_parallel_chains, choose_proposal, logp_forw, \
-    init_stage, update_last_samples
+    init_stage, update_last_samples, multivariate_proposals
 
 
 __all__ = [
-    'Metropolis_sample',
+    'metropolis_sample',
     'get_trace_stats',
     'get_final_stage',
     'Metropolis']
@@ -98,7 +98,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
         self.scaling = utility.scalar2floatX(num.atleast_1d(scale))
 
-        if covariance is None and proposal_name == 'MultivariateNormal':
+        if covariance is None and proposal_name in multivariate_proposals:
             self.covariance = num.eye(sum(v.dsize for v in vars))
             scale = self.covariance
         elif covariance is None:
@@ -150,7 +150,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
         super(Metropolis, self).__init__(vars, out_vars, shared)
 
         self.chain_previous_lpoint = [
-            self.lij.dmap(point) for point in self.population]
+            self.lij.d2l(point) for point in self.population]
 
     def _sampler_state_blacklist(self):
         """
@@ -352,7 +352,7 @@ def get_final_stage(homepath, n_stages, model):
     text.dump(name=outname, trace=ctrace)
 
 
-def Metropolis_sample(
+def metropolis_sample(
         n_steps=10000, homepath=None, start=None,
         progressbar=False, rm_flag=False, buffer_size=5000,
         step=None, model=None, n_jobs=1, update=None, burn=0.5, thin=2):
@@ -477,7 +477,7 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2):
     array_population = num.zeros(
         (step.n_jobs * int(
             num.ceil(n_steps * (1 - burn) / thin)),
-            step.ordering.dimensions))
+            step.ordering.size))
 
     # collect end points of each chain and put into array
     for var, slc, shp, _ in step.ordering.vmap:
@@ -509,5 +509,5 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2):
         logger.warn('Trace std not valid not enough samples! Use 1.')
         avar = 1.
 
-    cov = num.eye(step.ordering.dimensions) * avar
+    cov = num.eye(step.ordering.size) * avar
     return d, cov

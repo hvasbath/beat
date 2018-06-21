@@ -19,8 +19,8 @@ class TestSMC(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
 
-        self.test_folder_one = mkdtemp(prefix='ATMIP_TEST')
-        self.test_folder_multi = mkdtemp(prefix='ATMIP_TEST')
+        self.test_folder_one = mkdtemp(prefix='SMC_TEST')
+        self.test_folder_multi = mkdtemp(prefix='SMC_TEST')
 
         logger.info('Test result in: \n %s, \n %s ' % (
             self.test_folder_one, self.test_folder_multi))
@@ -58,7 +58,7 @@ class TestSMC(unittest.TestCase):
                         - 0.5 * (x - mu2).T.dot(isigma).dot(x - mu2)
             return tt.log(w1 * tt.exp(log_like1) + w2 * tt.exp(log_like2))
 
-        with pm.Model() as ATMIP_test:
+        with pm.Model() as SMC_test:
             X = pm.Uniform('X',
                            shape=n,
                            lower=-2. * num.ones_like(mu1),
@@ -68,25 +68,25 @@ class TestSMC(unittest.TestCase):
             like = pm.Deterministic('like', two_gaussians(X))
             llk = pm.Potential('like', like)
 
-        with ATMIP_test:
+        with SMC_test:
             step = smc.SMC(
                 n_chains=self.n_chains,
                 tune_interval=self.tune_interval,
-                likelihood_name=ATMIP_test.deterministics[0].name)
+                likelihood_name=SMC_test.deterministics[0].name)
 
-        smc.ATMIP_sample(
+        smc.smc_sample(
             n_steps=self.n_steps,
             step=step,
             n_jobs=n_jobs,
             progressbar=True,
             stage=0,
             homepath=test_folder,
-            model=ATMIP_test,
+            model=SMC_test,
             rm_flag=False)
 
         stage_handler = backend.TextStage(test_folder)
 
-        mtrace = stage_handler.load_multitrace(-1, model=ATMIP_test)
+        mtrace = stage_handler.load_multitrace(-1, model=SMC_test)
 
         d = mtrace.get_values('X', combine=True, squeeze=True)
         x = last_sample(d)
@@ -106,6 +106,7 @@ class TestSMC(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.test_folder_one)
         shutil.rmtree(self.test_folder_multi)
+
 
 if __name__ == '__main__':
     util.setup_logging('test_smc', 'info')

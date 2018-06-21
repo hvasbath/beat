@@ -34,6 +34,7 @@ from pymc3.blocking import DictToArrayBijection, ArrayOrdering
 from pymc3.step_methods.arraystep import BlockedStep
 
 from beat import utility, config
+from beat.covariance import calc_sample_covariance
 from pyrocko import util
 from time import time
 
@@ -84,8 +85,8 @@ class ArrayStepSharedLLK(BlockedStep):
         return self.bij.rmap(apoint), alist
 
 
-class BaseSMCTrace(object):
-    """Base SMC trace object
+class BaseTrace(object):
+    """Base trace object
 
     Parameters
     ----------
@@ -137,7 +138,51 @@ class BaseSMCTrace(object):
         self.__dict__.update(state)
 
 
-class TextChain(BaseSMCTrace):
+class MemoryTraceError(Exception):
+    pass
+
+
+class MemoryTrace(BaseTrace):
+    """
+    Slim memory trace object. Keeps points in a list in memory.
+    """
+    def __init__(self, buffer_size=1000):
+        self.buffer_size = buffer_size
+        self.buffer = None
+        self.count = 0
+
+    def setup(self, draws, chain):
+        self.draws = draws
+        self.chain = chain
+
+        if self.buffer is None:
+            self.buffer = []
+
+    def write(self, lpoint, draw):
+        """
+        Write sampling results into buffer.
+        """
+        if self.buffer is not None:
+            self.count += 1
+            self.buffer.append(lpoint)
+        else:
+            raise MemoryTraceError('Trace is not setup!')
+
+    def get_sample_covariance(self, lij, beta):
+        """
+        Return sample Covariance matrix from buffer.
+        """
+        self.count -= self.buffer_size
+        if self.count < 0:
+            raise ValueError('Covariance has been updated already!')
+
+        cov = calc_sample_covariance(self.buffer, lij, beta=beta)
+        # reset buffer, keep last sample
+        self.buffer = [self.buffer[-1]]
+        return cov
+
+
+class TextChain(BaseTrace):
     """
     Text trace object
 
@@ -175,8 +220,9 @@ class TextChain(BaseSMCTrace):
         self.progressbar = progressbar
         self.buffer_size = buffer_size
         self.stored_samples = 0
+        self.buffer = []
 
-    def setup(self, draws, chain):
+    def setup(self, draws, chain, overwrite=True):
         """
         Perform chain-specific setup.
 
@@ -189,7 +235,6 @@ class TextChain(BaseSMCTrace):
         """
         logger.debug('SetupTrace: Chain_%i step_%i' % (chain, draws))
         self.chain = chain
-        self.buffer = []
         self.count = 0
         self.draws = draws
         self.filename = os.path.join(self.name, 'chain-{}.csv'.format(chain))
@@ -197,7 +242,11 @@ class TextChain(BaseSMCTrace):
         cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
 
         if os.path.exists(self.filename):
-            os.remove(self.filename)
+            if overwrite:
+                os.remove(self.filename)
+            else:
+                logger.info('Found existing trace, appending!')
+                return
 
         with open(self.filename, 'w') as fh:
             fh.write(','.join(cnames) + '\n')
@@ -281,7 +330,7 @@ class TextChain(BaseSMCTrace):
         if self.df is None:
             return 0
         else:
-            return self.df.shape[0]
+            return self.df.shape[0] + len(self.buffer)
 
     def get_values(self, varname, burn=0, thin=1):
         """
@@ -422,8 +471,8 @@ class TextStage(object):
 
         Parameters
         ----------
-        name : str
-            Name of directory with files (one per chain)
+        stage : int
+            number of stage that should be loaded
         model : Model
             If None, the model is taken from the `with` context.
         Returns
