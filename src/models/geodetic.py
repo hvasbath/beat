@@ -594,7 +594,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
         return utility.load_objects(
             os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
 
-    def get_formula(self, input_rvs, fixed_rvs, hyperparams):
+    def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
         """
         Formulation of the distribution problem for the model built. Has to be
         called within a with-model-context.
@@ -611,6 +611,8 @@ class GeodeticDistributerComposite(GeodeticComposite):
         llk : :class:`theano.tensor.Tensor`
             log-likelihood for the distributed slip
         """
+        hp_specific = problem_config.dataset_specific_residual_noise_estimation
+
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs
         ref_idx = self.config.gf_config.reference_model_idx
@@ -626,11 +628,13 @@ class GeodeticDistributerComposite(GeodeticComposite):
         residuals = self.Bij.srmap(
             tt.cast((self.sdata - mu) * self.sodws, tconfig.floatX))
 
-        if self.config.fit_plane:
+        self.init_hierarchicals(problem_config)
+        if len(self.hierarchicals) > 0:
             residuals = self.remove_ramps(residuals)
 
         logpts = multivariate_normal_chol(
-            self.datasets, self.weights, hyperparams, residuals)
+            self.datasets, self.weights, hyperparams, residuals,
+            hp_specific=hp_specific)
 
         llk = Deterministic(self._like_name, logpts)
 
