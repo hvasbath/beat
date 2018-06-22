@@ -9,15 +9,13 @@ from pyrocko import util
 import numpy as num
 
 import theano.tensor as tt
-
 from theano import config as tconfig
 from theano import shared
 
 from beat import heart, utility
 from beat import sampler
-
 from beat.models import geodetic, seismic
-
+from beat.models.base import Composite
 from beat import config as bconfig
 
 from logging import getLogger
@@ -26,6 +24,7 @@ from logging import getLogger
 tconfig.warn.round = False
 
 km = 1000.
+log_2pi = num.log(2 * num.pi)
 
 logger = getLogger('models')
 
@@ -50,11 +49,18 @@ class InconsistentNumberHyperparametersError(Exception):
         return '\n%s\n%s' % (self.errmess, self.context)
 
 
-class LaplacianDistributerComposite():
+class LaplacianDistributerComposite(Composite):
 
     def __init__(self, project_dir, hypers):
 
+        super(LaplacianDistributerComposite, self).__init__()
+
         self._mode = 'ffi'
+
+        # dummy for hyperparam name
+        self.hyperparams[bconfig.hyper_name_laplacian] = None
+        self.hierarchicals = None
+
         self.slip_varnames = bconfig.static_dist_vars
         self.gfpath = os.path.join(
             project_dir, self._mode, bconfig.linear_gf_dir_name)
@@ -102,11 +108,10 @@ class LaplacianDistributerComposite():
         """
         return (-0.5) * \
             (-self.sdet_shared_smoothing_op +
-             (self.spatches * tt.log(2 * num.pi) *
-              2 * hyperparam) +
+             (self.spatches * (log_2pi + 2 * hyperparam)) +
              (1. / tt.exp(hyperparam * 2) * exponent))
 
-    def get_formula(self, input_rvs, fixed_rvs, hyperparams):
+    def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
         """
         Get smoothing likelihood formula for the model built. Has to be called
         within a with model context.
@@ -120,6 +125,8 @@ class LaplacianDistributerComposite():
             of :class:`numpy.array` here only dummy
         hyperparams : dict
             of :class:`pymc3.distribution.Distribution`
+        problem_config : :class:`config.ProblemConfig`
+            here it is not used
 
         Returns
         -------
@@ -160,7 +167,7 @@ class LaplacianDistributerComposite():
             _llk = num.asarray([Ls.T.dot(Ls)])
             self._llks[l].set_value(_llk)
 
-    def get_hyper_formula(self, hyperparams):
+    def get_hyper_formula(self, hyperparams, problem_config):
         """
         Get likelihood formula for the hyper model built. Has to be called
         within a with model context.
@@ -345,6 +352,7 @@ class Problem(object):
                                 data_config.gf_config.reference_model_idx],
                             make_shared=True)
 
+                    print composite.__class__
                     total_llk += composite.get_formula(
                         input_rvs, fixed_rvs, self.hyperparams, pc)
 
@@ -464,7 +472,7 @@ class Problem(object):
         n_hyp = 0
         modelinit = True
         for datatype, composite in self.composites.items():
-            hypernames = composite.config.get_hypernames()
+            hypernames = composite.get_hypernames()
 
             for hp_name in hypernames:
                 if hp_name in hyperparameters.keys():
@@ -600,7 +608,10 @@ class Problem(object):
         Initialise hierarchical random variables of all composites.
         """
         for composite in self.composites.values():
-            composite.init_hierarchicals(self.config.problem_config)
+            try:
+                composite.init_hierarchicals(self.config.problem_config)
+            except AttributeError:
+                pass
 
     @property
     def hierarchicals(self):

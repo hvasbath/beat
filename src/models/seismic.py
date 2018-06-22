@@ -8,6 +8,7 @@ import numpy as num
 from theano import shared
 from theano import config as tconfig
 import theano.tensor as tt
+from theano.printing import Print
 
 from pyrocko.gf import LocalEngine
 from pyrocko.trace import Trace
@@ -656,14 +657,25 @@ class SeismicDistributerComposite(SeismicComposite):
                     self.gf_names[key] = gfpath
                     self.gfs[key] = gfs
 
-    def get_formula(self, input_rvs, fixed_rvs, hyperparams):
+    def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
+
+        hp_specific = problem_config.dataset_specific_residual_noise_estimation
 
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs
 
         logger.info(
             'Seismic optimization on: \n '
-            '%s' % ', '.join(self.input_rvs.keys()))
+            ' %s' % ', '.join(self.input_rvs.keys()))
+
+        t2 = time()
+        wlogpts = []
+
+        self.init_hierarchicals(problem_config)
+        if self.config.station_corrections:
+            logger.info(
+                'Initialized %i hierarchical parameters for '
+                'station corrections.' % len(self.get_unique_stations()))
 
         self.input_rvs.update(fixed_rvs)
 
@@ -708,15 +720,23 @@ class SeismicDistributerComposite(SeismicComposite):
 
             # cut data according to wavemaps
             logger.debug('Cut data accordingly')
-            data_traces = self.choppers[wmap.name](
-                self.gfs[key].get_all_tmins(
-                    patchidx) + input_rvs['nucleation_time'])
+
+            tmins = self.gfs[key].get_all_tmins(
+                patchidx).ravel() + input_rvs['nucleation_time']
+
+            # add station corrections
+            if len(self.hierarchicals) > 0:
+                tmins += self.hierarchicals[
+                    self.correction_name][wmap.station_correction_idxs]
+
+            data_traces = self.choppers[wmap.name](tmins)
 
             residuals = data_traces - synthetics
 
             logger.debug('Calculating likelihoods ...')
             logpts = multivariate_normal_chol(
-                wmap.datasets, wmap.weights, hyperparams, residuals)
+                wmap.datasets, wmap.weights, hyperparams, residuals,
+                hp_specific=hp_specific)
 
             wlogpts.append(logpts)
 
@@ -750,7 +770,7 @@ class SeismicDistributerComposite(SeismicComposite):
         tpoint = copy.deepcopy(point)
 
         hps = self.config.get_hypernames()
-
+        print tpoint
         for hyper in hps:
             if hyper in tpoint:
                 tpoint.pop(hyper)
@@ -803,6 +823,14 @@ class SeismicDistributerComposite(SeismicComposite):
 
                 tr.set_codes(*target.codes)
                 synth_traces.append(tr)
+
+            if self.config.station_corrections:
+                sh = point[
+                    self.correction_name][wmap.station_correction_idxs]
+
+                for i, tr in enumerate(synth_traces):
+                    tr.tmin += sh[i]
+                    tr.tmax += sh[i]
 
             obs_traces.extend(heart.taper_filter_traces(
                 wmap.datasets,
