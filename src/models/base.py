@@ -83,6 +83,12 @@ class Composite(object):
             A = weight.get_value(borrow=True)
             self.weights[i].set_value(A)
 
+    def get_hypernames(self):
+        if self.config is not None:
+            return self.config.get_hypernames()
+        else:
+            return self.hyperparams.keys()
+
 
 def sample(step, problem):
     """
