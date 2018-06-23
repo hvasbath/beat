@@ -352,7 +352,6 @@ class Problem(object):
                                 data_config.gf_config.reference_model_idx],
                             make_shared=True)
 
-                    print composite.__class__
                     total_llk += composite.get_formula(
                         input_rvs, fixed_rvs, self.hyperparams, pc)
 

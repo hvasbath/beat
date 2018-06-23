@@ -301,7 +301,7 @@ filename: %s''' % (
         matrix : size (nsamples)
         """
         self._check_mode_init(self._mode)
-        return self.stack_switch[self._mode].T.dot(slips)
+        return self._stack_switch[self._mode].T.dot(slips)
 
     @property
     def nsamples(self):

@@ -487,8 +487,8 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
                 raise TypeError('Sources have to be RectangularSources!')
 
         if not hypers:
-            self._lats = self.Bij.fmap([data.lats for data in self.datasets])
-            self._lons = self.Bij.fmap([data.lons for data in self.datasets])
+            self._lats = self.Bij.l2a([data.lats for data in self.datasets])
+            self._lons = self.Bij.l2a([data.lons for data in self.datasets])
 
             self.get_synths = theanof.GeoInterseismicSynthesizer(
                 lats=self._lats,
@@ -699,7 +699,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
                 component=var)
             mu += self.gfs[key].stack_all(slips=rv)
 
-        return self.Bij.rmap(mu)
+        return self.Bij.a2l(mu)
 
     def update_weights(self, point, n_jobs=1, plot=False):
         logger.warning('Not implemented yet!')
