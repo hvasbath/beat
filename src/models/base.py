@@ -191,8 +191,6 @@ def estimate_hypers(step, problem):
     step.stage = 1
     step.n_steps = pa.n_steps
 
-    problem.composites['seismic']
-
     with problem.model:
         mtrace = iter_parallel_chains(
             draws=pa.n_steps,

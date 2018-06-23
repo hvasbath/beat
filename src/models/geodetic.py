@@ -151,6 +151,23 @@ class GeodeticComposite(Composite):
     def n_t(self):
         return len(self.datasets)
 
+    def get_unique_stations(self):
+        """
+        Return unique GPS stations and radar acquisitions.
+        """
+        names = []
+        for dataset in self.datasets:
+            if isinstance(dataset, heart.DiffIFG):
+                names.append(dataset.name)
+            elif isinstance(dataset, heart.GPSCompoundComponent):
+                names.extent(dataset.station_names)
+            else:
+                TypeError(
+                    'Geodetic Dataset of class "%s" not '
+                    'supported' % dataset.__class__.__name__)
+
+        return list(set(names))
+
     def assemble_results(self, point):
         """
         Assemble geodetic data for given point in solution space.
@@ -349,9 +366,9 @@ class GeodeticSourceComposite(GeodeticComposite):
 
         self.input_rvs.update(fixed_rvs)
 
-        t0 = time.time()
+        t0 = time()
         disp = self.get_synths(self.input_rvs)
-        t1 = time.time()
+        t1 = time()
         logger.debug(
             'Geodetic forward model on test model takes: %f' %
             (t1 - t0))

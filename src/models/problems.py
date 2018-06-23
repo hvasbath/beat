@@ -374,6 +374,9 @@ class Problem(object):
 
         pc = self.config.problem_config
 
+        if len(self.hierarchicals) == 0:
+            self.init_hierarchicals()
+
         point = self.get_random_point(include=['hierarchicals', 'priors'])
         for param in pc.priors.values():
             point[param.name] = param.testvalue
@@ -401,9 +404,6 @@ class Problem(object):
 
         point = {}
         if 'hierarchicals' in include:
-            if len(self.hierarchicals) == 0:
-                self.init_hierarchicals()
-
             for name, param in self.hierarchicals.items():
                 point[name] = param.random()
 

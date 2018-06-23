@@ -338,7 +338,7 @@ physical_bounds = dict(
 
     h=(-20., 20.),
 
-    ramp=(-0.005, 0.005))
+    ramp=(-0.01, 0.01))
 
 
 class Parameter(Object):
@@ -366,7 +366,9 @@ class Parameter(Object):
     def validate_bounds(self):
 
         if self.name not in physical_bounds.keys():
-            if self.name[0:2] != 'h_':
+            if self.name[-4:] == 'ramp':
+                name = 'ramp'
+            elif self.name[0:2] != 'h_':
                 raise TypeError(
                     'The parameter "%s" cannot'
                     ' be optimized for!' % self.name)
@@ -2255,8 +2257,8 @@ def concatenate_datasets(datasets):
     ordering = utility.ListArrayOrdering(_disp_list, intype='numpy')
     Bij = utility.ListToArrayBijection(ordering, _disp_list)
 
-    odws = Bij.fmap(_odws_list).astype(tconfig.floatX)
-    datasets = Bij.fmap(_disp_list).astype(tconfig.floatX)
+    odws = Bij.l2a(_odws_list).astype(tconfig.floatX)
+    datasets = Bij.l2a(_disp_list).astype(tconfig.floatX)
     los_vectors = Bij.f3map(_lv_list).astype(tconfig.floatX)
     return datasets, los_vectors, odws, Bij
 

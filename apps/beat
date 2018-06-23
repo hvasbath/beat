@@ -490,8 +490,7 @@ def command_update(args):
     project_dir = get_project_directory(
         args, options, nargs_dict[command_str])
 
-    print options.parameters
-    _ = config.load_config(
+    config.load_config(
         project_dir, options.mode, update=options.parameters)
 
 

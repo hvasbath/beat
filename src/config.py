@@ -986,9 +986,9 @@ class BEATconfig(Object, Cloneable):
                 name=name,
                 lower=num.ones(shp, dtype=tconfig.floatX) *
                 default_bounds[defaultb_name][0],
-                upper=num.ones(1, dtype=tconfig.floatX) *
+                upper=num.ones(shp, dtype=tconfig.floatX) *
                 default_bounds[defaultb_name][1],
-                testvalue=num.ones(1, dtype=tconfig.floatX) *
+                testvalue=num.ones(shp, dtype=tconfig.floatX) *
                 num.mean(default_bounds[defaultb_name]))
 
         self.problem_config.hierarchicals = hierarchicals
