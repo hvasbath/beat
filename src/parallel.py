@@ -162,7 +162,7 @@ def _pay_worker(worker):
 
 def paripool(
         function, workpackage, nprocs=None, chunksize=1, timeout=0xFFFF,
-        initializer=None, initargs=()):
+        initializer=None, initargs=(), worker_initializer=None, winitargs=()):
     """
     Initialises a pool of workers and executes a function in parallel by
     forking the process. Does forking once during initialisation.
@@ -184,6 +184,10 @@ def paripool(
         to init pool with may be container for shared arrays
     initargs : tuple
         of arguments for the initializer
+    worker_initializer : function
+        to initialize each worker process
+    winitargs : tuple
+        of argument to worker_initializer
     """
 
     def start_message(*globals):
@@ -205,14 +209,19 @@ def paripool(
             yield [function(*work)]
 
     else:
-        pool = multiprocessing.Pool(processes=nprocs)
+        pool = multiprocessing.Pool(
+            processes=nprocs,
+            initializer=initializer,
+            initargs=initargs)
 
         logger.info('Worker timeout after %i second(s)' % timeout)
 
         workers = [
             WatchedWorker(
                 function, work,
-                initializer=initializer, initargs=initargs, timeout=timeout)
+                initializer=worker_initializer,
+                initargs=winitargs,
+                timeout=timeout)
             for work in workpackage]
 
         pool_timeout = int(len(workpackage) / 3. * timeout / nprocs)

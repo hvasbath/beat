@@ -858,11 +858,20 @@ class SamplerConfig(Object):
             logger.info('Sampler not defined, using default sampler: SMC')
             self.name = 'SMC'
 
-        if self.name == 'Metropolis':
-            self.parameters = MetropolisConfig(**kwargs)
-
         if self.name == 'SMC':
             self.parameters = SMCConfig(**kwargs)
+
+        elif self.name != 'SMC':
+            kwargs.pop('update_covariances', None)
+
+            if self.name == 'Metropolis':
+                self.parameters = MetropolisConfig(**kwargs)
+
+            elif self.name == 'PT':
+                self.parameters = ParallelTemperingConfig(**kwargs)
+
+            else:
+                raise TypeError('Sampler "%s" is not implemented.' % self.name)
 
 
 class GFLibaryConfig(Object):
