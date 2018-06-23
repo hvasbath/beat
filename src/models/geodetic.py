@@ -206,10 +206,11 @@ class GeodeticComposite(Composite):
         if self.config.fit_plane:
             logger.info('Estimating ramp for each dataset...')
             for i, (data, param) in enumerate(
-                    zip(self.datasets, hierarchicals)):
+                    zip(self.datasets, hierarchicals.values())):
 
+                hierarchical_name = data.name + '_ramp'
                 if not self.config.fit_plane and \
-                        data.name in hierarchicals:
+                        hierarchical_name in hierarchicals:
                         raise ConfigInconsistentError(
                             'Plane removal disabled, but they are defined'
                             ' in the problem configuration (hierarchicals)!')
@@ -217,7 +218,7 @@ class GeodeticComposite(Composite):
                 if isinstance(data, heart.DiffIFG):
 
                     if self.config.fit_plane and \
-                            data.name not in hierarchicals:
+                            hierarchical_name not in hierarchicals:
                         raise ConfigInconsistentError(
                             'Plane corrections enabled, but they are'
                             ' not defined in the problem configuration!'
@@ -228,7 +229,7 @@ class GeodeticComposite(Composite):
                         shape=param.dimension,
                         lower=param.lower,
                         upper=param.upper,
-                        testval=param.testval,
+                        testval=param.testvalue,
                         transform=None,
                         dtype=tconfig.floatX)
                     try:

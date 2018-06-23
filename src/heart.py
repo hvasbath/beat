@@ -542,7 +542,7 @@ class GeodeticDataset(gf.meta.MultiLocation):
             loc.lat, loc.lon, self.lats, self.lons)
 
         if hasattr(self, 'quadtree'):
-            if self.quadtree is not None:
+            if isinstance(self.quadtree, Quadtree):
                 self.quadtree.update_local_coords(loc)
 
         return self.north_shifts, self.east_shifts
