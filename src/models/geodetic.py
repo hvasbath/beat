@@ -205,9 +205,7 @@ class GeodeticComposite(Composite):
         hierarchicals = problem_config.hierarchicals
         if self.config.fit_plane:
             logger.info('Estimating ramp for each dataset...')
-            for i, (data, param) in enumerate(
-                    zip(self.datasets, hierarchicals.values())):
-
+            for data in self.datasets:
                 hierarchical_name = data.name + '_ramp'
                 if not self.config.fit_plane and \
                         hierarchical_name in hierarchicals:
@@ -224,6 +222,7 @@ class GeodeticComposite(Composite):
                             ' not defined in the problem configuration!'
                             ' (hierarchicals)')
 
+                    param = hierarchicals[hierarchical_name]
                     kwargs = dict(
                         name=param.name,
                         shape=param.dimension,
