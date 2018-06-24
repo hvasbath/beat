@@ -7,17 +7,21 @@ from pyrocko.guts import Float
 from pyrocko import gf
 from pyrocko.gf import meta
 from pyrocko import moment_tensor as mtm
-from pyrocko.gf.seismosizer import outline_rect_source, Source, Cloneable
-from pyrocko.orthodrome import ne_to_latlon
+from pyrocko.gf.seismosizer import Source
 
 import math
 import copy
 import numpy as num
 import logging
 
+pi = num.pi
 km = 1000.
-d2r = num.pi / 180.
-r2d = 180. / num.pi
+d2r = pi / 180.
+r2d = 180. / pi
+
+sqrt3 = num.sqrt(3.)
+sqrt2 = num.sqrt(2.)
+sqrt6 = num.sqrt(6.)
 
 logger = logging.getLogger('sources')
 
@@ -278,6 +282,175 @@ class RectangularSource(gf.RectangularSource):
                      depth=float(top_center[2]))
 
         return s
+
+
+class MTSourceQT(gf.SourceWithMagnitude):
+    """
+    A moment tensor point source.
+
+    Notes
+    -----
+    Following Q-T parameterization after Tape & Tape 2015
+    """
+
+    discretized_source_class = meta.DiscretizedMTSource
+
+    u = Float.T(
+        default=0.,
+        help='Lune co-latitude transformed to grid.'
+             'Defined: 0 <= u <=3/4pi')
+
+    v = Float.T(
+        default=0.,
+        help='Lune co-longitude transformed to grid'
+             'Definded: -1/3 <= v <= 1/3')
+
+    kappa = Float.T(
+        default=0.,
+        help='Strike angle equivalent of moment tensor plane'
+             'Defined: 0 <= kappa <= 2pi')
+
+    sigma = Float.T(
+        default=0.,
+        help='Rake angle equivalent of moment tensor slip angle'
+             'Defined: -pi/2 <= sigma <= pi/2')
+
+    h = Float.T(
+        default=0.,
+        help='Dip angle equivalent of moment tensor plane'
+             'Defined: 0 <= h <= 1')
+
+    def __init__(self):
+        self._beta_mapping = num.arange(0, pi, pi / 500.)
+        self._u_mapping = \
+            (3. / 4. * self._beta_mapping) - \
+            (1. / 2. * num.sin(2. * self._beta_mapping)) + \
+            (1. / 16. * num.sin(4. * self._beta_mapping))
+
+        self.lambda_factor_matrix = num.array(
+            [[sqrt3, -1., sqrt2],
+             [0., 2., sqrt2],
+             [-sqrt3, -1., sqrt2]], dtype='float64')
+
+        self.rot_pi4 = num.array(
+            [[num.cos(-pi / 4.), 0., num.sin(-pi / 4.)],
+             [0., 1., 0.],
+             [-num.sin(-pi / 4.), 0., num.cos(-pi / 4.)]], dtype='float64')
+
+        self._lune_lambda_matrix = num.zeros((3, 3), dtype='float64')
+
+    @property
+    def gamma(self):
+        """
+        Lunar co-longitude, dependend on v
+        """
+        return (1. / 3.) * num.arcsin(3. * self.v)
+
+    @property
+    def beta(self):
+        """
+        Lunar co-latitude, dependend on u
+        """
+        return self._beta_mapping[
+            num.argmin(num.abs(self._u_mapping - self.u))]
+
+    @property
+    def theta(self):
+        return num.arccos(self.h)
+
+    @property
+    def rot_theta(self):
+        cos_theta = num.cos(self.theta)
+        sin_theta = num.sin(self.theta)
+        return num.array(
+            [[1., 0., 0.],
+             [0., cos_theta, -sin_theta],
+             [0., sin_theta, cos_theta]], dtype='float64')
+
+    @property
+    def rot_kappa(self):
+        mcos_kappa = num.cos(-self.kappa)
+        msin_kappa = num.sin(-self.kappa)
+        return num.array(
+            [[mcos_kappa, msin_kappa, 0.],
+             [msin_kappa, mcos_kappa, 0.],
+             [0., 0., 1.]], dtype='float64')
+
+    def rot_sigma(self):
+        cos_sigma = num.cos(self.sigma)
+        sin_sigma = num.sin(self.sigma)
+        return num.array(
+            [[cos_sigma, -sin_sigma, 0.],
+             [sin_sigma, cos_sigma, 0.],
+             [0., 0., 1.]], dtype='float64')
+
+    @property
+    def lune_lambda(self):
+        sin_beta = num.sin(self.beta)
+        cos_beta = num.cos(self.beta)
+        sin_gamma = num.sin(self.gamma)
+        cos_gamma = num.cos(self.gamma)
+        vec = num.array([sin_beta * cos_gamma, sin_beta * sin_gamma, cos_beta])
+        return 1. / sqrt6 * self.lambda_factor_matrix.d1ot(vec)
+
+    @property
+    def lune_lambda_matrix(self):
+        num.fill_diagonal(self._lune_lambda_matrix, self.lune_lambda)
+        return self._lune_lambda_matrix
+
+    @property
+    def rot_V(self):
+        return self.rot_kappa.dot(self.rot_theta).dot(self.rot_sigma)
+
+    @property
+    def rot_U(self):
+        return self.rot_V.dot(self.rot_pi4)
+
+    @property
+    def m9(self):
+        return self.rot_U.dot(
+            self.lune_lambda_matrix).dot(num.linalg.inv(self.rot_U))
+
+    @property
+    def m6(self):
+        return mtm.to6(self.m9)
+
+    @property
+    def m6_astuple(self):
+        return tuple(self.m6.ravel().tolist())
+
+    def base_key(self):
+        return Source.base_key(self) + self.m6_astuple
+
+    def discretize_basesource(self, store, target=None):
+        times, amplitudes = self.effective_stf_pre().discretize_t(
+            store.config.deltat, 0.0)
+        m0 = mtm.magnitude_to_moment(self.magnitude)
+        m6s = self.m6 * m0
+        return meta.DiscretizedMTSource(
+            m6s=m6s[num.newaxis, :] * amplitudes[:, num.newaxis],
+            **self._dparams_base_repeated(times))
+
+    def pyrocko_moment_tensor(self):
+        return mtm.MomentTensor(m=mtm.symmat6(*self.m6_astuple) * self.moment)
+
+    def pyrocko_event(self, **kwargs):
+        mt = self.pyrocko_moment_tensor()
+        return Source.pyrocko_event(
+            self,
+            moment_tensor=self.pyrocko_moment_tensor(),
+            magnitude=float(mt.moment_magnitude()),
+            **kwargs)
+
+    @classmethod
+    def from_pyrocko_event(cls, ev, **kwargs):
+        d = {}
+        mt = ev.moment_tensor
+        if mt:
+            d.update(m6=map(float, mt.m6()))
+
+        d.update(kwargs)
+        return super(MTSourceWithMagnitude, cls).from_pyrocko_event(ev, **d)
 
 
 class MTSourceWithMagnitude(gf.SourceWithMagnitude):

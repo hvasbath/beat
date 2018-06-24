@@ -127,6 +127,7 @@ class FastSweepingTestCase(unittest.TestCase):
         num.testing.assert_allclose(np_i, c_i, rtol=0., atol=1e-6)
         num.testing.assert_allclose(np_i, tc_i, rtol=0., atol=1e-6)
 
+
 if __name__ == '__main__':
     util.setup_logging('test_fast_sweeping', 'info')
     unittest.main()
