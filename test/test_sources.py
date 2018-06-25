@@ -1,6 +1,6 @@
 import logging
 import unittest
-from beat.sources import MTSourceQT
+from beat.sources import MTQTSource
 
 from pyrocko import util
 import numpy as num
@@ -26,7 +26,7 @@ class TestSources(unittest.TestCase):
             -pi / 2.,
             3. / 4.)
 
-        mt = MTSourceQT(u=u, v=v, kappa=kappa, sigma=sigma, h=h)
+        mt = MTQTSource(u=u, v=v, kappa=kappa, sigma=sigma, h=h)
 
         reference_colatlon = num.array([1.571, -0.113])
         reference_theta = num.array([0.723])

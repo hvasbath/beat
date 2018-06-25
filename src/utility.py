@@ -1308,49 +1308,58 @@ def line_intersect(e1, e2, n1, n2):
     return num.atleast_2d(tmp / denom).T * dn + n1
 
 
-def get_rotation_matrix(axis):
+def get_rotation_matrix(axes=['x', 'y', 'z']):
     """
     Return a function for 3-d rotation matrix for a specified axis.
 
     Parameters
     ----------
-    axis : str or list of str
+    axes : str or list of str
         x, y or z for the axis
 
     Returns
     -------
-    func that takes an angle
+    func that takes an angle [rad]
     """
+    ax_avail = ['x', 'y', 'z']
+    for ax in axes:
+        if ax not in ax_avail:
+            raise TypeError(
+                'Rotation axis %s not supported!'
+                ' Available axes: %s' % (ax, list2string(ax_avail)))
 
     def rotx(angle):
-        angle *= num.pi / 180.
+        cos_angle = num.cos(angle)
+        sin_angle = num.sin(angle)
         return num.array(
             [[1, 0, 0],
-             [0, num.cos(angle), -num.sin(angle)],
-             [0, num.sin(angle), -num.cos(angle)]])
+             [0, cos_angle, -sin_angle],
+             [0, sin_angle, cos_angle]], dtype='float64')
 
     def roty(angle):
-        angle *= num.pi / 180.
+        cos_angle = num.cos(angle)
+        sin_angle = num.sin(angle)
         return num.array(
-            [[num.cos(angle), 0, num.sin(angle)],
+            [[cos_angle, 0, sin_angle],
              [0, 1, 0],
-             [-num.sin(angle), 0, num.cos(angle)]])
+             [-sin_angle, 0, cos_angle]], dtype='float64')
 
     def rotz(angle):
-        angle *= num.pi / 180.
+        cos_angle = num.cos(angle)
+        sin_angle = num.sin(angle)
         return num.array(
-            [[num.cos(angle), -num.sin(angle), 0],
-             [num.sin(angle), num.cos(angle), 0],
-             [0, 0, 1]])
+            [[cos_angle, -sin_angle, 0],
+             [sin_angle, cos_angle, 0],
+             [0, 0, 1]], dtype='float64')
 
     R = {'x': rotx,
          'y': roty,
          'z': rotz}
 
-    if isinstance(axis, list):
-        return [R[a] for a in axis]
-    elif isinstance(axis, str):
-        return R[axis]
+    if isinstance(axes, list):
+        return R
+    elif isinstance(axes, str):
+        return R[axes]
     else:
         raise Exception('axis has to be either string or list of strings!')
 

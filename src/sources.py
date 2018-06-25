@@ -9,6 +9,8 @@ from pyrocko.gf import meta
 from pyrocko import moment_tensor as mtm
 from pyrocko.gf.seismosizer import Source
 
+from beat.utility import get_rotation_matrix
+
 import math
 import copy
 import numpy as num
@@ -333,10 +335,8 @@ class MTQTSource(gf.SourceWithMagnitude):
              [0., 2., sqrt2],
              [-sqrt3, -1., sqrt2]], dtype='float64')
 
-        self.rot_pi4 = num.array(
-            [[num.cos(-pi4), 0., num.sin(-pi4)],
-             [0., 1., 0.],
-             [-num.sin(-pi4), 0., num.cos(-pi4)]], dtype='float64')
+        self.R = get_rotation_matrix()
+        self.rot_pi4 = self.R['y'](-pi4)
 
         self._lune_lambda_matrix = num.zeros((3, 3), dtype='float64')
 
@@ -363,30 +363,15 @@ class MTQTSource(gf.SourceWithMagnitude):
 
     @property
     def rot_theta(self):
-        cos_theta = num.cos(self.theta)
-        sin_theta = num.sin(self.theta)
-        return num.array(
-            [[1., 0., 0.],
-             [0., cos_theta, -sin_theta],
-             [0., sin_theta, cos_theta]], dtype='float64')
+        return self.R['x'](self.theta)
 
     @property
     def rot_kappa(self):
-        mcos_kappa = num.cos(-self.kappa)
-        msin_kappa = num.sin(-self.kappa)
-        return num.array(
-            [[mcos_kappa, -msin_kappa, 0.],
-             [msin_kappa, mcos_kappa, 0.],
-             [0., 0., 1.]], dtype='float64')
+        return self.R['z'](-self.kappa)
 
     @property
     def rot_sigma(self):
-        cos_sigma = num.cos(self.sigma)
-        sin_sigma = num.sin(self.sigma)
-        return num.array(
-            [[cos_sigma, -sin_sigma, 0.],
-             [sin_sigma, cos_sigma, 0.],
-             [0., 0., 1.]], dtype='float64')
+        return self.R['z'](self.sigma)
 
     @property
     def lune_lambda(self):
