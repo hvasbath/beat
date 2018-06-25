@@ -448,6 +448,15 @@ class MTQTSource(gf.SourceWithMagnitude):
         d.update(kwargs)
         return super(MTQTSource, cls).from_pyrocko_event(ev, **d)
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['R'] = None
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.R = get_rotation_matrix()
+
 
 class MTSourceWithMagnitude(gf.SourceWithMagnitude):
     '''
