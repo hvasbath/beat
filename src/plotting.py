@@ -46,6 +46,7 @@ u_deg = '$[^{\circ}]$'
 u_m = '$[m]$'
 u_v = '$[m^3]$'
 u_s = '$[s]$'
+u_rad = '$[rad]$'
 u_hyp = ''
 
 plot_units = {
@@ -86,6 +87,12 @@ plot_units = {
     'mnd': u_nm,
     'med': u_nm,
     'magnitude': u_hyp,
+
+    'u': u_rad,
+    'v': u_rad,
+    'kappa': u_rad,
+    'sigma': u_rad,
+    'h': u_hyp,
 
     'distance': u_km,
     'delta_depth': u_km,
@@ -1621,6 +1628,7 @@ def draw_posteriors(problem, plot_options):
                 transform=transform,
                 chains=chains,
                 combined=True,
+                plot_style='hist',
                 lines=po.reference,
                 posterior='max')
 
