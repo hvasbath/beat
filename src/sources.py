@@ -15,6 +15,7 @@ import numpy as num
 import logging
 
 pi = num.pi
+pi4 = pi / 4.
 km = 1000.
 d2r = pi / 180.
 r2d = 180. / pi
@@ -320,7 +321,7 @@ class MTSourceQT(gf.SourceWithMagnitude):
         help='Dip angle equivalent of moment tensor plane'
              'Defined: 0 <= h <= 1')
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         self._beta_mapping = num.arange(0, pi, pi / 500.)
         self._u_mapping = \
             (3. / 4. * self._beta_mapping) - \
@@ -333,11 +334,13 @@ class MTSourceQT(gf.SourceWithMagnitude):
              [-sqrt3, -1., sqrt2]], dtype='float64')
 
         self.rot_pi4 = num.array(
-            [[num.cos(-pi / 4.), 0., num.sin(-pi / 4.)],
+            [[num.cos(-pi4), 0., num.sin(-pi4)],
              [0., 1., 0.],
-             [-num.sin(-pi / 4.), 0., num.cos(-pi / 4.)]], dtype='float64')
+             [-num.sin(-pi4), 0., num.cos(-pi4)]], dtype='float64')
 
         self._lune_lambda_matrix = num.zeros((3, 3), dtype='float64')
+
+        Source.__init__(self, **kwargs)
 
     @property
     def gamma(self):
@@ -372,10 +375,11 @@ class MTSourceQT(gf.SourceWithMagnitude):
         mcos_kappa = num.cos(-self.kappa)
         msin_kappa = num.sin(-self.kappa)
         return num.array(
-            [[mcos_kappa, msin_kappa, 0.],
+            [[mcos_kappa, -msin_kappa, 0.],
              [msin_kappa, mcos_kappa, 0.],
              [0., 0., 1.]], dtype='float64')
 
+    @property
     def rot_sigma(self):
         cos_sigma = num.cos(self.sigma)
         sin_sigma = num.sin(self.sigma)
@@ -391,7 +395,7 @@ class MTSourceQT(gf.SourceWithMagnitude):
         sin_gamma = num.sin(self.gamma)
         cos_gamma = num.cos(self.gamma)
         vec = num.array([sin_beta * cos_gamma, sin_beta * sin_gamma, cos_beta])
-        return 1. / sqrt6 * self.lambda_factor_matrix.d1ot(vec)
+        return 1. / sqrt6 * self.lambda_factor_matrix.dot(vec)
 
     @property
     def lune_lambda_matrix(self):
