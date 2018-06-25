@@ -285,7 +285,7 @@ class RectangularSource(gf.RectangularSource):
         return s
 
 
-class MTSourceQT(gf.SourceWithMagnitude):
+class MTQTSource(gf.SourceWithMagnitude):
     """
     A moment tensor point source.
 
@@ -454,7 +454,7 @@ class MTSourceQT(gf.SourceWithMagnitude):
             d.update(m6=map(float, mt.m6()))
 
         d.update(kwargs)
-        return super(MTSourceWithMagnitude, cls).from_pyrocko_event(ev, **d)
+        return super(MTQTSource, cls).from_pyrocko_event(ev, **d)
 
 
 class MTSourceWithMagnitude(gf.SourceWithMagnitude):

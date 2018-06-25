@@ -21,7 +21,7 @@ from pyrocko.gf.seismosizer import Cloneable, stf_classes
 
 from beat.heart import Filter, ArrivalTaper, Parameter
 from beat.heart import ReferenceLocation
-from beat.sources import RectangularSource, MTSourceWithMagnitude
+from beat.sources import RectangularSource, MTSourceWithMagnitude, MTQTSource
 
 from beat import utility
 
@@ -44,6 +44,7 @@ source_names = '''
     DCSource
     CLVDSource
     MTSource
+    MTQTSource
     RectangularSource
     DoubleDCSource
     RingfaultSource
@@ -55,6 +56,7 @@ source_classes = [
     gf.DCSource,
     gf.CLVDSource,
     MTSourceWithMagnitude,
+    MTQTSource,
     PyrockoRS,
     gf.DoubleDCSource,
     gf.RingfaultSource]
@@ -128,6 +130,12 @@ default_bounds = dict(
     mne=moffdiag,
     mnd=moffdiag,
     med=moffdiag,
+
+    u=(0., 3. / 4. * num.pi),
+    v=(-1. / 3, 1. / 3.),
+    kappa=(0., 2 * num.pi),
+    sigma=(-num.pi / 2., num.pi / 2.),
+    h=(0., 1.),
 
     volume_change=(1e8, 1e10),
     diameter=(5., 10.),
@@ -570,8 +578,7 @@ class ProblemConfig(Object):
         if variables is None:
             variables = self.select_variables()
 
-        if self.priors is None:
-            self.priors = OrderedDict()
+        self.priors = OrderedDict()
 
         for variable in variables:
 

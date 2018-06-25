@@ -307,6 +307,12 @@ physical_bounds = dict(
     mnd=(-1., 1.),
     med=(-1., 1.),
 
+    u=(0., 3. / 4. * num.pi),
+    v=(-1. / 3, 1. / 3.),
+    kappa=(0., 2 * num.pi),
+    sigma=(-num.pi / 2., num.pi / 2.),
+    h=(0., 1.),
+
     length=(0., 7000.),
     width=(0., 500.),
     slip=(0., 150.),
@@ -336,7 +342,7 @@ physical_bounds = dict(
     bl_amplitude=(0., 0.2),
     locking_depth=(0.1, 100.),
 
-    h=(-20., 20.),
+    hypers=(-20., 20.),
 
     ramp=(-0.01, 0.01))
 
@@ -373,7 +379,7 @@ class Parameter(Object):
                     'The parameter "%s" cannot'
                     ' be optimized for!' % self.name)
             else:
-                name = 'h'
+                name = 'hypers'
         else:
             name = self.name
 

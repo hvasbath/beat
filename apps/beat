@@ -578,6 +578,7 @@ def command_clone(args):
 
                 c.problem_config.datatype = new_datatypes
                 new_priors = c.problem_config.select_variables()
+                c.problem_config.priors = new_priors
 
                 for prior in new_priors:
                     if prior in old_priors.keys():
