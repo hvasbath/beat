@@ -381,7 +381,7 @@ class TextChain(BaseTrace):
         pt = {}
         for varname in self.varnames:
             vals = self.df[self.flat_names[varname]].iloc[idx]
-            pt[varname] = vals.reshape(self.var_shapes[varname]).as_matrix()
+            pt[varname] = vals.values.reshape(self.var_shapes[varname])
         return pt
 
 
