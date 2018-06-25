@@ -324,7 +324,8 @@ class MTQTSource(gf.SourceWithMagnitude):
              'Defined: 0 <= h <= 1')
 
     def __init__(self, **kwargs):
-        self._beta_mapping = num.arange(0, pi, pi / 500.)
+        n = 1000
+        self._beta_mapping = num.linspace(0, pi, n)
         self._u_mapping = \
             (3. / 4. * self._beta_mapping) - \
             (1. / 2. * num.sin(2. * self._beta_mapping)) + \
@@ -354,8 +355,14 @@ class MTQTSource(gf.SourceWithMagnitude):
         """
         Lunar co-latitude, dependend on u
         """
-        return self._beta_mapping[
-            num.argmin(num.abs(self._u_mapping - self.u))]
+        return num.interp(self.u, self._u_mapping, self._beta_mapping)
+
+    def delta(self):
+        """
+        From Tape & Tape 2012, delta measures departure of MT being DC
+        Delta = Gamma = 0 yields pure DC
+        """
+        return (pi / 2.) - self.beta
 
     @property
     def theta(self):
