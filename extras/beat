@@ -29,7 +29,7 @@ _beat_options()
     arg_subsub["update"]="--parameters $_std"
     arg_subsub["sample"]="--mode --hypers $_std"
     arg_subsub["summarize"]="--mode --force $_std"
-    arg_subsub["clone"]="--datatypes --mode --source_type --copy_data $_std"
+    arg_subsub["clone"]="--datatypes --mode --source_type --sampler --copy_data $_std"
     arg_subsub["plot"]="--mode --post_llk --stage_number --varnames --format --dpi --force --reference --hypers --nobuild $_std"
     arg_subsub["check"]="--datatypes --mode --what $_std"
 

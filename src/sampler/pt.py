@@ -672,6 +672,7 @@ def sample_pt_chain(
                 'Evaluating sampled trace covariance at '
                 'sample %i' % strace.count)
             cov = strace.get_sample_covariance(step.lij, step.beta)
+
             step.proposal_dist = choose_proposal(step.proposal_name, scale=cov)
 
     return step.lij.l2a(strace.buffer[-1])

@@ -89,8 +89,9 @@ class ListArrayOrdering(object):
                 name = 'numpy'
 
             slc = slice(dim, dim + array.size)
-            self.vmap.append(DataMap(
-                count, slc, array.shape, array.dtype, name))
+            vm = DataMap(
+                count, slc, array.shape, array.dtype, name)
+            self.vmap.append(vm)
             dim += array.size
             count += 1
 
@@ -98,15 +99,22 @@ class ListArrayOrdering(object):
         self._keys = None
 
     def __getitem__(self, key):
-        if self._keys is None:
-            self._keys = [vmap.name for vmap in self.vmap]
-
         try:
-            return self.vmap[self._keys.index(key)]
+            return self.vmap[self.variables.index(key)]
         except ValueError:
             raise KeyError(
                 'Variable "%s" is not in the mapping!'
-                ' Mapped Variables: %s' % (key, list2string(self._keys)))
+                ' Mapped Variables: %s' % (key, list2string(self.variables)))
+
+    def __iter__(self):
+        return iter(self.variables)
+
+    @property
+    def variables(self):
+        if self._keys is None:
+            self._keys = [vmap.name for vmap in self.vmap]
+
+        return self._keys
 
 
 class ListToArrayBijection(object):

@@ -104,6 +104,7 @@ nargs_dict = {
 
 mode_choices = ['geometry', 'ffi']
 supported_geodetic_formats = ['matlab', 'ascii', 'kite']
+supported_samplers = ['SMC', 'Metropolis', 'PT']
 
 
 def add_common_options(parser):
@@ -240,10 +241,12 @@ def command_init(args):
             help='Waveforms to include in the setup; "any_P, any_S, slowest".')
 
         parser.add_option(
-            '--sampler', dest='sampler', type='string',
+            '--sampler', dest='sampler',
+            choices=supported_samplers,
             default='SMC',
             help='Sampling algorithm to sample the solution space of the'
-                 ' general problem; "SMC", "Metropolis". Default: "SMC"')
+                 ' general problem; %s. '
+                 'Default: "SMC"' % list2string(supported_samplers))
 
         parser.add_option(
             '--hyper_sampler', dest='hyper_sampler',
@@ -534,6 +537,14 @@ def command_clone(args):
             help='If set, the imported data will be copied into the cloned'
                  ' directory.')
 
+        parser.add_option(
+            '--sampler', dest='sampler',
+            choices=supported_samplers,
+            default=None,
+            help='Replace sampling algorithm in config to sample '
+                 'the solution space of the general problem; %s.'
+                 ' Default: "dont change"' % list2string(supported_samplers))
+
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
     if not len(args) == 2:
@@ -594,6 +605,12 @@ def command_clone(args):
             for hyper in old_hypers.keys():
                 c.problem_config.hyperparameters[hyper] = old_hypers[hyper]
 
+            if options.sampler:
+                c.sampler_config.name = options.sampler
+                c.sampler_config.set_parameters()
+
+            c.regularize()
+            c.validate()
             config.dump_config(c)
 
         else:

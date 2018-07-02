@@ -734,9 +734,6 @@ class ProblemConfig(Object):
 
 class SamplerParameters(Object):
 
-    n_jobs = Int.T(
-        default=1,
-        help='Number of processors to use, i.e. chains to sample in parallel.')
     tune_interval = Int.T(
         default=50,
         help='Tune interval for adaptive tuning of Metropolis step size.')
@@ -756,7 +753,7 @@ class SamplerParameters(Object):
 class ParallelTemperingConfig(SamplerParameters):
 
     n_samples = Int.T(
-        default=1e5,
+        default=int(1e5),
         help='Number of samples of the posterior distribution.'
              ' Only the samples of processors that sample from the posterior'
              ' (beta=1) are kept.')
@@ -765,7 +762,7 @@ class ParallelTemperingConfig(SamplerParameters):
         help='Number of PT chains to sample in parallel.'
              ' A number < 2 will raise an Error, as this is the minimum'
              ' amount of chains needed. ')
-    swap_intervall = Tuple.T(
+    swap_interval = Tuple.T(
         2, Int.T(),
         default=(100, 300),
         help='Interval for uniform random integer that is drawn to determine'
@@ -774,7 +771,7 @@ class ParallelTemperingConfig(SamplerParameters):
              ' between chains. Consequently, lower number will result in'
              ' more state swapping.')
     beta_tune_interval = Int.T(
-        default=1e4,
+        default=int(5e3),
         help='Sample interval of master chain after which the chain swap'
              ' acceptance is evaluated. High acceptance will result in'
              ' closer spaced betas and vice versa.')
@@ -795,6 +792,9 @@ class MetropolisConfig(SamplerParameters):
     """
     Config for optimization parameters of the Adaptive Metropolis algorithm.
     """
+    n_jobs = Int.T(
+        default=1,
+        help='Number of processors to use, i.e. chains to sample in parallel.')
     n_steps = Int.T(default=25000,
                     help='Number of steps for the MC chain.')
     n_chains = Int.T(default=20,
@@ -813,6 +813,9 @@ class SMCConfig(SamplerParameters):
     """
     Config for optimization parameters of the SMC algorithm.
     """
+    n_jobs = Int.T(
+        default=1,
+        help='Number of processors to use, i.e. chains to sample in parallel.')
     n_steps = Int.T(default=100,
                     help='Number of steps for the MC chain.')
     n_chains = Int.T(default=1000,

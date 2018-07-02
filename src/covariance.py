@@ -386,9 +386,15 @@ def calc_sample_covariance(lpoints, lij, beta):
 
     like_slc = lij.ordering['like'].slc
     weights = population_array[:, like_slc]
-    population_array = num.delete(population_array, like_slc, axis=1)
-
     temp_weights = num.exp(beta * (weights - weights.max()))
+
+    slices = [
+        lij.ordering[variable].slc for variable in lij.ordering
+        if 'like' in variable]
+
+    slices.sort()
+    for slc in slices[::-1]:
+        population_array = num.delete(population_array, slc, axis=1)
 
     cov = num.cov(
         population_array,
