@@ -609,7 +609,7 @@ def geodetic_fits(problem, stage, plot_options):
     for dataset, result in zip(composite.datasets, results):
         dataset_to_result[dataset] = result
 
-    nfigs = int(num.ceil(float(nrmax) / float(ndmax)))
+    nfigs = int(num.ceil(float(nrmax) // float(ndmax)))
 
     figures = []
     axes = []
@@ -990,16 +990,16 @@ def seismic_fits(problem, stage, plot_options):
         nframes = len(targets)
 
         nx = int(math.ceil(math.sqrt(nframes)))
-        ny = (nframes - 1) / nx + 1
+        ny = (nframes - 1) // nx + 1
 
         nxmax = 4
         nymax = 4
 
-        nxx = (nx - 1) / nxmax + 1
-        nyy = (ny - 1) / nymax + 1
+        nxx = (nx - 1) // nxmax + 1
+        nyy = (ny - 1) // nymax + 1
 
-        xs = num.arange(nx) / ((max(2, nx) - 1.0) / 2.)
-        ys = num.arange(ny) / ((max(2, ny) - 1.0) / 2.)
+        xs = num.arange(nx) // ((max(2, nx) - 1.0) / 2.)
+        ys = num.arange(ny) // ((max(2, ny) - 1.0) / 2.)
 
         xs -= num.mean(xs)
         ys -= num.mean(ys)
@@ -1055,8 +1055,8 @@ def seismic_fits(problem, stage, plot_options):
                 if (iy, ix) not in frame_to_target:
                     continue
 
-                ixx = ix / nxmax
-                iyy = iy / nymax
+                ixx = ix // nxmax
+                iyy = iy // nymax
                 if (iyy, ixx) not in figures:
                     figures[iyy, ixx] = plt.figure(
                         figsize=mpl_papersize('a4', 'landscape'))
@@ -1523,7 +1523,7 @@ def select_transform(sc, n_steps=None):
         if n_steps == 1:
             return x
         else:
-            nchains = x.shape[0] / n_steps
+            nchains = x.shape[0] // n_steps
             xout = []
             for i in range(nchains):
                 nstart = int((n_steps * i) + (n_steps * pa.burn))

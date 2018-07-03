@@ -364,7 +364,7 @@ class SeismicGeometryComposite(SeismicComposite):
         source = self.sources[0]
         source_params = list(source.keys()) + list(source.stf.keys())
 
-        for param in tpoint.keys():
+        for param in list(tpoint.keys()):
             if param not in source_params:
                 tpoint.pop(param)
 

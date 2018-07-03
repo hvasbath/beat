@@ -271,7 +271,7 @@ class TextChain(BaseTrace):
         self.stored_samples += n_samples
 
         if not self.progressbar:
-            if n_samples > self.buffer_size / 2:
+            if n_samples > self.buffer_size // 2:
                 logger.info(
                     'Writing %i / %i samples of chain %i to disk...' %
                     (self.stored_samples, self.draws, self.chain))
