@@ -194,7 +194,7 @@ multivariate_proposals = ['MultivariateCauchy', 'MultivariateNormal']
 
 
 def available_proposals():
-    return proposal_distributions.keys()
+    return list(proposal_distributions.keys())
 
 
 def choose_proposal(proposal_name, **kwargs):
@@ -456,7 +456,7 @@ def iter_parallel_chains(
                 list2string(shared_params))
 
             if len(shared_params) > 0:
-                if len(parallel._shared_memory.keys()) == 0:
+                if len(parallel._shared_memory) == 0:
                     logger.info('Putting data into shared memory ...')
                     parallel.memshare_sparams(shared_params)
                 else:
