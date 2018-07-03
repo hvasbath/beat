@@ -201,7 +201,7 @@ class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
 
         '''
 
-        for (k, v) in kwargs.iteritems():
+        for (k, v) in kwargs.items():
             self[k] = v
 
         if top_depth:

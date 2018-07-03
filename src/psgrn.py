@@ -78,8 +78,8 @@ class PsGrnSpatialSampling(Object):
     end_distance = Float.T(default=100.)    # end
 
     def string_for_config(self):
-        return '%i %15e %15e' % (self.n_steps, self.start_distance,
-                                                        self.end_distance)
+        return '%i %15e %15e' \
+            % (self.n_steps, self.start_distance, self.end_distance)
 
 
 class PsGrnConfig(Object):
@@ -90,10 +90,12 @@ class PsGrnConfig(Object):
     max_time = Float.T(default=1.)
 
     observation_depth = Float.T(default=0.)
-    distance_grid = PsGrnSpatialSampling(n_steps=100,
-                                         start_distance=0., end_distance=50.)
-    depth_grid = PsGrnSpatialSampling(n_steps=100,
-                                         start_distance=0., end_distance=40.)
+    distance_grid = PsGrnSpatialSampling(
+        n_steps=100,
+        start_distance=0., end_distance=50.)
+    depth_grid = PsGrnSpatialSampling(
+        n_steps=100,
+        start_distance=0., end_distance=40.)
 
     def items(self):
         return dict(self.T.inamevals(self))
