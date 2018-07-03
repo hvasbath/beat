@@ -726,7 +726,7 @@ class GPSDataset(object):
         return list(self.stations.keys())
 
     def get_component_names(self):
-        return self.stations.values()[0].get_component_names()
+        return next(iter(self.stations.values())).get_component_names()
 
     def get_compound(self, name):
         stations = self.stations.values()
@@ -758,7 +758,7 @@ class GPSDataset(object):
             odw=num.ones_like(lats.size))
 
     def iter_stations(self):
-        return self.stations.iteritems()
+        return self.stations.items()
 
 
 class Quadtree(GeodeticDataset):
@@ -1356,7 +1356,8 @@ def get_slowness_taper(fomosto_config, velocity_model, distances):
     phases = [phase.phases for phase in fc.tabulated_phases]
 
     all_phases = []
-    map(all_phases.extend, phases)
+    for phase in phases:
+        all_phases.extend(phase)
 
     mean_source_depth = num.mean(
         (fc.source_depth_min, fc.source_depth_max)) / km
@@ -1757,7 +1758,7 @@ def geo_construct_gf(
         # build store
         try:
             ppp.build(store_dir, nworkers=gfc.nworkers, force=force)
-        except ppp.PsCmpError, e:
+        except ppp.PsCmpError as e:
             if str(e).find('could not start psgrn/pscmp') != -1:
                 logger.warn('psgrn/pscmp not installed')
                 return
@@ -1767,7 +1768,7 @@ def geo_construct_gf(
     elif not execute and not os.path.exists(traces_path):
         logger.info('Geo GFs can be created in directory: %s ! '
                     '(execute=True necessary)! GF params: \n' % store_dir)
-        print fomosto_config, c
+        print(fomosto_config, c)
     else:
         logger.info('Traces exist use force=True to overwrite!')
 
@@ -1843,7 +1844,7 @@ def geo_construct_gf_psgrn(
     if not execute:
         logger.info('Geo GFs can be created in directory: %s ! '
                     '(execute=True necessary)! GF params: \n' % c.psgrn_outdir)
-        print c
+        print(c)
 
     if execute:
         logger.info('Creating Geo GFs in directory: %s' % c.psgrn_outdir)

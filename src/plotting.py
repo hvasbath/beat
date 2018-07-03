@@ -1074,8 +1074,8 @@ def seismic_fits(problem, stage, plot_options):
             frame_to_target[iy, ix] = target
 
         figures = {}
-        for iy in xrange(ny):
-            for ix in xrange(nx):
+        for iy in range(ny):
+            for ix in range(nx):
                 if (iy, ix) not in frame_to_target:
                     continue
 
@@ -1223,7 +1223,7 @@ def seismic_fits(problem, stage, plot_options):
                 dist = source.distance_to(target)
                 azi = source.azibazi_to(target)[0]
                 infos.append(str_dist(dist))
-                infos.append(u'%.0f\u00B0' % azi)
+                infos.append('%.0f\u00B0' % azi)
                 # infos.append('%.3f' % gcms[itarget])
                 axes2.annotate(
                     '\n'.join(infos),
@@ -1236,7 +1236,7 @@ def seismic_fits(problem, stage, plot_options):
                     fontsize=fontsize,
                     fontstyle='normal')
 
-        for (iyy, ixx), fig in figures.iteritems():
+        for (iyy, ixx), fig in figures.items():
             title = '.'.join(x for x in cg if x)
             if len(figures) > 1:
                 title += ' (%i/%i, %i/%i)' % (iyy + 1, nyy, ixx + 1, nxx)
@@ -1523,7 +1523,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
                     if posterior:
                         if posterior == 'all':
-                            for k, idx in posterior_idxs.iteritems():
+                            for k, idx in posterior_idxs.items():
                                 axs[rowi, coli].axvline(
                                     x=e[idx], color=colors[k], lw=1.)
                         else:
@@ -1839,7 +1839,7 @@ def draw_earthmodels(problem, plot_options):
 
     po = plot_options
 
-    for datatype, composite in problem.composites.iteritems():
+    for datatype, composite in problem.composites.items():
 
         if datatype == 'seismic':
             models_dict = {}
@@ -1864,7 +1864,7 @@ def draw_earthmodels(problem, plot_options):
                         earth_model_name=sc.gf_config.earth_model_name,
                         channels=sc.get_unique_channels()[0],
                         sample_rate=sc.gf_config.sample_rate,
-                        crust_inds=range(*sc.gf_config.n_variations),
+                        crust_inds=list(range(*sc.gf_config.n_variations)),
                         interpolation='multilinear')
 
                     models = load_earthmodels(
@@ -1902,7 +1902,7 @@ def draw_earthmodels(problem, plot_options):
                     datasets=composite.datasets,
                     earth_model_name=gc.gf_config.earth_model_name,
                     interpolation='multilinear',
-                    crust_inds=range(*gc.gf_config.n_variations),
+                    crust_inds=list(range(*gc.gf_config.n_variations)),
                     sample_rate=gc.gf_config.sample_rate)
 
                 models = load_earthmodels(
@@ -1924,7 +1924,7 @@ def draw_earthmodels(problem, plot_options):
         figs = []
         axes = []
         tobepopped = []
-        for path, models in models_dict.iteritems():
+        for path, models in models_dict.items():
             if len(models) > 0:
                 fig, axs = n_model_plot(
                     models, axes=None,

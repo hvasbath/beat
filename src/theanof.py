@@ -242,7 +242,7 @@ class GeoInterseismicSynthesizer(theano.Op):
         self.fixed_values = {}
         self.varnames = []
 
-        for k, v in inputs.iteritems():
+        for k, v in inputs.items():
             if isinstance(v, FreeRV):
                 self.varnames.append(k)
                 inlist.append(tt.as_tensor_variable(v))

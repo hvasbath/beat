@@ -789,7 +789,7 @@ class QSeis2dGFBuilder(gf.builder.Builder):
             conf_r.earthmodel_receiver_1d = \
                 storeconf.earthmodel_1d.extract(
                     depth_max='moho')
-                    #depth_max=conf_s.receiver_basement_depth*km)
+            # depth_max=conf_s.receiver_basement_depth*km)
 
         deltat = 1.0 / self.gf_config.sample_rate
 
@@ -798,8 +798,8 @@ class QSeis2dGFBuilder(gf.builder.Builder):
                 baseconf.time_region[0], baseconf.time_region[1])
 
             shared['time_window_min'] = float(
-                    num.ceil( d['tlenmax'] / self.gf_config.sample_rate) * \
-                                             self.gf_config.sample_rate)
+                    num.ceil(d['tlenmax'] / self.gf_config.sample_rate) *
+                    self.gf_config.sample_rate)
             shared['time_reduction'] = d['tmin_vred']
 
         time_window_min = shared['time_window_min']
@@ -817,7 +817,8 @@ class QSeis2dGFBuilder(gf.builder.Builder):
                             storeconf.tabulated_phases))]
 
                     all_phases = []
-                    map(all_phases.extend, phases)
+                    for phase in phases:
+                        all_phases.extend(phase)
 
                     mean_source_depth = num.mean((
                         storeconf.source_depth_min,
@@ -836,10 +837,11 @@ class QSeis2dGFBuilder(gf.builder.Builder):
 
                     slownesses = ps / (cake.r2d * cake.d2m / km)
 
-                    shared['slowness_window'] = (0.,
-                                                 0.,
-                                                 1.1 * float(slownesses.max()),
-                                                 1.3 * float(slownesses.max()))
+                    shared['slowness_window'] = (
+                        0.,
+                        0.,
+                        1.1 * float(slownesses.max()),
+                        1.3 * float(slownesses.max()))
 
                 else:
                     shared['slowness_window'] = conf_s.slowness_window
@@ -900,13 +902,15 @@ class QSeis2dGFBuilder(gf.builder.Builder):
             runner.run(conf_s)
 
         else:
-            conf_r.receiver = QSeisRReceiver(lat=90 - firstx * cake.m2d,
-                                           lon=180.,
-                                           tstart=0.0,
-                                           distance=firstx)
-            conf_r.source = QSeis2dSource(lat=90 - 0.001 * dx * cake.m2d,
-                                        lon=0.0,
-                                        depth=source_depth)
+            conf_r.receiver = QSeisRReceiver(
+                lat=90 - firstx * cake.m2d,
+                lon=180.,
+                tstart=0.0,
+                distance=firstx)
+            conf_r.source = QSeis2dSource(
+                lat=90 - 0.001 * dx * cake.m2d,
+                lon=0.0,
+                depth=source_depth)
 
             runner = QSeisRRunner(tmp=self.tmp)
 
