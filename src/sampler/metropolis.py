@@ -68,10 +68,6 @@ class Metropolis(backend.ArrayStepSharedLLK):
         :module:`pymc3.step_methods.metropolis` for options
     tune : boolean
         Flag for adaptive scaling based on the acceptance rate
-    check_bound : boolean
-        Check if current sample lies outside of variable definition
-        speeds up computation as the forward model wont be executed
-        default: True
     model : :class:`pymc3.Model`
         Optional model for sampling step.
         Defaults to None (taken from context).
@@ -151,6 +147,10 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
         self.chain_previous_lpoint = [
             self.lij.d2l(point) for point in self.population]
+        for p in self.chain_previous_lpoint:
+            varlogp = self.check_bnd(self.lij.l2a(p))
+            if not num.isfinite(varlogp):
+                raise ValueError('Init Error!')
 
     def _sampler_state_blacklist(self):
         """
@@ -224,17 +224,19 @@ class Metropolis(backend.ArrayStepSharedLLK):
                     tune(
                         self.scaling,
                         self.accepted / float(self.tune_interval)))
+                print 'scaling', self.scaling
 
                 # Reset counter
                 self.steps_until_tune = self.tune_interval
                 self.accepted = 0
 
+            #print 'q0', q0
             logger.debug(
                 'Get delta: Chain_%i step_%i' % (
                     self.chain_index, self.stage_sample))
             delta = self.proposal_samples_array[self.stage_sample, :] * \
                 self.scaling
-
+            print delta
             if self.any_discrete:
                 if self.all_discrete:
                     delta = num.round(delta, 0)
@@ -250,7 +252,10 @@ class Metropolis(backend.ArrayStepSharedLLK):
                 q = q0 + delta
 
             l0 = self.chain_previous_lpoint[self.chain_index]
-
+            varlogp = self.check_bnd(q0)
+            if not num.isfinite(varlogp):
+                raise ValueError('Init Error!')
+            #print 'l0', l0
             if self.check_bnd:
                 logger.debug('Checking bound: Chain_%i step_%i' % (
                     self.chain_index, self.stage_sample))
@@ -261,7 +266,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
                         self.chain_index, self.stage_sample))
 
                     lp = self.logp_forw(q)
-
+                    print 'lp', lp
                     logger.debug('Select llk: Chain_%i step_%i' % (
                         self.chain_index, self.stage_sample))
 
@@ -293,6 +298,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
                     self.chain_index, self.stage_sample))
 
                 lp = self.logp_forw(q)
+                print 'no checkbound', lp
                 logger.debug('Select: Chain_%i step_%i' % (
                     self.chain_index, self.stage_sample))
                 q_new, accepted = metrop_select(
