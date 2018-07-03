@@ -327,7 +327,7 @@ class TemperingManager(object):
 
     @property
     def workers(self):
-        return self._worker_package_mapping.keys()
+        return list(self._worker_package_mapping.keys())
 
     @property
     def posterior_workers(self):

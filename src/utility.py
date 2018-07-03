@@ -567,7 +567,7 @@ def split_point(point):
     """
     params = point.keys()
     if len(params) > 0:
-        n_sources = point[params[0]].shape[0]
+        n_sources = point[next(iter(params))].shape[0]
     else:
         n_sources = 0
 
