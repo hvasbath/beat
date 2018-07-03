@@ -180,7 +180,8 @@ class SeismicComposite(Composite):
     def get_unique_stations(self):
         sl = [wmap.stations for wmap in self.wavemaps]
         us = []
-        map(us.extend, sl)
+        for s in sl:
+            us.extend(s)
         return list(set(us))
 
     @property
@@ -798,7 +799,7 @@ class SeismicDistributerComposite(SeismicComposite):
         order = kwargs.pop('order', 'list')
 
         ref_idx = self.config.gf_config.reference_model_idx
-        if len(self.gfs.keys()) == 0:
+        if len(self.gfs) == 0:
             self.load_gfs(
                 crust_inds=[ref_idx],
                 make_shared=False)

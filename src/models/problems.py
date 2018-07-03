@@ -352,7 +352,7 @@ class Problem(object):
 
             total_llk = tt.zeros((1), tconfig.floatX)
 
-            for datatype, composite in self.composites.iteritems():
+            for datatype, composite in self.composites.items():
                 if datatype in bconfig.modes_catalog[pc.mode].keys():
                     input_rvs = utility.weed_input_rvs(
                         self.rvs, pc.mode, datatype=datatype)
@@ -415,11 +415,12 @@ class Problem(object):
 
             total_llk = tt.zeros((1), tconfig.floatX)
 
-            for composite in self.composites.itervalues():
+            for composite in self.composites.values():
                 if hasattr(composite, 'analyse_noise'):
                     composite.analyse_noise(point)
 
                 composite.update_llks(point)
+
                 total_llk += composite.get_hyper_formula(self.hyperparams, pc)
 
             like = Deterministic('tmp', total_llk)
@@ -448,7 +449,7 @@ class Problem(object):
                 self.init_hyperparams()
 
             hps = {hp_name: param.random()
-                   for hp_name, param in self.hyperparams.iteritems()}
+                   for hp_name, param in self.hyperparams.items()}
 
             point.update(hps)
 
@@ -472,7 +473,7 @@ class Problem(object):
 
         rvs = dict()
         fixed_params = dict()
-        for param in pc.priors.itervalues():
+        for param in pc.priors.values():
             if not num.array_equal(param.lower, param.upper):
                 kwargs = dict(
                     name=param.name,
@@ -602,7 +603,7 @@ class Problem(object):
         point : dict
             with numpy array-like items and variable name keys
         """
-        for composite in self.composites.itervalues():
+        for composite in self.composites.values():
             composite.update_llks(point)
 
     def apply(self, problem):
@@ -641,7 +642,7 @@ class Problem(object):
         plot : boolean
             Flag for opening the seismic waveforms in the snuffler
         """
-        for composite in self.composites.itervalues():
+        for composite in self.composites.values():
             composite.update_weights(point, n_jobs=n_jobs)
 
     def get_synthetics(self, point, **kwargs):
@@ -663,7 +664,7 @@ class Problem(object):
 
         d = dict()
 
-        for composite in self.composites.itervalues():
+        for composite in self.composites.values():
             d[composite.name] = composite.get_synthetics(point, outmode='data')
 
         return d
@@ -846,7 +847,7 @@ class DistributionOptimizer(Problem):
         self.config = config
 
 
-problem_modes = bconfig.modes_catalog.keys()
+problem_modes = list(bconfig.modes_catalog.keys())
 problem_catalog = {
     problem_modes[0]: GeometryOptimizer,
     problem_modes[1]: DistributionOptimizer,
