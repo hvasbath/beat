@@ -631,7 +631,7 @@ def geodetic_fits(problem, stage, plot_options):
     for dataset, result in zip(composite.datasets, results):
         dataset_to_result[dataset] = result
 
-    nfigs = int(num.ceil(float(nrmax) / float(ndmax)))
+    nfigs = int(num.ceil(float(nrmax) // float(ndmax)))
 
     figures = []
     axes = []
@@ -1560,7 +1560,7 @@ def select_transform(sc, n_steps=None):
         if n_steps == 1:
             return x
         else:
-            nchains = x.shape[0] / n_steps
+            nchains = x.shape[0] // n_steps
             xout = []
             for i in range(nchains):
                 nstart = int((n_steps * i) + (n_steps * pa.burn))
