@@ -66,7 +66,7 @@ class GeoSynthesizer(theano.Op):
         """
         inlist = []
 
-        self.varnames = inputs.keys()
+        self.varnames = list(inputs.keys())
 
         for i in inputs.values():
             inlist.append(tt.as_tensor_variable(i))
@@ -160,7 +160,7 @@ class GeoLayerSynthesizerPsCmp(theano.Op):
             values are :class:`theano.tensor.Tensor`
         """
         inlist = []
-        self.varnames = inputs.keys()
+        self.varnames = list(inputs.keys())
 
         for i in inputs.values():
             inlist.append(tt.as_tensor_variable(i))
@@ -342,7 +342,7 @@ class SeisSynthesizer(theano.Op):
         """
         inlist = []
 
-        self.varnames = inputs.keys()
+        self.varnames = list(inputs.keys())
 
         for i in inputs.values():
             inlist.append(tt.as_tensor_variable(i))
