@@ -191,9 +191,7 @@ hyper_sampler_config: !beat.SamplerConfig
   progressbar: true
   parameters: !beat.MetropolisConfig
     n_jobs: 1
-    n_stages: 5
     n_steps: 25000
-    stage: 0
     tune_interval: 50
     proposal_dist: Normal
     thin: 5
