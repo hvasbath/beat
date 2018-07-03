@@ -164,5 +164,6 @@ setup(
             'voronoi_ext',
             extra_compile_args=['-lm'],
             sources=[op.join('src/voronoi', 'voronoi_ext.c')],
-            include_dirs=[numpy.get_include()])]
+            include_dirs=[numpy.get_include()])
+        ]
 )
