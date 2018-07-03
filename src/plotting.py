@@ -1014,16 +1014,16 @@ def seismic_fits(problem, stage, plot_options):
         nframes = len(targets)
 
         nx = int(math.ceil(math.sqrt(nframes)))
-        ny = (nframes - 1) / nx + 1
+        ny = (nframes - 1) // nx + 1
 
         nxmax = 4
         nymax = 4
 
-        nxx = (nx - 1) / nxmax + 1
-        nyy = (ny - 1) / nymax + 1
+        nxx = (nx - 1) // nxmax + 1
+        nyy = (ny - 1) // nymax + 1
 
-        xs = num.arange(nx) / ((max(2, nx) - 1.0) / 2.)
-        ys = num.arange(ny) / ((max(2, ny) - 1.0) / 2.)
+        xs = num.arange(nx) // ((max(2, nx) - 1.0) / 2.)
+        ys = num.arange(ny) // ((max(2, ny) - 1.0) / 2.)
 
         xs -= num.mean(xs)
         ys -= num.mean(ys)
@@ -1079,8 +1079,8 @@ def seismic_fits(problem, stage, plot_options):
                 if (iy, ix) not in frame_to_target:
                     continue
 
-                ixx = ix / nxmax
-                iyy = iy / nymax
+                ixx = ix // nxmax
+                iyy = iy // nymax
                 if (iyy, ixx) not in figures:
                     figures[iyy, ixx] = plt.figure(
                         figsize=mpl_papersize('a4', 'landscape'))
