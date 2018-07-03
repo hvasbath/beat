@@ -55,7 +55,7 @@ class TestUtility(unittest.TestCase):
         lordering['b'].slc
 
         for var in ordering:
-            print var
+            print(var)
 
         lpoint = [a, b, c]
         lij = utility.ListToArrayBijection(lordering, lpoint)

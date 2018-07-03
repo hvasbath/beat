@@ -53,7 +53,7 @@ def _get_mt_source_params():
         'time': -2.5,
         'duration': 5.,
         }
-    return {k:num.atleast_1d(num.asarray(v)) for k, v in source_point.iteritems()}
+    return {k: num.atleast_1d(num.asarray(v)) for k, v in source_point.items()}
 
 
 class TestSeisComposite(unittest.TestCase):

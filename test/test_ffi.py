@@ -81,8 +81,8 @@ class FFITest(unittest.TestCase):
                         starttimes)
 
     def test_gf_setup(self):
-        print self.gfs
-        # print self.gfs._gfmatrix
+        print(self.gfs)
+        # print(self.gfs._gfmatrix)
 
     def test_stacking(self):
         def reference_numpy(gfs, durations, starttimes, slips):
