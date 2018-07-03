@@ -517,6 +517,7 @@ def master_process(
             if source in manager.posterior_workers:
                 count_sample += 1
                 counter(source)
+                print m
                 trace.write(m, count_sample)
                 steps_until_tune += 1
 
@@ -675,6 +676,8 @@ def sample_pt_chain(
 
             step.proposal_dist = choose_proposal(step.proposal_name, scale=cov)
 
+  #  print 'buffer', strace.buffer[-1]
+   # print step.lij.l2a(strace.buffer[-1])
     return step.lij.l2a(strace.buffer[-1])
 
 
