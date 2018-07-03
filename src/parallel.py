@@ -1,4 +1,5 @@
 import multiprocessing
+from multiprocessing import reduction
 from logging import getLogger
 import traceback
 from functools import wraps
@@ -6,6 +7,8 @@ import signal
 from itertools import count
 import numpy as num
 from collections import OrderedDict
+from io import BytesIO
+import sys
 
 
 logger = getLogger('parallel')
@@ -13,6 +16,18 @@ logger = getLogger('parallel')
 # for sharing memory across processes
 _shared_memory = OrderedDict()
 _tobememshared = set([])
+
+
+@classmethod
+def dumps(cls, obj, protocol=None):
+    buf = BytesIO()
+    cls(buf, 4).dump(obj)
+    return buf.getbuffer()
+
+
+# monkey patch pickling in multiprocessing
+if sys.hexversion < 0x30600F0:
+    reduction.ForkingPickler.dumps = dumps
 
 
 def get_process_id():
