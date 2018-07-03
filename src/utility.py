@@ -919,6 +919,8 @@ def load_objects(loadpath):
 
     try:
         objects = pickle.load(open(loadpath, 'rb'))
+    except UnicodeDecodeError:
+        objects = pickle.load(open(loadpath, 'rb'), encoding='latin1')
     except IOError:
         raise Exception(
             'File %s does not exist!' % loadpath)
