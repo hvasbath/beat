@@ -1,10 +1,9 @@
 import numpy as num
 from beat import utility
-from tempfile import mkdtemp
-import shutil
+
 import unittest
 from pyrocko import util
-from theano import shared
+
 import theano.tensor as tt
 
 
@@ -25,7 +24,8 @@ class TestUtility(unittest.TestCase):
         B = num.array([0, 1, 0])
         C = num.array([0, 0, 1])
 
-        num.testing.assert_allclose(self.Rz(90. * RAD).dot(A), B, rtol=0., atol=1e-6)
+        num.testing.assert_allclose(
+            self.Rz(90. * RAD).dot(A), B, rtol=0., atol=1e-6)
         num.testing.assert_allclose(
             self.R['x'](90. * RAD).dot(B), C, rtol=0., atol=1e-6)
         num.testing.assert_allclose(

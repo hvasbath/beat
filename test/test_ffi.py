@@ -126,7 +126,7 @@ class FFITest(unittest.TestCase):
             theano_rts, theano_stts, theano_slips = prepare_theano(
                 gfs, 1, 'int16')
 
-            patchidxs = range(gfs.npatches)
+            patchidxs = list(range(gfs.npatches))
 
             outstack = tt.zeros((gfs.ntargets, gfs.nsamples), tconfig.floatX)
             for i, target in enumerate(gfs.wavemap.targets):
@@ -175,7 +175,7 @@ class FFITest(unittest.TestCase):
         self.gfs.get_traces(
             targets=self.gfs.wavemap.targets[0:2],
             patchidxs=[0],
-            durationidxs=range(self.ndurations),
+            durationidxs=list(range(self.ndurations)),
             starttimeidxs=[0], plot=True)
 
 
