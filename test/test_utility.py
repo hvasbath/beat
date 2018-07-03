@@ -47,7 +47,7 @@ class TestUtility(unittest.TestCase):
         ordering['b'].slc
 
         for var in ordering:
-            print var
+            print(var)
 
 
 if __name__ == '__main__':
