@@ -51,8 +51,8 @@ def _get_mt_source_params():
         'north_shift': 20.,
         'depth': 8.00,
         'time': -2.5,
-        'duration': 5.,
-        }
+        'duration': 5.}
+
     return {k: num.atleast_1d(num.asarray(v)) for k, v in source_point.items()}
 
 
