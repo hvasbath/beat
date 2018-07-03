@@ -127,7 +127,8 @@ subpackages = [
     'beat.fast_sweeping',
     'beat.voronoi',
     'beat.sampler',
-    'beat.models']
+    'beat.models',
+    'beat.apps']
 
 setup(
     cmdclass={
@@ -140,7 +141,10 @@ setup(
     install_requires=install_reqs,
     packages=['beat'] + subpackages,
     package_dir={'beat': 'src'},
-    scripts=['apps/beat'],
+    entry_points={
+        'console_scripts':
+            ['beat = beat.apps.beat:main']
+    },
     package_data={'beat': []},
     ext_modules=[
         Extension(
