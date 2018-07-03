@@ -252,11 +252,13 @@ class RectangularSource(gf.RectangularSource):
         """
         s = copy.deepcopy(self)
 
-        l = self.length
-        w = self.width
+        length = self.length
+        width = self.width
 
-        new_length = num.ceil((l + (2. * l * extension_length)) / km) * km
-        new_width = num.ceil((w + (2. * w * extension_width)) / km) * km
+        new_length = num.ceil(
+            (length + (2. * length * extension_length)) / km) * km
+        new_width = num.ceil(
+            (width + (2. * width * extension_width)) / km) * km
 
         npl = int(num.ceil(new_length / patch_length))
         npw = int(num.ceil(new_width / patch_width))
@@ -443,7 +445,7 @@ class MTQTSource(gf.SourceWithMagnitude):
         d = {}
         mt = ev.moment_tensor
         if mt:
-            d.update(m6=map(float, mt.m6()))
+            d.update(m6=list(map(float, mt.m6())))
 
         d.update(kwargs)
         return super(MTQTSource, cls).from_pyrocko_event(ev, **d)
@@ -550,7 +552,7 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
         d = {}
         mt = ev.moment_tensor
         if mt:
-            d.update(m6=map(float, mt.m6()))
+            d.update(m6=list(map(float, mt.m6())))
 
         d.update(kwargs)
         return super(MTSourceWithMagnitude, cls).from_pyrocko_event(ev, **d)
