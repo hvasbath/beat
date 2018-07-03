@@ -2,3 +2,4 @@ numpy>=1.13
 pymc3==3.4.1
 tqdm>=4.19.4
 pyproj
+mpi4py
