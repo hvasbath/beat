@@ -71,7 +71,7 @@ class TestInterseismic(unittest.TestCase):
             source.update(
                 lat=self.reference.lat, lon=self.reference.lon,
                 north_shift=north_shift, east_shift=east_shift)
-            print source
+            print(source)
 
         return sources
 
