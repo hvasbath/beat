@@ -87,7 +87,7 @@ class TestInterseismic(unittest.TestCase):
         test_rake = (180., 0.,)
 
         for i, (a, s, d, am, ld) in enumerate(
-            zip(azimuth, strike, dip, amplitude, locking_depth)):
+                zip(azimuth, strike, dip, amplitude, locking_depth)):
 
             d = interseismic.backslip_params(a, s, d, am, ld)
 
@@ -103,7 +103,8 @@ class TestInterseismic(unittest.TestCase):
         if self.reference is None:
             self._get_synthetic_data()
 
-        return interseismic.block_geometry(lons=self.lons, lats=self.lats,
+        return interseismic.block_geometry(
+            lons=self.lons, lats=self.lats,
             sources=self._get_sources(), reference=self.reference)
 
     def test_block_synthetics(self):
@@ -155,12 +156,14 @@ class TestInterseismic(unittest.TestCase):
         for i, comp in enumerate('NEZ'):
             im = ax[i].scatter(self.lons, self.lats, sz, disp[:, i], cmap=cmap)
             cblabel = '%s displacement [m]' % comp
-            cbs = plt.colorbar(im, ax=ax[i],
+            cbs = plt.colorbar(
+                im, ax=ax[i],
                 orientation='horizontal',
                 cmap=cmap)
             cbs.set_label(cblabel, fontsize=fontsize)
 
         plt.show()
+
 
 if __name__ == '__main__':
     util.setup_logging('test_utility', 'info')

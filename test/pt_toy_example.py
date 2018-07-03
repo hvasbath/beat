@@ -70,7 +70,7 @@ def master_process(comm, size, tags, status):
         print('sending signal to close to %i' % i)
         comm.send(None, dest=i, tag=tags.EXIT)
 
-        print("CLosed worker %i" % i)
+        print("Closed worker %i" % i)
         active_workers -= 1
 
 
@@ -109,15 +109,15 @@ def pt_sample():
     status = MPI.Status()   # get MPI status object
 
     if rank == 0:
-        print 'Here'
+        print('Here')
         master_process(comm, size, tags, status)
     else:
-        print 'worker'
+        print('worker')
         worker_process(comm, rank, tags, status)
 
-    print 'Done!'
+    print('Done!')
 
 
 if __name__ == '__main__':
-    print 'here main'
+    print('here main')
     pt_sample()
