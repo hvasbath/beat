@@ -241,6 +241,7 @@ class TemperingManager(object):
         if self.acceptance_matrix.sum() == 0:
             raise ValueError('No acceptance record!')
 
+        print acceptance
         self.history.record(
             self.sample_count, self.acceptance_matrix,
             self.current_scale, acceptance)
@@ -399,12 +400,13 @@ class TemperingManager(object):
 
         alpha = (step2.beta - step1.beta) * (
             llk1[step1._llk_index] - llk2[step2._llk_index])
-
+        #print 'alpha', alpha
         if num.log(num.random.uniform()) < alpha:
             accepted = True
         else:
             accepted = False
 
+        #print accepted  #, m1, m2
         self.register_swap(source1, source2, accepted)
 
         if accepted:
@@ -517,7 +519,6 @@ def master_process(
             if source in manager.posterior_workers:
                 count_sample += 1
                 counter(source)
-                print m
                 trace.write(m, count_sample)
                 steps_until_tune += 1
 
@@ -676,8 +677,6 @@ def sample_pt_chain(
 
             step.proposal_dist = choose_proposal(step.proposal_name, scale=cov)
 
-  #  print 'buffer', strace.buffer[-1]
-   # print step.lij.l2a(strace.buffer[-1])
     return step.lij.l2a(strace.buffer[-1])
 
 

@@ -131,6 +131,7 @@ class ListToArrayBijection(object):
     def __init__(self, ordering, list_arrays):
         self.ordering = ordering
         self.list_arrays = list_arrays
+        self.dummy = -9.e40
 
     def d2l(self, dpt):
         """
@@ -147,7 +148,7 @@ class ListToArrayBijection(object):
         -------
         point
         """
-        dummy = -9.e40
+
         a_list = copy.copy(self.list_arrays)
 
         for list_ind, _, shp, _, var in self.ordering.vmap:
@@ -156,7 +157,7 @@ class ListToArrayBijection(object):
             except KeyError:
                 # Needed for initialisation of chain_l_point in Metropolis
                 a_list[list_ind] = num.atleast_1d(
-                    num.ones(shp) * dummy).ravel()
+                    num.ones(shp) * self.dummy).ravel()
 
         return a_list
 
@@ -238,8 +239,12 @@ class ListToArrayBijection(object):
         a_list = copy.copy(self.list_arrays)
 
         for list_ind, slc, shp, dtype, _ in self.ordering.vmap:
-            a_list[list_ind] = num.atleast_1d(
-                array)[slc].reshape(shp).astype(dtype)
+            try:
+                a_list[list_ind] = num.atleast_1d(
+                    array)[slc].reshape(shp).astype(dtype)
+            except ValueError:  # variable does not exist in array use dummy
+                a_list[list_ind] = num.atleast_1d(
+                    num.ones(shp) * self.dummy).ravel()
 
         return a_list
 
