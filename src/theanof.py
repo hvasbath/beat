@@ -312,7 +312,7 @@ class SeisSynthesizer(theano.Op):
                  'station_corrections')
 
     def __init__(self, engine, sources, targets, event, arrival_taper,
-                 wavename, filterer, pre_stack_cut):
+                 wavename, filterer, pre_stack_cut, station_corrections):
         self.engine = engine
         self.sources = tuple(sources)
         self.targets = tuple(targets)
