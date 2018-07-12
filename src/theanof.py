@@ -308,16 +308,18 @@ class SeisSynthesizer(theano.Op):
     """
 
     __props__ = ('engine', 'sources', 'targets', 'event',
-                 'arrival_taper', 'wavename', 'filterer', 'pre_stack_cut',
-                 'station_corrections')
+                 'arrival_taper', 'arrival_times', 'wavename', 'filterer',
+                 'pre_stack_cut', 'station_corrections')
 
     def __init__(self, engine, sources, targets, event, arrival_taper,
-                 wavename, filterer, pre_stack_cut, station_corrections):
+                 arrival_times, wavename, filterer, pre_stack_cut,
+                 station_corrections):
         self.engine = engine
         self.sources = tuple(sources)
         self.targets = tuple(targets)
         self.event = event
         self.arrival_taper = arrival_taper
+        self.arrival_times = tuple(arrival_times.tolist())
         self.wavename = wavename
         self.filterer = filterer
         self.pre_stack_cut = pre_stack_cut
@@ -376,9 +378,10 @@ class SeisSynthesizer(theano.Op):
         mpoint = utility.adjust_point_units(point)
 
         if self.station_corrections:
-            time_shifts = mpoint.pop('time_shift').ravel()
+            arrival_times = num.array(self.arrival_times) + \
+                mpoint.pop('time_shift').ravel()
         else:
-            time_shifts = None
+            arrival_times = self.arrival_times
 
         source_points = utility.split_point(mpoint)
 
@@ -394,7 +397,7 @@ class SeisSynthesizer(theano.Op):
             wavename=self.wavename,
             filterer=self.filterer,
             pre_stack_cut=self.pre_stack_cut,
-            time_shifts=time_shifts)
+            arrival_times=arrival_times)
 
     def infer_shape(self, node, input_shapes):
         nrow = len(self.targets)
@@ -430,7 +433,7 @@ class SeisDataChopper(theano.Op):
 
         z[0] = heart.taper_filter_traces(
             self.traces, self.arrival_taper,
-            self.filterer, tmins)
+            self.filterer, tmins, outmode='array')
 
     def infer_shape(self, node, input_shapes):
         nrow = len(self.traces)
