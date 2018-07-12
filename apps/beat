@@ -1122,6 +1122,8 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
 
     if options.reference:
         po.reference = problem.model.test_point
+        step = problem.init_sampler()
+        po.reference['like'] = step.step(problem.model.test_point)[1][-1]
     else:
         po.reference = None
 
