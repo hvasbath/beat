@@ -319,11 +319,10 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.sources = sources
 
-        if sc.station_corrections:
-            self.correction_name = 'time_shift'
+        self.correction_name = 'time_shift'
 
         if not hypers:
-            # syntetics generation
+            # synthetics generation
             logger.debug('Initialising synthetics functions ... \n')
             for wmap in self.wavemaps:
                 wc = wmap.config
@@ -336,13 +335,10 @@ class SeismicGeometryComposite(SeismicComposite):
                     arrival_taper=wc.arrival_taper,
                     wavename=wmap.name,
                     filterer=wc.filterer,
-                    pre_stack_cut=sc.pre_stack_cut)
+                    pre_stack_cut=sc.pre_stack_cut,
+                    station_corrections=sc.station_corrections)
 
-                self.choppers[wc.name] = theanof.SeisDataChopper(
-                    sample_rate=sc.gf_config.sample_rate,
-                    traces=wmap.datasets,
-                    arrival_taper=wc.arrival_taper,
-                    filterer=wc.filterer)
+                wmap.init_data_array(source=self.event, engine=self.engine)
 
         self.config = sc
 
@@ -413,14 +409,14 @@ class SeismicGeometryComposite(SeismicComposite):
                 'station corrections.' % len(self.get_unique_stations()))
 
         for wmap in self.wavemaps:
-            synths, tmins = self.synthesizers[wmap.name](self.input_rvs)
-
             if len(self.hierarchicals) > 0:
-                tmins += self.hierarchicals[
+                time_shifts = self.hierarchicals[
                     self.correction_name][wmap.station_correction_idxs]
+                self.input_rvs[self.correction_name] = time_shifts
 
-            data_trcs = self.choppers[wmap.name](tmins)
-            residuals = data_trcs - synths
+            synths, _ = self.synthesizers[wmap.name](self.input_rvs)
+
+            residuals = wmap.shared_data_array - synths
 
             logpts = multivariate_normal_chol(
                 wmap.datasets, wmap.weights, hyperparams, residuals,
