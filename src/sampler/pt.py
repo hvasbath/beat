@@ -397,7 +397,7 @@ class TemperingManager(object):
 
         llk1 = step1.lij.a2l(m1)
         llk2 = step2.lij.a2l(m2)
-
+        print llk1, llk2
         alpha = (step2.beta - step1.beta) * (
             llk1[step1._llk_index] - llk2[step2._llk_index])
         #print 'alpha', alpha
@@ -597,6 +597,7 @@ def worker_process(comm, tags, status):
         tag = status.Get_tag()
         if tag == tags.SAMPLE:
             start = step.bij.rmap(data)
+            print start
             kwargs['start'] = start
 
             result = sample_pt_chain(**kwargs)
@@ -677,7 +678,9 @@ def sample_pt_chain(
 
             step.proposal_dist = choose_proposal(step.proposal_name, scale=cov)
 
-    return step.lij.l2a(strace.buffer[-1])
+    rsamle = step.lij.l2a(strace.buffer[-1])
+    print 'chain return', rsamle
+    return rsamle
 
 
 def pt_sample(
