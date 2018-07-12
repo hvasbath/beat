@@ -1908,8 +1908,8 @@ def get_phase_taperer(
     arrival_time = get_phase_arrival_time(
         engine=engine, source=source, target=target, wavename=wavename)
     
-    if tmin is not None:
-        arrival_time += tmin
+    if time_shift is not None:
+        arrival_time += time_shift
 
     return arrival_taper.get_pyrocko_taper(float(arrival_time))
 
@@ -1933,6 +1933,7 @@ class WaveformMapping(object):
         self._station_correction_reference = copy.deepcopy(
             station_correction_idxs)
         self.station_correction_idxs = station_correction_idxs
+        self._prepared_data_array = None
 
         if self.datasets is not None:
             self._update_trace_wavenames()
@@ -2041,18 +2042,18 @@ class WaveformMapping(object):
         Taper, filter data traces according to given reference event.
         Traces are concatenated to one single array.
         """
-        if self._shared_data_array is not None:
+        if self._prepared_data_array is not None:
             logger.warning('Overwriting observed data windows!')
 
         if hasattr(self, 'config'):
             logger.info(
-                'Preparing data of %s for optimization' % self.name)
+                'Preparing data of "%s" for optimization' % self.name)
 
             tmins = num.zeros((self.n_t), dtype=tconfig.floatX)
-            for target in enumerate(self.targets):
+            for i, target in enumerate(self.targets):
                 tmins[i] = get_phase_arrival_time(
                     engine=engine, source=source,
-                    target=target, wavename=self.name):
+                    target=target, wavename=self.name)
             
             self._prepared_data_array = taper_filter_traces(
                 self.datasets,
@@ -2419,7 +2420,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     wavename='any_P', filterer=None, reference_taperer=None,
                     plot=False, nprocs=1, outmode='array',
                     pre_stack_cut=False, taper_tolerance_factor=0.,
-                    tmins=None):
+                    time_shifts=None):
     """
     Calculate synthetic seismograms of combination of targets and sources,
     filtering and tapering afterwards (filterer)
@@ -2454,8 +2455,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         taper
     taper_tolerance_factor : float
         tolerance to chop traces around taper.a and taper.d
-    tmins : None or :class:`numpy.NdArray`
-        of arrival times
+    time_shifts : None or :class:`numpy.NdArray`
+        of shifts to arrival times
 
     Returns
     -------
@@ -2470,8 +2471,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
             'Outmode "%s" not available! Available: %s' % (
                 outmode, utility.list2string(stackmodes)))
 
-    if tmins is None:
-        tmins = num.zeros((len(targets)), dtype=tconfig,floatX)
+    if time_shifts is None:
+        time_shifts = num.zeros((len(targets)), dtype=tconfig.floatX)
 
     taperers = []
     tapp = taperers.append
@@ -2484,7 +2485,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     wavename=wavename,
                     target=target,
                     arrival_taper=arrival_taper,
-                    tmin=tmins[i]))
+                    time_shift=time_shifts[i]))
             else:
                 tapp(reference_taperer)
 
