@@ -68,7 +68,12 @@ class ArrayStepSharedLLK(BlockedStep):
         self.shared = {var.name: shared for var, shared in shared.items()}
         self.blocked = blocked
         self.bij = DictToArrayBijection(self.ordering, self.population[0])
-        self.lij = utility.ListToArrayBijection(self.lordering, lpoint)
+
+        blacklist = list(set(self.lordering.variables) -
+                         set([var.name for var in vars]))
+
+        self.lij = utility.ListToArrayBijection(
+            self.lordering, lpoint, blacklist=blacklist)
 
     def __getstate__(self):
         return self.__dict__

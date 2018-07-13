@@ -146,7 +146,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
         super(Metropolis, self).__init__(vars, out_vars, shared)
 
         self.chain_previous_lpoint = [
-            self.lij.a2l(self.bij.map(point)) for point in self.population]
+            self.lij.d2l(point) for point in self.population]
 
     def _sampler_state_blacklist(self):
         """
@@ -230,7 +230,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
                     self.chain_index, self.stage_sample))
             delta = self.proposal_samples_array[self.stage_sample, :] * \
                 self.scaling
-           # print self.scaling, delta
+
             if self.any_discrete:
                 if self.all_discrete:
                     delta = num.round(delta, 0)
@@ -257,7 +257,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
                         self.chain_index, self.stage_sample))
 
                     lp = self.logp_forw(q)
-                    print lp
+
                     logger.debug('Select llk: Chain_%i step_%i' % (
                         self.chain_index, self.stage_sample))
 

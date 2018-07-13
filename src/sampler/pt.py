@@ -241,7 +241,6 @@ class TemperingManager(object):
         if self.acceptance_matrix.sum() == 0:
             raise ValueError('No acceptance record!')
 
-        print acceptance
         self.history.record(
             self.sample_count, self.acceptance_matrix,
             self.current_scale, acceptance)
@@ -397,7 +396,7 @@ class TemperingManager(object):
 
         llk1 = step1.lij.a2l(m1)
         llk2 = step2.lij.a2l(m2)
-        print llk1, llk2
+
         alpha = (step2.beta - step1.beta) * (
             llk1[step1._llk_index] - llk2[step2._llk_index])
         #print 'alpha', alpha
@@ -499,6 +498,7 @@ def master_process(
     count_sample = 0
     counter = ChainCounter(n=n_samples, n_jobs=1)
     logger.info('Posterior workers %s', list2string(manager.posterior_workers))
+    logger.info('Sampling ...')
 
     while True:
 
@@ -596,8 +596,7 @@ def worker_process(comm, tags, status):
 
         tag = status.Get_tag()
         if tag == tags.SAMPLE:
-            start = step.bij.rmap(data)
-            print start
+            start = step.lij.l2d(step.lij.a2l(data))
             kwargs['start'] = start
 
             result = sample_pt_chain(**kwargs)
@@ -679,7 +678,7 @@ def sample_pt_chain(
             step.proposal_dist = choose_proposal(step.proposal_name, scale=cov)
 
     rsamle = step.lij.l2a(strace.buffer[-1])
-    print 'chain return', rsamle
+    #print 'chain return', rsamle
     return rsamle
 
 

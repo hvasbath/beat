@@ -128,10 +128,11 @@ class ListToArrayBijection(object):
         of :class:`numpy.ndarray`
     """
 
-    def __init__(self, ordering, list_arrays):
+    def __init__(self, ordering, list_arrays, blacklist=[]):
         self.ordering = ordering
         self.list_arrays = list_arrays
         self.dummy = -9.e40
+        self.blacklist = blacklist
 
     def d2l(self, dpt):
         """
@@ -177,7 +178,8 @@ class ListToArrayBijection(object):
         point = {}
 
         for list_ind, _, _, _, var in self.ordering.vmap:
-            point[var] = a_list[list_ind].ravel()
+            if var not in self.blacklist:
+                point[var] = a_list[list_ind].ravel()
 
         return point
 
