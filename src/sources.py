@@ -403,9 +403,20 @@ class MTQTSource(gf.SourceWithMagnitude):
         return self.rot_V.dot(self.rot_pi4)
 
     @property
-    def m9(self):
+    def m9_nwu(self):
+        """
+        MT orientation is in NWU
+        """
         return self.rot_U.dot(
             self.lune_lambda_matrix).dot(num.linalg.inv(self.rot_U))
+
+    @property
+    def m9(self):
+        """
+        Pyrocko MT in NED
+        """
+        rot_mat = self.R['x'](pi)
+        return rot_mat.dot(self.m9_nwu).dot(rot_mat.T)
 
     @property
     def m6(self):
