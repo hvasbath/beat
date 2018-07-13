@@ -6,7 +6,7 @@ import unittest
 from pyrocko import util
 from theano import shared
 import theano.tensor as tt
-
+from pymc3 import DictToArrayBijection, ArrayOrdering
 
 RAD = num.pi / 180.
 
@@ -32,23 +32,41 @@ class TestUtility(unittest.TestCase):
             self.R['y'](90. * RAD).dot(C), A, rtol=0., atol=1e-6)
 
     def test_list_ordering(self):
-        a = num.random.rand(100).reshape((5, 20))
-        b = num.random.rand(100).reshape((5, 20))
+        a = num.random.rand(10).reshape((5, 2))
+        b = num.random.rand(5).reshape((5, 1))
+        c = num.random.rand(1).reshape((1, 1))
         ta = tt.matrix('a')
         tb = tt.matrix('b')
+        tc = tt.matrix('c')
         ta.tag.test_value = a
         tb.tag.test_value = b
-        tvars = [ta, tb]
+        tc.tag.test_value = c
+        tvars = [ta, tb, tc]
         with self.assertRaises(KeyError):
             ordering = utility.ListArrayOrdering(tvars)
             ordering['b']
 
-        ordering = utility.ListArrayOrdering(tvars, 'tensor')
-        ordering['b'].slc
+        lordering = utility.ListArrayOrdering(tvars, 'tensor')
+        lordering['b'].slc
 
         for var in ordering:
             print var
 
+        lpoint = [a, b, c]
+        lij = utility.ListToArrayBijection(lordering, lpoint)
+
+        ref_point = {'a': a, 'b':b, 'c':c}
+        array = lij.l2a(lpoint)
+        point = lij.l2d(lpoint)
+        print 'arr', array
+        #print 'point, ref_point', point, ref_point
+
+        print lij.l2d(lij.a2l(array))
+
+        ordering = ArrayOrdering(tvars)
+        bij = DictToArrayBijection(ordering, point)
+        array2 = bij.map(point)
+        print 'bija', array2
 
 if __name__ == '__main__':
     util.setup_logging('test_utility', 'warning')
