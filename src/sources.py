@@ -337,7 +337,8 @@ class MTQTSource(gf.SourceWithMagnitude):
              [-sqrt3, -1., sqrt2]], dtype='float64')
 
         self.R = get_rotation_matrix()
-        self.rot_pi4 = self.R['y'](-pi4)
+        self.roty_pi4 = self.R['y'](-pi4)
+        self.rotx_pi = self.R['x'](pi)
 
         self._lune_lambda_matrix = num.zeros((3, 3), dtype='float64')
 
@@ -400,7 +401,7 @@ class MTQTSource(gf.SourceWithMagnitude):
 
     @property
     def rot_U(self):
-        return self.rot_V.dot(self.rot_pi4)
+        return self.rot_V.dot(self.roty_pi4)
 
     @property
     def m9_nwu(self):
@@ -415,8 +416,7 @@ class MTQTSource(gf.SourceWithMagnitude):
         """
         Pyrocko MT in NED
         """
-        rot_mat = self.R['x'](pi)
-        return rot_mat.dot(self.m9_nwu).dot(rot_mat.T)
+        return self.rotx_pi.dot(self.m9_nwu).dot(self.rotx_pi.T)
 
     @property
     def m6(self):
