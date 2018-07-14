@@ -404,6 +404,9 @@ def calc_sample_covariance(lpoints, lij, beta):
 
     cov = ensure_cov_psd(cov)
     if num.isnan(cov).any() or num.isinf(cov).any():
+        print('population:\n', population_array)
+        print(cov)
         raise ValueError(
-            'Sample covariances contains Inf or NaN!')
+            'Proposal covariances contains Inf or NaN!')
+
     return cov

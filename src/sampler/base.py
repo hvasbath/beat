@@ -223,10 +223,10 @@ def setup_chain_counter(n_chains, n_jobs):
 
 class ChainCounter(object):
 
-    def __init__(self, n, n_jobs, subject='chains'):
+    def __init__(self, n, n_jobs, perc_disp=0.2, subject='chains'):
 
         n_chains_worker = n / n_jobs
-        frac_disp = int(np.ceil(n_chains_worker / 5))
+        frac_disp = int(np.ceil(n_chains_worker * perc_disp))
         self.chain_count = 0
         self.n_chains = n_chains_worker
         self.subject = subject
