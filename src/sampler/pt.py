@@ -497,7 +497,9 @@ def master_process(
         active_workers += 1
 
     count_sample = 0
-    counter = ChainCounter(n=n_samples, n_jobs=1, perc_disp=0.01)
+    counter = ChainCounter(
+        n=n_samples, n_jobs=1, perc_disp=0.01, subject='samples')
+
     logger.info('Posterior workers %s', list2string(manager.posterior_workers))
     logger.info('Tuning worker betas every %i samples. \n' % beta_tune_interval)
     logger.info('Sampling ...')

@@ -1540,7 +1540,7 @@ def select_transform(sc, n_steps=None):
 
     if sc.name == 'SMC':
         return last_sample
-    elif sc.name == 'Metropolis':
+    elif sc.name == 'Metropolis' or sc.name == 'PT':
         return burn_sample
 
 
@@ -1597,6 +1597,8 @@ def draw_posteriors(problem, plot_options):
             draws = 1
         elif s == -1 and not hypers and sc.name == 'Metropolis':
             draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
+        elif s == -1 and not hypers and sc.name == 'PT':
+            draws = sc.parameters.n_samples
         elif s == -2:    # return summarized trace plot -standard pymc trace
             draws = None
         else:
@@ -1681,8 +1683,10 @@ def draw_correlation_hist(problem, plot_options):
         raise Exception('Need at least two parameters to compare!'
                         'Found only %i variables! ' % len(varnames))
 
-    if po.load_stage is None and not hypers and not sc.name == 'SMC':
+    if po.load_stage is None and not hypers and sc.name == 'Metropolis':
         draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
+    if po.load_stage == -1 and not hypers and sc.name == 'PT':
+        draws = sc.parameters.n_samples
     if po.load_stage == -2:
         draws = None
     else:
@@ -2099,9 +2103,11 @@ def draw_slip_dist(problem, po):
     fault = gc.load_fault_geometry()
 
     sc = problem.config.sampler_config
-    if po.load_stage is None and not sc.name == 'SMC':
+    if po.load_stage is None and sc.name == 'Metropolis':
         draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
-    if po.load_stage == -2:
+    elif po.load_stage == -1 and not hypers and sc.name == 'PT':
+        draws = sc.parameters.n_samples
+    elif po.load_stage == -2:
         raise ValueError('Slip distribution plot cannot be made for stage-2')
     else:
         draws = sc.parameters.n_steps
