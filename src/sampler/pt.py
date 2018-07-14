@@ -675,9 +675,12 @@ def sample_pt_chain(
             logger.debug(
                 'Evaluating sampled trace covariance at '
                 'sample %i' % strace.count)
-            cov = strace.get_sample_covariance(step.lij, step.beta)
+            cov = strace.get_sample_covariance(
+                lij=step.lij, bij=step.bij, beta=step.beta)
 
-            step.proposal_dist = choose_proposal(step.proposal_name, scale=cov)
+            if cov is not None:
+                step.proposal_dist = choose_proposal(
+                    step.proposal_name, scale=cov)
 
     rsamle = step.lij.l2a(strace.buffer[-1])
     #print 'chain return', rsamle

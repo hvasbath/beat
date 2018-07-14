@@ -361,7 +361,7 @@ def geodetic_cov_velocity_models_pscmp(
     return num.cov(synths, rowvar=0)
 
 
-def calc_sample_covariance(lpoints, lij, beta):
+def calc_sample_covariance(lpoints, lij, bij, beta):
     """
     Calculate trace covariance matrix based on given trace values.
 
@@ -380,33 +380,28 @@ def calc_sample_covariance(lpoints, lij, beta):
         weighted covariances (NumPy > 1.10. required)
     """
     n_points = len(lpoints)
-    population_array = num.zeros((n_points, lij.ordering.size))
+    population = []
+    population_array = num.zeros((n_points, bij.ordering.size))
     for i, lpoint in enumerate(lpoints):
-        population_array[i, :] = lij.l2a(lpoint)
+        point = lij.l2d(lpoint)
+        population_array[i, :] = bij.map(point)
 
-    like_slc = lij.ordering['like'].slc
-    weights = population_array[:, like_slc]
-    temp_weights = num.exp(beta * (weights - weights.max()))
-
-    slices = [
-        lij.ordering[variable].slc for variable in lij.ordering
-        if 'like' in variable]
-
-    slices.sort()
-    for slc in slices[::-1]:
-        population_array = num.delete(population_array, slc, axis=1)
+    like_idx = lij.ordering['like'].list_ind
+    weights = num.array([lpoint[like_idx] for lpoint in lpoints])
+    temp_weights = num.exp(beta * (weights - weights.max())).ravel()
 
     cov = num.cov(
         population_array,
-        aweights=temp_weights.ravel(),
+        aweights=temp_weights,
         bias=False,
         rowvar=0)
 
     cov = ensure_cov_psd(cov)
     if num.isnan(cov).any() or num.isinf(cov).any():
-        print('population:\n', population_array)
-        print(cov)
-        raise ValueError(
-            'Proposal covariances contains Inf or NaN!')
+        logger.warn(
+            'Proposal covariances contain Inf or NaN! '
+            'For chain with beta: %f '
+            'Buffer size maybe too small! Keeping previous proposal.' % beta)
+        cov = None
 
     return cov

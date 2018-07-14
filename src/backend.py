@@ -173,7 +173,7 @@ class MemoryTrace(BaseTrace):
         else:
             raise MemoryTraceError('Trace is not setup!')
 
-    def get_sample_covariance(self, lij, beta):
+    def get_sample_covariance(self, lij, bij, beta):
         """
         Return sample Covariance matrix from buffer.
         """
@@ -181,7 +181,7 @@ class MemoryTrace(BaseTrace):
         if self.count < 0:
             raise ValueError('Covariance has been updated already!')
 
-        cov = calc_sample_covariance(self.buffer, lij, beta=beta)
+        cov = calc_sample_covariance(self.buffer, lij=lij, bij=bij, beta=beta)
         # reset buffer, keep last sample
         self.buffer = [self.buffer[-1]]
         return cov

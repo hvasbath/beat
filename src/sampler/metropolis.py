@@ -145,8 +145,11 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
         super(Metropolis, self).__init__(vars, out_vars, shared)
 
-        self.chain_previous_lpoint = [
-            self.lij.d2l(point) for point in self.population]
+        self.chain_previous_lpoint = []
+        for point in self.population:
+            lpoint = self.logp_forw(self.bij.map(point))
+            self.chain_previous_lpoint.append(lpoint)
+            
 
     def _sampler_state_blacklist(self):
         """
