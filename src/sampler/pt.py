@@ -477,6 +477,7 @@ def master_process(
     stage_handler.clean_directory(stage, chains=None, rm_flag=rm_flag)
 
     logger.info('Initializing result trace...')
+    logger.info('Writing samples to file every %i samples.' % buffer_size)
     trace = TextChain(
         name=stage_handler.stage_path(stage),
         model=model,
@@ -496,10 +497,11 @@ def master_process(
         active_workers += 1
 
     count_sample = 0
-    counter = ChainCounter(n=n_samples, n_jobs=1)
+    counter = ChainCounter(n=n_samples, n_jobs=1, perc_disp=0.01)
     logger.info('Posterior workers %s', list2string(manager.posterior_workers))
+    logger.info('Tuning worker betas every %i samples. \n' % beta_tune_interval)
     logger.info('Sampling ...')
-
+    logger.info('------------')
     while True:
 
         m1 = num.empty(manager.step.lordering.size)

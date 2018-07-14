@@ -155,6 +155,7 @@ def sample(step, problem):
             n_workers_posterior=pa.n_chains_posterior,
             homepath=problem.outfolder,
             progressbar=sc.progressbar,
+            buffer_size=sc.buffer_size,
             model=problem.model,
             rm_flag=pa.rm_flag)
 
