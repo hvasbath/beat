@@ -40,6 +40,10 @@ class TestSources(unittest.TestCase):
             [0.196, -0.397, -0.052],
             [-0.397, 0.455, 0.071],
             [-0.052, 0.071, -0.651]])
+        reference_m9_ned = num.array([
+            [0.196, 0.397, 0.052],
+            [0.397, 0.455, 0.071],
+            [0.052, 0.071, -0.651]])
 
         assert_allclose(
             num.array([mt.beta, mt.gamma]),
@@ -48,7 +52,9 @@ class TestSources(unittest.TestCase):
         assert_allclose(mt.rot_U, reference_U, atol=1e-3, rtol=0.)
         assert_allclose(mt.lune_lambda, reference_lambda, atol=1e-3, rtol=0.)
         assert_allclose(mt.m9_nwu, reference_m9_nwu, atol=1e-3, rtol=0.)
+        assert_allclose(mt.m9, reference_m9_ned, atol=1e-3, rtol=0.)
         print 'M9 NED', mt.m9
+
         print 'M9 NWU', mt.m9_nwu
 
 
