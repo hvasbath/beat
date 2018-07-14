@@ -511,6 +511,18 @@ def get_result_point(stage, config, point_llk='max'):
             point = stage.mtrace.point(
                 idx=idx, chain=posterior_idxs[point_llk])
 
+    elif config.sampler_config.name == 'PT':
+        params = config.sampler_config.parameters
+        llk = stage.mtrace.get_values(
+            varname='like',
+            chains=0,
+            burn=int(params.n_samples * params.burn),
+            thin=params.thin)
+
+        posterior_idxs = utility.get_fit_indexes(llk)
+
+        point = stage.mtrace.point(idx=posterior_idxs[point_llk])
+
     return point
 
 
