@@ -88,7 +88,6 @@ class SamplingHistory(object):
         self.sample_counts = []
         self.t_scales = []
         self.filename = sample_p_outname
-        self.__module__ = 'beat.sampler.pt'
 
     def record(self, sample_count, acceptance_matrix, t_scale, acceptance):
 

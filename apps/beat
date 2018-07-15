@@ -13,7 +13,8 @@ from optparse import OptionParser
 
 from beat import heart, config, utility, inputf, plotting
 from beat.models import load_model, Stage, estimate_hypers, sample
-from beat.backend import TextChain
+from beat.backend import TextChain 
+from beat.sampler import SamplingHistory
 from beat.sources import MTSourceWithMagnitude
 from beat.utility import list2string
 
@@ -695,47 +696,53 @@ def command_summarize(args):
     stage.load_results(model=problem.model, stage_number=-1, load='full')
     stage_path = stage.handler.stage_path(-2)
 
-    if problem.config.sampler_config.name == 'SMC':
-        sc_params = problem.config.sampler_config.parameters
-        if not os.path.exists(
-                os.path.join(stage_path, 'chain-0.csv')) or options.force:
-
-            rtrace = TextChain(stage_path, model=problem.model)
-            rtrace.setup(
-                draws=sc_params.n_chains * sc_params.n_steps, chain=0)
-
-            if hasattr(problem, 'sources'):
-                source = problem.sources[0]
-            else:
-                source = None
-
-            for chain in stage.mtrace.chains:
-                for idx in [-1]:
-                    point = stage.mtrace.point(idx=idx, chain=chain)
-
-                    if isinstance(source, MTSourceWithMagnitude):
-                        sc = problem.composites['seismic']
-                        sc.point2sources(point)
-                        ldicts = []
-                        for source in sc.sources:
-                            ldicts.append(source.scaled_m6_dict)
-
-                        jpoint = utility.join_points(ldicts)
-                        point.update(jpoint)
-
-                    lpoint = stage.step['lij'].d2l(point)
-                    rtrace.record(lpoint, draw=chain)
-
-            rtrace = MultiTrace([rtrace])
+    sc_params = problem.config.sampler_config.parameters
+    sampler_name = problem.config.sampler_config.name
+    if not os.path.exists(
+            os.path.join(stage_path, 'chain-0.csv')) or options.force:
+        if sampler_name == 'SMC':
+            draws = sc_params.n_chains * sc_params.n_steps
+            idxs = [-1]
+        elif sampler_name == 'PT':
+            draws = sc_params.n_sampler
+            idxs = range(draws)
         else:
-            logger.info(
-                'Summarized trace exists! Use force=True to overwrite!')
-            stage.load_results(model=problem.model, stage_number=-2)
-            rtrace = stage.mtrace
+            raise NotImplementedError(
+                'Summarize function still needs to be implemented '
+                'for %s sampler' % problem.config.sampler_config.name)
+
+        rtrace = TextChain(stage_path, model=problem.model)
+        rtrace.setup(
+            draws=draws, chain=0)
+
+        if hasattr(problem, 'sources'):
+            source = problem.sources[0]
+        else:
+            source = None
+
+        for chain in stage.mtrace.chains:
+            for idx in idxs:
+                point = stage.mtrace.point(idx=idx, chain=chain)
+
+                if isinstance(source, MTSourceWithMagnitude):
+                    sc = problem.composites['seismic']
+                    sc.point2sources(point)
+                    ldicts = []
+                    for source in sc.sources:
+                        ldicts.append(source.scaled_m6_dict)
+
+                    jpoint = utility.join_points(ldicts)
+                    point.update(jpoint)
+
+                lpoint = stage.step['lij'].d2l(point)
+                rtrace.record(lpoint, draw=chain)
+
+        rtrace = MultiTrace([rtrace])
     else:
-        raise NotImplementedError(
-            'Summarize function still needs to be implemented '
-            'for %s sampler' % problem.config.sampler_config.name)
+        logger.info(
+            'Summarized trace exists! Use force=True to overwrite!')
+        stage.load_results(model=problem.model, stage_number=-2)
+        rtrace = stage.mtrace
 
     if len(rtrace) == 0:
         raise ValueError(

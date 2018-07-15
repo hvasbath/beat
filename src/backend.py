@@ -25,6 +25,7 @@ import os
 import pandas as pd
 import logging
 import shutil
+import numpy as num
 
 from pymc3.model import modelcontext
 from pymc3.backends import base, ndarray
@@ -33,10 +34,14 @@ from pymc3.blocking import DictToArrayBijection, ArrayOrdering
 
 from pymc3.step_methods.arraystep import BlockedStep
 
-from beat import utility, config
+from beat.config import sample_p_outname
+from beat.utility import load_objects, dump_objects, \
+    ListArrayOrdering, ListToArrayBijection
 from beat.covariance import calc_sample_covariance
+
 from pyrocko import util
 from time import time
+
 
 logger = logging.getLogger('backend')
 
@@ -63,7 +68,7 @@ class ArrayStepSharedLLK(BlockedStep):
     def __init__(self, vars, out_vars, shared, blocked=True):
         self.vars = vars
         self.ordering = ArrayOrdering(vars)
-        self.lordering = utility.ListArrayOrdering(out_vars, intype='tensor')
+        self.lordering = ListArrayOrdering(out_vars, intype='tensor')
         lpoint = [var.tag.test_value for var in out_vars]
         self.shared = {var.name: shared for var, shared in shared.items()}
         self.blocked = blocked
@@ -72,7 +77,7 @@ class ArrayStepSharedLLK(BlockedStep):
         blacklist = list(set(self.lordering.variables) -
                          set([var.name for var in vars]))
 
-        self.lij = utility.ListToArrayBijection(
+        self.lij = ListToArrayBijection(
             self.lordering, lpoint, blacklist=blacklist)
 
     def __getstate__(self):
@@ -422,7 +427,7 @@ class TextStage(object):
         Consistent naming for atmip params.
         """
         return os.path.join(
-            self.stage_path(stage_number), config.sample_p_outname)
+            self.stage_path(stage_number), sample_p_outname)
 
     def load_sampler_params(self, stage_number):
         """
@@ -444,7 +449,7 @@ class TextStage(object):
             prev = stage_number - 1
 
         logger.info('Loading parameters from completed stage {}'.format(prev))
-        sampler_state, updates = utility.load_objects(self.atmip_path(prev))
+        sampler_state, updates = load_objects(self.atmip_path(prev))
         sampler_state['stage'] = stage_number
         return sampler_state, updates
 
@@ -452,7 +457,7 @@ class TextStage(object):
         """
         Save atmip params to file.
         """
-        utility.dump_objects(self.atmip_path(stage_number), outlist)
+        dump_objects(self.atmip_path(stage_number), outlist)
 
     def clean_directory(self, stage, chains, rm_flag):
         """
@@ -607,8 +612,8 @@ def load_sampler_params(project_dir, stage_number, mode):
     """
 
     stage_path = os.path.join(project_dir, mode, 'stage_%s' % stage_number,
-        config.sample_p_outname)
-    return utility.load_objects(stage_path)
+        sample_p_outname)
+    return load_objects(stage_path)
 
 
 def concatenate_traces(mtraces):

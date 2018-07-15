@@ -3,7 +3,8 @@ from copy import deepcopy
 import os
 import shutil
 
-from beat import parallel, backend
+from beat import parallel
+from beat.backend import check_multitrace, load_multitrace, TextChain
 from beat.utility import list2string
 
 from numpy.random import seed, randint
@@ -350,9 +351,10 @@ def init_chain_hypers(problem):
 
     point = problem.get_random_point(include=['hierarchicals', 'priors'])
 
-    if sc.parameters.update_covariances:
-        logger.info('Updating Covariances ...')
-        problem.update_weights(point)
+    if hasattr(sc.parameters, 'update_covariances'):
+        if sc.parameters.update_covariances:
+            logger.info('Updating Covariances ...')
+            problem.update_weights(point)
 
     logger.debug('Updating source point ...')
     problem.update_llks(point)
@@ -409,7 +411,7 @@ def iter_parallel_chains(
     n_chains = len(chains)
 
     if n_chains == 0:
-        mtrace = backend.load_multitrace(dirname=stage_path, model=model)
+        mtrace = load_multitrace(dirname=stage_path, model=model)
 
     # while is necessary if any worker times out - rerun in case
     while n_chains > 0:
@@ -421,7 +423,7 @@ def iter_parallel_chains(
         logger.info('Initialising %i chain traces ...' % n_chains)
         for chain in chains:
             trace_list.append(
-                backend.TextChain(
+                TextChain(
                     name=stage_path, model=model,
                     buffer_size=buffer_size, progressbar=progressbar))
 
@@ -482,8 +484,8 @@ def iter_parallel_chains(
             pass
 
         # return chain indexes that have been corrupted
-        mtrace = backend.load_multitrace(dirname=stage_path, model=model)
-        corrupted_chains = backend.check_multitrace(
+        mtrace = load_multitrace(dirname=stage_path, model=model)
+        corrupted_chains = check_multitrace(
             mtrace, draws=draws, n_chains=step.n_chains)
 
         n_chains = len(corrupted_chains)
