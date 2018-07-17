@@ -422,6 +422,33 @@ class TextStage(object):
         """
         return max(self.stage_number(s) for s in glob(self.stage_path('*')))
 
+    def get_stage_indexes(self, load_stage=None):
+        """
+        Return indexes to all sampled stages.
+
+        Parameters
+        ----------
+        load_stage : int, optional
+            if specified only return a list with this stage_index
+
+        Returns
+        -------
+        list of int, stage_index that have been sampled
+        """
+        if load_stage is not None and isinstance(load_stage, int):
+            return [load_stage]
+        elif load_stage is not None and not isinstance(load_stage, int):
+            raise ValueError('Requested stage_number has to be of type "int"')
+        else:
+            stage_number = self.highest_sampled_stage()
+
+        if os.path.exists(self.atmip_path(-1)):
+            list_indexes = [i for i in range(-1, stage_number + 1)]
+        else:
+            list_indexes = [i for i in range(stage_number)]
+
+        return list_indexes
+
     def atmip_path(self, stage_number):
         """
         Consistent naming for atmip params.
@@ -475,7 +502,7 @@ class TextStage(object):
             chains = None
         return chains
 
-    def load_multitrace(self, stage, model=None):
+    def load_multitrace(self, stage, chains=None, model=None):
         """
         Load TextChain database.
 
@@ -483,14 +510,17 @@ class TextStage(object):
         ----------
         stage : int
             number of stage that should be loaded
+        chains : list, optional
+            of result chains to load, -1 is the summarized trace
         model : Model
             If None, the model is taken from the `with` context.
+
         Returns
         -------
         A :class:`pymc3.backend.base.MultiTrace` instance
         """
         dirname = self.stage_path(stage)
-        return load_multitrace(dirname=dirname, model=model)
+        return load_multitrace(dirname=dirname, chains=chains, model=model)
 
     def recover_existing_results(self, stage, draws, step, model=None):
         stage_path = self.stage_path(stage)
@@ -508,7 +538,7 @@ class TextStage(object):
         return None
 
 
-def load_multitrace(dirname, model=None):
+def load_multitrace(dirname, model=None, chains=None):
     """
     Load TextChain database.
 
@@ -518,6 +548,7 @@ def load_multitrace(dirname, model=None):
         Name of directory with files (one per chain)
     model : Model
         If None, the model is taken from the `with` context.
+    chains : list optional
 
     Returns
     -------
@@ -525,10 +556,22 @@ def load_multitrace(dirname, model=None):
     """
 
     logger.info('Loading multitrace from %s' % dirname)
-    files = glob(os.path.join(dirname, 'chain-*.csv'))
+
+    if chains is None:
+        files = glob(os.path.join(dirname, 'chain-*.csv'))
+        chains = list(set([
+            int(os.path.splitext(f)[0].rsplit('-', 1)[1]) for f in files]))
+    else:
+        files = [
+            os.path.join(dirname, 'chain-%i.csv' % chain) for chain in chains]
+        for f in files:
+            if not os.path.exists(f):
+                raise IOError(
+                    'File %s does not exist! Please run:'
+                    ' "beat summarize <project_dir>"!' % f)
+
     straces = []
-    for f in files:
-        chain = int(os.path.splitext(f)[0].rsplit('-', 1)[1])
+    for chain, f in zip(chains, files):
         strace = TextChain(dirname, model=model)
         strace.chain = chain
         strace.filename = f

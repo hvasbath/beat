@@ -504,12 +504,7 @@ def get_result_point(stage, config, point_llk='max'):
 
         posterior_idxs = utility.get_fit_indexes(llk)
 
-        if stage.number == -2:
-            point = stage.mtrace.point(idx=posterior_idxs[point_llk])
-        else:
-            idx = n_steps - 1
-            point = stage.mtrace.point(
-                idx=idx, chain=posterior_idxs[point_llk])
+        point = stage.mtrace.point(idx=posterior_idxs[point_llk])
 
     elif config.sampler_config.name == 'PT':
         params = config.sampler_config.parameters
@@ -882,7 +877,8 @@ def draw_geodetic_fits(problem, plot_options):
 
     if po.reference is None:
         stage.load_results(
-            model=problem.model, stage_number=po.load_stage, load='full')
+            model=problem.model, stage_number=po.load_stage,
+            load='full', chains=[-1])
         llk_str = po.post_llk
     else:
         llk_str = 'ref'
@@ -1246,7 +1242,8 @@ def draw_seismic_fits(problem, po):
     if po.reference is None:
         llk_str = po.post_llk
         stage.load_results(
-            model=problem.model, stage_number=po.load_stage, load='trace')
+            model=problem.model, stage_number=po.load_stage,
+            load='trace', chains=[-1])
     else:
         llk_str = 'ref'
 
@@ -1582,14 +1579,7 @@ def draw_posteriors(problem, plot_options):
 
     pc = problem.config.problem_config
 
-    if po.load_stage is not None:
-        list_indexes = [po.load_stage]
-    else:
-        stage_number = stage.handler.highest_sampled_stage()
-        if os.path.exists(stage.handler.atmip_path(-1)):
-            list_indexes = [i for i in range(-1, stage_number + 1)]
-        else:
-            list_indexes = [i for i in range(stage_number)]
+    list_indexes = stage.handler.get_stage_indexes(po.load_stage)
 
     if hypers:
         sc = problem.config.hyper_sampler_config
@@ -1611,10 +1601,8 @@ def draw_posteriors(problem, plot_options):
             draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
         elif s == -1 and not hypers and sc.name == 'PT':
             draws = sc.parameters.n_samples
-        elif s == -2:    # return summarized trace plot -standard pymc trace
-            draws = None
         else:
-            draws = sc.parameters.n_steps
+            draws = None
 
         transform = select_transform(sc=sc, n_steps=draws)
 
@@ -1626,7 +1614,8 @@ def draw_posteriors(problem, plot_options):
         if not os.path.exists(outpath) or po.force:
             logger.info('plotting stage: %s' % stage.handler.stage_path(s))
             stage.load_results(
-                model=problem.model, stage_number=s, load='trace')
+                model=problem.model, stage_number=s,
+                load='trace', chains=[-1])
 
             if sc.name == 'Metropolis' and po.post_llk != 'all':
                 chains = select_metropolis_chains(
@@ -1699,16 +1688,15 @@ def draw_correlation_hist(problem, plot_options):
         draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
     if po.load_stage == -1 and not hypers and sc.name == 'PT':
         draws = sc.parameters.n_samples
-    if po.load_stage == -2:
-        draws = None
     else:
-        draws = sc.parameters.n_steps
+        draws = None
 
     transform = select_transform(sc=sc, n_steps=draws)
 
     stage = Stage(homepath=problem.outfolder)
     stage.load_results(
-        model=problem.model, stage_number=po.load_stage, load='trace')
+        model=problem.model, stage_number=po.load_stage,
+        load='trace', chains=[-1])
 
     if sc.name == 'Metropolis' and po.post_llk != 'all':
         chains = select_metropolis_chains(problem, stage.mtrace, po.post_llk)
@@ -2119,16 +2107,15 @@ def draw_slip_dist(problem, po):
         draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
     elif po.load_stage == -1 and not hypers and sc.name == 'PT':
         draws = sc.parameters.n_samples
-    elif po.load_stage == -2:
-        raise ValueError('Slip distribution plot cannot be made for stage-2')
     else:
-        draws = sc.parameters.n_steps
+        draws = None
 
     transform = select_transform(sc=sc, n_steps=draws)
 
     stage = Stage(homepath=problem.outfolder)
     stage.load_results(
-        model=problem.model, stage_number=po.load_stage, load='full')
+        model=problem.model, stage_number=po.load_stage,
+        load='full', chains=[-1])
 
     if po.reference is None:
         reference = get_result_point(stage, problem.config, po.post_llk)

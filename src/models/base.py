@@ -248,7 +248,8 @@ class Stage(object):
 
         self.number = stage_number
 
-    def load_results(self, model=None, stage_number=None, load='trace'):
+    def load_results(
+            self, model=None, stage_number=None, chains=None, load='trace'):
         """
         Load stage results from sampling.
 
@@ -257,6 +258,8 @@ class Stage(object):
         model : :class:`pymc3.model.Model`
         stage_number : int
             Number of stage to load
+        chains : list, optional
+            of result chains to load
         load : str
             what to load and return 'full', 'trace', 'params'
         """
@@ -283,7 +286,7 @@ class Stage(object):
         with model:
             if 'trace' in to_load:
                 self.mtrace = self.handler.load_multitrace(
-                    stage_number, model=model)
+                    stage_number, model=model, chains=chains)
 
             if 'params' in to_load:
                 self.step, self.updates = self.handler.load_sampler_params(

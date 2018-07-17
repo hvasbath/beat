@@ -684,6 +684,14 @@ def command_summarize(args):
             '--force', dest='force', action='store_true',
             help='Overwrite existing files')
 
+        parser.add_option(
+            '--stage_number',
+            dest='stage_number',
+            type='int',
+            default=None,
+            help='Int of the stage number "n" of the stage to be summarized.'
+                 ' Default: all stages up to last complete stage')
+
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
     project_dir = get_project_directory(
@@ -693,56 +701,70 @@ def command_summarize(args):
     problem = load_model(project_dir, options.mode)
 
     stage = Stage(homepath=problem.outfolder)
-    stage.load_results(model=problem.model, stage_number=-1, load='full')
-    stage_path = stage.handler.stage_path(-2)
+    stage_numbers = stage.handler.get_stage_indexes(options.stage_number)
 
     sc_params = problem.config.sampler_config.parameters
     sampler_name = problem.config.sampler_config.name
-    if not os.path.exists(
-            os.path.join(stage_path, 'chain-0.csv')) or options.force:
-        if sampler_name == 'SMC':
-            draws = sc_params.n_chains * sc_params.n_steps
-            idxs = [-1]
-        elif sampler_name == 'PT':
-            draws = sc_params.n_sampler
-            idxs = range(draws)
+    if hasattr(sc_params, 'rm_flag'):
+        if sc_params.rm_flag:
+            logger.info('Removíng sampled chains!!!')
+            rm_flag = True
+
+    for stage_number in stage_numbers:
+        stage.load_results(
+            model=problem.model, stage_number=stage_number, load='full')
+
+        stage_path = stage.handler.stage_path(stage_number)
+        logger.info('Summarizing stage under: %s' % stage_path)
+
+        if not os.path.exists(
+                os.path.join(stage_path, 'chain--1.csv')) or options.force:
+            if sampler_name == 'SMC':
+                draws = sc_params.n_chains * sc_params.n_steps
+                idxs = [-1]
+            elif sampler_name == 'PT':
+                draws = sc_params.n_sampler
+                idxs = range(draws)
+            else:
+                raise NotImplementedError(
+                    'Summarize function still needs to be implemented '
+                    'for %s sampler' % problem.config.sampler_config.name)
+
+            rtrace = TextChain(stage_path, model=problem.model)
+            rtrace.setup(
+                draws=draws, chain=-1)
+
+            if hasattr(problem, 'sources'):
+                source = problem.sources[0]
+            else:
+                source = None
+
+            for chain in stage.mtrace.chains:
+                for idx in idxs:
+                    point = stage.mtrace.point(idx=idx, chain=chain)
+
+                    if isinstance(source, MTSourceWithMagnitude):
+                        sc = problem.composites['seismic']
+                        sc.point2sources(point)
+                        ldicts = []
+                        for source in sc.sources:
+                            ldicts.append(source.scaled_m6_dict)
+
+                        jpoint = utility.join_points(ldicts)
+                        point.update(jpoint)
+
+                    lpoint = stage.step['lij'].d2l(point)
+                    rtrace.record(lpoint, draw=chain)
+
+                if rm_flag:
+                    # remove chain
+                    os.remove(stage.mtrace._straces[chain].filename)
         else:
-            raise NotImplementedError(
-                'Summarize function still needs to be implemented '
-                'for %s sampler' % problem.config.sampler_config.name)
+            logger.info(
+                'Summarized trace exists! Use force=True to overwrite!')
 
-        rtrace = TextChain(stage_path, model=problem.model)
-        rtrace.setup(
-            draws=draws, chain=0)
-
-        if hasattr(problem, 'sources'):
-            source = problem.sources[0]
-        else:
-            source = None
-
-        for chain in stage.mtrace.chains:
-            for idx in idxs:
-                point = stage.mtrace.point(idx=idx, chain=chain)
-
-                if isinstance(source, MTSourceWithMagnitude):
-                    sc = problem.composites['seismic']
-                    sc.point2sources(point)
-                    ldicts = []
-                    for source in sc.sources:
-                        ldicts.append(source.scaled_m6_dict)
-
-                    jpoint = utility.join_points(ldicts)
-                    point.update(jpoint)
-
-                lpoint = stage.step['lij'].d2l(point)
-                rtrace.record(lpoint, draw=chain)
-
-        rtrace = MultiTrace([rtrace])
-    else:
-        logger.info(
-            'Summarized trace exists! Use force=True to overwrite!')
-        stage.load_results(model=problem.model, stage_number=-2)
-        rtrace = stage.mtrace
+    stage.load_results(model=problem.model, stage_number=-1, chains=[-1])
+    rtrace = stage.mtrace
 
     if len(rtrace) == 0:
         raise ValueError(
