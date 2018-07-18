@@ -660,7 +660,6 @@ def command_sample(args):
 def command_summarize(args):
 
     from pymc3 import summary
-    from pymc3.backends.base import MultiTrace
 
     command_str = 'summarize'
 
@@ -707,7 +706,8 @@ def command_summarize(args):
     sampler_name = problem.config.sampler_config.name
     if hasattr(sc_params, 'rm_flag'):
         if sc_params.rm_flag:
-            logger.info('Removíng sampled chains!!!')
+            logger.info('Removing sampled chains!!!')
+            raw_input('Sure? Press enter! Otherwise Ctrl + C')
             rm_flag = True
 
     for stage_number in stage_numbers:
@@ -719,6 +719,10 @@ def command_summarize(args):
 
         if not os.path.exists(
                 os.path.join(stage_path, 'chain--1.csv')) or options.force:
+            if len(stage.mtrace.chains) < 2:
+                raise IOError(
+                    'Result traces do not exist. Previously deleted?')
+
             if sampler_name == 'SMC':
                 draws = sc_params.n_chains * sc_params.n_steps
                 idxs = [-1]
