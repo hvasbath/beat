@@ -17,6 +17,7 @@ from beat import sampler
 from beat.models import geodetic, seismic
 from beat.models.base import Composite
 from beat import config as bconfig
+from beat.backend import ListArrayOrdering, ListToArrayBijection
 
 from logging import getLogger
 
@@ -361,6 +362,18 @@ class Problem(object):
             # will overwrite deterministic name ...
             llk = Potential(self._like_name, like)
             logger.info('Model building was successful!')
+
+    def plant_lijection(self):
+        """
+        Add list to array bijection to model object by monkey-patching.
+        """
+        if self.model is not None:
+            lordering = ListArrayOrdering(
+                self.model.unobserved_RVs, intype='tensor')
+            lpoint = [var.tag.test_value for var in self.model.unobserved_RVs]
+            self.model.lijection = ListToArrayBijection(lordering, lpoint)
+        else:
+            raise AttributeError('Model needs to be built!')
 
     def built_hyper_model(self):
         """

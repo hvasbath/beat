@@ -657,6 +657,12 @@ def command_sample(args):
         sample(step, problem)
 
 
+def result_check(mtrace, min_length):
+    if len(mtrace.chains) < min_length:
+        raise IOError(
+            'Result traces do not exist. Previously deleted?')
+
+
 def command_summarize(args):
 
     from pymc3 import summary
@@ -698,6 +704,7 @@ def command_summarize(args):
 
     logger.info('Loading problem ...')
     problem = load_model(project_dir, options.mode)
+    problem.plant_lijection()
 
     stage = Stage(homepath=problem.outfolder)
     stage_numbers = stage.handler.get_stage_indexes(options.stage_number)
@@ -709,25 +716,26 @@ def command_summarize(args):
             logger.info('Removing sampled chains!!!')
             raw_input('Sure? Press enter! Otherwise Ctrl + C')
             rm_flag = True
+    else:
+        rm_flag = False
 
     for stage_number in stage_numbers:
         stage.load_results(
-            model=problem.model, stage_number=stage_number, load='full')
+            model=problem.model, stage_number=stage_number, load='trace')
 
         stage_path = stage.handler.stage_path(stage_number)
         logger.info('Summarizing stage under: %s' % stage_path)
 
         if not os.path.exists(
                 os.path.join(stage_path, 'chain--1.csv')) or options.force:
-            if len(stage.mtrace.chains) < 2:
-                raise IOError(
-                    'Result traces do not exist. Previously deleted?')
 
             if sampler_name == 'SMC':
+                result_check(stage.mtrace, min_length=2)
                 draws = sc_params.n_chains * sc_params.n_steps
                 idxs = [-1]
             elif sampler_name == 'PT':
-                draws = sc_params.n_sampler
+                result_check(stage.mtrace, min_length=1)
+                draws = sc_params.n_samples
                 idxs = range(draws)
             else:
                 raise NotImplementedError(
@@ -757,7 +765,7 @@ def command_summarize(args):
                         jpoint = utility.join_points(ldicts)
                         point.update(jpoint)
 
-                    lpoint = stage.step['lij'].d2l(point)
+                    lpoint = problem.model.lijection.d2l(point)
                     rtrace.record(lpoint, draw=chain)
 
                 if rm_flag:
