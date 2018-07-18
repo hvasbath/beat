@@ -716,18 +716,24 @@ def command_summarize(args):
             logger.info('Removing sampled chains!!!')
             raw_input('Sure? Press enter! Otherwise Ctrl + C')
             rm_flag = True
+        else:
+            rm_flag = False
     else:
         rm_flag = False
 
     for stage_number in stage_numbers:
-        stage.load_results(
-            model=problem.model, stage_number=stage_number, load='trace')
 
         stage_path = stage.handler.stage_path(stage_number)
         logger.info('Summarizing stage under: %s' % stage_path)
 
-        if not os.path.exists(
-                os.path.join(stage_path, 'chain--1.csv')) or options.force:
+        result_trace_path = os.path.join(stage_path, 'chain--1.csv')
+        if not os.path.exists(result_trace_path) or options.force:
+            # trace may exist by forceing
+            if os.path.exists(result_trace_path):
+                os.remove(result_trace_path)
+
+            stage.load_results(
+                model=problem.model, stage_number=stage_number, load='trace')
 
             if sampler_name == 'SMC':
                 result_check(stage.mtrace, min_length=2)
@@ -784,6 +790,9 @@ def command_summarize(args):
             ' "beat summarize <project_dir> --force!"')
 
     summary_file = os.path.join(problem.outfolder, config.summary_name)
+
+    if os.path.exists(summary_file) and options.force:
+        os.remove(summary_file)
 
     if not os.path.exists(summary_file) or options.force:
         logger.info('Writing summary to %s' % summary_file)
