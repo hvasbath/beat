@@ -34,7 +34,7 @@ from pymc3.blocking import DictToArrayBijection, ArrayOrdering
 
 from pymc3.step_methods.arraystep import BlockedStep
 
-from beat.config import sample_p_outname
+from beat.config import sample_p_outname, transd_vars_dist
 from beat.utility import load_objects, dump_objects, \
     ListArrayOrdering, ListToArrayBijection
 from beat.covariance import calc_sample_covariance
@@ -112,8 +112,9 @@ class BaseTrace(object):
 
     def __init__(self, name, model=None, vars=None):
         self.name = name
-        model = modelcontext(model)
-        self.model = model
+
+        if model is not None:
+            self.model = modelcontext(model)
 
         if vars is None:
             vars = model.unobserved_RVs
@@ -212,18 +213,31 @@ class TextChain(BaseTrace):
     progressbar : boolean
         flag if a progressbar is active, if not a logmessage is printed
         everytime the buffer is written to disk
+    k : int, optional
+        if given dont use shape from testpoint as size of transd variables
     """
 
     def __init__(
             self, name, model=None, vars=None,
-            buffer_size=5000, progressbar=False):
+            buffer_size=5000, progressbar=False, k=None):
 
         if not os.path.exists(name):
             os.mkdir(name)
         super(TextChain, self).__init__(name, model, vars)
 
-        self.flat_names = {v: ttab.create_flat_names(v, shape)
-                           for v, shape in self.var_shapes.items()}
+        if k is not None:
+            self.flat_names = {}
+            for var, shape in self.var_shapes.items():
+                if var in transd_vars_dist:
+                    shape = (k,)
+
+                self.flat_names[var] = ttab.create_flat_names(var, shape)
+
+        else:
+            self.flat_names = {v: ttab.create_flat_names(v, shape)
+                               for v, shape in self.var_shapes.items()}
+
+        self.k = k
         self.filename = None
         self.df = None
         self.corrupted_flag = False
@@ -538,6 +552,82 @@ class TextStage(object):
         return None
 
 
+def istransd(model):
+    dims = 'dimensions'
+    varnames = [var.name for var in model.unobserved_RVs]
+    if dims in varnames:
+        dims_idx = varnames.index(dims)
+        return True, dims_idx
+    else:
+        logger.debug('Did not find "%s" random variable in model!' % dims)
+        return False, None
+
+
+class TransDTextChain(object):
+    """
+    Result Trace object for trans-d problems.
+    Manages several TextChains one for each dimension.
+    """
+    def __init__(
+            self, name, model=None, vars=None,
+            buffer_size=5000, progressbar=False):
+
+        self._straces = {}
+        self.buffer_size = buffer_size
+        self.progressbar = progressbar
+
+        if vars is None:
+            vars = model.unobserved_RVs
+
+        transd, dims_idx = istransd(model)
+        if transd:
+            self.dims_idx
+        else:
+            raise ValueError(
+                'Model is not trans-d but TransD Chain initialized!')
+
+        dimensions = model.unobserved_RVs[self.dims_idx]
+
+        for k in range(dimensions.lower, dimensions.upper + 1):
+            self._straces[k] = TextChain(
+                name=name,
+                model=model,
+                buffer_size=buffer_size,
+                progressbar=progressbar,
+                k=k)
+
+        # init indexing chain
+        self._index = TextChain(
+            name=name,
+            vars=[],
+            buffer_size=self.buffer_size,
+            progressbar=self.progressbar)
+        self._index.flat_names = {'draw__0': (1,), 'k__0': (1,)}
+
+    def setup(self, draws, chain):
+        self.draws = num.zeros(1, dtype='int32')
+        for k, trace in self._straces.items():
+            trace.setup(draws=draws, chain=k)
+
+        self._index.setup(draws, chain=0)
+
+    def write(self, lpoint, draw):
+        self.draws[0] = draw
+        ipoint = [self.draws, lpoint[self.dims_idx]]
+
+        self._index.write(ipoint, draw)
+        self._straces[lpoint[self.dims_idx]].write(lpoint, draw)
+
+    def __len__(self):
+        return int(self._index[-1])
+
+    def record_buffer(self):
+        for trace in self._straces:
+            trace.record_buffer()
+
+        self._index.record_buffer()
+
+
 def load_multitrace(dirname, model=None, chains=None):
     """
     Load TextChain database.
@@ -555,28 +645,32 @@ def load_multitrace(dirname, model=None, chains=None):
     A :class:`pymc3.backend.base.MultiTrace` instance
     """
 
-    logger.info('Loading multitrace from %s' % dirname)
+    if not istransd(model)[0]:
+        logger.info('Loading multitrace from %s' % dirname)
+        if chains is None:
+            files = glob(os.path.join(dirname, 'chain-*.csv'))
+            chains = list(set([
+                int(os.path.splitext(f)[0].rsplit('-', 1)[1]) for f in files]))
+        else:
+            files = [
+                os.path.join(
+                    dirname, 'chain-%i.csv' % chain) for chain in chains]
+            for f in files:
+                if not os.path.exists(f):
+                    raise IOError(
+                        'File %s does not exist! Please run:'
+                        ' "beat summarize <project_dir>"!' % f)
 
-    if chains is None:
-        files = glob(os.path.join(dirname, 'chain-*.csv'))
-        chains = list(set([
-            int(os.path.splitext(f)[0].rsplit('-', 1)[1]) for f in files]))
+        straces = []
+        for chain, f in zip(chains, files):
+            strace = TextChain(dirname, model=model)
+            strace.chain = chain
+            strace.filename = f
+            straces.append(strace)
+        return base.MultiTrace(straces)
     else:
-        files = [
-            os.path.join(dirname, 'chain-%i.csv' % chain) for chain in chains]
-        for f in files:
-            if not os.path.exists(f):
-                raise IOError(
-                    'File %s does not exist! Please run:'
-                    ' "beat summarize <project_dir>"!' % f)
-
-    straces = []
-    for chain, f in zip(chains, files):
-        strace = TextChain(dirname, model=model)
-        strace.chain = chain
-        strace.filename = f
-        straces.append(strace)
-    return base.MultiTrace(straces)
+        logger.info('Loading trans-d trace from %s' % dirname)
+        raise NotImplementedError('Loading trans-d trace is not implemented!')
 
 
 def check_multitrace(mtrace, draws, n_chains):

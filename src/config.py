@@ -35,7 +35,8 @@ guts_prefix = 'beat'
 logger = logging.getLogger('config')
 
 block_vars = [
-    'bl_azimuth', 'bl_amplitude', 'nucleation_strike', 'nucleation_dip', 'nucleation_time']
+    'bl_azimuth', 'bl_amplitude',
+    'nucleation_strike', 'nucleation_dip', 'nucleation_time']
 seis_vars = ['time', 'duration']
 
 source_names = '''
@@ -78,10 +79,13 @@ interseismic_vars = [
     'locking_depth'] + block_vars
 
 static_dist_vars = ['uparr', 'uperp']
-partial_kinematic_vars = [
-    'nucleation_strike', 'nucleation_dip', 'durations', 'velocities', 'time_shift']
+hypo_vars = ['nucleation_strike', 'nucleation_dip', 'nucleation_time']
+partial_kinematic_vars = ['durations', 'velocities']
+voronoi_locations = ['voronoi_strike', 'voronoi_dip']
 
-kinematic_dist_vars = static_dist_vars + partial_kinematic_vars
+kinematic_dist_vars = static_dist_vars + partial_kinematic_vars + hypo_vars
+transd_vars_dist = partial_kinematic_vars + static_dist_vars + \
+    voronoi_locations
 
 interseismic_catalog = {
     'geodetic': interseismic_vars}
