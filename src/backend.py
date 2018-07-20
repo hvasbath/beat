@@ -602,7 +602,8 @@ class TransDTextChain(object):
             vars=[],
             buffer_size=self.buffer_size,
             progressbar=self.progressbar)
-        self._index.flat_names = {'draw__0': (1,), 'k__0': (1,)}
+        self._index.flat_names = {
+            'draw__0': (1,), 'k__0': (1,), 'k_idx__0': (1,)}
 
     def setup(self, draws, chain):
         self.draws = num.zeros(1, dtype='int32')
@@ -626,6 +627,25 @@ class TransDTextChain(object):
             trace.record_buffer()
 
         self._index.record_buffer()
+
+    def point(self, idx):
+        """
+        Get point of current chain with variables names as keys.
+
+        Parameters
+        ----------
+        idx : int
+            Index of the nth step of the chain
+
+        Returns
+        -------
+        dictionary of point values
+        """
+        ipoint = self._index.point(idx)
+        return self._straces[ipoint['k']].point(ipoint['k_idx'])
+
+    def get_values(self, varname):
+        raise NotImplementedError()
 
 
 def load_multitrace(dirname, model=None, chains=None):
