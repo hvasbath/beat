@@ -277,48 +277,36 @@ class SeismicNoiseAnalyser(object):
         return cov_ds
 
 
-def model_prediction_sensitivity(engine, *args, **kwargs):
-    '''
+def get_seismic_jacobian(engine, sources, h, parameters):
+    """
     Calculate the model prediction Covariance Sensitivity Kernel.
-    (numerical derivation with respect to the input source parameter(s))
+    Numerical derivation with respect to the input source parameter(s)
+    (Jacobian)
     Following Duputel et al. 2014
 
-    :Input:
-    :py:class:'engine'
-    source_parms = list of parameters with respect to which the kernel
-                   is being calculated e.g. ['strike', 'dip', 'depth']
-    !!!
-    NEEDS to have seismosizer source object parameter variable name convention
-    !!!
-    (see seismosizer.source.keys())
+    Parameters
+    ----------
+    engine : :class:'pyrocko.gf.seismosizer.LocalEngine'
+    sources : list
+        of :class:'pyrocko.gf.seismosizer.Source'
+    h : float
+        distance for derivative calculation
+    parameters : list
+        of parameters with respect to which the kernel
+        is being calculated e.g. ['strike', 'dip', 'depth']
 
-    calculate_model_prediction_sensitivity(request, source_params, **kwargs)
-    calculate_model_prediction_sensitivity(sources,
-                                             targets, source_params, **kwargs)
-
+    Returns
+    -------
     Returns traces in a list[parameter][targets] for each station and channel
     as specified in the targets. The location code of each trace is placed to
     show the respective source parameter.
-    '''
+    """
 
-    if len(args) not in (0, 1, 2, 3):
-        raise gf.BadRequest('invalid arguments')
-
-    if len(args) == 2:
-        kwargs['request'] = args[0]
-        kwargs['source_params'] = args[1]
-
-    elif len(args) == 3:
-        kwargs.update(gf.Request.args2kwargs(args[0:1]))
-        kwargs['source_params'] = args[2]
-
-    request = kwargs.pop('request', None)
-    nprocs = kwargs.pop('nprocs', 1)
-    source_params = kwargs.pop('source_params', None)
-    h = kwargs.pop('h', None)
-
-    if request is None:
-        request = gf.Request(**kwargs)
+    for param in parameters:
+        if param not in sources[0].keys():
+            raise AttributeError(
+                'Parameter for which the Jacobian was requested is not'
+                ' represented by the source.')
 
     if h is None:
         h = num.ones(len(source_params)) * 1e-1
@@ -382,17 +370,16 @@ def model_prediction_sensitivity(engine, *args, **kwargs):
             par_count = par_count + 1
 
     # form traces from sensitivities
-    par_count = 0
-    for param in source_params:
-        for k in range(len(request.targets)):
-            sensitivity_param_trcs[par_count][k] = trace.Trace(
-                        network=request.targets[k].codes[0],
-                        station=request.targets[k].codes[1],
-                        ydata=sensitivity_param_list[par_count][k],
-                        deltat=response.results_list[0][k].trace.deltat,
-                        tmin=response.results_list[0][k].trace.tmin,
-                        channel=request.targets[k].codes[3],
-                        location=param)
+    for i, param in enumerate(source_params):
+        for k in xrange(len(request.targets)):
+            sensitivity_param_trcs[i][k] = trace.Trace(
+                network=request.targets[k].codes[0],
+                station=request.targets[k].codes[1],
+                ydata=sensitivity_param_list[i][k],
+                deltat=response.results_list[0][k].trace.deltat,
+                tmin=response.results_list[0][k].trace.tmin,
+                channel=request.targets[k].codes[3],
+                location=param)
 
         par_count = par_count + 1
 
