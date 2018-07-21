@@ -123,6 +123,16 @@ def get_seismic_jacobian(engine, sources, h, parameters):
     Returns traces in a list[parameter][targets] for each station and channel
     as specified in the targets. The location code of each trace is placed to
     show the respective source parameter.
+ 
+    TODO:
+    -----
+    unclear:
+    - how to handle P and S and different Stations?
+
+    Cm = [J.T.dot(Cd-1).dot(J) + Cp-1]
+
+    V,L,VT = np.linalg.svd(Cm)
+    pcsd = 0.5*(1./np.sqrt(np.abs(L)))
     """
 
     for param in parameters:
@@ -133,6 +143,17 @@ def get_seismic_jacobian(engine, sources, h, parameters):
 
     if h is None:
         h = num.ones(len(source_params)) * 1e-1
+
+
+    synths, tmins = heart.seis_synthetics(
+        engine=self.engine,
+        sources=self.sources,
+        targets=self.targets,
+        arrival_taper=self.arrival_taper,
+        wavename=self.wavename,
+        filterer=self.filterer,
+        pre_stack_cut=self.pre_stack_cut)
+
 
     # create results list
     sensitivity_param_list = []
