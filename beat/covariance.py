@@ -1,11 +1,11 @@
-from pyrocko import gf, trace
+from pyrocko import trace
 
 import numpy as num
 from time import time
 from scipy.linalg import toeplitz
 
 import logging
-import copy
+from copy import deepcopy
 
 from beat import heart
 from beat.utility import ensure_cov_psd, running_window_rms, list2string
@@ -49,6 +49,7 @@ def exponential_data_covariance(n, dt, tzero):
     return num.exp(
         -num.abs(num.arange(n)[:, num.newaxis] -
                  num.arange(n)[num.newaxis, :]) * dt / tzero)
+
 
 def identity_data_covariance(n, dt=None, tzero=None):
     """
