@@ -2899,6 +2899,46 @@ def seis_derivative(
     return tmp * stencil.coefficients / stencil.denominator
 
 
+def seis_jacobian(
+        engine, sources, targets, arrival_taper, wavename,
+        filterer, nderivatives=30):
+    """
+    Calculate the Jacobian with respect to an input source parameter
+
+    Involves numerical calculation of the derivatives. The stable icrement h
+    is automatically determined.
+
+    Parameters
+    ----------
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+    sources : list
+        containing :class:`pyrocko.gf.seismosizer.Source` Objects
+        reference source is the first in the list!!!
+    targets : list
+        containing :class:`pyrocko.gf.seismosizer.Target` Objects
+    arrival_taper : :class:`ArrivalTaper`
+    wavename : string
+        of the tabulated phase that determines the phase arrival
+    filterer : :class:`Filterer`
+    parameter : str
+        of parameters with respect to which the kernel
+        is being calculated e.g. 'strike'/ 'dip'/ 'depth'
+    nderivatives : int
+        number of derivatives to test, selects the best from a stable plateau
+
+    Returns
+    -------
+    :class:`num.array` ntargets x nsamples with the first derivative
+    """
+    for 
+
+    seis_derivative(
+        engine, sources, targets, arrival_taper, wavename, filterer, h,
+        parameter, stencil_order=3)
+
+    return jacob
+
+
 def geo_synthetics(
         engine, targets, sources, outmode='stacked_array', plot=False,
         nprocs=1):
