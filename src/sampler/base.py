@@ -5,12 +5,13 @@ import shutil
 
 from beat import parallel
 from beat.backend import check_multitrace, load_multitrace, TextChain
-from beat.utility import list2string
+from beat.utility import list2string, ensure_cov_psd
 
 from numpy.random import seed, randint
 from numpy.random import normal, standard_cauchy, standard_exponential, \
     poisson
 import numpy as np
+from scipy import linalg
 
 from theano import function
 
@@ -158,9 +159,21 @@ class PoissonProposal(Proposal):
 
 
 class MultivariateNormalProposal(Proposal):
+    def __init__(self, s):
+        n, m = s.shape
+        if n != m:
+            raise ValueError("Covariance matrix is not symmetric.")
+        self.n = n
+        s = ensure_cov_psd(s)
+        self.chol = linalg.cholesky(s, lower=True)
+
     def __call__(self, num_draws=None):
-        return np.random.multivariate_normal(
-            mean=np.zeros(self.scale.shape[0]), cov=self.scale, size=num_draws)
+        if num_draws is not None:
+            b = np.random.randn(self.n, num_draws)
+            return np.dot(self.chol, b).T
+        else:
+            b = np.random.randn(self.n)
+            return np.dot(self.chol, b)
 
 
 class MultivariateStudentTProposal(Proposal):
@@ -179,6 +192,56 @@ class MultivariateCauchyProposal(Proposal):
         return multivariate_t_rvs(
             mean=np.zeros(self.scale.shape[0]),
             cov=self.scale, df=1, size=num_draws)
+
+
+class RotationProposal(Proposal):
+    """
+    Proposal for proposing samples in the direction of the principal
+    components.
+
+    Parameters
+    ----------
+    cov: :class:`num.NdArray`
+        of sample covariance matrix
+    """
+    def __init__(self, cov):
+
+        cov = ensure_cov_psd(cov)
+        vec, pc, _ = np.linalg.svd(cov)
+        self.pcsd = 0.5 * (1. / np.sqrt(np.abs(pc)))
+        self.u = vec
+        self.proposal = None
+
+    def __call__(self):
+
+        if self.proposal is None:
+            raise NotImplementedError(
+                'Please use RotationProposal through its inheriting classes!')
+        else:
+            delta = 1.1 * self.pcsd * self.proposal()
+            return self.u.dot(delta)
+
+
+class MultivariateRotationCauchyProposal(RotationProposal):
+    """
+    Proposes steps in the direction of principal component of the given
+    sample covariance using a Cauchy distribution.
+    """
+    def __init__(self, cov):
+
+        super(MultivariateRotationCauchyProposal, self).__init__(cov)
+        self.proposal = CauchyProposal(1.)
+
+
+class MultivariateRotationNormalProposal(RotationProposal):
+    """
+    Proposes steps in the direction of principal component of the given
+    sample covariance using a Normal distribution.
+    """
+    def __init__(self, cov):
+
+        super(MultivariateRotationNormalProposal, self).__init__(cov)
+        self.proposal = NormalProposal(1.)
 
 
 proposal_distributions = {

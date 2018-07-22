@@ -2627,7 +2627,6 @@ def seis_jacobian(
     -------
     :class:`num.array` ntargets x nsamples with the first derivative
     """
-    for 
 
     seis_derivative(
         engine, sources, targets, arrival_taper, wavename, filterer, h,
