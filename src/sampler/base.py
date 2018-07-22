@@ -159,12 +159,12 @@ class PoissonProposal(Proposal):
 
 
 class MultivariateNormalProposal(Proposal):
-    def __init__(self, s):
-        n, m = s.shape
+    def __init__(self, scale):
+        n, m = scale.shape
         if n != m:
             raise ValueError("Covariance matrix is not symmetric.")
         self.n = n
-        s = ensure_cov_psd(s)
+        s = ensure_cov_psd(scale)
         self.chol = linalg.cholesky(s, lower=True)
 
     def __call__(self, num_draws=None):
@@ -189,6 +189,9 @@ class MultivariateCauchyProposal(Proposal):
     of freedom equal to one.
     """
     def __call__(self, num_draws=None):
+        if not num_draws:
+            num_draws = 1
+
         return multivariate_t_rvs(
             mean=np.zeros(self.scale.shape[0]),
             cov=self.scale, df=1, size=num_draws)
@@ -204,22 +207,24 @@ class RotationProposal(Proposal):
     cov: :class:`num.NdArray`
         of sample covariance matrix
     """
-    def __init__(self, cov):
+    def __init__(self, scale):
 
-        cov = ensure_cov_psd(cov)
+        cov = ensure_cov_psd(scale)
+        self.n = cov.shape[0]
         vec, pc, _ = np.linalg.svd(cov)
         self.pcsd = 0.5 * (1. / np.sqrt(np.abs(pc)))
         self.u = vec
         self.proposal = None
 
-    def __call__(self):
+    def __call__(self, num_draws=None):
 
         if self.proposal is None:
             raise NotImplementedError(
                 'Please use RotationProposal through its inheriting classes!')
         else:
-            delta = 1.1 * self.pcsd * self.proposal()
-            return self.u.dot(delta)
+            step = self.proposal(num_draws)
+            delta = 1.1 * self.pcsd * step
+            return self.u.dot(delta.T).T
 
 
 class MultivariateRotationCauchyProposal(RotationProposal):
@@ -227,10 +232,10 @@ class MultivariateRotationCauchyProposal(RotationProposal):
     Proposes steps in the direction of principal component of the given
     sample covariance using a Cauchy distribution.
     """
-    def __init__(self, cov):
+    def __init__(self, scale):
 
-        super(MultivariateRotationCauchyProposal, self).__init__(cov)
-        self.proposal = CauchyProposal(1.)
+        super(MultivariateRotationCauchyProposal, self).__init__(scale)
+        self.proposal = CauchyProposal(np.ones((self.n)))
 
 
 class MultivariateRotationNormalProposal(RotationProposal):
@@ -238,10 +243,10 @@ class MultivariateRotationNormalProposal(RotationProposal):
     Proposes steps in the direction of principal component of the given
     sample covariance using a Normal distribution.
     """
-    def __init__(self, cov):
+    def __init__(self, scale):
 
-        super(MultivariateRotationNormalProposal, self).__init__(cov)
-        self.proposal = NormalProposal(1.)
+        super(MultivariateRotationNormalProposal, self).__init__(scale)
+        self.proposal = NormalProposal(np.ones((self.n)))
 
 
 proposal_distributions = {
@@ -251,10 +256,16 @@ proposal_distributions = {
     'Laplace': LaplaceProposal,
     'MultivariateNormal': MultivariateNormalProposal,
     'MultivariateCauchy': MultivariateCauchyProposal,
+    'MultivariateRotationNormalProposal': MultivariateRotationNormalProposal,
+    'MultivariateRotationCauchyProposal': MultivariateRotationCauchyProposal,
     'DiscreteBoundedUniform': DiscreteBoundedUniformProposal}
 
 
-multivariate_proposals = ['MultivariateCauchy', 'MultivariateNormal']
+multivariate_proposals = [
+    'MultivariateCauchy',
+    'MultivariateNormal',
+    'MultivariateRotationNormalProposal',
+    'MultivariateRotationCauchyProposal']
 
 
 def available_proposals():
@@ -277,6 +288,7 @@ def choose_proposal(proposal_name, **kwargs):
     -------
     class:`pymc3.Proposal` Object
     """
+    print proposal_name
     return proposal_distributions[proposal_name](**kwargs)
 
 
