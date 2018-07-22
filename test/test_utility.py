@@ -63,10 +63,15 @@ class TestUtility(unittest.TestCase):
 
         print lij.l2d(lij.a2l(array))
 
-        ordering = ArrayOrdering(tvars)
-        bij = DictToArrayBijection(ordering, point)
-        array2 = bij.map(point)
-        print 'bija', array2
+    def test_stencil(self):
+        for order in [3, 5]:
+            so = utility.StencilOperator(order=order, h=0.001)
+            print so
+            print len(so)
+            print so.hsteps
+            print so.coefficients
+            print so.denominator
+
 
 if __name__ == '__main__':
     util.setup_logging('test_utility', 'warning')
