@@ -1039,7 +1039,7 @@ def repair_covariance(x, epsilon=num.finfo(num.float64).eps):
     eigval, eigvec = num.linalg.eigh(x)
     val = num.maximum(eigval, epsilon)
     vec = num.matrix(eigvec)
-    return vec * num.diag(val) * vec.T
+    return num.array(vec * num.diag(val) * vec.T)
 
 
 def list2string(l):

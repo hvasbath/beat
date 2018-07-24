@@ -556,6 +556,7 @@ def command_clone(args):
 
     project_dir = get_project_directory(
         args, options, nargs_dict[command_str])
+
     cloned_dir = os.path.join(os.path.dirname(project_dir), cloned_name)
 
     util.ensuredir(cloned_dir)

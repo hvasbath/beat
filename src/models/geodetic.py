@@ -467,9 +467,9 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
                 n_jobs=1)
 
             cov_pv = utility.ensure_cov_psd(cov_pv)
-
             data.covariance.pred_v = cov_pv
             choli = data.covariance.chol_inverse
+
             self.weights[i].set_value(choli)
             data.covariance.update_slog_pdet()
 
