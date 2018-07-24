@@ -490,6 +490,11 @@ def get_result_point(stage, config, point_llk='max'):
     dict
     """
     if config.sampler_config.name == 'Metropolis':
+        if stage.step is None:
+            raise AttributeError(
+                'Loading Metropolis results requires'
+                ' sampler parameters to be loaded!')
+
         sc = config.sampler_config.parameters
         pdict, _ = get_trace_stats(
             stage.mtrace, stage.step, sc.burn, sc.thin)
@@ -877,8 +882,9 @@ def draw_geodetic_fits(problem, plot_options):
 
     if po.reference is None:
         stage.load_results(
+            varnames=problem.varnames,
             model=problem.model, stage_number=po.load_stage,
-            load='full', chains=[-1])
+            load='trace', chains=[-1])
         llk_str = po.post_llk
     else:
         llk_str = 'ref'
@@ -1242,6 +1248,7 @@ def draw_seismic_fits(problem, po):
     if po.reference is None:
         llk_str = po.post_llk
         stage.load_results(
+            varnames=problem.varnames,
             model=problem.model, stage_number=po.load_stage,
             load='trace', chains=[-1])
     else:
@@ -1586,7 +1593,8 @@ def draw_posteriors(problem, plot_options):
         varnames = pc.hyperparameters.keys() + ['like']
     else:
         sc = problem.config.sampler_config
-        varnames = problem.rvs.keys() + pc.hyperparameters.keys() + ['like']
+        varnames = problem.varnames + \
+            pc.hyperparameters.keys() + ['like']
 
     if len(po.varnames) > 0:
         varnames = po.varnames
@@ -1614,6 +1622,7 @@ def draw_posteriors(problem, plot_options):
         if not os.path.exists(outpath) or po.force:
             logger.info('plotting stage: %s' % stage.handler.stage_path(s))
             stage.load_results(
+                varnames=problem.varnames,
                 model=problem.model, stage_number=s,
                 load='trace', chains=[-1])
 
@@ -1673,7 +1682,7 @@ def draw_correlation_hist(problem, plot_options):
         varnames = problem.config.problem_config.hyperparameters.keys()
     else:
         sc = problem.config.sampler_config
-        varnames = problem.config.problem_config.select_variables() + ['like']
+        varnames = problem.varnames + ['like']
 
     if len(po.varnames) > 0:
         varnames = po.varnames
@@ -1695,6 +1704,7 @@ def draw_correlation_hist(problem, plot_options):
 
     stage = Stage(homepath=problem.outfolder)
     stage.load_results(
+        varnames=problem.varnames,
         model=problem.model, stage_number=po.load_stage,
         load='trace', chains=[-1])
 
@@ -2105,7 +2115,7 @@ def draw_slip_dist(problem, po):
     sc = problem.config.sampler_config
     if po.load_stage is None and sc.name == 'Metropolis':
         draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
-    elif po.load_stage == -1 and not hypers and sc.name == 'PT':
+    elif po.load_stage == -1 and sc.name == 'PT':
         draws = sc.parameters.n_samples
     else:
         draws = None
@@ -2114,8 +2124,9 @@ def draw_slip_dist(problem, po):
 
     stage = Stage(homepath=problem.outfolder)
     stage.load_results(
-        model=problem.model, stage_number=po.load_stage,
-        load='full', chains=[-1])
+        varnames=problem.varnames,
+        stage_number=po.load_stage,
+        load='trace', chains=[-1])
 
     if po.reference is None:
         reference = get_result_point(stage, problem.config, po.post_llk)

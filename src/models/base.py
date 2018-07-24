@@ -249,7 +249,8 @@ class Stage(object):
         self.number = stage_number
 
     def load_results(
-            self, model=None, stage_number=None, chains=None, load='trace'):
+            self, varnames=None, model=None,
+            stage_number=None, chains=None, load='trace'):
         """
         Load stage results from sampling.
 
@@ -263,6 +264,12 @@ class Stage(object):
         load : str
             what to load and return 'full', 'trace', 'params'
         """
+        if varnames is None and model is not None:
+            varnames = [var.name for var in model.unobserved_RVs]
+        elif varnames is None and model is None:
+            raise ValueError(
+                'Either "varnames" or "model" need to be not None!')
+
         if stage_number is None:
             stage_number = self.number
 
@@ -283,14 +290,17 @@ class Stage(object):
         else:
             to_load = [load]
 
-        with model:
-            if 'trace' in to_load:
-                self.mtrace = self.handler.load_multitrace(
-                    stage_number, model=model, chains=chains)
+        if 'trace' in to_load:
+            self.mtrace = self.handler.load_multitrace(
+                stage_number, varnames=varnames, chains=chains)
 
-            if 'params' in to_load:
-                self.step, self.updates = self.handler.load_sampler_params(
-                    stage_number)
+        if 'params' in to_load:
+            if model is None:
+                with model:
+                    self.step, self.updates = self.handler.load_sampler_params(
+                        stage_number)
+            else:
+                raise ValueError('To load sampler params model is required!')
 
 
 def load_stage(problem, stage_number, load='trace'):
@@ -298,5 +308,6 @@ def load_stage(problem, stage_number, load='trace'):
     stage = Stage(
         homepath=problem.outfolder, stage_number=stage_number)
     stage.load_results(
+        varnames=problem.varnames,
         model=problem.model, stage_number=stage_number, load=load)
     return stage

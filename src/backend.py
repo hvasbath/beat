@@ -112,26 +112,33 @@ class BaseTrace(object):
 
     def __init__(self, name, model=None, vars=None):
         self.name = name
+        self.model = None
+        self.vars = None
+        self.var_shapes = None
+        self.chain = None
 
         if model is not None:
             self.model = modelcontext(model)
 
-        if vars is None:
-            vars = model.unobserved_RVs
+        if vars is None and self.model is not None:
+            vars = self.model.unobserved_RVs
 
-        self.vars = vars
-        self.varnames = [var.name for var in vars]
+        if vars is not None:
+            self.vars = vars
 
-        # Get variable shapes. Most backends will need this
-        # information.
+        if self.vars is not None:
+            self.varnames = [var.name for var in vars]
 
-        self.var_shapes_list = [var.tag.test_value.shape for var in vars]
-        self.var_dtypes_list = [var.tag.test_value.dtype for var in vars]
+            # Get variable shapes. Most backends will need this
+            # information.
 
-        self.var_shapes = dict(zip(self.varnames, self.var_shapes_list))
-        self.var_dtypes = dict(zip(self.varnames, self.var_dtypes_list))
+            self.var_shapes_list = [var.tag.test_value.shape for var in vars]
+            self.var_dtypes_list = [var.tag.test_value.dtype for var in vars]
 
-        self.chain = None
+            self.var_shapes = dict(zip(self.varnames, self.var_shapes_list))
+            self.var_dtypes = dict(zip(self.varnames, self.var_dtypes_list))
+        else:
+            logger.debug('No model or variables given!')
 
     def __getitem__(self, idx):
         if isinstance(idx, slice):
@@ -193,6 +200,38 @@ class MemoryTrace(BaseTrace):
         return cov
 
 
+def extract_variables_from_df(dataframe):
+    """
+    Extract random variables and their shapes from the pymc3-pandas data-frame
+
+    Parameters
+    ----------
+    dataframe : :class:`pandas.DataFrame`
+
+    Returns
+    -------
+    flat_names : dict
+        with variable-names and respective flat-name indexes to data-frame
+    var_shapes : dict
+        with variable names and shapes
+    """
+    all_df_indexes = [str(flatvar) for flatvar in dataframe.columns]
+    varnames = list(set([index.split('__')[0] for index in all_df_indexes]))
+
+    flat_names = {}
+    var_shapes = {}
+    for varname in varnames:
+        indexes = []
+        for index in all_df_indexes:
+            if index.split('__')[0] == varname:
+                indexes.append(index)
+
+        flat_names[varname] = indexes
+        var_shapes[varname] = ttab._create_shape(indexes)
+
+    return flat_names, var_shapes
+
+
 class TextChain(BaseTrace):
     """
     Text trace object
@@ -223,19 +262,22 @@ class TextChain(BaseTrace):
 
         if not os.path.exists(name):
             os.mkdir(name)
+
         super(TextChain, self).__init__(name, model, vars)
 
-        if k is not None:
-            self.flat_names = {}
-            for var, shape in self.var_shapes.items():
-                if var in transd_vars_dist:
-                    shape = (k,)
+        self.flat_names = None
+        if self.var_shapes is not None:
+            if k is not None:
+                self.flat_names = {}
+                for var, shape in self.var_shapes.items():
+                    if var in transd_vars_dist:
+                        shape = (k,)
 
-                self.flat_names[var] = ttab.create_flat_names(var, shape)
+                    self.flat_names[var] = ttab.create_flat_names(var, shape)
 
-        else:
-            self.flat_names = {v: ttab.create_flat_names(v, shape)
-                               for v, shape in self.var_shapes.items()}
+            else:
+                self.flat_names = {v: ttab.create_flat_names(v, shape)
+                                   for v, shape in self.var_shapes.items()}
 
         self.k = k
         self.filename = None
@@ -344,6 +386,11 @@ class TextChain(BaseTrace):
                     'Trace %s has wrong size!' % self.filename)
                 self.corrupted_flag = True
                 os.remove(self.filename)
+
+            if self.flat_names is None:
+                self.flat_names, self.var_shapes = extract_variables_from_df(
+                    self.df)
+                self.varnames = self.var_shapes.keys()
 
     def __len__(self):
         if self.filename is None:
@@ -516,7 +563,7 @@ class TextStage(object):
             chains = None
         return chains
 
-    def load_multitrace(self, stage, chains=None, model=None):
+    def load_multitrace(self, stage, chains=None, varnames=None):
         """
         Load TextChain database.
 
@@ -526,22 +573,23 @@ class TextStage(object):
             number of stage that should be loaded
         chains : list, optional
             of result chains to load, -1 is the summarized trace
-        model : Model
-            If None, the model is taken from the `with` context.
+        varnames : list
+            of varnames in the model
 
         Returns
         -------
         A :class:`pymc3.backend.base.MultiTrace` instance
         """
         dirname = self.stage_path(stage)
-        return load_multitrace(dirname=dirname, chains=chains, model=model)
+        return load_multitrace(
+            dirname=dirname, chains=chains, varnames=varnames)
 
-    def recover_existing_results(self, stage, draws, step, model=None):
+    def recover_existing_results(self, stage, draws, step, varnames=None):
         stage_path = self.stage_path(stage)
         if os.path.exists(stage_path):
             # load incomplete stage results
             logger.info('Reloading existing results ...')
-            mtrace = self.load_multitrace(stage, model=model)
+            mtrace = self.load_multitrace(stage, varnames=varnames)
             if len(mtrace.chains):
                 # continue sampling if traces exist
                 logger.info('Checking for corrupted files ...')
@@ -552,9 +600,8 @@ class TextStage(object):
         return None
 
 
-def istransd(model):
+def istransd(varnames):
     dims = 'dimensions'
-    varnames = [var.name for var in model.unobserved_RVs]
     if dims in varnames:
         dims_idx = varnames.index(dims)
         return True, dims_idx
@@ -648,7 +695,7 @@ class TransDTextChain(object):
         raise NotImplementedError()
 
 
-def load_multitrace(dirname, model=None, chains=None):
+def load_multitrace(dirname, varnames=None, chains=None):
     """
     Load TextChain database.
 
@@ -665,7 +712,7 @@ def load_multitrace(dirname, model=None, chains=None):
     A :class:`pymc3.backend.base.MultiTrace` instance
     """
 
-    if not istransd(model)[0]:
+    if not istransd(varnames)[0]:
         logger.info('Loading multitrace from %s' % dirname)
         if chains is None:
             files = glob(os.path.join(dirname, 'chain-*.csv'))
@@ -683,7 +730,7 @@ def load_multitrace(dirname, model=None, chains=None):
 
         straces = []
         for chain, f in zip(chains, files):
-            strace = TextChain(dirname, model=model)
+            strace = TextChain(dirname)
             strace.chain = chain
             strace.filename = f
             straces.append(strace)

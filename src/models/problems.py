@@ -211,6 +211,7 @@ class Problem(object):
     config : :class:`beat.BEATConfig`
         Configuration object that contains the problem definition.
     """
+    _varnames = None
 
     def __init__(self, config, hypers=False):
 
@@ -456,14 +457,22 @@ class Problem(object):
         fixed_params = dict()
         for param in pc.priors.itervalues():
             if not num.array_equal(param.lower, param.upper):
-                rvs[param.name] = Uniform(
-                    param.name,
+                kwargs = dict(
+                    name=param.name,
                     shape=param.dimension,
                     lower=param.lower,
                     upper=param.upper,
                     testval=param.testvalue,
                     transform=None,
                     dtype=tconfig.floatX)
+
+                try:
+                    rvs[param.name] = Uniform(**kwargs)
+
+                except TypeError:
+                    kwargs.pop('name')
+                    rvs[param.name] = Uniform.dist(**kwargs)
+
             else:
                 logger.info(
                     'not solving for %s, got fixed at %s' % (
@@ -472,6 +481,19 @@ class Problem(object):
                 fixed_params[param.name] = param.lower
 
         return rvs, fixed_params
+
+    @property
+    def varnames(self):
+        """
+        Sampled random variable names.
+
+        Returns
+        -------
+        list of strings
+        """
+        if self._varnames is None:
+            self._varnames = self.get_random_variables()[0].keys()
+        return self._varnames
 
     def init_hyperparams(self):
         """
@@ -800,7 +822,7 @@ problem_catalog = {
     problem_modes[2]: InterseismicOptimizer}
 
 
-def load_model(project_dir, mode, hypers=False, nobuild=False):
+def load_model(project_dir, mode, hypers=False, build=True):
     """
     Load config from project directory and return BEAT problem including model.
 
@@ -812,8 +834,8 @@ def load_model(project_dir, mode, hypers=False, nobuild=False):
         problem name to be loaded
     hypers : boolean
         flag to return hyper parameter estimation model instead of main model.
-    nobuild : boolean
-        flag to do not build models
+    build : boolean
+        flag to build models
 
     Returns
     -------
@@ -835,7 +857,7 @@ def load_model(project_dir, mode, hypers=False, nobuild=False):
         logger.error('Modeling problem %s not supported' % pc.mode)
         raise ValueError('Model not supported')
 
-    if not nobuild:
+    if build:
         if hypers:
             problem.built_hyper_model()
         else:

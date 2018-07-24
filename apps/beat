@@ -1129,10 +1129,10 @@ def command_plot(args):
             help='Plot hyperparameter results only.')
 
         parser.add_option(
-            '--nobuild',
-            dest='nobuild',
+            '--build',
+            dest='build',
             action='store_true',
-            help='Dont build models during problem init.')
+            help='Dont build models during problem loading.')
 
     plots_avail = plotting.available_plots()
 
@@ -1159,8 +1159,9 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
                             ' %s' % (plot, plots_avail))
 
     logger.info('Loading problem ...')
+
     problem = load_model(
-        project_dir, options.mode, options.hypers, options.nobuild)
+        project_dir, options.mode, options.hypers, options.build)
 
     po = plotting.PlotOptions(
         plot_projection=options.plot_projection,
@@ -1172,7 +1173,10 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
         varnames=options.varnames)
 
     if options.reference:
-        po.reference = problem.model.test_point
+        try:
+            po.reference = problem.model.test_point
+        except AttributeError:
+            po.reference = problem.config.problem_config.get_test_point()
     else:
         po.reference = None
 

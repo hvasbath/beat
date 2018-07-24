@@ -735,6 +735,22 @@ class ProblemConfig(Object):
         else:
             logger.info('No hyper-parameters defined!')
 
+    def get_test_point(self):
+        """
+        Returns dict with test point
+        """
+        test_point = {}
+        for varname, var in self.priors.items():
+            test_point[varname] = var.testvalue
+
+        for varname, var in self.hyperparameters.items():
+            test_point[varname] = var.testvalue
+
+        for varname, var in self.hierarchicals.items():
+            test_point[varname] = var.testvalue
+
+        return test_point
+
 
 class SamplerParameters(Object):
 

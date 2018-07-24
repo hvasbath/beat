@@ -404,6 +404,7 @@ def iter_parallel_chains(
     MultiTrace object
     """
     timeout = 0
+    varnames = [var.name for var in model.unobserved_RVs]
 
     if chains is None:
         chains = list(range(step.n_chains))
@@ -411,7 +412,7 @@ def iter_parallel_chains(
     n_chains = len(chains)
 
     if n_chains == 0:
-        mtrace = load_multitrace(dirname=stage_path, model=model)
+        mtrace = load_multitrace(dirname=stage_path, varnames=varnames)
 
     # while is necessary if any worker times out - rerun in case
     while n_chains > 0:
@@ -484,7 +485,7 @@ def iter_parallel_chains(
             pass
 
         # return chain indexes that have been corrupted
-        mtrace = load_multitrace(dirname=stage_path, model=model)
+        mtrace = load_multitrace(dirname=stage_path, varnames=varnames)
         corrupted_chains = check_multitrace(
             mtrace, draws=draws, n_chains=step.n_chains)
 
