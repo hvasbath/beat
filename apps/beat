@@ -1371,13 +1371,13 @@ def command_export(args):
                 varname, list2string(value.ravel().tolist())))
 
         results = composite.assemble_results(point)
+        results_path = pjoin(problem.outfolder, config.results_dir_name)
+        logger.info('Saving results to %s' % results_path)
+        util.ensuredir(results_path)
 
         if datatype == 'seismic':
             from pyrocko import io
 
-            results_path = pjoin(problem.outfolder, config.results_dir_name)
-            logger.info('Saving results to %s' % results_path)
-            util.ensuredir(results_path)
             for traces, attribute in heart.results_for_export(
                     results, datatype=datatype):
 
@@ -1398,7 +1398,15 @@ def command_export(args):
                             'Some station codes are too long! '
                             '(the --fix_output option will truncate to '
                             'last 4 characters!)')
-
+        elif datatype == 'geodetic':
+            for ifgs, attribute in heart.results_for_export(
+                results, datatype=datatype):
+                    pass
+                    
+            raise NotImplementedError(
+                'Geodetic export not yet implemented!')
+        else:
+            raise NotImplementedError('Datatype %s not supported!' % datatype)
 
 if __name__ == '__main__':
 
