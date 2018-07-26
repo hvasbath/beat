@@ -275,9 +275,22 @@ class SeismicResult(Object):
     processed_syn = Trace.T(optional=True)
     filtered_syn = Trace.T(optional=True)
     processed_res = Trace.T(optional=True)
+    filtered_res = Trace.T(optional=True)
     arrival_taper = trace.Taper.T(optional=True)
     llk = Float.T(default=0., optional=True)
     taper = trace.Taper.T(optional=True)
+
+
+def results_for_export(results, attributes=['filtered_syn', 'filtered_obs', ]):
+
+    try:
+        data = [getattr(result, attribute) for result in results]
+    except AttributeError:
+        raise AttributeError(
+            'Result object does not have the attribute '
+            '"%s" to export!' % attribute)
+
+    return data
 
 
 sqrt2 = num.sqrt(2.)

@@ -501,10 +501,8 @@ def get_result_point(stage, config, point_llk='max'):
         point = pdict[point_llk]
 
     elif config.sampler_config.name == 'SMC':
-        n_steps = config.sampler_config.parameters.n_steps
         llk = stage.mtrace.get_values(
             varname='like',
-            burn=n_steps - 1,
             combine=True)
 
         posterior_idxs = utility.get_fit_indexes(llk)

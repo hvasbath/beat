@@ -255,9 +255,14 @@ class SeismicComposite(Composite):
         results = []
         for i, (obs_tr, at) in enumerate(zip(obs_proc_traces, ats)):
 
-            dtrace = obs_tr.copy()
-            dtrace.set_ydata(
+            dtrace_proc = obs_tr.copy()
+            dtrace_proc.set_ydata(
                 (obs_tr.get_ydata() - syn_proc_traces[i].get_ydata()))
+
+            dtrace_filt = obs_filt_traces[i].copy()
+            dtrace_filt.set_ydata(
+                (obs_filt_traces[i].get_ydata() -
+                    syn_filt_traces[i].get_ydata()))
 
             taper = at.get_pyrocko_taper(
                 float(obs_tr.tmin + num.abs(at.a)))
@@ -265,9 +270,10 @@ class SeismicComposite(Composite):
             results.append(heart.SeismicResult(
                 processed_obs=obs_tr,
                 processed_syn=syn_proc_traces[i],
-                processed_res=dtrace,
+                processed_res=dtrace_proc,
                 filtered_obs=obs_filt_traces[i],
                 filtered_syn=syn_filt_traces[i],
+                filtered_res=dtrace_filt,
                 taper=taper))
 
         return results

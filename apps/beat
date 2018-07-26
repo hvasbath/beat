@@ -47,6 +47,8 @@ subcommand_descriptions = {
     'plot':           'plot specified setups or results',
     'check':          'check setup specific requirements',
     'summarize':      'collect results and create statistics',
+    'export':         'export waveforms and displacement maps of'
+                      ' specific solution(s)',
 }
 
 subcommand_usages = {
@@ -60,6 +62,7 @@ subcommand_usages = {
     'plot':          'plot <event_name> <plot_type> [options]',
     'check':         'check <event_name> [options]',
     'summarize':     'summarize <event_name> [options]',
+    'export':        'export <event_name> [options]',
 }
 
 subcommands = subcommand_descriptions.keys()
@@ -81,6 +84,7 @@ Subcommands:
     build_gfs       %(build_gfs)s
     sample          %(sample)s
     summarize       %(summarize)s
+    export          %(export)s
     plot            %(plot)s
     check           %(check)s
 
@@ -101,6 +105,7 @@ nargs_dict = {
     'sample': 1,
     'check': 1,
     'summarize': 1,
+    'export': 1,
 }
 
 mode_choices = ['geometry', 'ffi']
@@ -1294,6 +1299,84 @@ def command_check(args):
                             snuffle(trs)
     else:
         raise ValueError('Subject what: %s is not available!' % options.what)
+
+
+def command_export(args):
+
+    command_str = 'export'
+
+    def setup(parser):
+
+        parser.add_option(
+            '--main_path', dest='main_path', type='string',
+            default='./',
+            help='Main path (absolute) leading to folders of events that'
+                 ' have been created by "init".'
+                 ' Default: current directory: ./')
+
+        parser.add_option(
+            '--mode', dest='mode',
+            choices=mode_choices,
+            default='geometry',
+            help='Inversion problem to solve; %s Default: "geometry"' %
+                 list2string(mode_choices))
+
+        parser.add_option(
+            '--force', dest='force', action='store_true',
+            help='Overwrite existing files')
+
+        parser.add_option(
+            '--stage_number',
+            dest='stage_number',
+            type='int',
+            default=None,
+            help='Int of the stage number "n" of the stage to be summarized.'
+                 ' Default: all stages up to last complete stage')
+
+        parser.add_option(
+            '--post_llk',
+            dest='post_llk',
+            choices=['max', 'min', 'mean', 'all'],
+            default='max',
+            help='Plot model with specified likelihood; "max", "min", "mean"'
+                 ' or "all"; Default: "max"')
+
+        parser.add_option(
+            '--force', dest='force', action='store_true',
+            help='Overwrite existing files')
+
+    parser, options, args = cl_parse(command_str, args, setup=setup)
+
+    project_dir = get_project_directory(
+        args, options, nargs_dict[command_str])
+
+    logger.info('Loading problem ...')
+    problem = load_model(project_dir, options.mode)
+
+    stage = Stage(homepath=problem.outfolder)
+
+    stage.load_results(
+        varnames=problem.varnames,
+        model=problem.model, stage_number=options.stage_number,
+        load='trace', chains=[-1])
+
+    point = plotting.get_result_point(
+        stage, problem.config, point_llk=options.post_llk)
+
+    for datatype, composite in problem.composites.items():
+        logger.info(
+            'Exporting "%s" synthetics for "%s" likelihood parameters:' % (
+                datatype, options.post_llk))
+        print(point)
+        results = composite.assemble_results(point)
+
+        if datatype == 'seismic':
+            from pyrock.io import save
+
+
+
+
+
 
 
 if __name__ == '__main__':
