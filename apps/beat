@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+from os.path import join as pjoin
 
 # disable internal blas parallelisation as we parallelise over chains
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -137,7 +138,7 @@ def get_project_directory(args, options, nargs=1, popflag=False):
             name = args.pop(0)
         else:
             name = args[0]
-        project_dir = os.path.join(os.path.abspath(options.main_path), name)
+        project_dir = pjoin(os.path.abspath(options.main_path), name)
     else:
         project_dir = os.getcwd()
 
@@ -366,14 +367,13 @@ def command_import(args):
             logger.info('Attempting to import seismic data from %s' %
                         sc.datadir)
 
-            seismic_outpath = os.path.join(
-                c.project_dir, config.seismic_data_name)
+            seismic_outpath = pjoin(c.project_dir, config.seismic_data_name)
             if not os.path.exists(seismic_outpath) or options.force:
 
                 if options.seismic_format == 'autokiwi':
 
                     stations = model.load_stations(
-                        os.path.join(sc.datadir, 'stations.txt'))
+                        pjoin(sc.datadir, 'stations.txt'))
 
                     data_traces = inputf.load_data_traces(
                         datadir=sc.datadir,
@@ -396,8 +396,7 @@ def command_import(args):
             logger.info('Attempting to import geodetic data from %s' %
                         gc.datadir)
 
-            geodetic_outpath = os.path.join(
-                c.project_dir, config.geodetic_data_name)
+            geodetic_outpath = pjoin(c.project_dir, config.geodetic_data_name)
             if not os.path.exists(geodetic_outpath) or options.force:
 
                 gtargets = []
@@ -562,12 +561,12 @@ def command_clone(args):
     project_dir = get_project_directory(
         args, options, nargs_dict[command_str])
 
-    cloned_dir = os.path.join(os.path.dirname(project_dir), cloned_name)
+    cloned_dir = pjoin(os.path.dirname(project_dir), cloned_name)
 
     util.ensuredir(cloned_dir)
 
     for mode in [options.mode]:
-        config_fn = os.path.join(project_dir, 'config_' + mode + '.yaml')
+        config_fn = pjoin(project_dir, 'config_' + mode + '.yaml')
         if os.path.exists(config_fn):
             logger.info('Cloning %s problem config.' % mode)
             c = config.load_config(project_dir, mode)
@@ -582,12 +581,11 @@ def command_clone(args):
                 else:
                     new_datatypes.append(datatype)
 
-                    data_path = os.path.join(
-                        project_dir, datatype + '_data.pkl')
+                    data_path = pjoin(project_dir, datatype + '_data.pkl')
 
                     if os.path.exists(data_path) and options.copy_data:
                         logger.info('Cloning %s data.' % datatype)
-                        cloned_data_path = os.path.join(
+                        cloned_data_path = pjoin(
                             cloned_dir, datatype + '_data.pkl')
                         shutil.copyfile(data_path, cloned_data_path)
 
@@ -732,7 +730,7 @@ def command_summarize(args):
         stage_path = stage.handler.stage_path(stage_number)
         logger.info('Summarizing stage under: %s' % stage_path)
 
-        result_trace_path = os.path.join(stage_path, 'chain--1.csv')
+        result_trace_path = pjoin(stage_path, 'chain--1.csv')
         if not os.path.exists(result_trace_path) or options.force:
             # trace may exist by forceing
             if os.path.exists(result_trace_path):
@@ -795,7 +793,7 @@ def command_summarize(args):
             'Trace collection previously failed. Please rerun'
             ' "beat summarize <project_dir> --force!"')
 
-    summary_file = os.path.join(problem.outfolder, config.summary_name)
+    summary_file = pjoin(problem.outfolder, config.summary_name)
 
     if os.path.exists(summary_file) and options.force:
         os.remove(summary_file)
@@ -873,7 +871,7 @@ def command_build_gfs(args):
                 if sf.reference_location is None:
                     logger.info("Creating Green's Function stores individually"
                                 " for each station!")
-                    seismic_data_path = os.path.join(
+                    seismic_data_path = pjoin(
                         c.project_dir, config.seismic_data_name)
 
                     stations, _ = utility.load_objects(seismic_data_path)
@@ -912,11 +910,10 @@ def command_build_gfs(args):
 
         slip_varnames = c.problem_config.get_slip_variables()
         varnames = c.problem_config.select_variables()
-        outdir = os.path.join(
-            c.project_dir, options.mode, config.linear_gf_dir_name)
+        outdir = pjoin(c.project_dir, options.mode, config.linear_gf_dir_name)
         util.ensuredir(outdir)
 
-        faultpath = os.path.join(outdir, config.fault_geometry_name)
+        faultpath = pjoin(outdir, config.fault_geometry_name)
         if not os.path.exists(faultpath) or options.force:
             for datatype in options.datatypes:
                 try:
@@ -975,7 +972,7 @@ def command_build_gfs(args):
                 if datatype == 'geodetic':
                     gf = c.geodetic_config.gf_config
 
-                    geodetic_data_path = os.path.join(
+                    geodetic_data_path = pjoin(
                         c.project_dir, config.geodetic_data_name)
 
                     datasets = utility.load_objects(geodetic_data_path)
@@ -1005,7 +1002,7 @@ def command_build_gfs(args):
                             force=options.force)
 
                 elif datatype == 'seismic':
-                    seismic_data_path = os.path.join(
+                    seismic_data_path = pjoin(
                         c.project_dir, config.seismic_data_name)
                     sc = c.seismic_config
                     gf = sc.gf_config
@@ -1185,7 +1182,7 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
     else:
         po.reference = None
 
-    figure_path = os.path.join(problem.outfolder, po.figure_dir)
+    figure_path = pjoin(problem.outfolder, po.figure_dir)
     util.ensuredir(figure_path)
 
     for plot in plotnames:
@@ -1268,7 +1265,7 @@ def command_check(args):
 
             for datatype in options.datatypes:
                 for var in problem.config.problem_config.get_slip_variables():
-                    outdir = os.path.join(
+                    outdir = pjoin(
                         problem.config.project_dir, options.mode,
                         config.linear_gf_dir_name)
                     if datatype == 'seismic':
@@ -1322,14 +1319,10 @@ def command_export(args):
                  list2string(mode_choices))
 
         parser.add_option(
-            '--force', dest='force', action='store_true',
-            help='Overwrite existing files')
-
-        parser.add_option(
             '--stage_number',
             dest='stage_number',
             type='int',
-            default=None,
+            default=-1,
             help='Int of the stage number "n" of the stage to be summarized.'
                  ' Default: all stages up to last complete stage')
 
@@ -1340,6 +1333,12 @@ def command_export(args):
             default='max',
             help='Plot model with specified likelihood; "max", "min", "mean"'
                  ' or "all"; Default: "max"')
+
+        parser.add_option(
+            '--fix_output',
+            dest='fix_output', action='store_true',
+            help='Fix Network Station Location Codes in case '
+                 'they are not compliant with mseed')
 
         parser.add_option(
             '--force', dest='force', action='store_true',
@@ -1367,16 +1366,38 @@ def command_export(args):
         logger.info(
             'Exporting "%s" synthetics for "%s" likelihood parameters:' % (
                 datatype, options.post_llk))
-        print(point)
+        for varname, value in point.items():
+            logger.info('%s: %s' % (
+                varname, list2string(value.ravel().tolist())))
+
         results = composite.assemble_results(point)
 
         if datatype == 'seismic':
-            from pyrock.io import save
+            from pyrocko import io
 
+            results_path = pjoin(problem.outfolder, config.results_dir_name)
+            logger.info('Saving results to %s' % results_path)
+            util.ensuredir(results_path)
+            for traces, attribute in heart.results_for_export(
+                    results, datatype=datatype):
 
+                filename = '%s_%i.mseed' % (attribute, options.stage_number)
+                outpath = pjoin(results_path, filename)
+                try:
+                    io.save(traces, outpath, overwrite=options.force)
+                except io.mseed.CodeTooLong:
+                    if options.fix_output:
+                        for tr in traces:
+                            tr.set_station(tr.station[-4::])
+                            tr.set_location(
+                                str(problem.config.seismic_config.gf_config.reference_model_idx))
 
-
-
+                        io.save(traces, outpath, overwrite=options.force)
+                    else:
+                        raise ValueError(
+                            'Some station codes are too long! '
+                            '(the --fix_output option will truncate to '
+                            'last 4 characters!)')
 
 
 if __name__ == '__main__':

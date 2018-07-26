@@ -281,16 +281,29 @@ class SeismicResult(Object):
     taper = trace.Taper.T(optional=True)
 
 
-def results_for_export(results, attributes=['filtered_syn', 'filtered_obs', ]):
+def results_for_export(results, datatype=None, attributes=None):
 
-    try:
-        data = [getattr(result, attribute) for result in results]
-    except AttributeError:
-        raise AttributeError(
-            'Result object does not have the attribute '
-            '"%s" to export!' % attribute)
+    if attributes is None:
+        if datatype is None:
+            raise ValueError(
+                'Either datatype or attributes need to be defined!')
+        elif datatype == 'seismic':
+            attributes = ['filtered_obs', 'filtered_syn', 'filtered_res']
+        elif datatype == 'geodetic':
+            attributes = ['processed_obs', 'processed_syn', 'processed_res']
+        else:
+            raise NotImplementedError(
+                'datatype %s not implemented!' % datatype)
 
-    return data
+    for attribute in attributes:
+        try:
+            data = [getattr(result, attribute) for result in results]
+        except AttributeError:
+            raise AttributeError(
+                'Result object does not have the attribute '
+                '"%s" to export!' % attribute)
+
+        yield data, attribute
 
 
 sqrt2 = num.sqrt(2.)

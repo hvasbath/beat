@@ -182,6 +182,7 @@ seismic_data_name = 'seismic_data.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
 
 linear_gf_dir_name = 'linear_gfs'
+results_dir_name = 'results'
 fault_geometry_name = 'fault_geometry.pkl'
 geodetic_linear_gf_name = 'linear_geodetic_gfs.pkl'
 

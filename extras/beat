@@ -29,13 +29,14 @@ _beat_options()
     arg_subsub["update"]="--parameters $_std"
     arg_subsub["sample"]="--mode --hypers $_std"
     arg_subsub["summarize"]="--mode --stage_number --force $_std"
+    arg_subsub["export"]="--mode --stage_number --force $_std"
     arg_subsub["clone"]="--datatypes --mode --source_type --sampler --copy_data $_std"
     arg_subsub["plot"]="--mode --post_llk --stage_number --varnames --format --dpi --force --reference --hypers --build $_std"
     arg_subsub["check"]="--datatypes --mode --what $_std"
 
 
     if [ $COMP_CWORD = 1 ]; then
-        opts="init import build_gfs update clone sample summarize plot check"
+        opts="init import build_gfs update clone sample summarize export plot check"
     elif [ $COMP_CWORD = 2 ]; then
         opts="$(_opt_dirnames) ${arg_subsub[${COMP_WORDS[1]}]}"
     elif [ $COMP_CWORD = 3 ]; then
