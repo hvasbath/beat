@@ -23,7 +23,7 @@ from pyrocko import model, util
 from pyrocko.trace import snuffle
 from pyrocko.gf import LocalEngine
 
-from pyrocko.guts import load, dump
+from pyrocko.guts import load, dump, Dict
 
 
 logger = logging.getLogger('beat')
@@ -1352,6 +1352,8 @@ def command_export(args):
     logger.info('Loading problem ...')
     problem = load_model(project_dir, options.mode)
 
+    sc = problem.config.sampler_config
+
     stage = Stage(homepath=problem.outfolder)
 
     stage.load_results(
@@ -1361,6 +1363,9 @@ def command_export(args):
 
     point = plotting.get_result_point(
         stage, problem.config, point_llk=options.post_llk)
+
+    for var in problem.varnames:
+        mpoint[var] = stage.mtrace.get_values(var).mean()
 
     for datatype, composite in problem.composites.items():
         logger.info(
@@ -1374,6 +1379,17 @@ def command_export(args):
         results_path = pjoin(problem.outfolder, config.results_dir_name)
         logger.info('Saving results to %s' % results_path)
         util.ensuredir(results_path)
+
+        if hasattr(sc.parameters, 'update_covariances'):
+            if sc.parameters.update_covariances:
+                logger.info('Saving velocity model covariance matrixes...')
+                comopsite.update_weights(mpoint)
+                for wmap in composite.wavemaps:
+                    pcovs = {dataset.nslc_id: dataset.covariance.pred_v
+                        for dataset in wmap.datasets}
+
+                outname = pjoin(results_path, 'C_vm_' + wmap.wavename)
+                num.savez(outname, **pcovs)
 
         if datatype == 'seismic':
             from pyrocko import io

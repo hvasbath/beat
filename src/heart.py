@@ -802,6 +802,20 @@ class Quadtree(GeodeticDataset):
         return cls(**d)
 
 
+class ResultReport(Object):
+
+    solution_point = Dict.T(help='result point')
+    post_llk = StringChoice.T(
+        choices=['max', 'mean', 'min'],
+        default='max',
+        help='Value of point of the likelihood distribution.')
+    mean_point = Dict.T(
+        optional=True,
+        default=None,
+        help='mean of distributions, used for model'
+             ' prediction covariance calculation.') 
+
+
 class IFG(GeodeticDataset):
     """
     Interferogram class as a dataset in the optimization.
