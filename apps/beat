@@ -12,6 +12,8 @@ import shutil
 
 from optparse import OptionParser
 
+import numpy as num
+
 from beat import heart, config, utility, inputf, plotting
 from beat.models import load_model, Stage, estimate_hypers, sample
 from beat.backend import TextChain 
@@ -1366,7 +1368,7 @@ def command_export(args):
 
     mpoint = dict()
     for var in problem.varnames:
-        mpoint[var] = stage.mtrace.get_values(var).mean()
+        mpoint[var] = num.atleast_2d(stage.mtrace.get_values(var).mean())
 
     for datatype, composite in problem.composites.items():
         logger.info(
@@ -1408,14 +1410,15 @@ def command_export(args):
             if hasattr(sc.parameters, 'update_covariances'):
                 if sc.parameters.update_covariances:
                     logger.info('Saving velocity model covariance matrixes...')
-                    comopsite.update_weights(mpoint)
+                    composite.update_weights(mpoint)
                     for wmap in composite.wavemaps:
-                        pcovs = {dataset.nslc_id: dataset.covariance.pred_v
+                        pcovs = {list2string(dataset.nslc_id): dataset.covariance.pred_v
                             for dataset in wmap.datasets}
-
+                        
                         outname = pjoin(
                             results_path, '%s_C_vm_%s' % (
-                                datatype, wmap.wavename))
+                                datatype, wmap.name))
+                        logger.info('"%s" to: %s' % (wmap.name, outname))
                         num.savez(outname, **pcovs)
 
         elif datatype == 'geodetic':
