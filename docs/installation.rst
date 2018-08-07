@@ -90,7 +90,7 @@ in a speed-up of the numpy related calculations by a factor of at least 3.::
 Per default, the current developers branch is being installed. We want to
 install one of the most recent stable branches::
 
-    git checkout v1.11.1
+    git checkout v1.14.1
 
 Next, create a configuration file `site.cfg` that tells numpy where to find the
 previously installed OpenBlas library::
@@ -310,7 +310,7 @@ pymc3
 Pymc3 is a framework that provides various optimization algorithms allows and
 allows to build Bayesian models. For the last stable release::
 
-    pip install pymc3==3.2
+    pip install pymc3==3.4.1
 
 For the bleeding edge::
 
@@ -329,12 +329,19 @@ framework to efficiently store and access Greens Functions.::
     cd pyrocko
     sudo python setup.py install
 
+OpenMPI
+"""""""
+For the Parallel Tempering algorithm OpenMPI and the python 
+bindings are required.::
+
+    sudo apt-get install libopenmpi-dev
+    sudo pip install mpi4py
+
 Pyproj
 """"""
 Pyproj is the last package and also the most easy one to install::
 
     pip install pyproj
-
 
 BEAT
 """"

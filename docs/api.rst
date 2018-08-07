@@ -18,10 +18,42 @@ The :mod:`config` Module
    :members:
 
 
-The :mod:`smc` Module
+The :mod:`sampler` Module
+-------------------------
+
+.. automodule:: sampler
+   :members:
+
+:mod:`metropolis`
+=================
+
+.. automodule:: sampler.metropolis
+   :members:
+
+:mod:`smc`
+==========
+
+.. automodule:: sampler.smc
+   :members:
+
+:mod:`pt`
+=========
+
+.. automodule:: sampler.pt
+   :members:
+
+
+The :mod:`ffi` Module
 ------------------------
 
-.. automodule:: smc
+.. automodule:: ffi
+   :members:
+
+
+The :mod:`parallel` Module
+------------------------
+
+.. automodule:: parallel
    :members:
 
 
@@ -32,17 +64,31 @@ The :mod:`backend` Module
    :members:
 
 
-The :mod:`metropolis` Module
-------------------------
-
-.. automodule:: metropolis
-   :members:
-
-
 The :mod:`models` Module
 ------------------------
 
 .. automodule:: models
+   :members:
+
+
+:mod:`problems`
+===============
+
+.. automodule:: models.problems
+   :members:
+
+
+:mod:`seismic`
+==============
+
+.. automodule:: models.seismic
+   :members:
+
+
+:mod:`geodetic`
+===============
+
+.. automodule:: models.geodetic
    :members:
 
 

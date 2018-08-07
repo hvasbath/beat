@@ -8,10 +8,10 @@ First install pyrocko following this webpage:
 
  - `pyrocko <http://pyrocko.org/>`__
 
-Then install the following packages, pymc3 version3.2 and pyproj::
+Then install the following packages: openmpi and beat::
 
-    sudo pip install pymc3==3.2
-    sudo pip install pyproj
+    sudo apt-get install libopenmpi-dev
+    sudo pip install mpi4py
 
     cd ~/src  # or whereever you keep the packages
     git clone https://github.com/hvasbath/beat
