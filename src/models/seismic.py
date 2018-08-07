@@ -244,8 +244,10 @@ class SeismicComposite(Composite):
         syn_proc_traces, obs_proc_traces = self.get_synthetics(
             point, outmode='stacked_traces')
 
+        # will yield exactly the same as previous call needs wmap.prepare data
+        # to be aware of taper_tolerance_factor
         syn_filt_traces, obs_filt_traces = self.get_synthetics(
-            point, outmode='stacked_traces', taper_tolerance_factor=2.)
+            point, outmode='stacked_traces', taper_tolerance_factor=0.)
 
         ats = []
         for wmap in self.wavemaps:
