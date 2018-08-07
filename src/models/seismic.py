@@ -705,6 +705,9 @@ class SeismicDistributerComposite(SeismicComposite):
         starttimes = self.sweeper(
             (1. / input_rvs['velocities']), nuc_dip_idx, nuc_strike_idx)
 
+! # station corrections?
+        starttimes += input_rvs['nucleation_time']
+
         wlogpts = []
         for wmap in self.wavemaps:
             logger.debug('Stacking %s phase ...' % wmap.config.name)
@@ -730,10 +733,7 @@ class SeismicDistributerComposite(SeismicComposite):
             # cut data according to wavemaps
             logger.debug('Cut data accordingly')
 
-            tmins = self.gfs[key].get_all_tmins(
-                patchidx).ravel() + input_rvs['nucleation_time']
-
-            # add station corrections
+ !           # add station corrections
             if len(self.hierarchicals) > 0:
                 tmins += self.hierarchicals[
                     self.correction_name][wmap.station_correction_idxs]

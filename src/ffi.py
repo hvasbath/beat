@@ -189,9 +189,9 @@ class GeodeticGFLibrary(GFLibrary):
 
     Parameters
     ----------
-    config : :class:`SeismicGFLibraryConfig`
+    config : :class:`GeodeticGFLibraryConfig`
     """
-    def __init__(self, config=SeismicGFLibraryConfig()):
+    def __init__(self, config=GeodeticGFLibraryConfig()):
 
         super(GeodeticGFLibrary, self).__init__(config=config)
 
@@ -444,12 +444,10 @@ filename: %s''' % (
             index to target
         patchidx : int
             index to patch (source) that is used to produce the synthetics
-        durationidxs : list or :class:`numpy.NdArray`
-            of indexes to the respective duration of the STFs that have been
-            used to create the synthetics
-        starttimeidxs : list or :class:`numpy.NdArray`
-            of indexes to the respective duration of the STFs that have been
-            used to create the synthetics
+        durations : list or :class:`numpy.NdArray`
+            of the STFs that have been used to create the synthetics
+        starttimes : list or :class:`numpy.NdArray`
+            of the STFs that have been used to create the synthetics
         """
 
         if len(entries.shape) < 2:
@@ -1395,7 +1393,8 @@ def _process_patch_seismic(
 
 
 def seis_construct_gf_linear(
-        engine, fault, durations_prior, velocities_prior,
+        engine, fault,
+        durations_prior, velocities_prior, nucleation_time_prior,
         varnames, wavemap, event, nworkers=1,
         starttime_sampling=1., duration_sampling=1.,
         sample_rate=1., outdirectory='./', force=False):
@@ -1416,12 +1415,14 @@ def seis_construct_gf_linear(
         complex fault-geometry
     durations_prior : :class:`heart.Parameter`
         prior of durations of the STF for each patch to convolve
-    duration_sampling : float
-        incremental step size for precalculation of duration GFs
     velocities_prior : :class:`heart.Parameter`
         rupture velocity of earthquake prior
+    nucleation_time_prior : :class:`heart.Parameter`
+        prior of nucleation time of the event
     starttime_sampling : float
         incremental step size for precalculation of startime GFs
+    duration_sampling : float
+        incremental step size for precalculation of duration GFs
     sample_rate : float
         sample rate of synthetic traces to produce,
         related to non-linear GF store
@@ -1438,7 +1439,12 @@ def seis_construct_gf_linear(
         nuc_dip_idx=0, nuc_strike_idx=0)
 
     starttimeidxs = num.arange(
-        int(num.ceil(start_times.max() / starttime_sampling)))
+        int(num.floor(
+            start_times.min() + nucleation_time_prior.lower.min() /
+            starttime_sampling)),
+        int(num.ceil(
+            start_times.max() + nucleation_time_prior.upper.max() /
+            starttime_sampling)))
     starttimes = starttimeidxs * starttime_sampling
 
     ndurations = ut.error_not_whole((
