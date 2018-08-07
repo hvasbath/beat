@@ -1318,7 +1318,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
               lines=None, chains=None, combined=False, grid=False,
               varbins=None, nbins=40, color=None,
               alpha=0.35, priors=None, prior_alpha=1, prior_style='--',
-              axs=None, posterior=None, fig=None, plot_style='kde'):
+              axs=None, posterior=None, fig=None, plot_style='kde',
+              prior_bounds=None):
     """
     Plots posterior pdfs as histograms from multiple mtrace objects.
 
@@ -1376,6 +1377,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         idx = varnames.index(varname)
         varnames.pop(idx)
 
+    if varnames is None:
         varnames = [name for name in trace.varnames if not name.endswith('_')]
 
     if 'geo_like' in varnames:
@@ -1451,11 +1453,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         varbin = varbins[i]
 
                     if lines:
-                        if hypername(v) == 'h_':
-                            reference = None
-                            if v in lines.keys():
-                                lines.pop(v)
-                        elif v in lines:
+                        if v in lines:
                             reference = lines[v]
                         else:
                             reference = None
@@ -1484,8 +1482,15 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                             axs[rowi, coli], e, reference=reference,
                             bins=varbin, alpha=alpha, color=color)
 
-                    axs[rowi, coli].set_title(
-                        str(v) + ' ' + plot_units[hypername(v)])
+                    try:
+                        param = prior_bounds[v]
+                        title = str(v) + ' ' + plot_units[hypername(v)] + \
+                            ' ' + 'priors: %3.3f, %3.3f' % (
+                                param.lower, param.upper)
+                    except KeyError:
+                        title = str(v) + ' ' + plot_units[hypername(v)]
+
+                    axs[rowi, coli].set_title(title)
                     axs[rowi, coli].grid(grid)
                     axs[rowi, coli].set_yticks([])
                     axs[rowi, coli].set_yticklabels([])
@@ -1632,6 +1637,10 @@ def draw_posteriors(problem, plot_options):
             else:
                 chains = None
 
+            prior_bounds = {}
+            prior_bounds.update(**pc.hyperparameters)
+            prior_bounds.update(**pc.priors)
+
             fig, _, _ = traceplot(
                 stage.mtrace,
                 varnames=varnames,
@@ -1640,7 +1649,8 @@ def draw_posteriors(problem, plot_options):
                 combined=True,
                 plot_style='hist',
                 lines=po.reference,
-                posterior='max')
+                posterior='max',
+                prior_bounds=prior_bounds)
 
             if not po.outformat == 'display':
                 logger.info('saving figure to %s' % outpath)

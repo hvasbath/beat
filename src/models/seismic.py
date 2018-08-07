@@ -325,14 +325,18 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.sources = sources
 
-        if sc.station_corrections:
-            self.correction_name = 'time_shift'
+        self.correction_name = 'time_shift'
 
         if not hypers:
-            # syntetics generation
+            # synthetics generation
             logger.debug('Initialising synthetics functions ... \n')
             for wmap in self.wavemaps:
                 wc = wmap.config
+
+                logger.info(
+                    'Preparing data of "%s" for optimization' % wmap.name)
+                wmap.prepare_data(
+                    source=self.event, engine=self.engine, outmode='array')
 
                 self.synthesizers[wc.name] = theanof.SeisSynthesizer(
                     engine=self.engine,
@@ -340,15 +344,11 @@ class SeismicGeometryComposite(SeismicComposite):
                     targets=wmap.targets,
                     event=self.event,
                     arrival_taper=wc.arrival_taper,
+                    arrival_times=wmap._arrival_times,
                     wavename=wmap.name,
                     filterer=wc.filterer,
-                    pre_stack_cut=sc.pre_stack_cut)
-
-                self.choppers[wc.name] = theanof.SeisDataChopper(
-                    sample_rate=sc.gf_config.sample_rate,
-                    traces=wmap.datasets,
-                    arrival_taper=wc.arrival_taper,
-                    filterer=wc.filterer)
+                    pre_stack_cut=sc.pre_stack_cut,
+                    station_corrections=sc.station_corrections)
 
         self.config = sc
 
@@ -419,14 +419,14 @@ class SeismicGeometryComposite(SeismicComposite):
                 'station corrections.' % len(self.get_unique_stations()))
 
         for wmap in self.wavemaps:
-            synths, tmins = self.synthesizers[wmap.name](self.input_rvs)
-
             if len(self.hierarchicals) > 0:
-                tmins += self.hierarchicals[
+                time_shifts = self.hierarchicals[
                     self.correction_name][wmap.station_correction_idxs]
+                self.input_rvs[self.correction_name] = time_shifts
 
-            data_trcs = self.choppers[wmap.name](tmins)
-            residuals = data_trcs - synths
+            synths, _ = self.synthesizers[wmap.name](self.input_rvs)
+
+            residuals = wmap.shared_data_array - synths
 
             logpts = multivariate_normal_chol(
                 wmap.datasets, wmap.weights, hyperparams, residuals,
@@ -465,8 +465,17 @@ class SeismicGeometryComposite(SeismicComposite):
         obs = []
         for wmap in self.wavemaps:
             wc = wmap.config
+            wmap.prepare_data(
+                source=self.event,
+                engine=self.engine,
+                outmode='stacked_traces')
 
-            synthetics, tmins = heart.seis_synthetics(
+            arrival_times = wmap._arrival_times
+            if self.config.station_corrections:
+                arrival_times += point[
+                    self.correction_name][wmap.station_correction_idxs]
+
+            synthetics, _ = heart.seis_synthetics(
                 engine=self.engine,
                 sources=self.sources,
                 targets=wmap.targets,
@@ -474,26 +483,12 @@ class SeismicGeometryComposite(SeismicComposite):
                 wavename=wmap.name,
                 filterer=wc.filterer,
                 pre_stack_cut=sc.pre_stack_cut,
+                arrival_times=arrival_times,
                 **kwargs)
-
-            if self.config.station_corrections:
-                sh = point[
-                    self.correction_name][wmap.station_correction_idxs]
-
-                for i, tr in enumerate(synthetics):
-                    tr.tmin += sh[i]
-                    tr.tmax += sh[i]
 
             synths.extend(synthetics)
 
-            obs_tr = heart.taper_filter_traces(
-                wmap.datasets,
-                arrival_taper=wc.arrival_taper,
-                filterer=wc.filterer,
-                tmins=tmins,
-                **kwargs)
-
-            obs.extend(obs_tr)
+            obs.extend(wmap._prepared_data)
 
         return synths, obs
 
