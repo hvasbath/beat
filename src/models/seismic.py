@@ -527,12 +527,18 @@ class SeismicGeometryComposite(SeismicComposite):
                         crust_inds=range(*sc.gf_config.n_variations),
                         reference_location=sc.gf_config.reference_location)
 
+                    arrival_times = wmap._arrival_times
+                    if self.config.station_corrections:
+                        arrival_times += point[
+                            self.correction_name][wmap.station_correction_idxs]
+
                     cov_pv = cov.seismic_cov_velocity_models(
                         engine=self.engine,
                         sources=self.sources,
                         targets=crust_targets,
                         wavename=wmap.name,
                         arrival_taper=wc.arrival_taper,
+                        arrival_times=arrival_times,
                         filterer=wc.filterer,
                         plot=plot, n_jobs=n_jobs)
                     cov_pv = utility.ensure_cov_psd(cov_pv)

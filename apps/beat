@@ -1134,7 +1134,7 @@ def command_plot(args):
             '--build',
             dest='build',
             action='store_true',
-            help='Dont build models during problem loading.')
+            help='Build models during problem loading.')
 
     plots_avail = plotting.available_plots()
 
