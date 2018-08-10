@@ -115,9 +115,7 @@ hyper_sampler_config: !beat.SamplerConfig
   name: Metropolis
   parameters: !beat.MetropolisConfig
     n_jobs: 1
-    n_stages: 10
     n_steps: 25000
-    stage: '0'
     tune_interval: 50
     proposal_dist: Normal
     thin: 5
