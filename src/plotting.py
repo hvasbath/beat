@@ -521,6 +521,10 @@ def get_result_point(stage, config, point_llk='max'):
 
         point = stage.mtrace.point(idx=posterior_idxs[point_llk])
 
+    else:
+        raise NotImplementedError(
+            'Sampler "%s" is not supported!' % config.sampler_config.name)
+
     return point
 
 
