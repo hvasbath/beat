@@ -1278,7 +1278,7 @@ def draw_seismic_fits(problem, po):
 
 def histplot_op(
         ax, data, reference=None, alpha=.35, color=None, bins=None,
-        ntickmarks=5, tstd=None):
+        ntickmarks=5, tstd=None, kwargs=None):
     """
     Modified from pymc3. Additional color argument.
     """
@@ -1302,7 +1302,8 @@ def histplot_op(
 
         ax.hist(
             d, bins=bins, normed=True, stacked=True, alpha=alpha,
-            align='left', histtype='stepfilled', color=color, edgecolor=color)
+            align='left', histtype='stepfilled', color=color, edgecolor=color,
+            **kwargs)
 
         left, right = ax.get_xlim()
         leftb = mind - tstd
