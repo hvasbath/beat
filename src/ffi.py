@@ -540,7 +540,7 @@ filename: %s''' % (
 
     def idxs2starttimes(self, idxs):
         """
-        Map index to durations [s]
+        Map index to starttimes [s]
         """
         return idxs * self.starttime_sampling + self.starttime_min
 
@@ -594,7 +594,7 @@ filename: %s''' % (
                 (slips.shape[0], self.nsamples)).T.dot(slips)
 
     def stack_all(
-            self, durations, starttimes, slips,
+            self, durations, starttimes, slips, targetidxs=None,
             interpolation='nearest_neighbor'):
         """
         Stack all patches for all targets at once.
@@ -609,6 +609,11 @@ filename: %s''' % (
         option : tensor.batched_dot(sd.dimshuffle((1,0,2)), u).sum(axis=0)
         """
 
+        if targetidxs is None:
+            ntargets = 1
+        else:
+            ntargets = targetidxs.size
+
         self._check_mode_init(self._mode)
 
         durationidxs, rt_factors = self.durations2idxs(
@@ -620,28 +625,34 @@ filename: %s''' % (
 
             nslips = 1
             cd = self._stack_switch[self._mode][
-                :, self.sw_patchidxs,
-                durationidxs, starttimeidxs, :].reshape(
+                targetidxs, self.sw_patchidxs,
+                durationidxs, starttimeidxs, :]
+            print cd.shape
+            cd = cd.reshape(
                     (self.ntargets, self.npatches, self.nsamples))
+            print cd.shape
             cslips = slips
 
         elif interpolation == 'multilinear':
 
+            print starttimeidxs.shape, st_factors.shape
+            print starttimeidxs, st_factors
+
             nslips = 4
             d_st_ceil_rt_ceil = self._stack_switch[self._mode][
-                :, self.sw_patchidxs,
+                targetidxs, self.sw_patchidxs,
                 durationidxs, starttimeidxs, :].reshape(
                 (self.ntargets, self.npatches, self.nsamples))
             d_st_floor_rt_ceil = self._stack_switch[self._mode][
-                :, self.sw_patchidxs,
+                targetidxs, self.sw_patchidxs,
                 durationidxs, starttimeidxs - 1, :].reshape(
                 (self.ntargets, self.npatches, self.nsamples))
             d_st_ceil_rt_floor = self._stack_switch[self._mode][
-                :, self.sw_patchidxs,
+                targetidxs, self.sw_patchidxs,
                 durationidxs - 1, starttimeidxs, :].reshape(
                 (self.ntargets, self.npatches, self.nsamples))
             d_st_floor_rt_floor = self._stack_switch[self._mode][
-                :, self.sw_patchidxs,
+                targetidxs, self.sw_patchidxs,
                 durationidxs - 1, starttimeidxs - 1, :].reshape(
                 (self.ntargets, self.npatches, self.nsamples))
 
@@ -656,7 +667,8 @@ filename: %s''' % (
             cslips = backends[self._mode].concatenate(
                 [s_st_ceil_rt_ceil, s_st_floor_rt_ceil,
                  s_st_ceil_rt_floor, s_st_floor_rt_floor])
-
+            print cd.shape, cslips.shape
+            print cslips
         else:
             raise NotImplementedError(
                 'Interpolation scheme %s not implemented!' % interpolation)
@@ -668,7 +680,7 @@ filename: %s''' % (
         elif self._mode == 'numpy':
             u2d = num.tile(
                 cslips, self.nsamples).reshape(
-                    (self.nsamples, self.npatches * nslips))
+                    (self.nsamples, self.npatches * nslips * ntargets))
             return num.einsum('ijk->ik', cd * u2d.T)
 
     def get_traces(

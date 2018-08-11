@@ -625,11 +625,10 @@ class SeismicDistributerComposite(SeismicComposite):
                 self.sweep_implementation)
 
             for wmap in self.wavemaps:
-                self.choppers[wmap._mapid] = theanof.SeisDataChopper(
-                    sample_rate=sc.gf_config.sample_rate,
-                    traces=wmap.datasets,
-                    arrival_taper=wmap.config.arrival_taper,
-                    filterer=wmap.config.filterer)
+                logger.info(
+                    'Preparing data of "%s" for optimization' % wmap.name)
+                wmap.prepare_data(
+                    source=self.event, engine=self.engine, outmode='array')
 
     def load_fault_geometry(self):
         """
@@ -725,14 +724,28 @@ class SeismicDistributerComposite(SeismicComposite):
             positions_strike=nuc_strike,
             backend='theano')
 
-        starttimes = self.sweeper(
+        starttimes0 = self.sweeper(
             (1. / input_rvs['velocities']), nuc_dip_idx, nuc_strike_idx)
 
-! # station corrections?
-        starttimes += input_rvs['nucleation_time']
-
+        starttimes0 += input_rvs['nucleation_time']
         wlogpts = []
         for wmap in self.wavemaps:
+            # station corrections
+            if len(self.hierarchicals) > 0:
+                raise NotImplementedError(
+                    'Station corrections not fully implemented! for ffi!')
+                starttimes = (
+                    tt.tile(starttimes0, wmap.n_t) +
+                    tt.repeat(self.hierarchicals[self.correction_name][
+                        wmap.station_correction_idxs],
+                        self.fault.npatches)).reshape(
+                            wmap.n_t, self.fault.npatches)
+                targetidxs = shared(
+                    num.atleast_2d(num.arange(wmap.n_t)).T, borrow=True)
+            else:
+                starttimes = starttimes0
+                targetidxs = shared(num.lib.index_tricks.s_[:], borrow=True)
+
             logger.debug('Stacking %s phase ...' % wmap.config.name)
             synthetics = tt.zeros(
                 (wmap.n_t, wmap.config.arrival_taper.nsamples(
@@ -744,26 +757,13 @@ class SeismicDistributerComposite(SeismicComposite):
                 key = self.get_gflibrary_key(
                     crust_ind=ref_idx, wavename=wmap.name, component=var)
                 synthetics += self.gfs[key].stack_all(
+                    targetidxs=targetidxs,
                     starttimes=starttimes,
                     durations=input_rvs['durations'],
                     slips=input_rvs[var],
                     interpolation=wmap.config.interpolation)
 
-            logger.debug('Get hypocenter location ...')
-            patchidx = self.fault.spatchmap(
-                0, dipidx=nuc_dip_idx, strikeidx=nuc_strike_idx)
-
-            # cut data according to wavemaps
-            logger.debug('Cut data accordingly')
-
- !           # add station corrections
-            if len(self.hierarchicals) > 0:
-                tmins += self.hierarchicals[
-                    self.correction_name][wmap.station_correction_idxs]
-
-            data_traces = self.choppers[wmap._mapid](tmins)
-
-            residuals = data_traces - synthetics
+            residuals = wmap.shared_data_array - synthetics
 
             logger.debug('Calculating likelihoods ...')
             logpts = multivariate_normal_chol(

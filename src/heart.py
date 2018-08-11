@@ -1936,10 +1936,11 @@ def get_phase_taperer(
     -------
     :class:`pyrocko.trace.CosTaper`
     """
-    if arrival_time is None:
+    if arrival_time is None or num.NAN:
         arrival_time = get_phase_arrival_time(
             engine=engine, source=source, target=target, wavename=wavename)
 
+    print arrival_time
     return arrival_taper.get_pyrocko_taper(float(arrival_time))
 
 
@@ -2539,6 +2540,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         arrival_times = num.zeros((len(targets)), dtype=tconfig.floatX)
         arrival_times[:] = None
 
+    print arrival_times
     taperers = []
     tapp = taperers.append
     for i, target in enumerate(targets):
