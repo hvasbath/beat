@@ -2,12 +2,14 @@ from pyrocko import gf, trace
 
 import numpy as num
 from time import time
+from scipy.linalg import toeplitz
 
 import logging
 import copy
 
 from beat import heart
-from beat.utility import ensure_cov_psd
+from beat.utility import ensure_cov_psd, running_window_rms
+from theano import config as tconfig
 
 
 logger = logging.getLogger('covariance')
@@ -371,6 +373,64 @@ def geodetic_cov_velocity_models_pscmp(
     return num.cov(synths, rowvar=0)
 
 
+def autocovariance(data):
+    """
+    Calculate autocovariance of data.
+
+    Returns
+    -------
+    :class:`numpy.ndarray`
+
+    Notes
+    -----
+    Following Dettmer et al. 2007 JASA
+    """
+    n = data.size
+    meand = data.mean()
+
+    autocov = num.zeros((n), tconfig.floatX)
+    for j in range(n):
+        for k in range(n - j):
+            autocov[j] += (data[j + k] - meand) * (data[k] - meand)
+
+    return autocov / n
+
+
+def toeplitz_covariance(data, window_size):
+    """
+    Get Töplitz banded matrix for given data.
+
+    Returns
+    -------
+    toeplitz : :class:`numpy.ndarray` 2-d, (size data, size data)
+    stds : :class:`numpy.ndarray` 1-d, size data
+        of running windows
+    """
+    stds = running_window_rms(data, window_size=window_size, mode='same')
+    coeffs = autocovariance(data / stds)
+    return toeplitz(coeffs), stds
+
+
+def non_toeplitz_covariance(data, window_size):
+    """
+    Get scaled non- Töplitz covariance matrix, which may be able to account
+    for non-stationary data-errors.
+
+    Parameters
+    ----------
+    data : :class:`numpy.ndarray`
+        of data to estimate non-stationary error matrix for
+    window_size : int
+        samples to take on running rmse estimation over data
+
+    Returns
+    -------
+    :class:`numpy.ndarray` (size data, size data)
+    """
+    toeplitz, stds = toeplitz_covariance(data, window_size)
+    return toeplitz * stds[:, num.newaxis] * stds[num.newaxis, :]
+
+
 def calc_sample_covariance(lpoints, lij, bij, beta):
     """
     Calculate trace covariance matrix based on given trace values.
@@ -390,7 +450,7 @@ def calc_sample_covariance(lpoints, lij, bij, beta):
         weighted covariances (NumPy > 1.10. required)
     """
     n_points = len(lpoints)
-    population = []
+
     population_array = num.zeros((n_points, bij.ordering.size))
     for i, lpoint in enumerate(lpoints):
         point = lij.l2d(lpoint)
