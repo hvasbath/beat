@@ -9,7 +9,6 @@ import os
 from time import time
 
 import logging
-from copy import deepcopy
 
 import numpy as num
 
@@ -20,6 +19,8 @@ from pymc3.model import modelcontext, Point
 from pymc3.step_methods.metropolis import tune, metrop_select
 from pymc3.theanof import make_shared_replacements, inputvars
 from pymc3.backends import text
+from pymc3.blocking import DictToArrayBijection, ArrayOrdering
+from pymc3.step_methods.arraystep import BlockedStep
 
 from pyrocko import util
 
@@ -38,7 +39,56 @@ __all__ = [
 logger = logging.getLogger('metropolis')
 
 
-class Metropolis(backend.ArrayStepSharedLLK):
+class ArrayStepSharedLLK(BlockedStep):
+    """
+    Modified ArrayStepShared To handle returned larger point including the
+    likelihood values.
+    Takes additionally a list of output vars including the likelihoods.
+
+    Parameters
+    ----------
+
+    vars : list
+        variables to be sampled
+    out_vars : list
+        variables to be stored in the traces
+    shared : dict
+        theano variable -> shared variables
+    blocked : boolen
+        (default True)
+    """
+
+    def __init__(self, vars, out_vars, shared, blocked=True):
+        self.vars = vars
+        self.ordering = ArrayOrdering(vars)
+        self.lordering = utility.ListArrayOrdering(out_vars, intype='tensor')
+        lpoint = [var.tag.test_value for var in out_vars]
+        self.shared = {var.name: shared for var, shared in shared.items()}
+        self.blocked = blocked
+        self.bij = DictToArrayBijection(self.ordering, self.population[0])
+
+        blacklist = list(set(self.lordering.variables) -
+                         set([var.name for var in vars]))
+
+        self.lij = utility.ListToArrayBijection(
+            self.lordering, lpoint, blacklist=blacklist)
+
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+    def step(self, point):
+        for var, share in self.shared.items():
+            share.container.storage[0] = point[var]
+
+        apoint, alist = self.astep(self.bij.map(point))
+
+        return self.bij.rmap(apoint), alist
+
+
+class Metropolis(ArrayStepSharedLLK):
     """
     Metropolis-Hastings sampler
 
@@ -149,7 +199,6 @@ class Metropolis(backend.ArrayStepSharedLLK):
         for point in self.population:
             lpoint = self.logp_forw(self.bij.map(point))
             self.chain_previous_lpoint.append(lpoint)
-            
 
     def _sampler_state_blacklist(self):
         """

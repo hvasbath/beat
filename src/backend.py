@@ -30,13 +30,9 @@ import numpy as num
 from pymc3.model import modelcontext
 from pymc3.backends import base, ndarray
 from pymc3.backends import tracetab as ttab
-from pymc3.blocking import DictToArrayBijection, ArrayOrdering
-
-from pymc3.step_methods.arraystep import BlockedStep
 
 from beat.config import sample_p_outname, transd_vars_dist
-from beat.utility import load_objects, dump_objects, \
-    ListArrayOrdering, ListToArrayBijection
+from beat.utility import load_objects, dump_objects
 from beat.covariance import calc_sample_covariance
 
 from pyrocko import util
@@ -44,55 +40,6 @@ from time import time
 
 
 logger = logging.getLogger('backend')
-
-
-class ArrayStepSharedLLK(BlockedStep):
-    """
-    Modified ArrayStepShared To handle returned larger point including the
-    likelihood values.
-    Takes additionally a list of output vars including the likelihoods.
-
-    Parameters
-    ----------
-
-    vars : list
-        variables to be sampled
-    out_vars : list
-        variables to be stored in the traces
-    shared : dict
-        theano variable -> shared variables
-    blocked : boolen
-        (default True)
-    """
-
-    def __init__(self, vars, out_vars, shared, blocked=True):
-        self.vars = vars
-        self.ordering = ArrayOrdering(vars)
-        self.lordering = ListArrayOrdering(out_vars, intype='tensor')
-        lpoint = [var.tag.test_value for var in out_vars]
-        self.shared = {var.name: shared for var, shared in shared.items()}
-        self.blocked = blocked
-        self.bij = DictToArrayBijection(self.ordering, self.population[0])
-
-        blacklist = list(set(self.lordering.variables) -
-                         set([var.name for var in vars]))
-
-        self.lij = ListToArrayBijection(
-            self.lordering, lpoint, blacklist=blacklist)
-
-    def __getstate__(self):
-        return self.__dict__
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-
-    def step(self, point):
-        for var, share in self.shared.items():
-            share.container.storage[0] = point[var]
-
-        apoint, alist = self.astep(self.bij.map(point))
-
-        return self.bij.rmap(apoint), alist
 
 
 class BaseTrace(object):
@@ -815,8 +762,8 @@ def load_sampler_params(project_dir, stage_number, mode):
         problem mode that has been solved ('geometry', 'static', 'kinematic')
     """
 
-    stage_path = os.path.join(project_dir, mode, 'stage_%s' % stage_number,
-        sample_p_outname)
+    stage_path = os.path.join(
+        project_dir, mode, 'stage_%s' % stage_number, sample_p_outname)
     return load_objects(stage_path)
 
 
