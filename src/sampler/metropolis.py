@@ -298,7 +298,7 @@ class Metropolis(ArrayStepSharedLLK):
                 q = q0 + delta
 
             l0 = self.chain_previous_lpoint[self.chain_index]
-            varlogp = self.check_bnd(q0)
+
             if self.check_bnd:
                 logger.debug('Checking bound: Chain_%i step_%i' % (
                     self.chain_index, self.stage_sample))
