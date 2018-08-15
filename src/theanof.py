@@ -308,18 +308,22 @@ class SeisSynthesizer(theano.Op):
     """
 
     __props__ = ('engine', 'sources', 'targets', 'event',
-                 'arrival_taper', 'wavename', 'filterer', 'pre_stack_cut')
+                 'arrival_taper', 'arrival_times', 'wavename', 'filterer',
+                 'pre_stack_cut', 'station_corrections')
 
     def __init__(self, engine, sources, targets, event, arrival_taper,
-                 wavename, filterer, pre_stack_cut):
+                 arrival_times, wavename, filterer, pre_stack_cut,
+                 station_corrections):
         self.engine = engine
         self.sources = tuple(sources)
         self.targets = tuple(targets)
         self.event = event
         self.arrival_taper = arrival_taper
+        self.arrival_times = tuple(arrival_times.tolist())
         self.wavename = wavename
         self.filterer = filterer
         self.pre_stack_cut = pre_stack_cut
+        self.station_corrections = station_corrections
 
     def __getstate__(self):
         self.engine.close_cashed_stores()
@@ -373,6 +377,12 @@ class SeisSynthesizer(theano.Op):
 
         mpoint = utility.adjust_point_units(point)
 
+        if self.station_corrections:
+            arrival_times = num.array(self.arrival_times) + \
+                mpoint.pop('time_shift').ravel()
+        else:
+            arrival_times = self.arrival_times
+
         source_points = utility.split_point(mpoint)
 
         for i, source in enumerate(self.sources):
@@ -386,7 +396,8 @@ class SeisSynthesizer(theano.Op):
             arrival_taper=self.arrival_taper,
             wavename=self.wavename,
             filterer=self.filterer,
-            pre_stack_cut=self.pre_stack_cut)
+            pre_stack_cut=self.pre_stack_cut,
+            arrival_times=arrival_times)
 
     def infer_shape(self, node, input_shapes):
         nrow = len(self.targets)
@@ -422,7 +433,7 @@ class SeisDataChopper(theano.Op):
 
         z[0] = heart.taper_filter_traces(
             self.traces, self.arrival_taper,
-            self.filterer, tmins)
+            self.filterer, tmins, outmode='array')
 
     def infer_shape(self, node, input_shapes):
         nrow = len(self.traces)

@@ -1,14 +1,19 @@
 import numpy as num
 from beat import utility
 from tempfile import mkdtemp
-import shutil
+
 import unittest
+import logging
 from pyrocko import util
-from theano import shared
+
 import theano.tensor as tt
-from pymc3 import DictToArrayBijection, ArrayOrdering
+
+from time import time
 
 RAD = num.pi / 180.
+
+
+logger = logging.getLogger('test_utility')
 
 
 class TestUtility(unittest.TestCase):
@@ -63,10 +68,23 @@ class TestUtility(unittest.TestCase):
 
         print lij.l2d(lij.a2l(array))
 
-        ordering = ArrayOrdering(tvars)
-        bij = DictToArrayBijection(ordering, point)
-        array2 = bij.map(point)
-        print 'bija', array2
+    def test_window_rms(self):
+
+        data = num.random.randn(5000)
+        ws = data.size / 5
+        t0 = time()
+        data_stds = utility.running_window_rms(data, window_size=ws)
+        t1 = time()
+        data_stds2 = num.array([
+            num.sqrt((data[i:i + ws] ** 2).sum() / ws)
+            for i in range(data.size - ws + 1)])
+        t2 = time()
+        print('Convolution %f [s], loop %f [s]' % (t1 - t0, t2 - t1))
+        num.testing.assert_allclose(data_stds, data_stds2, rtol=0., atol=1e-6)
+
+        data_stds = utility.running_window_rms(data, window_size=ws, mode='same')
+        print data_stds.shape
+
 
 if __name__ == '__main__':
     util.setup_logging('test_utility', 'warning')

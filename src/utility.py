@@ -1042,6 +1042,29 @@ def repair_covariance(x, epsilon=num.finfo(num.float64).eps):
     return num.array(vec * num.diag(val) * vec.T)
 
 
+def running_window_rms(data, window_size, mode='valid'):
+    """
+    Calculate the standard deviations of a running window over data.
+
+    Parameters
+    ----------
+    data : :class:`numpy.ndarray` 1-d
+        containing data to calculate stds from
+    window_size : int
+        sample size of running window
+    mode : str
+        see numpy.convolve for modes
+
+    Returns
+    -------
+    :class:`numpy.ndarray` 1-d
+        with stds, size data.size - window_size + 1
+    """
+    data2 = num.power(data, 2)
+    window = num.ones(window_size) / float(window_size)
+    return num.sqrt(num.convolve(data2, window, mode))
+
+
 def list2string(l):
     """
     Convert list of string to single string.

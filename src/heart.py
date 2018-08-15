@@ -1908,7 +1908,8 @@ def get_phase_arrival_time(engine, source, target, wavename):
     return store.t(wavename, (depth, dist)) + source.time
 
 
-def get_phase_taperer(engine, source, wavename, target, arrival_taper):
+def get_phase_taperer(
+        engine, source, wavename, target, arrival_taper, arrival_time=None):
     """
     Create phase taperer according to synthetic travel times from
     source- target pair and taper return :class:`pyrocko.trace.CosTaper`
@@ -1924,14 +1925,15 @@ def get_phase_taperer(engine, source, wavename, target, arrival_taper):
         of the tabulated phase that determines the phase arrival
     target : :class:`pyrocko.gf.seismosizer.Target`
     arrival_taper : :class:`ArrivalTaper`
+    arrival_time : shift on arrival time (optional)
 
     Returns
     -------
     :class:`pyrocko.trace.CosTaper`
     """
-
-    arrival_time = get_phase_arrival_time(
-        engine=engine, source=source, target=target, wavename=wavename)
+    if arrival_time is None:
+        arrival_time = get_phase_arrival_time(
+            engine=engine, source=source, target=target, wavename=wavename)
 
     return arrival_taper.get_pyrocko_taper(float(arrival_time))
 
@@ -1955,6 +1957,8 @@ class WaveformMapping(object):
         self._station_correction_reference = copy.deepcopy(
             station_correction_idxs)
         self.station_correction_idxs = station_correction_idxs
+        self._prepared_data = None
+        self._arrival_times = None
 
         if self.datasets is not None:
             self._update_trace_wavenames()
@@ -2057,6 +2061,44 @@ class WaveformMapping(object):
                 weights.append(self.weights[t2i[target]])
 
         return weights
+
+    def prepare_data(self, source, engine, outmode='array'):
+        """
+        Taper, filter data traces according to given reference event.
+        Traces are concatenated to one single array.
+        """
+        if self._prepared_data is not None:
+            logger.warning(
+                'Overwriting observed data windows in "%s"!' % self.name)
+
+        if hasattr(self, 'config'):
+            arrival_times = num.zeros((self.n_t), dtype=tconfig.floatX)
+            for i, target in enumerate(self.targets):
+                arrival_times[i] = get_phase_arrival_time(
+                    engine=engine, source=source,
+                    target=target, wavename=self.name)
+            
+            self._prepared_data = taper_filter_traces(
+                self.datasets,
+                arrival_taper=self.config.arrival_taper,
+                filterer=self.config.filterer,
+                arrival_times=arrival_times,
+                outmode=outmode)
+            self._arrival_times = arrival_times
+        else:
+            raise ValueError('Wavemap needs configuration!')
+
+    @property
+    def shared_data_array(self):
+        if self._prepared_data is None:
+            raise ValueError('Data array is not initialized')
+        elif isinstance(self._prepared_data, list):
+            raise ValueError(
+                'Data got initialized as pyrocko traces, need array!')
+        else:
+            return shared(
+                self._prepared_data,
+                name='%s_data' % self.name, borrow=True)
 
 
 class CollectionError(Exception):
@@ -2405,7 +2447,8 @@ class StackingError(Exception):
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     wavename='any_P', filterer=None, reference_taperer=None,
                     plot=False, nprocs=1, outmode='array',
-                    pre_stack_cut=False, taper_tolerance_factor=0.):
+                    pre_stack_cut=False, taper_tolerance_factor=0.,
+                    arrival_times=None):
     """
     Calculate synthetic seismograms of combination of targets and sources,
     filtering and tapering afterwards (filterer)
@@ -2425,7 +2468,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         of the tabulated phase that determines the phase arrival
     filterer : :class:`Filterer`
     reference_taperer : :class:`ArrivalTaper`
-        if set all the traces are tapered with the specifications of this Taper
+        if set all the traces are tapered with the specifications of this
+        Taper
     plot : boolean
         flag for looking at traces
     nprocs : int
@@ -2440,7 +2484,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         taper
     taper_tolerance_factor : float
         tolerance to chop traces around taper.a and taper.d
-
+    arrival_times : None or :class:`numpy.NdArray`
+        of phase to apply taper, if None theoretic arrival of ray tracing used
 
     Returns
     -------
@@ -2455,9 +2500,13 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
             'Outmode "%s" not available! Available: %s' % (
                 outmode, utility.list2string(stackmodes)))
 
+    if arrival_times is None:
+        arrival_times = num.zeros((len(targets)), dtype=tconfig.floatX)
+        arrival_times[:] = None
+
     taperers = []
     tapp = taperers.append
-    for target in targets:
+    for i, target in enumerate(targets):
         if arrival_taper is not None:
             if reference_taperer is None:
                 tapp(get_phase_taperer(
@@ -2465,7 +2514,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     source=sources[0],
                     wavename=wavename,
                     target=target,
-                    arrival_taper=arrival_taper))
+                    arrival_taper=arrival_taper,
+                    arrival_time=arrival_times[i]))
             else:
                 tapp(reference_taperer)
 
@@ -2630,7 +2680,7 @@ def geo_synthetics(
 
 
 def taper_filter_traces(traces, arrival_taper=None, filterer=None,
-                        tmins=None, plot=False, outmode='array',
+                        arrival_times=None, plot=False, outmode='array',
                         taper_tolerance_factor=0.):
     """
     Taper and filter data_traces according to given taper and filterers.
@@ -2642,7 +2692,7 @@ def taper_filter_traces(traces, arrival_taper=None, filterer=None,
         containing :class:`pyrocko.trace.Trace` objects
     arrival_taper : :class:`ArrivalTaper`
     filterer : :class:`Filterer`
-    tmins : list or:class:`numpy.ndarray`
+    arrival_times : list or:class:`numpy.ndarray`
         containing the start times [s] since 1st.January 1970 to start
         tapering
     outmode : str
@@ -2661,11 +2711,10 @@ def taper_filter_traces(traces, arrival_taper=None, filterer=None,
     ctpp = cut_traces.append
     for i, tr in enumerate(traces):
         cut_trace = tr.copy()
-        cut_trace.set_location('copy')
+        cut_trace.set_location('filt')
 
         if arrival_taper is not None:
-            taper = arrival_taper.get_pyrocko_taper(
-                float(tmins[i] + num.abs(arrival_taper.a)))
+            taper = arrival_taper.get_pyrocko_taper(float(arrival_times[i]))
         else:
             taper = None
 
