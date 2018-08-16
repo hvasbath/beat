@@ -104,6 +104,7 @@ modes_catalog = OrderedDict([
     ['interseismic', interseismic_catalog]])
 
 hyper_name_laplacian = 'h_laplacian'
+k_name = 'dimensions'
 
 moffdiag = (-1., 1.)
 mdiag = (-num.sqrt(2), num.sqrt(2))

@@ -369,10 +369,13 @@ class Problem(object):
         Add list to array bijection to model object by monkey-patching.
         """
         if self.model is not None:
-            lordering = ListArrayOrdering(
-                self.model.unobserved_RVs, intype='tensor')
-            lpoint = [var.tag.test_value for var in self.model.unobserved_RVs]
-            self.model.lijection = ListToArrayBijection(lordering, lpoint)
+            if not istransd(problem.varnames):
+                lordering = ListArrayOrdering(
+                    self.model.unobserved_RVs, intype='tensor')
+                lpoint = [var.tag.test_value for var in self.model.unobserved_RVs]
+                self.model.lijection = ListToArrayBijection(lordering, lpoint)
+            else:
+                NotImplementedError('TransD not fully implemented!')
         else:
             raise AttributeError('Model needs to be built!')
 

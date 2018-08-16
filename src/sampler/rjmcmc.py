@@ -1,4 +1,5 @@
 from beat.sampler.metropolis import ArrayStepSharedLLK, Metropolis
+from beat import transd
 from logging import getLogger
 import numpy as num
 
@@ -21,15 +22,19 @@ class TransdArrayStepSharedLLK(ArrayStepSharedLLK):
     """
     def __init__(self):
 
-        self.orderings = {} 
-        self.lorderings = {}
-        self.Bijs = {}
-        self.Lijs = {}
+        self.lordering = transd.TransDListArrayOrdering(
+            dimensions, out_vars, intype='tensor')
+
+        self.ordering = transd.TransDArrayOrdering(dimensions, vars)
+        self.bij = transd.TransDDictToArrayBijection(
+            self.ordering, self.population[0])
+        self.lij = transd.TransDListToArrayBijection(
+            self.lordering, lpoint, blacklist=blacklist)
 
     def step(self, point):
 
         # k has to be in point / kq0
-        # k Bij maps?
+        # k Bij maps? No! TrnasD
 
         for var, share in self.shared.items():
             share.container.storage[0] = point[var]
@@ -55,7 +60,7 @@ class TransdArrayStepSharedLLK(ArrayStepSharedLLK):
         return k, lpoint
 
 
-class RJMCMC(Metropolis, TransdArrayStepSharedLLK):
+class RJMCMC(TransdArrayStepSharedLLK):
 
     default_blocked = True
 
@@ -65,12 +70,8 @@ class RJMCMC(Metropolis, TransdArrayStepSharedLLK):
                  proposal_name='MultivariateNormal',
                  coef_variation=1., **kwargs):
 
-        super(RJMCMC, self).__init__(
-            vars=vars, out_vars=out_vars, covariance=covariance, scale=scale,
-            n_chains=n_chains, tune=tune, tune_interval=tune_interval,
-            model=model, check_bound=check_bound,
-            likelihood_name=likelihood_name,
-            proposal_name=proposal_name, **kwargs)
+
+        super(Metropolis, self).__init__(vars, out_vars, shared)
 
         delattr(self, array_population)
 
@@ -78,7 +79,7 @@ class RJMCMC(Metropolis, TransdArrayStepSharedLLK):
         # make calc_cov already method at metropolis? resolves PT easier?
         # Bijs? Lijs? how juggeling points around in PT?
 
-    def astep(self, k, q0):
+    def astep(self, kq0):
         """
         Perturbation step
         """

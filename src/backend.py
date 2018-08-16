@@ -31,7 +31,7 @@ from pymc3.model import modelcontext
 from pymc3.backends import base, ndarray
 from pymc3.backends import tracetab as ttab
 
-from beat.config import sample_p_outname, transd_vars_dist
+from beat.config import sample_p_outname, transd_vars_dist, k_name
 from beat.utility import load_objects, dump_objects
 from beat.covariance import calc_sample_covariance
 
@@ -548,12 +548,11 @@ class TextStage(object):
 
 
 def istransd(varnames):
-    dims = 'dimensions'
-    if dims in varnames:
-        dims_idx = varnames.index(dims)
+    if k_name in varnames:
+        dims_idx = varnames.index(k_name)
         return True, dims_idx
     else:
-        logger.debug('Did not find "%s" random variable in model!' % dims)
+        logger.debug('Did not find "%s" random variable in model!' % k_name)
         return False, None
 
 

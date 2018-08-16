@@ -126,6 +126,9 @@ class ListToArrayBijection(object):
     ordering : :class:`ListArrayOrdering`
     list_arrays : list
         of :class:`numpy.ndarray`
+    blacklist : list
+        of strings of variables to remove from point during transformation
+        from list to dict
     """
 
     def __init__(self, ordering, list_arrays, blacklist=[]):
