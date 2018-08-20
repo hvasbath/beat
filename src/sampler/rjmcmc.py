@@ -1,5 +1,6 @@
 from beat.sampler.metropolis import ArrayStepSharedLLK, Metropolis
 from beat import transd
+from beat.config import k_name
 from logging import getLogger
 import numpy as num
 
@@ -20,7 +21,7 @@ class TransdArrayStepSharedLLK(ArrayStepSharedLLK):
     the parent in multiple inheritances that defines the method or attribute
     first is the one that is used. 
     """
-    def __init__(self):
+    def __init__(self, dimensions, vars, out_vars):
 
         self.lordering = transd.TransDListArrayOrdering(
             dimensions, out_vars, intype='tensor')
@@ -31,33 +32,34 @@ class TransdArrayStepSharedLLK(ArrayStepSharedLLK):
         self.lij = transd.TransDListToArrayBijection(
             self.lordering, lpoint, blacklist=blacklist)
 
-    def step(self, point):
+        self.steps = {
+            0: self.bstep,
+            1: self.dstep,
+            2: self.mstep,
+            3: self.astep}
 
-        # k has to be in point / kq0
-        # k Bij maps? No! TrnasD
+        self.nchoice_steps = len(self.steps.keys())
+        self.kmin = self.bij.ordering.ks().min()
+        self.kmax = self.bij.ordering.ks().max()
+
+    def step(self, kpoint):
 
         for var, share in self.shared.items():
-            share.container.storage[0] = point[var]
+            share.container.storage[0] = kpoint[var]
 
-        n = num.random.rand()
+        k = kpoint[k_name]
 
-        if n <= 1. / 6:
-            self.bstep(kq0)
-
-        elif n <= 1. / 3:
-            self.dstep(kq0)
-
-        elif n <= 1. / 2:
-            self.mstep(kq0)
-
+        if k == self.kmin:
+            weights = [1. / 4, 0., 1. / 4, 1. / 2]
+        elif k == self.kmax:
+            weights = [0., 1. / 4, 1. / 4, 1. / 2]
         else:
-            apoint, alist = self.astep(self.bij.map(point))
+            weights = [1. / 6, 1. / 6, 1. / 6, 1. / 2]
 
-            return self.bij.rmap(apoint), alist
+        n = num.random.choice(self.nchoice_steps, p=num.array(weights))
 
-        astep
-
-        return k, lpoint
+        apoint, alist = self.steps[n](self.bij.map(kpoint))
+        return self.bij.rmap(apoint), alist
 
 
 class RJMCMC(TransdArrayStepSharedLLK):

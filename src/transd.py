@@ -30,6 +30,9 @@ class TransDListArrayOrdering(object):
             self.korderings[k] = ListArrayOrdering(
                 list_arrays, intype=intype)
 
+    def ks(self):
+        return num.array(self.korderings.keys(), dtype='int16')
+
     @property
     def size(self):
         pass
@@ -51,7 +54,7 @@ class TransDArrayOrdering(object):
             self.korderings[k] = ArrayOrdering(vars)
 
     def ks(self):
-        return self.korderings.keys()
+        return num.array(self.korderings.keys(), dtype='int16')
 
     @property
     def size(self):
