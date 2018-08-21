@@ -139,6 +139,8 @@ class Metropolis(backend.ArrayStepSharedLLK):
             self.population.append(
                 Point({v.name: v.random() for v in vars}, model=model))
 
+        self.population[0] = model.test_point
+
         shared = make_shared_replacements(vars, model)
         self.logp_forw = logp_forw(out_vars, vars, shared)
         self.check_bnd = logp_forw([model.varlogpt], vars, shared)
@@ -149,7 +151,6 @@ class Metropolis(backend.ArrayStepSharedLLK):
         for point in self.population:
             lpoint = self.logp_forw(self.bij.map(point))
             self.chain_previous_lpoint.append(lpoint)
-            
 
     def _sampler_state_blacklist(self):
         """
