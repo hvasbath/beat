@@ -69,12 +69,13 @@ class SeismicComposite(Composite):
             seismic_config=sc, seismic_data_path=seismic_data_path)
 
         self.wavemaps = []
-        for wc in sc.waveforms:
+        for i, wc in enumerate(sc.waveforms):
             if wc.include:
                 wmap = heart.init_wavemap(
                     waveformfit_config=wc,
                     datahandler=self.datahandler,
-                    event=event)
+                    event=event,
+                    mapnumber=i)
 
                 if sc.calc_data_cov:
                     logger.info(
@@ -779,7 +780,7 @@ class SeismicDistributerComposite(SeismicComposite):
         tpoint = copy.deepcopy(point)
 
         hps = self.config.get_hypernames()
-        print tpoint
+
         for hyper in hps:
             if hyper in tpoint:
                 tpoint.pop(hyper)

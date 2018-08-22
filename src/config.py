@@ -381,6 +381,10 @@ class WaveformFitConfig(Object):
         default=True,
         help='Flag to include waveform into optimization.')
     name = String.T('any_P')
+    blacklist = List.T(
+        String.T(),
+        default=[String.D()],
+        help='Station name for stations to be thrown out.')
     channels = List.T(String.T(), default=['Z'])
     filterer = Filter.T(default=Filter.D())
     distances = Tuple.T(2, Float.T(), default=(30., 90.))
@@ -399,10 +403,6 @@ class SeismicConfig(Object):
     """
 
     datadir = String.T(default='./')
-    blacklist = List.T(
-        String.T(),
-        default=['placeholder'],
-        help='Station name for station to be thrown out.')
     calc_data_cov = Bool.T(
         default=True,
         help='Flag for calculating the data covariance matrix based on the'
@@ -428,10 +428,10 @@ class SeismicConfig(Object):
 
     def get_hypernames(self):
         hids = []
-        for wc in self.waveforms:
+        for i, wc in enumerate(self.waveforms):
             if wc.include:
                 for c in wc.channels:
-                    hypername = '_'.join(('h', wc.name, c))
+                    hypername = '_'.join(('h', wc.name, i, c))
                     hids.append(hypername)
 
         return hids
