@@ -468,10 +468,11 @@ class SeismicGeometryComposite(SeismicComposite):
         obs = []
         for wmap in self.wavemaps:
             wc = wmap.config
-            wmap.prepare_data(
-                source=self.event,
-                engine=self.engine,
-                outmode='stacked_traces')
+            if wmap._prepared_data is None:
+                wmap.prepare_data(
+                    source=self.event,
+                    engine=self.engine,
+                    outmode='stacked_traces')
 
             arrival_times = wmap._arrival_times
             if self.config.station_corrections:

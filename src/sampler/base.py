@@ -540,7 +540,7 @@ def init_stage(
                 update.apply(updates)
 
         stage_handler.clean_directory(stage, None, rm_flag)
-        
+
         varnames = [var.name for var in model.unobserved_RVs]
         chains = stage_handler.recover_existing_results(
             stage, draws, step, varnames=varnames)

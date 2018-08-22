@@ -2075,7 +2075,8 @@ class WaveformMapping(object):
         """
         if self._prepared_data is not None:
             logger.warning(
-                'Overwriting observed data windows in "%s"!' % self.name)
+                'Overwriting observed data windows in "%s"!' %
+                (self.name + '_' + str(self.mapnumber)))
 
         if hasattr(self, 'config'):
             arrival_times = num.zeros((self.n_t), dtype=tconfig.floatX)
@@ -2353,8 +2354,7 @@ def init_datahandler(seismic_config, seismic_data_path='./'):
         channels=sc.get_unique_channels(),
         sample_rate=sc.gf_config.sample_rate,
         crust_inds=[sc.gf_config.reference_model_idx],
-        reference_location=sc.gf_config.reference_location,
-        blacklist=sc.blacklist)
+        reference_location=sc.gf_config.reference_location)
 
     datahandler = DataWaveformCollection(stations, wavenames)
     datahandler.add_datasets(
@@ -2390,7 +2390,7 @@ def init_wavemap(
 
     wmap.station_weeding(event, wc.distances, blacklist=wc.blacklist)
     wmap.update_interpolation(wc.interpolation)
-    wmap._update_trace_wavenames('_'.join([wc.name, str(wc.mapnumber)]))
+    wmap._update_trace_wavenames('_'.join([wc.name, str(wmap.mapnumber)]))
 
     logger.info('Number of seismic datasets for wavemap: %i %s: %i ' % (
         wmap.mapnumber, wmap.name, wmap.n_data))
