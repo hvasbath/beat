@@ -513,7 +513,6 @@ def get_result_point(stage, config, point_llk='max'):
         params = config.sampler_config.parameters
         llk = stage.mtrace.get_values(
             varname='like',
-            chains=0,
             burn=int(params.n_samples * params.burn),
             thin=params.thin)
 
@@ -1278,7 +1277,7 @@ def draw_seismic_fits(problem, po):
 
 def histplot_op(
         ax, data, reference=None, alpha=.35, color=None, bins=None,
-        ntickmarks=5, tstd=None, kwargs=None):
+        ntickmarks=5, tstd=None, kwargs={}):
     """
     Modified from pymc3. Additional color argument.
     """

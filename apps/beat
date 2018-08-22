@@ -712,6 +712,8 @@ def command_summarize(args):
 
     stage = Stage(homepath=problem.outfolder)
     stage_numbers = stage.handler.get_stage_indexes(options.stage_number)
+    if len(stage_numbers) == 0:
+        raise ValueError('No stage result found where sampling completed!')
 
     sc_params = problem.config.sampler_config.parameters
     sampler_name = problem.config.sampler_config.name
