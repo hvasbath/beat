@@ -460,7 +460,7 @@ class SeismicGeometryComposite(SeismicComposite):
         -------
         default: array of synthetics for all targets
         """
-
+        outmode = kwargs.pop('outmode', None)
         self.point2sources(point)
 
         sc = self.config
@@ -468,11 +468,10 @@ class SeismicGeometryComposite(SeismicComposite):
         obs = []
         for wmap in self.wavemaps:
             wc = wmap.config
-            if wmap._prepared_data is None:
-                wmap.prepare_data(
-                    source=self.event,
-                    engine=self.engine,
-                    outmode='stacked_traces')
+            wmap.prepare_data(
+                source=self.event,
+                engine=self.engine,
+                outmode=outmode)
 
             arrival_times = wmap._arrival_times
             if self.config.station_corrections:
@@ -488,6 +487,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 filterer=wc.filterer,
                 pre_stack_cut=sc.pre_stack_cut,
                 arrival_times=arrival_times,
+                outmode=outmode,
                 **kwargs)
 
             synths.extend(synthetics)
