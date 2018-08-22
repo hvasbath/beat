@@ -1979,11 +1979,14 @@ class WaveformMapping(object):
 
         self.weights = weights
 
-    def station_distance_weeding(self, event, distances):
+    def station_weeding(self, event, distances, blacklist=[]):
         """
-        Weed stations and related objects based on distances.
+        Weed stations and related objects based on distances and blacklist.
         Works only a single time after init!
         """
+        self.stations = utility.apply_station_blacklist(
+            self.stations, blacklist)
+
         self.stations = utility.weed_stations(
             self.stations, event, distances=distances)
 
@@ -2024,9 +2027,12 @@ class WaveformMapping(object):
         for target in self.targets:
             target.interpolation = method
 
-    def _update_trace_wavenames(self):
+    def _update_trace_wavenames(self, wavename=None):
+        if wavename is None:
+            wavename = self.name
+
         for dtrace in self.datasets:
-            dtrace.set_wavename(self.name)
+            dtrace.set_wavename(wavename)
 
     @property
     def n_t(self):
@@ -2077,7 +2083,7 @@ class WaveformMapping(object):
                 arrival_times[i] = get_phase_arrival_time(
                     engine=engine, source=source,
                     target=target, wavename=self.name)
-            
+
             self._prepared_data = taper_filter_traces(
                 self.datasets,
                 arrival_taper=self.config.arrival_taper,
@@ -2128,23 +2134,6 @@ class DataWaveformCollection(object):
     def __init__(self, stations, waveforms=None):
         self.stations = stations
         self.waveforms = waveforms
-
-    def station_blacklisting(self, blacklist):
-        self.stations = utility.apply_station_blacklist(
-            self.stations, blacklist)
-
-        if self.n_data > 0:
-            weeded_traces = utility.weed_data_traces(
-                self._datasets.values(), self.stations)
-
-            self.add_datasets(weeded_traces, replace=True)
-
-        if self.n_t > 0:
-            weeded_targets = utility.weed_targets(
-                self._targets.values(), self.stations)
-
-            self.add_targets(weeded_targets, replace=True)
-            self._target2index = None   # reset mapping
 
     def downsample_datasets(self, deltat):
         utility.downsample_traces(self._datasets.values(), deltat=deltat)
@@ -2372,11 +2361,11 @@ def init_datahandler(seismic_config, seismic_data_path='./'):
         data_traces, location=sc.gf_config.reference_model_idx)
     datahandler.downsample_datasets(target_deltat)
     datahandler.add_targets(targets)
-    datahandler.station_blacklisting(sc.blacklist)
     return datahandler
 
 
-def init_wavemap(waveformfit_config, datahandler=None, event=None):
+def init_wavemap(
+        waveformfit_config, datahandler=None, event=None, mapnumber=0):
     """
     Initialise wavemap, which sets targets, datasets and stations into
     relation to the seismic Phase of interest and allows individual
@@ -2387,6 +2376,8 @@ def init_wavemap(waveformfit_config, datahandler=None, event=None):
     waveformfit_config : :class:`config.WaveformFitConfig`
     datahandler : :class:`DataWaveformCollection`
     event : :class:`pyrocko.model.Event`
+    mapnumber : int
+        number of wavemap in list of wavemaps
 
     Returns
     -------
@@ -2395,12 +2386,14 @@ def init_wavemap(waveformfit_config, datahandler=None, event=None):
     wc = waveformfit_config
     wmap = datahandler.get_waveform_mapping(wc.name, channels=wc.channels)
     wmap.config = wc
+    wmap.mapnumber = mapnumber
 
-    wmap.station_distance_weeding(event, wc.distances)
+    wmap.station_weeding(event, wc.distances, blacklist=wc.blacklist)
     wmap.update_interpolation(wc.interpolation)
+    wmap._update_trace_wavenames('_'.join([wc.name, str(wc.mapnumber)]))
 
-    logger.info('Number of seismic datasets for %s: %i ' % (
-        wmap.name, wmap.n_data))
+    logger.info('Number of seismic datasets for wavemap: %i %s: %i ' % (
+        wmap.mapnumber, wmap.name, wmap.n_data))
     return wmap
 
 
