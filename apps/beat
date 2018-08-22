@@ -507,7 +507,8 @@ def command_update(args):
     config_fn = os.path.join(project_dir, config_file_name)
 
     from beat import upgrade
-    upgrade.upgrade_config_file(config_fn, diff=options.diff)
+    upgrade.upgrade_config_file(
+        config_fn, diff=options.diff, update=options.parameters)
 
 
 def command_clone(args):

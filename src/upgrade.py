@@ -3,10 +3,13 @@ Config file upgrading module modified from grond
 """
 
 import sys
+import os
 import copy
 import difflib
 from pyrocko import guts_agnostic as aguts
 from logging import getLogger
+from pyrocko import guts
+from beat import config
 
 
 logger = getLogger('upgrade')
@@ -86,12 +89,19 @@ def upgrade_config_file(fn, diff=True, update=[]):
         if upd not in updates_avail:
             raise TypeError('Update not available for "%s"' % upd)
 
-    if len(update) > 0:
+    n_upd = len(update)
+    if n_upd > 0:
+        fn_tmp = fn + 'tmp'
+        aguts.dump(t2, filename=fn_tmp, header=True)
+        t2 = guts.load(filename=fn_tmp)
         if 'hypers' in update:
             t2.update_hypers()
 
         if 'hierarchicals' in update:
             t2.update_hierarchicals()
+
+        guts.dump(t2, filename=fn_tmp)
+        t2 = aguts.load(filename=fn_tmp)
 
     s1 = aguts.dump(t1)
     s2 = aguts.dump(t2)
@@ -106,7 +116,8 @@ def upgrade_config_file(fn, diff=True, update=[]):
         else:
             sys.stdout.writelines(result)
     else:
-        print(aguts.dump(t2, header=True))
+        aguts.dump(t2, filename=fn_tmp, header=True)
+        upd_config = guts.load(filename=fn_tmp)
         if 'hypers' in update:
             logger.info(
                 'Updated hyper parameters! Previous hyper'
@@ -114,6 +125,11 @@ def upgrade_config_file(fn, diff=True, update=[]):
 
         if 'hierarchicals' in update:
             logger.info('Updated hierarchicals.')
+
+        guts.dump(upd_config, filename=fn)
+
+    if n_upd > 0:
+        os.remove(fn_tmp)
 
 
 if __name__ == '__main__':
