@@ -1242,7 +1242,7 @@ def command_check(args):
         args, options, nargs_dict[command_str])
 
     problem = load_model(
-        project_dir, options.mode, hypers=False, nobuild=True)
+        project_dir, options.mode, hypers=False, build=False)
 
     if options.what == 'stores':
         corrupted_stores = heart.check_problem_stores(
