@@ -493,13 +493,21 @@ def command_update(args):
             help='Inversion problem to solve; %s Default: "geometry"' %
                  list2string(mode_choices))
 
+        parser.add_option(
+            '--diff', dest='diff', action='store_true',
+            help='create diff between normalized old and new versions')
+
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
     project_dir = get_project_directory(
         args, options, nargs_dict[command_str])
 
-    config.load_config(
-        project_dir, options.mode, update=options.parameters)
+    config_file_name = 'config_' + options.mode + '.yaml'
+
+    config_fn = os.path.join(project_dir, config_file_name)
+
+    from beat import upgrade
+    upgrade.upgrade_config_file(config_fn, diff=options.diff)
 
 
 def command_clone(args):

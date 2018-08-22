@@ -1261,7 +1261,7 @@ def dump_config(config):
     dump(config, filename=conf_out)
 
 
-def load_config(project_dir, mode, update=[]):
+def load_config(project_dir, mode):
     """
     Load configuration file.
 
@@ -1279,8 +1279,6 @@ def load_config(project_dir, mode, update=[]):
     -------
     :class:`BEATconfig`
     """
-    updates_avail = ['hierarchicals', 'hypers']
-
     config_file_name = 'config_' + mode + '.yaml'
 
     config_fn = os.path.join(project_dir, config_file_name)
@@ -1292,22 +1290,5 @@ def load_config(project_dir, mode, update=[]):
                       ' does not exist!' % config_fn)
 
     config.problem_config.validate_priors()
-
-    for upd in update:
-        if upd not in updates_avail:
-            raise TypeError('Update not available for "%s"' % upd)
-
-    if len(update) > 0:
-        if 'hypers' in update:
-            config.update_hypers()
-            logger.info(
-                'Updated hyper parameters! Previous hyper'
-                ' parameter bounds are invalid now!')
-
-        if 'hierarchicals' in update:
-            config.update_hierarchicals()
-            logger.info('Updated hierarchicals.')
-
-        dump(config, filename=config_fn)
 
     return config
