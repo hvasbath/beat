@@ -398,13 +398,13 @@ class TemperingManager(object):
 
         alpha = (step2.beta - step1.beta) * (
             llk1[step1._llk_index] - llk2[step2._llk_index])
-        #print 'alpha', alpha
+
         if num.log(num.random.uniform()) < alpha:
             accepted = True
         else:
             accepted = False
+        # print('alpha b1, b2, acc', alpha, step1.beta, step2.beta, accepted)
 
-        #print accepted  #, m1, m2
         self.register_swap(source1, source2, accepted)
 
         if accepted:
