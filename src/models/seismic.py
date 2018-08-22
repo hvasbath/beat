@@ -460,7 +460,7 @@ class SeismicGeometryComposite(SeismicComposite):
         -------
         default: array of synthetics for all targets
         """
-        outmode = kwargs.pop('outmode', None)
+        outmode = kwargs.pop('outmode', 'stacked_traces')
         self.point2sources(point)
 
         sc = self.config
