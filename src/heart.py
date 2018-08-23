@@ -2077,7 +2077,7 @@ class WaveformMapping(object):
                 arrival_times[i] = get_phase_arrival_time(
                     engine=engine, source=source,
                     target=target, wavename=self.name)
-            
+
             self._prepared_data = taper_filter_traces(
                 self.datasets,
                 arrival_taper=self.config.arrival_taper,
@@ -2195,7 +2195,7 @@ class DataWaveformCollection(object):
         """
         Returns array of indexes to problem stations,
 
-        Paremeters
+        Parameters
         ----------
         targets : list
             containing :class:`DynamicTarget` Objects
@@ -2341,8 +2341,8 @@ def init_datahandler(seismic_config, seismic_data_path='./'):
     """
     Initialise datahandler.
 
-    Parameter
-    ---------
+    Parameters
+    ----------
     seismic_config : :class:`config.SeismicConfig`
     seismic_data_path : str
         absolute path to the directory of the seismic data
@@ -2382,8 +2382,8 @@ def init_wavemap(waveformfit_config, datahandler=None, event=None):
     relation to the seismic Phase of interest and allows individual
     specificiations.
 
-    Parameter
-    ---------
+    Parameters
+    ----------
     waveformfit_config : :class:`config.WaveformFitConfig`
     datahandler : :class:`DataWaveformCollection`
     event : :class:`pyrocko.model.Event`

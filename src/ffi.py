@@ -517,7 +517,7 @@ filename: %s''' % (
         starttimeidxs, starttimes : :class:`numpy.ndarray` or
             :class:`theano.tensor.Tensor`, int16
             (output depends on interpolation scheme,
-             if multilinear interpolation factors are returned as well)
+            if multilinear interpolation factors are returned as well)
         """
         if interpolation == 'nearest_neighbor':
             return backends[self._mode].round(

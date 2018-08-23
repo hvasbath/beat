@@ -101,7 +101,7 @@ problem_config: !beat.ProblemConfig
       lower: [-1.4142135623730951]
       upper: [1.4142135623730951]
       testvalue: [0.84551376]
-    moment: !beat.heart.Parameter
+    magnitude: !beat.heart.Parameter
       name: magnitude
       form: Uniform
       lower: [4.5]

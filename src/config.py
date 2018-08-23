@@ -460,16 +460,16 @@ class GeodeticConfig(Object):
     blacklist = List.T(
         String.T(),
         optional=True,
-        default=['placeholder'],
-        help='Station name for station to be thrown out.')
+        default=[],
+        help='GPS station name or scene name to be thrown out.')
     types = List.T(
         String.T(),
         default=['SAR'],
         help='Types of geodetic data, i.e. SAR, GPS, ...')
     calc_data_cov = Bool.T(
         default=True,
-        help='Flag for calculating the data covariance matrix based on the'
-             ' pre P arrival data trace noise.')
+        help='Flag for calculating the data covariance matrix, '
+             'outsourced to "kite"')
     interpolation = StringChoice.T(
         choices=['nearest_neighbor', 'multilinear'],
         default='multilinear',

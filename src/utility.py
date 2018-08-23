@@ -147,7 +147,7 @@ class ListToArrayBijection(object):
 
         Returns
         -------
-        point
+        lpoint
         """
 
         a_list = copy.copy(self.list_arrays)
@@ -173,7 +173,7 @@ class ListToArrayBijection(object):
 
         Returns
         -------
-        point
+        :class:`pymc3.model.Point`
         """
         point = {}
 
@@ -280,9 +280,7 @@ def weed_input_rvs(input_rvs, mode, datatype):
     Parameters
     ----------
     input_rvs : dict
-        of :class:`pymc3.Distribution`
-        or set
-            of variable names
+        of :class:`pymc3.Distribution` or set of variable names
     mode : str
         'geometry', 'static, 'kinematic', 'interseismic' determining the
         discarded RVs

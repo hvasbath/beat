@@ -66,8 +66,8 @@ For example to optimize for a Full Moment Tensor for the Landers EQ by using sei
 
 This will create project directory called LandersEQ in the current directory.
 Within the directoy you will see that there have been two files created:
-  - BEAT_log.txt 
-  - geometry_config.yaml 
+ - BEAT_log.txt 
+ - geometry_config.yaml 
 
 The first file is a logging file where all the executed comments and outputs are written to. In case something goes wrong this log file helps to find the error.
 For now it contains::

@@ -44,14 +44,14 @@ The :mod:`sampler` Module
 
 
 The :mod:`ffi` Module
-------------------------
+---------------------
 
 .. automodule:: ffi
    :members:
 
 
 The :mod:`parallel` Module
-------------------------
+--------------------------
 
 .. automodule:: parallel
    :members:

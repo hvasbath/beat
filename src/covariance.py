@@ -398,7 +398,7 @@ def autocovariance(data):
 
 def toeplitz_covariance(data, window_size):
     """
-    Get Töplitz banded matrix for given data.
+    Get Toeplitz banded matrix for given data.
 
     Returns
     -------
@@ -413,7 +413,7 @@ def toeplitz_covariance(data, window_size):
 
 def non_toeplitz_covariance(data, window_size):
     """
-    Get scaled non- Töplitz covariance matrix, which may be able to account
+    Get scaled non- Toeplitz covariance matrix, which may be able to account
     for non-stationary data-errors.
 
     Parameters

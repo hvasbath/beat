@@ -686,7 +686,7 @@ class TransDTextChain(object):
 
         Returns
         -------
-        dictionary of point values
+        dict : of point values
         """
         ipoint = self._index.point(idx)
         return self._straces[ipoint['k']].point(ipoint['k_idx'])
@@ -777,8 +777,8 @@ def get_highest_sampled_stage(homedir, return_final=False):
     """
     Return stage number of stage that has been sampled before the final stage.
 
-    Paramaeters
-    -----------
+    Parameters
+    ----------
     homedir : str
         Directory to the sampled stage results
 

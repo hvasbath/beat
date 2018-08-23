@@ -186,9 +186,8 @@ This looks reasonably well!
 
  .. image:: _static/fomosto_traces_snuffler.png
 
-
-Sample the solution space
-^^^^^^^^^^^^^^^^^^^^^^^^^
+Data windowing and optimization setup
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Once we are confident that the GFs are reasonable we may continue to define the optimization specific setup variables.
 First of all we check again the WaveformFitConfig for the waves we want to optimize. 
 In this case we want to optimize the whole waveform from P until the end of the surface waves.
@@ -216,7 +215,9 @@ Finally, we fix the depth prior to 8km (upper and lower) as we only calculated G
         testvalue: [8.0]
 
 Of course, in a real case this would not be fixed.
-Also we may inspect the data::
+
+The specifications of the tapers, filters and channels that the user defined above determine which part of the data traces are used in the course of the optimization.
+We may inspect the raw data together with the processed data that is going to be used in the course of the optimization with ::
 
     beat check FullMT --what='traces'
 
@@ -225,11 +226,21 @@ A detailed tutorial about handeling the browser is given `here <https://pyrocko.
 
   .. image:: _static/FullMT_data.png
 
-For example you can also right click in the window and see a menu that pops up. There you can select sort the traces by distance or azimuth to get a better picture of the setup.
+To better sort the displayed traces and to inspect the processed data we may use snufflers display options.
+Please right click in the window and see a menu that pops up. There, please select: "Sort by Distance" to sort the traces by distance to get a better picture of the setup. To see, which traces actually belong to the same station and component, please open the menu again and select "Subsort by Network, Station, Channel (Grouped by Location)" and "Common Scale per Component". To distinguish better between the overlapping traces please select as well "Color Traces" and deselect "Show Boxes". 
+Your display should look something like this.
+
+  .. image:: _static/FullMT_windowed.png
+
+In red we see the raw data traces as stored under $project_directory/seismic_data.pkl; and in blue we see the processed data where the WaveformFitConfig parameters (see above) have been applied. The blue traces are going to be used in this form throughout the optimization. For this setup here we are good, but for future problems the user may now adjust the configuration and repeatedly check if the data windowing is satisfying. For example, the user may widen the arrival_taper times to make sure that a respective wave train is completely included in case it is cut at the taper boundary. Or in case of noisy or bad quality data a station may be completely excluded by putting its name in the "blacklist" parameter.
+
 Now that we checked the optimization setup we are good to go.
 
-Firstly, we fix the source parameters to some random value and only optimize for the hyperparameters (HPs).
-How many different random source parameters are choosen and the sampling repeated is determined by the hyper_sampler_config parameters 'n_stages' (default:5) ::
+Sample the solution space
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Firstly, we fix the source parameters to some random value and only optimize for the noise scaling or hyperparameters (HPs).
+How many different random source parameters are choosen and the sampling repeated is determined by the hyper_sampler_config parameters 'n_chains' (default:20). In case there are several CPUs available the 'n_jobs' parameter determines how many processes (Markov Chains) are sampled in paralell. You may want to increase that now! To start the sampling please run ::
 
     beat sample FullMT --hypers
 
@@ -240,15 +251,15 @@ the HPs parameter bounds show something like::
       h_any_P_T: !beat.heart.Parameter
         name: h_any_P_T
         form: Uniform
-        lower: [-4.0]
-        upper: [5.0]
-        testvalue: [0.5]
+        lower: [-3.0]
+        upper: [3.0]
+        testvalue: [0.0]
       h_any_P_Z: !beat.heart.Parameter
         name: h_any_P_Z
         form: Uniform
-        lower: [-4.0]
-        upper: [5.0]
-        testvalue: [0.5]
+        lower: [-3.0]
+        upper: [2.0]
+        testvalue: [-0.5]
 
 At this point the bounds could be relaxed again as well by manually editing the configuration file, or the step could be entirely skipped.
 Now that we have an initial guess on the hyperparameters we can run the optimization using the default sampling algorithm, a Sequential Monte Carlo sampler.
