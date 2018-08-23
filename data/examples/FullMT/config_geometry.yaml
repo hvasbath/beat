@@ -118,7 +118,7 @@ problem_config: !beat.ProblemConfig
       form: Uniform
       lower: [-6.0]
       upper: [4.0]
-      testvalue: [-2.5]
+      testvalue: [-2.7]
 seismic_config: !beat.SeismicConfig
   datadir: ./
   blacklist: []

@@ -186,6 +186,7 @@ This looks reasonably well!
 
  .. image:: _static/fomosto_traces_snuffler.png
 
+
 Data windowing and optimization setup
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Once we are confident that the GFs are reasonable we may continue to define the optimization specific setup variables.
@@ -235,6 +236,7 @@ Your display should look something like this.
 In red we see the raw data traces as stored under $project_directory/seismic_data.pkl; and in blue we see the processed data where the WaveformFitConfig parameters (see above) have been applied. The blue traces are going to be used in this form throughout the optimization. For this setup here we are good, but for future problems the user may now adjust the configuration and repeatedly check if the data windowing is satisfying. For example, the user may widen the arrival_taper times to make sure that a respective wave train is completely included in case it is cut at the taper boundary. Or in case of noisy or bad quality data a station may be completely excluded by putting its name in the "blacklist" parameter.
 
 Now that we checked the optimization setup we are good to go.
+
 
 Sample the solution space
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -327,31 +329,39 @@ Now that we redefined the starting point of the sampling algorithm we are good t
 
 Summarize the results
 ^^^^^^^^^^^^^^^^^^^^^
+The sampled chain results of the SMC sampler are stored in seperate files and have to be summarized.
 
-The following command will create a summary with the statistics of the posterior distribution expressed in quantiles.::
+.. note:: 
+    Only for MomentTensor MTSource: The moment tensor components have to be normalized again with respect to the magnitude.
+
+.. note::
+    Only for SMC:
+    All the chain_*.csv files under the $project_directory/geometry/stage_* directories can be problematic for
+    the operation system, e.g. on Clusters. Once a stage finished sampling these can be also deleted by setting the 'rm_flag' 
+    under the 'SamplerConfig.parameters'. The program will ask again once for safety reasons if the files are really supposed to be deleted. Once they are gone, they are gone! Restarting the sampling from that stage (see above) wont be possible anymore.
+
+To summarize all the stages of the SMC sampler please run the summarize command.::
 
     beat summarize FullMT
 
+To summarize only a specific stage please add the 'stage_number' option, e.g. the final stage -1::
+
+    beat summarize FullMT --stage_number=-1
+
+If the final stage is included in the stages to be summarized also a summary file with the posterior quantiles will be created.
 If you check the summary.txt file (path then also printed to the screen)::
 
     vi $project_directory/geometry/summary.txt
 
-For example for the 'north_shift' the true value is 20. The posterior pdf quantiles show::
+For example for the first 4 entries (mee, med, posterior likelihood, north-shift), the posterior pdf quantiles show::
 
-    north_shift:
+                             mean        sd  mc_error       hpd_2.5      hpd_97.5
+    mee__0             -0.756400  0.001749  0.000087     -0.759660     -0.752939
+    med__0             -0.256697  0.000531  0.000024     -0.257759     -0.255713
+    like__0         89855.787301  2.742033  0.155631  89849.756559  89859.893765
+    north_shift__0     19.989398  0.010010  0.000496     19.970455     20.008629
 
-      Mean             SD               MC Error         95% HPD interval
-      -------------------------------------------------------------------
-      
-      19.989           0.010            0.000            [19.972, 20.012]
-
-      Posterior quantiles:
-      2.5            25             50             75             97.5
-      |--------------|==============|==============|--------------|
-      
-      19.969         19.982         19.990         19.996         20.010
-
-As this is a synthetic case with only little noise it is not particularly surprising to get such a steeply peaked distribution.
+As this is a synthetic case with only little noise it is not particularly surprising to get such steeply peaked distributions.
 
 
 Plotting
@@ -362,33 +372,43 @@ To see the waveform fit of the posterior maximum likelihood solution. In the $be
     beat plot FullMT waveform_fits
 
 If it worked it will produce a pdf with several pages output for all the components for each station that have been used in the optimization.
-The black waveforms are the unfiltered data. Red are the best fitting synthetic traces. Light grey and light red are the filtered, untapered
-data and synthetic traces respectively. The red data trace below are the residual traces between data and synthetics. 
+The black waveforms are the unfiltered data. Red are the best fitting synthetic traces. Light grey and light red are the filtered, untapered data and synthetic traces respectively. The red data trace below are the residual traces between data and synthetics. 
 The Z-components from our stations should look something like this.
 
   .. image:: _static/FullMT_waveforms_max.png
 
+The waveform fits for a specific point in the solution space may be produced by setting the testvalues
+in the Prior distributions of the config file. Here, these values got already set to the true solution. So we can compare if our best estimated source parameters are reasonable compared to the true ones. ::
+
+    beat plot FullMT waveform_fits  --reference
+
+Again looking at the Z-components of the traces shows that our estimate is almost identical to the true test value.
+
+  .. image:: _static/FullMT_waveforms_ref.png
+
+
 The following command produces a '.png' file with the final posterior distribution. In the $beat_models run::
 
-    beat plot FullMT stage_posteriors --reference --stage_number=-2 --format='png'
+    beat plot FullMT stage_posteriors --reference --stage_number=-1 --format='png'
 
 It may look like this.
 
- .. image:: _static/FullMT_stage_-2_max.png
+ .. image:: _static/FullMT_stage_-1_max.png
 
  The vertical black lines are the true values and the vertical red lines are the maximum likelihood values.
- We see that the true solution is not comprised within the posterior pdfs. This may have several reasons I will not go in to detail for now.
+ We see that the true solution is not comprised within the marginals of all parameters. This may have several reasons I will not go in to detail for now.
 
  To get an image of parameter correlations (including the true reference value in red) of moment tensor components, the location and the magnitude. In the $beat_models run::
 
-    beat plot FullMT correlation_hist --reference --format='png' --stage_number=-2 --varnames='mee, med, mdd, mnn, mnd, mne, north_shift, east_shift, magnitude'
+    beat plot FullMT correlation_hist --reference --stage_number=-1 --format='png' --varnames='mee, med, mdd, mnn, mnd, mne, north_shift, east_shift, magnitude'
 
 This will show an image like that.
 
  .. image:: _static/FullMT_corr_hist_max.png
 
 This shows 2d kernel density estimates (kde) and histograms of the specified model parameters. The darker the 2d kde the higher the probability of the model parameter.
-THe red dot and the vertical red lines show the true values of the target source in the kde plots and histograms, respectively.
+The red dot and the vertical red lines show the true values of the target source in the kde plots and histograms, respectively.
 
-The 'varnames' option may take any parameter that has been optimized for. For example one might als want to try --varnames='duration, time, magnitude, north_shift, east_shift'
+The 'varnames' option may take any parameter that has been optimized for. For example one might als want to try --varnames='duration, time, magnitude, north_shift, east_shift'.
+If it is not specified all sampled parameters are taken into account.
 
