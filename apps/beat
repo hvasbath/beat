@@ -712,6 +712,7 @@ def command_summarize(args):
 
     stage = Stage(homepath=problem.outfolder)
     stage_numbers = stage.handler.get_stage_indexes(options.stage_number)
+    logger.info('Summarizing stage(s): %s' % list2string(stage_numbers))
     if len(stage_numbers) == 0:
         raise ValueError('No stage result found where sampling completed!')
 
@@ -787,26 +788,29 @@ def command_summarize(args):
             logger.info(
                 'Summarized trace exists! Use force=True to overwrite!')
 
-    stage.load_results(model=problem.model, stage_number=-1, chains=[-1])
-    rtrace = stage.mtrace
+    final_stage = -1
+    if final_stage in stage_numbers:
+        stage.load_results(
+            model=problem.model, stage_number=final_stage, chains=[-1])
+        rtrace = stage.mtrace
 
-    if len(rtrace) == 0:
-        raise ValueError(
-            'Trace collection previously failed. Please rerun'
-            ' "beat summarize <project_dir> --force!"')
+        if len(rtrace) == 0:
+            raise ValueError(
+                'Trace collection previously failed. Please rerun'
+                ' "beat summarize <project_dir> --force!"')
 
-    summary_file = pjoin(problem.outfolder, config.summary_name)
+        summary_file = pjoin(problem.outfolder, config.summary_name)
 
-    if os.path.exists(summary_file) and options.force:
-        os.remove(summary_file)
+        if os.path.exists(summary_file) and options.force:
+            os.remove(summary_file)
 
-    if not os.path.exists(summary_file) or options.force:
-        logger.info('Writing summary to %s' % summary_file)
-        df = summary(rtrace)
-        with open(summary_file, 'w') as outfile:
-            df.to_string(outfile)
-    else:
-        logger.info('Summary exists! Use force=True to overwrite!')
+        if not os.path.exists(summary_file) or options.force:
+            logger.info('Writing summary to %s' % summary_file)
+            df = summary(rtrace)
+            with open(summary_file, 'w') as outfile:
+                df.to_string(outfile)
+        else:
+            logger.info('Summary exists! Use force=True to overwrite!')
 
 
 def command_build_gfs(args):
