@@ -102,6 +102,8 @@ def upgrade_config_file(fn, diff=True, update=[]):
 
         guts.dump(t2, filename=fn_tmp)
         t2 = aguts.load(filename=fn_tmp)
+    else:
+        fn_tmp = fn
 
     s1 = aguts.dump(t1)
     s2 = aguts.dump(t2)
