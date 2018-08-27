@@ -481,10 +481,10 @@ def command_update(args):
 
         parser.add_option(
             '--parameters',
-            default=['hypers'], type='string',
+            default=[], type='string',
             action='callback', callback=list_callback,
             help='Parameters to update; "hypers, hierarchicals". '
-                 'Default: ["hypers"]')
+                 'Default: [] (config file-structure only)')
 
         parser.add_option(
             '--mode', dest='mode',
