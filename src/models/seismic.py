@@ -80,7 +80,7 @@ class SeismicComposite(Composite):
                 if sc.calc_data_cov:
                     logger.info(
                         'Estimating seismic data-covariances '
-                        'for %s ...\n' % wmap.name)
+                        'for %s ...\n' % wmap._mapid)
 
                     cov_ds_seismic = cov.seismic_data_covariance(
                         data_traces=wmap.datasets,
@@ -108,10 +108,14 @@ class SeismicComposite(Composite):
                         else:
                             data_cov = trc.covariance.data
                             if data_cov.shape[0] != n_samples:
-                                raise ValueError(
+                                logger.warn(
                                     'Imported covariance %i does not agree '
-                                    ' with taper duration %i!' % (
+                                    ' with taper duration %i! Using Identity'
+                                    ' matrix and mean of variance of imported'
+                                    ' covariance matrix!' % (
                                         data_cov.shape[0], n_samples))
+                                data_cov = num.eye(n_samples) * \
+                                    data_cov.diagonal().mean()
                             cov_ds_seismic.append(data_cov)
 
                 weights = []
@@ -337,11 +341,11 @@ class SeismicGeometryComposite(SeismicComposite):
                 wc = wmap.config
 
                 logger.info(
-                    'Preparing data of "%s" for optimization' % wmap.name)
+                    'Preparing data of "%s" for optimization' % wmap._mapid)
                 wmap.prepare_data(
                     source=self.event, engine=self.engine, outmode='array')
 
-                self.synthesizers[wc.name] = theanof.SeisSynthesizer(
+                self.synthesizers[wmap._mapid] = theanof.SeisSynthesizer(
                     engine=self.engine,
                     sources=self.sources,
                     targets=wmap.targets,
@@ -427,7 +431,7 @@ class SeismicGeometryComposite(SeismicComposite):
                     self.correction_name][wmap.station_correction_idxs]
                 self.input_rvs[self.correction_name] = time_shifts
 
-            synths, _ = self.synthesizers[wmap.name](self.input_rvs)
+            synths, _ = self.synthesizers[wmap._mapid](self.input_rvs)
 
             residuals = wmap.shared_data_array - synths
 
@@ -606,7 +610,7 @@ class SeismicDistributerComposite(SeismicComposite):
                 self.sweep_implementation)
 
             for wmap in self.wavemaps:
-                self.choppers[wmap.name] = theanof.SeisDataChopper(
+                self.choppers[wmap._mapid] = theanof.SeisDataChopper(
                     sample_rate=sc.gf_config.sample_rate,
                     traces=wmap.datasets,
                     arrival_taper=wmap.config.arrival_taper,
@@ -740,7 +744,7 @@ class SeismicDistributerComposite(SeismicComposite):
                 tmins += self.hierarchicals[
                     self.correction_name][wmap.station_correction_idxs]
 
-            data_traces = self.choppers[wmap.name](tmins)
+            data_traces = self.choppers[wmap._mapid](tmins)
 
             residuals = data_traces - synthetics
 

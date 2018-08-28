@@ -206,12 +206,16 @@ class ArrivalTaper(trace.Taper):
 
     @property
     def duration(self):
-        return num.abs(self.a) + self.d
+        return self.d - self.a
 
     def nsamples(self, sample_rate):
         """
         Returns the number of samples a tapered trace would have given
         its sample rate.
+
+        Parameters
+        ----------
+        sample_rate : float
         """
         return int(num.ceil(sample_rate * self.duration))
 
@@ -2018,10 +2022,10 @@ class WaveformMapping(object):
                 'filter! Either (1) Adjust distance range (set "distances" '
                 ' parameter in beat.WaveformFitConfig, given in degrees '
                 ' epicentral distance) or (2) deactivate the wavemap '
-                'completely by setting include=False!' % self.name)
+                'completely by setting include=False!' % self._mapid)
         else:
             logger.info('Consistent number of '
-                        'datasets and targets in %s wavemap!' % self.name)
+                        'datasets and targets in %s wavemap!' % self._mapid)
 
     def update_interpolation(self, method):
         for target in self.targets:
@@ -2033,6 +2037,13 @@ class WaveformMapping(object):
 
         for dtrace in self.datasets:
             dtrace.set_wavename(wavename)
+
+    @property
+    def _mapid(self):
+        if hasattr(self, 'mapnumber'):
+            return '_'.join((str(self.mapnumber), self.name))
+        else:
+            raise self.name
 
     @property
     def n_t(self):
@@ -2392,8 +2403,8 @@ def init_wavemap(
     wmap.update_interpolation(wc.interpolation)
     wmap._update_trace_wavenames('_'.join([wc.name, str(wmap.mapnumber)]))
 
-    logger.info('Number of seismic datasets for wavemap: %i %s: %i ' % (
-        wmap.mapnumber, wmap.name, wmap.n_data))
+    logger.info('Number of seismic datasets for wavemap: %s: %i ' % (
+        wmap._mapid, wmap.n_data))
     return wmap
 
 

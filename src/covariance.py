@@ -82,9 +82,8 @@ def seismic_data_covariance(data_traces, engine, filterer, sample_rate,
     tzero = 1. / filterer.upper_corner
     dt = 1. / sample_rate
     ataper = arrival_taper
-    n = int(num.ceil((num.abs(ataper.a) + ataper.d) / dt))
 
-    csub = sub_data_covariance(n, dt, tzero)
+    csub = sub_data_covariance(ataper.nsamples(sample_rate), dt, tzero)
 
     cov_ds = []
     for tr, target in zip(data_traces, targets):
@@ -94,7 +93,7 @@ def seismic_data_covariance(data_traces, engine, filterer, sample_rate,
 
         ctrace = tr.chop(
             tmin=tr.tmin,
-            tmax=arrival_time - num.abs(ataper.b),
+            tmax=arrival_time - 10.,  # make sure to be before P
             inplace=False)
 
         cov_ds.append(num.var(ctrace.ydata, ddof=1) * csub)
