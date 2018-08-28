@@ -1384,7 +1384,8 @@ def _process_patch_seismic(
                 arrival_taper=gfs.config.wave_config.arrival_taper,
                 filterer=gfs.config.wave_config.filterer,
                 tmins=num.ones(durations.size) * tmin,
-                outmode='array')
+                outmode='array',
+                chop_bounds=['b', 'c'])
 
             gfs.put(
                 entries=synthetics_array,

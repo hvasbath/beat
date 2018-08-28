@@ -43,8 +43,9 @@ def sub_data_covariance(n, dt, tzero):
                               num.arange(n)[num.newaxis, :]) * dt / tzero)
 
 
-def seismic_data_covariance(data_traces, engine, filterer, sample_rate,
-                                 arrival_taper, event, targets):
+def seismic_data_covariance(
+        data_traces, engine, filterer, sample_rate,
+        arrival_taper, event, targets, chop_bounds=['b', 'c']):
     '''
     Calculate SubCovariance Matrix of trace object following
     Duputel et al. 2012 GJI
@@ -66,6 +67,8 @@ def seismic_data_covariance(data_traces, engine, filterer, sample_rate,
         reference event from catalog
     targets : list
         of :class:`pyrocko.gf.seismosizer.Targets`
+    chop_bounds : list of len 2
+        of taper attributes a, b, c, or d
 
     Returns
     -------
@@ -83,7 +86,8 @@ def seismic_data_covariance(data_traces, engine, filterer, sample_rate,
     dt = 1. / sample_rate
     ataper = arrival_taper
 
-    csub = sub_data_covariance(ataper.nsamples(sample_rate), dt, tzero)
+    csub = sub_data_covariance(
+        ataper.nsamples(sample_rate, chop_bounds), dt, tzero)
 
     cov_ds = []
     for tr, target in zip(data_traces, targets):
@@ -275,7 +279,8 @@ def seismic_cov_velocity_models(
         arrival_times=arrival_times,
         pre_stack_cut=True,
         plot=plot,
-        outmode='array')
+        outmode='array',
+        chop_bounds=['b', 'c'])
 
     t1 = time()
     logger.debug('Trace generation time %f' % (t1 - t0))

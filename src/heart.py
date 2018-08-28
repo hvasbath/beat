@@ -204,20 +204,21 @@ class ArrivalTaper(trace.Taper):
     d = Float.T(default=55.,
                 help='end of fading out; [s] w.r.t phase arrival')
 
-    @property
-    def duration(self):
-        return self.d - self.a
+    def duration(self, chop_bounds=['b', 'c']):
+        t0 = getattr(self, chop_bounds[0])
+        t1 = getattr(self, chop_bounds[1])
+        return t1 - t0
 
-    def nsamples(self, sample_rate):
+    def nsamples(self, sample_rate, chop_bounds=['b', 'c']):
         """
         Returns the number of samples a tapered trace would have given
-        its sample rate.
+        its sample rate and chop_bounds
 
         Parameters
         ----------
         sample_rate : float
         """
-        return int(num.ceil(sample_rate * self.duration))
+        return int(num.ceil(sample_rate * self.duration(chop_bounds)))
 
     @property
     def fadein(self):
@@ -2079,7 +2080,8 @@ class WaveformMapping(object):
 
         return weights
 
-    def prepare_data(self, source, engine, outmode='array'):
+    def prepare_data(
+            self, source, engine, outmode='array', chop_bounds=['b', 'c']):
         """
         Taper, filter data traces according to given reference event.
         Traces are concatenated to one single array.
@@ -2101,7 +2103,8 @@ class WaveformMapping(object):
                 arrival_taper=self.config.arrival_taper,
                 filterer=self.config.filterer,
                 arrival_times=arrival_times,
-                outmode=outmode)
+                outmode=outmode,
+                chop_bounds=chop_bounds)
             self._arrival_times = arrival_times
         else:
             raise ValueError('Wavemap needs configuration!')
@@ -2408,8 +2411,9 @@ def init_wavemap(
     return wmap
 
 
-def post_process_trace(trace, taper, filterer, taper_tolerance_factor=0.,
-                       outmode=None):
+def post_process_trace(
+        trace, taper, filterer, taper_tolerance_factor=0.,
+        outmode=None, chop_bounds=['b', 'c']):
     """
     Taper, filter and then chop one trace in place.
 
@@ -2421,6 +2425,9 @@ def post_process_trace(trace, taper, filterer, taper_tolerance_factor=0.,
     taper_tolerance_factor : float
         default: 0 , cut exactly at the taper edges
         taper.fadein times this factor determines added tolerance
+    chop_bounds : str
+        determines where to chop the trace on the taper attributes
+        may be combination of [a, b, c, d]
     """
 
     if filterer is not None:
@@ -2432,8 +2439,8 @@ def post_process_trace(trace, taper, filterer, taper_tolerance_factor=0.,
 
     if taper is not None and outmode != 'data':
         tolerance = (taper.b - taper.a) * taper_tolerance_factor
-        lower_cut = taper.a - tolerance
-        upper_cut = taper.d + tolerance
+        lower_cut = getattr(taper, chop_bounds[0]) - tolerance
+        upper_cut = getattr(taper, chop_bounds[1]) + tolerance
 
         logger.debug('taper times: %s' % taper.__str__())
         logger.debug('trace: %s' % trace.__str__())
@@ -2452,7 +2459,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     wavename='any_P', filterer=None, reference_taperer=None,
                     plot=False, nprocs=1, outmode='array',
                     pre_stack_cut=False, taper_tolerance_factor=0.,
-                    arrival_times=None):
+                    arrival_times=None, chop_bounds=['b', 'c']):
     """
     Calculate synthetic seismograms of combination of targets and sources,
     filtering and tapering afterwards (filterer)
@@ -2490,6 +2497,9 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         tolerance to chop traces around taper.a and taper.d
     arrival_times : None or :class:`numpy.NdArray`
         of phase to apply taper, if None theoretic arrival of ray tracing used
+    chop_bounds : str
+        determines where to chop the trace on the taper attributes
+        may be combination of [a, b, c, d]
 
     Returns
     -------
@@ -2555,7 +2565,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
             taper=taper,
             filterer=filterer,
             taper_tolerance_factor=taper_tolerance_factor,
-            outmode=outmode)
+            outmode=outmode,
+            chop_bounds=chop_bounds)
 
         sapp(tr)
 
@@ -2683,9 +2694,10 @@ def geo_synthetics(
         raise ValueError('Outmode %s not available' % outmode)
 
 
-def taper_filter_traces(traces, arrival_taper=None, filterer=None,
-                        arrival_times=None, plot=False, outmode='array',
-                        taper_tolerance_factor=0.):
+def taper_filter_traces(
+        traces, arrival_taper=None, filterer=None,
+        arrival_times=None, plot=False, outmode='array',
+        taper_tolerance_factor=0., chop_bounds=['b', 'c']):
     """
     Taper and filter data_traces according to given taper and filterers.
     Tapering will start at the given tmin.
@@ -2704,6 +2716,8 @@ def taper_filter_traces(traces, arrival_taper=None, filterer=None,
         "data"
     taper_tolerance_factor : float
         tolerance to chop traces around taper.a and taper.d
+    chop_bounds : list of len 2
+        of taper attributes a, b, c, or d
 
     Returns
     -------
@@ -2731,7 +2745,8 @@ def taper_filter_traces(traces, arrival_taper=None, filterer=None,
             taper=taper,
             filterer=filterer,
             taper_tolerance_factor=taper_tolerance_factor,
-            outmode=outmode)
+            outmode=outmode,
+            chop_bounds=chop_bounds)
 
         ctpp(cut_trace)
 

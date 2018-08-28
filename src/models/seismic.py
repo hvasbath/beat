@@ -231,7 +231,7 @@ class SeismicComposite(Composite):
             self._targets = ts
         return self._targets
 
-    def assemble_results(self, point):
+    def assemble_results(self, point, chop_bounds=['a', 'd']):
         """
         Assemble seismic traces for given point in solution space.
 
@@ -247,12 +247,13 @@ class SeismicComposite(Composite):
         logger.debug('Assembling seismic waveforms ...')
 
         syn_proc_traces, obs_proc_traces = self.get_synthetics(
-            point, outmode='stacked_traces')
+            point, outmode='stacked_traces', chop_bounds=chop_bounds)
 
         # will yield exactly the same as previous call needs wmap.prepare data
         # to be aware of taper_tolerance_factor
         syn_filt_traces, obs_filt_traces = self.get_synthetics(
-            point, outmode='stacked_traces', taper_tolerance_factor=0.)
+            point, outmode='stacked_traces', taper_tolerance_factor=0.,
+            chop_bounds=chop_bounds)
 
         ats = []
         for wmap in self.wavemaps:
@@ -295,7 +296,7 @@ class SeismicComposite(Composite):
         point : dict
             with numpy array-like items and variable name keys
         """
-        results = self.assemble_results(point)
+        results = self.assemble_results(point, chop_bounds=['b', 'c'])
         for k, result in enumerate(results):
             choli = self.datasets[k].covariance.chol_inverse
             tmp = choli.dot(result.processed_res.ydata)
@@ -465,6 +466,8 @@ class SeismicGeometryComposite(SeismicComposite):
         default: array of synthetics for all targets
         """
         outmode = kwargs.pop('outmode', 'stacked_traces')
+        chop_bounds = kwargs.pop('chop_bounds', ['a', 'd'])
+
         self.point2sources(point)
 
         sc = self.config
@@ -475,7 +478,8 @@ class SeismicGeometryComposite(SeismicComposite):
             wmap.prepare_data(
                 source=self.event,
                 engine=self.engine,
-                outmode=outmode)
+                outmode=outmode,
+                chop_bounds=chop_bounds)
 
             arrival_times = wmap._arrival_times
             if self.config.station_corrections:
@@ -492,6 +496,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 pre_stack_cut=sc.pre_stack_cut,
                 arrival_times=arrival_times,
                 outmode=outmode,
+                chop_bounds=chop_bounds,
                 **kwargs)
 
             synths.extend(synthetics)
