@@ -1273,7 +1273,6 @@ def command_check(args):
     elif options.what == 'traces':
         sc = problem.composites['seismic']
         for wmap in sc.wavemaps:
-            print sc.sources[0],
             wmap.prepare_data(
                 source=sc.sources[0],
                 engine=sc.engine,
