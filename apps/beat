@@ -1230,7 +1230,7 @@ def command_check(args):
 
         parser.add_option(
             '--datatypes',
-            default=[' seismic'],
+            default=['seismic'],
             type='string',
             action='callback',
             callback=list_callback,
@@ -1259,6 +1259,9 @@ def command_check(args):
     problem = load_model(
         project_dir, options.mode, hypers=False, build=False)
 
+    tpoint = problem.config.problem_config.get_test_point()
+    problem.point2sources(tpoint)
+
     if options.what == 'stores':
         corrupted_stores = heart.check_problem_stores(
             problem, options.datatypes)
@@ -1270,8 +1273,9 @@ def command_check(args):
     elif options.what == 'traces':
         sc = problem.composites['seismic']
         for wmap in sc.wavemaps:
+            print sc.sources[0],
             wmap.prepare_data(
-                source=sc.event,
+                source=sc.sources[0],
                 engine=sc.engine,
                 outmode='stacked_traces')
             snuffle(

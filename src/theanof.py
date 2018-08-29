@@ -403,7 +403,7 @@ class SeisSynthesizer(theano.Op):
         nrow = len(self.targets)
         store = self.engine.get_store(self.targets[0].store_id)
         ncol = int(num.ceil(
-            store.config.sample_rate * self.arrival_taper.duration))
+            store.config.sample_rate * self.arrival_taper.duration()))
         return [(nrow, ncol), (nrow,)]
 
 

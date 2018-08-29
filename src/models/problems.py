@@ -278,8 +278,8 @@ class Problem(object):
                         tune_interval=sc.parameters.tune_interval,
                         proposal_name=sc.parameters.proposal_dist)
                 else:
-                    step = sampler.SMC(
-                        n_chains=sc.parameters.n_jobs,
+                    step = sampler.Metropolis(
+                        n_chains=sc.parameters.n_chains,
                         tune_interval=sc.parameters.tune_interval,
                         likelihood_name=self._like_name,
                         proposal_name=sc.parameters.proposal_dist)
@@ -363,7 +363,7 @@ class Problem(object):
 
             # will overwrite deterministic name ...
             llk = Potential(self._like_name, like)
-            logger.info('Model building was successful!')
+            logger.info('Model building was successful! \n')
 
     def plant_lijection(self):
         """
@@ -589,8 +589,8 @@ class Problem(object):
         Parameters
         ----------
         point : :func:`pymc3.Point`
-            Dictionary with model parameters, for which the covariance matrixes
-            with respect to velocity model uncertainties are calculated
+            Dictionary with model parameters, for which the sources are
+            updated
         """
         for composite in self.composites.values():
             self.composites[composite.name].point2sources(point)
@@ -731,9 +731,9 @@ class GeometryOptimizer(SourceOptimizer):
 
         self.config = config
 
-        # updating source objects with values in bounds
-        point = self.get_random_point()
-        self.point2sources(point)
+        # updating source objects with test-value in bounds
+        tpoint = pc.get_test_point()
+        self.point2sources(tpoint)
 
 
 class InterseismicOptimizer(SourceOptimizer):

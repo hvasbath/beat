@@ -96,8 +96,7 @@ class SeismicComposite(Composite):
 
                     cov_ds_seismic = []
                     at = wc.arrival_taper
-                    n_samples = int(num.ceil(
-                        at.duration * sc.gf_config.sample_rate))
+                    n_samples = at.nsamples(sc.gf_config.sample_rate)
 
                     for trc in wmap.datasets:
                         if trc.covariance is None:
@@ -110,7 +109,7 @@ class SeismicComposite(Composite):
                             if data_cov.shape[0] != n_samples:
                                 logger.warn(
                                     'Imported covariance %i does not agree '
-                                    ' with taper duration %i! Using Identity'
+                                    ' with taper samples %i! Using Identity'
                                     ' matrix and mean of variance of imported'
                                     ' covariance matrix!' % (
                                         data_cov.shape[0], n_samples))
@@ -335,29 +334,6 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.correction_name = 'time_shift'
 
-        if not hypers:
-            # synthetics generation
-            logger.debug('Initialising synthetics functions ... \n')
-            for wmap in self.wavemaps:
-                wc = wmap.config
-
-                logger.info(
-                    'Preparing data of "%s" for optimization' % wmap._mapid)
-                wmap.prepare_data(
-                    source=self.event, engine=self.engine, outmode='array')
-
-                self.synthesizers[wmap._mapid] = theanof.SeisSynthesizer(
-                    engine=self.engine,
-                    sources=self.sources,
-                    targets=wmap.targets,
-                    event=self.event,
-                    arrival_taper=wc.arrival_taper,
-                    arrival_times=wmap._arrival_times,
-                    wavename=wmap.name,
-                    filterer=wc.filterer,
-                    pre_stack_cut=sc.pre_stack_cut,
-                    station_corrections=sc.station_corrections)
-
         self.config = sc
 
     def point2sources(self, point):
@@ -431,6 +407,27 @@ class SeismicGeometryComposite(SeismicComposite):
                 time_shifts = self.hierarchicals[
                     self.correction_name][wmap.station_correction_idxs]
                 self.input_rvs[self.correction_name] = time_shifts
+
+            wc = wmap.config
+
+            logger.info(
+                'Preparing data of "%s" for optimization' % wmap._mapid)
+            wmap.prepare_data(
+                source=self.sources[0], engine=self.engine, outmode='array')
+
+            logger.info(
+                'Initializing synthesizer for "%s"' % wmap._mapid)
+            self.synthesizers[wmap._mapid] = theanof.SeisSynthesizer(
+                engine=self.engine,
+                sources=self.sources,
+                targets=wmap.targets,
+                event=self.event,
+                arrival_taper=wc.arrival_taper,
+                arrival_times=wmap._arrival_times,
+                wavename=wmap.name,
+                filterer=wc.filterer,
+                pre_stack_cut=self.config.pre_stack_cut,
+                station_corrections=self.config.station_corrections)
 
             synths, _ = self.synthesizers[wmap._mapid](self.input_rvs)
 
