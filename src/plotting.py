@@ -1492,7 +1492,10 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                             ' ' + 'priors: %3.3f, %3.3f' % (
                                 param.lower, param.upper)
                     except KeyError:
-                        title = str(v) + ' ' + plot_units[hypername(v)]
+                        if str(v) == 'like':
+                            title = str(v) + ' ' + str(float(lines[v]))
+                        else:
+                            title = str(v) + ' ' + plot_units[hypername(v)]
 
                     axs[rowi, coli].set_title(title)
                     axs[rowi, coli].grid(grid)
