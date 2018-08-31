@@ -213,6 +213,7 @@ class Problem(object):
         Configuration object that contains the problem definition.
     """
     _varnames = None
+    _hypernames = None
 
     def __init__(self, config, hypers=False):
 
@@ -496,6 +497,19 @@ class Problem(object):
             self._varnames = self.get_random_variables()[0].keys()
         return self._varnames
 
+    @property
+    def hypernames(self):
+        """
+        Sampled random variable names.
+
+        Returns
+        -------
+        list of strings
+        """
+        if self._hypernames is None:
+            self.init_hyperparams()
+        return self._hypernames
+
     def init_hyperparams(self):
         """
         Evaluate problem setup and return hyperparameter dictionary.
@@ -506,6 +520,7 @@ class Problem(object):
         hyperparams = {}
         n_hyp = 0
         modelinit = True
+        self._hypernames = []
         for datatype, composite in self.composites.items():
             hypernames = composite.get_hypernames()
 
@@ -544,7 +559,7 @@ class Problem(object):
                         modelinit = False
 
                     n_hyp += dimension
-
+                    self._hypernames.append(hyperpar.name)
                 else:
                     logger.info(
                         'not solving for %s, got fixed at %s' % (

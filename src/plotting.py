@@ -1442,6 +1442,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         else:
             v = varnames[i]
             color = copy.deepcopy(input_color)
+
             for d in trace.get_values(
                     v, combine=combined, chains=chains, squeeze=False):
                 d = transform(d)
@@ -1492,9 +1493,9 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                             ' ' + 'priors: %3.3f, %3.3f' % (
                                 param.lower, param.upper)
                     except KeyError:
-                        if str(v) == 'like':
+                        try:
                             title = str(v) + ' ' + str(float(lines[v]))
-                        else:
+                        except KeyError:
                             title = str(v) + ' ' + plot_units[hypername(v)]
 
                     axs[rowi, coli].set_title(title)
@@ -1600,11 +1601,10 @@ def draw_posteriors(problem, plot_options):
 
     if hypers:
         sc = problem.config.hyper_sampler_config
-        varnames = pc.hyperparameters.keys() + ['like']
+        varnames = problem.hypernames + ['like']
     else:
         sc = problem.config.sampler_config
-        varnames = problem.varnames + \
-            pc.hyperparameters.keys() + ['like']
+        varnames = problem.varnames + problem.hypernames + ['like']
 
     if len(po.varnames) > 0:
         varnames = po.varnames
@@ -1694,10 +1694,10 @@ def draw_correlation_hist(problem, plot_options):
 
     if hypers:
         sc = problem.config.hyper_sampler_config
-        varnames = problem.config.problem_config.hyperparameters.keys()
+        varnames = problem.hypernames
     else:
         sc = problem.config.sampler_config
-        varnames = problem.varnames + ['like']
+        varnames = problem.varnames + problem.hypernames + ['like']
 
     if len(po.varnames) > 0:
         varnames = po.varnames
