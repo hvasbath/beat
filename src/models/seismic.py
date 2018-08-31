@@ -68,6 +68,13 @@ class SeismicComposite(Composite):
         self.datahandler = heart.init_datahandler(
             seismic_config=sc, seismic_data_path=seismic_data_path)
 
+        noise_analyser = cov.SeismicNoiseAnalyser(
+            structure=sc.noise_estimator.structure,
+            pre_arrival_time=sc.noise_estimator.pre_arrival_time,
+            engine=self.engine,
+            event=self.event,
+            chop_bounds=['b', 'c'])
+
         self.wavemaps = []
         for i, wc in enumerate(sc.waveforms):
             if wc.include:
@@ -77,49 +84,21 @@ class SeismicComposite(Composite):
                     event=event,
                     mapnumber=i)
 
-                if sc.calc_data_cov:
-                    logger.info(
-                        'Estimating seismic data-covariances '
-                        'for %s ...\n' % wmap._mapid)
+                logger.info(
+                    'Retrieving seismic data-covariances with structure "%s" '
+                    'for %s ...\n' % (
+                        sc.noise_estimator.structure, wmap._mapid))
 
-                    cov_ds_seismic = cov.seismic_data_covariance(
-                        data_traces=wmap.datasets,
-                        filterer=wc.filterer,
-                        sample_rate=sc.gf_config.sample_rate,
-                        arrival_taper=wc.arrival_taper,
-                        engine=self.engine,
-                        event=self.event,
-                        targets=wmap.targets)
-                else:
-                    logger.info('No data-covariance estimation, using imported'
-                                ' covariances...\n')
-
-                    cov_ds_seismic = []
-                    at = wc.arrival_taper
-                    n_samples = at.nsamples(sc.gf_config.sample_rate)
-
-                    for trc in wmap.datasets:
-                        if trc.covariance is None:
-                            logger.warn(
-                                'No data covariance given/estimated! '
-                                'Setting default: eye')
-                            cov_ds_seismic.append(num.eye(n_samples))
-                        else:
-                            data_cov = trc.covariance.data
-                            if data_cov.shape[0] != n_samples:
-                                logger.warn(
-                                    'Imported covariance %i does not agree '
-                                    ' with taper samples %i! Using Identity'
-                                    ' matrix and mean of variance of imported'
-                                    ' covariance matrix!' % (
-                                        data_cov.shape[0], n_samples))
-                                data_cov = num.eye(n_samples) * \
-                                    data_cov.diagonal().mean()
-                            cov_ds_seismic.append(data_cov)
+                cov_ds_seismic = noise_analyser.get_data_covariances(
+                    data_traces=wmap.datasets,
+                    filterer=wc.filterer,
+                    sample_rate=sc.gf_config.sample_rate,
+                    arrival_taper=wc.arrival_taper,
+                    targets=wmap.targets)
 
                 weights = []
-                for t, trc in enumerate(wmap.datasets):
-                    trc.covariance = heart.Covariance(data=cov_ds_seismic[t])
+                for j, trc in enumerate(wmap.datasets):
+                    trc.covariance = heart.Covariance(data=cov_ds_seismic[j])
                     if int(trc.covariance.data.sum()) == trc.data_len():
                         logger.warn('Data covariance is identity matrix!'
                                     ' Please double check!!!')
@@ -127,7 +106,7 @@ class SeismicComposite(Composite):
                     weights.append(
                         shared(
                             icov,
-                            name='seis_%s_weight_%i' % (wc.name, t),
+                            name='seis_%s_weight_%i' % (wmap._mapid, j),
                             borrow=True))
 
                 wmap.add_weights(weights)
@@ -135,8 +114,8 @@ class SeismicComposite(Composite):
                 self.wavemaps.append(wmap)
             else:
                 logger.info(
-                    'The waveform defined in "%s" config is not '
-                    'included in the optimization!' % wc.name)
+                    'The waveform defined in "%s %i" config is not '
+                    'included in the optimization!' % (wc.name, i))
 
         if hypers:
             self._llks = []

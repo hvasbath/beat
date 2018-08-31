@@ -8,7 +8,7 @@ import logging
 import copy
 
 from beat import heart
-from beat.utility import ensure_cov_psd, running_window_rms
+from beat.utility import ensure_cov_psd, running_window_rms, list2string
 from theano import config as tconfig
 
 
@@ -19,12 +19,12 @@ __all__ = [
     'geodetic_cov_velocity_models',
     'geodetic_cov_velocity_models_pscmp',
     'seismic_cov_velocity_models',
-    'seismic_data_covariance']
+    'SeismicNoiseAnalyser']
 
 
-def sub_data_covariance(n, dt, tzero):
-    '''
-    Calculate sub-covariance matrix without variance.
+def exponential_data_covariance(n, dt, tzero):
+    """
+    Get exponential sub-covariance matrix without variance, toeplitz form.
 
     Parameters
     ----------
@@ -38,71 +38,200 @@ def sub_data_covariance(n, dt, tzero):
     Returns
     -------
     :class:`numpy.ndarray`
-    '''
-    return num.exp(- num.abs(num.arange(n)[:, num.newaxis] - \
-                              num.arange(n)[num.newaxis, :]) * dt / tzero)
-
-
-def seismic_data_covariance(
-        data_traces, engine, filterer, sample_rate,
-        arrival_taper, event, targets, chop_bounds=['b', 'c']):
-    '''
-    Calculate SubCovariance Matrix of trace object following
-    Duputel et al. 2012 GJI
-    "Uncertainty estimations for seismic source inversions" p. 5
-
-    Parameters
-    ----------
-    data_traces : list
-        of :class:`pyrocko.trace.Trace` containing observed data
-    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
-        processing object for synthetics calculation
-    filterer : :class:`heart.Filter`
-        determines the bandpass-filtering corner frequencies
-    sample_rate : float
-        sampling rate of data_traces and GreensFunction stores
-    arrival_taper : :class: `heart.ArrivalTaper`
-        determines tapering around phase Arrival
-    event : :class:`pyrocko.meta.Event`
-        reference event from catalog
-    targets : list
-        of :class:`pyrocko.gf.seismosizer.Targets`
-    chop_bounds : list of len 2
-        of taper attributes a, b, c, or d
-
-    Returns
-    -------
-    :class:`numpy.ndarray`
 
     Notes
     -----
     Cd(i,j) = (Variance of trace)*exp(-abs(ti-tj)/
                                      (shortest period T0 of waves))
 
-       i,j are samples of the seismic trace
-    '''
-    wavename = 'any_P'   # hardcode here, want always pre P time
-    tzero = 1. / filterer.upper_corner
-    dt = 1. / sample_rate
-    ataper = arrival_taper
+    i,j are samples of the seismic trace
+    """
+    return num.exp(
+        -num.abs(num.arange(n)[:, num.newaxis] -
+                 num.arange(n)[num.newaxis, :]) * dt / tzero)
 
-    csub = sub_data_covariance(
-        ataper.nsamples(sample_rate, chop_bounds), dt, tzero)
 
-    cov_ds = []
-    for tr, target in zip(data_traces, targets):
-        arrival_time = heart.get_phase_arrival_time(
-            engine=engine, source=event,
-            target=target, wavename=wavename)
+def identity_data_covariance(n, dt=None, tzero=None):
+    """
+    Get identity covariance matrix.
 
-        ctrace = tr.chop(
-            tmin=tr.tmin,
-            tmax=arrival_time - 10.,  # make sure to be before P
-            inplace=False)
+    Parameters
+    ----------
+    n : int
+        length of trace/ samples of quadratic Covariance matrix
 
-        cov_ds.append(num.var(ctrace.ydata, ddof=1) * csub)
+    Returns
+    -------
+    :class:`numpy.ndarray`
+    """
+    return num.eye(n, dtype=tconfig.floatX)
 
-    return cov_ds
+
+def ones_data_covariance(n, dt=None, tzero=None):
+    """
+    Get ones covariance matrix. Dummy for importing.
+
+    Parameters
+    ----------
+    n : int
+        length of trace/ samples of quadratic Covariance matrix
+
+    Returns
+    -------
+    :class:`numpy.ndarray`
+    """
+    return num.ones((n, n), dtype=tconfig.floatX)
+
+
+NoiseStructureCatalog = {
+    'identity': identity_data_covariance,
+    'exponential': exponential_data_covariance,
+    'import': ones_data_covariance,
+}
+
+
+def available_noise_structures():
+    return NoiseStructureCatalog.keys()
+
+
+def import_data_covariance(data_trace, arrival_taper, sample_rate):
+    """
+    Use imported covariance matrixes and check size consistency with taper.
+    Cut or extend based on variance and taper size.
+
+    Parameters
+    ----------
+    data_trace : :class:`heart.SeismicDataset`
+        with data covariance matrix in the covariance attribute
+    arrival_taper : :class: `heart.ArrivalTaper`
+        determines tapering around phase Arrival
+    sample_rate : float
+        sampling rate of data_traces and GreensFunction stores
+
+    Returns
+    -------
+    covariance matrix : :class:`numpy.ndarray`
+        with size of given arrival taper
+    """
+
+    logger.info('No data-covariance estimation, using imported'
+                ' covariances...\n')
+
+    at = arrival_taper
+    n_samples = at.nsamples(sample_rate)
+
+    if data_trace.covariance is None:
+        logger.warn(
+            'No data covariance given/estimated! '
+            'Setting default: eye')
+        return num.eye(n_samples)
+    else:
+        data_cov = data_trace.covariance.data
+        if data_cov.shape[0] != n_samples:
+            logger.warn(
+                'Imported covariance %i does not agree '
+                ' with taper samples %i! Using Identity'
+                ' matrix and mean of variance of imported'
+                ' covariance matrix!' % (
+                    data_cov.shape[0], n_samples))
+            data_cov = num.eye(n_samples) * \
+                data_cov.diagonal().mean()
+
+        return data_cov
+
+
+class SeismicNoiseAnalyser(object):
+    """
+    Seismic noise analyser
+
+    Parameters
+    ----------
+    structure : string
+        either identity, exponential, import
+    pre_arrival_time : float
+        in [s], time before P arrival until variance is estimated
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+        processing object for synthetics calculation
+    event : :class:`pyrocko.meta.Event`
+        reference event from catalog
+    chop_bounds : list of len 2
+        of taper attributes a, b, c, or d
+    """
+    def __init__(
+            self, structure='identity', pre_arrival_time=5.,
+            engine=None, event=None, chop_bounds=['b', 'c']):
+
+        avail = available_noise_structures()
+        if structure not in avail:
+            raise AttributeError(
+                'Selected noise structure "%s" not supported! Implemented'
+                ' noise structures: %s' % (structure, list2string(avail)))
+
+        self.event = event
+        self.engine = engine
+        self.pre_arrival_time = pre_arrival_time
+        self.structure = structure
+        self.chop_bounds = chop_bounds
+
+    def get_structure(self, n, dt, tzero):
+        return NoiseStructureCatalog[self.structure](n, dt, tzero)
+
+    def get_data_covariances(
+            self, data_traces, filterer, sample_rate, arrival_taper, targets):
+        """
+        Estimated data covariances of seismic traces
+
+        Parameters
+        ----------
+        data_traces : list
+            of :class:`pyrocko.trace.Trace` containing observed data
+        filterer : :class:`heart.Filter`
+            determines the bandpass-filtering corner frequencies
+        sample_rate : float
+            sampling rate of data_traces and GreensFunction stores
+        arrival_taper : :class: `heart.ArrivalTaper`
+            determines tapering around phase Arrival
+        targets : list
+            of :class:`pyrocko.gf.seismosizer.Targets`
+
+        Returns
+        -------
+        :class:`numpy.ndarray`
+        """
+        wavename = 'any_P'   # hardcode here, want always pre P time
+        tzero = 1. / filterer.upper_corner
+        dt = 1. / sample_rate
+        ataper = arrival_taper
+
+        covariance_structure = self.get_structure(
+            ataper.nsamples(sample_rate, self.chop_bounds), dt, tzero)
+
+        cov_ds = []
+        for tr, target in zip(data_traces, targets):
+            if self.structure == 'import':
+                scaling = import_data_covariance(
+                    tr, arrival_taper=ataper, sample_rate=sample_rate)
+            else:
+                arrival_time = heart.get_phase_arrival_time(
+                    engine=self.engine, source=self.event,
+                    target=target, wavename=wavename)
+
+                if filterer is not None:
+                    ctrace = tr.copy()
+                    ctrace.bandpass(
+                        corner_hp=filterer.lower_corner,
+                        corner_lp=filterer.upper_corner,
+                        order=filterer.order)
+
+                ctrace = ctrace.chop(
+                    tmin=tr.tmin,
+                    tmax=arrival_time - self.pre_arrival_time)
+
+                scaling = num.var(ctrace.get_ydata())
+
+            cov_ds.append(scaling * covariance_structure)
+
+        return cov_ds
 
 
 def model_prediction_sensitivity(engine, *args, **kwargs):

@@ -69,6 +69,15 @@ def upgrade_config_file(fn, diff=True, update=[]):
     rules = [
         ('beat.SeismicConfig',
             drop_attribute('blacklist')),
+        ('beat.SeismicConfig',
+            drop_attribute('calc_data_cov')),
+        ('beat.SeismicConfig',
+            set_attribute(
+                'noise_estimator',
+                aguts.load(string='''!beat.SeismicNoiseAnalyserConfig
+                      structure: identity
+                      pre_arrival_time: 5
+                    '''))),
         ('beat.WaveformFitConfig',
             set_attribute('blacklist', []))
     ]

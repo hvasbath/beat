@@ -397,16 +397,27 @@ class WaveformFitConfig(Object):
         help='Taper a,b/c,d time [s] before/after wave arrival')
 
 
+class SeismicNoiseAnalyserConfig(Object):
+
+    structure = StringChoice.T(
+        choices=['identity', 'exponential', 'import'],
+        default='identity',
+        help='Determines data-covariance matrix structure.')
+    pre_arrival_time = Float.T(
+        default=5.,
+        help='Time [s] before synthetic P-wave arrival until '
+             'variance is estimated')
+
+
 class SeismicConfig(Object):
     """
     Config for seismic data optimization related parameters.
     """
 
     datadir = String.T(default='./')
-    calc_data_cov = Bool.T(
-        default=True,
-        help='Flag for calculating the data covariance matrix based on the'
-             ' pre P arrival data trace noise.')
+    noise_estimator = SeismicNoiseAnalyserConfig.T(
+        default=SeismicNoiseAnalyserConfig.D(),
+        help='Determines the structure of the data-covariance matrix.')
     pre_stack_cut = Bool.T(
         default=True,
         help='Cut the GF traces before stacking around the specified arrival'
