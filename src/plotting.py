@@ -579,6 +579,15 @@ def plot_scene(ax, target, data, scattersize, colim,
         edgecolors='none', vmin=-colim, vmax=colim, **kwargs)
 
 
+def format_axes(ax):
+    """
+    Removes box top, left and right.
+    """
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+
+
 def geodetic_fits(problem, stage, plot_options):
     """
     Plot geodetic data, synthetics and residuals.
@@ -1502,6 +1511,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     axs[rowi, coli].grid(grid)
                     axs[rowi, coli].set_yticks([])
                     axs[rowi, coli].set_yticklabels([])
+                    format_axes(axs[rowi, coli])
     #                axs[rowi, coli].set_ylabel("Frequency")
 
                     if lines:

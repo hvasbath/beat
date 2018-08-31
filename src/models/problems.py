@@ -573,7 +573,7 @@ class Problem(object):
                 ' covered by datasets/datatypes.')
 
         if modelinit:
-            logger.info('Optimization for %i hyperparemeters in total!', n_hyp)
+            logger.info('Optimization for %i hyperparameters in total!', n_hyp)
 
         self.hyperparams = hyperparams
 
