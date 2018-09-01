@@ -68,7 +68,7 @@ class SeismicComposite(Composite):
         self.datahandler = heart.init_datahandler(
             seismic_config=sc, seismic_data_path=seismic_data_path)
 
-        noise_analyser = cov.SeismicNoiseAnalyser(
+        self.noise_analyser = cov.SeismicNoiseAnalyser(
             structure=sc.noise_estimator.structure,
             pre_arrival_time=sc.noise_estimator.pre_arrival_time,
             engine=self.engine,
@@ -83,33 +83,6 @@ class SeismicComposite(Composite):
                     datahandler=self.datahandler,
                     event=event,
                     mapnumber=i)
-
-                logger.info(
-                    'Retrieving seismic data-covariances with structure "%s" '
-                    'for %s ...\n' % (
-                        sc.noise_estimator.structure, wmap._mapid))
-
-                cov_ds_seismic = noise_analyser.get_data_covariances(
-                    data_traces=wmap.datasets,
-                    filterer=wc.filterer,
-                    sample_rate=sc.gf_config.sample_rate,
-                    arrival_taper=wc.arrival_taper,
-                    targets=wmap.targets)
-
-                weights = []
-                for j, trc in enumerate(wmap.datasets):
-                    trc.covariance = heart.Covariance(data=cov_ds_seismic[j])
-                    if int(trc.covariance.data.sum()) == trc.data_len():
-                        logger.warn('Data covariance is identity matrix!'
-                                    ' Please double check!!!')
-                    icov = trc.covariance.chol_inverse
-                    weights.append(
-                        shared(
-                            icov,
-                            name='seis_%s_weight_%i' % (wmap._mapid, j),
-                            borrow=True))
-
-                wmap.add_weights(weights)
 
                 self.wavemaps.append(wmap)
             else:
@@ -127,6 +100,41 @@ class SeismicComposite(Composite):
     def __getstate__(self):
         self.engine.close_cashed_stores()
         return self.__dict__.copy()
+
+    def analyse_noise(self, tpoint=None):
+        """
+        Analyse seismic noise in datatraces and set weights accordingly.
+        """
+        if self.config.noise_estimator.structure == 'non-toeplitz':
+            results = self.assemble_results(
+                tpoint, order='wmap', chop_bounds=['b', 'c'])
+        else:
+            results = [None] * len(self.wavemaps)
+
+        for wmap, wmap_results in zip(self.wavemaps, results):
+            logger.info(
+                'Retrieving seismic data-covariances with structure "%s" '
+                'for %s ...\n' % (
+                    self.config.noise_estimator.structure, wmap._mapid))
+
+            cov_ds_seismic = self.noise_analyser.get_data_covariances(
+                wmap=wmap, results=wmap_results,
+                sample_rate=self.config.gf_config.sample_rate)
+
+            weights = []
+            for j, trc in enumerate(wmap.datasets):
+                trc.covariance = heart.Covariance(data=cov_ds_seismic[j])
+                if int(trc.covariance.data.sum()) == trc.data_len():
+                    logger.warn('Data covariance is identity matrix!'
+                                ' Please double check!!!')
+                icov = trc.covariance.chol_inverse
+                weights.append(
+                    shared(
+                        icov,
+                        name='seis_%s_weight_%i' % (wmap._mapid, j),
+                        borrow=True))
+
+            wmap.add_weights(weights)
 
     def init_hierarchicals(self, problem_config):
         """
@@ -209,7 +217,7 @@ class SeismicComposite(Composite):
             self._targets = ts
         return self._targets
 
-    def assemble_results(self, point, chop_bounds=['a', 'd']):
+    def assemble_results(self, point, chop_bounds=['a', 'd'], order='list'):
         """
         Assemble seismic traces for given point in solution space.
 
@@ -222,45 +230,60 @@ class SeismicComposite(Composite):
         -------
         List with :class:`heart.SeismicResult`
         """
+        if point is None:
+            raise ValueError('A point has to be provided!')
+
         logger.debug('Assembling seismic waveforms ...')
 
         syn_proc_traces, obs_proc_traces = self.get_synthetics(
-            point, outmode='stacked_traces', chop_bounds=chop_bounds)
+            point, outmode='stacked_traces',
+            chop_bounds=chop_bounds, order='wmap')
 
         # will yield exactly the same as previous call needs wmap.prepare data
         # to be aware of taper_tolerance_factor
         syn_filt_traces, obs_filt_traces = self.get_synthetics(
             point, outmode='stacked_traces', taper_tolerance_factor=0.,
-            chop_bounds=chop_bounds)
-
-        ats = []
-        for wmap in self.wavemaps:
-            wc = wmap.config
-            ats.extend(wmap.n_t * [wc.arrival_taper])
+            chop_bounds=chop_bounds, order='wmap')
 
         results = []
-        for i, (obs_tr, at) in enumerate(zip(obs_proc_traces, ats)):
+        for i, wmap in enumerate(self.wavemaps):
+            wc = wmap.config
+            at = wc.arrival_taper
 
-            dtrace_proc = obs_tr.copy()
-            dtrace_proc.set_ydata(
-                (obs_tr.get_ydata() - syn_proc_traces[i].get_ydata()))
+            wmap_results = []
+            for j, obs_tr in enumerate(obs_proc_traces[i]):
 
-            dtrace_filt = obs_filt_traces[i].copy()
-            dtrace_filt.set_ydata(
-                (obs_filt_traces[i].get_ydata() -
-                    syn_filt_traces[i].get_ydata()))
+                dtrace_proc = obs_tr.copy()
+                dtrace_proc.set_ydata(
+                    (obs_tr.get_ydata() - syn_proc_traces[i][j].get_ydata()))
 
-            taper = at.get_pyrocko_taper(
-                float(obs_tr.tmin + num.abs(at.a)))
+                dtrace_filt = obs_filt_traces[i][j].copy()
+                dtrace_filt.set_ydata(
+                    (obs_filt_traces[i][j].get_ydata() -
+                        syn_filt_traces[i][j].get_ydata()))
 
-            results.append(heart.SeismicResult(
-                processed_obs=obs_tr,
-                processed_syn=syn_proc_traces[i],
-                processed_res=dtrace_proc,
-                filtered_obs=obs_filt_traces[i],
-                filtered_syn=syn_filt_traces[i],
-                filtered_res=dtrace_filt,
-                taper=taper))
+                # TODO fix here for right arrival time
+                taper = at.get_pyrocko_taper(
+                    float(obs_tr.tmin + num.abs(at.a)))
+                # -------------------------------------
+
+                wmap_results.append(heart.SeismicResult(
+                    processed_obs=obs_tr,
+                    processed_syn=syn_proc_traces[i][j],
+                    processed_res=dtrace_proc,
+                    filtered_obs=obs_filt_traces[i][j],
+                    filtered_syn=syn_filt_traces[i][j],
+                    filtered_res=dtrace_filt,
+                    taper=taper))
+
+            if order == 'list':
+                results.extend(wmap_results)
+
+            elif order == 'wmap':
+                results.append(wmap_results)
+
+            else:
+                raise ValueError('Order "%s" is not supported' % order)
 
         return results
 
@@ -364,6 +387,7 @@ class SeismicGeometryComposite(SeismicComposite):
         posterior_llk : :class:`theano.tensor.Tensor`
         """
         hp_specific = problem_config.dataset_specific_residual_noise_estimation
+        tpoint = problem_config.get_test_point()
 
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs
@@ -376,6 +400,8 @@ class SeismicGeometryComposite(SeismicComposite):
         wlogpts = []
 
         self.init_hierarchicals(problem_config)
+        self.analyse_noise(tpoint)
+
         if self.config.station_corrections:
             logger.info(
                 'Initialized %i hierarchical parameters for '
@@ -443,6 +469,7 @@ class SeismicGeometryComposite(SeismicComposite):
         """
         outmode = kwargs.pop('outmode', 'stacked_traces')
         chop_bounds = kwargs.pop('chop_bounds', ['a', 'd'])
+        order = kwargs.pop('order', 'list')
 
         self.point2sources(point)
 
@@ -452,7 +479,7 @@ class SeismicGeometryComposite(SeismicComposite):
         for wmap in self.wavemaps:
             wc = wmap.config
             wmap.prepare_data(
-                source=self.event,
+                source=self.sources[0],
                 engine=self.engine,
                 outmode=outmode,
                 chop_bounds=chop_bounds)
@@ -475,9 +502,16 @@ class SeismicGeometryComposite(SeismicComposite):
                 chop_bounds=chop_bounds,
                 **kwargs)
 
-            synths.extend(synthetics)
+            if order == 'list':
+                synths.extend(synthetics)
+                obs.extend(wmap._prepared_data)
 
-            obs.extend(wmap._prepared_data)
+            elif order == 'wmap':
+                synths.append(synthetics)
+                obs.append(wmap._prepared_data)
+
+            else:
+                raise ValueError('Order "%s" is not supported' % order)
 
         return synths, obs
 
@@ -656,6 +690,7 @@ class SeismicDistributerComposite(SeismicComposite):
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
 
         hp_specific = problem_config.dataset_specific_residual_noise_estimation
+        tpoint = problem_config.get_test_point()
 
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs
@@ -667,6 +702,7 @@ class SeismicDistributerComposite(SeismicComposite):
         t2 = time()
         wlogpts = []
 
+        self.analyse_noise(tpoint)
         self.init_hierarchicals(problem_config)
         if self.config.station_corrections:
             logger.info(

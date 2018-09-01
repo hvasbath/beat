@@ -87,6 +87,7 @@ NoiseStructureCatalog = {
     'identity': identity_data_covariance,
     'exponential': exponential_data_covariance,
     'import': ones_data_covariance,
+    'non-toeplitz': ones_data_covariance,
 }
 
 
@@ -159,7 +160,7 @@ class SeismicNoiseAnalyser(object):
     """
     def __init__(
             self, structure='identity', pre_arrival_time=5.,
-            engine=None, event=None, chop_bounds=['b', 'c']):
+            engine=None, event=None, sources=None, chop_bounds=['b', 'c']):
 
         avail = available_noise_structures()
         if structure not in avail:
@@ -169,66 +170,98 @@ class SeismicNoiseAnalyser(object):
 
         self.event = event
         self.engine = engine
+        self.sources = sources
         self.pre_arrival_time = pre_arrival_time
         self.structure = structure
         self.chop_bounds = chop_bounds
 
-    def get_structure(self, n, dt, tzero):
+    def get_structure(self, wmap, sample_rate):
+
+        tzero = 1. / wmap.config.filterer.upper_corner
+        dt = 1. / sample_rate
+        ataper = wmap.config.arrival_taper
+        n = ataper.nsamples(sample_rate, self.chop_bounds)
         return NoiseStructureCatalog[self.structure](n, dt, tzero)
 
-    def get_data_covariances(
-            self, data_traces, filterer, sample_rate, arrival_taper, targets):
+    def do_import(self, wmap, sample_rate):
+
+        scalings = []
+        for tr, target in enumerate(zip(wmap.datasets, wmap.targets)):
+            scaling = import_data_covariance(
+                tr, arrival_taper=wmap.config.arrival_taper,
+                sample_rate=sample_rate)
+            scalings.append(scaling)
+
+        return scalings
+
+    def do_non_toeplitz(self, wmap, results):
+
+        if results is None:
+            ValueError(
+                'Results need(s) to be given for non-toeplitz'
+                ' covariance estimates!')
+        else:
+            scalings = []
+            for result in results:
+                residual = result.filtered_res.get_ydata()
+                scaling = non_toeplitz_covariance(
+                    residual, window_size=residual.size / 5)
+                scalings.append(scaling)
+
+            return scalings
+
+    def do_variance_estimate(self, wmap):
+
+        filterer = wmap.config.filterer
+        scalings = []
+        for i, (tr, target) in enumerate(zip(wmap.datasets, wmap.targets)):
+            wavename = 'any_P'   # hardcode here, want always pre P time
+            arrival_time = heart.get_phase_arrival_time(
+                engine=self.engine, source=self.event,
+                target=target, wavename=wavename)
+
+            if filterer is not None:
+                ctrace = tr.copy()
+                ctrace.bandpass(
+                    corner_hp=filterer.lower_corner,
+                    corner_lp=filterer.upper_corner,
+                    order=filterer.order)
+
+            ctrace = ctrace.chop(
+                tmin=tr.tmin,
+                tmax=arrival_time - self.pre_arrival_time)
+
+            scaling = num.var(ctrace.get_ydata())
+            scalings.append(scaling)
+
+        return scalings
+
+    def get_data_covariances(self, wmap, sample_rate, results=None):
         """
         Estimated data covariances of seismic traces
 
         Parameters
         ----------
-        data_traces : list
-            of :class:`pyrocko.trace.Trace` containing observed data
-        filterer : :class:`heart.Filter`
-            determines the bandpass-filtering corner frequencies
+        wmap : :class:`eat.WaveformMapping`
+        results
         sample_rate : float
             sampling rate of data_traces and GreensFunction stores
-        arrival_taper : :class: `heart.ArrivalTaper`
-            determines tapering around phase Arrival
-        targets : list
-            of :class:`pyrocko.gf.seismosizer.Targets`
 
         Returns
         -------
         :class:`numpy.ndarray`
         """
-        wavename = 'any_P'   # hardcode here, want always pre P time
-        tzero = 1. / filterer.upper_corner
-        dt = 1. / sample_rate
-        ataper = arrival_taper
+        covariance_structure = self.get_structure(wmap, sample_rate)
 
-        covariance_structure = self.get_structure(
-            ataper.nsamples(sample_rate, self.chop_bounds), dt, tzero)
+        if self.structure == 'import':
+            scalings = self.do_import(wmap, sample_rate)
+        elif self.structure == 'non-toeplitz':
+            scalings = self.do_non_toeplitz(wmap, results)
+        else:
+            scalings = self.do_variance_estimate(wmap)
 
         cov_ds = []
-        for tr, target in zip(data_traces, targets):
-            if self.structure == 'import':
-                scaling = import_data_covariance(
-                    tr, arrival_taper=ataper, sample_rate=sample_rate)
-            else:
-                arrival_time = heart.get_phase_arrival_time(
-                    engine=self.engine, source=self.event,
-                    target=target, wavename=wavename)
-
-                if filterer is not None:
-                    ctrace = tr.copy()
-                    ctrace.bandpass(
-                        corner_hp=filterer.lower_corner,
-                        corner_lp=filterer.upper_corner,
-                        order=filterer.order)
-
-                ctrace = ctrace.chop(
-                    tmin=tr.tmin,
-                    tmax=arrival_time - self.pre_arrival_time)
-
-                scaling = num.var(ctrace.get_ydata())
-
+        for scaling in scalings:
             cov_ds.append(scaling * covariance_structure)
 
         return cov_ds

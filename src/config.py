@@ -400,7 +400,7 @@ class WaveformFitConfig(Object):
 class SeismicNoiseAnalyserConfig(Object):
 
     structure = StringChoice.T(
-        choices=['identity', 'exponential', 'import'],
+        choices=['identity', 'exponential', 'import', 'non-toeplitz'],
         default='identity',
         help='Determines data-covariance matrix structure.')
     pre_arrival_time = Float.T(

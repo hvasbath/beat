@@ -396,8 +396,6 @@ class Problem(object):
         for param in pc.priors.values():
             point[param.name] = param.testvalue
 
-        self.update_llks(point)
-
         with Model() as self.model:
 
             self.init_hyperparams()
@@ -405,6 +403,10 @@ class Problem(object):
             total_llk = tt.zeros((1), tconfig.floatX)
 
             for composite in self.composites.itervalues():
+                if hasattr(composite, 'analyse_noise'):
+                    composite.analyse_noise(point)
+
+                composite.update_llks(point)
                 total_llk += composite.get_hyper_formula(self.hyperparams, pc)
 
             like = Deterministic('tmp', total_llk)
