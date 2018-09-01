@@ -703,8 +703,8 @@ def load_multitrace(dirname, varnames=None, chains=None):
     ----------
     dirname : str
         Name of directory with files (one per chain)
-    model : Model
-        If None, the model is taken from the `with` context.
+    varnames : list
+        of strings with variable names
     chains : list optional
 
     Returns
