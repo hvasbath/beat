@@ -793,6 +793,8 @@ class SeismicDistributerComposite(SeismicComposite):
         -------
         list with :class:`heart.SeismicDataset` synthetics for each target
         """
+        order = kwargs.pop('order', 'list')
+
         ref_idx = self.config.gf_config.reference_model_idx
         if len(self.gfs.keys()) == 0:
             self.load_gfs(
@@ -845,6 +847,7 @@ class SeismicDistributerComposite(SeismicComposite):
                     slips=tpoint[var],
                     interpolation=wmap.config.interpolation)
 
+            wmap_synthetics = []
             for i, target in enumerate(wmap.targets):
                 tr = Trace(
                     ydata=synthetics[i, :],
@@ -854,7 +857,7 @@ class SeismicDistributerComposite(SeismicComposite):
                     deltat=gflibrary.deltat)
 
                 tr.set_codes(*target.codes)
-                synth_traces.append(tr)
+                wmap_synthetics.append(tr)
 
             if self.config.station_corrections:
                 sh = point[
@@ -864,12 +867,23 @@ class SeismicDistributerComposite(SeismicComposite):
                     tr.tmin += sh[i]
                     tr.tmax += sh[i]
 
-            obs_traces.extend(heart.taper_filter_traces(
+            wmap_obs = heart.taper_filter_traces(
                 wmap.datasets,
                 arrival_taper=wmap.config.arrival_taper,
                 filterer=wmap.config.filterer,
                 tmins=(gflibrary.get_all_tmins(patchidx)),
-                **kwargs))
+                **kwargs)
+
+            if order == 'list':
+                synth_traces.extend(wmap_synthetics)
+                obs_traces.extend(wmap_obs)
+
+            elif order == 'wmap':
+                synth_traces.append(wmap_synthetics)
+                obs_traces.append(wmap_obs)
+
+            else:
+                raise ValueError('Order "%s" is not supported' % order)
 
         return synth_traces, obs_traces
 
