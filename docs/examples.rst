@@ -87,6 +87,7 @@ The seismic phases for which the GFs are going to be calculated are defined unde
       - !beat.WaveformFitConfig
         include: true
         name: any_P
+        blacklist: []
         channels: [Z]
         filterer: !beat.heart.Filter
           lower_corner: 0.01
@@ -105,6 +106,7 @@ In this case the GFs are going to be calculated for the P body waves. We can add
       - !beat.WaveformFitConfig
         include: true
         name: slowest
+        blacklist: []
         channels: [Z]
         filterer: !beat.heart.Filter
           lower_corner: 0.001
@@ -130,6 +132,7 @@ Your seismic_config within the $project_directory/config_geometry.yaml should lo
       - !beat.WaveformFitConfig
         include: true
         name: any_P
+        blacklist: []
         channels: [Z]
         filterer: !beat.heart.Filter
           lower_corner: 0.01
@@ -145,6 +148,7 @@ Your seismic_config within the $project_directory/config_geometry.yaml should lo
       - !beat.WaveformFitConfig
         include: true
         name: slowest
+        blacklist: []
         channels: [Z]
         filterer: !beat.heart.Filter
           lower_corner: 0.001
@@ -396,7 +400,7 @@ It may look like this.
  .. image:: _static/FullMT_stage_-1_max.png
 
  The vertical black lines are the true values and the vertical red lines are the maximum likelihood values.
- We see that the true solution is not comprised within the marginals of all parameters. This may have several reasons I will not go in to detail for now.
+ We see that the true solution is not comprised within the marginals of all parameters. This may have several reasons. In the next section we will discuss and investigate the influence of the noise characteristics.
 
  To get an image of parameter correlations (including the true reference value in red) of moment tensor components, the location and the magnitude. In the $beat_models run::
 
@@ -412,3 +416,25 @@ The red dot and the vertical red lines show the true values of the target source
 The 'varnames' option may take any parameter that has been optimized for. For example one might als want to try --varnames='duration, time, magnitude, north_shift, east_shift'.
 If it is not specified all sampled parameters are taken into account.
 
+
+Seismic noise estimation
+^^^^^^^^^^^^^^^^^^^^^^^^
+If we have poor knowledge of the noise in the data, the model parameter estimates may be poor and the true parameters are not covered by the distributions (as was the case above). In the previous run we used a data covariance matrix of the form of an identity matrix with only the noise variance in the diagonal. Under the seismic_config you find the configuration for the noise analyser, which looks like that::
+
+  noise_estimator: !beat.SeismicNoiseAnalyserConfig
+    structure: identity
+    pre_arrival_time: 3.0
+
+The "structure" argument refers to the structure of the covariance matrix that is estimated on the data, prior to the synthetic P-wave arrival. The argument "pre_arrival_time" refers to the time before the P-wave arrival. 3.0 means that the noise is estimated on each data trace up to 3. seconds before the synthetic P-wave arrival.
+Obviously, in the previos run the white-noise assumption was not working well. So we may set the structure to "exponential" to also estimate noise covariances depending on the shortest wavelength in the data, following [Duputel2012]_.  
+
+Other options are: 
+ - "import" to use the covariance matrixes that have been imported with the data
+ - "non-toeplitz" to estimate non-stationary, correlated noise on the residuals following [Dettmer2007]_
+   in this case the values from the priors and hypers "testvalues" are used as reference to calculate the residuals
+
+
+References
+^^^^^^^^^^
+.. [Dettmer2007] Dettmer, Jan and Dosso, Stan E. and Holland, Charles W., Uncertainty estimation in seismo-acoustic reflection travel time inversion, The Journal of the Acoustical Society of America, DOI:10.1121/1.2736514
+.. [Duputel2012] Duputel, Zacharie and Rivera, Luis and Fukahata, Yukitoshi and Kanamori, Hiroo, Uncertainty estimations for seismic source inversions, Geophysical Journal International, DOI:10.1111/j.1365-246X.2012.05554.x

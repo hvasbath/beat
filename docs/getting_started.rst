@@ -413,6 +413,7 @@ for residual ramp estimation in the InSAR data.::
 
     beat update <project_directory> --diff --parameters='hierarchicals, hypers'
 
+
 How to setup a Custom Greens Function Store
 -------------------------------------------
 This section covers how to generate a custom Greens Function store for seismic data at a location of choice.
