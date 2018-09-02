@@ -2042,7 +2042,7 @@ class WaveformMapping(object):
     @property
     def _mapid(self):
         if hasattr(self, 'mapnumber'):
-            return '_'.join((str(self.mapnumber), self.name))
+            return '_'.join((self.name, str(self.mapnumber)))
         else:
             raise self.name
 
