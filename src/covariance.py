@@ -186,7 +186,7 @@ class SeismicNoiseAnalyser(object):
     def do_import(self, wmap, sample_rate):
 
         scalings = []
-        for tr, target in enumerate(zip(wmap.datasets, wmap.targets)):
+        for tr, target in zip(wmap.datasets, wmap.targets):
             scaling = import_data_covariance(
                 tr, arrival_taper=wmap.config.arrival_taper,
                 sample_rate=sample_rate)
