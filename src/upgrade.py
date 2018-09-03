@@ -79,7 +79,9 @@ def upgrade_config_file(fn, diff=True, update=[]):
                       pre_arrival_time: 5
                     '''))),
         ('beat.WaveformFitConfig',
-            set_attribute('blacklist', []))
+            set_attribute('blacklist', [])),
+        ('beat.WaveformFitConfig',
+            set_attribute('preprocess_data', True))
     ]
 
     def apply_rules(path, obj):

@@ -2098,10 +2098,17 @@ class WaveformMapping(object):
                     engine=engine, source=source,
                     target=target, wavename=self.name)
 
+            if self.config.preprocess_data:
+                logger.debug('Pre-processing data ...')
+                filterer = self.config.filterer
+            else:
+                logger.debug('Not pre-processing data ...')
+                filterer = None
+
             self._prepared_data = taper_filter_traces(
                 self.datasets,
                 arrival_taper=self.config.arrival_taper,
-                filterer=self.config.filterer,
+                filterer=filterer,
                 arrival_times=arrival_times,
                 outmode=outmode,
                 chop_bounds=chop_bounds)

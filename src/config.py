@@ -380,6 +380,9 @@ class WaveformFitConfig(Object):
     include = Bool.T(
         default=True,
         help='Flag to include waveform into optimization.')
+    preprocess_data = Bool.T(
+        default=True,
+        help='Flag to filter input data.')
     name = String.T('any_P')
     blacklist = List.T(
         String.T(),
