@@ -217,7 +217,9 @@ class SeismicComposite(Composite):
             self._targets = ts
         return self._targets
 
-    def assemble_results(self, point, chop_bounds=['a', 'd'], order='list'):
+    def assemble_results(
+            self, point, chop_bounds=['a', 'd'], order='list',
+            outmode='stacked_traces'):
         """
         Assemble seismic traces for given point in solution space.
 
@@ -236,13 +238,13 @@ class SeismicComposite(Composite):
         logger.debug('Assembling seismic waveforms ...')
 
         syn_proc_traces, obs_proc_traces = self.get_synthetics(
-            point, outmode='stacked_traces',
+            point, outmode=outmode,
             chop_bounds=chop_bounds, order='wmap')
 
         # will yield exactly the same as previous call needs wmap.prepare data
         # to be aware of taper_tolerance_factor
         syn_filt_traces, obs_filt_traces = self.get_synthetics(
-            point, outmode='stacked_traces', taper_tolerance_factor=0.,
+            point, outmode=outmode, taper_tolerance_factor=0.,
             chop_bounds=chop_bounds, order='wmap')
 
         results = []

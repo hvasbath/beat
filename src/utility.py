@@ -421,26 +421,35 @@ def weed_targets(targets, stations):
     return weeded_targets
 
 
-def downsample_traces(data_traces, deltat=None):
+def downsample_trace(data_trace, deltat=None, snap=False):
     """
-    Downsample data_traces to given sampling interval 'deltat'.
-    Modifies input :class:`pyrocko.trace.Trace` Objects!
+    Downsample data_trace to given sampling interval 'deltat'.
 
     Parameters
     ----------
-    data_traces : list
-        of :class:`pyrocko.trace.Trace`
-    deltat : sampling interval [s] to which traces should be downsampled
+    data_trace : :class:`pyrocko.trace.Trace`
+    deltat : sampling interval [s] to which trace should be downsampled
+
+    Returns
+    -------
+    :class:`pyrocko.trace.Trace`
+        new instance
     """
 
-    for tr in data_traces:
-        if deltat is not None:
+    tr = data_trace.copy()
+    if deltat is not None:
+        if tr.deltat - deltat > 1.e-6:
             try:
-                tr.downsample_to(deltat, snap=True, allow_upsample_max=5)
+                tr.downsample_to(
+                    deltat, snap=snap, allow_upsample_max=5, demean=False)
+                tr.deltat = deltat
             except util.UnavailableDecimation as e:
                 logger.error(
                     'Cannot downsample %s.%s.%s.%s: %s' % (tr.nslc_id + (e,)))
-                continue
+    else:
+        raise ValueError('Need to provide target sample rate!')
+
+    return tr
 
 
 def weed_stations(stations, event, distances=(30., 90.)):

@@ -1948,8 +1948,6 @@ class WaveformMapping(object):
     Weights have to be theano.shared variables!
     """
 
-    _target2index = None
-
     def __init__(self, name, stations, weights=None, channels=['Z'],
                  datasets=None, targets=None, station_correction_idxs=None):
 
@@ -1964,6 +1962,7 @@ class WaveformMapping(object):
         self.station_correction_idxs = station_correction_idxs
         self._prepared_data = None
         self._arrival_times = None
+        self._target2index = None
 
         if self.datasets is not None:
             self._update_trace_wavenames()
@@ -2147,18 +2146,26 @@ class DataWaveformCollection(object):
         of strings of tabulated phases that are to be used for misfit
         calculation
     """
-    _targets = OrderedDict()
-    _datasets = OrderedDict()
-    _target2index = None
-    _station2index = None
-    _station_correction_indexes = None
-
     def __init__(self, stations, waveforms=None):
         self.stations = stations
         self.waveforms = waveforms
+        self._targets = OrderedDict()
+        self._datasets = OrderedDict()
+        self._raw_datasets = OrderedDict()
+        self._target2index = None
+        self._station2index = None
+        self._station_correction_indexes = None
 
-    def downsample_datasets(self, deltat):
-        utility.downsample_traces(self._datasets.values(), deltat=deltat)
+    def adjust_sampling_datasets(self, deltat, snap=False, force=False):
+
+        for tr in self._raw_datasets.values():
+            if tr.nslc_id not in self._datasets or force:
+                self._datasets[tr.nslc_id] = \
+                    utility.downsample_trace(tr, deltat, snap=snap)
+            else:
+                raise CollectionError(
+                    'Downsampled trace %s already in'
+                    ' collection!' % utility.list2string(tr.nslc_id))
 
     def _check_collection(self, waveform, errormode='not_in', force=False):
         if errormode == 'not_in':
@@ -2235,6 +2242,12 @@ class DataWaveformCollection(object):
     def get_waveform_names(self):
         return self.waveforms
 
+    def get_dataset(self, nslc, raw=False):
+        if not raw:
+            return self._datasets[nslc]
+        else:
+            return self._raw_datasets[nslc]
+
     def add_waveforms(self, waveforms=[], force=False):
         for waveform in waveforms:
             self._check_collection(waveform, errormode='in', force=force)
@@ -2258,15 +2271,16 @@ class DataWaveformCollection(object):
 
         if replace:
             self._datasets = OrderedDict()
+            self._raw_datasets = OrderedDict()
 
-        entries = self._datasets.keys()
+        entries = self._raw_datasets.keys()
         for d in datasets:
             if location is not None:
                 d.set_location(str(location))
 
             nslc_id = d.nslc_id
             if nslc_id not in entries or force:
-                self._datasets[nslc_id] = d
+                self._raw_datasets[nslc_id] = d
             else:
                 logger.warn(
                     'Dataset %s already in collection!' % str(nslc_id))
@@ -2380,7 +2394,7 @@ def init_datahandler(seismic_config, seismic_data_path='./'):
     datahandler = DataWaveformCollection(stations, wavenames)
     datahandler.add_datasets(
         data_traces, location=sc.gf_config.reference_model_idx)
-    datahandler.downsample_datasets(target_deltat)
+    datahandler.adjust_sampling_datasets(target_deltat, snap=False)
     datahandler.add_targets(targets)
     return datahandler
 
