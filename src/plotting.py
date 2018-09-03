@@ -1127,9 +1127,9 @@ def seismic_fits(problem, stage, plot_options):
                 tap_color_edge = (0.85, 0.85, 0.80)
                 tap_color_fill = (0.95, 0.95, 0.90)
 
-                # plot_taper(
-                #    axes2, result.processed_obs.get_xdata(), result.taper,
-                #    fc=tap_color_fill, ec=tap_color_edge)
+                plot_taper(
+                    axes2, result.processed_obs.get_xdata(), result.taper,
+                    fc=tap_color_fill, ec=tap_color_edge)
 
                 obs_color = scolor('aluminium5')
                 obs_color_light = light(obs_color, 0.5)

@@ -262,10 +262,8 @@ class SeismicComposite(Composite):
                     (obs_filt_traces[i][j].get_ydata() -
                         syn_filt_traces[i][j].get_ydata()))
 
-                # TODO fix here for right arrival time
                 taper = at.get_pyrocko_taper(
-                    float(obs_tr.tmin + num.abs(at.a)))
-                # -------------------------------------
+                    float(obs_tr.tmin - at.a))
 
                 wmap_results.append(heart.SeismicResult(
                     processed_obs=obs_tr,
