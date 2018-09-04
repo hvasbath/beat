@@ -18,7 +18,7 @@ from beat.backend import TextChain
 from beat.sampler import SamplingHistory
 from beat.sources import MTSourceWithMagnitude
 from beat.utility import list2string
-from numpy import savez
+from numpy import savez, atleast_2d
 
 from pyrocko import model, util
 from pyrocko.trace import snuffle
@@ -1308,7 +1308,7 @@ def command_check(args):
                                 'Loading Greens Functions'
                                 ' Library %s for %s target' % (
                                     filename,
-                                    utility.list2string(options.targets)))
+                                    list2string(options.targets)))
                             gfs = ffi.load_gf_library(
                                 directory=outdir, filename=filename)
 
@@ -1392,7 +1392,7 @@ def command_export(args):
 
     mpoint = dict()
     for var in problem.varnames:
-        mpoint[var] = stage.mtrace.get_values(var).mean()
+        mpoint[var] = atleast_2d(stage.mtrace.get_values(var).mean())
 
     for datatype, composite in problem.composites.items():
         logger.info(
@@ -1436,13 +1436,16 @@ def command_export(args):
                     logger.info('Saving velocity model covariance matrixes...')
                     composite.update_weights(mpoint)
                     for wmap in composite.wavemaps:
-                        pcovs = {dataset.nslc_id: dataset.covariance.pred_v
-                                 for dataset in wmap.datasets}
+                        pcovs = {
+                            list2string(dataset.nslc_id):
+                            dataset.covariance.pred_v
+                            for dataset in wmap.datasets}
 
                         outname = pjoin(
                             results_path, '%s_C_vm_%s' % (
-                                datatype, wmap.wavename))
-                        num.savez(outname, **pcovs)
+                                datatype, wmap.name))
+                        logger.info('"%s" to: %s' % (wmap.name, outname))
+                        savez(outname, **pcovs)
 
         elif datatype == 'geodetic':
             for ifgs, attribute in heart.results_for_export(

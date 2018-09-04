@@ -17,7 +17,7 @@ from theano import shared
 import numpy as num
 from scipy import linalg
 
-from pyrocko.guts import Object, String, Float, Int, Tuple, List
+from pyrocko.guts import Dict, Object, String, StringChoice, Float, Int, Tuple, List
 from pyrocko.guts_array import Array
 
 from pyrocko import crust2x2, gf, cake, orthodrome, trace, util
