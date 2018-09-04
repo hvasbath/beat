@@ -18,6 +18,7 @@ from beat.backend import TextChain
 from beat.sampler import SamplingHistory
 from beat.sources import MTSourceWithMagnitude
 from beat.utility import list2string
+from numpy import savez
 
 from pyrocko import model, util
 from pyrocko.trace import snuffle
@@ -1433,10 +1434,10 @@ def command_export(args):
             if hasattr(sc.parameters, 'update_covariances'):
                 if sc.parameters.update_covariances:
                     logger.info('Saving velocity model covariance matrixes...')
-                    comopsite.update_weights(mpoint)
+                    composite.update_weights(mpoint)
                     for wmap in composite.wavemaps:
                         pcovs = {dataset.nslc_id: dataset.covariance.pred_v
-                            for dataset in wmap.datasets}
+                                 for dataset in wmap.datasets}
 
                         outname = pjoin(
                             results_path, '%s_C_vm_%s' % (
@@ -1445,13 +1446,14 @@ def command_export(args):
 
         elif datatype == 'geodetic':
             for ifgs, attribute in heart.results_for_export(
-                results, datatype=datatype):
+                    results, datatype=datatype):
                     pass
-                    
+
             raise NotImplementedError(
                 'Geodetic export not yet implemented!')
         else:
             raise NotImplementedError('Datatype %s not supported!' % datatype)
+
 
 if __name__ == '__main__':
 
