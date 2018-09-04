@@ -438,7 +438,7 @@ def downsample_trace(data_trace, deltat=None, snap=False):
 
     tr = data_trace.copy()
     if deltat is not None:
-        if tr.deltat - deltat > 1.e-6:
+        if num.abs(tr.deltat - deltat) > 1.e-6:
             try:
                 tr.downsample_to(
                     deltat, snap=snap, allow_upsample_max=5, demean=False)

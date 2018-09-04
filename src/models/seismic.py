@@ -418,7 +418,7 @@ class SeismicGeometryComposite(SeismicComposite):
             logger.info(
                 'Preparing data of "%s" for optimization' % wmap._mapid)
             wmap.prepare_data(
-                source=self.sources[0], engine=self.engine, outmode='array')
+                source=self.event, engine=self.engine, outmode='array')
 
             logger.info(
                 'Initializing synthesizer for "%s"' % wmap._mapid)
@@ -479,7 +479,7 @@ class SeismicGeometryComposite(SeismicComposite):
         for wmap in self.wavemaps:
             wc = wmap.config
             wmap.prepare_data(
-                source=self.sources[0],
+                source=self.event,
                 engine=self.engine,
                 outmode=outmode,
                 chop_bounds=chop_bounds)

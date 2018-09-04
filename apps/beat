@@ -1274,7 +1274,7 @@ def command_check(args):
         sc = problem.composites['seismic']
         for wmap in sc.wavemaps:
             wmap.prepare_data(
-                source=sc.sources[0],
+                source=sc.event,
                 engine=sc.engine,
                 outmode='stacked_traces')
             snuffle(

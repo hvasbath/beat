@@ -2394,7 +2394,7 @@ def init_datahandler(seismic_config, seismic_data_path='./'):
     datahandler = DataWaveformCollection(stations, wavenames)
     datahandler.add_datasets(
         data_traces, location=sc.gf_config.reference_model_idx)
-    datahandler.adjust_sampling_datasets(target_deltat, snap=False)
+    datahandler.adjust_sampling_datasets(target_deltat, snap=True)
     datahandler.add_targets(targets)
     return datahandler
 
