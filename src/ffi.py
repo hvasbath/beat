@@ -627,16 +627,13 @@ filename: %s''' % (
             cd = self._stack_switch[self._mode][
                 targetidxs, self.sw_patchidxs,
                 durationidxs, starttimeidxs, :]
-            print cd.shape
+
             cd = cd.reshape(
-                    (self.ntargets, self.npatches, self.nsamples))
-            print cd.shape
+                (self.ntargets, self.npatches, self.nsamples))
+
             cslips = slips
 
         elif interpolation == 'multilinear':
-
-            print starttimeidxs.shape, st_factors.shape
-            print starttimeidxs, st_factors
 
             nslips = 4
             d_st_ceil_rt_ceil = self._stack_switch[self._mode][
@@ -667,8 +664,6 @@ filename: %s''' % (
             cslips = backends[self._mode].concatenate(
                 [s_st_ceil_rt_ceil, s_st_floor_rt_ceil,
                  s_st_ceil_rt_floor, s_st_floor_rt_floor])
-            print cd.shape, cslips.shape
-            print cslips
         else:
             raise NotImplementedError(
                 'Interpolation scheme %s not implemented!' % interpolation)
