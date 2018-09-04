@@ -1051,7 +1051,6 @@ def repair_covariance(x, epsilon=num.finfo(num.float64).eps):
     return num.array(vec * num.diag(val) * vec.T)
 
 
-<<<<<<< HEAD
 def running_window_rms(data, window_size, mode='valid'):
     """
     Calculate the standard deviations of a running window over data.
