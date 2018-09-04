@@ -228,6 +228,7 @@ class ChainCounter(object):
 
         n_chains_worker = n // n_jobs
         frac_disp = int(np.ceil(n_chains_worker * perc_disp))
+
         self.chain_count = 0
         self.n_chains = n_chains_worker
         self.subject = subject

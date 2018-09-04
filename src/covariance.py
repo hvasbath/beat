@@ -50,7 +50,6 @@ def exponential_data_covariance(n, dt, tzero):
         -num.abs(num.arange(n)[:, num.newaxis] -
                  num.arange(n)[num.newaxis, :]) * dt / tzero)
 
-
 def identity_data_covariance(n, dt=None, tzero=None):
     """
     Get identity covariance matrix.

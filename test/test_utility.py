@@ -57,6 +57,7 @@ class TestUtility(unittest.TestCase):
 
         for var in ordering:
             print(var)
+<<<<<<< HEAD
 
         lpoint = [a, b, c]
         lij = utility.ListToArrayBijection(lordering, lpoint)
