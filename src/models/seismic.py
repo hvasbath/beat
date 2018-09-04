@@ -625,6 +625,7 @@ class SeismicDistributerComposite(SeismicComposite):
                 self.sweep_implementation)
 
             for wmap in self.wavemaps:
+
                 logger.info(
                     'Preparing data of "%s" for optimization' % wmap.name)
                 wmap.prepare_data(
@@ -740,6 +741,7 @@ class SeismicDistributerComposite(SeismicComposite):
                         wmap.station_correction_idxs],
                         self.fault.npatches)).reshape(
                             wmap.n_t, self.fault.npatches)
+
                 targetidxs = shared(
                     num.atleast_2d(num.arange(wmap.n_t)).T, borrow=True)
             else:
