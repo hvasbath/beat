@@ -295,7 +295,7 @@ class Stage(object):
                 stage_number, varnames=varnames, chains=chains)
 
         if 'params' in to_load:
-            if model is None:
+            if model is not None:
                 with model:
                     self.step, self.updates = self.handler.load_sampler_params(
                         stage_number)
