@@ -630,8 +630,7 @@ def geodetic_fits(problem, stage, plot_options):
     dataset_to_result = {}
     for dataset, result in zip(composite.datasets, results):
         dataset_to_result[dataset] = result
-
-    nfigs = int(num.ceil(float(nrmax) // float(ndmax)))
+    nfigs = int(num.ceil(float(ndmax) // float(nrmax)))
 
     figures = []
     axes = []
@@ -1707,7 +1706,7 @@ def draw_correlation_hist(problem, plot_options):
         varnames = problem.hypernames
     else:
         sc = problem.config.sampler_config
-        varnames = problem.varnames + problem.hypernames + ['like']
+        varnames = list(problem.varnames) + problem.hypernames + ['like']
 
     if len(po.varnames) > 0:
         varnames = po.varnames
