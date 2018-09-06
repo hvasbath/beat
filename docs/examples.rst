@@ -1,15 +1,172 @@
 
 
 *********
-Scenarios 
+Scenarios
 *********
-  
+
 The example scenarios are located in the directory::
 
      beat/data/examples
 
 In the following tutorials we will use synthetic example data to get familiar with the basic functionality of BEAT.
 
+Rectangular source exploration from real static displacement data (InSAR)
+---------------------------
+Clone project
+^^^^^^^^^^^^^
+The project consist of two static displacements data sets from the 06.04.2009 Mw6.3 L'Aquila earthquake. The data are ascending
+and descending InSAR tracks and we will explore the parameter space of a rectangular source for this earthquake and plot resulting figures.
+The data has been pre-process with `kite <https://github.com/pyrocko/kite>`__.
+To copy the scenario (including the data) to a directory outside of the package source directory, please edit the 'model path' (referred to as $beat_models now on) and execute::
+
+    cd /path/to/beat/data/examples/
+    beat clone Static /'model path'/Static --copy_data
+
+This will create a BEAT project directory named 'Static' with a configuration file (config_geometry.yaml) and real example data Envisat InSAR data (geodetic_data.pkl).
+This directory 'Static' is going to be referred to as '$project_directory' in the following.
+
+
+
+Calculate Greens Functions
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+We need to calculate a Greens function store (GF), similar to the Regional Full Moment Tensor example. However in this case we will only to
+calculate a store that holds static displacements. For this we will make use of the PSGRN/PSCMP backend.
+
+Please open $project_directory/config_geometry.yaml with any text editor (e.g. vi) and check the line 144: store_superdir.
+This path needs to be replaced with the path to where the GFs are supposed to be stored on your computer.
+This directory is referred to as the $GF_path in the rest of the text. It is strongly recommended to use a separate directory
+apart from the beat source directory. The statics Green's function stores are smaller, but can be used by several projects in the
+future.
+
+    cd $beat_models
+    beat build_gfs Static
+
+This will create an empty Greens Function store named statics_ak135_0.000Hz_0 in the $GF_path.
+
+
+In the $project_path/config_geometry.yaml under geodetic_config we find the gf_config, which holds the major parameters for GF calculation::
+
+  gf_config: !beat.GeodeticGFConfig
+    store_superdir: $project_directory/
+    reference_model_idx: 0
+    n_variations: [0, 1]
+    earth_model_name: ak135-f-average.m
+    nworkers: 6
+    use_crust2: true
+    replace_water: true
+    source_depth_min: 0.0
+    source_depth_max: 35.0
+    source_depth_spacing: 1.0
+    source_distance_radius: 100.0
+    source_distance_spacing: 1.
+    error_depth: 0.1
+    error_velocities: 0.1
+    depth_limit_variation: 600.0
+    code: psgrn
+    sample_rate: 1.1574074074074073e-05
+    sampling_interval: 1.0
+    medium_depth_spacing: 1.0
+    medium_distance_spacing: 1.0
+
+Note that you need to change the variable 'store_superdir' to an **absolute path** to your $project_directory/.
+You can also change the number of cores available to your system with the variable 'nworkers' to speed up the calculation of the GF.
+The GF grid spacing is important and can be modified in x,y direction with 'source_distance_spacing' and in depth with 'source_depth_spacing'.
+The grid extent can be modified by 'source_distance_radius'. All values units are given in km.
+The parameters set for the 2009 L'Aquila static example are good for now. We now build the GF directory, where the GF config will
+be further configurable.
+
+For your own projects and needs you can also modify directly the GF velocity model and settings in the file $GF_path/statics_ak135_0.000Hz_0/config before exeuting the building in the next
+step. For the 2009 L'Aquila static scenario, or after you are satisfied with you modification of the GF setup, we can next build the GF with:
+
+    beat build_gfs $project_directory --force --execute
+
+This will take some time, depending on how much cores you set at 'nworkers'. However, this only has to be done once and
+the GF can be reused for different scenarios if you do not have to modify the velocity model.
+
+Optimization setup
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Before further setup we should check that the 'project_dir' variable in the main upper body of the $project_directory/config_geometry file is set correctly to your $project_directory/.
+Also take note of the 'event' variables, which are the GCMT source parameters for the 2009 L'Aquila earthquake in the `pyrocko <https://github.com/pyrocko/pyrocko>`__. event format.
+
+We will explore the solution space of a rectangular source in an layered model. The parameters to explore are the sources east_shift, north_shift, depth, strike, rake, dip, length, width and slip.
+The sources east and north shifts refer to a relative position to the reference solution (here GCMT).
+The units for depth, length, width, east_shift and north_shift are in km and for the slip in m. Strike, dip and rake are given in degree.
+Another option is to take a linear trend ('ramp' in InSAR terminology) into consideration that is removed into account. This can be turned on and off with the variable 'fit_plane' in the geodetic_config section.
+When you have set 'fit_plane' to true you have type the following command into your console to update the config_geometry.yaml with the ramp parameters::
+
+  beat update . --parameters="hierarchicals"
+
+We can change the source parameter bounds under the point 'priors'. Here is an example::
+
+    priors:
+      rake: !beat.heart.Parameter
+        name: rake
+        form: Uniform
+        lower: [-180.0]
+        upper: [0.0]
+        testvalue: [-110.0]
+
+We want to explore the source parameter rake between -180° and 0°, and start with a value of -110°, which is a reasonable assumption.
+If you would like to explore more than one source you can expand the lower and upper bounds for each parameter as following (for two sources)::
+
+  priors:
+    rake: !beat.heart.Parameter
+      name: rake
+      form: Uniform
+      lower: [-180.0, -160.0]
+      upper: [0.0, 20.0]
+      testvalue: [-110.0, -80.0]
+
+You will also have to edit the variable 'n_sources'.
+However for the L'Aquila example we are now satisfied with one source and the pre-set priors, found in the examples config_geometry.yaml file, which are chosen with broad bounds around the reference solution, demonstrating a case where some prior knowledge is available.
+This allows for a less expansive search of the solution space.
+
+The 'decimation_factor' variable controls how detailed the displacement from the source should be calculated. The sub variable 'geodetic' controls the decimation for the geodetic data only, with higher numbers for faster calculated but more coarse models.
+As the datasets for the L'Aquila earthquake example consist of smaller datasets, we can set the decimation_factor to 7.
+
+
+Sample the solution space
+^^^^^^^^^^^^^^^^^^^^^^^^^
+Please refer to the 'Sample the solution space section' of the FullMT scenario for a more detailed description of the sampling,
+here only the necessary steps will be given to start the sampling.
+
+Firstly, we fix the source parameters to some random value and only optimize for the noise scaling or hyperparameters (HPs).
+
+    beat sample $project_directory --hypers
+Checking the $project_directory/config_geometry.yaml, the HPs parameter bounds show something like::
+
+    hyperparameters:
+    h_SAR: !beat.heart.Parameter
+      name: h_SAR
+      form: Uniform
+      lower: [-1.0]
+      upper: [5.0]
+      testvalue: [2.0]
+
+
+After the determination of the hyperparameter we can now start the sampling::
+
+    beat sample $project_directory
+
+Note: The 'n_jobs' number should be set to as many CPUs as possible in the configuration file. Also the number of chains and steps of the SMC sampler has been reduced for this example to
+allow for a faster result, at the cost of a more thorough exploration of the parameter space. You can modify the SMC samplers config in the $project_directory/config_geometry.yaml file 'n_steps' and 'n_chains' to larger numbers to sample longer.
+The sampling can take several hours.
+
+Summarize and plotting
+^^^^^^^^
+After the sampling successfully finished, we summarize with::
+
+  beat summarize $project_directory
+
+We can now plot several figures, one is the comparison between data, model and residual for the two InSAR tracks.
+This can be plotted with::
+  beat plot $project_directory scene_fits
+
+Another one is the posterior distributions of the source parameters, which can be plotted with::
+    beat plot $project_directory stage_posteriors
+
+The plots are stored in your $project_directory folder under geometry/plots.
+The solution should be comparable to results from studies like Walters et al, 2009.
 
 Regional Full Moment Tensor
 ---------------------------
@@ -29,7 +186,7 @@ Calculate Greens Functions
 The station-event geometry determines the grid of Greens Functions (GFs) that will need to be calculated next.
 
 Please open $project_directory/config_geometry.yaml with any text editor (e.g. vi) and check the line 144: store_superdir. Here is written for now /home/vasyurhm/BEATS/GF, which is an example path to the directory of Greens Functions.
-This path needs to be replaced with the path to where the GFs are supposed to be stored on your computer. This directory is refered to as the $GF_path in the rest of the text. It is strongly recommended to use a seperate directory apart from the beat source directory and the $project_directory as the GF databases can become very large, depending on the problem! For real examples, the GF databases may require up to several Gigabyte of free disc space. For our example the database that we are going to create is only around 30 Megabyte.:: 
+This path needs to be replaced with the path to where the GFs are supposed to be stored on your computer. This directory is refered to as the $GF_path in the rest of the text. It is strongly recommended to use a seperate directory apart from the beat source directory and the $project_directory as the GF databases can become very large, depending on the problem! For real examples, the GF databases may require up to several Gigabyte of free disc space. For our example the database that we are going to create is only around 30 Megabyte.::
 
     cd $beat_models
     beat build_gfs FullMT --datatypes='seismic'
@@ -78,7 +235,7 @@ As we have stations up to a distance of 970km distance to the event, the distanc
 These grid sampling parameters as well as the sample rate are of major importance for the overall optimization. How to adjust these parameters
 according to other case studies is described `here <https://pyrocko.org/docs/current/apps/fomosto/tutorial.html#considerations-for-real-world-applications>`__.
 
-The 'nworkers' variable defines the number of CPUs to use in parallel for the GF calculations. As these calculations may become very expensive and time-consuming it is of advantage to use as many CPUs as available. To be still able to navigate in your Operating System without crashing the system it is good to leave one CPU work-less. Please edit the 'nworkers' parameter now! 
+The 'nworkers' variable defines the number of CPUs to use in parallel for the GF calculations. As these calculations may become very expensive and time-consuming it is of advantage to use as many CPUs as available. To be still able to navigate in your Operating System without crashing the system it is good to leave one CPU work-less. Please edit the 'nworkers' parameter now!
 
 For our use-case the grid specifications are fine for now.
 
@@ -194,7 +351,7 @@ This looks reasonably well!
 Data windowing and optimization setup
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Once we are confident that the GFs are reasonable we may continue to define the optimization specific setup variables.
-First of all we check again the WaveformFitConfig for the waves we want to optimize. 
+First of all we check again the WaveformFitConfig for the waves we want to optimize.
 In this case we want to optimize the whole waveform from P until the end of the surface waves.
 As the wavetrains are very close in the very near field we do not want to have overlapping time windows, which is why we deactivate one of the WaveformFitConfigs, by setting
 include=False on the `slowest` WaveformfitConfig. So please open again $project_directory/config_geometry.yaml (if you did close the file again) and edit the respective parameter!
@@ -207,7 +364,7 @@ Similarly, different filters and arrival time windows maybe defined as well. The
 The optimization is done in the R, T, Z rotated coordinate system to better tune, which part of the waves are optimized. That is particularly important if the S-wave
 is going to be used, as one would typically use only SH waves which are the S-waves in the T-component.
 For P-waves one would like to use the Z(vertical) component and for surface waves both components.
-So please make sure that in $project_directory/config_geometry.yaml under the WaveformFitConfig (name 'any_P') the channels list contains [Z, T] (including the brackets!)!  
+So please make sure that in $project_directory/config_geometry.yaml under the WaveformFitConfig (name 'any_P') the channels list contains [Z, T] (including the brackets!)!
 
 Finally, we fix the depth prior to 8km (upper and lower) as we only calculated GFs for that depth. $project_directory/config_geometry.yaml under the point 'priors'::
 
@@ -232,7 +389,7 @@ A detailed tutorial about handeling the browser is given `here <https://pyrocko.
   .. image:: _static/FullMT_data.png
 
 To better sort the displayed traces and to inspect the processed data we may use snufflers display options.
-Please right click in the window and see a menu that pops up. There, please select: "Sort by Distance" to sort the traces by distance to get a better picture of the setup. To see, which traces actually belong to the same station and component, please open the menu again and select "Subsort by Network, Station, Channel (Grouped by Location)" and "Common Scale per Component". To distinguish better between the overlapping traces please select as well "Color Traces" and deselect "Show Boxes". 
+Please right click in the window and see a menu that pops up. There, please select: "Sort by Distance" to sort the traces by distance to get a better picture of the setup. To see, which traces actually belong to the same station and component, please open the menu again and select "Subsort by Network, Station, Channel (Grouped by Location)" and "Common Scale per Component". To distinguish better between the overlapping traces please select as well "Color Traces" and deselect "Show Boxes".
 Your display should look something like this.
 
   .. image:: _static/FullMT_windowed.png
@@ -297,16 +454,16 @@ The sampling is successfully finished if the screen shows something like this::
 
     ...
     backend      - INFO     Loading multitrace from /home/vasyurhm/BEATS/FullMT/geometry/stage_25
-    smc          - INFO     Beta > 1.: 1.293753                      
-    smc          - INFO     Sample final stage                       
-    smc          - INFO     Initialising 400 chain traces ...        
+    smc          - INFO     Beta > 1.: 1.293753
+    smc          - INFO     Sample final stage
+    smc          - INFO     Initialising 400 chain traces ...
     smc          - INFO     Sampling ...
     paripool     - INFO     Worker timeout after 12 second(s)
     paripool     - INFO     Overseer timeout after 400 second(s)
     paripool     - INFO     Chunksize: 4
     paripool     - INFO     Feierabend! Done with the work!
     backend      - INFO     Loading multitrace from /home/vasyurhm/BEATS/FullMT2/geometry/stage_-1
-    smc          - INFO     Finished sampling!    
+    smc          - INFO     Finished sampling!
 
 
 Restarting sampling
@@ -314,7 +471,7 @@ Restarting sampling
 For one or the other reason it may happen that sampling crashes and you will want to restart at the point where it crashed.
 Otherwise all the sampling that has been done before would be lost. First you have to find out in which 'stage' of the sampling the
 algorithm crashed. You can do this in two ways. Either by checking the output to the screen of the terminal where you did run the job.
-If that is not available anymore check the last lines of the $project_directory/BEAT_log.txt. Open it in any texteditor and go to the end of the file.  
+If that is not available anymore check the last lines of the $project_directory/BEAT_log.txt. Open it in any texteditor and go to the end of the file.
 There might be written for example::
 
     2018-01-09 20:05:26,749 - backend - INFO - Loading multitrace from /home/vasyurhm/BEATS/FullMT/geometry/stage_19
@@ -324,7 +481,7 @@ There might be written for example::
 
 This means that the algorithm crashed in 'stage' 20. To restart from this stage please open $project_directory/config_geometry.yaml and got to
 the 'sampler_config'. There under 'parameters' must be a parameter 'stage'. At this point if the algorithm has been started from the beginning there should be
-'0'. So here we put now 20 as we want to restart in stage 20. As we want to keep all the previous sampling results of that stage, we have to make sure that again under 
+'0'. So here we put now 20 as we want to restart in stage 20. As we want to keep all the previous sampling results of that stage, we have to make sure that again under
 'parameters' the flag 'rm_flag' shows 'false'! If 'true', all the previous sampling results will be deleted in the course of new sampling.
 Now that we redefined the starting point of the sampling algorithm we are good to start the sampling again.::
 
@@ -335,13 +492,13 @@ Summarize the results
 ^^^^^^^^^^^^^^^^^^^^^
 The sampled chain results of the SMC sampler are stored in seperate files and have to be summarized.
 
-.. note:: 
+.. note::
     Only for MomentTensor MTSource: The moment tensor components have to be normalized again with respect to the magnitude.
 
 .. note::
     Only for SMC:
     All the chain_*.csv files under the $project_directory/geometry/stage_* directories can be problematic for
-    the operation system, e.g. on Clusters. Once a stage finished sampling these can be also deleted by setting the 'rm_flag' 
+    the operation system, e.g. on Clusters. Once a stage finished sampling these can be also deleted by setting the 'rm_flag'
     under the 'SamplerConfig.parameters'. The program will ask again once for safety reasons if the files are really supposed to be deleted. Once they are gone, they are gone! Restarting the sampling from that stage (see above) wont be possible anymore.
 
 To summarize all the stages of the SMC sampler please run the summarize command.::
@@ -376,7 +533,7 @@ To see the waveform fit of the posterior maximum likelihood solution. In the $be
     beat plot FullMT waveform_fits
 
 If it worked it will produce a pdf with several pages output for all the components for each station that have been used in the optimization.
-The black waveforms are the unfiltered data. Red are the best fitting synthetic traces. Light grey and light red are the filtered, untapered data and synthetic traces respectively. The red data trace below are the residual traces between data and synthetics. 
+The black waveforms are the unfiltered data. Red are the best fitting synthetic traces. Light grey and light red are the filtered, untapered data and synthetic traces respectively. The red data trace below are the residual traces between data and synthetics.
 The Z-components from our stations should look something like this.
 
   .. image:: _static/FullMT_waveforms_max.png
@@ -426,9 +583,9 @@ If we have poor knowledge of the noise in the data, the model parameter estimate
     pre_arrival_time: 3.0
 
 The "structure" argument refers to the structure of the covariance matrix that is estimated on the data, prior to the synthetic P-wave arrival. The argument "pre_arrival_time" refers to the time before the P-wave arrival. 3.0 means that the noise is estimated on each data trace up to 3. seconds before the synthetic P-wave arrival.
-Obviously, in the previos run the white-noise assumption was not working well. So we may set the structure to "exponential" to also estimate noise covariances depending on the shortest wavelength in the data, following [Duputel2012]_.  
+Obviously, in the previos run the white-noise assumption was not working well. So we may set the structure to "exponential" to also estimate noise covariances depending on the shortest wavelength in the data, following [Duputel2012]_.
 
-Other options are: 
+Other options are:
  - "import" to use the covariance matrixes that have been imported with the data
  - "non-toeplitz" to estimate non-stationary, correlated noise on the residuals following [Dettmer2007]_
    in this case the values from the priors and hypers "testvalues" are used as reference to calculate the residuals

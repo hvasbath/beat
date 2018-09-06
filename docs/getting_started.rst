@@ -66,20 +66,20 @@ For example to optimize for a Full Moment Tensor for the Landers EQ by using sei
 
 This will create project directory called LandersEQ in the current directory.
 Within the directoy you will see that there have been two files created:
- - BEAT_log.txt 
- - geometry_config.yaml 
+ - BEAT_log.txt
+ - geometry_config.yaml
 
 The first file is a logging file where all the executed comments and outputs are written to. In case something goes wrong this log file helps to find the error.
 For now it contains::
 
-    2018-01-04 16:15:06,696 - utility - INFO - Getting relevant events from the gCMT catalog for the dates:1992-06-27 00:00:00.000 - 1992-06-29 00:00:00.000 
+    2018-01-04 16:15:06,696 - utility - INFO - Getting relevant events from the gCMT catalog for the dates:1992-06-27 00:00:00.000 - 1992-06-29 00:00:00.000
 
     2018-01-04 16:15:07,097 - config - INFO - Added hyperparameter h_any_P_Z to config and model setup!
     2018-01-04 16:15:07,097 - config - INFO - Added hyperparameter h_any_S_Z to config and model setup!
     2018-01-04 16:15:07,097 - config - INFO - All hyper-parameters ok!
     2018-01-04 16:15:07,097 - config - INFO - Number of hyperparameters! 2
     2018-01-04 16:15:07,098 - config - INFO - All parameter-priors ok!
-    2018-01-04 16:15:07,102 - config - INFO - Project_directory: /home/vasyurhm/BEATS/LandersEQ 
+    2018-01-04 16:15:07,102 - config - INFO - Project_directory: /home/vasyurhm/BEATS/LandersEQ
 
 The second file is a yaml-configuration file and it is where ALL the changes in parameters and settings have to be done to avoid tinkering with the program itself!
 This file can be read as is by the computer, therefore, it is important to keep the syntax clean!
@@ -295,13 +295,30 @@ This example configuration file looks like this::
 
 Each BEAT config consists of some general information, from information collected from the gCMT catalog, of a ProblemConfig, the configurations for each dataset (here only seismic_config) and configurations for the sampling algorithms to use for the optimizations of the general problem (sampler_config) as well as a of an initial guess for the hyperparameters (hyper_sampler_config).
 
-Most of the edits likely will be made in the ProblemConfig, particularly in the priors of the source parameters. For now only uniform priors are available. To change the bounds of the priors simply type other values into the 'upper' and 'lower' fields of each source parameter. Note: The test parameter needs to be within these bounds! 
+Most of the edits likely will be made in the ProblemConfig, particularly in the priors of the source parameters. For now only uniform priors are available. To change the bounds of the priors simply type other values into the 'upper' and 'lower' fields of each source parameter. Note: The test parameter needs to be within these bounds!
 To fix one or the other parameter in the optimizations the upper and lower bounds as well as the test value need to be set equal.
 
 
 Import Data
 -----------
-This is the step to import the user data into the program format and setup. 
+This is the step to import the user data into the program format and setup.
+
+
+Static displacements
+____________
+
+To use static displacement InSAR measurements you need to prepare your data first with `kite <https://github.com/pyrocko/kite>`__.
+Kite handels displacement data from a variety of formats, such as e.g. GMTSAR, ISCE, ROIPAC and GAMMA. After importing the data into kite you
+have to subsample the data and calculate the covariance  as described in the `kite documentation <https://pyrocko.org/kite/docs/current/>`__.
+After you pre-processed the data to your satisfaction and have saved the data in kite as npz containers the import of the data into beat is simple.
+
+In your $project_dir you find the config_geometry.yaml, where you have modify the geodetic_config variable 'datadir' to point to the location where your data are stored.
+Then you add the name of the desired files (without the .npz and .yml suffixes) to the 'names' variable. Afterwards you simply have to type the following command::
+
+    beat import $project_dir
+
+The data are now accessible to beat as the file geodetic_data.pkl. If you want to use or modify your data you have to repeat the import command with the --force option to overwrite your previously stored data.
+
 
 seismic data
 ____________
@@ -394,8 +411,8 @@ Once a list of traces and station objects exists it may be exported to the proje
 
 How to update the configuration files
 -------------------------------------
-In the course of development in BEAT it happened and may happen in the future that 
-the structure in the configuration file changes. Thus after a code base upgrade it may happen that 
+In the course of development in BEAT it happened and may happen in the future that
+the structure in the configuration file changes. Thus after a code base upgrade it may happen that
 older configuration files cannot be read anymore. The program will raise an Error with the message
 that the configuration file has to be updated and how this can be done. However, it may be of interest to know
 before the actual update what is going to change. These changes can be displayed with::
@@ -424,7 +441,7 @@ we skip the catalog search by not specifiying the date.::
 
 .. note::
     To use the default ak135 earth-model in combination with crust2 one needs to execute above command without the '--use_custom' flag.
- 
+
 This will create a beat project folder named 'Cascadia' and a configuration file 'config_geometry.yaml'.
 In this configuration file we may now edit the reference location and the velocity model to the specific model we
 received from a colleague or found in the literature.::
@@ -450,7 +467,7 @@ In lines 160-165 we find the reference location::
 
 The distance between these two locations determines the center point of the grid of Greens Functions that we want to calculate.
 For our example we set the reference location close to Vancouver, Canada as we want to study the Cascadia subduction zone.
-We ignore the 'elevation' and 'depth' attributes but we set the 'station' attribute, which determines the prefix of the name of the 
+We ignore the 'elevation' and 'depth' attributes but we set the 'station' attribute, which determines the prefix of the name of the
 Greens Function store. ::
 
     reference_location: !beat.heart.ReferenceLocation
@@ -483,7 +500,7 @@ We are going to have stations in a distance of 500km and the events we are going
     source_distance_radius: 500.0
     source_distance_spacing: 1.0
 
-To decide on the resolution of the grid and the sample_rate (line 167) depends on the use-case and aim of the study. 
+To decide on the resolution of the grid and the sample_rate (line 167) depends on the use-case and aim of the study.
 A description of the corner points to have in mind is `here <https://pyrocko.org/docs/current/apps/fomosto/tutorial.html#considerations-for-real-world-applications>`__
 For example for a regional Full Moment Tensor inversion we want to optimize data up to 0.2 Hz. So a source grid of 1. km step size and 1. Hz 'sample_rate' seems a safe way to go.
 As we are in a regional setup we use QSEIS for the calculation of the Greens Functions, which we have to specify in line 166.::
@@ -526,10 +543,10 @@ Below the specified depth it is going to be combined with the earth-model specif
     For the shallow crust one may decide to use the implemented crust2 model and to remove (potential) water layers. Lines 141-143::
 
         earth_model_name: ak135-f-average.m
-        use_crust2: false 
+        use_crust2: false
         replace_water: false
 
-Then, we have to specify under line 135 'store_superdir' the path to the directory where to save the GreensFunction store on disk. 
+Then, we have to specify under line 135 'store_superdir' the path to the directory where to save the GreensFunction store on disk.
 One should have in mind that for large grids with high sample-rate the stores might become several GigaBytes in size and may calculate a very long time!
 
 Lastly, we start the store calculation with::
@@ -552,15 +569,15 @@ The finite fault optimization in beat is considered to be a follow-up step of th
     beat init FFIproject <date> --datatypes='seismic' --source_type='RectangularSource' --n_sources=1
 
 If an optimization for the geometry of another source has been done or setup (e.g. MTSource), one can clone this project folder and replace the source object. This saves
-time for specification of the inputs. How to setup the configurations for a "geometry" optimization is discussed 
-`here <https://hvasbath.github.io/beat/examples.html#regional-full-moment-tensor>`__ exemplary on a MomentTensor for regional seismic data. 
+time for specification of the inputs. How to setup the configurations for a "geometry" optimization is discussed
+`here <https://hvasbath.github.io/beat/examples.html#regional-full-moment-tensor>`__ exemplary on a MomentTensor for regional seismic data.
 The "source_type" argument will replace any existing source with the specified source for the new project. With the next project we replace the old source with a RectangularSource.::
 
     beat clone MTproject FFIproject --datatypes='seismic' --source_type='RectangularSource' --copy_data
 
 Now the Green's Functions store(s) have to be calculated for the "geometry" problem if not done so yet. Instructions on this and what to keep in mind are given `here <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__. For illustration, the user might have done a MomentTensor optimization already on teleseismic data using Green's Functions depth and distance sampling of 1km with 1Hz sampling. This may be accurate enough for this type of optimization, however for a finite fault optimization the aim is to resolve details of the rupture propagation and the slip distribution. So the setup parameters of the "geometry" Green's Functions would need to be changed to higher resolution. A depth and distance sampling of 250m and 4Hz sample rate might be precise enough, if waveforms up to 1Hz are to be used in the optimization. Of course, these parameters depend on the problem setup and have to be adjusted individually for each problem!
 
-If the Green's Functions for the "geometry" have been calculated previously with sufficient accuracy one can continue initialysing the configuration file for the finite fault optimization.::   
+If the Green's Functions for the "geometry" have been calculated previously with sufficient accuracy one can continue initialysing the configuration file for the finite fault optimization.::
 
     beat init FFIproject --mode='ffi' --datatypes='seismic'
 
@@ -667,7 +684,7 @@ The output might look like this::
     ffi          - INFO     Discretizing seismic source(s)
     ffi          - INFO     uparr slip component
     sources      - INFO     Fault extended to length=12500.000000, width=5000.000000!
-    ffi          - INFO     Extended fault(s): 
+    ffi          - INFO     Extended fault(s):
      --- !beat.sources.RectangularSource
     lat: 50.410785
     lon: -150.305465
@@ -689,7 +706,7 @@ The output might look like this::
 
     ffi          - INFO     uperp slip component
     sources      - INFO     Fault extended to length=12500.000000, width=5000.000000!
-    ffi          - INFO     Extended fault(s): 
+    ffi          - INFO     Extended fault(s):
      --- !beat.sources.RectangularSource
     lat: 50.410785
     lon: -150.305465
@@ -711,7 +728,7 @@ The output might look like this::
 
     beat         - INFO     Storing discretized fault geometry to: /home/vasyurhm/BEATS/Waskahigan2Rect/ffi/linear_gfs/fault_geometry.pkl
     beat         - INFO     Updating problem_config:
-    beat         - INFO     
+    beat         - INFO
     Complex Fault Geometry
     number of subfaults: 1
     number of patches: 10
@@ -762,5 +779,3 @@ To be continued ...
 sample
 ------
 To be written ...
- 
-
