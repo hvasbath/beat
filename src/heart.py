@@ -2100,7 +2100,7 @@ class WaveformMapping(object):
         Traces are concatenated to one single array.
         """
         if self._prepared_data is not None:
-            logger.warning(
+            logger.debug(
                 'Overwriting observed data windows in "%s"!' %
                 (self.name + '_' + str(self.mapnumber)))
 
