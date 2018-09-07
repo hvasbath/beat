@@ -109,13 +109,35 @@ class Covariance(Object):
         Object.__init__(self, **kwargs)
         self.update_slog_pdet()
 
+    def covs_supported(self):
+        return ['pred_g', 'pred_v', 'data']
+
+    def check_matrix_init(self, cov_mat_str=''):
+        """
+        Check if matrix is initialised and if not set with zeros of size data.
+        """
+        if cov_mat_str not in self.covs_supported():
+            raise NotImplementedError(
+                'Covariance term %s not supported' % cov_mat_str)
+
+        cov_mat = getattr(self, cov_mat_str)
+        if cov_mat is None:
+            cov_mat = num.zeros_like(self.data, dtype=tconfig.floatX)
+
+        if cov_mat.size != self.data.size:
+            if cov_mat.sum() == 0.:
+                cov_mat = num.zeros_like(self.data, dtype=tconfig.floatX)
+                setattr(self, cov_mat_str, cov_mat)
+            else:
+                raise ValueError(
+                    '%s covariances defined but size '
+                    'inconsistent!' % cov_mat_str)
+
     @property
     def p_total(self):
-        if self.pred_g is None:
-            self.pred_g = num.zeros_like(self.data, dtype=tconfig.floatX)
 
-        if self.pred_v is None:
-            self.pred_v = num.zeros_like(self.data, dtype=tconfig.floatX)
+        self.check_matrix_init('pred_g')
+        self.check_matrix_init('pred_v')
 
         return self.pred_g + self.pred_v
 
