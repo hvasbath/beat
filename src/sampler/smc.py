@@ -267,7 +267,7 @@ class SMC(Metropolis):
 
         return chain_previous_lpoint
 
-    def mean_end_points(self):
+    def get_map_end_points(self):
         """
         Calculate mean of the end-points and return point.
 
@@ -275,8 +275,8 @@ class SMC(Metropolis):
         -------
         Dictionary of trace variables
         """
-
-        return self.bij.rmap(self.array_population.mean(axis=0))
+        idx = self.likelihoods.flatten().argmax()
+        return self.bij.rmap(self.array_population[idx, :].mean(axis=0))
 
     def resample(self):
         """
@@ -464,8 +464,8 @@ def smc_sample(
 
             if update is not None:
                 logger.info('Updating Covariances ...')
-                mean_pt = step.mean_end_points()
-                update.update_weights(mean_pt, n_jobs=n_jobs)
+                map_pt = step.get_map_end_points()
+                update.update_weights(map_pt, n_jobs=n_jobs)
                 mtrace = update_last_samples(
                     homepath, step, progressbar, model, n_jobs, rm_flag)
                 step.population, step.array_population, step.likelihoods = \

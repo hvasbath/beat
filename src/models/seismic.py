@@ -103,7 +103,8 @@ class SeismicComposite(Composite):
 
     def analyse_noise(self, tpoint=None):
         """
-        Analyse seismic noise in datatraces and set weights accordingly.
+        Analyse seismic noise in datatraces and set
+        data-covariance matrixes accordingly.
         """
         if self.config.noise_estimator.structure == 'non-toeplitz':
             results = self.assemble_results(
@@ -114,27 +115,22 @@ class SeismicComposite(Composite):
         for wmap, wmap_results in zip(self.wavemaps, results):
             logger.info(
                 'Retrieving seismic data-covariances with structure "%s" '
-                'for %s ...\n' % (
+                'for %s ...' % (
                     self.config.noise_estimator.structure, wmap._mapid))
 
             cov_ds_seismic = self.noise_analyser.get_data_covariances(
                 wmap=wmap, results=wmap_results,
                 sample_rate=self.config.gf_config.sample_rate)
 
-            weights = []
             for j, trc in enumerate(wmap.datasets):
-                trc.covariance = heart.Covariance(data=cov_ds_seismic[j])
+                if trc.covariance is None:
+                    trc.covariance = heart.Covariance(data=cov_ds_seismic[j])
+                else:
+                    trc.covariance.data = cov_ds_seismic[j]
+
                 if int(trc.covariance.data.sum()) == trc.data_len():
                     logger.warn('Data covariance is identity matrix!'
                                 ' Please double check!!!')
-                icov = trc.covariance.chol_inverse
-                weights.append(
-                    shared(
-                        icov,
-                        name='seis_%s_weight_%i' % (wmap._mapid, j),
-                        borrow=True))
-
-            wmap.add_weights(weights)
 
     def init_hierarchicals(self, problem_config):
         """
@@ -176,6 +172,22 @@ class SeismicComposite(Composite):
             self.hierarchicals[self.correction_name] = station_corrs_rv
         else:
             nhierarchs = 0
+
+    def init_weights(self):
+        """
+        Initialise shared weights in wavemaps.
+        """
+        for wmap in self.wavemaps:
+            weights = []
+            for j, trc in enumerate(wmap.datasets):
+                icov = trc.covariance.chol_inverse
+                weights.append(
+                    shared(
+                        icov,
+                        name='seis_%s_weight_%i' % (wmap._mapid, j),
+                        borrow=True))
+
+            wmap.add_weights(weights)
 
     def get_unique_stations(self):
         sl = [wmap.stations for wmap in self.wavemaps]
@@ -401,7 +413,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.init_hierarchicals(problem_config)
         self.analyse_noise(tpoint)
-
+        self.init_weights()
         if self.config.station_corrections:
             logger.info(
                 'Initialized %i hierarchical parameters for '
@@ -529,6 +541,12 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.point2sources(point)
 
+        # update data covariances in case model dependend non-toeplitz
+        if self.config.noise_estimator.structure == 'non-toeplitz':
+            logger.info('Updating data-covariances ...')
+            self.analyse_noise(point)
+
+        logger.info('Updating velocity model-covariances ...')
         for wmap in self.wavemaps:
             wc = wmap.config
 
@@ -703,6 +721,7 @@ class SeismicDistributerComposite(SeismicComposite):
         wlogpts = []
 
         self.analyse_noise(tpoint)
+        self.init_weights()
         self.init_hierarchicals(problem_config)
         if self.config.station_corrections:
             logger.info(
