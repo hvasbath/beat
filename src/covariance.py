@@ -220,6 +220,17 @@ class SeismicNoiseAnalyser(object):
                 engine=self.engine, source=self.event,
                 target=target, wavename=wavename)
 
+            if arrival_time < tr.tmin:
+                logger.warning(
+                    'no data for variance estimation on pre-P arrival'
+                    ' in wavemap %s, for trace %s!' % (
+                        wmap._mapid, list2string(tr.nslc_id)))
+                logger.info(
+                    'Using reference arrival "%s" instead!' % wmap.name)
+                arrival_time = heart.get_phase_arrival_time(
+                    engine=self.engine, source=self.event,
+                    target=target, wavename=wmap.name)
+
             if filterer is not None:
                 ctrace = tr.copy()
                 ctrace.bandpass(
