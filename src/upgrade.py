@@ -81,7 +81,11 @@ def upgrade_config_file(fn, diff=True, update=[]):
         ('beat.WaveformFitConfig',
             set_attribute('blacklist', [])),
         ('beat.WaveformFitConfig',
-            set_attribute('preprocess_data', True))
+            set_attribute('preprocess_data', True)),
+        ('beat.MetropolisConfig',
+            drop_attribute('n_stages')),
+        ('beat.MetropolisConfig',
+            drop_attribute('stage')),
     ]
 
     def apply_rules(path, obj):
