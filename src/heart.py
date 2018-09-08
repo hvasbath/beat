@@ -818,7 +818,7 @@ class ResultReport(Object):
         optional=True,
         default=None,
         help='mean of distributions, used for model'
-             ' prediction covariance calculation.') 
+             ' prediction covariance calculation.')
 
 
 class IFG(GeodeticDataset):
@@ -902,11 +902,20 @@ class DiffIFG(IFG):
             'now, which may take a significant amount of time...' %
             scene.meta.filename)
         covariance = Covariance(data=scene.covariance.covariance_matrix)
-        loce = scene.quadtree.leaf_eastings
-        locn = scene.quadtree.leaf_northings
-        lats, lons = orthodrome.ne_to_latlon(
-            lat0=scene.frame.llLat, lon0=scene.frame.llLon,
-            north_m=locn, east_m=loce)
+
+        if scene.quadtree.frame.isDegree():
+                lats = num.empty(scene.quadtree.nleaves)
+                lons = num.empty(scene.quadtree.nleaves)
+                lats.fill(scene.quadtree.frame.llLat)
+                lons.fill(scene.quadtree.frame.llLon)
+                lons += scene.quadtree.leaf_focal_points[:, 0]
+                lats += scene.quadtree.leaf_focal_points[:, 1]
+        elif scene.quadtree.frame.isMeter():
+                loce = scene.quadtree.leaf_eastings
+                locn = scene.quadtree.leaf_northings
+                lats, lons = orthodrome.ne_to_latlon(
+                    lat0=scene.frame.llLat, lon0=scene.frame.llLon,
+                    north_m=locn, east_m=loce)
 
         quadtree = Quadtree.from_kite_quadtree(scene.quadtree)
 
