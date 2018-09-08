@@ -446,6 +446,10 @@ def downsample_trace(data_trace, deltat=None, snap=False):
             except util.UnavailableDecimation as e:
                 logger.error(
                     'Cannot downsample %s.%s.%s.%s: %s' % (tr.nslc_id + (e,)))
+        elif snap:
+            if tr.tmin / tr.deltat > 1e-6 or tr.tmax / tr.deltat > 1e-6:
+                tr = tr.copy()
+                tr.snap()
     else:
         raise ValueError('Need to provide target sample rate!')
 

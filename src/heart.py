@@ -127,11 +127,12 @@ class Covariance(Object):
         if cov_mat.size != self.data.size:
             if cov_mat.sum() == 0.:
                 cov_mat = num.zeros_like(self.data, dtype=tconfig.floatX)
-                setattr(self, cov_mat_str, cov_mat)
             else:
                 raise ValueError(
                     '%s covariances defined but size '
                     'inconsistent!' % cov_mat_str)
+
+        setattr(self, cov_mat_str, cov_mat)
 
     @property
     def p_total(self):

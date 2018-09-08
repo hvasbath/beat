@@ -761,8 +761,11 @@ def check_multitrace(mtrace, draws, n_chains):
     not_sampled_idx = []
     for chain in range(n_chains):
         if chain in mtrace.chains:
-            if len(mtrace._straces[chain]) != draws:
-                logger.warn('Trace number %i incomplete' % chain)
+            chain_len = len(mtrace._straces[chain])
+            if chain_len != draws:
+                logger.warn(
+                    'Trace number %i incomplete: (%i / %i)' % (
+                        chain, chain_len, draws))
                 mtrace._straces[chain].corrupted_flag = True
         else:
             not_sampled_idx.append(chain)
