@@ -276,7 +276,7 @@ class SMC(Metropolis):
         Dictionary of trace variables
         """
         idx = self.likelihoods.flatten().argmax()
-        return self.bij.rmap(self.array_population[idx, :].mean(axis=0))
+        return self.bij.rmap(self.array_population[idx, :])
 
     def resample(self):
         """
