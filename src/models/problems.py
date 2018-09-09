@@ -418,6 +418,7 @@ class Problem(object):
             for composite in self.composites.itervalues():
                 if hasattr(composite, 'analyse_noise'):
                     composite.analyse_noise(point)
+                    composite.init_weights()
 
                 composite.update_llks(point)
                 total_llk += composite.get_hyper_formula(self.hyperparams, pc)
