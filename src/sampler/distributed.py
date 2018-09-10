@@ -55,7 +55,7 @@ class MPIError(Exception):
 
 class MPIRunner(object):
 
-    def __init__(self, tmp=None, keep_tmp=False):
+    def __init__(self, tmp=None, keep_tmp=False, py_version=None):
         if have_backend():
             logger.info('MPI is installed!')
         else:
@@ -65,6 +65,11 @@ class MPIRunner(object):
         if tmp is not None:
             tmp = os.path.abspath(tmp)
 
+        if py_version is None:
+            py_version = sys.version_info.major
+            logger.info('Detected python%i ' % py_version)
+
+        self.py_version = py_version
         self.keep_tmp = keep_tmp
         self.tempdir = mkdtemp(prefix='mpiexec-', dir=tmp)
         logger.info('Done initialising mpi runner')
@@ -75,7 +80,8 @@ class MPIRunner(object):
             raise ValueError('n_jobs has to be defined!')
 
         program = program_bins['mpi']
-        args = ' -n %i python %s %s' % (n_jobs, script_path, loglevel)
+        args = ' -n %i python%i %s %s' % (
+            n_jobs, self.py_version, script_path, loglevel)
         commandstr = program + args
 
         old_wd = os.getcwd()
