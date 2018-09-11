@@ -1946,8 +1946,7 @@ def get_phase_arrival_time(engine, source, target, wavename):
             'No such store with ID %s found, distance [deg] to event: %f ' % (
                 target.store_id, cake.m2d * dist))
 
-    depth = source.depth
-    return store.t(wavename, (depth, dist)) + source.time
+    return store.t(wavename, (source.depth, dist)) + source.time
 
 
 def get_phase_taperer(
@@ -1974,6 +1973,7 @@ def get_phase_taperer(
     :class:`pyrocko.trace.CosTaper`
     """
     if arrival_time is None or arrival_time == num.NAN:
+        logger.warning('Using source reference for tapering!')
         arrival_time = get_phase_arrival_time(
             engine=engine, source=source, target=target, wavename=wavename)
 
@@ -2090,31 +2090,16 @@ class WaveformMapping(object):
     def n_data(self):
         return len(self.datasets)
 
-    def get_datasets(self, channels=['Z']):
+    def get_target_idxs(self, channels=['Z']):
 
         t2i = self.target_index_mapping()
-
         dtargets = utility.gather(self.targets, lambda t: t.codes[3])
 
-        datasets = []
+        tidxs = []
         for cha in channels:
-            for target in dtargets[cha]:
-                datasets.append(self.datasets[t2i[target]])
-
-        return datasets
-
-    def get_weights(self, channels=['Z']):
-
-        t2i = self.target_index_mapping()
-
-        dtargets = utility.gather(self.targets, lambda t: t.codes[3])
-
-        weights = []
-        for cha in channels:
-            for target in dtargets[cha]:
-                weights.append(self.weights[t2i[target]])
-
-        return weights
+            tidxs.extend([t2i[target] for target in dtargets[cha]])
+             
+        return tidxs
 
     def prepare_data(
             self, source, engine, outmode='array', chop_bounds=['b', 'c']):
