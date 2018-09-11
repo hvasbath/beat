@@ -2536,9 +2536,6 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     wavename : string
         of the tabulated phase that determines the phase arrival
     filterer : :class:`Filterer`
-    reference_taperer : :class:`ArrivalTaper`
-        if set all the traces are tapered with the specifications of this
-        Taper
     plot : boolean
         flag for looking at traces
     nprocs : int
@@ -2580,16 +2577,13 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     tapp = taperers.append
     for i, target in enumerate(targets):
         if arrival_taper is not None:
-            if reference_taperer is None:
-                tapp(get_phase_taperer(
-                    engine=engine,
-                    source=sources[0],
-                    wavename=wavename,
-                    target=target,
-                    arrival_taper=arrival_taper,
-                    arrival_time=arrival_times[i]))
-            else:
-                tapp(reference_taperer)
+            tapp(get_phase_taperer(
+                engine=engine,
+                source=sources[0],
+                wavename=wavename,
+                target=target,
+                arrival_taper=arrival_taper,
+                arrival_time=arrival_times[i]))
 
     if pre_stack_cut and arrival_taper is not None:
         for t, taperer in zip(targets, taperers):
