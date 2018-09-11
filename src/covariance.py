@@ -431,15 +431,6 @@ def seismic_cov_velocity_models(
     :class:`numpy.ndarray` with Covariance due to velocity model uncertainties
     '''
 
-    ref_target = copy.deepcopy(targets[0])
-
-    reference_taperer = heart.get_phase_taperer(
-        engine,
-        sources[0],
-        wavename=wavename,
-        target=ref_target,
-        arrival_taper=arrival_taper)
-
     t0 = time()
     synths, _ = heart.seis_synthetics(
         engine=engine,
@@ -448,7 +439,6 @@ def seismic_cov_velocity_models(
         arrival_taper=arrival_taper,
         wavename=wavename,
         filterer=filterer,
-        reference_taperer=reference_taperer,
         arrival_times=arrival_times,
         pre_stack_cut=True,
         plot=plot,
