@@ -550,12 +550,14 @@ class SeismicGeometryComposite(SeismicComposite):
         for wmap in self.wavemaps:
             wc = wmap.config
 
-            for channel in wmap.channels:
-                datasets = wmap.get_datasets([channel])
-                weights = wmap.get_weights([channel])
+            arrival_times = wmap._arrival_times
+            if self.config.station_corrections:
+                arrival_times += point[
+                    self.correction_name][wmap.station_correction_idxs]
 
-                for station, dataset, weight in zip(
-                        wmap.stations, datasets, weights):
+            for channel in wmap.channels:
+                tidxs = wmap.get_target_idxs([channel])
+                for station, tidx in zip(wmap.stations, tidxs):
 
                     logger.debug('Channel %s of Station %s ' % (
                         channel, station.station))
@@ -568,33 +570,28 @@ class SeismicGeometryComposite(SeismicComposite):
                         crust_inds=range(*sc.gf_config.n_variations),
                         reference_location=sc.gf_config.reference_location)
 
-                    arrival_times = wmap._arrival_times
-                    if self.config.station_corrections:
-                        arrival_times += point[
-                            self.correction_name][wmap.station_correction_idxs]
-
                     cov_pv = cov.seismic_cov_velocity_models(
                         engine=self.engine,
                         sources=self.sources,
                         targets=crust_targets,
                         wavename=wmap.name,
                         arrival_taper=wc.arrival_taper,
-                        arrival_times=arrival_times,
+                        arrival_time=arrival_times[tidx],
                         filterer=wc.filterer,
                         plot=plot, n_jobs=n_jobs)
                     cov_pv = utility.ensure_cov_psd(cov_pv)
 
                     self.engine.close_cashed_stores()
 
+                    dataset = wmap.datasets[tidx]
                     dataset.covariance.pred_v = cov_pv
 
                     t0 = time()
                     choli = dataset.covariance.chol_inverse
                     t1 = time()
                     logger.debug('Calculate weight time %f' % (t1 - t0))
-                    weight.set_value(choli)
+                    wmap.weights[tidx].set_value(choli)
                     dataset.covariance.update_slog_pdet()
-
 
 class SeismicDistributerComposite(SeismicComposite):
     """
