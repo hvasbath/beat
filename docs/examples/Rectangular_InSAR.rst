@@ -7,7 +7,7 @@ The project consist of two static displacements data sets from the 06.04.2009 Mw
 and descending orbits. We will explore the parameter space of a Rectangular Source [Okada1985]_ for this earthquake.
 The data has been pre-processed with `kite <https://github.com/pyrocko/kite>`__. For details on the use and data display we refer to tutorial on the website.
 
-.. image:: _static/Static_asc.png
+.. image:: ../_static/Static_asc.png
 
 To copy the scenario (including the data) to a directory outside of the package source directory, please edit the 'model path' (referred to as $beat_models now on) and execute::
 

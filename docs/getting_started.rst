@@ -304,24 +304,38 @@ Import Data
 This is the step to import the user data into the program format and setup.
 
 
-Static displacements
-____________
+geodetic data
+^^^^^^^^^^^^^
 
+InSAR
+=====
 To use static displacement InSAR measurements you need to prepare your data first with `kite <https://github.com/pyrocko/kite>`__.
 Kite handels displacement data from a variety of formats, such as e.g. GMTSAR, ISCE, ROIPAC and GAMMA. After importing the data into kite you
-have to subsample the data and calculate the covariance  as described in the `kite documentation <https://pyrocko.org/kite/docs/current/>`__.
-After you pre-processed the data to your satisfaction and have saved the data in kite as npz containers the import of the data into beat is simple.
+should consider to subsample it and to calculate the data-error-variance-covariance as described in the `kite documentation <https://pyrocko.org/kite/docs/current/>`__.
+Once you are satisfied with your specifications please store the kite scenes in its native format as "numpy-npz containers".
 
-In your $project_dir you find the config_geometry.yaml, where you have modify the geodetic_config variable 'datadir' to point to the location where your data are stored.
-Then you add the name of the desired files (without the .npz and .yml suffixes) to the 'names' variable. Afterwards you simply have to type the following command::
+In the $project_dir you find the config_geometry.yaml, where the geodetic_config variable 'datadir' points to the location where the data are stored.
+Under the 'names' variable, the names of the files of interest have to be entered (without the .npz and .yml suffixes). Afterwards, the following command has to be executed to import the data::
 
     beat import $project_dir
 
-The data are now accessible to beat as the file geodetic_data.pkl. If you want to use or modify your data you have to repeat the import command with the --force option to overwrite your previously stored data.
+The data are now accessible to beat as the file geodetic_data.pkl. In case it turns out the pre-processing (subsampling, covariance estimation) had to be repeated, the existing 'geodetic_data.pkl' file can be overwritten by adding the --force option to the import command above.
 
+GNSS
+====
+The supported format for GNSS data is an ASCII file of the following format::
+
+  DOGG  10.0000   15.6546   -0.61   0.44   3.5900     0.18  0.15  0.7000
+  CATT  135.0000  -45.000   0.15    -0.57  1.6100     0.23  0.20  0.9000
+  COOW  45.0000   98.0000   12.20   15.01  22.8600    0.93  0.78  3.5700
+
+The columns are in this order: station name, Longitude, Latitude, velocity east component, velocity north component, velocity vertical component, standard-deviaion east component, standard-deviaion north component, standard-deviaion vertical component,
+The units for the location and the measurements are [decimal deg] and [mm/yr], respectively.
+
+.. note:: This is the native GAMMIT output file.
 
 seismic data
-____________
+^^^^^^^^^^^^
 
 So far, unfortunately only the output of `autokiwi <https://github.com/emolch/kiwi>`__ is supported for automatic import of seismic data.
 To get other types of data imported the user will have to do some programing.
@@ -774,8 +788,3 @@ This will load the seismic traces for the first receiver, for all patches, durat
 
 Here we see the slip parallel traces for patch 0, starttime of 11s (after the hypocentral source time) and slip durations(tau) of 1.5 and 10.5[s].
 
-To be continued ...
-
-sample
-------
-To be written ...
