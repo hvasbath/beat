@@ -176,7 +176,7 @@ Next we can use the 'fomosto' tool together with 'snuffler' to inspect if the GF
 
 This looks reasonably well!
 
- .. image:: _static/fomosto_traces_snuffler.png
+ .. image:: ../_static/fomosto_traces_snuffler.png
 
 
 Data windowing and optimization setup
@@ -217,13 +217,13 @@ We may inspect the raw data together with the processed data that is going to be
 This should open again the 'snuffler' window and you can interactively scroll through the traces zoom in and out, filter the traces and much more.
 A detailed tutorial about handeling the browser is given `here <https://pyrocko.org/docs/current/apps/snuffler/tutorial.html>`__.
 
-  .. image:: _static/FullMT_data.png
+  .. image:: ../_static/FullMT_data.png
 
 To better sort the displayed traces and to inspect the processed data we may use snufflers display options.
 Please right click in the window and see a menu that pops up. There, please select: "Sort by Distance" to sort the traces by distance to get a better picture of the setup. To see, which traces actually belong to the same station and component, please open the menu again and select "Subsort by Network, Station, Channel (Grouped by Location)" and "Common Scale per Component". To distinguish better between the overlapping traces please select as well "Color Traces" and deselect "Show Boxes".
 Your display should look something like this.
 
-  .. image:: _static/FullMT_windowed.png
+  .. image:: ../_static/FullMT_windowed.png
 
 In red we see the raw data traces as stored under $project_directory/seismic_data.pkl; and in blue we see the processed data where the WaveformFitConfig parameters (see above) have been applied. The blue traces are going to be used in this form throughout the optimization. For this setup here we are good, but for future problems the user may now adjust the configuration and repeatedly check if the data windowing is satisfying. For example, the user may widen the arrival_taper times to make sure that a respective wave train is completely included in case it is cut at the taper boundary. Or in case of noisy or bad quality data a station may be completely excluded by putting its name in the "blacklist" parameter.
 
@@ -367,7 +367,7 @@ If it worked it will produce a pdf with several pages output for all the compone
 The black waveforms are the unfiltered data. Red are the best fitting synthetic traces. Light grey and light red are the filtered, untapered data and synthetic traces respectively. The red data trace below are the residual traces between data and synthetics.
 The Z-components from our stations should look something like this.
 
-  .. image:: _static/FullMT_waveforms_max.png
+  .. image:: ../_static/FullMT_waveforms_max.png
 
 The waveform fits for a specific point in the solution space may be produced by setting the testvalues
 in the Prior distributions of the config file. Here, these values got already set to the true solution. So we can compare if our best estimated source parameters are reasonable compared to the true ones. ::
@@ -376,7 +376,7 @@ in the Prior distributions of the config file. Here, these values got already se
 
 Again looking at the Z-components of the traces shows that our estimate is almost identical to the true test value.
 
-  .. image:: _static/FullMT_waveforms_ref.png
+  .. image:: ../_static/FullMT_waveforms_ref.png
 
 
 The following command produces a '.png' file with the final posterior distribution. In the $beat_models run::
@@ -385,7 +385,7 @@ The following command produces a '.png' file with the final posterior distributi
 
 It may look like this.
 
- .. image:: _static/FullMT_stage_-1_max.png
+ .. image:: ../_static/FullMT_stage_-1_max.png
 
  The vertical black lines are the true values and the vertical red lines are the maximum likelihood values.
  We see that the true solution is not comprised within the marginals of all parameters. This may have several reasons. In the next section we will discuss and investigate the influence of the noise characteristics.
@@ -396,7 +396,7 @@ It may look like this.
 
 This will show an image like that.
 
- .. image:: _static/FullMT_corr_hist_max.png
+ .. image:: ../_static/FullMT_corr_hist_max.png
 
 This shows 2d kernel density estimates (kde) and histograms of the specified model parameters. The darker the 2d kde the higher the probability of the model parameter.
 The red dot and the vertical red lines show the true values of the target source in the kde plots and histograms, respectively.

@@ -144,7 +144,7 @@ After that several figures illustrating the results can be created.  For a compa
  beat plot $project_directory scene_fits
 
 The plot should show something like this:
- .. image:: _static/Static_scene_fits.png
+ .. image:: ../_static/Static_scene_fits.png
 
 
 To plot the posterior marginal distributions of the source parameters, please run::
@@ -153,7 +153,7 @@ To plot the posterior marginal distributions of the source parameters, please ru
 
 
 These plots are stored under your $project_directory folder under geometry/figures.
- .. image:: _static/Static_stage_-1_max.png
+ .. image:: ../_static/Static_stage_-1_max.png
 
 The solution should be comparable to results from published studies. E.g. [Walters2009]_.
 
