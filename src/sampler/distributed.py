@@ -188,3 +188,4 @@ def run_mpi_sampler(
     samplerdir = pjoin(project_root, sampler)
     logger.info('sampler directory: %s' % samplerdir)
     runner.run(samplerdir, n_jobs=n_jobs, loglevel=loglevel)
+
