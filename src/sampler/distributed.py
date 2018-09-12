@@ -158,7 +158,7 @@ def run_mpi_sampler(
     Parameters
     ----------
     sampler_name : string
-        valid names: %s
+        valid names see distributed.samplers for available options
     model : :class:`pymc3.model.Model`
         that holds the forward model graph
     sampler_args : list
@@ -166,7 +166,7 @@ def run_mpi_sampler(
     keep_tmp : boolean
         if true dont remove the run directory after execution
     n_jobs : number of processors to call MPI with
-    """ % list2string(samplers.keys())
+    """
 
     from beat.info import project_root
     from beat.utility import dump_objects

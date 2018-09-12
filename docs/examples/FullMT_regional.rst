@@ -1,20 +1,9 @@
-
-
-*********
-Scenarios
-*********
-
-The example scenarios are located in the directory::
-
-     beat/data/examples
-
-In the following tutorials we will use synthetic example data to get familiar with the basic functionality of BEAT.
-
-Regional Full Moment Tensor
----------------------------
+Regional Full Moment Tensor, synthetic seismic displacement (waveforms)
+-----------------------------------------------------------------------
 Clone project
 ^^^^^^^^^^^^^
 This setup is comprised of 20 seismic stations that are randomly distributed within distances of 40 to 1000 km compared to a reference event.
+We will explore the solution space of a Full Moment Tensor .
 To copy the scenario (including the data) to a directory outside of the package source directory, please edit the 'model path' (referred to as $beat_models now on) and execute::
 
     cd /path/to/beat/data/examples/
@@ -356,7 +345,7 @@ If you check the summary.txt file (path then also printed to the screen)::
 
     vi $project_directory/geometry/summary.txt
 
-For example for the first 4 entries (mee, med, posterior likelihood, north-shift), the posterior pdf quantiles show::
+For example for the first 4 entries (mee, med, posterior like-lihood, north-shift), the posterior pdf quantiles show::
 
                              mean        sd  mc_error       hpd_2.5      hpd_97.5
     mee__0             -0.756400  0.001749  0.000087     -0.759660     -0.752939
@@ -431,175 +420,6 @@ Other options are to "import" to use the covariance matrixes that have been impo
 Also the option "non-toeplitz" to estimate non-stationary, correlated noise on the residuals following [Dettmer2007]_
 in this case the values from the priors and hypers "testvalues" are used as reference to calculate the residuals
 
-Rectangular source exploration from real static displacement data (InSAR)
--------------------------------------------------------------------------
-Clone project
-^^^^^^^^^^^^^
-The project consist of two static displacements data sets from the 06.04.2009 Mw6.3 L'Aquila earthquake. The data are ascending
-and descending InSAR tracks and we will explore the parameter space of a rectangular source for this earthquake and plot resulting figures.
-The data has been pre-processed with `kite <https://github.com/pyrocko/kite>`__.
-
-.. image:: _static/Static_asc.png
-
-To copy the scenario (including the data) to a directory outside of the package source directory, please edit the 'model path' (referred to as $beat_models now on) and execute::
-
-   cd /path/to/beat/data/examples/
-   beat clone Static /'model path'/Static --copy_data
-
-This will create a BEAT project directory named 'Static' with a configuration file (config_geometry.yaml) and real example data Envisat InSAR data (geodetic_data.pkl).
-This directory 'Static' is going to be referred to as '$project_directory' in the following.
-
-
-
-Calculate Greens Functions
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-We need to calculate a Greens function store (GF), as done in  the Regional Full Moment Tensor example. However in this case we will only to
-calculate a store that holds static displacements. For this we will make use of the PSGRN/PSCMP backend.
-
-Please open $project_directory/config_geometry.yaml with any text editor (e.g. vi) and check the line 144: store_superdir.
-This path needs to be replaced with the path to where the GFs are supposed to be stored on your computer.
-This directory is referred to as the $GF_path in the rest of the text. It is strongly recommended to use a separate directory
-apart from the beat source directory. The statics Green's function stores are smaller, but can be used by several projects in the
-future.
-
-   cd $beat_models
-   beat build_gfs Static
-
-This will create an empty Greens Function store named statics_ak135_0.000Hz_0 in the $GF_path.
-
-
-In the $project_path/config_geometry.yaml under geodetic_config we find the gf_config, which holds the major parameters for GF calculation::
-
- gf_config: !beat.GeodeticGFConfig
-   store_superdir: $project_directory/
-   reference_model_idx: 0
-   n_variations: [0, 1]
-   earth_model_name: ak135-f-average.m
-   nworkers: 6
-   use_crust2: true
-   replace_water: true
-   source_depth_min: 0.0
-   source_depth_max: 35.0
-   source_depth_spacing: 1.0
-   source_distance_radius: 100.0
-   source_distance_spacing: 1.
-   error_depth: 0.1
-   error_velocities: 0.1
-   depth_limit_variation: 600.0
-   code: psgrn
-   sample_rate: 1.1574074074074073e-05
-   sampling_interval: 1.0
-   medium_depth_spacing: 1.0
-   medium_distance_spacing: 1.0
-
-Note that you need to change the variable 'store_superdir' to an **absolute path** to your $project_directory/.
-You can also change the number of cores available to your system with the variable 'nworkers' to speed up the calculation of the GF.
-The GF grid spacing is important and can be modified in x,y direction with 'source_distance_spacing' and in depth with 'source_depth_spacing'.
-The grid extent can be modified by 'source_distance_radius'. All values units are given in km.
-The parameters set for the 2009 L'Aquila static example are good for now. We now build the GF directory, where the GF config will
-be further configurable.
-
-For your own projects and needs you can also modify directly the GF velocity model and settings in the file $GF_path/statics_ak135_0.000Hz_0/config before exeuting the building in the next
-step. For the 2009 L'Aquila static scenario, or after you are satisfied with you modification of the GF setup, we can next build the GF with:
-
-   beat build_gfs $project_directory --force --execute
-
-This will take some time, depending on how much cores you set at 'nworkers'. However, this only has to be done once and
-the GF can be reused for different scenarios if you do not have to modify the velocity model.
-
-Optimization setup
-^^^^^^^^^^^^^^^^^^
-Before further setup we should check that the 'project_dir' variable in the main upper body of the $project_directory/config_geometry file is set correctly to your $project_directory/.
-Also take note of the 'event' variables, which are the GCMT source parameters for the 2009 L'Aquila earthquake in the `pyrocko <https://github.com/pyrocko/pyrocko>`__. event format.
-
-We will explore the solution space of a rectangular source in an layered model. The parameters to explore are the sources east_shift, north_shift, depth, strike, rake, dip, length, width and slip.
-The sources east and north shifts refer to a relative position to the reference solution (here GCMT).
-The units for depth, length, width, east_shift and north_shift are in km and for the slip in m. Strike, dip and rake are given in degree.
-Another option is to take a linear trend ('ramp' in InSAR terminology) into consideration that is removed into account. This can be turned on and off with the variable 'fit_plane' in the geodetic_config section.
-When you have set 'fit_plane' to true you have type the following command into your console to update the config_geometry.yaml with the ramp parameters::
-
- beat update . --parameters="hierarchicals"
-
-We can change the source parameter bounds under the point 'priors'. Here is an example::
-
-   priors:
-     rake: !beat.heart.Parameter
-       name: rake
-       form: Uniform
-       lower: [-180.0]
-       upper: [0.0]
-       testvalue: [-110.0]
-
-We want to explore the source parameter rake between -180° and 0°, and start with a value of -110°, which is a reasonable assumption.
-If you would like to explore more than one source you can expand the lower and upper bounds for each parameter as following (for two sources)::
-
- priors:
-   rake: !beat.heart.Parameter
-     name: rake
-     form: Uniform
-     lower: [-180.0, -160.0]
-     upper: [0.0, 20.0]
-     testvalue: [-110.0, -80.0]
-
-You will also have to edit the variable 'n_sources'.
-However for the L'Aquila example we are now satisfied with one source and the pre-set priors, found in the examples config_geometry.yaml file, which are chosen with broad bounds around the reference solution, demonstrating a case where some prior knowledge is available.
-This allows for a less expansive search of the solution space.
-
-The 'decimation_factor' variable controls how detailed the displacement from the source should be calculated. The sub variable 'geodetic' controls the decimation for the geodetic data only, with higher numbers for faster calculated but more coarse models.
-As the datasets for the L'Aquila earthquake example consist of smaller datasets, we can set the decimation_factor to 7.
-
-
-Sample the solution space
-^^^^^^^^^^^^^^^^^^^^^^^^^
-Please refer to the 'Sample the solution space section' of the FullMT scenario for a more detailed description of the sampling and associated parameters,
-here only the necessary steps will be given to start the sampling.
-
-Firstly, we fix only optimize for the noise scaling or hyperparameters (HPs)::
-
-   beat sample $project_directory --hypers
-
-Checking the $project_directory/config_geometry.yaml, the HPs parameter bounds show something like::
-
-   hyperparameters:
-   h_SAR: !beat.heart.Parameter
-     name: h_SAR
-     form: Uniform
-     lower: [-1.0]
-     upper: [5.0]
-     testvalue: [2.0]
-
-
-After the determination of the hyperparameter we can now start the sampling::
-
-   beat sample $project_directory
-
-Note: The 'n_jobs' number should be set to as many CPUs as possible in the configuration file. Also the number of chains and steps of the SMC sampler has been reduced for this example to
-allow for a faster result, at the cost of a more thorough exploration of the parameter space. You can modify the SMC samplers config in the $project_directory/config_geometry.yaml file 'n_steps' and 'n_chains' to larger numbers to sample longer.
-The sampling can take several hours.
-
-Summarize and plotting
-^^^^^^^^^^^^^^^^^^^^^^
-After the sampling successfully finished, we summarize with::
-
- beat summarize $project_directory
-
-We can now plot several figures, one is the comparison between data, model and residual for the two InSAR tracks.
-This can be plotted with::
-
- beat plot $project_directory scene_fits
-
-The plot should something like this:
- .. image:: _static/Static_scene_fits.png
-
-Another one is the posterior distributions of the source parameters, which can be plotted with::
-
-   beat plot $project_directory stage_posteriors
-
-
-The plots are stored in your $project_directory folder under geometry/plots.
- .. image:: _static/Static_stage_-1_max.png
-
-The solution should be comparable to results from studies like Walters et al, 2009.
 
 References
 ^^^^^^^^^^
