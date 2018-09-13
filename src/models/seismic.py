@@ -546,52 +546,60 @@ class SeismicGeometryComposite(SeismicComposite):
             logger.info('Updating data-covariances ...')
             self.analyse_noise(point)
 
-        logger.info('Updating velocity model-covariances ...')
-        for wmap in self.wavemaps:
-            wc = wmap.config
+        crust_inds = range(*sc.gf_config.n_variations)
+        thresh = 5
+        if len(crust_inds) > thresh:
+            logger.info('Updating seismic velocity model-covariances ...')
+            for wmap in self.wavemaps:
+                wc = wmap.config
 
-            arrival_times = wmap._arrival_times
-            if self.config.station_corrections:
-                arrival_times += point[
-                    self.correction_name][wmap.station_correction_idxs]
+                arrival_times = wmap._arrival_times
+                if self.config.station_corrections:
+                    arrival_times += point[
+                        self.correction_name][wmap.station_correction_idxs]
 
-            for channel in wmap.channels:
-                tidxs = wmap.get_target_idxs([channel])
-                for station, tidx in zip(wmap.stations, tidxs):
+                for channel in wmap.channels:
+                    tidxs = wmap.get_target_idxs([channel])
+                    for station, tidx in zip(wmap.stations, tidxs):
 
-                    logger.debug('Channel %s of Station %s ' % (
-                        channel, station.station))
+                        logger.debug('Channel %s of Station %s ' % (
+                            channel, station.station))
 
-                    crust_targets = heart.init_seismic_targets(
-                        stations=[station],
-                        earth_model_name=sc.gf_config.earth_model_name,
-                        channels=channel,
-                        sample_rate=sc.gf_config.sample_rate,
-                        crust_inds=range(*sc.gf_config.n_variations),
-                        reference_location=sc.gf_config.reference_location)
+                        crust_targets = heart.init_seismic_targets(
+                            stations=[station],
+                            earth_model_name=sc.gf_config.earth_model_name,
+                            channels=channel,
+                            sample_rate=sc.gf_config.sample_rate,
+                            crust_inds=crust_inds,
+                            reference_location=sc.gf_config.reference_location)
 
-                    cov_pv = cov.seismic_cov_velocity_models(
-                        engine=self.engine,
-                        sources=self.sources,
-                        targets=crust_targets,
-                        wavename=wmap.name,
-                        arrival_taper=wc.arrival_taper,
-                        arrival_time=arrival_times[tidx],
-                        filterer=wc.filterer,
-                        plot=plot, n_jobs=n_jobs)
-                    cov_pv = utility.ensure_cov_psd(cov_pv)
+                        cov_pv = cov.seismic_cov_velocity_models(
+                            engine=self.engine,
+                            sources=self.sources,
+                            targets=crust_targets,
+                            wavename=wmap.name,
+                            arrival_taper=wc.arrival_taper,
+                            arrival_time=arrival_times[tidx],
+                            filterer=wc.filterer,
+                            plot=plot, n_jobs=n_jobs)
+                        cov_pv = utility.ensure_cov_psd(cov_pv)
 
-                    self.engine.close_cashed_stores()
+                        self.engine.close_cashed_stores()
 
-                    dataset = wmap.datasets[tidx]
-                    dataset.covariance.pred_v = cov_pv
+                        dataset = wmap.datasets[tidx]
+                        dataset.covariance.pred_v = cov_pv
 
-                    t0 = time()
-                    choli = dataset.covariance.chol_inverse
-                    t1 = time()
-                    logger.debug('Calculate weight time %f' % (t1 - t0))
-                    wmap.weights[tidx].set_value(choli)
-                    dataset.covariance.update_slog_pdet()
+                        t0 = time()
+                        choli = dataset.covariance.chol_inverse
+                        t1 = time()
+                        logger.debug('Calculate weight time %f' % (t1 - t0))
+                        wmap.weights[tidx].set_value(choli)
+                        dataset.covariance.update_slog_pdet()
+        else:
+            logger.info(
+                'Not updating seismic velocity model-covariances because '
+                'model number of model variations is too low! > %i' % thresh)
+
 
 class SeismicDistributerComposite(SeismicComposite):
     """
