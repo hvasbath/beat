@@ -86,6 +86,8 @@ def upgrade_config_file(fn, diff=True, update=[]):
             drop_attribute('n_stages')),
         ('beat.MetropolisConfig',
             drop_attribute('stage')),
+        ('beat.ParallelTemperingConfig',
+            set_attribute('resample', False)),
     ]
 
     def apply_rules(path, obj):

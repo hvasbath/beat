@@ -813,6 +813,10 @@ class ParallelTemperingConfig(SamplerParameters):
     n_chains_posterior = Int.T(
         default=1,
         help='Number of chains that sample from the posterior at beat=1.')
+    resample = Bool.T(
+        default=False,
+        help='If "true" the testvalue of the priors is taken as seed for'
+             ' all Markov Chains.')
     thin = Int.T(
         default=3,
         help='Thinning parameter of the sampled trace. Every "thin"th sample'

@@ -103,7 +103,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
             scale = covariance
 
         self.tune = tune
-        self.check_bnd = check_bound
+        self.check_bound = check_bound
         self.tune_interval = tune_interval
         self.steps_until_tune = tune_interval
 
@@ -251,7 +251,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
             l0 = self.chain_previous_lpoint[self.chain_index]
 
-            if self.check_bnd:
+            if self.check_bound:
                 logger.debug('Checking bound: Chain_%i step_%i' % (
                     self.chain_index, self.stage_sample))
                 varlogp = self.check_bnd(q)
@@ -320,6 +320,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
             logger.debug(
                 'End step: Chain_%i step_%i' % (
                     self.chain_index, self.stage_sample))
+
         return q_new, l_new
 
 

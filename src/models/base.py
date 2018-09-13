@@ -157,6 +157,7 @@ def sample(step, problem):
             progressbar=sc.progressbar,
             buffer_size=sc.buffer_size,
             model=problem.model,
+            resample=pa.resample,
             rm_flag=pa.rm_flag)
 
     else:

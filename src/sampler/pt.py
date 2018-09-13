@@ -339,7 +339,7 @@ class TemperingManager(object):
 
         return self._posterior_workers
 
-    def get_package(self, source):
+    def get_package(self, source, resample=False):
         """
         Register worker to the manager and get assigned the
         annealing parameter and the work package.
@@ -350,8 +350,9 @@ class TemperingManager(object):
         ----------
         source : int
             MPI source id from a worker message
-        beta : float
-            annealing parameter (typically, between 1-e6 and 0)
+        resample : bool
+            If True all the Markov Chains are starting sampling in the
+            testvalue
 
         Returns
         -------
@@ -368,9 +369,18 @@ class TemperingManager(object):
             step.stage = 1
             package = deepcopy(self._default_package_kwargs)
             package['chain'] = chain
-            package['start'] = step.population[chain]
             package['trace'] = MemoryTrace(buffer_size=self.buffer_size)
+
+            if resample:
+                logger.info('Resampling chain %i at the testvalue' % chain)
+                start = step.population[0]
+                step.chain_previous_lpoint[chain] = \
+                    step.chain_previous_lpoint[0]
+            else:
+                start = step.population[chain]
+
             package['step'] = step
+            package['start'] = start
 
             logger.info(
                 'Initializing new package for worker %i '
@@ -431,7 +441,7 @@ class TemperingManager(object):
 def master_process(
         comm, tags, status, model, step, n_samples, swap_interval,
         beta_tune_interval, n_workers_posterior, homepath, progressbar,
-        buffer_size, rm_flag):
+        buffer_size, resample, rm_flag):
     """
     Master process, that does the managing.
     Sends tasks to workers.
@@ -490,7 +500,7 @@ def master_process(
     for beta in manager.betas:
         comm.recv(source=MPI.ANY_SOURCE, tag=tags.READY, status=status)
         source = status.Get_source()
-        package = manager.get_package(source)
+        package = manager.get_package(source, resample=resample)
         comm.send(package, dest=source, tag=tags.INIT)
         logger.debug('Sent work package to worker %i' % source)
         active_workers += 1
@@ -692,7 +702,7 @@ def pt_sample(
         step, n_chains, n_samples=100000, swap_interval=(100, 300),
         beta_tune_interval=10000, n_workers_posterior=1, homepath='',
         progressbar=True, buffer_size=5000, model=None, rm_flag=False,
-        keep_tmp=False):
+        resample=False, keep_tmp=False):
     """
     Paralell Tempering algorithm
 
@@ -736,6 +746,8 @@ def pt_sample(
     rm_flag : bool
         If True existing stage result folders are being deleted prior to
         sampling.
+    resample : bool
+        If True all the Markov Chains are starting sampling at the testvalue
     keep_tmp : bool
         If True the execution directory (under '/tmp/') is not being deleted
         after process finishes
@@ -746,7 +758,8 @@ def pt_sample(
 
     sampler_args = [
         step, n_samples, swap_interval, beta_tune_interval,
-        n_workers_posterior, homepath, progressbar, buffer_size, rm_flag]
+        n_workers_posterior, homepath, progressbar, buffer_size, resample,
+        rm_flag]
 
     distributed.run_mpi_sampler(
         sampler_name='pt',
