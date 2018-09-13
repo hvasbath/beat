@@ -598,7 +598,7 @@ class SeismicGeometryComposite(SeismicComposite):
         else:
             logger.info(
                 'Not updating seismic velocity model-covariances because '
-                'model number of model variations is too low! > %i' % thresh)
+                'number of model variations is too low! < %i' % thresh)
 
 
 class SeismicDistributerComposite(SeismicComposite):

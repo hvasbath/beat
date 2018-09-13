@@ -479,7 +479,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
         else:
             logger.info(
                 'Not updating geodetic velocity model-covariances because '
-                'model number of model variations is too low! > %i' % thresh)
+                'number of model variations is too low! < %i' % thresh)
 
 
 class GeodeticInterseismicComposite(GeodeticSourceComposite):
