@@ -870,8 +870,7 @@ class SMCConfig(SamplerParameters):
              'alternatives need to be implemented')
 
     update_covariances = Bool.T(
-        default=True,
-        optional=True,
+        default=False,
         help='Update model prediction covariance matrixes in transition '
              'stages.')
 
