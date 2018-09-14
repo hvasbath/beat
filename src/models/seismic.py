@@ -190,9 +190,9 @@ class SeismicComposite(Composite):
             wmap.add_weights(weights)
 
     def get_unique_stations(self):
-        sl = [wmap.stations for wmap in self.wavemaps]
         us = []
-        map(us.extend, sl)
+        for wmap in self.wavemaps:
+            us.extend(wmap.get_station_names())
         return list(set(us))
 
     @property

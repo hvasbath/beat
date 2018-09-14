@@ -2049,6 +2049,12 @@ class WaveformMapping(object):
 
         self.check_consistency()
 
+    def get_station_names(self):
+        """
+        Returns list of strings of station names
+        """
+        return list(self.stations.keys())
+
     def check_consistency(self):
         if self.n_t != self.n_data:
             raise CollectionError(

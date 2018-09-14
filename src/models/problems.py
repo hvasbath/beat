@@ -545,6 +545,8 @@ class Problem(object):
                     hyperpar = hyperparameters.pop(hp_name)
 
                     if pc.dataset_specific_residual_noise_estimation:
+                        raise NotImplementedError('Not fully implemented!')
+                        # TODO: fix this needs to be wavemap stations specific
                         ndata = len(composite.get_unique_stations())
                     else:
                         ndata = 1
