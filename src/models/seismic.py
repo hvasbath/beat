@@ -193,7 +193,7 @@ class SeismicComposite(Composite):
         us = []
         for wmap in self.wavemaps:
             us.extend(wmap.get_station_names())
-        return list(set(us))
+        return utility.unique_list(us)
 
     @property
     def n_t(self):

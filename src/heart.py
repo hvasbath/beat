@@ -2053,7 +2053,7 @@ class WaveformMapping(object):
         """
         Returns list of strings of station names
         """
-        return list(self.stations.keys())
+        return [station.station for station in self.stations]
 
     def check_consistency(self):
         if self.n_t != self.n_data:
