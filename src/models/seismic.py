@@ -498,8 +498,12 @@ class SeismicGeometryComposite(SeismicComposite):
 
             arrival_times = wmap._arrival_times
             if self.config.station_corrections:
-                arrival_times += point[
-                    self.correction_name][wmap.station_correction_idxs]
+                try:
+                    arrival_times += point[
+                        self.correction_name][wmap.station_correction_idxs]
+                except IndexError:  # got reference point from config
+                    arrival_times += float(point[self.correction_name]) * \
+                        num.ones(wmap.n_t)
 
             synthetics, _ = heart.seis_synthetics(
                 engine=self.engine,
