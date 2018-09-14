@@ -93,12 +93,10 @@ def upgrade_config_file(fn, diff=True, update=[]):
             if obj._tagname == tagname:
                 func(path, obj)
 
-    updates_avail = ['hierarchicals', 'hypers']
+    updates_avail = ['hierarchicals', 'hypers', 'structure']
 
     t1 = aguts.load(filename=fn)
     t2 = copy.deepcopy(t1)
-
-    aguts.apply_tree(t2, apply_rules)
 
     for upd in update:
         if upd not in updates_avail:
@@ -107,6 +105,9 @@ def upgrade_config_file(fn, diff=True, update=[]):
     n_upd = len(update)
     if n_upd > 0:
         fn_tmp = fn + 'tmp'
+        if 'structure' in update:
+            aguts.apply_tree(t2, apply_rules)
+
         aguts.dump(t2, filename=fn_tmp, header=True)
         t2 = guts.load(filename=fn_tmp)
         if 'hypers' in update:

@@ -482,10 +482,10 @@ def command_update(args):
 
         parser.add_option(
             '--parameters',
-            default=[], type='string',
+            default=['structure'], type='string',
             action='callback', callback=list_callback,
-            help='Parameters to update; "hypers, hierarchicals". '
-                 'Default: [] (config file-structure only)')
+            help='Parameters to update; "structure, hypers, hierarchicals". '
+                 'Default: ["structure"] (config file-structure only)')
 
         parser.add_option(
             '--mode', dest='mode',
