@@ -237,8 +237,8 @@ class TemperingManager(object):
         if self.current_scale is None:
             raise ValueError('No temperature scale to record!')
 
-        if self.acceptance_matrix.sum() == 0:
-            raise ValueError('No acceptance record!')
+        if self.sample_count.sum() == 0:
+            raise ValueError('No sampling record!')
 
         self.history.record(
             self.sample_count, self.acceptance_matrix,
