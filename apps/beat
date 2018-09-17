@@ -1387,6 +1387,10 @@ def command_export(args):
         model=problem.model, stage_number=options.stage_number,
         load='trace', chains=[-1])
 
+    results_path = pjoin(problem.outfolder, config.results_dir_name)
+    results_trace = pjoin(stage.handler.atmip_path(-1), 'chain--1.csv')
+    shutil.copy(results_trace, results_path)
+
     point = plotting.get_result_point(
         stage, problem.config, point_llk=options.post_llk)
 
