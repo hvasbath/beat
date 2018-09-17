@@ -1403,7 +1403,7 @@ def command_export(args):
                 varname, list2string(value.ravel().tolist())))
 
         results = composite.assemble_results(point)
-        results_path = pjoin(problem.outfolder, config.results_dir_name)
+
         logger.info('Saving results to %s' % results_path)
         util.ensuredir(results_path)
 
