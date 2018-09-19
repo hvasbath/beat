@@ -1328,11 +1328,11 @@ def histplot_op(
 
 
 def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
-              lines=None, chains=None, combined=False, grid=False,
+              lines={}, chains=None, combined=False, grid=False,
               varbins=None, nbins=40, color=None,
               alpha=0.35, priors=None, prior_alpha=1, prior_style='--',
               axs=None, posterior=None, fig=None, plot_style='kde',
-              prior_bounds=None):
+              prior_bounds={}, kwargs={}):
     """
     Plots posterior pdfs as histograms from multiple mtrace objects.
 
@@ -1374,6 +1374,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         Matplotlib axes. Defaults to None.
     fig : figure
         Matplotlib figure. Defaults to None.
+    kwargs : dict
+        for histplot op
 
     Returns
     -------
@@ -1491,10 +1493,14 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         # axs[rowi, coli].set_ylim([0, e.max()])
                         xticker = tick.MaxNLocator(nbins=5)
                         xax.set_major_locator(xticker)
-                    else:
+                    elif plot_style == 'hist':
                         histplot_op(
                             axs[rowi, coli], e, reference=reference,
-                            bins=varbin, alpha=alpha, color=color)
+                            bins=varbin, alpha=alpha, color=color,
+                            kwargs=kwargs)
+                    else:
+                        raise NotImplementedError(
+                            'Plot style "%s" not implemented' % plot_style)
 
                     try:
                         param = prior_bounds[v]

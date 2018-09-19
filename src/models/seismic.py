@@ -554,6 +554,12 @@ class SeismicGeometryComposite(SeismicComposite):
         thresh = 5
         if len(crust_inds) > thresh:
             logger.info('Updating seismic velocity model-covariances ...')
+            if self.config.noise_estimator.structure == 'non-toeplitz':
+                logger.warning(
+                    'Non-toeplitz estimation in combination with model '
+                    'prediction covariances is still EXPERIMENTAL and results'
+                    ' should be interpreted with care!!')
+
             for wmap in self.wavemaps:
                 wc = wmap.config
 
