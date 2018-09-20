@@ -195,7 +195,7 @@ multivariate_proposals = ['MultivariateCauchy', 'MultivariateNormal']
 
 
 def available_proposals():
-    return proposal_distributions.keys()
+    return list(proposal_distributions.keys())
 
 
 def choose_proposal(proposal_name, **kwargs):
@@ -226,13 +226,13 @@ class ChainCounter(object):
 
     def __init__(self, n, n_jobs, perc_disp=0.2, subject='chains'):
 
-        n_chains_worker = n / n_jobs
+        n_chains_worker = n // n_jobs
         frac_disp = int(np.ceil(n_chains_worker * perc_disp))
+
         self.chain_count = 0
         self.n_chains = n_chains_worker
         self.subject = subject
-        self.logger_steps = range(
-            frac_disp, n_chains_worker + 1, frac_disp)
+        self.logger_steps = range(frac_disp, n_chains_worker + 1, frac_disp)
 
     def __call__(self, i):
         """
@@ -459,7 +459,7 @@ def iter_parallel_chains(
                 list2string(shared_params))
 
             if len(shared_params) > 0:
-                if len(parallel._shared_memory.keys()) == 0:
+                if len(parallel._shared_memory) == 0:
                     logger.info('Putting data into shared memory ...')
                     parallel.memshare_sparams(shared_params)
                 else:

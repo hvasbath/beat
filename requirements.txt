@@ -1,5 +1,6 @@
-numpy>=1.13
+numpy>=1.14
 scipy>=1.1
 pymc3==3.4.1
 tqdm>=4.19.4
 pyproj
+mpi4py

@@ -502,7 +502,7 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2):
 
     posterior_idxs = utility.get_fit_indexes(llks)
     d = {}
-    for k, v in posterior_idxs.iteritems():
+    for k, v in posterior_idxs.items():
         d[k] = step.bij.rmap(array_population[v, :])
 
     d['dist_mean'] = step.bij.rmap(array_population.mean(axis=0))

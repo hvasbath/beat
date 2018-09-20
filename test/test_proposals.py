@@ -24,7 +24,7 @@ class TestProposals(unittest.TestCase):
                 scale = 1
 
             draw = choose_proposal(proposal, scale=scale)
-            print(proposal, draw(self.draws))
+            print((proposal, draw(self.draws)))
 
 
 if __name__ == '__main__':

@@ -87,7 +87,7 @@ class Composite(object):
         if self.config is not None:
             return self.config.get_hypernames()
         else:
-            return self.hyperparams.keys()
+            return list(self.hyperparams.keys())
 
 
 def sample(step, problem):
@@ -207,7 +207,7 @@ def estimate_hypers(step, problem):
             buffer_size=sc.buffer_size,
             chunksize=int(pa.n_chains / pa.n_jobs))
 
-    for v, i in pc.hyperparameters.iteritems():
+    for v, i in pc.hyperparameters.items():
         d = mtrace.get_values(
             v, combine=True, burn=int(pa.n_steps * pa.burn),
             thin=pa.thin, squeeze=True)
@@ -296,7 +296,7 @@ class Stage(object):
                 stage_number, varnames=varnames, chains=chains)
 
         if 'params' in to_load:
-            if model is None:
+            if model is not None:
                 with model:
                     self.step, self.updates = self.handler.load_sampler_params(
                         stage_number)

@@ -30,7 +30,8 @@ class TestUtility(unittest.TestCase):
         B = num.array([0, 1, 0])
         C = num.array([0, 0, 1])
 
-        num.testing.assert_allclose(self.Rz(90. * RAD).dot(A), B, rtol=0., atol=1e-6)
+        num.testing.assert_allclose(
+            self.Rz(90. * RAD).dot(A), B, rtol=0., atol=1e-6)
         num.testing.assert_allclose(
             self.R['x'](90. * RAD).dot(B), C, rtol=0., atol=1e-6)
         num.testing.assert_allclose(
@@ -55,18 +56,18 @@ class TestUtility(unittest.TestCase):
         lordering['b'].slc
 
         for var in ordering:
-            print var
+            print(var)
+<<<<<<< HEAD
 
         lpoint = [a, b, c]
         lij = utility.ListToArrayBijection(lordering, lpoint)
 
-        ref_point = {'a': a, 'b':b, 'c':c}
+        ref_point = {'a': a, 'b': b, 'c': c}
         array = lij.l2a(lpoint)
         point = lij.l2d(lpoint)
-        print 'arr', array
-        #print 'point, ref_point', point, ref_point
-
-        print lij.l2d(lij.a2l(array))
+        print('arr', array)
+        print('point, ref_point', point, ref_point)
+        print(lij.l2d(lij.a2l(array)))
 
     def test_window_rms(self):
 
@@ -82,8 +83,9 @@ class TestUtility(unittest.TestCase):
         print('Convolution %f [s], loop %f [s]' % (t1 - t0, t2 - t1))
         num.testing.assert_allclose(data_stds, data_stds2, rtol=0., atol=1e-6)
 
-        data_stds = utility.running_window_rms(data, window_size=ws, mode='same')
-        print data_stds.shape
+        data_stds = utility.running_window_rms(
+            data, window_size=ws, mode='same')
+        print(data_stds.shape)
 
 
 if __name__ == '__main__':

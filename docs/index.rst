@@ -39,7 +39,7 @@ Contents:
    installation
    updating
    getting_started
-   examples
+   examples/index
    api
 
 Indices and tables

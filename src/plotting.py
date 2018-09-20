@@ -630,8 +630,7 @@ def geodetic_fits(problem, stage, plot_options):
     dataset_to_result = {}
     for dataset, result in zip(composite.datasets, results):
         dataset_to_result[dataset] = result
-
-    nfigs = int(num.ceil(float(nrmax) / float(ndmax)))
+    nfigs = int(num.ceil(float(ndmax) // float(nrmax)))
 
     figures = []
     axes = []
@@ -1014,16 +1013,16 @@ def seismic_fits(problem, stage, plot_options):
         nframes = len(targets)
 
         nx = int(math.ceil(math.sqrt(nframes)))
-        ny = (nframes - 1) / nx + 1
+        ny = (nframes - 1) // nx + 1
 
         nxmax = 4
         nymax = 4
 
-        nxx = (nx - 1) / nxmax + 1
-        nyy = (ny - 1) / nymax + 1
+        nxx = (nx - 1) // nxmax + 1
+        nyy = (ny - 1) // nymax + 1
 
-        xs = num.arange(nx) / ((max(2, nx) - 1.0) / 2.)
-        ys = num.arange(ny) / ((max(2, ny) - 1.0) / 2.)
+        xs = num.arange(nx) // ((max(2, nx) - 1.0) / 2.)
+        ys = num.arange(ny) // ((max(2, ny) - 1.0) / 2.)
 
         xs -= num.mean(xs)
         ys -= num.mean(ys)
@@ -1074,13 +1073,13 @@ def seismic_fits(problem, stage, plot_options):
             frame_to_target[iy, ix] = target
 
         figures = {}
-        for iy in xrange(ny):
-            for ix in xrange(nx):
+        for iy in range(ny):
+            for ix in range(nx):
                 if (iy, ix) not in frame_to_target:
                     continue
 
-                ixx = ix / nxmax
-                iyy = iy / nymax
+                ixx = ix // nxmax
+                iyy = iy // nymax
                 if (iyy, ixx) not in figures:
                     figures[iyy, ixx] = plt.figure(
                         figsize=mpl_papersize('a4', 'landscape'))
@@ -1223,7 +1222,7 @@ def seismic_fits(problem, stage, plot_options):
                 dist = source.distance_to(target)
                 azi = source.azibazi_to(target)[0]
                 infos.append(str_dist(dist))
-                infos.append(u'%.0f\u00B0' % azi)
+                infos.append('%.0f\u00B0' % azi)
                 # infos.append('%.3f' % gcms[itarget])
                 axes2.annotate(
                     '\n'.join(infos),
@@ -1236,7 +1235,7 @@ def seismic_fits(problem, stage, plot_options):
                     fontsize=fontsize,
                     fontstyle='normal')
 
-        for (iyy, ixx), fig in figures.iteritems():
+        for (iyy, ixx), fig in figures.items():
             title = '.'.join(x for x in cg if x)
             if len(figures) > 1:
                 title += ' (%i/%i, %i/%i)' % (iyy + 1, nyy, ixx + 1, nxx)
@@ -1523,7 +1522,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
                     if posterior:
                         if posterior == 'all':
-                            for k, idx in posterior_idxs.iteritems():
+                            for k, idx in posterior_idxs.items():
                                 axs[rowi, coli].axvline(
                                     x=e[idx], color=colors[k], lw=1.)
                         else:
@@ -1560,7 +1559,7 @@ def select_transform(sc, n_steps=None):
         if n_steps == 1:
             return x
         else:
-            nchains = x.shape[0] / n_steps
+            nchains = x.shape[0] // n_steps
             xout = []
             for i in range(nchains):
                 nstart = int((n_steps * i) + (n_steps * pa.burn))
@@ -1707,7 +1706,7 @@ def draw_correlation_hist(problem, plot_options):
         varnames = problem.hypernames
     else:
         sc = problem.config.sampler_config
-        varnames = problem.varnames + problem.hypernames + ['like']
+        varnames = list(problem.varnames) + problem.hypernames + ['like']
 
     if len(po.varnames) > 0:
         varnames = po.varnames
@@ -1839,7 +1838,7 @@ def draw_earthmodels(problem, plot_options):
 
     po = plot_options
 
-    for datatype, composite in problem.composites.iteritems():
+    for datatype, composite in problem.composites.items():
 
         if datatype == 'seismic':
             models_dict = {}
@@ -1864,7 +1863,7 @@ def draw_earthmodels(problem, plot_options):
                         earth_model_name=sc.gf_config.earth_model_name,
                         channels=sc.get_unique_channels()[0],
                         sample_rate=sc.gf_config.sample_rate,
-                        crust_inds=range(*sc.gf_config.n_variations),
+                        crust_inds=list(range(*sc.gf_config.n_variations)),
                         interpolation='multilinear')
 
                     models = load_earthmodels(
@@ -1902,7 +1901,7 @@ def draw_earthmodels(problem, plot_options):
                     datasets=composite.datasets,
                     earth_model_name=gc.gf_config.earth_model_name,
                     interpolation='multilinear',
-                    crust_inds=range(*gc.gf_config.n_variations),
+                    crust_inds=list(range(*gc.gf_config.n_variations)),
                     sample_rate=gc.gf_config.sample_rate)
 
                 models = load_earthmodels(
@@ -1924,7 +1923,7 @@ def draw_earthmodels(problem, plot_options):
         figs = []
         axes = []
         tobepopped = []
-        for path, models in models_dict.iteritems():
+        for path, models in models_dict.items():
             if len(models) > 0:
                 fig, axs = n_model_plot(
                     models, axes=None,
