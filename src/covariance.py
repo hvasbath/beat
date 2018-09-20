@@ -204,7 +204,7 @@ class SeismicNoiseAnalyser(object):
             for result in results:
                 residual = result.filtered_res.get_ydata()
                 scaling = non_toeplitz_covariance(
-                    residual, window_size=residual.size / 5)
+                    residual, window_size=int(residual.size / 5))
                 scalings.append(scaling)
 
             return scalings
