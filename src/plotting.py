@@ -1284,6 +1284,21 @@ def draw_seismic_fits(problem, po):
                 opdf.savefig(fig)
 
 
+def draw_fuzzy_beachball(problem, po):
+
+    stage = Stage(homepath=problem.outfolder)
+
+    mode = problem.config.problem_config.mode
+
+    if po.reference is None:
+        llk_str = po.post_llk
+        stage.load_results(
+            varnames=problem.varnames,
+            model=problem.model, stage_number=po.load_stage,
+            load='trace', chains=[-1])
+    pass
+
+
 def histplot_op(
         ax, data, reference=None, alpha=.35, color=None, bins=None,
         ntickmarks=5, tstd=None, kwargs={}):
@@ -2190,7 +2205,8 @@ plots_catalog = {
     'waveform_fits': draw_seismic_fits,
     'scene_fits': draw_geodetic_fits,
     'velocity_models': draw_earthmodels,
-    'slip_distribution': draw_slip_dist}
+    'slip_distribution': draw_slip_dist,
+    'fuzzy_beachball': draw_fuzzy_beachball}
 
 
 def available_plots():
