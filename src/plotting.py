@@ -1299,10 +1299,19 @@ def draw_fuzzy_beachball(problem, po):
         model=problem.model, stage_number=po.load_stage,
         load='trace', chains=[-1])
 
-    m6s = num.empty((len(stage.mtrace), 6), dtype='float64')
+    n_mts = len(stage.mtrace)
+    # have to select only 500 therwise alpha doesnt work, bug in MPL
+    alphatresh = 500
+    if n_mts > alphatresh:
+        thin, burn = utility.mod_i(n_mts, alphatresh)
+        n_mts = alphatresh
+    else:
+        burn = 0
+        thin = 1
+    m6s = num.empty((n_mts, 6), dtype='float64')
     for i, varname in enumerate(['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
         m6s[:, i] = stage.mtrace.get_values(
-            varname, combine=True, squeeze=True).ravel()
+            varname, combine=True, squeeze=True, burn=burn, thin=thin).ravel()
 
     kwargs = {
         'beachball_type': 'full',
