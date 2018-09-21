@@ -9,31 +9,26 @@ The data has been pre-processed with `kite <https://github.com/pyrocko/kite>`__.
 
 .. image:: ../_static/Static_asc.png
 
-To copy the scenario (including the data) to a directory outside of the package source directory, please edit the 'model path' (referred to as $beat_models now on) and execute::
+To copy the scenario (including the data) to a directory outside of the package source directory, please edit the '&beat_models_path' and execute::
 
    cd /path/to/beat/data/examples/
-   beat clone RectangularStatic /'model path'/RectangularStatic --copy_data
+   beat clone RectangularStatic $beat_models_path/RectangularStatic --copy_data
 
 This will create a BEAT project directory named 'RectangularStatic' with a configuration file (config_geometry.yaml) and an example dataset from real Envisat InSAR data (geodetic_data.pkl).
-This directory 'RectangularStatic' is going to be referred to as '$project_directory' in the following.
+Please change to your &beat_models_path with::
+
+   cd $beat_models_path
 
 
 Calculate Greens Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
-We need to calculate a Greens function store (GF), as done in  the Regional Full Moment Tensor example. However in this case we will only to
-calculate a store that holds static displacements. For this we will make use of the PSGRN/PSCMP backend.
+We need to calculate a Greens function store (GF), as done in  the Regional Full Moment Tensor example. However in this case we will only calculate a store that holds static displacements. For this we will make use of the PSGRN/PSCMP [Wang2008]_ backend.
 
 Please open $project_directory/config_geometry.yaml with any text editor (e.g. vi) and check the line 144: store_superdir.
 This path needs to be replaced with the path to where the GFs are supposed to be stored on your computer.
 This directory is referred to as the $GF_path in the rest of the text. It is strongly recommended to use a separate directory
 apart from the beat source directory. The statics Green's function stores are not very large, but can be used by several projects in the
 future.
-
-   cd $beat_models
-   beat build_gfs RectangularStatic
-
-This will create an empty Greens Function store named statics_ak135_0.000Hz_0 in the $GF_path. It will use the AK135 earth model[Kennet]_ in combination with CRUST2.0[Laske]_ for the shallow layers.
-
 
 In the $project_path/config_geometry.yaml under geodetic_config we find the gf_config, which holds the major parameters for GF calculation::
 
@@ -63,13 +58,18 @@ Note that you need to change the variable 'store_superdir' to an **absolute path
 You can also change the number of cores available to your system with the variable 'nworkers' to speed up the calculation of the GFs.
 The GF grid spacing is important and can be modified in x,y direction with 'source_distance_spacing' and in depth with 'source_depth_spacing'.
 The grid extent can be modified by 'source_distance_radius'. All the units are given in [km].
-The GF parameters set for the 2009 L'Aquila static example are good for now. We now build the GF directory, where the GF config will
-be further configurable.
+The GF parameters set for the 2009 L'Aquila static example are good for now.::
 
-For your own projects and needs you can also modify directly the GF velocity model and settings in the file $GF_path/statics_ak135_0.000Hz_0/config before exeuting the building in the next
-step. For the 2009 L'Aquila static scenario, or after you are satisfied with you modification of the GF setup, we can next build the GF with:
+   beat build_gfs RectangularStatic
 
-   beat build_gfs $project_directory --force --execute
+This will create an empty Greens Function store named statics_ak135_0.000Hz_0 in the $GF_path. It will use the AK135 earth model[Kennet]_ in combination with CRUST2.0[Laske]_ for the shallow layers.
+
+
+ where the Green's Functions "config"-file could be further customized under $GF_path/statics_ak135_0.000Hz_0/config.
+
+For this 2009 L'Aquila static scenario, we can next build the Green's Functions with::
+
+   beat build_gfs RectangularStatic --force --execute
 
 This will take some time, depending on how much cores you specified to execute in parallel at 'nworkers'. However, this only has to be done once and
 the GF store can be reused for different scenarios if the velocity model does not differ between the different cases.
@@ -113,7 +113,7 @@ Please refer to the 'Sample the solution space section' of the `FullMT <https://
 
 Firstly, we only optimize for the noise scaling or hyperparameters (HPs)::
 
-   beat sample $project_directory --hypers
+   beat sample RectangularStatic --hypers
 
 Checking the $project_directory/config_geometry.yaml, the HPs parameter bounds show something like::
 
@@ -128,7 +128,7 @@ Checking the $project_directory/config_geometry.yaml, the HPs parameter bounds s
 The 'n_jobs' number should be set to as many CPUs as the user can spare under the sampler_config. The number of sampled MarkovChains and the number of steps for each chain of the SMC sampler has been reduced for this example to allow for a fast result, at the cost of a more thorough exploration of the parameter space.
 After the determination of the hyperparameter we can now start the sampling with::
 
-   beat sample $project_directory
+   beat sample RectangularStatic
 
  .. note::  For more detailed search of the solution space please modify the parameters 'n_steps' and 'n_chains' for the SMC sampler in the $project_directory/config_geometry.yaml file to higher numbers. Depending on these specifications and the available hardware the sampling may take several hours.
 
@@ -137,11 +137,11 @@ Summarize and plotting
 ^^^^^^^^^^^^^^^^^^^^^^
 After the sampling successfully finished, the final stage results can be summarized with::
 
- beat summarize $project_directory --stage_number=-1
+ beat summarize RectangularStatic --stage_number=-1
 
 After that several figures illustrating the results can be created.  For a comparison between data, synthetic displacements and residuals for the two InSAR tracks please run::
 
- beat plot $project_directory scene_fits
+ beat plot RectangularStatic scene_fits
 
 The plot should show something like this:
  .. image:: ../_static/Static_scene_fits.png
@@ -149,10 +149,10 @@ The plot should show something like this:
 
 To plot the posterior marginal distributions of the source parameters, please run::
 
-   beat plot $project_directory stage_posteriors --stage_number=-1
+   beat plot RectangularStatic stage_posteriors --stage_number=-1
 
 
-These plots are stored under your $project_directory folder under geometry/figures.
+These plots are stored under your RectangularStatic folder under geometry/figures.
  .. image:: ../_static/Static_stage_-1_max.png
 
 The solution should be comparable to results from published studies. E.g. [Walters2009]_.
@@ -164,4 +164,5 @@ References
 Kennet
 Laske
 Okada1985
+Wang2008
 Walters2009
