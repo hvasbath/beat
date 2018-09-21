@@ -241,7 +241,7 @@ class GeodeticComposite(Composite):
 
         logger.info(
             'Initialized %i hierarchical parameters '
-            '(ramps).' % len(self.hierarchicals.keys()))
+            '(ramps).' % len(self.hierarchicals))
 
     def remove_ramps(self, residuals):
         """
@@ -322,8 +322,9 @@ class GeodeticSourceComposite(GeodeticComposite):
                 tpoint.pop(hyper)
 
         source_params = self.sources[0].keys()
+        source_params_arr= num.array(list(tpoint.keys()))
 
-        for param in tpoint.keys():
+        for param in source_params_arr:
             if param not in source_params:
                 tpoint.pop(param)
 
@@ -643,7 +644,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
         ref_idx = self.config.gf_config.reference_model_idx
 
         mu = tt.zeros((self.Bij.ordering.size), tconfig.floatX)
-        for var, rv in input_rvs.iteritems():
+        for var, rv in input_rvs.items():
             key = self.get_gflibrary_key(
                 crust_ind=ref_idx,
                 wavename='static',
@@ -681,7 +682,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
         """
 
         ref_idx = self.config.gf_config.reference_model_idx
-        if len(self.gfs.keys()) == 0:
+        if len(self.gfs) == 0:
             self.load_gfs(
                 crust_inds=[ref_idx],
                 make_shared=False)
@@ -699,7 +700,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
                 tpoint.pop(param)
 
         mu = num.zeros((self.Bij.ordering.size))
-        for var, rv in tpoint.iteritems():
+        for var, rv in tpoint.items():
             key = self.get_gflibrary_key(
                 crust_ind=ref_idx,
                 wavename='static',

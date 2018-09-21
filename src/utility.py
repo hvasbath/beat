@@ -13,7 +13,7 @@ import os
 import re
 import collections
 import copy
-import cPickle as pickle
+import pickle
 
 from pyrocko import util, orthodrome, catalog
 from pyrocko.cake import m2d, LayeredModel, read_nd_model_str
@@ -545,7 +545,7 @@ def adjust_point_units(point):
     """
 
     mpoint = {}
-    for key, value in point.iteritems():
+    for key, value in point.items():
         if key in kmtypes:
             mpoint[key] = value * km
         else:
@@ -571,14 +571,14 @@ def split_point(point):
     """
     params = point.keys()
     if len(params) > 0:
-        n_sources = point[params[0]].shape[0]
+        n_sources = point[next(iter(params))].shape[0]
     else:
         n_sources = 0
 
     source_points = []
     for i in range(n_sources):
         source_param_dict = dict()
-        for param, value in point.iteritems():
+        for param, value in point.items():
             source_param_dict[param] = float(value[i])
 
         source_points.append(source_param_dict)
@@ -592,7 +592,7 @@ def join_points(ldicts):
     values of keys that are present in multiple dicts.
     """
 
-    keys = set([k for d in ldicts for k in d.iterkeys()])
+    keys = set([k for d in ldicts for k in d.keys()])
 
     jpoint = {}
     for k in keys:
@@ -617,7 +617,7 @@ def update_source(source, **point):
         :func:`pymc3.model.Point`
     """
 
-    for (k, v) in point.iteritems():
+    for (k, v) in point.items():
         if k not in source.keys():
             if source.stf is not None:
                 source.stf[k] = v
@@ -796,7 +796,7 @@ def search_catalog(date, min_magnitude, dayrange=1.):
             'found! Please copy the relevant event information to the '
             'configuration file!')
         for event in events:
-            print event
+            print(event)
 
         event = events[0]
 
@@ -937,6 +937,8 @@ def load_objects(loadpath):
 
     try:
         objects = pickle.load(open(loadpath, 'rb'))
+    except UnicodeDecodeError:
+        objects = pickle.load(open(loadpath, 'rb'), encoding='latin1')
     except IOError:
         raise Exception(
             'File %s does not exist!' % loadpath)
@@ -1168,7 +1170,7 @@ def mod_i(i, cycle):
     fullc : int or float depending on input
     rest : int or float depending on input
     """
-    fullc = i / cycle
+    fullc = i // cycle
     rest = i % cycle
     return fullc, rest
 
@@ -1210,7 +1212,7 @@ def gather(l, key, sort=None, filter=None):
         d[k].append(x)
 
     if sort is not None:
-        for v in d.itervalues():
+        for v in d.values():
             v.sort(key=sort)
 
     return d

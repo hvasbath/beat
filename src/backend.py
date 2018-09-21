@@ -337,7 +337,7 @@ class TextChain(BaseTrace):
         self.stored_samples += n_samples
 
         if not self.progressbar:
-            if n_samples > self.buffer_size / 2:
+            if n_samples > self.buffer_size // 2:
                 logger.info(
                     'Writing %i / %i samples of chain %i to disk...' %
                     (self.stored_samples, self.draws, self.chain))
@@ -715,13 +715,13 @@ def load_multitrace(dirname, varnames=None, chains=None):
     if not istransd(varnames)[0]:
         logger.info('Loading multitrace from %s' % dirname)
         if chains is None:
-            files = glob(os.path.join(dirname, 'chain-*.csv'))
+            files = glob(os.path.join(dirname, 'chain*.csv'))
             chains = list(set([
                 int(os.path.splitext(f)[0].rsplit('-', 1)[1]) for f in files]))
         else:
             files = [
                 os.path.join(
-                    dirname, 'chain-%i.csv' % chain) for chain in chains]
+                    dirname, 'chain%i.csv' % chain) for chain in chains]
             for f in files:
                 if not os.path.exists(f):
                     raise IOError(

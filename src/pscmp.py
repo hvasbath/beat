@@ -201,7 +201,7 @@ class PsCmpRectangularSource(gf.Location, gf.seismosizer.Cloneable):
 
         '''
 
-        for (k, v) in kwargs.iteritems():
+        for (k, v) in kwargs.items():
             self[k] = v
 
         if top_depth:
@@ -645,7 +645,8 @@ class PsCmpRunner:
         original = signal.signal(signal.SIGINT, signal_handler)
         try:
             try:
-                proc = Popen(program,
+                proc = Popen(
+                    program,
                     stdin=PIPE, stdout=self.stdout, stderr=self.stderr,
                     close_fds=True)
 
@@ -665,8 +666,8 @@ class PsCmpRunner:
         logger.debug('===== begin pscmp output =====\n'
                      '%s===== end pscmp output =====' % self.stdout)
 
-	error_str = self.stderr.read()
-	output_str = self.stdout.read()
+        error_str = self.stderr.read()
+        output_str = self.stdout.read()
 
         errmess = []
         if proc.returncode != 0:

@@ -41,7 +41,7 @@ class FastSweepingTestCase(unittest.TestCase):
             slownesses, self.patch_size / km,
             self.n_patch_strike, self.n_patch_dip,
             self.nuc_x, self.nuc_y)
-        print 'np', numpy_start_times
+        print('np', numpy_start_times)
         t1 = time()
 
         logger.info('done numpy fast_sweeping in %f' % (t1 - t0))
@@ -98,7 +98,7 @@ class FastSweepingTestCase(unittest.TestCase):
         t1 = time()
         theano_c_wrap_start_times = f(
             Slownesses.flatten(), self.nuc_y, self.nuc_x)
-        print 'tc', theano_c_wrap_start_times
+        print('tc', theano_c_wrap_start_times)
         t2 = time()
         logger.info('Theano C wrapper compile time %f' % (t1 - t0))
         logger.info('done theano C wrapper fast_sweeping in %f' % (t2 - t1))
@@ -113,7 +113,7 @@ class FastSweepingTestCase(unittest.TestCase):
             self.n_patch_strike, self.n_patch_dip,
             self.nuc_x, self.nuc_y)
         t1 = time()
-        print 'c', c_start_times
+        print('c', c_start_times)
         logger.info('done c fast_sweeping in %f' % (t1 - t0))
         return c_start_times
 

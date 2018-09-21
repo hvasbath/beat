@@ -9,40 +9,44 @@
 
 typedef npy_float64 float64_t;
 
-static PyObject *FastSweepExtError;
+struct module_state {
+    PyObject *error;
+};
+
+#define GETSTATE(m) ((struct module_state*)PyModule_GetState(m))
 
 int good_array(PyObject* o, int typenum, npy_intp size_want, int ndim_want, npy_intp* shape_want){
     int i;
 
     if (!PyArray_Check(o)) {
-        PyErr_SetString(FastSweepExtError, "not a NumPy array" );
+        PyErr_SetString(PyExc_AttributeError, "not a NumPy array" );
         return 0;
     }
 
     if (PyArray_TYPE((PyArrayObject*)o) != typenum) {
-        PyErr_SetString(FastSweepExtError, "array of unexpected type");
+        PyErr_SetString(PyExc_AttributeError, "array of unexpected type");
         return 0;
     }
 
     if (!PyArray_ISCARRAY((PyArrayObject*)o)) {
-        PyErr_SetString(FastSweepExtError, "array is not contiguous or not well behaved");
+        PyErr_SetString(PyExc_AttributeError, "array is not contiguous or not well behaved");
         return 0;
     }
 
     if (size_want != -1 && size_want != PyArray_SIZE((PyArrayObject*)o)) {
-        PyErr_SetString(FastSweepExtError, "array is of unexpected size");
+        PyErr_SetString(PyExc_AttributeError, "array is of unexpected size");
         return 0;
     }
 
     if (ndim_want != -1 && ndim_want != PyArray_NDIM((PyArrayObject*)o)) {
-        PyErr_SetString(FastSweepExtError, "array is of unexpected ndim");
+        PyErr_SetString(PyExc_AttributeError, "array is of unexpected ndim");
         return 0;
     }
 
     if (ndim_want != -1 && shape_want != NULL) {
         for (i=0; i<ndim_want; i++) {
             if (shape_want[i] != -1 && shape_want[i] != PyArray_DIMS((PyArrayObject*)o)[i]) {
-                PyErr_SetString(FastSweepExtError, "array is of unexpected shape");
+                PyErr_SetString(PyExc_AttributeError, "array is of unexpected shape");
             return 0;
             }
         }
@@ -201,17 +205,17 @@ void fast_sweep(float64_t *Slowness, float64_t *StartTime, float64_t PatchSize, 
     return;
 }
 
-PyObject* w_fast_sweep(PyObject *dummy, PyObject *args){
+static PyObject* w_fast_sweep(PyObject *m, PyObject *args){
     PyObject *slowness_arr;
     PyArrayObject *c_slowness_arr, *tzero_arr;
 
     float64_t patch_size, *slowness, *tzero;
     npy_intp h_strk, h_dip, num_strk, num_dip, arr_size[1];
 
-    (void) dummy;
+    struct module_state *st = GETSTATE(m);
 
     if (!PyArg_ParseTuple(args, "Odkkkk", &slowness_arr, &patch_size, &h_strk, &h_dip, &num_strk, &num_dip)){
-        PyErr_SetString(FastSweepExtError, "Invalid call to fast_sweep! \n usage: fast_sweep(slowness_arr, patch_size, h_strk, h_dip, num_strk, num_dip)");
+        PyErr_SetString(st->error, "Invalid call to fast_sweep! \n usage: fast_sweep(slowness_arr, patch_size, h_strk, h_dip, num_strk, num_dip)");
         return NULL;
     }
 
@@ -224,7 +228,7 @@ PyObject* w_fast_sweep(PyObject *dummy, PyObject *args){
 
     tzero_arr = (PyArrayObject*) PyArray_EMPTY(1, arr_size, NPY_FLOAT64, 0);
     if (tzero_arr==NULL){
-        PyErr_SetString(FastSweepExtError, "Failed to allocate tzero!");
+        PyErr_SetString(st->error, "Failed to allocate tzero!");
         return NULL;
     }
 
@@ -242,20 +246,52 @@ PyObject* w_fast_sweep(PyObject *dummy, PyObject *args){
 
 static PyMethodDef FastSweepExtMethods[] = {
     {"fast_sweep", w_fast_sweep, METH_VARARGS,
-"Fast Sweeping Algorithm to calculate rupture onset-times on patches of a plane given slowness of the rupturing patches.\n"},
+     "Fast Sweeping Algorithm to calculate rupture onset-times on patches of a plane given slowness of the rupturing patches.\n"},
 
     {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
-PyMODINIT_FUNC initfast_sweep_ext(void){
-    PyObject* m;
+static int fast_sweep_traverse(PyObject *m, visitproc visit, void *arg) {
+    Py_VISIT(GETSTATE(m)->error);
+    return 0;
+}
 
-    m = Py_InitModule("fast_sweep_ext", FastSweepExtMethods);
-    if (m == NULL) return;
+static int fast_sweep_clear(PyObject *m) {
+    Py_CLEAR(GETSTATE(m)->error);
+    return 0;
+}
+
+static struct PyModuleDef moduledef = {
+        PyModuleDef_HEAD_INIT,
+        "fast_sweep_ext",
+        NULL,
+        sizeof(struct module_state),
+        FastSweepExtMethods,
+        NULL,
+        fast_sweep_traverse,
+        fast_sweep_clear,
+        NULL
+};
+
+#define INITERROR return NULL
+
+PyMODINIT_FUNC
+PyInit_fast_sweep_ext(void)
+{
+    PyObject* module = PyModule_Create(&moduledef);
+    if (module == NULL)
+        INITERROR;
     import_array();
+    
+    struct module_state *st = GETSTATE(module);
+    st->error = PyErr_NewException("beat.fast_sweep_ext.error", NULL, NULL);
+    if (st->error == NULL) {
+        Py_DECREF(module);
+        INITERROR;
+    }
+    Py_INCREF(st->error);
+    PyModule_AddObject(module, "error", st->error);
 
-    FastSweepExtError = PyErr_NewException("fast_sweep_ext.error", NULL, NULL);
-    Py_INCREF(FastSweepExtError);
-    PyModule_AddObject(m, "FastSweepExtError", FastSweepExtError);
+    return module;
 }
 

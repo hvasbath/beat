@@ -50,7 +50,6 @@ def exponential_data_covariance(n, dt, tzero):
         -num.abs(num.arange(n)[:, num.newaxis] -
                  num.arange(n)[num.newaxis, :]) * dt / tzero)
 
-
 def identity_data_covariance(n, dt=None, tzero=None):
     """
     Get identity covariance matrix.
@@ -328,14 +327,14 @@ def model_prediction_sensitivity(engine, *args, **kwargs):
     sensitivity_param_list = []
     sensitivity_param_trcs = []
 
-    for i in xrange(len(source_params)):
+    for i in range(len(source_params)):
         sensitivity_param_list.append([0] * len(request.targets))
         sensitivity_param_trcs.append([0] * len(request.targets))
 
     for ref_source in request.sources:
         par_count = 0
         for param in source_params:
-            print param, 'with h = ', h[par_count]
+            print(param, 'with h = ', h[par_count])
             calc_source_p2h = ref_source.clone()
             calc_source_ph = ref_source.clone()
             calc_source_mh = ref_source.clone()
@@ -357,11 +356,11 @@ def model_prediction_sensitivity(engine, *args, **kwargs):
                                       targets=request.targets,
                                       nprocs=nprocs)
 
-            for k in xrange(len(request.targets)):
+            for k in range(len(request.targets)):
                 # zero padding if necessary
                 trc_lengths = num.array(
-                    [len(response.results_list[i][k].trace.data) for i in \
-                                        range(len(response.results_list))])
+                    [len(response.results_list[i][k].trace.data) for i in
+                     range(len(response.results_list))])
                 Id = num.where(trc_lengths != trc_lengths.max())
 
                 for l in Id[0]:
@@ -372,20 +371,20 @@ def model_prediction_sensitivity(engine, *args, **kwargs):
                 # calculate numerical partial derivative for
                 # each source and target
                 sensitivity_param_list[par_count][k] = (
-                        sensitivity_param_list[par_count][k] + (\
-                            - response.results_list[0][k].trace.data + \
-                            8 * response.results_list[1][k].trace.data - \
-                            8 * response.results_list[2][k].trace.data + \
-                                response.results_list[3][k].trace.data) / \
-                            (12 * h[par_count])
-                                                       )
+                        sensitivity_param_list[par_count][k] + (
+                            - response.results_list[0][k].trace.data +
+                            8 * response.results_list[1][k].trace.data -
+                            8 * response.results_list[2][k].trace.data +
+                            response.results_list[3][k].trace.data) /
+                        (12 * h[par_count])
+                    )
 
             par_count = par_count + 1
 
     # form traces from sensitivities
     par_count = 0
     for param in source_params:
-        for k in xrange(len(request.targets)):
+        for k in range(len(request.targets)):
             sensitivity_param_trcs[par_count][k] = trace.Trace(
                         network=request.targets[k].codes[0],
                         station=request.targets[k].codes[1],
@@ -493,7 +492,7 @@ def geodetic_cov_velocity_models(
 
     if plot:
         from matplotlib import pyplot as plt
-        indexes = dataset.get_distances_to_event(event).argsort()
+        indexes = dataset.get_distances_to_event(event).argsort()  # noqa
         ax = plt.axes()
         im = ax.matshow(synths)  # [:, indexes])
         plt.colorbar(im)
@@ -503,7 +502,7 @@ def geodetic_cov_velocity_models(
 
 
 def geodetic_cov_velocity_models_pscmp(
-    store_superdir, crust_inds, target, sources):
+        store_superdir, crust_inds, target, sources):
     """
     Calculate model prediction uncertainty matrix with respect to uncertainties
     in the velocity model for geodetic targets based on pscmp.
@@ -534,10 +533,9 @@ def geodetic_cov_velocity_models_pscmp(
             lats=target.lats,
             sources=sources)
         synths[crust_ind, :] = (
-            disp[:, 0] * target.los_vector[:, 0] + \
-            disp[:, 1] * target.los_vector[:, 1] + \
-            disp[:, 2] * target.los_vector[:, 2]) * \
-                target.odw
+            disp[:, 0] * target.los_vector[:, 0] +
+            disp[:, 1] * target.los_vector[:, 1] +
+            disp[:, 2] * target.los_vector[:, 2]) * target.odw
 
     return num.cov(synths, rowvar=0)
 

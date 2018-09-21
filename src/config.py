@@ -79,6 +79,7 @@ interseismic_vars = [
     'locking_depth'] + block_vars
 
 static_dist_vars = ['uparr', 'uperp']
+
 hypo_vars = ['nucleation_strike', 'nucleation_dip', 'nucleation_time']
 partial_kinematic_vars = ['durations', 'velocities']
 voronoi_locations = ['voronoi_strike', 'voronoi_dip']
@@ -437,7 +438,8 @@ class SeismicConfig(Object):
     def get_unique_channels(self):
         cl = [wc.channels for wc in self.waveforms]
         uc = []
-        map(uc.extend, cl)
+        for c in cl:
+            uc.extend(c)
         return list(set(uc))
 
     def get_hypernames(self):
@@ -719,7 +721,7 @@ class ProblemConfig(Object):
         """
         Check if priors and their test values do not contradict!
         """
-        for param in self.priors.itervalues():
+        for param in self.priors.values():
             param.validate_bounds()
 
         logger.info('All parameter-priors ok!')
@@ -729,7 +731,7 @@ class ProblemConfig(Object):
         Check if hyperparameters and their test values do not contradict!
         """
         if self.hyperparameters is not None:
-            for hp in self.hyperparameters.itervalues():
+            for hp in self.hyperparameters.values():
                 hp.validate_bounds()
 
             logger.info('All hyper-parameters ok!')
@@ -742,7 +744,7 @@ class ProblemConfig(Object):
         Check if hierarchicals and their test values do not contradict!
         """
         if self.hierarchicals is not None:
-            for hp in self.hierarchicals.itervalues():
+            for hp in self.hierarchicals.values():
                 hp.validate_bounds()
 
             logger.info('All hierarchical-parameters ok!')
@@ -1058,7 +1060,8 @@ class BEATconfig(Object, Cloneable):
 def init_reference_sources(source_points, n_sources, source_type, stf_type):
     reference_sources = []
     for i in range(n_sources):
-        #rf = source_catalog[source_type](stf=stf_catalog[stf_type]()) maybe future if several meshtypes
+        # rf = source_catalog[source_type](stf=stf_catalog[stf_type]())
+        # maybe future if several meshtypes
         rf = RectangularSource(stf=stf_catalog[stf_type]())
         utility.update_source(rf, **source_points[i])
         reference_sources.append(rf)
@@ -1182,7 +1185,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
 
             n_sources = gmc.problem_config.n_sources
             point = {k: v.testvalue
-                     for k, v in gmc.problem_config.priors.iteritems()}
+                     for k, v in gmc.problem_config.priors.items()}
             point = utility.adjust_point_units(point)
             source_points = utility.split_point(point)
 
