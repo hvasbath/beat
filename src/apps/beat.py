@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+from os.path import join as pjoin
 
 # disable internal blas parallelisation as we parallelise over chains
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -13,15 +14,17 @@ from optparse import OptionParser
 
 from beat import heart, config, utility, inputf, plotting
 from beat.models import load_model, Stage, estimate_hypers, sample
-from beat.backend import TextChain
+from beat.backend import TextChain 
+from beat.sampler import SamplingHistory
 from beat.sources import MTSourceWithMagnitude
 from beat.utility import list2string
+from numpy import savez, atleast_2d
 
 from pyrocko import model, util
 from pyrocko.trace import snuffle
 from pyrocko.gf import LocalEngine
 
-from pyrocko.guts import load, dump
+from pyrocko.guts import load, dump, Dict
 
 
 logger = logging.getLogger('beat')
@@ -46,6 +49,8 @@ subcommand_descriptions = {
     'plot':           'plot specified setups or results',
     'check':          'check setup specific requirements',
     'summarize':      'collect results and create statistics',
+    'export':         'export waveforms and displacement maps of'
+                      ' specific solution(s)',
 }
 
 subcommand_usages = {
@@ -59,9 +64,10 @@ subcommand_usages = {
     'plot':          'plot <event_name> <plot_type> [options]',
     'check':         'check <event_name> [options]',
     'summarize':     'summarize <event_name> [options]',
+    'export':        'export <event_name> [options]',
 }
 
-subcommands = subcommand_descriptions.keys()
+subcommands = list(subcommand_descriptions.keys())
 
 program_name = 'beat'
 
@@ -80,6 +86,7 @@ Subcommands:
     build_gfs       %(build_gfs)s
     sample          %(sample)s
     summarize       %(summarize)s
+    export          %(export)s
     plot            %(plot)s
     check           %(check)s
 
@@ -100,6 +107,7 @@ nargs_dict = {
     'sample': 1,
     'check': 1,
     'summarize': 1,
+    'export': 1,
 }
 
 mode_choices = ['geometry', 'ffi']
@@ -131,7 +139,7 @@ def get_project_directory(args, options, nargs=1, popflag=False):
             name = args.pop(0)
         else:
             name = args[0]
-        project_dir = os.path.join(os.path.abspath(options.main_path), name)
+        project_dir = pjoin(os.path.abspath(options.main_path), name)
     else:
         project_dir = os.getcwd()
 
@@ -152,7 +160,7 @@ def cl_parse(command, args, setup=None, details=None):
     usage = subcommand_usages[command]
     descr = subcommand_descriptions[command]
 
-    if isinstance(usage, str):
+    if isinstance(usage, basestring):
         usage = [usage]
 
     susage = '%s %s' % (program_name, usage[0])
@@ -360,14 +368,13 @@ def command_import(args):
             logger.info('Attempting to import seismic data from %s' %
                         sc.datadir)
 
-            seismic_outpath = os.path.join(
-                c.project_dir, config.seismic_data_name)
+            seismic_outpath = pjoin(c.project_dir, config.seismic_data_name)
             if not os.path.exists(seismic_outpath) or options.force:
 
                 if options.seismic_format == 'autokiwi':
 
                     stations = model.load_stations(
-                        os.path.join(sc.datadir, 'stations.txt'))
+                        pjoin(sc.datadir, 'stations.txt'))
 
                     data_traces = inputf.load_data_traces(
                         datadir=sc.datadir,
@@ -390,8 +397,7 @@ def command_import(args):
             logger.info('Attempting to import geodetic data from %s' %
                         gc.datadir)
 
-            geodetic_outpath = os.path.join(
-                c.project_dir, config.geodetic_data_name)
+            geodetic_outpath = pjoin(c.project_dir, config.geodetic_data_name)
             if not os.path.exists(geodetic_outpath) or options.force:
 
                 gtargets = []
@@ -442,7 +448,7 @@ def command_import(args):
             point = plotting.get_result_point(stage, problem.config, 'max')
             n_sources = problem.config.problem_config.n_sources
 
-            source_params = problem.config.problem_config.priors.keys()
+            source_params = list(problem.config.problem_config.priors.keys())
             for param in point.keys():
                 if param not in source_params:
                     point.pop(param)
@@ -476,10 +482,10 @@ def command_update(args):
 
         parser.add_option(
             '--parameters',
-            default=['hypers'], type='string',
+            default=['structure'], type='string',
             action='callback', callback=list_callback,
-            help='Parameters to update; "hypers, hierarchicals". '
-                 'Default: ["hypers"]')
+            help='Parameters to update; "structure, hypers, hierarchicals". '
+                 'Default: ["structure"] (config file-structure only)')
 
         parser.add_option(
             '--mode', dest='mode',
@@ -488,13 +494,22 @@ def command_update(args):
             help='Inversion problem to solve; %s Default: "geometry"' %
                  list2string(mode_choices))
 
+        parser.add_option(
+            '--diff', dest='diff', action='store_true',
+            help='create diff between normalized old and new versions')
+
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
     project_dir = get_project_directory(
         args, options, nargs_dict[command_str])
 
-    config.load_config(
-        project_dir, options.mode, update=options.parameters)
+    config_file_name = 'config_' + options.mode + '.yaml'
+
+    config_fn = os.path.join(project_dir, config_file_name)
+
+    from beat import upgrade
+    upgrade.upgrade_config_file(
+        config_fn, diff=options.diff, update=options.parameters)
 
 
 def command_clone(args):
@@ -555,12 +570,13 @@ def command_clone(args):
 
     project_dir = get_project_directory(
         args, options, nargs_dict[command_str])
-    cloned_dir = os.path.join(os.path.dirname(project_dir), cloned_name)
+
+    cloned_dir = pjoin(os.path.dirname(project_dir), cloned_name)
 
     util.ensuredir(cloned_dir)
 
     for mode in [options.mode]:
-        config_fn = os.path.join(project_dir, 'config_' + mode + '.yaml')
+        config_fn = pjoin(project_dir, 'config_' + mode + '.yaml')
         if os.path.exists(config_fn):
             logger.info('Cloning %s problem config.' % mode)
             c = config.load_config(project_dir, mode)
@@ -575,12 +591,11 @@ def command_clone(args):
                 else:
                     new_datatypes.append(datatype)
 
-                    data_path = os.path.join(
-                        project_dir, datatype + '_data.pkl')
+                    data_path = pjoin(project_dir, datatype + '_data.pkl')
 
                     if os.path.exists(data_path) and options.copy_data:
                         logger.info('Cloning %s data.' % datatype)
-                        cloned_data_path = os.path.join(
+                        cloned_data_path = pjoin(
                             cloned_dir, datatype + '_data.pkl')
                         shutil.copyfile(data_path, cloned_data_path)
 
@@ -590,7 +605,7 @@ def command_clone(args):
                 c.problem_config.datatype = new_datatypes
                 new_priors = c.problem_config.select_variables()
                 for prior in new_priors:
-                    if prior in old_priors.keys():
+                    if prior in list(old_priors.keys()):
                         c.problem_config.priors[prior] = old_priors[prior]
 
             else:
@@ -656,10 +671,15 @@ def command_sample(args):
         sample(step, problem)
 
 
+def result_check(mtrace, min_length):
+    if len(mtrace.chains) < min_length:
+        raise IOError(
+            'Result traces do not exist. Previously deleted?')
+
+
 def command_summarize(args):
 
     from pymc3 import summary
-    from pymc3.backends.base import MultiTrace
 
     command_str = 'summarize'
 
@@ -683,6 +703,14 @@ def command_summarize(args):
             '--force', dest='force', action='store_true',
             help='Overwrite existing files')
 
+        parser.add_option(
+            '--stage_number',
+            dest='stage_number',
+            type='int',
+            default=None,
+            help='Int of the stage number "n" of the stage to be summarized.'
+                 ' Default: all stages up to last complete stage')
+
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
     project_dir = get_project_directory(
@@ -690,19 +718,56 @@ def command_summarize(args):
 
     logger.info('Loading problem ...')
     problem = load_model(project_dir, options.mode)
+    problem.plant_lijection()
 
     stage = Stage(homepath=problem.outfolder)
-    stage.load_results(model=problem.model, stage_number=-1, load='full')
-    stage_path = stage.handler.stage_path(-2)
+    stage_numbers = stage.handler.get_stage_indexes(options.stage_number)
+    logger.info('Summarizing stage(s): %s' % list2string(stage_numbers))
+    if len(stage_numbers) == 0:
+        raise ValueError('No stage result found where sampling completed!')
 
-    if problem.config.sampler_config.name == 'SMC':
-        sc_params = problem.config.sampler_config.parameters
-        if not os.path.exists(
-                os.path.join(stage_path, 'chain-0.csv')) or options.force:
+    sc_params = problem.config.sampler_config.parameters
+    sampler_name = problem.config.sampler_config.name
+    if hasattr(sc_params, 'rm_flag'):
+        if sc_params.rm_flag:
+            logger.info('Removing sampled chains!!!')
+            input('Sure? Press enter! Otherwise Ctrl + C')
+            rm_flag = True
+        else:
+            rm_flag = False
+    else:
+        rm_flag = False
+
+    for stage_number in stage_numbers:
+
+        stage_path = stage.handler.stage_path(stage_number)
+        logger.info('Summarizing stage under: %s' % stage_path)
+
+        result_trace_path = pjoin(stage_path, 'chain--1.csv')
+        if not os.path.exists(result_trace_path) or options.force:
+            # trace may exist by forceing
+            if os.path.exists(result_trace_path):
+                os.remove(result_trace_path)
+
+            stage.load_results(
+                model=problem.model, stage_number=stage_number, load='trace')
+
+            if sampler_name == 'SMC':
+                result_check(stage.mtrace, min_length=2)
+                draws = sc_params.n_chains * sc_params.n_steps
+                idxs = [-1]
+            elif sampler_name == 'PT':
+                result_check(stage.mtrace, min_length=1)
+                draws = sc_params.n_samples
+                idxs = range(draws)
+            else:
+                raise NotImplementedError(
+                    'Summarize function still needs to be implemented '
+                    'for %s sampler' % problem.config.sampler_config.name)
 
             rtrace = TextChain(stage_path, model=problem.model)
             rtrace.setup(
-                draws=sc_params.n_chains * sc_params.n_steps, chain=0)
+                draws=draws, chain=-1)
 
             if hasattr(problem, 'sources'):
                 source = problem.sources[0]
@@ -710,7 +775,7 @@ def command_summarize(args):
                 source = None
 
             for chain in stage.mtrace.chains:
-                for idx in [-1]:
+                for idx in idxs:
                     point = stage.mtrace.point(idx=idx, chain=chain)
 
                     if isinstance(source, MTSourceWithMagnitude):
@@ -723,34 +788,39 @@ def command_summarize(args):
                         jpoint = utility.join_points(ldicts)
                         point.update(jpoint)
 
-                    lpoint = stage.step['lij'].d2l(point)
+                    lpoint = problem.model.lijection.d2l(point)
                     rtrace.record(lpoint, draw=chain)
 
-            rtrace = MultiTrace([rtrace])
+                if rm_flag:
+                    # remove chain
+                    os.remove(stage.mtrace._straces[chain].filename)
         else:
             logger.info(
                 'Summarized trace exists! Use force=True to overwrite!')
-            stage.load_results(model=problem.model, stage_number=-2)
-            rtrace = stage.mtrace
-    else:
-        raise NotImplementedError(
-            'Summarize function still needs to be implemented '
-            'for %s sampler' % problem.config.sampler_config.name)
 
-    if len(rtrace) == 0:
-        raise ValueError(
-            'Trace collection previously failed. Please rerun'
-            ' "beat summarize <project_dir> --force!"')
+    final_stage = -1
+    if final_stage in stage_numbers:
+        stage.load_results(
+            model=problem.model, stage_number=final_stage, chains=[-1])
+        rtrace = stage.mtrace
 
-    summary_file = os.path.join(problem.outfolder, config.summary_name)
+        if len(rtrace) == 0:
+            raise ValueError(
+                'Trace collection previously failed. Please rerun'
+                ' "beat summarize <project_dir> --force!"')
 
-    if not os.path.exists(summary_file) or options.force:
-        logger.info('Writing summary to %s' % summary_file)
-        df = summary(rtrace)
-        with open(summary_file, 'w') as outfile:
-            df.to_string(outfile)
-    else:
-        logger.info('Summary exists! Use force=True to overwrite!')
+        summary_file = pjoin(problem.outfolder, config.summary_name)
+
+        if os.path.exists(summary_file) and options.force:
+            os.remove(summary_file)
+
+        if not os.path.exists(summary_file) or options.force:
+            logger.info('Writing summary to %s' % summary_file)
+            df = summary(rtrace)
+            with open(summary_file, 'w') as outfile:
+                df.to_string(outfile)
+        else:
+            logger.info('Summary exists! Use force=True to overwrite!')
 
 
 def command_build_gfs(args):
@@ -817,7 +887,7 @@ def command_build_gfs(args):
                 if sf.reference_location is None:
                     logger.info("Creating Green's Function stores individually"
                                 " for each station!")
-                    seismic_data_path = os.path.join(
+                    seismic_data_path = pjoin(
                         c.project_dir, config.seismic_data_name)
 
                     stations, _ = utility.load_objects(seismic_data_path)
@@ -856,11 +926,10 @@ def command_build_gfs(args):
 
         slip_varnames = c.problem_config.get_slip_variables()
         varnames = c.problem_config.select_variables()
-        outdir = os.path.join(
-            c.project_dir, options.mode, config.linear_gf_dir_name)
+        outdir = pjoin(c.project_dir, options.mode, config.linear_gf_dir_name)
         util.ensuredir(outdir)
 
-        faultpath = os.path.join(outdir, config.fault_geometry_name)
+        faultpath = pjoin(outdir, config.fault_geometry_name)
         if not os.path.exists(faultpath) or options.force:
             for datatype in options.datatypes:
                 try:
@@ -919,7 +988,7 @@ def command_build_gfs(args):
                 if datatype == 'geodetic':
                     gf = c.geodetic_config.gf_config
 
-                    geodetic_data_path = os.path.join(
+                    geodetic_data_path = pjoin(
                         c.project_dir, config.geodetic_data_name)
 
                     datasets = utility.load_objects(geodetic_data_path)
@@ -949,7 +1018,7 @@ def command_build_gfs(args):
                             force=options.force)
 
                 elif datatype == 'seismic':
-                    seismic_data_path = os.path.join(
+                    seismic_data_path = pjoin(
                         c.project_dir, config.seismic_data_name)
                     sc = c.seismic_config
                     gf = sc.gf_config
@@ -1078,10 +1147,10 @@ def command_plot(args):
             help='Plot hyperparameter results only.')
 
         parser.add_option(
-            '--nobuild',
-            dest='nobuild',
+            '--build',
+            dest='build',
             action='store_true',
-            help='Dont build models during problem init.')
+            help='Build models during problem loading.')
 
     plots_avail = plotting.available_plots()
 
@@ -1108,8 +1177,9 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
                             ' %s' % (plot, plots_avail))
 
     logger.info('Loading problem ...')
+
     problem = load_model(
-        project_dir, options.mode, options.hypers, options.nobuild)
+        project_dir, options.mode, options.hypers, options.build)
 
     po = plotting.PlotOptions(
         plot_projection=options.plot_projection,
@@ -1121,11 +1191,16 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
         varnames=options.varnames)
 
     if options.reference:
-        po.reference = problem.model.test_point
+        try:
+            po.reference = problem.model.test_point
+            step = problem.init_sampler()
+            po.reference['like'] = step.step(problem.model.test_point)[1][-1]
+        except AttributeError:
+            po.reference = problem.config.problem_config.get_test_point()
     else:
         po.reference = None
 
-    figure_path = os.path.join(problem.outfolder, po.figure_dir)
+    figure_path = pjoin(problem.outfolder, po.figure_dir)
     util.ensuredir(figure_path)
 
     for plot in plotnames:
@@ -1156,7 +1231,7 @@ def command_check(args):
 
         parser.add_option(
             '--datatypes',
-            default=[' seismic'],
+            default=['seismic'],
             type='string',
             action='callback',
             callback=list_callback,
@@ -1183,7 +1258,10 @@ def command_check(args):
         args, options, nargs_dict[command_str])
 
     problem = load_model(
-        project_dir, options.mode, hypers=False, nobuild=True)
+        project_dir, options.mode, hypers=False, build=False)
+
+    tpoint = problem.config.problem_config.get_test_point()
+    problem.point2sources(tpoint)
 
     if options.what == 'stores':
         corrupted_stores = heart.check_problem_stores(
@@ -1196,8 +1274,13 @@ def command_check(args):
     elif options.what == 'traces':
         sc = problem.composites['seismic']
         for wmap in sc.wavemaps:
+            wmap.prepare_data(
+                source=sc.event,
+                engine=sc.engine,
+                outmode='stacked_traces')
             snuffle(
-                wmap.datasets, stations=wmap.stations, events=[sc.event])
+                wmap.datasets + wmap._prepared_data,
+                stations=wmap.stations, events=[sc.event])
 
     elif options.what == 'library':
         if options.mode != 'ffi':
@@ -1208,7 +1291,7 @@ def command_check(args):
 
             for datatype in options.datatypes:
                 for var in problem.config.problem_config.get_slip_variables():
-                    outdir = os.path.join(
+                    outdir = pjoin(
                         problem.config.project_dir, options.mode,
                         config.linear_gf_dir_name)
                     if datatype == 'seismic':
@@ -1225,7 +1308,7 @@ def command_check(args):
                                 'Loading Greens Functions'
                                 ' Library %s for %s target' % (
                                     filename,
-                                    utility.list2string(options.targets)))
+                                    list2string(options.targets)))
                             gfs = ffi.load_gf_library(
                                 directory=outdir, filename=filename)
 
@@ -1233,12 +1316,160 @@ def command_check(args):
                                 int(target) for target in options.targets]
                             trs = gfs.get_traces(
                                 targetidxs=targets,
-                                patchidxs=range(gfs.npatches),
-                                durationidxs=range(gfs.ndurations),
-                                starttimeidxs=range(gfs.nstarttimes))
+                                patchidxs=list(range(gfs.npatches)),
+                                durationidxs=list(range(gfs.ndurations)),
+                                starttimeidxs=list(range(gfs.nstarttimes)))
                             snuffle(trs)
     else:
         raise ValueError('Subject what: %s is not available!' % options.what)
+
+
+def command_export(args):
+
+    command_str = 'export'
+
+    def setup(parser):
+
+        parser.add_option(
+            '--main_path', dest='main_path', type='string',
+            default='./',
+            help='Main path (absolute) leading to folders of events that'
+                 ' have been created by "init".'
+                 ' Default: current directory: ./')
+
+        parser.add_option(
+            '--mode', dest='mode',
+            choices=mode_choices,
+            default='geometry',
+            help='Inversion problem to solve; %s Default: "geometry"' %
+                 list2string(mode_choices))
+
+        parser.add_option(
+            '--stage_number',
+            dest='stage_number',
+            type='int',
+            default=-1,
+            help='Int of the stage number "n" of the stage to be summarized.'
+                 ' Default: all stages up to last complete stage')
+
+        parser.add_option(
+            '--post_llk',
+            dest='post_llk',
+            choices=['max', 'min', 'mean', 'all'],
+            default='max',
+            help='Plot model with specified likelihood; "max", "min", "mean"'
+                 ' or "all"; Default: "max"')
+
+        parser.add_option(
+            '--fix_output',
+            dest='fix_output', action='store_true',
+            help='Fix Network Station Location Codes in case '
+                 'they are not compliant with mseed')
+
+        parser.add_option(
+            '--force', dest='force', action='store_true',
+            help='Overwrite existing files')
+
+    parser, options, args = cl_parse(command_str, args, setup=setup)
+
+    project_dir = get_project_directory(
+        args, options, nargs_dict[command_str])
+
+    logger.info('Loading problem ...')
+    problem = load_model(project_dir, options.mode)
+
+    sc = problem.config.sampler_config
+
+    stage = Stage(homepath=problem.outfolder)
+
+    stage.load_results(
+        varnames=problem.varnames,
+        model=problem.model, stage_number=options.stage_number,
+        load='trace', chains=[-1])
+
+    trace_name = 'chain--1.csv'
+    results_path = pjoin(problem.outfolder, config.results_dir_name)
+    logger.info('Saving results to %s' % results_path)
+    util.ensuredir(results_path)
+
+    results_trace = pjoin(stage.handler.stage_path(-1), trace_name)
+    shutil.copy(results_trace, pjoin(results_path, trace_name))
+
+    point = plotting.get_result_point(
+        stage, problem.config, point_llk=options.post_llk)
+
+    for datatype, composite in problem.composites.items():
+        logger.info(
+            'Exporting "%s" synthetics for "%s" likelihood parameters:' % (
+                datatype, options.post_llk))
+        for varname, value in point.items():
+            logger.info('%s: %s' % (
+                varname, list2string(value.ravel().tolist())))
+
+        results = composite.assemble_results(point)
+
+        if datatype == 'seismic':
+            from pyrocko import io
+
+            for traces, attribute in heart.results_for_export(
+                    results, datatype=datatype):
+
+                filename = '%s_%i.mseed' % (attribute, options.stage_number)
+                outpath = pjoin(results_path, filename)
+                try:
+                    io.save(traces, outpath, overwrite=options.force)
+                except io.mseed.CodeTooLong:
+                    if options.fix_output:
+                        for tr in traces:
+                            tr.set_station(tr.station[-4::])
+                            tr.set_location(
+                                str(problem.config.seismic_config.gf_config.reference_model_idx))
+
+                        io.save(traces, outpath, overwrite=options.force)
+                    else:
+                        raise ValueError(
+                            'Some station codes are too long! '
+                            '(the --fix_output option will truncate to '
+                            'last 4 characters!)')
+
+            if hasattr(sc.parameters, 'update_covariances'):
+                if sc.parameters.update_covariances:
+                    logger.info('Saving velocity model covariance matrixes...')
+                    composite.update_weights(point)
+                    for wmap in composite.wavemaps:
+                        pcovs = {
+                            list2string(dataset.nslc_id):
+                            dataset.covariance.pred_v
+                            for dataset in wmap.datasets}
+
+                        outname = pjoin(
+                            results_path, '%s_C_vm_%s' % (
+                                datatype, wmap._mapid))
+                        logger.info('"%s" to: %s' % (wmap._mapid, outname))
+                        savez(outname, **pcovs)
+
+                logger.info('Saving data covariance matrixes...')
+                for wmap in composite.wavemaps:
+                    dcovs = {
+                        list2string(dataset.nslc_id):
+                        dataset.covariance.data
+                        for dataset in wmap.datasets}
+
+                    outname = pjoin(
+                        results_path, '%s_C_d_%s' % (
+                            datatype, wmap._mapid))
+                    logger.info('"%s" to: %s' % (wmap._mapid, outname))
+                    savez(outname, **dcovs)
+
+        elif datatype == 'geodetic':
+            for ifgs, attribute in heart.results_for_export(
+                    results, datatype=datatype):
+                    pass
+
+            raise NotImplementedError(
+                'Geodetic export not yet implemented!')
+        else:
+            raise NotImplementedError('Datatype %s not supported!' % datatype)
 
 
 def main():
