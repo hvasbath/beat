@@ -448,30 +448,38 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
 
         self.point2sources(point)
 
-        for i, data in enumerate(self.datasets):
-            crust_targets = heart.init_geodetic_targets(
-                datasets=[data],
-                earth_model_name=gc.gf_config.earth_model_name,
-                interpolation=gc.interpolation,
-                crust_inds=range(*gc.gf_config.n_variations),
-                sample_rate=gc.gf_config.sample_rate)
+        crust_inds = range(*gc.gf_config.n_variations)
+        thresh = 5
+        if len(crust_inds) > thresh:
+            logger.info('Updating geodetic velocity model-covariances ...')
+            for i, data in enumerate(self.datasets):
+                crust_targets = heart.init_geodetic_targets(
+                    datasets=[data],
+                    earth_model_name=gc.gf_config.earth_model_name,
+                    interpolation=gc.interpolation,
+                    crust_inds=crust_inds,
+                    sample_rate=gc.gf_config.sample_rate)
 
-            logger.debug('Track %s' % data.name)
-            cov_pv = cov.geodetic_cov_velocity_models(
-                engine=self.engine,
-                sources=self.sources,
-                targets=crust_targets,
-                dataset=data,
-                plot=plot,
-                event=self.event,
-                n_jobs=1)
+                logger.debug('Track %s' % data.name)
+                cov_pv = cov.geodetic_cov_velocity_models(
+                    engine=self.engine,
+                    sources=self.sources,
+                    targets=crust_targets,
+                    dataset=data,
+                    plot=plot,
+                    event=self.event,
+                    n_jobs=1)
 
-            cov_pv = utility.ensure_cov_psd(cov_pv)
-            data.covariance.pred_v = cov_pv
-            choli = data.covariance.chol_inverse
+                cov_pv = utility.ensure_cov_psd(cov_pv)
+                data.covariance.pred_v = cov_pv
+                choli = data.covariance.chol_inverse
 
-            self.weights[i].set_value(choli)
-            data.covariance.update_slog_pdet()
+                self.weights[i].set_value(choli)
+                data.covariance.update_slog_pdet()
+        else:
+            logger.info(
+                'Not updating geodetic velocity model-covariances because '
+                'number of model variations is too low! < %i' % thresh)
 
 
 class GeodeticInterseismicComposite(GeodeticSourceComposite):

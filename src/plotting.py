@@ -1284,6 +1284,55 @@ def draw_seismic_fits(problem, po):
                 opdf.savefig(fig)
 
 
+def draw_fuzzy_beachball(problem, po):
+
+    from pyrocko.plot import beachball
+
+    if problem.config.problem_config.n_sources > 1:
+        raise NotImplementedError(
+            'Fuzzy beachball is not yet implemented for more than one source!')
+
+    stage = Stage(homepath=problem.outfolder)
+
+    stage.load_results(
+        varnames=problem.varnames,
+        model=problem.model, stage_number=po.load_stage,
+        load='trace', chains=[-1])
+
+    m6s = num.empty((len(stage.mtrace), 6), dtype='float64')
+    for i, varname in enumerate(['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
+        m6s[:, i] = stage.mtrace.get_values(
+            varname, combine=True, squeeze=True).ravel()
+
+    kwargs = {
+        'beachball_type': 'full',
+        'size': 160,
+        'position': (5, 5),
+        'color_t': 'black',
+        'edgecolor': 'black'}
+
+    fig = plt.figure(figsize=(4., 4.))
+    fig.subplots_adjust(left=0., right=1., bottom=0., top=1.)
+    axes = fig.add_subplot(1, 1, 1)
+
+    axes = beachball.plot_fuzzy_beachball_mpl(
+        m6s, axes, best_mt=None, best_color='red', kwargs=kwargs)
+
+    axes.set_xlim(0., 10.)
+    axes.set_ylim(0., 10.)
+    axes.set_axis_off()
+
+    if not po.outformat == 'display':
+        outpath = os.path.join(
+            problem.outfolder,
+            po.figure_dir,
+            'stage_%i_%s.%s' % (po.load_stage, po.post_llk, 'png'))
+        logger.info('saving figure to %s' % outpath)
+        fig.savefig(outpath, dpi=po.dpi)
+    else:
+        plt.show()
+
+
 def histplot_op(
         ax, data, reference=None, alpha=.35, color=None, bins=None,
         ntickmarks=5, tstd=None, kwargs={}):
@@ -1328,11 +1377,11 @@ def histplot_op(
 
 
 def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
-              lines=None, chains=None, combined=False, grid=False,
+              lines={}, chains=None, combined=False, grid=False,
               varbins=None, nbins=40, color=None,
               alpha=0.35, priors=None, prior_alpha=1, prior_style='--',
               axs=None, posterior=None, fig=None, plot_style='kde',
-              prior_bounds=None):
+              prior_bounds={}, kwargs={}):
     """
     Plots posterior pdfs as histograms from multiple mtrace objects.
 
@@ -1374,6 +1423,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         Matplotlib axes. Defaults to None.
     fig : figure
         Matplotlib figure. Defaults to None.
+    kwargs : dict
+        for histplot op
 
     Returns
     -------
@@ -1491,10 +1542,14 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         # axs[rowi, coli].set_ylim([0, e.max()])
                         xticker = tick.MaxNLocator(nbins=5)
                         xax.set_major_locator(xticker)
-                    else:
+                    elif plot_style == 'hist':
                         histplot_op(
                             axs[rowi, coli], e, reference=reference,
-                            bins=varbin, alpha=alpha, color=color)
+                            bins=varbin, alpha=alpha, color=color,
+                            kwargs=kwargs)
+                    else:
+                        raise NotImplementedError(
+                            'Plot style "%s" not implemented' % plot_style)
 
                     try:
                         param = prior_bounds[v]
@@ -2184,7 +2239,8 @@ plots_catalog = {
     'waveform_fits': draw_seismic_fits,
     'scene_fits': draw_geodetic_fits,
     'velocity_models': draw_earthmodels,
-    'slip_distribution': draw_slip_dist}
+    'slip_distribution': draw_slip_dist,
+    'fuzzy_beachball': draw_fuzzy_beachball}
 
 
 def available_plots():

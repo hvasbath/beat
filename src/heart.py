@@ -109,13 +109,36 @@ class Covariance(Object):
         Object.__init__(self, **kwargs)
         self.update_slog_pdet()
 
+    def covs_supported(self):
+        return ['pred_g', 'pred_v', 'data']
+
+    def check_matrix_init(self, cov_mat_str=''):
+        """
+        Check if matrix is initialised and if not set with zeros of size data.
+        """
+        if cov_mat_str not in self.covs_supported():
+            raise NotImplementedError(
+                'Covariance term %s not supported' % cov_mat_str)
+
+        cov_mat = getattr(self, cov_mat_str)
+        if cov_mat is None:
+            cov_mat = num.zeros_like(self.data, dtype=tconfig.floatX)
+
+        if cov_mat.size != self.data.size:
+            if cov_mat.sum() == 0.:
+                cov_mat = num.zeros_like(self.data, dtype=tconfig.floatX)
+            else:
+                raise ValueError(
+                    '%s covariances defined but size '
+                    'inconsistent!' % cov_mat_str)
+
+        setattr(self, cov_mat_str, cov_mat)
+
     @property
     def p_total(self):
-        if self.pred_g is None:
-            self.pred_g = num.zeros_like(self.data, dtype=tconfig.floatX)
 
-        if self.pred_v is None:
-            self.pred_v = num.zeros_like(self.data, dtype=tconfig.floatX)
+        self.check_matrix_init('pred_g')
+        self.check_matrix_init('pred_v')
 
         return self.pred_g + self.pred_v
 
@@ -1923,8 +1946,7 @@ def get_phase_arrival_time(engine, source, target, wavename):
             'No such store with ID %s found, distance [deg] to event: %f ' % (
                 target.store_id, cake.m2d * dist))
 
-    depth = source.depth
-    return store.t(wavename, (depth, dist)) + source.time
+    return store.t(wavename, (source.depth, dist)) + source.time
 
 
 def get_phase_taperer(
@@ -1951,6 +1973,7 @@ def get_phase_taperer(
     :class:`pyrocko.trace.CosTaper`
     """
     if arrival_time is None or arrival_time == num.NAN:
+        logger.warning('Using source reference for tapering!')
         arrival_time = get_phase_arrival_time(
             engine=engine, source=source, target=target, wavename=wavename)
 
@@ -2026,6 +2049,12 @@ class WaveformMapping(object):
 
         self.check_consistency()
 
+    def get_station_names(self):
+        """
+        Returns list of strings of station names
+        """
+        return [station.station for station in self.stations]
+
     def check_consistency(self):
         if self.n_t != self.n_data:
             raise CollectionError(
@@ -2067,31 +2096,16 @@ class WaveformMapping(object):
     def n_data(self):
         return len(self.datasets)
 
-    def get_datasets(self, channels=['Z']):
+    def get_target_idxs(self, channels=['Z']):
 
         t2i = self.target_index_mapping()
-
         dtargets = utility.gather(self.targets, lambda t: t.codes[3])
 
-        datasets = []
+        tidxs = []
         for cha in channels:
-            for target in dtargets[cha]:
-                datasets.append(self.datasets[t2i[target]])
-
-        return datasets
-
-    def get_weights(self, channels=['Z']):
-
-        t2i = self.target_index_mapping()
-
-        dtargets = utility.gather(self.targets, lambda t: t.codes[3])
-
-        weights = []
-        for cha in channels:
-            for target in dtargets[cha]:
-                weights.append(self.weights[t2i[target]])
-
-        return weights
+            tidxs.extend([t2i[target] for target in dtargets[cha]])
+             
+        return tidxs
 
     def prepare_data(
             self, source, engine, outmode='array', chop_bounds=['b', 'c']):
@@ -2513,9 +2527,6 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     wavename : string
         of the tabulated phase that determines the phase arrival
     filterer : :class:`Filterer`
-    reference_taperer : :class:`ArrivalTaper`
-        if set all the traces are tapered with the specifications of this
-        Taper
     plot : boolean
         flag for looking at traces
     nprocs : int
@@ -2557,16 +2568,13 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     tapp = taperers.append
     for i, target in enumerate(targets):
         if arrival_taper is not None:
-            if reference_taperer is None:
-                tapp(get_phase_taperer(
-                    engine=engine,
-                    source=sources[0],
-                    wavename=wavename,
-                    target=target,
-                    arrival_taper=arrival_taper,
-                    arrival_time=arrival_times[i]))
-            else:
-                tapp(reference_taperer)
+            tapp(get_phase_taperer(
+                engine=engine,
+                source=sources[0],
+                wavename=wavename,
+                target=target,
+                arrival_taper=arrival_taper,
+                arrival_time=arrival_times[i]))
 
     if pre_stack_cut and arrival_taper is not None:
         for t, taperer in zip(targets, taperers):

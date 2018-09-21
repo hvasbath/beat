@@ -418,6 +418,7 @@ class Problem(object):
             for composite in self.composites.itervalues():
                 if hasattr(composite, 'analyse_noise'):
                     composite.analyse_noise(point)
+                    composite.init_weights()
 
                 composite.update_llks(point)
                 total_llk += composite.get_hyper_formula(self.hyperparams, pc)
@@ -544,6 +545,8 @@ class Problem(object):
                     hyperpar = hyperparameters.pop(hp_name)
 
                     if pc.dataset_specific_residual_noise_estimation:
+                        raise NotImplementedError('Not fully implemented!')
+                        # TODO: fix this needs to be wavemap stations specific
                         ndata = len(composite.get_unique_stations())
                     else:
                         ndata = 1

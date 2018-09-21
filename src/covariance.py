@@ -401,7 +401,7 @@ def model_prediction_sensitivity(engine, *args, **kwargs):
 
 
 def seismic_cov_velocity_models(
-        engine, sources, targets, arrival_taper, arrival_times,
+        engine, sources, targets, arrival_taper, arrival_time,
         wavename, filterer, plot=False, n_jobs=1):
     '''
     Calculate model prediction uncertainty matrix with respect to uncertainties
@@ -417,7 +417,7 @@ def seismic_cov_velocity_models(
         of :class:`pyrocko.gf.seismosizer.Targets`
     arrival_taper : :class: `heart.ArrivalTaper`
         determines tapering around phase Arrival
-    arrival_times : None or :class:`numpy.NdArray`
+    arrival_time : None or :class:`numpy.NdArray` or float
         of phase to apply taper, if None theoretic arrival of ray tracing used
     filterer : :class:`heart.Filter`
         determines the bandpass-filtering corner frequencies
@@ -431,14 +431,7 @@ def seismic_cov_velocity_models(
     :class:`numpy.ndarray` with Covariance due to velocity model uncertainties
     '''
 
-    ref_target = copy.deepcopy(targets[0])
-
-    reference_taperer = heart.get_phase_taperer(
-        engine,
-        sources[0],
-        wavename=wavename,
-        target=ref_target,
-        arrival_taper=arrival_taper)
+    arrival_times = num.ones(len(targets), dtype='float64') * arrival_time
 
     t0 = time()
     synths, _ = heart.seis_synthetics(
@@ -448,7 +441,6 @@ def seismic_cov_velocity_models(
         arrival_taper=arrival_taper,
         wavename=wavename,
         filterer=filterer,
-        reference_taperer=reference_taperer,
         arrival_times=arrival_times,
         pre_stack_cut=True,
         plot=plot,

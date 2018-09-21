@@ -103,7 +103,8 @@ class SeismicComposite(Composite):
 
     def analyse_noise(self, tpoint=None):
         """
-        Analyse seismic noise in datatraces and set weights accordingly.
+        Analyse seismic noise in datatraces and set
+        data-covariance matrixes accordingly.
         """
         if self.config.noise_estimator.structure == 'non-toeplitz':
             results = self.assemble_results(
@@ -114,27 +115,22 @@ class SeismicComposite(Composite):
         for wmap, wmap_results in zip(self.wavemaps, results):
             logger.info(
                 'Retrieving seismic data-covariances with structure "%s" '
-                'for %s ...\n' % (
+                'for %s ...' % (
                     self.config.noise_estimator.structure, wmap._mapid))
 
             cov_ds_seismic = self.noise_analyser.get_data_covariances(
                 wmap=wmap, results=wmap_results,
                 sample_rate=self.config.gf_config.sample_rate)
 
-            weights = []
             for j, trc in enumerate(wmap.datasets):
-                trc.covariance = heart.Covariance(data=cov_ds_seismic[j])
+                if trc.covariance is None:
+                    trc.covariance = heart.Covariance(data=cov_ds_seismic[j])
+                else:
+                    trc.covariance.data = cov_ds_seismic[j]
+
                 if int(trc.covariance.data.sum()) == trc.data_len():
                     logger.warn('Data covariance is identity matrix!'
                                 ' Please double check!!!')
-                icov = trc.covariance.chol_inverse
-                weights.append(
-                    shared(
-                        icov,
-                        name='seis_%s_weight_%i' % (wmap._mapid, j),
-                        borrow=True))
-
-            wmap.add_weights(weights)
 
     def init_hierarchicals(self, problem_config):
         """
@@ -177,11 +173,27 @@ class SeismicComposite(Composite):
         else:
             nhierarchs = 0
 
+    def init_weights(self):
+        """
+        Initialise shared weights in wavemaps.
+        """
+        for wmap in self.wavemaps:
+            weights = []
+            for j, trc in enumerate(wmap.datasets):
+                icov = trc.covariance.chol_inverse
+                weights.append(
+                    shared(
+                        icov,
+                        name='seis_%s_weight_%i' % (wmap._mapid, j),
+                        borrow=True))
+
+            wmap.add_weights(weights)
+
     def get_unique_stations(self):
-        sl = [wmap.stations for wmap in self.wavemaps]
         us = []
-        map(us.extend, sl)
-        return list(set(us))
+        for wmap in self.wavemaps:
+            us.extend(wmap.get_station_names())
+        return utility.unique_list(us)
 
     @property
     def n_t(self):
@@ -401,7 +413,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.init_hierarchicals(problem_config)
         self.analyse_noise(tpoint)
-
+        self.init_weights()
         if self.config.station_corrections:
             logger.info(
                 'Initialized %i hierarchical parameters for '
@@ -486,8 +498,12 @@ class SeismicGeometryComposite(SeismicComposite):
 
             arrival_times = wmap._arrival_times
             if self.config.station_corrections:
-                arrival_times += point[
-                    self.correction_name][wmap.station_correction_idxs]
+                try:
+                    arrival_times += point[
+                        self.correction_name][wmap.station_correction_idxs]
+                except IndexError:  # got reference point from config
+                    arrival_times += float(point[self.correction_name]) * \
+                        num.ones(wmap.n_t)
 
             synthetics, _ = heart.seis_synthetics(
                 engine=self.engine,
@@ -529,53 +545,70 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.point2sources(point)
 
-        for wmap in self.wavemaps:
-            wc = wmap.config
+        # update data covariances in case model dependend non-toeplitz
+        if self.config.noise_estimator.structure == 'non-toeplitz':
+            logger.info('Updating data-covariances ...')
+            self.analyse_noise(point)
 
-            for channel in wmap.channels:
-                datasets = wmap.get_datasets([channel])
-                weights = wmap.get_weights([channel])
+        crust_inds = range(*sc.gf_config.n_variations)
+        thresh = 5
+        if len(crust_inds) > thresh:
+            logger.info('Updating seismic velocity model-covariances ...')
+            if self.config.noise_estimator.structure == 'non-toeplitz':
+                logger.warning(
+                    'Non-toeplitz estimation in combination with model '
+                    'prediction covariances is still EXPERIMENTAL and results'
+                    ' should be interpreted with care!!')
 
-                for station, dataset, weight in zip(
-                        wmap.stations, datasets, weights):
+            for wmap in self.wavemaps:
+                wc = wmap.config
 
-                    logger.debug('Channel %s of Station %s ' % (
-                        channel, station.station))
+                arrival_times = wmap._arrival_times
+                if self.config.station_corrections:
+                    arrival_times += point[
+                        self.correction_name][wmap.station_correction_idxs]
 
-                    crust_targets = heart.init_seismic_targets(
-                        stations=[station],
-                        earth_model_name=sc.gf_config.earth_model_name,
-                        channels=channel,
-                        sample_rate=sc.gf_config.sample_rate,
-                        crust_inds=range(*sc.gf_config.n_variations),
-                        reference_location=sc.gf_config.reference_location)
+                for channel in wmap.channels:
+                    tidxs = wmap.get_target_idxs([channel])
+                    for station, tidx in zip(wmap.stations, tidxs):
 
-                    arrival_times = wmap._arrival_times
-                    if self.config.station_corrections:
-                        arrival_times += point[
-                            self.correction_name][wmap.station_correction_idxs]
+                        logger.debug('Channel %s of Station %s ' % (
+                            channel, station.station))
 
-                    cov_pv = cov.seismic_cov_velocity_models(
-                        engine=self.engine,
-                        sources=self.sources,
-                        targets=crust_targets,
-                        wavename=wmap.name,
-                        arrival_taper=wc.arrival_taper,
-                        arrival_times=arrival_times,
-                        filterer=wc.filterer,
-                        plot=plot, n_jobs=n_jobs)
-                    cov_pv = utility.ensure_cov_psd(cov_pv)
+                        crust_targets = heart.init_seismic_targets(
+                            stations=[station],
+                            earth_model_name=sc.gf_config.earth_model_name,
+                            channels=channel,
+                            sample_rate=sc.gf_config.sample_rate,
+                            crust_inds=crust_inds,
+                            reference_location=sc.gf_config.reference_location)
 
-                    self.engine.close_cashed_stores()
+                        cov_pv = cov.seismic_cov_velocity_models(
+                            engine=self.engine,
+                            sources=self.sources,
+                            targets=crust_targets,
+                            wavename=wmap.name,
+                            arrival_taper=wc.arrival_taper,
+                            arrival_time=arrival_times[tidx],
+                            filterer=wc.filterer,
+                            plot=plot, n_jobs=n_jobs)
+                        cov_pv = utility.ensure_cov_psd(cov_pv)
 
-                    dataset.covariance.pred_v = cov_pv
+                        self.engine.close_cashed_stores()
 
-                    t0 = time()
-                    choli = dataset.covariance.chol_inverse
-                    t1 = time()
-                    logger.debug('Calculate weight time %f' % (t1 - t0))
-                    weight.set_value(choli)
-                    dataset.covariance.update_slog_pdet()
+                        dataset = wmap.datasets[tidx]
+                        dataset.covariance.pred_v = cov_pv
+
+                        t0 = time()
+                        choli = dataset.covariance.chol_inverse
+                        t1 = time()
+                        logger.debug('Calculate weight time %f' % (t1 - t0))
+                        wmap.weights[tidx].set_value(choli)
+                        dataset.covariance.update_slog_pdet()
+        else:
+            logger.info(
+                'Not updating seismic velocity model-covariances because '
+                'number of model variations is too low! < %i' % thresh)
 
 
 class SeismicDistributerComposite(SeismicComposite):
@@ -703,6 +736,7 @@ class SeismicDistributerComposite(SeismicComposite):
         wlogpts = []
 
         self.analyse_noise(tpoint)
+        self.init_weights()
         self.init_hierarchicals(problem_config)
         if self.config.station_corrections:
             logger.info(
