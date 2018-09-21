@@ -1286,17 +1286,51 @@ def draw_seismic_fits(problem, po):
 
 def draw_fuzzy_beachball(problem, po):
 
+    from pyrocko.plot import beachball
+
+    if problem.config.problem_config.n_sources > 1:
+        raise NotImplementedError(
+            'Fuzzy beachball is not yet implemented for more than one source!')
+
     stage = Stage(homepath=problem.outfolder)
 
-    mode = problem.config.problem_config.mode
+    stage.load_results(
+        varnames=problem.varnames,
+        model=problem.model, stage_number=po.load_stage,
+        load='trace', chains=[-1])
 
-    if po.reference is None:
-        llk_str = po.post_llk
-        stage.load_results(
-            varnames=problem.varnames,
-            model=problem.model, stage_number=po.load_stage,
-            load='trace', chains=[-1])
-    pass
+    m6s = num.empty((len(stage.mtrace), 6), dtype='float64')
+    for i, varname in enumerate(['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
+        m6s[:, i] = stage.mtrace.get_values(
+            varname, combine=True, squeeze=True).ravel()
+
+    kwargs = {
+        'beachball_type': 'full',
+        'size': 160,
+        'position': (5, 5),
+        'color_t': 'black',
+        'edgecolor': 'black'}
+
+    fig = plt.figure(figsize=(4., 4.))
+    fig.subplots_adjust(left=0., right=1., bottom=0., top=1.)
+    axes = fig.add_subplot(1, 1, 1)
+
+    axes = beachball.plot_fuzzy_beachball_mpl(
+        m6s, axes, best_mt=None, best_color='red', kwargs=kwargs)
+
+    axes.set_xlim(0., 10.)
+    axes.set_ylim(0., 10.)
+    axes.set_axis_off()
+
+    if not po.outformat == 'display':
+        outpath = os.path.join(
+            problem.outfolder,
+            po.figure_dir,
+            'stage_%i_%s.%s' % (po.load_stage, po.post_llk, 'png'))
+        logger.info('saving figure to %s' % outpath)
+        fig.savefig(outpath, dpi=po.dpi)
+    else:
+        plt.show()
 
 
 def histplot_op(
