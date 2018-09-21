@@ -1326,7 +1326,7 @@ def draw_fuzzy_beachball(problem, po):
         outpath = os.path.join(
             problem.outfolder,
             po.figure_dir,
-            'stage_%i_%s.%s' % (po.load_stage, po.post_llk, 'png'))
+            'fuzzy_beachball_%i_%s.%s' % (po.load_stage, po.post_llk, 'png'))
         logger.info('saving figure to %s' % outpath)
         fig.savefig(outpath, dpi=po.dpi)
     else:
