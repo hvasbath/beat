@@ -1292,54 +1292,64 @@ def draw_fuzzy_beachball(problem, po):
         raise NotImplementedError(
             'Fuzzy beachball is not yet implemented for more than one source!')
 
-    stage = Stage(homepath=problem.outfolder)
+    if po.reference is None:
+        llk_str = po.post_llk
+        stage = Stage(homepath=problem.outfolder)
 
-    stage.load_results(
-        varnames=problem.varnames,
-        model=problem.model, stage_number=po.load_stage,
-        load='trace', chains=[-1])
+        stage.load_results(
+            varnames=problem.varnames,
+            model=problem.model, stage_number=po.load_stage,
+            load='trace', chains=[-1])
 
-    n_mts = len(stage.mtrace)
-    # have to select only 500 therwise alpha doesnt work, bug in MPL
-    alphatresh = 500
-    if n_mts > alphatresh:
-        thin, burn = utility.mod_i(n_mts, alphatresh)
-        n_mts = alphatresh
+        n_mts = len(stage.mtrace)
+        m6s = num.empty((n_mts, 6), dtype='float64')
+        for i, varname in enumerate(
+                ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
+            m6s[:, i] = stage.mtrace.get_values(
+                varname, combine=True, squeeze=True).ravel()
+
     else:
-        burn = 0
-        thin = 1
-    m6s = num.empty((n_mts, 6), dtype='float64')
-    for i, varname in enumerate(['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
-        m6s[:, i] = stage.mtrace.get_values(
-            varname, combine=True, squeeze=True, burn=burn, thin=thin).ravel()
+        llk_str = 'ref'
+        m6s = num.empty((1, 6), dtype='float64')
+        for i, varname in enumerate(
+                ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
+            m6s[:, i] = po.reference[varname].ravel()
 
     kwargs = {
         'beachball_type': 'full',
-        'size': 160,
+        'size': 8,
+        'size_units': 'data',
         'position': (5, 5),
         'color_t': 'black',
-        'edgecolor': 'black'}
+        'edgecolor': 'black',
+        'grid_resolution': 400}
 
     fig = plt.figure(figsize=(4., 4.))
     fig.subplots_adjust(left=0., right=1., bottom=0., top=1.)
     axes = fig.add_subplot(1, 1, 1)
 
-    axes = beachball.plot_fuzzy_beachball_mpl(
-        m6s, axes, best_mt=None, best_color='red', kwargs=kwargs)
+    outpath = os.path.join(
+        problem.outfolder,
+        po.figure_dir,
+        'fuzzy_beachball_%i_%s.%s' % (po.load_stage, llk_str, 'png'))
 
-    axes.set_xlim(0., 10.)
-    axes.set_ylim(0., 10.)
-    axes.set_axis_off()
+    if not os.path.exists(outpath) or po.force or po.outformat == 'display':
 
-    if not po.outformat == 'display':
-        outpath = os.path.join(
-            problem.outfolder,
-            po.figure_dir,
-            'fuzzy_beachball_%i_%s.%s' % (po.load_stage, po.post_llk, 'png'))
-        logger.info('saving figure to %s' % outpath)
-        fig.savefig(outpath, dpi=po.dpi)
+        beachball.plot_fuzzy_beachball_mpl_pixmap(
+            m6s, axes, best_mt=None, best_color='red', **kwargs)
+
+        axes.set_xlim(0., 10.)
+        axes.set_ylim(0., 10.)
+        axes.set_axis_off()
+
+        if not po.outformat == 'display':
+            logger.info('saving figure to %s' % outpath)
+            fig.savefig(outpath, dpi=po.dpi)
+        else:
+            plt.show()
+
     else:
-        plt.show()
+        logger.info('Plot already exists! Please use --force to overwrite!')
 
 
 def histplot_op(
