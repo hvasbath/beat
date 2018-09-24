@@ -12,7 +12,7 @@ import os
 from collections import OrderedDict
 
 from pyrocko.guts import Object, List, String, Float, Int, Tuple, Bool, Dict
-from pyrocko.guts import load, dump, StringChoice
+from pyrocko.guts import load, dump, StringChoice, ArgumentError
 from pyrocko.cake import load_model
 
 from pyrocko import trace, model, util, gf
@@ -1281,6 +1281,18 @@ def dump_config(config):
     dump(config, filename=conf_out)
 
 
+class ConfigNeedsUpdatingError(Exception):
+
+    context = 'Configuration file has to be updated! \n' + \
+              ' Please run "beat update <project_dir --parameters=structure>'
+
+    def __init__(self, errmess=''):
+        self.errmess = errmess
+
+    def __str__(self):
+        return '\n%s\n%s' % (self.errmess, self.context)
+
+
 def load_config(project_dir, mode):
     """
     Load configuration file.
@@ -1308,6 +1320,8 @@ def load_config(project_dir, mode):
     except IOError:
         raise IOError('Cannot load config, file %s'
                       ' does not exist!' % config_fn)
+    except ArgumentError:
+        raise ConfigNeedsUpdatingError()
 
     config.problem_config.validate_priors()
 

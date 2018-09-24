@@ -184,17 +184,6 @@ def cl_parse(command, args, setup=None, details=None):
     return parser, options, args
 
 
-def load_config(fn):
-    try:
-        config = load(filename=fn)
-        assert isinstance(config, config.BEATconfig)
-
-    except IOError:
-        die('cannot load BEAT config from file: %s' % fn)
-
-    return config
-
-
 def list_callback(option, opt, value, parser):
     out = [ival.lstrip() for ival in value.split(',')]
     setattr(parser.values, option.dest, out)

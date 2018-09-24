@@ -5,7 +5,6 @@ import copy
 from pymc3 import Uniform, Model, Deterministic, Potential
 
 from pyrocko import util
-from pyrocko.guts import ArgumentError
 
 import numpy as num
 
@@ -44,18 +43,6 @@ class InconsistentNumberHyperparametersError(Exception):
               ' Hyperparameters have to be re-estimated. \n' + \
               ' Please run "beat update <project_dir>' + \
               ' --parameters=hypers, hierarchicals"'
-
-    def __init__(self, errmess=''):
-        self.errmess = errmess
-
-    def __str__(self):
-        return '\n%s\n%s' % (self.errmess, self.context)
-
-
-class ConfigNeedsUpdatingError(Exception):
-
-    context = 'Configuration file has to be updated! \n' + \
-              ' Please run "beat update <project_dir>'
 
     def __init__(self, errmess=''):
         self.errmess = errmess
@@ -876,10 +863,8 @@ def load_model(project_dir, mode, hypers=False, build=True):
     -------
     problem : :class:`Problem`
     """
-    try:
-        config = bconfig.load_config(project_dir, mode)
-    except ArgumentError:
-        raise ConfigNeedsUpdatingError()
+
+    config = bconfig.load_config(project_dir, mode)
 
     pc = config.problem_config
 
