@@ -532,10 +532,12 @@ class Problem(object):
                 if hp_name in hyperparameters.keys():
                     hyperpar = hyperparameters.pop(hp_name)
 
-                    if pc.dataset_specific_residual_noise_estimation:
-                        raise NotImplementedError('Not fully implemented!')
-                        # TODO: fix this needs to be wavemap stations specific
-                        ndata = len(composite.get_unique_stations())
+                    if composite.config.dataset_specific_residual_noise_estimation:
+                        if datatype == 'seismic':
+                            raise NotImplementedError('Not fully implemented!')
+                            # TODO: fix this needs to be wavemap stations specific
+                        else:
+                            ndata = len(composite.get_unique_stations())
                     else:
                         ndata = 1
 

@@ -398,7 +398,7 @@ class SeismicGeometryComposite(SeismicComposite):
         -------
         posterior_llk : :class:`theano.tensor.Tensor`
         """
-        hp_specific = problem_config.dataset_specific_residual_noise_estimation
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
         tpoint = problem_config.get_test_point()
 
         self.input_rvs = input_rvs
@@ -722,7 +722,7 @@ class SeismicDistributerComposite(SeismicComposite):
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
 
-        hp_specific = problem_config.dataset_specific_residual_noise_estimation
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
         tpoint = problem_config.get_test_point()
 
         self.input_rvs = input_rvs
