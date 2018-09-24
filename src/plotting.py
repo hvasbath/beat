@@ -1535,9 +1535,9 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         reference = None
 
                     if color is None:
-                        color = scolor('aluminium4')
-                    elif isource == 2:
-                        color = light(color, 0.3)
+                        color = scolor('aluminium5')
+                    elif isource > 0:
+                        color = light(color, 0.2)
 
                     if plot_style == 'kde':
                         pmp.kdeplot(
@@ -1563,7 +1563,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     try:
                         param = prior_bounds[v]
                         title = str(v) + ' ' + plot_units[hypername(v)] + \
-                            ' ' + 'priors: %3.3f, %3.3f' % (
+                            ' priors: {}, {}'.format(
                                 param.lower, param.upper)
                     except KeyError:
                         try:
