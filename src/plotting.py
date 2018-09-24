@@ -614,7 +614,7 @@ def geodetic_fits(problem, stage, plot_options):
         logger.info('FFI waveform fit, using reference source ...')
         sources = composite.config.gf_config.reference_sources
 
-    if po.reference is not None:
+    if po.reference:
         if mode != 'ffi':
             composite.point2sources(po.reference)
             ref_sources = copy.deepcopy(composite.sources)
@@ -834,7 +834,7 @@ def geodetic_fits(problem, stage, plot_options):
                 axes[figidx][rowidx, 1],
                 sources, po, color=syn_color)
 
-            if po.reference is not None and mode != 'ffi':
+            if po.reference and mode != 'ffi':
                 draw_sources(
                     axes[figidx][rowidx, 1],
                     ref_sources, po, color=ref_color)
@@ -890,7 +890,7 @@ def draw_geodetic_fits(problem, plot_options):
 
     stage = Stage(homepath=problem.outfolder)
 
-    if po.reference is None:
+    if not po.reference:
         stage.load_results(
             varnames=problem.varnames,
             model=problem.model, stage_number=po.load_stage,
@@ -961,7 +961,7 @@ def seismic_fits(problem, stage, plot_options):
 
     po = plot_options
 
-    if po.reference is None:
+    if not po.reference:
         point = get_result_point(stage, problem.config, po.post_llk)
     else:
         point = po.reference
@@ -1255,7 +1255,7 @@ def draw_seismic_fits(problem, po):
 
     mode = problem.config.problem_config.mode
 
-    if po.reference is None:
+    if not po.reference:
         llk_str = po.post_llk
         stage.load_results(
             varnames=problem.varnames,
@@ -2217,7 +2217,7 @@ def draw_slip_dist(problem, po):
         stage_number=po.load_stage,
         load='trace', chains=[-1])
 
-    if po.reference is None:
+    if not po.reference:
         reference = get_result_point(stage, problem.config, po.post_llk)
         llk_str = po.post_llk
         mtrace = stage.mtrace

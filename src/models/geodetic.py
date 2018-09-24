@@ -327,7 +327,6 @@ class GeodeticSourceComposite(GeodeticComposite):
                 tpoint.pop(param)
 
         source_points = utility.split_point(tpoint)
-
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
             # reset source time may result in store error otherwise
