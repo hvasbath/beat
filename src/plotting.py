@@ -1535,13 +1535,15 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         reference = None
 
                     if color is None:
-                        color = mpl_graph_color(isource)
+                        pcolor = mpl_graph_color(isource)
+                    else:
+                        pcolor = color
 
                     if plot_style == 'kde':
                         pmp.kdeplot(
                             e, shade=alpha, ax=axs[rowi, coli],
                             color=color, linewidth=1.,
-                            kwargs_shade={'color': color})
+                            kwargs_shade={'color': pcolor})
                         axs[rowi, coli].relim()
                         axs[rowi, coli].autoscale(tight=False)
                         axs[rowi, coli].set_ylim(0)
@@ -1552,7 +1554,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     elif plot_style == 'hist':
                         histplot_op(
                             axs[rowi, coli], e, reference=reference,
-                            bins=varbin, alpha=alpha, color=color,
+                            bins=varbin, alpha=alpha, color=pcolor,
                             kwargs=kwargs)
                     else:
                         raise NotImplementedError(
@@ -1591,7 +1593,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         else:
                             idx = posterior_idxs[posterior]
                             axs[rowi, coli].axvline(
-                                x=e[idx], color=color, lw=1.)
+                                x=e[idx], color=pcolor, lw=1.)
 
     fig.tight_layout()
     return fig, axs, varbins
