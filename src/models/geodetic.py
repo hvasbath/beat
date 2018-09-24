@@ -353,7 +353,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         -------
         posterior_llk : :class:`theano.tensor.Tensor`
         """
-        hp_specific = problem_config.dataset_specific_residual_noise_estimation
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
 
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs
@@ -634,7 +634,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
         llk : :class:`theano.tensor.Tensor`
             log-likelihood for the distributed slip
         """
-        hp_specific = problem_config.dataset_specific_residual_noise_estimation
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
 
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs

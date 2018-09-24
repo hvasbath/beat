@@ -147,10 +147,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
         super(Metropolis, self).__init__(vars, out_vars, shared)
 
-        self.chain_previous_lpoint = []
-        for point in self.population:
-            lpoint = self.logp_forw(self.bij.map(point))
-            self.chain_previous_lpoint.append(lpoint)
+        self.chain_previous_lpoint = [[]] * self.n_chains
 
     def _sampler_state_blacklist(self):
         """
@@ -251,7 +248,12 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
                 q = q0 + delta
 
-            l0 = self.chain_previous_lpoint[self.chain_index]
+            try:
+                l0 = self.chain_previous_lpoint[self.chain_index]
+                llk0 = l0[self._llk_index]
+            except IndexError:
+                l0 = self.logp_forw(q0)
+                self.chain_previous_lpoint[self.chain_index] = l0
 
             if self.check_bound:
                 logger.debug('Checking bound: Chain_%i step_%i' % (
@@ -276,7 +278,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
                         logger.debug('Accepted: Chain_%i step_%i' % (
                             self.chain_index, self.stage_sample))
                         logger.debug('proposed: %f previous: %f' % (
-                            lp[self._llk_index], l0[self._llk_index]))
+                            lp[self._llk_index], llk0))
                         self.accepted += 1
                         l_new = lp
                         self.chain_previous_lpoint[self.chain_index] = l_new
@@ -299,7 +301,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
                 logger.debug('Select: Chain_%i step_%i' % (
                     self.chain_index, self.stage_sample))
                 q_new, accepted = metrop_select(
-                    self.beta * (lp[self._llk_index] - l0[self._llk_index]),
+                    self.beta * (lp[self._llk_index] - llk0),
                     q, q0)
 
                 if accepted:

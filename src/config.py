@@ -430,6 +430,12 @@ class SeismicConfig(Object):
         default=False,
         help='If set, optimize for time shift for each station.')
     waveforms = List.T(WaveformFitConfig.T(default=WaveformFitConfig.D()))
+    dataset_specific_residual_noise_estimation = Bool.T(
+        default=False,
+        help='If set, for EACH DATASET specific hyperparameter estimation.'
+             'n_hypers = nstations * nchannels.'
+             'If false one hyperparameter for each DATATYPE and '
+             'displacement COMPONENT.')
     gf_config = GFConfig.T(default=SeismicGFConfig.D())
 
     def get_waveform_names(self):
@@ -494,6 +500,13 @@ class GeodeticConfig(Object):
         default=False,
         help='Flag for inverting for additional plane parameters on each'
              ' SAR datatype')
+    dataset_specific_residual_noise_estimation = Bool.T(
+        default=False,
+        help='If set, for EACH DATASET specific hyperparameter estimation.'
+             'For geodetic data: n_hypers = nimages (SAR) or '
+             'nstations * ncomponents (GPS).'
+             'If false one hyperparameter for each DATATYPE and '
+             'displacement COMPONENT.')
     gf_config = GFConfig.T(default=GeodeticGFConfig.D())
 
     def get_hypernames(self):
@@ -552,14 +565,6 @@ class ProblemConfig(Object):
         default=1,
         help='Number of Sub-sources to solve for')
     datatypes = List.T(default=['geodetic'])
-    dataset_specific_residual_noise_estimation = Bool.T(
-        default=False,
-        help='If set, for EACH DATASET specific hyperparameter estimation.'
-             'For seismic data: n_hypers = nstations * nchannels.'
-             'For geodetic data: n_hypers = nimages (SAR) or '
-             'nstations * ncomponents (GPS).'
-             'If false one hyperparameter for each DATATYPE and '
-             'displacement COMPONENT.')
     hyperparameters = Dict.T(
         default=OrderedDict(),
         help='Hyperparameters to estimate the noise in different'

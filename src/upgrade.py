@@ -67,6 +67,12 @@ def color_diff(diff):
 
 def upgrade_config_file(fn, diff=True, update=[]):
     rules = [
+        ('beat.GeodeticConfig',
+            set_attribute(
+                'dataset_specific_residual_noise_estimation', False)),
+        ('beat.SeismicConfig',
+            set_attribute(
+                'dataset_specific_residual_noise_estimation', False)),
         ('beat.SeismicConfig',
             drop_attribute('blacklist')),
         ('beat.SeismicConfig',
@@ -78,6 +84,8 @@ def upgrade_config_file(fn, diff=True, update=[]):
                       structure: identity
                       pre_arrival_time: 5
                     '''))),
+        ('beat.ProblemConfig',
+            drop_attribute('dataset_specific_residual_noise_estimation')),
         ('beat.WaveformFitConfig',
             set_attribute('blacklist', [])),
         ('beat.WaveformFitConfig',
