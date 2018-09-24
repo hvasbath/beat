@@ -511,7 +511,7 @@ class Problem(object):
         list of strings
         """
         if self._varnames is None:
-            self._varnames = self.get_random_variables()[0].keys()
+            self._varnames = list(self.get_random_variables()[0].keys())
         return self._varnames
 
     @property

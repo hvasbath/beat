@@ -111,11 +111,13 @@ class SMC(Metropolis):
         """
         Returns sampler attributes that are not saved.
         """
-        bl = ['population',
-              'array_population',
-              'likelihoods',
+        bl = ['likelihoods',
               'check_bnd',
               'logp_forw',
+              'bij',
+              'lij',
+              'ordering',
+              'lordering',
               'proposal_samples_array',
               'vars',
               '_BlockedStep__newargs']
@@ -164,7 +166,6 @@ class SMC(Metropolis):
         cov : :class:`numpy.ndarray`
             weighted covariances (NumPy > 1.10. required)
         """
-
         cov = np.cov(
             self.array_population,
             aweights=self.weights.ravel(),

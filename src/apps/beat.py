@@ -1198,7 +1198,7 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
         except AttributeError:
             po.reference = problem.config.problem_config.get_test_point()
     else:
-        po.reference = None
+        po.reference = {}
 
     figure_path = pjoin(problem.outfolder, po.figure_dir)
     util.ensuredir(figure_path)

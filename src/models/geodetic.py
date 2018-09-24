@@ -322,7 +322,7 @@ class GeodeticSourceComposite(GeodeticComposite):
                 tpoint.pop(hyper)
 
         source_params = list(self.sources[0].keys())
-        for param in tpoint.keys():
+        for param in list(tpoint.keys()):
             if param not in source_params:
                 tpoint.pop(param)
 

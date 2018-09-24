@@ -156,12 +156,14 @@ class Metropolis(backend.ArrayStepSharedLLK):
         """
         Returns sampler attributes that are not saved.
         """
-        bl = ['population',
-              'array_population',
-              'check_bnd',
+        bl = ['check_bnd',
               'logp_forw',
               'proposal_samples_array',
               'vars',
+              'bij',
+              'lij',
+              'ordering',
+              'lordering',
               '_BlockedStep__newargs']
         return bl
 

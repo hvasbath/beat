@@ -129,6 +129,7 @@ class PlotOptions(Object):
         default='figures',
         help='Name of the output directory of plots')
     reference = Dict.T(
+        default={},
         help='Reference point for example from a synthetic test.',
         optional=True)
     outformat = String.T(default='pdf')
