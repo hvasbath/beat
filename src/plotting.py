@@ -28,7 +28,7 @@ from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.cake_plot import light
 
 import pyrocko.moment_tensor as mt
-from pyrocko.plot import mpl_papersize, mpl_init
+from pyrocko.plot import mpl_papersize, mpl_init, mpl_graph_color
 
 logger = logging.getLogger('plotting')
 
@@ -1535,9 +1535,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         reference = None
 
                     if color is None:
-                        color = scolor('aluminium5')
-                    elif isource > 0:
-                        color = light(color, 0.2)
+                        color = mpl_graph_color(isource)
 
                     if plot_style == 'kde':
                         pmp.kdeplot(
@@ -1593,7 +1591,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         else:
                             idx = posterior_idxs[posterior]
                             axs[rowi, coli].axvline(
-                                x=e[idx], color=colors[posterior], lw=1.)
+                                x=e[idx], color=color, lw=1.)
 
     fig.tight_layout()
     return fig, axs, varbins
