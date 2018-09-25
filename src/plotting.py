@@ -631,11 +631,11 @@ def geodetic_fits(problem, stage, plot_options):
     dataset_to_result = {}
     for dataset, result in zip(composite.datasets, results):
         dataset_to_result[dataset] = result
-    nfigs = int(num.ceil(float(ndmax) // float(nrmax)))
+
+    nfigs = int(num.ceil(float(nrmax) / float(ndmax)))
 
     figures = []
     axes = []
-
     for f in range(nfigs):
         fig, ax = plt.subplots(
             nrows=ndmax, ncols=nxmax, figsize=mpl_papersize('a4', 'portrait'))
@@ -781,7 +781,6 @@ def geodetic_fits(problem, stage, plot_options):
             tidx = dataset_index[dataset]
 
             figidx, rowidx = utility.mod_i(tidx, ndmax)
-
             plot_scene(
                 axes[figidx][rowidx, 0],
                 dataset,
