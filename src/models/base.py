@@ -53,7 +53,7 @@ class Composite(object):
         self._like_name = None
         self.config = None
 
-    def get_hyper_formula(self, hyperparams, problem_config):
+    def get_hyper_formula(self, hyperparams):
         """
         Get likelihood formula for the hyper model built. Has to be called
         within a with model context.
@@ -61,7 +61,7 @@ class Composite(object):
         problem_config : :class:`config.ProblemConfig`
         """
 
-        hp_specific = problem_config.dataset_specific_residual_noise_estimation
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
         logpts = hyper_normal(
             self.datasets, hyperparams, self._llks,
             hp_specific=hp_specific)
