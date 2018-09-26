@@ -254,6 +254,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
             except IndexError:
                 l0 = self.logp_forw(q0)
                 self.chain_previous_lpoint[self.chain_index] = l0
+                llk0 = l0[self._llk_index]
 
             if self.check_bound:
                 logger.debug('Checking bound: Chain_%i step_%i' % (
