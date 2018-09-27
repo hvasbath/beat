@@ -2570,14 +2570,14 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
             'Outmode "%s" not available! Available: %s' % (
                 outmode, utility.list2string(stackmodes)))
 
-    if not arrival_times:
+    if not arrival_times.all():
         arrival_times = num.zeros((len(targets)), dtype=tconfig.floatX)
         arrival_times[:] = None
 
     taperers = []
     tapp = taperers.append
     for i, target in enumerate(targets):
-        if arrival_taper is not None:
+        if arrival_taper:
             tapp(get_phase_taperer(
                 engine=engine,
                 source=sources[0],
@@ -2652,7 +2652,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         logger.debug('Stack traces time %f' % (t7 - t6))
 
         # get taper times for tapering data as well
-        tmins = num.array([getattr(at, chop_bound[0]) for at in taperers])
+        tmins = num.array([getattr(at, chop_bounds[0]) for at in taperers])
     else:
         # no taper defined so return trace tmins
         tmins = num.array([tr.tmin for tr in synt_trcs])
