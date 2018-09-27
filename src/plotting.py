@@ -13,6 +13,7 @@ from beat.models import Stage
 from beat.sampler.metropolis import get_trace_stats
 from beat.heart import init_seismic_targets, init_geodetic_targets
 from beat.colormap import slip_colormap
+from beat.config import ffo_mode_str, geometry_mode_str
 
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
@@ -610,11 +611,11 @@ def geodetic_fits(problem, stage, plot_options):
     try:
         sources = composite.sources
     except AttributeError:
-        logger.info('FFI waveform fit, using reference source ...')
+        logger.info('FFO waveform fit, using reference source ...')
         sources = composite.config.gf_config.reference_sources
 
     if po.reference is not None:
-        if mode != 'ffi':
+        if mode != ffo_mode_str:
             composite.point2sources(po.reference)
             ref_sources = copy.deepcopy(composite.sources)
         point = po.reference
@@ -834,7 +835,7 @@ def geodetic_fits(problem, stage, plot_options):
                 axes[figidx][rowidx, 1],
                 sources, po, color=syn_color)
 
-            if po.reference is not None and mode != 'ffi':
+            if po.reference is not None and mode != ffo_mode_str:
                 draw_sources(
                     axes[figidx][rowidx, 1],
                     ref_sources, po, color=ref_color)
@@ -973,7 +974,7 @@ def seismic_fits(problem, stage, plot_options):
     try:
         source = composite.sources[0]
     except AttributeError:
-        logger.info('FFI waveform fit, using reference source ...')
+        logger.info('FFO waveform fit, using reference source ...')
         source = composite.config.gf_config.reference_sources[0]
         source.time += problem.config.event.time
 
@@ -1771,7 +1772,7 @@ def draw_correlation_hist(problem, plot_options):
     po = plot_options
     mode = problem.config.problem_config.mode
 
-    assert mode == 'geometry'
+    assert mode == geometry_mode_str
     assert po.load_stage != 0
 
     hypers = utility.check_hyper_flag(problem)
@@ -2028,7 +2029,7 @@ def fault_slip_distribution(
 
     Parameters
     ----------
-    fault : :class:`ffi.FaultGeometry`
+    fault : :class:`ffo.fault.FaultGeometry`
 
     """
 
@@ -2202,10 +2203,10 @@ def draw_slip_dist(problem, po):
 
     mode = problem.config.problem_config.mode
 
-    if mode != 'ffi':
+    if mode != ffo_mode_str:
         raise ModeError(
             'Wrong optimization mode: %s! This plot '
-            'variant is only valid for "ffi" mode' % mode)
+            'variant is only valid for "%s" mode' % (mode, ffo_mode_str))
 
     datatype, gc = problem.composites.items()[0]
 

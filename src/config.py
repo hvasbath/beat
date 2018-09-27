@@ -34,6 +34,9 @@ guts_prefix = 'beat'
 
 logger = logging.getLogger('config')
 
+ffo_mode_str = 'ffo'
+geometry_mode_str = 'geometry'
+
 block_vars = [
     'bl_azimuth', 'bl_amplitude',
     'nucleation_strike', 'nucleation_dip', 'nucleation_time']
@@ -94,13 +97,13 @@ geometry_catalog = {
     'geodetic': source_catalog,
     'seismic': source_catalog}
 
-ffi_catalog = {
+ffo_catalog = {
     'geodetic': static_dist_vars,
     'seismic': kinematic_dist_vars}
 
 modes_catalog = OrderedDict([
-    ['geometry', geometry_catalog],
-    ['ffi', ffi_catalog],
+    [geometry_mode_str, geometry_catalog],
+    [ffo_mode_str, ffo_catalog],
     ['interseismic', interseismic_catalog]])
 
 hyper_name_laplacian = 'h_laplacian'
@@ -511,7 +514,7 @@ class ModeConfig(Object):
     pass
 
 
-class FFIConfig(ModeConfig):
+class FFOConfig(ModeConfig):
 
     regularization = StringChoice.T(
         default='none',
@@ -524,10 +527,10 @@ class ProblemConfig(Object):
     Config for optimization problem to setup.
     """
     mode = StringChoice.T(
-        choices=['geometry', 'ffi', 'interseismic'],
+        choices=[geometry_mode_str, ffo_mode_str, 'interseismic'],
         default='geometry',
-        help='Problem to solve: "geometry", "ffi",'
-             ' "interseismic"',)
+        help='Problem to solve: "%s", "%s",'
+             ' "interseismic"' % (geometry_mode_str, ffo_mode_str))
     mode_config = ModeConfig.T(
         optional=True,
         help='Global optimization mode specific parameters.')
@@ -579,9 +582,9 @@ class ProblemConfig(Object):
         if mode in kwargs:
             omode = kwargs[mode]
 
-            if omode == 'ffi':
+            if omode == ffo_mode_str:
                 if mode_config not in kwargs:
-                    kwargs[mode_config] = FFIConfig()
+                    kwargs[mode_config] = FFOConfig()
 
         Object.__init__(self, **kwargs)
 
@@ -692,7 +695,7 @@ class ProblemConfig(Object):
         """
         Return a list of slip variable names defined in the ProblemConfig.
         """
-        if self.mode == 'ffi':
+        if self.mode == ffo_mode_str:
             return [
                 var for var in static_dist_vars if var in self.priors.keys()]
         elif self.mode == 'geometry':
@@ -985,7 +988,7 @@ class BEATconfig(Object, Cloneable):
         if self.seismic_config is not None:
             hypernames.extend(self.seismic_config.get_hypernames())
 
-        if self.problem_config.mode == 'ffi':
+        if self.problem_config.mode == ffo_mode_str:
             if self.problem_config.mode_config.regularization == 'laplacian':
                 hypernames.append(hyper_name_laplacian)
 
@@ -1163,7 +1166,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
         else:
             c.seismic_config = None
 
-    elif mode == 'ffi':
+    elif mode == ffo_mode_str:
 
         if source_type != 'RectangularSource':
             raise TypeError('Static distributed slip is so far only supported'

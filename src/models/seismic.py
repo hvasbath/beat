@@ -14,7 +14,7 @@ from pyrocko.gf import LocalEngine
 from pyrocko.trace import Trace
 
 from beat import theanof, utility
-from beat.ffi import load_gf_library, get_gf_prefix
+from beat.ffo import load_gf_library, get_gf_prefix
 from beat import config as bconfig
 from beat import heart, covariance as cov
 from beat.models.base import ConfigInconsistentError, Composite
@@ -628,7 +628,7 @@ class SeismicDistributerComposite(SeismicComposite):
         self.sweep_implementation = 'c'
 
         self.slip_varnames = bconfig.static_dist_vars
-        self._mode = 'ffi'
+        self._mode = 'ffo'
         self.gfpath = os.path.join(
             project_dir, self._mode, bconfig.linear_gf_dir_name)
 
@@ -768,7 +768,7 @@ class SeismicDistributerComposite(SeismicComposite):
             # station corrections
             if len(self.hierarchicals) > 0:
                 raise NotImplementedError(
-                    'Station corrections not fully implemented! for ffi!')
+                    'Station corrections not fully implemented! for FFO!')
                 starttimes = (
                     tt.tile(starttimes0, wmap.n_t) +
                     tt.repeat(self.hierarchicals[self.correction_name][
