@@ -2633,10 +2633,14 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
             synths = num.vstack([tr.ydata for tr in synt_trcs])
         except ValueError:
             lengths = [tr.ydata.size for tr in synt_trcs]
-            tmins = [tr.tmin for tr in synt_trcs]
-            print('lengths', lengths)            
-            print('tmins', tmins)            
-            print('arrival_times', arrival_times)            
+            tmins = num.array([tr.tmin for tr in synt_trcs])
+            tmaxs = num.array([tr.tmax for tr in synt_trcs])
+
+            print('lengths', lengths)
+            print('tmins', tmins)
+            print('tmaxs', tmins)
+            print('duration', tmaxs - tmins)
+            print('arrival_times', arrival_times)
             raise ValueError('Stacking error, traces different lengths!')
 
         # stack traces for all sources
