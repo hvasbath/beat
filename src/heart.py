@@ -2041,7 +2041,7 @@ class WaveformMapping(object):
             # update station_correction_idx
             target_idxs = num.array(
                 [self.target_index_mapping()[target]
-                 for target in self.targets])
+                 for target in self.targets], dtype='int16')
             self.station_correction_idxs = \
                 self._station_correction_reference[target_idxs]
 
