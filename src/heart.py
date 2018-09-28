@@ -2489,14 +2489,14 @@ def post_process_trace(
         may be combination of [a, b, c, d]
     """
 
-    if filterer is not None:
+    if filterer:
         # filter traces
         trace.bandpass(
             corner_hp=filterer.lower_corner,
             corner_lp=filterer.upper_corner,
             order=filterer.order)
 
-    if taper is not None and outmode != 'data':
+    if taper and outmode != 'data':
         tolerance = (taper.b - taper.a) * taper_tolerance_factor
         lower_cut = getattr(taper, chop_bounds[0]) - tolerance
         upper_cut = getattr(taper, chop_bounds[1]) + tolerance
@@ -2553,7 +2553,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         tolerance to chop traces around taper.a and taper.d
     arrival_times : None or :class:`numpy.NdArray`
         of phase to apply taper, if None theoretic arrival of ray tracing used
-    chop_bounds : str
+    chop_bounds : list  of str
         determines where to chop the trace on the taper attributes
         may be combination of [a, b, c, d]
 
@@ -2570,14 +2570,14 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
             'Outmode "%s" not available! Available: %s' % (
                 outmode, utility.list2string(stackmodes)))
 
-    if arrival_times is None:
+    if not arrival_times.all():
         arrival_times = num.zeros((len(targets)), dtype=tconfig.floatX)
         arrival_times[:] = None
 
     taperers = []
     tapp = taperers.append
     for i, target in enumerate(targets):
-        if arrival_taper is not None:
+        if arrival_taper:
             tapp(get_phase_taperer(
                 engine=engine,
                 source=sources[0],
@@ -2586,7 +2586,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
                 arrival_taper=arrival_taper,
                 arrival_time=arrival_times[i]))
 
-    if pre_stack_cut and arrival_taper is not None:
+    if pre_stack_cut and arrival_taper:
         for t, taperer in zip(targets, taperers):
             t.update_target_times(sources, taperer)
 
@@ -2608,7 +2608,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     taper_index = [j for _ in range(ns) for j in range(nt)]
 
     for i, (source, target, tr) in enumerate(response.iter_results()):
-        if arrival_taper is not None:
+        if arrival_taper:
             taper = taperers[taper_index[i]]
         else:
             taper = None
@@ -2628,28 +2628,37 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     if plot:
         trace.snuffle(synt_trcs)
 
-    if arrival_taper is not None and outmode != 'data':
-        synths = num.vstack([tr.ydata for tr in synt_trcs])
+    if arrival_taper and outmode != 'data':
+        try:
+            synths = num.vstack([tr.ydata for tr in synt_trcs])
+        except ValueError:
+            lengths = [tr.ydata.size for tr in synt_trcs]
+            tmins = [tr.tmin for tr in synt_trcs]
+            print('lengths', lengths)            
+            print('tmins', tmins)            
+            print('arrival_times', arrival_times)            
+            raise ValueError('Stacking error, traces different lengths!')
 
         # stack traces for all sources
         t6 = time()
-        if ns > 1:
+        if ns == 1:
+            outstack = synths
+        else:
             outstack = num.zeros([nt, synths.shape[1]])
             for k in range(ns):
                 outstack += synths[(k * nt):(k + 1) * nt, :]
-        else:
-            outstack = synths
+
         t7 = time()
         logger.debug('Stack traces time %f' % (t7 - t6))
 
         # get taper times for tapering data as well
-        tmins = num.array([at.a for at in taperers])
+        tmins = num.array([getattr(at, chop_bounds[0]) for at in taperers])
     else:
         # no taper defined so return trace tmins
         tmins = num.array([tr.tmin for tr in synt_trcs])
 
     if outmode == 'stacked_traces':
-        if arrival_taper is not None:
+        if arrival_taper:
             outtraces = []
             oapp = outtraces.append
             for i in range(nt):
@@ -2784,7 +2793,7 @@ def taper_filter_traces(
         cut_trace = tr.copy()
         cut_trace.set_location('filt')
 
-        if arrival_taper is not None:
+        if arrival_taper:
             taper = arrival_taper.get_pyrocko_taper(float(arrival_times[i]))
         else:
             taper = None
@@ -2807,7 +2816,7 @@ def taper_filter_traces(
         trace.snuffle(cut_traces + traces)
 
     if outmode == 'array':
-        if arrival_taper is not None:
+        if arrival_taper:
             logger.debug('Returning chopped traces ...')
             return num.vstack(
                 [cut_traces[i].ydata for i in range(len(traces))])
