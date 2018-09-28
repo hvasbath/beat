@@ -1986,7 +1986,7 @@ class WaveformMapping(object):
     """
 
     def __init__(self, name, stations, weights=None, channels=['Z'],
-                 datasets=None, targets=None, station_correction_idxs=None):
+                 datasets=[], targets=[], station_correction_idxs=None):
 
         self.name = name
         self.stations = stations
@@ -2104,7 +2104,7 @@ class WaveformMapping(object):
         tidxs = []
         for cha in channels:
             tidxs.extend([t2i[target] for target in dtargets[cha]])
-             
+
         return tidxs
 
     def prepare_data(
