@@ -2035,9 +2035,9 @@ class WaveformMapping(object):
             self.datasets = utility.weed_data_traces(
                 self.datasets, self.stations)
 
-        if self.n_t > 0:
-            self.targets = utility.weed_targets(self.targets, self.stations)
+        self.targets = utility.weed_targets(self.targets, self.stations)
 
+        if self.n_t > 0:
             # update station_correction_idx
             target_idxs = num.array(
                 [self.target_index_mapping()[target]
