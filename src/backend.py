@@ -716,8 +716,16 @@ def load_multitrace(dirname, varnames=None, chains=None):
         logger.info('Loading multitrace from %s' % dirname)
         if chains is None:
             files = glob(os.path.join(dirname, 'chain-*.csv'))
-            chains = list(set([
-                int(os.path.splitext(f)[0].rsplit('-', 1)[1]) for f in files]))
+            chains = [
+                int(os.path.splitext(
+                    os.path.basename(f))[0].replace('chain-', ''))
+                for f in files]
+
+            final_chain = -1
+            if final_chain in chains:
+                idx = chains.index(final_chain)
+                files.pop(idx)
+                chains.pop(idx)
         else:
             files = [
                 os.path.join(
