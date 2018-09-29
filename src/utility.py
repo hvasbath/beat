@@ -477,11 +477,17 @@ def weed_stations(stations, event, distances=(30., 90.)):
     """
 
     weeded_stations = []
+    logger.debug(
+        'Valid distance range: [%f, %f]!' % (distances[0], distances[1]))
     for station in stations:
         distance = orthodrome.distance_accurate50m(event, station) * m2d
-
+        logger.debug(
+            'Distance of station %s: %f [deg]' % (station.station, distance))
         if distance >= distances[0] and distance <= distances[1]:
+            logger.debug('Inside defined distance range!')
             weeded_stations.append(station)
+        else:
+            logger.debug('Outside defined distance range!')
 
     return weeded_stations
 
