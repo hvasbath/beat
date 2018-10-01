@@ -15,7 +15,7 @@ from beat.heart import init_seismic_targets, init_geodetic_targets
 from beat.colormap import slip_colormap
 
 from matplotlib import pyplot as plt
-from matplotlib.patches import Rectangle
+from matplotlib.patches import Rectangle, FancyArrow
 from matplotlib.collections import PatchCollection
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.ticker as tick
@@ -589,15 +589,27 @@ def format_axes(ax):
     ax.spines['left'].set_visible(False)
 
 
+def scale_axes(axis, scale, offset=0.):
+    from matplotlib.ticker import ScalarFormatter
+
+    class FormatScaled(ScalarFormatter):
+
+        @staticmethod
+        def __call__(value, pos):
+            return '{:,.1f}'.format(offset + value * scale).replace(',', ' ')
+
+    axis.set_major_formatter(FormatScaled())
+
+
 def geodetic_fits(problem, stage, plot_options):
     """
     Plot geodetic data, synthetics and residuals.
     """
     from pyrocko.dataset import gshhg
+    from kite.scene import Scene, UserIOWarning
 
     mode = problem.config.problem_config.mode
 
-    scattersize = 16
     fontsize = 10
     fontsize_title = 12
     ndmax = 3
@@ -650,31 +662,50 @@ def geodetic_fits(problem, stage, plot_options):
         figures.append(fig)
         axes.append(ax)
 
-    def axis_config(axes, po):
+    def axis_config(axes, source, scene, po):
+
+        for ax in axes:
+            if po.plot_projection == 'latlon':
+                ystr = 'Latitude [deg]'
+                xstr = 'Longitude [deg]'
+                if scene.frame.isDegree():
+                    scale_x = {'scale': 1.}
+                    scale_y = {'scale': 1.}
+                else:
+                    scale_x = {'scale': otd.m2d}
+                    scale_y = {'scale': otd.m2d}
+
+                scale_x['offset'] = source.lon
+                scale_y['offset'] = source.lat
+            elif po.plot_projection == 'utm':
+                ystr = 'UTM Northing [km]'
+                xstr = 'UTM Easting [km]'
+                scale_x = {'scale': 1. / km}
+                scale_y = {'scale': 1. / km}
+            elif po.plot_projection == 'local':
+                ystr = 'Distance [km]'
+                xstr = 'Distance [km]'
+                scale_x = {'scale': 1. / km}
+                scale_y = {'scale': 1. / km}
+            else:
+                raise Exception(
+                    'Plot projection %s not available' % po.plot_projection)
+
+            scale_axes(ax.get_xaxis(), **scale_x)
+            scale_axes(ax.get_yaxis(), **scale_y)
+            ax.set_aspect('equal')
+
         axes[1].get_yaxis().set_ticklabels([])
         axes[2].get_yaxis().set_ticklabels([])
         axes[1].get_xaxis().set_ticklabels([])
         axes[2].get_xaxis().set_ticklabels([])
-
-        if po.plot_projection == 'latlon':
-            ystr = 'Latitude [deg]'
-            xstr = 'Longitude [deg]'
-        elif po.plot_projection == 'utm':
-            ystr = 'UTM Northing [km]'
-            xstr = 'UTM Easting [km]'
-        elif po.plot_projection == 'local':
-            ystr = 'Distance [km]'
-            xstr = 'Distance [km]'
-        else:
-            raise Exception(
-                'Plot projection %s not available' % po.plot_projection)
-
         axes[0].set_ylabel(ystr, fontsize=fontsize)
         axes[0].set_xlabel(xstr, fontsize=fontsize)
 
-    def draw_coastlines(ax, event, po):
-        xlim = ax.get_xlim()
-        ylim = ax.get_ylim()
+    def draw_coastlines(ax, xlim, ylim, event, po):
+        """
+        xlim and ylim in Lon/Lat[deg]
+        """
 
         logger.debug('Drawing coastlines ...')
         coasts = gshhg.GSHHG.full()
@@ -713,50 +744,94 @@ def geodetic_fits(problem, stage, plot_options):
                 elif po.plot_projection == 'local':
                     ys, xs = otd.latlon_to_ne_numpy(
                         event.lat, event.lon, p.lats, p.lons)
-                    ys /= km
-                    xs /= km
 
                 ax.plot(xs, ys, '-k', linewidth=0.5)
-                ax.set_xlim(xlim)
-                ax.set_ylim(ylim)
+
+    def addArrow(ax, scene):
+        phi = num.nanmean(scene.phi)
+        los_dx = num.cos(phi + num.pi) * .0625
+        los_dy = num.sin(phi + num.pi) * .0625
+
+        az_dx = num.cos(phi - num.pi / 2) * .125
+        az_dy = num.sin(phi - num.pi / 2) * .125
+
+        anchor_x = .9 if los_dx < 0 else .1
+        anchor_y = .85 if los_dx < 0 else .975
+
+        az_arrow = FancyArrow(
+            x=anchor_x - az_dx, y=anchor_y - az_dy,
+            dx=az_dx, dy=az_dy,
+            head_width=.025,
+            alpha=.5, fc='k',
+            head_starts_at_zero=False,
+            length_includes_head=True,
+            transform=ax.transAxes)
+
+        los_arrow = FancyArrow(
+            x=anchor_x - az_dx / 2, y=anchor_y - az_dy / 2,
+            dx=los_dx, dy=los_dy,
+            head_width=.02,
+            alpha=.5, fc='k',
+            head_starts_at_zero=False,
+            length_includes_head=True,
+            transform=ax.transAxes)
+
+        ax.add_artist(az_arrow)
+        ax.add_artist(los_arrow)
+
+    def draw_leaves(ax, scene, offset_e=0, offset_n=0):
+        rects = scene.quadtree.getMPLRectangles()
+        for r in rects:
+            r.set_edgecolor((.4, .4, .4))
+            r.set_linewidth(.5)
+            r.set_facecolor('none')
+            r.set_x(r.get_x() - offset_e)
+            r.set_y(r.get_y() - offset_n)
+        map(ax.add_artist, rects)
+
+        ax.scatter(scene.quadtree.leaf_coordinates[:, 0] - offset_e,
+                   scene.quadtree.leaf_coordinates[:, 1] - offset_n,
+                   s=.25, c='black', alpha=.1)
 
     def draw_sources(ax, sources, po, **kwargs):
-        for source in sources:
-            if po.plot_projection == 'latlon':
-                outline = source.outline(cs='lonlat')
-            elif po.plot_projection == 'utm':
-                outline = source.outline(cs='lonlat')
-                utme, utmn = utility.lonlat_to_utm(
-                    lon=outline[:, 0], lat=outline[:, 1], zone=po.utm_zone)
-                outline = num.vstack([utme / km, utmn / km]).T
-            elif po.plot_projection == 'local':
-                outline = source.outline(cs='xy') / km
-                outline = utility.swap_columns(outline, 0, 1)
+        color = kwargs.pop('color', None)
 
-            if outline.shape[0] > 1:
+        for i, source in enumerate(sources):
+
+            fn, fe = source.outline(cs='xy').T
+
+            if not color:
+                color = mpl_graph_color(i)
+
+            if fn.size > 1:
                 ax.plot(
-                    outline[:, 0], outline[:, 1], '-',
-                    linewidth=1.0, **kwargs)
+                    fe, fn, '-',
+                    linewidth=1.0, color=color, alpha=0.6, **kwargs)
+                ax.fill(
+                    fe, fn,
+                    edgecolor=color,
+                    facecolor=light(color, .5), alpha=0.6)
                 ax.plot(
-                    outline[0:2, 0], outline[0:2, 1], '-k', linewidth=1.0)
+                    fe[0:2], fn[0:2], '-k', alpha=0.6,
+                    linewidth=1.0)
             else:
                 ax.plot(
-                    outline[:, 0], outline[:, 1], marker='*',
-                    markersize=10, **kwargs)
+                    fe[:, 0], fn[:, 1], marker='*',
+                    markersize=10, color=color, **kwargs)
+
+    def mapDisplacementGrid(displacements, scene):
+        arr = num.full_like(scene.displacement, fill_value=num.nan)
+        qt = scene.quadtree
+
+        for syn_v, l in zip(displacements, qt.leaves):
+            arr[l._slice_rows, l._slice_cols] = syn_v
+
+        arr[scene.displacement_mask] = num.nan
+        return arr
 
     def cbtick(x):
         rx = math.floor(x * 1000.) / 1000.
         return [-rx, rx]
-
-    def str_title(name):
-        if name[0] == 'A':
-            title = 'Orbit: ascending'
-        elif name[0] == 'D':
-            title = 'Orbit: descending'
-        else:
-            title = 'GPS'
-
-        return title
 
     orbits_to_datasets = utility.gather(
         composite.datasets,
@@ -774,45 +849,70 @@ def geodetic_fits(problem, stage, plot_options):
         datasets = orbits_to_datasets[o]
 
         for dataset in datasets:
-            if po.plot_projection == 'local':
-                dataset.update_local_coords(composite.event)
+            try:
+                homepath = problem.config.geodetic_config.datadir
+                scene_path = os.path.join(homepath, dataset.name)
+                logger.info(
+                    'Loading full resolution kite scene: %s' % scene_path)
+                scene = Scene.load(scene_path)
+            except UserIOWarning:
+                logger.warn('Full resolution data could not be loaded!')
+                continue
+
+            if scene.frame.isMeter():
+                offset_n, offset_e = map(float, otd.latlon_to_ne_numpy(
+                    scene.frame.llLat, scene.frame.llLon,
+                    sources[0].lat, sources[0].lon))
+
+            elif scene.frame.isDegree():
+                offset_n = sources[0].lat - scene.frame.llLat
+                offset_e = sources[0].lon - scene.frame.llLon
+
+            im_extent = (scene.frame.E.min() - offset_e,
+                         scene.frame.E.max() - offset_e,
+                         scene.frame.N.min() - offset_n,
+                         scene.frame.N.max() - offset_n)
+
+            urE, urN, llE, llN = (0., 0., 0., 0.)
+
+            turE, turN, tllE, tllN = zip(
+                *[(l.gridE.max() - offset_e,
+                   l.gridN.max() - offset_n,
+                   l.gridE.min() - offset_e,
+                   l.gridN.min() - offset_n)
+                  for l in scene.quadtree.leaves])
+
+            turE, turN = map(max, (turE, turN))
+            tllE, tllN = map(min, (tllE, tllN))
+            urE, urN = map(max, ((turE, urE), (urN, turN)))
+            llE, llN = map(min, ((tllE, llE), (llN, tllN)))
+
+            lat, lon = otd.ne_to_latlon(
+                sources[0].lat, sources[0].lon,
+                num.array([llN, urN]), num.array([llE, urE]))
 
             result = dataset_to_result[dataset]
             tidx = dataset_index[dataset]
 
             figidx, rowidx = utility.mod_i(tidx, ndmax)
-            plot_scene(
-                axes[figidx][rowidx, 0],
-                dataset,
-                result.processed_obs,
-                scattersize,
-                colim=colims[tidx],
-                outmode=po.plot_projection,
-                cmap=cmap)
+            axs = axes[figidx][rowidx, :]
 
-            draw_coastlines(axes[figidx][rowidx, 0], composite.event, po)
+            imgs = []
+            for ax, data_str in zip(axs, ['obs', 'syn', 'res']):
+                logger.info('Plotting %s' % data_str)
+                datavec = getattr(result, 'processed_%s' % data_str)
+                imgs.append(ax.imshow(
+                    mapDisplacementGrid(datavec, scene),
+                    extent=im_extent, cmap=cmap,
+                    vmin=-colims[tidx], vmax=colims[tidx],
+                    origin='lower'))
 
-            syn = plot_scene(
-                axes[figidx][rowidx, 1],
-                dataset,
-                result.processed_syn,
-                scattersize,
-                colim=colims[tidx],
-                outmode=po.plot_projection,
-                cmap=cmap)
+                ax.set_xlim(llE, urE)
+                ax.set_ylim(llN, urN)
 
-            draw_coastlines(axes[figidx][rowidx, 1], composite.event, po)
-
-            res = plot_scene(
-                axes[figidx][rowidx, 2],
-                dataset,
-                result.processed_res,
-                scattersize,
-                colim=dcolims[tidx],
-                outmode=po.plot_projection,
-                cmap=cmap)
-
-            draw_coastlines(axes[figidx][rowidx, 2], composite.event, po)
+                draw_leaves(ax, scene, offset_e, offset_n)
+                draw_coastlines(
+                    ax, lon, lat, sources[0], po)
 
             titley = 0.91
             titlex = 0.16
@@ -826,14 +926,11 @@ def geodetic_fits(problem, stage, plot_options):
                 weight='bold',
                 fontsize=fontsize_title)
 
-            syn_color = scolor('plum1')
-            ref_color = scolor('aluminium5')
-
             draw_sources(
-                axes[figidx][rowidx, 1],
-                sources, po, color=syn_color)
+                axes[figidx][rowidx, 1], sources, po)
 
             if po.reference and mode != 'ffi':
+                ref_color = scolor('aluminium5')
                 draw_sources(
                     axes[figidx][rowidx, 1],
                     ref_sources, po, color=ref_color)
@@ -844,11 +941,10 @@ def geodetic_fits(problem, stage, plot_options):
             cbh = 0.01
 
             cbaxes = figures[figidx].add_axes([cbl, cbb, cbw, cbh])
-            dcbaxes = figures[figidx].add_axes([cbl + 0.3, cbb, cbw, cbh])
 
             cblabel = 'LOS displacement [m]'
             cbs = plt.colorbar(
-                syn,
+                imgs[1],
                 ax=axes[figidx][rowidx, 0],
                 ticks=cbtick(colims[tidx]),
                 cax=cbaxes,
@@ -856,18 +952,20 @@ def geodetic_fits(problem, stage, plot_options):
                 cmap=cmap)
             cbs.set_label(cblabel, fontsize=fontsize)
 
-            cbr = plt.colorbar(
-                res,
-                ax=axes[figidx][rowidx, 2],
-                ticks=cbtick(dcolims[tidx]),
-                cax=dcbaxes,
-                orientation='horizontal',
-                cmap=cmap)
-            cbr.set_label(cblabel, fontsize=fontsize)
+            if False:
+                dcbaxes = figures[figidx].add_axes([cbl + 0.3, cbb, cbw, cbh])
+                cbr = plt.colorbar(
+                    imgs[2],
+                    ax=axes[figidx][rowidx, 2],
+                    ticks=cbtick(dcolims[tidx]),
+                    cax=dcbaxes,
+                    orientation='horizontal',
+                    cmap=cmap)
+                cbr.set_label(cblabel, fontsize=fontsize)
 
-            axis_config(axes[figidx][rowidx, :], po)
+            axis_config(axes[figidx][rowidx, :], sources[0], scene, po)
 
-            title = str_title(o) + ' Llk_' + po.post_llk
+            title = ' Llk_' + po.post_llk
             figures[figidx].suptitle(
                 title, fontsize=fontsize_title, weight='bold')
 
@@ -902,8 +1000,8 @@ def draw_geodetic_fits(problem, plot_options):
 
     outpath = os.path.join(
         problem.config.project_dir,
-        mode, po.figure_dir, 'scenes_%s_%s.%s' % (
-            stage.number, llk_str, po.outformat))
+        mode, po.figure_dir, 'scenes_%s_%s_%s.%s' % (
+            stage.number, llk_str, po.plot_projection, po.outformat))
 
     if not os.path.exists(outpath) or po.force:
         figs = geodetic_fits(problem, stage, po)
