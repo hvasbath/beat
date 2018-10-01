@@ -12,7 +12,8 @@ import shutil
 
 from optparse import OptionParser
 
-from beat import heart, config, utility, inputf, plotting
+from beat import heart, utility, inputf, plotting
+from beat.config imoprt ffo_mode_str, geometry_mode_str
 from beat.models import load_model, Stage, estimate_hypers, sample
 from beat.backend import TextChain 
 from beat.sampler import SamplingHistory
@@ -110,7 +111,8 @@ nargs_dict = {
     'export': 1,
 }
 
-mode_choices = ['geometry', 'ffi']
+mode_choices = [geometry_mode_str, ffo_mode_str]
+
 supported_geodetic_formats = ['matlab', 'ascii', 'kite']
 supported_samplers = ['SMC', 'Metropolis', 'PT']
 
@@ -214,9 +216,9 @@ def command_init(args):
         parser.add_option(
             '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--source_type', dest='source_type',
@@ -336,9 +338,9 @@ def command_import(args):
         parser.add_option(
             '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--force', dest='force', action='store_true',
@@ -421,14 +423,14 @@ def command_import(args):
                             geodetic_outpath)
 
     else:
-        if options.mode == 'geometry':
+        if options.mode == geometry_mode_str:
             logger.warn('No previous modeling results to be imported!')
 
-        elif options.mode == 'ffi':
+        elif options.mode == ffo_mode_str:
             logger.info('Importing non-linear modeling results, i.e.'
                         ' maximum likelihood result for source geometry.')
             problem = load_model(
-                c.project_dir, 'geometry', hypers=False)
+                c.project_dir, geometry_mode_str, hypers=False)
 
             stage = Stage(homepath=problem.outfolder)
             stage.load_results(
@@ -479,9 +481,9 @@ def command_update(args):
         parser.add_option(
             '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--diff', dest='diff', action='store_true',
@@ -531,9 +533,9 @@ def command_clone(args):
         parser.add_option(
             '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--copy_data', dest='copy_data',
@@ -629,9 +631,9 @@ def command_sample(args):
         parser.add_option(
             '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--main_path', dest='main_path', type='string',
@@ -684,9 +686,9 @@ def command_summarize(args):
         parser.add_option(
             '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--force', dest='force', action='store_true',
@@ -828,9 +830,9 @@ def command_build_gfs(args):
         parser.add_option(
             '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--datatypes',
@@ -855,7 +857,7 @@ def command_build_gfs(args):
 
     c = config.load_config(project_dir, options.mode)
 
-    if options.mode in ['geometry', 'interseismic']:
+    if options.mode in [geometry_mode_str, 'interseismic']:
         for datatype in options.datatypes:
             if datatype == 'geodetic':
                 gc = c.geodetic_config
@@ -910,8 +912,8 @@ def command_build_gfs(args):
             if options.execute:
                 logger.info('%s GF calculations successful!' % datatype)
 
-    elif options.mode == 'ffi':
-        from beat import ffi
+    elif options.mode == ffo_mode_str:
+        from beat import ffo
 
         slip_varnames = c.problem_config.get_slip_variables()
         varnames = c.problem_config.select_variables()
@@ -931,7 +933,7 @@ def command_build_gfs(args):
                     source.update(lat=c.event.lat, lon=c.event.lon)
 
                 logger.info('Discretizing reference sources ...')
-                fault = ffi.discretize_sources(
+                fault = ffo.discretize_sources(
                     varnames=slip_varnames,
                     sources=gf.reference_sources,
                     extension_width=gf.extension_width,
@@ -994,7 +996,7 @@ def command_build_gfs(args):
                             crust_inds=[crust_ind],
                             sample_rate=gf.sample_rate)
 
-                        ffi.geo_construct_gf_linear(
+                        ffo.geo_construct_gf_linear(
                             engine=engine,
                             outdirectory=outdir,
                             event=c.event,
@@ -1028,11 +1030,13 @@ def command_build_gfs(args):
                                 datahandler=datahandler,
                                 event=c.event)
 
-                            ffi.seis_construct_gf_linear(
+                            ffo.seis_construct_gf_linear(
                                 engine=engine,
                                 fault=fault,
                                 durations_prior=pc.priors['durations'],
                                 velocities_prior=pc.priors['velocities'],
+                                nucleation_time_prior=pc.priors[
+                                    'nucleation_time'],
                                 varnames=slip_varnames,
                                 wavemap=wmap,
                                 event=c.event,
@@ -1062,12 +1066,11 @@ def command_plot(args):
                  ' Default: current directory: ./')
 
         parser.add_option(
-            '--mode',
-            dest='mode',
+            '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--post_llk',
@@ -1202,12 +1205,11 @@ def command_check(args):
 
     def setup(parser):
         parser.add_option(
-            '--mode',
-            dest='mode',
+            '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--main_path',
@@ -1272,11 +1274,12 @@ def command_check(args):
                 stations=wmap.stations, events=[sc.event])
 
     elif options.what == 'library':
-        if options.mode != 'ffi':
+        if options.mode != ffo_mode_str:
             logger.warning(
-                'GF library exists only for "ffi" optimization mode.')
+                'GF library exists only for "%s" '
+                'optimization mode.' % ffo_mode_str)
         else:
-            from beat import ffi
+            from beat import ffo
 
             for datatype in options.datatypes:
                 for var in problem.config.problem_config.get_slip_variables():
@@ -1288,7 +1291,7 @@ def command_check(args):
                         scomp = problem.composites['seismic']
 
                         for wmap in scomp.wavemaps:
-                            filename = ffi.get_gf_prefix(
+                            filename = ffo.get_gf_prefix(
                                 datatype, component=var,
                                 wavename=wmap.config.name,
                                 crust_ind=sc.gf_config.reference_model_idx)
@@ -1298,7 +1301,7 @@ def command_check(args):
                                 ' Library %s for %s target' % (
                                     filename,
                                     list2string(options.targets)))
-                            gfs = ffi.load_gf_library(
+                            gfs = ffo.load_gf_library(
                                 directory=outdir, filename=filename)
 
                             targets = [
@@ -1329,9 +1332,9 @@ def command_export(args):
         parser.add_option(
             '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--stage_number',

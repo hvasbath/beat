@@ -1308,13 +1308,6 @@ def PsGrnArray2LayeredModel(psgrn_input_path):
                 formatter={'float_kind': lambda x: "%.3f" % x}))))
 
 
-def list_to_str(l):
-    """
-    Transform entries of a list or 1-d array to one single string.
-    """
-    return ''.join('%f ' % entry for entry in l)
-
-
 def swap_columns(array, index1, index2):
     """
     Swaps the column of the input array based on the given indexes.

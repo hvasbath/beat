@@ -13,6 +13,7 @@ from beat.models import Stage
 from beat.sampler.metropolis import get_trace_stats
 from beat.heart import init_seismic_targets, init_geodetic_targets
 from beat.colormap import slip_colormap
+from beat.config import ffo_mode_str, geometry_mode_str
 
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle, FancyArrow
@@ -623,11 +624,11 @@ def geodetic_fits(problem, stage, plot_options):
     try:
         sources = composite.sources
     except AttributeError:
-        logger.info('FFI waveform fit, using reference source ...')
+        logger.info('FFO waveform fit, using reference source ...')
         sources = composite.config.gf_config.reference_sources
 
     if po.reference:
-        if mode != 'ffi':
+        if mode != ffo_mode_str:
             composite.point2sources(po.reference)
             ref_sources = copy.deepcopy(composite.sources)
         point = po.reference
@@ -929,8 +930,9 @@ def geodetic_fits(problem, stage, plot_options):
             draw_sources(
                 axes[figidx][rowidx, 1], sources, po)
 
-            if po.reference and mode != 'ffi':
+            if po.reference and mode != ffo_mode_str:
                 ref_color = scolor('aluminium5')
+
                 draw_sources(
                     axes[figidx][rowidx, 1],
                     ref_sources, po, color=ref_color)
@@ -1070,7 +1072,7 @@ def seismic_fits(problem, stage, plot_options):
     try:
         source = composite.sources[0]
     except AttributeError:
-        logger.info('FFI waveform fit, using reference source ...')
+        logger.info('FFO waveform fit, using reference source ...')
         source = composite.config.gf_config.reference_sources[0]
         source.time += problem.config.event.time
 
@@ -1389,54 +1391,64 @@ def draw_fuzzy_beachball(problem, po):
         raise NotImplementedError(
             'Fuzzy beachball is not yet implemented for more than one source!')
 
-    stage = Stage(homepath=problem.outfolder)
+    if po.reference is None:
+        llk_str = po.post_llk
+        stage = Stage(homepath=problem.outfolder)
 
-    stage.load_results(
-        varnames=problem.varnames,
-        model=problem.model, stage_number=po.load_stage,
-        load='trace', chains=[-1])
+        stage.load_results(
+            varnames=problem.varnames,
+            model=problem.model, stage_number=po.load_stage,
+            load='trace', chains=[-1])
 
-    n_mts = len(stage.mtrace)
-    # have to select only 500 therwise alpha doesnt work, bug in MPL
-    alphatresh = 500
-    if n_mts > alphatresh:
-        thin, burn = utility.mod_i(n_mts, alphatresh)
-        n_mts = alphatresh
+        n_mts = len(stage.mtrace)
+        m6s = num.empty((n_mts, 6), dtype='float64')
+        for i, varname in enumerate(
+                ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
+            m6s[:, i] = stage.mtrace.get_values(
+                varname, combine=True, squeeze=True).ravel()
+
     else:
-        burn = 0
-        thin = 1
-    m6s = num.empty((n_mts, 6), dtype='float64')
-    for i, varname in enumerate(['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
-        m6s[:, i] = stage.mtrace.get_values(
-            varname, combine=True, squeeze=True, burn=burn, thin=thin).ravel()
+        llk_str = 'ref'
+        m6s = num.empty((1, 6), dtype='float64')
+        for i, varname in enumerate(
+                ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
+            m6s[:, i] = po.reference[varname].ravel()
 
     kwargs = {
         'beachball_type': 'full',
-        'size': 160,
+        'size': 8,
+        'size_units': 'data',
         'position': (5, 5),
         'color_t': 'black',
-        'edgecolor': 'black'}
+        'edgecolor': 'black',
+        'grid_resolution': 400}
 
     fig = plt.figure(figsize=(4., 4.))
     fig.subplots_adjust(left=0., right=1., bottom=0., top=1.)
     axes = fig.add_subplot(1, 1, 1)
 
-    axes = beachball.plot_fuzzy_beachball_mpl(
-        m6s, axes, best_mt=None, best_color='red', kwargs=kwargs)
+    outpath = os.path.join(
+        problem.outfolder,
+        po.figure_dir,
+        'fuzzy_beachball_%i_%s.%s' % (po.load_stage, llk_str, 'png'))
 
-    axes.set_xlim(0., 10.)
-    axes.set_ylim(0., 10.)
-    axes.set_axis_off()
+    if not os.path.exists(outpath) or po.force or po.outformat == 'display':
 
-    if not po.outformat == 'display':
-        outpath = os.path.join(
-            problem.outfolder,
-            po.figure_dir,
-            'fuzzy_beachball_%i_%s.%s' % (po.load_stage, po.post_llk, 'png'))
-        logger.info('saving figure to %s' % outpath)
-        fig.savefig(outpath, dpi=po.dpi)
+        beachball.plot_fuzzy_beachball_mpl_pixmap(
+            m6s, axes, best_mt=None, best_color='red', **kwargs)
+
+        axes.set_xlim(0., 10.)
+        axes.set_ylim(0., 10.)
+        axes.set_axis_off()
+
+        if not po.outformat == 'display':
+            logger.info('saving figure to %s' % outpath)
+            fig.savefig(outpath, dpi=po.dpi)
+        else:
+            plt.show()
+
     else:
-        plt.show()
+        logger.info('Plot already exists! Please use --force to overwrite!')
 
 
 def histplot_op(
@@ -1858,7 +1870,7 @@ def draw_correlation_hist(problem, plot_options):
     po = plot_options
     mode = problem.config.problem_config.mode
 
-    assert mode == 'geometry'
+    assert mode == geometry_mode_str
     assert po.load_stage != 0
 
     hypers = utility.check_hyper_flag(problem)
@@ -2115,7 +2127,7 @@ def fault_slip_distribution(
 
     Parameters
     ----------
-    fault : :class:`ffi.FaultGeometry`
+    fault : :class:`ffo.fault.FaultGeometry`
 
     """
 
@@ -2289,10 +2301,10 @@ def draw_slip_dist(problem, po):
 
     mode = problem.config.problem_config.mode
 
-    if mode != 'ffi':
+    if mode != ffo_mode_str:
         raise ModeError(
             'Wrong optimization mode: %s! This plot '
-            'variant is only valid for "ffi" mode' % mode)
+            'variant is only valid for "%s" mode' % (mode, ffo_mode_str))
 
     datatype, gc = problem.composites.items()[0]
 

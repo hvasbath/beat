@@ -10,12 +10,11 @@ import numpy as num
 
 import theano.tensor as tt
 from theano import config as tconfig
-from theano import shared
 
-from beat import heart, utility
+from beat.utility import list2string, transform_sources, weed_input_rvs
 from beat import sampler
 from beat.models import geodetic, seismic
-from beat.models.base import Composite
+from beat.ffo import LaplacianDistributerComposite
 from beat import config as bconfig
 from beat.backend import ListArrayOrdering, ListToArrayBijection
 
@@ -25,7 +24,6 @@ from logging import getLogger
 tconfig.warn.round = False
 
 km = 1000.
-log_2pi = num.log(2 * num.pi)
 
 logger = getLogger('models')
 
@@ -33,7 +31,6 @@ logger = getLogger('models')
 __all__ = [
     'GeometryOptimizer',
     'DistributionOptimizer',
-    'LaplacianDistributerComposite',
     'load_model']
 
 
@@ -51,144 +48,6 @@ class InconsistentNumberHyperparametersError(Exception):
         return '\n%s\n%s' % (self.errmess, self.context)
 
 
-class LaplacianDistributerComposite(Composite):
-
-    def __init__(self, project_dir, hypers):
-
-        super(LaplacianDistributerComposite, self).__init__()
-
-        self._mode = 'ffi'
-
-        # dummy for hyperparam name
-        self.hyperparams[bconfig.hyper_name_laplacian] = None
-        self.hierarchicals = None
-
-        self.slip_varnames = bconfig.static_dist_vars
-        self.gfpath = os.path.join(
-            project_dir, self._mode, bconfig.linear_gf_dir_name)
-
-        self.fault = self.load_fault_geometry()
-        self.spatches = shared(self.fault.npatches, borrow=True)
-        self._like_name = 'laplacian_like'
-
-        # only one subfault so far, smoothing across and fast-sweep
-        # not implemented for more yet
-
-        self.smoothing_op = \
-            self.fault.get_subfault_smoothing_operator(0).astype(
-                tconfig.floatX)
-
-        self.sdet_shared_smoothing_op = shared(
-            heart.log_determinant(
-                self.smoothing_op.T * self.smoothing_op, inverse=False),
-            borrow=True)
-
-        self.shared_smoothing_op = shared(self.smoothing_op, borrow=True)
-
-        if hypers:
-            self._llks = []
-            for varname in self.slip_varnames:
-                self._llks.append(shared(
-                    num.array([1.]),
-                    name='laplacian_llk_%s' % varname,
-                    borrow=True))
-
-    def load_fault_geometry(self):
-        """
-        Load fault-geometry, i.e. discretized patches.
-
-        Returns
-        -------
-        :class:`heart.FaultGeometry`
-        """
-        return utility.load_objects(
-            os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
-
-    def _eval_prior(self, hyperparam, exponent):
-        """
-        Evaluate model parameter independend part of the smoothness prior.
-        """
-        return (-0.5) * \
-            (-self.sdet_shared_smoothing_op +
-             (self.spatches * (log_2pi + 2 * hyperparam)) +
-             (1. / tt.exp(hyperparam * 2) * exponent))
-
-    def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
-        """
-        Get smoothing likelihood formula for the model built. Has to be called
-        within a with model context.
-        Part of the pymc3 model.
-
-        Parameters
-        ----------
-        input_rvs : dict
-            of :class:`pymc3.distribution.Distribution`
-        fixed_rvs : dict
-            of :class:`numpy.array` here only dummy
-        hyperparams : dict
-            of :class:`pymc3.distribution.Distribution`
-        problem_config : :class:`config.ProblemConfig`
-            here it is not used
-
-        Returns
-        -------
-        posterior_llk : :class:`theano.tensor.Tensor`
-        """
-        logger.info('Initialising Laplacian smoothing operator ...')
-
-        self.input_rvs = input_rvs
-        self.fixed_rvs = fixed_rvs
-
-        hp_name = bconfig.hyper_name_laplacian
-        self.input_rvs.update(fixed_rvs)
-
-        logpts = tt.zeros((self.n_t), tconfig.floatX)
-        for l, var in enumerate(self.slip_varnames):
-            Ls = self.shared_smoothing_op.dot(input_rvs[var])
-            exponent = Ls.T.dot(Ls)
-
-            logpts = tt.set_subtensor(
-                logpts[l:l + 1],
-                self._eval_prior(hyperparams[hp_name], exponent=exponent))
-
-        llk = Deterministic(self._like_name, logpts)
-        return llk.sum()
-
-    def update_llks(self, point):
-        """
-        Update posterior likelihoods (in place) of the composite w.r.t.
-        one point in the solution space.
-
-        Parameters
-        ----------
-        point : dict
-            with numpy array-like items and variable name keys
-        """
-        for l, varname in enumerate(self.slip_varnames):
-            Ls = self.smoothing_op.dot(point[varname])
-            _llk = num.asarray([Ls.T.dot(Ls)])
-            self._llks[l].set_value(_llk)
-
-    def get_hyper_formula(self, hyperparams):
-        """
-        Get likelihood formula for the hyper model built. Has to be called
-        within a with model context.
-        """
-
-        logpts = tt.zeros((self.n_t), tconfig.floatX)
-        for k in range(self.n_t):
-            logpt = self._eval_prior(
-                hyperparams[bconfig.hyper_name_laplacian], self._llks[k])
-            logpts = tt.set_subtensor(logpts[k:k + 1], logpt)
-
-        llk = Deterministic(self._like_name, logpts)
-        return llk.sum()
-
-    @property
-    def n_t(self):
-        return len(self.slip_varnames)
-
-
 geometry_composite_catalog = {
     'seismic': seismic.SeismicGeometryComposite,
     'geodetic': geodetic.GeodeticGeometryComposite}
@@ -198,6 +57,7 @@ distributer_composite_catalog = {
     'seismic': seismic.SeismicDistributerComposite,
     'geodetic': geodetic.GeodeticDistributerComposite,
     'laplacian': LaplacianDistributerComposite}
+
 
 interseismic_composite_catalog = {
     'geodetic': geodetic.GeodeticInterseismicComposite}
@@ -341,12 +201,12 @@ class Problem(object):
 
             for datatype, composite in self.composites.items():
                 if datatype in bconfig.modes_catalog[pc.mode].keys():
-                    input_rvs = utility.weed_input_rvs(
+                    input_rvs = weed_input_rvs(
                         self.rvs, pc.mode, datatype=datatype)
-                    fixed_rvs = utility.weed_input_rvs(
+                    fixed_rvs = weed_input_rvs(
                         self.fixed_params, pc.mode, datatype=datatype)
 
-                    if pc.mode == 'ffi':
+                    if pc.mode == 'ffo':
                         # do the optimization only on the
                         # reference velocity model
                         logger.info("Loading %s Green's Functions" % datatype)
@@ -483,7 +343,7 @@ class Problem(object):
                 logger.info(
                     'not solving for %s, got fixed at %s' % (
                         param.name,
-                        utility.list_to_str(param.lower.flatten())))
+                        list2string(param.lower.flatten())))
                 fixed_params[param.name] = param.lower
 
         return rvs, fixed_params
@@ -572,7 +432,7 @@ class Problem(object):
                     logger.info(
                         'not solving for %s, got fixed at %s' % (
                             hyperpar.name,
-                            utility.list_to_str(hyperpar.lower.flatten())))
+                            list2string(hyperpar.lower.flatten())))
                     hyperparams[hyperpar.name] = hyperpar.lower
 
         if len(hyperparameters) > 0:
@@ -739,7 +599,7 @@ class GeometryOptimizer(SourceOptimizer):
 
         pc = config.problem_config
 
-        dsources = utility.transform_sources(
+        dsources = transform_sources(
             self.sources,
             pc.datatypes,
             pc.decimation_factors)
@@ -779,7 +639,7 @@ class InterseismicOptimizer(SourceOptimizer):
         pc = config.problem_config
 
         if pc.source_type == 'RectangularSource':
-            dsources = utility.transform_sources(
+            dsources = transform_sources(
                 self.sources,
                 pc.datatypes)
         else:
