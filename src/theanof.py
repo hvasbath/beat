@@ -381,7 +381,7 @@ class SeisSynthesizer(theano.Op):
             arrival_times = num.array(self.arrival_times) + \
                 mpoint.pop('time_shift').ravel()
         else:
-            arrival_times = self.arrival_times
+            arrival_times = num.array(self.arrival_times)
 
         source_points = utility.split_point(mpoint)
 
