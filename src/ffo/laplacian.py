@@ -46,7 +46,7 @@ class LaplacianDistributerComposite(Composite):
 
         # only one subfault so far, smoothing across and fast-sweep
         # not implemented for more yet
-
+        # TODO scipy.linalg.block_diag of all smoothing operators of subfaults
         self.smoothing_op = \
             self.fault.get_subfault_smoothing_operator(0).astype(
                 tconfig.floatX)

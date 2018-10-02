@@ -765,6 +765,8 @@ class SeismicDistributerComposite(SeismicComposite):
         starttimes0 += input_rvs['nucleation_time']
         wlogpts = []
         for wmap in self.wavemaps:
+# !!!!!!!!!            for subfault in range(self.fault.nsubfaults):
+
             # station corrections
             if len(self.hierarchicals) > 0:
                 raise NotImplementedError(

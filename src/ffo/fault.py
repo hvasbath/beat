@@ -8,7 +8,7 @@ from pyrocko.gf.seismosizer import Cloneable
 
 import copy
 from logging import getLogger
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 
 import numpy as num
 
@@ -58,7 +58,7 @@ class FaultGeometry(Cloneable):
     def __init__(self, datatypes, components, ordering):
         self.datatypes = datatypes
         self.components = components
-        self._ext_sources = {}
+        self._ext_sources = OrderedDict()
         self.ordering = ordering
 
     def __str__(self):
@@ -238,7 +238,7 @@ total number of patches: %i ''' % (
         nuc_dip = point['nucleation_dip']
         nuc_strike = point['nucleation_strike']
         velocities = point['velocities']
-
+        # TODO make index dependent   !!!!
         nuc_dip_idx, nuc_strike_idx = self.fault_locations2idxs(
             nuc_dip, nuc_strike, backend='numpy')
         return self.get_subfault_starttimes(
@@ -266,7 +266,7 @@ total number of patches: %i ''' % (
         slownesses = 1. / rupture_velocities.reshape((npw, npl))
 
         start_times = fast_sweep.get_rupture_times_numpy(
-            slownesses, self.ordering.patch_size_dip,
+            slownesses, self.ordering.patch_sizes_dip[index],
             n_patch_strike=npl, n_patch_dip=npw,
             nuc_x=nuc_strike_idx, nuc_y=nuc_dip_idx)
         return start_times
@@ -289,8 +289,8 @@ total number of patches: %i ''' % (
         return get_smoothing_operator(
             n_patch_strike=npl,
             n_patch_dip=npw,
-            patch_size_strike=self.ordering.patch_size_strike * km,
-            patch_size_dip=self.ordering.patch_size_dip * km)
+            patch_size_strike=self.ordering.patch_sizes_strike[index] * km,
+            patch_size_dip=self.ordering.patch_sizes_dip[index] * km)
 
     def fault_locations2idxs(
             self, positions_dip, positions_strike, backend='numpy'):
@@ -306,7 +306,7 @@ total number of patches: %i ''' % (
         backend : str
             which implementation backend to use [numpy/theano]
         """
-
+        #  !!!!!!TODO--------------needs subfault index
         dipidx = positions2idxs(
             positions=positions_dip,
             cell_size=self.ordering.patch_size_dip,
@@ -348,16 +348,16 @@ class FaultOrdering(object):
         of number of patches in strike-direction
     npws : list
         of number of patches in dip-direction
-    patch_size_strike : float
+    patch_sizes_strike : list of floats
         patch size in strike-direction [km]
-    patch_size_dip : float
+    patch_sizes_dip : list of floats
         patch size in dip-direction [km]
     """
 
-    def __init__(self, npls, npws, patch_size_strike, patch_size_dip):
+    def __init__(self, npls, npws, patch_sizes_strike, patch_sizes_dip):
 
-        self.patch_size_dip = patch_size_dip
-        self.patch_size_strike = patch_size_strike
+        self.patch_sizes_dip = patch_sizes_dip
+        self.patch_sizes_strike = patch_sizes_strike
         self.vmap = []
         self.smap = []
         dim = 0
@@ -406,8 +406,8 @@ def positions2idxs(positions, cell_size, backend='numpy'):
 
 
 def discretize_sources(
-        sources=None, extension_width=0.1, extension_length=0.1,
-        patch_width=5., patch_length=5., datatypes=['geodetic'],
+        sources=None, extension_widths=[0.1], extension_lengths=[0.1],
+        patch_widths=[5.], patch_lengths=[5.], datatypes=['geodetic'],
         varnames=['']):
     """
     Build complex discretized fault.
@@ -434,35 +434,39 @@ def discretize_sources(
     -------
     :class:'FaultGeometry'
     """
-    if 'seismic' in datatypes and patch_length != patch_width:
-        raise ValueError(
-            'Seismic kinematic fault optimization does only support'
-            ' square patches (yet)! Please adjust the discretization!')
+
+    for i, (pl, pw) in enumerate(zip(patch_lengths, patch_widths)):
+        if pl != pw:
+            raise ValueError(
+                'Finite fault optimization does only support'
+                ' square patches (yet)! Please adjust the discretization for'
+                ' subfault %i: patch-length: %f != patch-width %f!' %
+                (i, pl, pw))
 
     nsources = len(sources)
     if 'seismic' in datatypes and nsources > 1:
-        raise ValueError(
-            'Seismic kinematic fault optimization does'
-            ' only support one main fault (TODO fast'
-            ' sweeping across sub-faults)!'
-            ' nsources defined: %i' % nsources)
-
-    patch_length_m = patch_length * km
-    patch_width_m = patch_width * km
+        logger.warning(
+            'Seismic kinematic finite fault optimization does'
+            ' not support rupture propagation across sub-faults yet!')
 
     npls = []
     npws = []
-    for source in sources:
+    for i, source, in enumerate(sources):
         s = copy.deepcopy(source)
+        patch_length_m = patch_lengths[i] * km
+        patch_width_m = patch_widths[i] * km
         ext_source = s.extent_source(
-            extension_width, extension_length,
+            extension_widths[i], extension_lengths[i],
             patch_width_m, patch_length_m)
 
-        npls.append(int(num.ceil(ext_source.length / patch_length_m)))
-        npws.append(int(num.ceil(ext_source.width / patch_width_m)))
+        npls.append(
+            ext_source.get_n_patches(patch_length_m, 'length'))
+        npws.append(
+            ext_source.get_n_patches(patch_width_m, 'width'))
 
     ordering = FaultOrdering(
-        npls, npws, patch_size_strike=patch_length, patch_size_dip=patch_width)
+        npls, npws,
+        patch_sizes_strike=patch_lengths, patch_sizes_dip=patch_widths)
 
     fault = FaultGeometry(datatypes, varnames, ordering)
 
@@ -479,14 +483,12 @@ def discretize_sources(
                 param_mod['rake'] += s.rake
                 s.update(**param_mod)
 
+                patch_length_m = patch_lengths[i] * km
+                patch_width_m = patch_widths[i] * km
                 ext_source = s.extent_source(
-                    extension_width, extension_length,
+                    extension_widths[i], extension_lengths[i],
                     patch_width_m, patch_length_m)
 
-                npls.append(
-                    ext_source.get_n_patches(patch_length_m, 'length'))
-                npws.append(
-                    ext_source.get_n_patches(patch_width_m, 'width'))
                 ext_sources.append(ext_source)
                 logger.info('Extended fault(s): \n %s' % ext_source.__str__())
 

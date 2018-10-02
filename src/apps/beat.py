@@ -939,10 +939,10 @@ def command_build_gfs(args):
                 fault = ffo.discretize_sources(
                     varnames=slip_varnames,
                     sources=gf.reference_sources,
-                    extension_width=gf.extension_width,
-                    extension_length=gf.extension_length,
-                    patch_width=gf.patch_width,
-                    patch_length=gf.patch_length,
+                    extension_widths=gf.extension_widths,
+                    extension_lengths=gf.extension_lengths,
+                    patch_widths=gf.patch_widths,
+                    patch_lengths=gf.patch_lengths,
                     datatypes=options.datatypes)
 
             logger.info(

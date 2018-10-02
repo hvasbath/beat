@@ -328,23 +328,34 @@ class LinearGFConfig(GFConfig):
     reference_sources = List.T(
         RectangularSource.T(),
         help='Geometry of the reference source(s) to fix')
-    patch_width = Float.T(
-        default=5.,
-        help='Patch width [km] to divide reference sources')
-    patch_length = Float.T(
-        default=5.,
-        help='Patch length [km] to divide reference sources')
-    extension_width = Float.T(
-        default=0.1,
+    patch_widths = List.T(
+        Float.T(),
+        default=[5.],
+        help='List of Patch width [km] to divide reference sources. Each value'
+             ' is applied following the list-order to the respective reference'
+             ' source')
+    patch_lengths = List.T(
+        Float.T(),
+        default=[5.],
+        help='Patch length [km] to divide reference sources Each value'
+             ' is applied following the list-order to the respective reference'
+             ' source')
+    extension_widths = List.T(
+        Float.T(),
+        default=[0.1],
         help='Extend reference sources by this factor in each'
              ' dip-direction. 0.1 means extension of the fault by 10% in each'
              ' direction, i.e. 20% in total. If patches would intersect with'
-             ' the free surface they are constrained to end at the surface.')
-    extension_length = Float.T(
-        default=0.1,
+             ' the free surface they are constrained to end at the surface.'
+             ' Each value is applied following the list-order to the'
+             ' respective reference source.')
+    extension_lengths = List.T(
+        Float.T(),
+        default=[0.1],
         help='Extend reference sources by this factor in each'
              ' strike-direction. 0.1 means extension of the fault by 10% in'
-             ' each direction, i.e. 20% in total.')
+             ' each direction, i.e. 20% in total. Each value is applied '
+             ' following the list-order to the respective reference source.')
     sample_rate = Float.T(
         default=2.,
         help='Sample rate for the Greens Functions.')
