@@ -82,7 +82,7 @@ class GFLibrary(object):
 
     @property
     def size(self):
-        return num.array(self.config.dimensions).prod()
+        return int(num.array(self.config.dimensions).prod())
 
     @property
     def filesize(self):

@@ -12,8 +12,8 @@ import shutil
 
 from optparse import OptionParser
 
-from beat import heart, utility, inputf, plotting
-from beat.config imoprt ffo_mode_str, geometry_mode_str
+from beat import heart, utility, inputf, plotting, config
+from beat.config import ffo_mode_str, geometry_mode_str
 from beat.models import load_model, Stage, estimate_hypers, sample
 from beat.backend import TextChain 
 from beat.sampler import SamplingHistory
@@ -434,13 +434,15 @@ def command_import(args):
 
             stage = Stage(homepath=problem.outfolder)
             stage.load_results(
-                model=problem.model, stage_number=-1, load='full')
+                varnames=problem.varnames,
+                model=problem.model, stage_number=-1,
+                load='trace', chains=[-1])
 
             point = plotting.get_result_point(stage, problem.config, 'max')
             n_sources = problem.config.problem_config.n_sources
 
             source_params = list(problem.config.problem_config.priors.keys())
-            for param in point.keys():
+            for param in list(point.keys()):
                 if param not in source_params:
                     point.pop(param)
 
@@ -914,6 +916,7 @@ def command_build_gfs(args):
 
     elif options.mode == ffo_mode_str:
         from beat import ffo
+        import numpy as num
 
         slip_varnames = c.problem_config.get_slip_variables()
         varnames = c.problem_config.select_variables()
@@ -946,19 +949,26 @@ def command_build_gfs(args):
                 'Storing discretized fault geometry to: %s' % faultpath)
             utility.dump_objects(faultpath, [fault])
 
-            if c.problem_config.n_sources != fault.npatches:
-                logger.info(
-                    'Fault discretization changed! Updating problem_config:')
-                logger.info('%s' % fault.__str__())
-                c.problem_config.n_sources = fault.npatches
-                c.problem_config.init_vars(varnames)
+            logger.info(
+                'Fault discretization done! Updating problem_config...')
+            logger.info('%s' % fault.__str__())
+            c.problem_config.n_sources = fault.nsubfaults
+            c.problem_config.init_vars(varnames)
 
-            ext_source = fault.get_subfault(
-                0, datatype=options.datatypes[0], component='uparr')
+            nucleation_strikes = []
+            nucleation_dips = []
+            for i in range(fault.nsubfaults):
+                ext_source = fault.get_subfault(
+                    i, datatype=options.datatypes[0], component='uparr')
 
+                nucleation_dips.append(ext_source.width / km)
+                nucleation_strikes.append(ext_source.length / km)
+
+            nucl_start = num.zeros(fault.nsubfaults)
             new_bounds = {
-                'nucleation_strike': (0., ext_source.length / km),
-                'nucleation_dip': (0., ext_source.width / km)
+                'nucleation_strike': (
+                    nucl_start, num.array(nucleation_strikes)),
+                'nucleation_dip': (nucl_start, num.array(nucleation_dips))
             }
 
             c.problem_config.set_vars(new_bounds)

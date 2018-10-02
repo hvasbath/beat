@@ -38,8 +38,7 @@ ffo_mode_str = 'ffo'
 geometry_mode_str = 'geometry'
 
 block_vars = [
-    'bl_azimuth', 'bl_amplitude',
-    'nucleation_strike', 'nucleation_dip', 'nucleation_time']
+    'bl_azimuth', 'bl_amplitude']
 seis_vars = ['time', 'duration']
 
 source_names = '''
@@ -637,7 +636,7 @@ class ProblemConfig(Object):
         Set variable bounds to given bounds.
         """
         for variable, bounds in bounds_dict.items():
-            if variable in self.priors.keys():
+            if variable in list(self.priors.keys()):
                 param = self.priors[variable]
                 param.lower = num.atleast_1d(bounds[0])
                 param.upper = num.atleast_1d(bounds[1])
@@ -660,7 +659,7 @@ class ProblemConfig(Object):
         variables = []
         for datatype in self.datatypes:
             if datatype in vars_catalog.keys():
-                if self.mode == 'geometry':
+                if self.mode == geometry_mode_str:
                     if self.source_type in vars_catalog[datatype].keys():
                         source = vars_catalog[datatype][self.source_type]
                         svars = set(source.keys())
@@ -705,7 +704,7 @@ class ProblemConfig(Object):
         if self.mode == ffo_mode_str:
             return [
                 var for var in static_dist_vars if var in self.priors.keys()]
-        elif self.mode == 'geometry':
+        elif self.mode == geometry_mode_str:
             return [
                 var for var in ['slip', 'magnitude']
                 if var in self.priors.keys()]
@@ -1123,7 +1122,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
     c = BEATconfig(name=name, date=date)
     c.project_dir = os.path.join(os.path.abspath(main_path), name)
 
-    if mode == 'geometry' or mode == 'interseismic':
+    if mode == geometry_mode_str or mode == 'interseismic':
         if date is not None and not mode == 'interseismic':
             c.event = utility.search_catalog(
                 date=date, min_magnitude=min_magnitude)
@@ -1177,79 +1176,78 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
     elif mode == ffo_mode_str:
 
         if source_type != 'RectangularSource':
-            raise TypeError('Static distributed slip is so far only supported'
+            raise TypeError('Distributed slip is so far only supported'
                             ' for RectangularSource(s)')
 
-        gmc = load_config(c.project_dir, 'geometry')
-
-        if gmc is not None:
-            logger.info('Taking information from geometry_config ...')
-            if source_type != gmc.problem_config.source_type:
-                raise ValueError(
-                    'Specified reference source: "%s" differs from the'
-                    ' source that has been used previously in'
-                    ' "geometry" mode: "%s"!' % (
-                        source_type, gmc.problem_config.source_type))
-
-            n_sources = gmc.problem_config.n_sources
-            point = {k: v.testvalue
-                     for k, v in gmc.problem_config.priors.items()}
-            point = utility.adjust_point_units(point)
-            source_points = utility.split_point(point)
-
-            reference_sources = init_reference_sources(
-                source_points, n_sources,
-                gmc.problem_config.source_type, gmc.problem_config.stf_type)
-
-            c.date = gmc.date
-            c.event = gmc.event
-
-            if 'geodetic' in datatypes:
-                gc = gmc.geodetic_config
-                if gc is None:
-                    logger.warning(
-                        'Asked for "geodetic" datatype but geometry config '
-                        'has no such datatype! Initialising default "geodetic"'
-                        ' linear config!')
-                    gc = GeodeticConfig()
-                    lgf_config = GeodeticLinearGFConfig()
-                else:
-                    lgf_config = GeodeticLinearGFConfig(
-                        earth_model_name=gc.gf_config.earth_model_name,
-                        store_superdir=gc.gf_config.store_superdir,
-                        n_variations=gc.gf_config.n_variations,
-                        reference_sources=reference_sources,
-                        sample_rate=gc.gf_config.sample_rate)
-
-                c.geodetic_config = gc
-                c.geodetic_config.gf_config = lgf_config
-
-            elif 'seismic' in datatypes:
-                sc = gmc.seismic_config
-                if sc is None:
-                    logger.warning(
-                        'Asked for "seismic" datatype but geometry config '
-                        'has no such datatype! Initialising default "seismic"'
-                        ' linear config!')
-                    sc = SeismicConfig()
-                    lgf_config = SeismicLinearGFConfig()
-                else:
-                    lgf_config = SeismicLinearGFConfig(
-                        earth_model_name=sc.gf_config.earth_model_name,
-                        sample_rate=sc.gf_config.sample_rate,
-                        reference_location=sc.gf_config.reference_location,
-                        store_superdir=sc.gf_config.store_superdir,
-                        n_variations=sc.gf_config.n_variations,
-                        reference_sources=reference_sources)
-                c.seismic_config = sc
-                c.seismic_config.gf_config = lgf_config
-        else:
-            logger.warning('Found no geometry setup, ...')
+        try:
+            gmc = load_config(c.project_dir, geometry_mode_str)
+        except IOError:
             raise ImportError(
                 'No geometry configuration file existing! Please initialise'
-                ' a "geometry" configuration ("beat init command"), update'
+                ' a "%s" configuration ("beat init command"), update'
                 ' the Greens Function information and create GreensFunction'
-                ' stores for the non-linear problem.')
+                ' stores for the non-linear problem.' % geometry_mode_str)
+
+        logger.info('Taking information from geometry_config ...')
+        if source_type != gmc.problem_config.source_type:
+            raise ValueError(
+                'Specified reference source: "%s" differs from the'
+                ' source that has been used previously in'
+                ' "geometry" mode: "%s"!' % (
+                    source_type, gmc.problem_config.source_type))
+
+        n_sources = gmc.problem_config.n_sources
+        point = {k: v.testvalue
+                 for k, v in gmc.problem_config.priors.items()}
+        point = utility.adjust_point_units(point)
+        source_points = utility.split_point(point)
+
+        reference_sources = init_reference_sources(
+            source_points, n_sources,
+            gmc.problem_config.source_type, gmc.problem_config.stf_type)
+
+        c.date = gmc.date
+        c.event = gmc.event
+
+        if 'geodetic' in datatypes:
+            gc = gmc.geodetic_config
+            if gc is None:
+                logger.warning(
+                    'Asked for "geodetic" datatype but %s config '
+                    'has no such datatype! Initialising default "geodetic"'
+                    ' linear config!' % geometry_mode_str)
+                gc = GeodeticConfig()
+                lgf_config = GeodeticLinearGFConfig()
+            else:
+                lgf_config = GeodeticLinearGFConfig(
+                    earth_model_name=gc.gf_config.earth_model_name,
+                    store_superdir=gc.gf_config.store_superdir,
+                    n_variations=gc.gf_config.n_variations,
+                    reference_sources=reference_sources,
+                    sample_rate=gc.gf_config.sample_rate)
+
+            c.geodetic_config = gc
+            c.geodetic_config.gf_config = lgf_config
+
+        elif 'seismic' in datatypes:
+            sc = gmc.seismic_config
+            if sc is None:
+                logger.warning(
+                    'Asked for "seismic" datatype but %s config '
+                    'has no such datatype! Initialising default "seismic"'
+                    ' linear config!' % geometry_mode_str)
+                sc = SeismicConfig()
+                lgf_config = SeismicLinearGFConfig()
+            else:
+                lgf_config = SeismicLinearGFConfig(
+                    earth_model_name=sc.gf_config.earth_model_name,
+                    sample_rate=sc.gf_config.sample_rate,
+                    reference_location=sc.gf_config.reference_location,
+                    store_superdir=sc.gf_config.store_superdir,
+                    n_variations=sc.gf_config.n_variations,
+                    reference_sources=reference_sources)
+            c.seismic_config = sc
+            c.seismic_config.gf_config = lgf_config
 
     c.problem_config = ProblemConfig(
         n_sources=n_sources, datatypes=datatypes, mode=mode,

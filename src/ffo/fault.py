@@ -65,7 +65,7 @@ class FaultGeometry(Cloneable):
         s = '''
 Complex Fault Geometry
 number of subfaults: %i
-number of patches: %i ''' % (
+total number of patches: %i ''' % (
             self.nsubfaults, self.npatches)
         return s
 
@@ -109,7 +109,7 @@ number of patches: %i ''' % (
         for i, source in enumerate(ext_sources):
             source_key = self.get_subfault_key(i, datatype, component)
 
-            if source_key not in self._ext_sources.keys() or replace:
+            if source_key not in list(self._ext_sources.keys()) or replace:
                 self._ext_sources[source_key] = copy.deepcopy(source)
             else:
                 raise FaultGeometryError(
@@ -145,7 +145,7 @@ number of patches: %i ''' % (
 
         source_key = self.get_subfault_key(index, datatype, component)
 
-        if source_key in self._ext_sources.keys():
+        if source_key in list(self._ext_sources.keys()):
             return self._ext_sources[source_key]
         else:
             raise FaultGeometryError('Requested subfault not defined!')

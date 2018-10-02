@@ -127,6 +127,7 @@ subpackages = [
     'beat.voronoi',
     'beat.sampler',
     'beat.models',
+    'beat.ffo',
     'beat.apps']
 
 setup(

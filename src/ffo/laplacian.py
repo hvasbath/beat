@@ -1,4 +1,4 @@
-from beat.models import Composite
+from beat.models.base import Composite
 from beat import config as bconfig
 from beat.utility import load_objects
 from beat.heart import log_determinant
