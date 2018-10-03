@@ -624,7 +624,7 @@ def geodetic_fits(problem, stage, plot_options):
     try:
         sources = composite.sources
     except AttributeError:
-        logger.info('FFO waveform fit, using reference source ...')
+        logger.info('FFO scene fit, using reference source ...')
         sources = composite.config.gf_config.reference_sources
 
     if po.reference:
@@ -2167,15 +2167,14 @@ def fault_slip_distribution(
     reference_slip = num.sqrt(
         reference['uperp'] ** 2 + reference['uparr'] ** 2)
 
-    fig, ax = plt.subplots(
-        nrows=1, ncols=1, figsize=mpl_papersize('a4', 'landscape'))
-
-    height = fault.ordering.patch_size_dip
-    width = fault.ordering.patch_size_strike
-
     figs = []
     axs = []
     for i in range(fault.nsubfaults):
+        fig, ax = plt.subplots(
+            nrows=1, ncols=1, figsize=mpl_papersize('a4', 'landscape'))
+
+        height = fault.ordering.patch_sizes_dip[i]
+        width = fault.ordering.patch_sizes_strike[i]
         np_h, np_w = fault.get_subfault_discretization(i)
         ext_source = fault.get_subfault(i)
 
@@ -2215,8 +2214,8 @@ def fault_slip_distribution(
         ax.add_collection(pa_col)
 
         # patch central locations
-        hpd = fault.ordering.patch_size_dip / 2.
-        hps = fault.ordering.patch_size_strike / 2.
+        hpd = fault.ordering.patch_sizes_dip[i] / 2.
+        hps = fault.ordering.patch_sizes_strike[i] / 2.
 
         xvec = num.linspace(hps, ext_source.length / km - hps, np_w)
         yvec = num.linspace(ext_source.width / km - hpd, hpd, np_h)
@@ -2306,7 +2305,7 @@ def draw_slip_dist(problem, po):
             'Wrong optimization mode: %s! This plot '
             'variant is only valid for "%s" mode' % (mode, ffo_mode_str))
 
-    datatype, gc = problem.composites.items()[0]
+    datatype, gc = list(problem.composites.items())[0]
 
     fault = gc.load_fault_geometry()
 

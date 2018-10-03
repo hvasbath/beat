@@ -1,7 +1,7 @@
 from beat.utility import list2string
 from beat.fast_sweeping import fast_sweep
 
-from .laplacian import get_smoothing_operator
+from beat.models.laplacian import get_smoothing_operator
 from .base import backends
 
 from pyrocko.gf.seismosizer import Cloneable
@@ -149,6 +149,18 @@ total number of patches: %i ''' % (
             return self._ext_sources[source_key]
         else:
             raise FaultGeometryError('Requested subfault not defined!')
+
+    def get_all_subfaults(self, datatype=None, component=None):
+        """
+        Return list of all reference faults
+        """
+        subfaults = []
+        for i in range(self.nsubfaults):
+            subfaults.append(
+                self.get_subfault(
+                    index=i, datatype=datatype, component=component))
+
+        return subfaults
 
     def get_subfault_patches(self, index, datatype=None, component=None):
         """

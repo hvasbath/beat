@@ -545,6 +545,12 @@ class FFOConfig(ModeConfig):
         default='none',
         choices=['laplacian', 'trans-dimensional', 'none'],
         help='Flag for regularization in distributed slip-optimization.')
+    npatches = Int.T(
+        default=None,
+        optional=True,
+        help='Number of patches on full fault. Should not be edited manually!'
+             ' Please edit indirectly through patch_widths and patch_lengths'
+             ' parameters!')
 
 
 class ProblemConfig(Object):
@@ -776,7 +782,11 @@ class ProblemConfig(Object):
         """
         test_point = {}
         for varname, var in self.priors.items():
-            test_point[varname] = var.testvalue
+            shape = get_parameter_shape(var, self)
+            if shape == var.dimension:
+                test_point[varname] = var.testvalue
+            else:
+                test_point[varname] = num.full(shape, var.testvalue[0])
 
         for varname, var in self.hyperparameters.items():
             test_point[varname] = var.testvalue
@@ -785,6 +795,21 @@ class ProblemConfig(Object):
             test_point[varname] = var.testvalue
 
         return test_point
+
+
+def get_parameter_shape(param, pc):
+    if pc.mode == ffo_mode_str:
+        if param.name not in hypo_vars:
+            shape = pc.mode_config.npatches
+        else:
+            shape = param.dimension
+
+    elif pc.mode == geometry_mode_str:
+        shape = param.dimension
+    else:
+        raise TypeError('Mode not implemeneted: %s' % pc.mode)
+
+    return shape
 
 
 class SamplerParameters(Object):
@@ -950,6 +975,9 @@ class GFLibaryConfig(Object):
     event = model.Event.T(default=model.Event.D())
     datatype = String.T(default='undefined')
     crust_ind = Int.T(default=0)
+    reference_sources = List.T(
+        RectangularSource.T(),
+        help='Geometry of the reference source(s) to fix')
 
 
 class GeodeticGFLibraryConfig(GFLibaryConfig):

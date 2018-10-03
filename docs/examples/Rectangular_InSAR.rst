@@ -12,9 +12,9 @@ The data has been pre-processed with `kite <https://github.com/pyrocko/kite>`__.
 To copy the scenario (including the data) to a directory outside of the package source directory, please edit the '&beat_models_path' and execute::
 
    cd /path/to/beat/data/examples/
-   beat clone RectangularStatic $beat_models_path/RectangularStatic --copy_data
+   beat clone RectangularStatic $beat_models_path/Laquila --copy_data
 
-This will create a BEAT project directory named 'RectangularStatic' with a configuration file (config_geometry.yaml) and an example dataset from real Envisat InSAR data (geodetic_data.pkl).
+This will create a BEAT project directory named 'Laquila' with a configuration file (config_geometry.yaml) and an example dataset from real Envisat InSAR data (geodetic_data.pkl).
 Please change to your &beat_models_path with::
 
    cd $beat_models_path
@@ -60,7 +60,7 @@ The GF grid spacing is important and can be modified in x,y direction with 'sour
 The grid extent can be modified by 'source_distance_radius'. All the units are given in [km].
 The GF parameters set for the 2009 L'Aquila static example are good for now.::
 
-   beat build_gfs RectangularStatic
+   beat build_gfs Laquila
 
 This will create an empty Greens Function store named statics_ak135_0.000Hz_0 in the $GF_path. It will use the AK135 earth model[Kennet]_ in combination with CRUST2.0[Laske]_ for the shallow layers.
 
@@ -69,7 +69,7 @@ This will create an empty Greens Function store named statics_ak135_0.000Hz_0 in
 
 For this 2009 L'Aquila static scenario, we can next build the Green's Functions with::
 
-   beat build_gfs RectangularStatic --force --execute
+   beat build_gfs Laquila --force --execute
 
 This will take some time, depending on how much cores you specified to execute in parallel at 'nworkers'. However, this only has to be done once and
 the GF store can be reused for different scenarios if the velocity model does not differ between the different cases.
@@ -84,7 +84,7 @@ The unit for slip is [m] and for all the other length measures (length, width, d
 Another option is to estimate an additional linear trend ('ramp' in InSAR terminology) to each dataset. This can be turned on and off with the variable 'fit_plane' in the geodetic_config section.
 If you did so, the config_geometry.yaml has to be updated with the additional ramp parameters::
 
- beat update RectangularStatic --parameters="hierarchicals"
+ beat update Laquila --parameters="hierarchicals"
 
 Often there the user has some apriori knowledge about the parameters of the Rectangular Source. These can be defined under the "priors" dictionary in the problem_config section.  
 Here is an example::
@@ -113,7 +113,7 @@ Please refer to the 'Sample the solution space section' of the `FullMT <https://
 
 Firstly, we only optimize for the noise scaling or hyperparameters (HPs)::
 
-   beat sample RectangularStatic --hypers
+   beat sample Laquila --hypers
 
 Checking the $project_directory/config_geometry.yaml, the HPs parameter bounds show something like::
 
@@ -137,7 +137,7 @@ Summarize and plotting
 ^^^^^^^^^^^^^^^^^^^^^^
 After the sampling successfully finished, the final stage results can be summarized with::
 
- beat summarize RectangularStatic --stage_number=-1
+ beat summarize Laquila --stage_number=-1
 
 After that several figures illustrating the results can be created.  For a comparison between data, synthetic displacements and residuals for the two InSAR tracks please run::
 
@@ -149,10 +149,10 @@ The plot should show something like this:
 
 To plot the posterior marginal distributions of the source parameters, please run::
 
-   beat plot RectangularStatic stage_posteriors --stage_number=-1
+   beat plot Laquila stage_posteriors --stage_number=-1
 
 
-These plots are stored under your RectangularStatic folder under geometry/figures.
+These plots are stored under your Laquila folder under geometry/figures.
  .. image:: ../_static/Static_stage_-1_max.png
 
 The solution should be comparable to results from published studies. E.g. [Walters2009]_.

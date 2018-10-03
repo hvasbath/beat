@@ -692,7 +692,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
             if hyper in tpoint:
                 tpoint.pop(hyper)
 
-        for param in tpoint.keys():
+        for param in list(tpoint.keys()):
             if param not in self.slip_varnames:
                 tpoint.pop(param)
 

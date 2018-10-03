@@ -142,7 +142,7 @@ class LaplacianDistributerComposite(Composite):
             _llk = num.asarray([Ls.T.dot(Ls)])
             self._llks[l].set_value(_llk)
 
-    def get_hyper_formula(self, hyperparams, problem_config):
+    def get_hyper_formula(self, hyperparams):
         """
         Get likelihood formula for the hyper model built. Has to be called
         within a with model context.

@@ -13,8 +13,8 @@ from theano import config as tconfig
 
 from beat.utility import list2string, transform_sources, weed_input_rvs
 from beat import sampler
-from beat.models import geodetic, seismic
-from beat.ffo import LaplacianDistributerComposite
+from beat.models import geodetic, seismic, laplacian
+
 from beat import config as bconfig
 from beat.backend import ListArrayOrdering, ListToArrayBijection
 
@@ -56,7 +56,7 @@ geometry_composite_catalog = {
 distributer_composite_catalog = {
     'seismic': seismic.SeismicDistributerComposite,
     'geodetic': geodetic.GeodeticDistributerComposite,
-    'laplacian': LaplacianDistributerComposite}
+    'laplacian': laplacian.LaplacianDistributerComposite}
 
 
 interseismic_composite_catalog = {
@@ -253,8 +253,10 @@ class Problem(object):
             self.init_hierarchicals()
 
         point = self.get_random_point(include=['hierarchicals', 'priors'])
-        for param in pc.priors.values():
-            point[param.name] = param.testvalue
+
+        if self.config.problem_config.mode == bconfig.geometry_mode_str:
+            for param in pc.priors.values():
+                point[param.name] = param.testvalue
 
         with Model() as self.model:
 
@@ -287,10 +289,9 @@ class Problem(object):
                 point[name] = param.random()
 
         if 'priors' in include:
-            dummy = {
-                param.name: param.random() for param in pc.priors.values()}
-
-            point.update(dummy)
+            for param in pc.priors.values():
+                dimension = bconfig.get_parameter_shape(param, pc)
+                point[param.name] = param.random(dimension=dimension)
 
         if 'hypers' in include:
             if len(self.hyperparams) == 0:
@@ -323,9 +324,12 @@ class Problem(object):
         fixed_params = dict()
         for param in pc.priors.values():
             if not num.array_equal(param.lower, param.upper):
+
+                shape = bconfig.get_parameter_shape(param, pc)
+
                 kwargs = dict(
                     name=param.name,
-                    shape=param.dimension,
+                    shape=shape,
                     lower=param.lower,
                     upper=param.upper,
                     testval=param.testvalue,
@@ -391,16 +395,17 @@ class Problem(object):
             for hp_name in hypernames:
                 if hp_name in hyperparameters.keys():
                     hyperpar = hyperparameters.pop(hp_name)
-
-                    if composite.config.dataset_specific_residual_noise_estimation:
-                        if datatype == 'seismic':
-                            raise NotImplementedError('Not fully implemented!')
-                            # TODO: fix this needs to be wavemap stations specific
+                    if composite.config:   # only data composites
+                        if composite.config.dataset_specific_residual_noise_estimation:
+                            if datatype == 'seismic':
+                                raise NotImplementedError('Not fully implemented!')
+                                # TODO: fix this needs to be wavemap stations specific
+                            else:
+                                ndata = len(composite.get_unique_stations())
                         else:
-                            ndata = len(composite.get_unique_stations())
+                            ndata = 1
                     else:
                         ndata = 1
-
                 else:
                     raise InconsistentNumberHyperparametersError(
                         'Datasets and -types require additional '

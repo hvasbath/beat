@@ -778,7 +778,6 @@ def _process_patch_geodetic(
 
     logger.debug('Applying LOS vector ...')
     los_disp = (disp * los_vectors).sum(axis=1) * odws
-
     gfs.put(entries=los_disp, patchidx=patchidx)
 
 
@@ -825,7 +824,9 @@ def geo_construct_gf_linear(
             dimensions=(npatches, nsamples),
             event=event,
             crust_ind=crust_ind,
-            datatype='geodetic')
+            datatype='geodetic',
+            reference_sources=fault.get_all_subfaults(
+                datatype='geodetic', component=var))
         gfs = GeodeticGFLibrary(config=gfl_config)
 
         outpath = os.path.join(outdirectory, gfs.filename + '.npz')
@@ -863,10 +864,9 @@ def geo_construct_gf_linear(
             for res in p:
                 pass
 
-            if nworkers > 1:
-                # collect and store away
-                gfs._gfmatrix = num.frombuffer(
-                    shared_gflibrary).reshape(gfs.dimensions)
+            # collect and store away
+            gfs._gfmatrix = num.frombuffer(
+                shared_gflibrary).reshape(gfs.dimensions)
 
             logger.info('Storing geodetic linear GF Library ...')
 
@@ -1024,6 +1024,8 @@ def seis_construct_gf_linear(
             component=var,
             datatype='seismic',
             event=event,
+            reference_sources=fault.get_all_subfaults(
+                datatype='seismic', component=var),
             duration_sampling=duration_sampling,
             starttime_sampling=starttime_sampling,
             wave_config=wavemap.config,
@@ -1071,12 +1073,11 @@ def seis_construct_gf_linear(
             for res in p:
                 pass
 
-            if nworkers > 1:
-                # collect and store away
-                gfs._gfmatrix = num.frombuffer(
-                    shared_gflibrary).reshape(gfs.dimensions)
-                gfs._tmins = num.frombuffer(shared_times).reshape(
-                    (gfs.ntargets, gfs.npatches + 1))
+            # collect and store away
+            gfs._gfmatrix = num.frombuffer(
+                shared_gflibrary).reshape(gfs.dimensions)
+            gfs._tmins = num.frombuffer(shared_times).reshape(
+                (gfs.ntargets, gfs.npatches + 1))
 
             logger.info('Storing seismic linear GF Library ...')
 
