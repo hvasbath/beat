@@ -216,8 +216,12 @@ class Problem(object):
                                 data_config.gf_config.reference_model_idx],
                             make_shared=True)
 
-                    total_llk += composite.get_formula(
-                        input_rvs, fixed_rvs, self.hyperparams, pc)
+                else:
+                    input_rvs = self.rvs
+                    fixed_rvs = self.fixed_params
+
+                total_llk += composite.get_formula(
+                    input_rvs, fixed_rvs, self.hyperparams, pc)
 
             # deterministic RV to write out llks to file
             like = Deterministic('tmp', total_llk)

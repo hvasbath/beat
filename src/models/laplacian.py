@@ -107,6 +107,7 @@ class LaplacianDistributerComposite(Composite):
         -------
         posterior_llk : :class:`theano.tensor.Tensor`
         """
+
         logger.info('Initialising Laplacian smoothing operator ...')
 
         self.input_rvs = input_rvs
@@ -124,8 +125,8 @@ class LaplacianDistributerComposite(Composite):
                 logpts[l:l + 1],
                 self._eval_prior(hyperparams[hp_name], exponent=exponent))
 
-        llk = Deterministic(self._like_name, logpts)
-        return llk.sum()
+        llk = Deterministic(self._like_name, logpts.sum())
+        return llk
 
     def update_llks(self, point):
         """

@@ -641,12 +641,12 @@ class GeodeticDistributerComposite(GeodeticComposite):
         ref_idx = self.config.gf_config.reference_model_idx
 
         mu = tt.zeros((self.Bij.ordering.size), tconfig.floatX)
-        for var, rv in input_rvs.items():
+        for var in self.slip_varnames:
             key = self.get_gflibrary_key(
                 crust_ind=ref_idx,
                 wavename='static',
                 component=var)
-            mu += self.gfs[key].stack_all(slips=rv)
+            mu += self.gfs[key].stack_all(slips=input_rvs[var])
 
         residuals = self.Bij.srmap(
             tt.cast((self.sdata - mu) * self.sodws, tconfig.floatX))

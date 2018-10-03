@@ -2129,6 +2129,8 @@ def fault_slip_distribution(
     ----------
     fault : :class:`ffo.fault.FaultGeometry`
 
+    TODO: 0,0 is now ll of fault at depth, need to turn around axis that
+        origin is top-left
     """
 
     def draw_quivers(
