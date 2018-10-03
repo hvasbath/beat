@@ -79,7 +79,10 @@ plot_units = {
 
     'nucleation_dip': u_km,
     'nucleation_strike': u_km,
+    'nucleation_time': u_s,
     'time_shift': u_s,
+    'uperp': u_m,
+    'uparr': u_m,
 
     'mnn': u_nm,
     'mee': u_nm,
@@ -94,6 +97,7 @@ plot_units = {
     'kappa': u_rad,
     'sigma': u_rad,
     'h': u_hyp,
+
 
     'distance': u_km,
     'delta_depth': u_km,
