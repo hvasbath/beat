@@ -1060,6 +1060,7 @@ def command_build_gfs(args):
 
 def command_plot(args):
 
+    from beat import plotting
     command_str = 'plot'
 
     def setup(parser):
@@ -1152,7 +1153,6 @@ def command_plot(args):
             dest='build',
             action='store_true',
             help='Build models during problem loading.')
-
     plots_avail = plotting.available_plots()
 
     details = '''Available <plot types> are: %s or "all". Multiple plots can be
