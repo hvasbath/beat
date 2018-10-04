@@ -557,7 +557,6 @@ class GeodeticDistributerComposite(GeodeticComposite):
         self.gfs = {}
         self.gf_names = {}
 
-        self.slip_varnames = bconfig.static_dist_vars
         self._mode = 'ffo'
         self.gfpath = os.path.join(
             project_dir, self._mode, bconfig.linear_gf_dir_name)

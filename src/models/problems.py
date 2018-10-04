@@ -691,17 +691,23 @@ class DistributionOptimizer(Problem):
         for datatype in config.problem_config.datatypes:
             data_config = config[datatype + '_config']
 
-            self.composites[datatype] = distributer_composite_catalog[
+            composite = distributer_composite_catalog[
                 datatype](
                     data_config,
                     config.project_dir,
                     self.event,
                     hypers)
 
+            composite.set_slip_varnames(self.varnames)
+            self.composites[datatype] = composite
+
         regularization = config.problem_config.mode_config.regularization
         try:
-            self.composites[regularization] = distributer_composite_catalog[
+            composite = distributer_composite_catalog[
                 regularization](config.project_dir, hypers)
+
+            composite.set_slip_varnames(self.varnames)
+            self.composites[regularization] = composite
         except KeyError:
             logger.info('Using "%s" regularization ...' % regularization)
 

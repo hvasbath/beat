@@ -605,7 +605,7 @@ def join_points(ldicts):
     return jpoint
 
 
-def update_source(source, **point):
+def update_source(source, input_depth='top', **point):
     """
     Update source keeping stf and source params seperate.
     Modifies input source Object!
@@ -629,7 +629,7 @@ def update_source(source, **point):
             source[k] = v
 
     if isinstance(source, RectangularSource):
-        adjust_fault_reference(source, input_depth='top')
+        adjust_fault_reference(source, input_depth=input_depth)
 
 
 def utm_to_loc(utmx, utmy, zone, event):

@@ -1213,6 +1213,7 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
 def command_check(args):
 
     command_str = 'check'
+    whats = ['stores', 'traces', 'library', 'geometry']
 
     def setup(parser):
         parser.add_option(
@@ -1242,9 +1243,10 @@ def command_check(args):
         parser.add_option(
             '--what',
             dest='what',
-            choices=['stores', 'traces', 'library'],
+            choices=whats,
             default='stores',
-            help='Setup item to check; "stores, traces", Default: "stores"')
+            help='Setup item to check; '
+                 '"%s", Default: "stores"' % list2string(whats))
 
         parser.add_option(
             '--targets',
@@ -1263,7 +1265,8 @@ def command_check(args):
         project_dir, options.mode, hypers=False, build=False)
 
     tpoint = problem.config.problem_config.get_test_point()
-    problem.point2sources(tpoint)
+    if options.mode == geometry_mode_str:
+        problem.point2sources(tpoint)
 
     if options.what == 'stores':
         corrupted_stores = heart.check_problem_stores(
@@ -1323,6 +1326,18 @@ def command_check(args):
                                 durationidxs=list(range(gfs.ndurations)),
                                 starttimeidxs=list(range(gfs.nstarttimes)))
                             snuffle(trs)
+    elif options.what == 'geometry':
+        from beat.plotting import source_geometry
+        datatype = problem.config.problem_config.datatypes[0]
+        if options.mode == ffo_mode_str:
+            fault = problem.composites[datatype].load_fault_geometry()
+            reference_sources = problem.config[
+                datatype + '_config'].gf_config.reference_sources
+            source_geometry(fault, reference_sources)
+        else:
+            logger.warning(
+                'Checking geometry is only for'
+                ' "%s" mode available' % ffo_mode_str)
     else:
         raise ValueError('Subject what: %s is not available!' % options.what)
 

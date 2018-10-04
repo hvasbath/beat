@@ -52,6 +52,15 @@ class Composite(object):
         self.name = None
         self._like_name = None
         self.config = None
+        self.slip_varnames = []
+
+    def set_slip_varnames(self, varnames):
+        """
+        Set slip components for GFs.
+        """
+        self.slip_varnames = [
+            var for var in varnames
+            if var in bconfig.static_dist_vars]
 
     def get_hyper_formula(self, hyperparams):
         """

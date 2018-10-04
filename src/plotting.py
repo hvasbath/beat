@@ -613,6 +613,7 @@ def geodetic_fits(problem, stage, plot_options):
     from pyrocko.dataset import gshhg
     from kite.scene import Scene, UserIOWarning
 
+    datatype = 'geodetic'
     mode = problem.config.problem_config.mode
 
     fontsize = 10
@@ -623,13 +624,17 @@ def geodetic_fits(problem, stage, plot_options):
 
     po = plot_options
 
-    composite = problem.composites['geodetic']
+    composite = problem.composites[datatype]
 
     try:
         sources = composite.sources
+        ref_sources = None
     except AttributeError:
         logger.info('FFO scene fit, using reference source ...')
-        sources = composite.config.gf_config.reference_sources
+        ref_sources = composite.config.gf_config.reference_sources
+        fault = composite.load_fault_geometry()
+        sources = fault.get_all_subfaults(
+            datatype=datatype, component=composite.slip_varnames[0])
 
     if po.reference:
         if mode != ffo_mode_str:
@@ -934,9 +939,9 @@ def geodetic_fits(problem, stage, plot_options):
             draw_sources(
                 axes[figidx][rowidx, 1], sources, po)
 
-            if po.reference and mode != ffo_mode_str:
-                ref_color = scolor('aluminium5')
-
+            if ref_sources:
+                ref_color = scolor('aluminium4')
+                logger.info('Plotting reference sources')
                 draw_sources(
                     axes[figidx][rowidx, 1],
                     ref_sources, po, color=ref_color)
@@ -2354,6 +2359,62 @@ def draw_slip_dist(problem, po):
         with PdfPages(outpath) as opdf:
             for fig in figs:
                 opdf.savefig(fig, dpi=po.dpi)
+
+
+def source_geometry(fault, ref_sources):
+    """
+    Plot source geometry in 3d rotatable view
+
+    Parameters
+    ----------
+    fault: :class:`beat.ffo.fault.FaultGeometry`
+    ref_sources: list
+        of :class:'beat.sources.RectangularSource'
+    """
+
+    from mpl_toolkits.mplot3d import Axes3D
+    from beat.utility import RS_center
+    alpha = 0.7
+
+    def plot_subfault(ax, source, color):
+        source.anchor = 'top'
+        coords = source.outline()
+        ax.plot(
+            coords[:, 1], coords[:, 0], coords[:, 2] * -1.,
+            color=color, linewidth=2, alpha=alpha)
+        ax.plot(
+            coords[0:2, 1], coords[0:2, 0], coords[0:2, 2] * -1.,
+            '-k', linewidth=2, alpha=alpha)
+        center = RS_center(source)
+        ax.scatter(
+            center[0], center[1], center[2] * -1,
+            marker='o', s=20, color=color, alpha=alpha)
+
+    fig = plt.figure(figsize=mpl_papersize('a4', 'landscape'))
+    ax = fig.add_subplot(111, projection='3d')
+    extfs = fault.get_all_subfaults()
+    for idx, (refs, exts) in enumerate(zip(ref_sources, extfs)):
+
+        plot_subfault(ax, exts, color=mpl_graph_color(idx))
+        plot_subfault(ax, refs, color=scolor('aluminium4'))
+
+        for i, patch in enumerate(fault.get_subfault_patches(idx)):
+            coords = patch.outline()
+            ax.plot(
+                coords[:, 1], coords[:, 0], coords[:, 2] * -1.,
+                color=mpl_graph_color(idx), linewidth=0.5, alpha=alpha)
+            ax.text(
+                patch.east_shift, patch.north_shift, patch.depth * -1., str(i),
+                fontsize=10)
+
+    scale = {'scale': 1. / km}
+    scale_axes(ax.xaxis, **scale)
+    scale_axes(ax.yaxis, **scale)
+    scale_axes(ax.zaxis, **scale)
+    ax.set_zlabel('Depth [km]')
+    ax.set_ylabel('North_shift [km]')
+    ax.set_xlabel('East_shift [km]')
+    plt.show()
 
 
 plots_catalog = {

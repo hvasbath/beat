@@ -36,7 +36,6 @@ class LaplacianDistributerComposite(Composite):
         self.hyperparams[bconfig.hyper_name_laplacian] = None
         self.hierarchicals = None
 
-        self.slip_varnames = bconfig.static_dist_vars
         self.gfpath = os.path.join(
             project_dir, self._mode, bconfig.linear_gf_dir_name)
 
@@ -60,7 +59,7 @@ class LaplacianDistributerComposite(Composite):
 
         if hypers:
             self._llks = []
-            for varname in self.slip_varnames:
+            for varname in bconfig.static_dist_vars:
                 self._llks.append(shared(
                     num.array([1.]),
                     name='laplacian_llk_%s' % varname,
