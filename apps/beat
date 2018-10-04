@@ -12,13 +12,14 @@ import shutil
 
 from optparse import OptionParser
 
-from beat import heart, config, utility, inputf, plotting
+from beat import heart, config, utility, inputf
 from beat.models import load_model, Stage, estimate_hypers, sample
-from beat.backend import TextChain 
+from beat.backend import TextChain
 from beat.sampler import SamplingHistory
 from beat.sources import MTSourceWithMagnitude
 from beat.utility import list2string
 from numpy import savez, atleast_2d
+from beat import backend
 
 from pyrocko import model, util
 from pyrocko.trace import snuffle
@@ -445,7 +446,7 @@ def command_import(args):
             stage.load_results(
                 model=problem.model, stage_number=-1, load='full')
 
-            point = plotting.get_result_point(stage, problem.config, 'max')
+            point = backend.get_result_point(stage, problem.config, 'max')
             n_sources = problem.config.problem_config.n_sources
 
             source_params = problem.config.problem_config.priors.keys()
@@ -482,10 +483,10 @@ def command_update(args):
 
         parser.add_option(
             '--parameters',
-            default=['structure'], type='string',
+            default=[], type='string',
             action='callback', callback=list_callback,
-            help='Parameters to update; "structure, hypers, hierarchicals". '
-                 'Default: ["structure"] (config file-structure only)')
+            help='Parameters to update; "hypers, hierarchicals". '
+                 'Default: [] (config file-structure only)')
 
         parser.add_option(
             '--mode', dest='mode',
@@ -1387,16 +1388,12 @@ def command_export(args):
         model=problem.model, stage_number=options.stage_number,
         load='trace', chains=[-1])
 
-    trace_name = 'chain--1.csv'
-    results_path = pjoin(problem.outfolder, config.results_dir_name)
-    logger.info('Saving results to %s' % results_path)
-    util.ensuredir(results_path)
-
-    results_trace = pjoin(stage.handler.stage_path(-1), trace_name)
-    shutil.copy(results_trace, pjoin(results_path, trace_name))
-
-    point = plotting.get_result_point(
+    point = backend.get_result_point(
         stage, problem.config, point_llk=options.post_llk)
+
+    mpoint = dict()
+    for var in problem.varnames:
+        mpoint[var] = atleast_2d(stage.mtrace.get_values(var).mean())
 
     for datatype, composite in problem.composites.items():
         logger.info(
@@ -1407,6 +1404,9 @@ def command_export(args):
                 varname, list2string(value.ravel().tolist())))
 
         results = composite.assemble_results(point)
+        results_path = pjoin(problem.outfolder, config.results_dir_name)
+        logger.info('Saving results to %s' % results_path)
+        util.ensuredir(results_path)
 
         if datatype == 'seismic':
             from pyrocko import io
@@ -1435,7 +1435,7 @@ def command_export(args):
             if hasattr(sc.parameters, 'update_covariances'):
                 if sc.parameters.update_covariances:
                     logger.info('Saving velocity model covariance matrixes...')
-                    composite.update_weights(point)
+                    composite.update_weights(mpoint)
                     for wmap in composite.wavemaps:
                         pcovs = {
                             list2string(dataset.nslc_id):
@@ -1444,22 +1444,9 @@ def command_export(args):
 
                         outname = pjoin(
                             results_path, '%s_C_vm_%s' % (
-                                datatype, wmap._mapid))
-                        logger.info('"%s" to: %s' % (wmap._mapid, outname))
+                                datatype, wmap.name))
+                        logger.info('"%s" to: %s' % (wmap.name, outname))
                         savez(outname, **pcovs)
-
-                logger.info('Saving data covariance matrixes...')
-                for wmap in composite.wavemaps:
-                    dcovs = {
-                        list2string(dataset.nslc_id):
-                        dataset.covariance.data
-                        for dataset in wmap.datasets}
-
-                    outname = pjoin(
-                        results_path, '%s_C_d_%s' % (
-                            datatype, wmap._mapid))
-                    logger.info('"%s" to: %s' % (wmap._mapid, outname))
-                    savez(outname, **dcovs)
 
         elif datatype == 'geodetic':
             for ifgs, attribute in heart.results_for_export(
