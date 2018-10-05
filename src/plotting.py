@@ -1292,6 +1292,9 @@ def draw_fuzzy_beachball(problem, po):
         raise NotImplementedError(
             'Fuzzy beachball is not yet implemented for more than one source!')
 
+    if po.stage_number is None:
+        po.stage_number = -1
+
     if po.reference is None:
         llk_str = po.post_llk
         stage = Stage(homepath=problem.outfolder)
