@@ -143,6 +143,12 @@ class GFLibrary(object):
 
         self._mode = mode
 
+    def get_stack_mode(self):
+        """
+        Returns string of stack mode either "numpy" or "theano"
+        """
+        return self._mode
+
 
 def get_gf_prefix(datatype, component, wavename, crust_ind):
     return '%s_%s_%s_%i' % (

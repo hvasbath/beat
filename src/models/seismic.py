@@ -721,6 +721,11 @@ class SeismicDistributerComposite(SeismicComposite):
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
 
+        logger.info("Loading %s Green's Functions" % self.name)
+        self.load_gfs(
+            crust_inds=[self.config.gf_config.reference_model_idx],
+            make_shared=True)
+
         hp_specific = self.config.dataset_specific_residual_noise_estimation
         tpoint = problem_config.get_test_point()
 
@@ -837,6 +842,9 @@ class SeismicDistributerComposite(SeismicComposite):
             self.load_gfs(
                 crust_inds=[ref_idx],
                 make_shared=False)
+
+        for gfs in self.gfs.values():
+            gfs.set_stack_mode('numpy')
 
         tpoint = copy.deepcopy(point)
 

@@ -34,7 +34,7 @@ __all__ = [
     'GeodeticDistributerComposite']
 
 
-def get_ramp_displacement(slocx, slocy, ramp):
+def get_ramp_displacement(locx, locy, ramp):
     """
     Get synthetic residual plane in azimuth and range direction of the
     satellite.
@@ -48,7 +48,7 @@ def get_ramp_displacement(slocx, slocy, ramp):
     ramp : :class:`theano.tensor.Tensor`
         vector of 2 variables with ramp parameters in azimuth[0] & range[1]
     """
-    return slocy * ramp[0] + slocx * ramp[1]
+    return locy * ramp[0] + locx * ramp[1]
 
 
 class GeodeticComposite(Composite):
@@ -232,27 +232,37 @@ class GeodeticComposite(Composite):
                         transform=None,
                         dtype=tconfig.floatX)
                     try:
-                        self.hierarchicals[data.name] = Uniform(**kwargs)
+                        self.hierarchicals[
+                            hierarchical_name] = Uniform(**kwargs)
 
                     except TypeError:
                         kwargs.pop('name')
-                        self.hierarchicals[data.name] = \
+                        self.hierarchicals[hierarchical_name] = \
                             Uniform.dist(**kwargs)
 
         logger.info(
             'Initialized %i hierarchical parameters '
             '(ramps).' % len(self.hierarchicals))
 
-    def remove_ramps(self, residuals):
+    def remove_ramps(self, residuals, point=None):
         """
         Remove an orbital ramp from the residual displacements
         """
 
         for i, data in enumerate(self.datasets):
+            hierarchical_name = data.name + '_ramp'
             if isinstance(data, heart.DiffIFG):
+                if not point:
+                    locx = self._slocx[i]
+                    locy = self._slocy[i]
+                    ramp = self.hierarchicals[hierarchical_name]
+                else:
+                    locx = data.east_shifts / km
+                    locy = data.north_shifts / km
+                    ramp = point[hierarchical_name]
+
                 residuals[i] -= get_ramp_displacement(
-                    self._slocx[i], self._slocy[i],
-                    self.hierarchicals[data.name])
+                    locx, locy, ramp)
 
         return residuals
 
@@ -427,8 +437,11 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
 
         synths = []
         for disp, data in zip(displacements, self.datasets):
-            synths.append((
-                disp * data.los_vector).sum(axis=1))
+            los_d = (disp * data.los_vector).sum(axis=1)
+            synths.append(los_d)
+
+        if self.config.fit_plane:
+            synths = self.remove_ramps(synths, point=point)
 
         return synths
 
@@ -576,11 +589,12 @@ class GeodeticDistributerComposite(GeodeticComposite):
         make_shared : bool
             if True transforms gfs to :class:`theano.shared` variables
         """
-        if not isinstance(crust_inds, list):
-            raise TypeError('crust_inds need to be a list!')
 
         if crust_inds is None:
             crust_inds = range(*self.config.gf_config.n_variations)
+
+        if not isinstance(crust_inds, list):
+            raise TypeError('crust_inds need to be a list!')
 
         for crust_ind in crust_inds:
             gfs = {}
@@ -633,6 +647,11 @@ class GeodeticDistributerComposite(GeodeticComposite):
         llk : :class:`theano.tensor.Tensor`
             log-likelihood for the distributed slip
         """
+        logger.info("Loading %s Green's Functions" % self.name)
+        self.load_gfs(
+            crust_inds=[self.config.gf_config.reference_model_idx],
+            make_shared=True)
+
         hp_specific = self.config.dataset_specific_residual_noise_estimation
 
         self.input_rvs = input_rvs
@@ -683,6 +702,9 @@ class GeodeticDistributerComposite(GeodeticComposite):
                 crust_inds=[ref_idx],
                 make_shared=False)
 
+        for gfs in self.gfs.values():
+            gfs.set_stack_mode('numpy')
+
         tpoint = copy.deepcopy(point)
 
         hps = self.config.get_hypernames()
@@ -691,19 +713,19 @@ class GeodeticDistributerComposite(GeodeticComposite):
             if hyper in tpoint:
                 tpoint.pop(hyper)
 
-        for param in list(tpoint.keys()):
-            if param not in self.slip_varnames:
-                tpoint.pop(param)
-
         mu = num.zeros((self.Bij.ordering.size))
-        for var, rv in tpoint.items():
+        for var in self.slip_varnames:
             key = self.get_gflibrary_key(
                 crust_ind=ref_idx,
                 wavename='static',
                 component=var)
-            mu += self.gfs[key].stack_all(slips=rv)
+            mu += self.gfs[key].stack_all(slips=point[var])
 
-        return self.Bij.a2l(mu)
+        synths = self.Bij.a2l(mu)
+        if self.config.fit_plane:
+            synths = self.remove_ramps(synths, point=point)
+
+        return synths
 
     def update_weights(self, point, n_jobs=1, plot=False):
         logger.warning('Not implemented yet!')

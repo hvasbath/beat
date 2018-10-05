@@ -206,16 +206,6 @@ class Problem(object):
                     fixed_rvs = weed_input_rvs(
                         self.fixed_params, pc.mode, datatype=datatype)
 
-                    if pc.mode == 'ffo':
-                        # do the optimization only on the
-                        # reference velocity model
-                        logger.info("Loading %s Green's Functions" % datatype)
-                        data_config = self.config[datatype + '_config']
-                        composite.load_gfs(
-                            crust_inds=[
-                                data_config.gf_config.reference_model_idx],
-                            make_shared=True)
-
                 else:
                     input_rvs = self.rvs
                     fixed_rvs = self.fixed_params

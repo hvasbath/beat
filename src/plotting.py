@@ -23,7 +23,8 @@ import matplotlib.ticker as tick
 
 from scipy.stats import kde
 import numpy as num
-from pyrocko.guts import Object, String, Dict, List, Bool, Int, load
+from pyrocko.guts import (Object, String, Dict, List,
+                          Bool, Int, load, StringChoice)
 from pyrocko import util, trace
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.cake_plot import light
@@ -109,6 +110,9 @@ plot_units = {
     'like': u_hyp}
 
 
+plot_projections = ['latlon', 'local']
+
+
 def hypername(varname):
     if varname[0:2] == 'h_':
         return 'h_'
@@ -120,8 +124,9 @@ class PlotOptions(Object):
         default='max',
         help='Which model to plot on the specified plot; Default: "max";'
              ' Options: "max", "min", "mean", "all"')
-    plot_projection = String.T(
+    plot_projection = StringChoice.T(
         default='local',
+        choices=plot_projections,
         help='Projection to use for plotting geodetic data; options: "latlon"')
     utm_zone = Int.T(
         default=36,
@@ -606,6 +611,11 @@ def scale_axes(axis, scale, offset=0.):
     axis.set_major_formatter(FormatScaled())
 
 
+def set_anchor(sources, anchor):
+    for source in sources:
+        source.anchor=anchor
+
+
 def geodetic_fits(problem, stage, plot_options):
     """
     Plot geodetic data, synthetics and residuals.
@@ -632,9 +642,11 @@ def geodetic_fits(problem, stage, plot_options):
     except AttributeError:
         logger.info('FFO scene fit, using reference source ...')
         ref_sources = composite.config.gf_config.reference_sources
+        set_anchor(ref_sources, anchor='top')
         fault = composite.load_fault_geometry()
         sources = fault.get_all_subfaults(
             datatype=datatype, component=composite.slip_varnames[0])
+        set_anchor(sources, anchor='top')
 
     if po.reference:
         if mode != ffo_mode_str:
@@ -911,10 +923,18 @@ def geodetic_fits(problem, stage, plot_options):
             for ax, data_str in zip(axs, ['obs', 'syn', 'res']):
                 logger.info('Plotting %s' % data_str)
                 datavec = getattr(result, 'processed_%s' % data_str)
+
+                if data_str == 'res' and po.plot_projection == 'local':
+                    vmin = -dcolims[tidx]
+                    vmax = dcolims[tidx]
+                else:
+                    vmin = -colims[tidx]
+                    vmax = colims[tidx]
+
                 imgs.append(ax.imshow(
                     mapDisplacementGrid(datavec, scene),
                     extent=im_extent, cmap=cmap,
-                    vmin=-colims[tidx], vmax=colims[tidx],
+                    vmin=vmin, vmax=vmax,
                     origin='lower'))
 
                 ax.set_xlim(llE, urE)
@@ -963,7 +983,7 @@ def geodetic_fits(problem, stage, plot_options):
                 cmap=cmap)
             cbs.set_label(cblabel, fontsize=fontsize)
 
-            if False:
+            if po.plot_projection == 'local':
                 dcbaxes = figures[figidx].add_axes([cbl + 0.3, cbb, cbw, cbh])
                 cbr = plt.colorbar(
                     imgs[2],
@@ -2297,6 +2317,9 @@ def fault_slip_distribution(
         cb = fig.colorbar(pa_col)
         cb.set_label('slip [m]')
         ax.set_aspect('equal', adjustable='box')
+
+        scale_y = {'scale': 1, 'offset': -ylim[1]}
+        scale_axes(ax.yaxis, **scale_y)
         figs.append(fig)
         axs.append(ax)
 
