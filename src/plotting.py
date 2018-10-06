@@ -2172,7 +2172,8 @@ def fault_slip_distribution(
         slips = num.sqrt((uperp ** 2 + uparr ** 2)).ravel()
 
         if normalisation is None:
-            normalisation = slips.max() * num.abs(ygr[1, 0] - ygr[0, 0])
+            normalisation = slips.max() * num.abs(
+                ygr[1, 0] - ygr[0, 0]) / (3. / 2.)
 
         slips /= normalisation
 
@@ -2186,7 +2187,7 @@ def fault_slip_distribution(
             width=1., color=color)
 
         if draw_legend:
-            quiver_legend_length = int(num.floor(
+            quiver_legend_length = int(num.ceil(
                 num.max(slips * normalisation) * 10.) / 10.)
 
             plt.quiverkey(

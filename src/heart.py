@@ -384,7 +384,7 @@ physical_bounds = dict(
     peak_ratio=(0., 1.),
 
     durations=(0., 600.),
-    uparr=(-0.1, 150.),
+    uparr=(-0.3, 150.),
     uperp=(-150., 150.),
     nucleation_strike=(0., num.inf),
     nucleation_dip=(0., num.inf),

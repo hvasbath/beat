@@ -29,8 +29,13 @@ from logging import getLogger
 from collections import OrderedDict
 from copy import deepcopy
 
+from pickle import HIGHEST_PROTOCOL
+
 
 logger = getLogger('pt')
+
+
+MPI.pickle.PROTOCOL = HIGHEST_PROTOCOL
 
 
 __all__ = [
