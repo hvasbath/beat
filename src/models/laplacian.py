@@ -205,9 +205,9 @@ def get_smoothing_operator(
     n_patch_dip : int
         number of patches in dip direction
     patch_size_strike : float
-        size of patches along strike-direction [km]
+        size of patches along strike-direction [m]
     patch_size_dip : float
-        size of patches along dip-direction [km]
+        size of patches along dip-direction [m]
 
     Returns
     -------

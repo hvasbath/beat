@@ -387,7 +387,7 @@ class TextChain(BaseTrace):
                 self.corrupted_flag = True
                 os.remove(self.filename)
 
-            if self.flat_names is None:
+            if self.flat_names is None and not self.corrupted_flag:
                 self.flat_names, self.var_shapes = extract_variables_from_df(
                     self.df)
                 self.varnames = self.var_shapes.keys()

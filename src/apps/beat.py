@@ -954,7 +954,6 @@ def command_build_gfs(args):
             logger.info('%s' % fault.__str__())
             c.problem_config.n_sources = fault.nsubfaults
             c.problem_config.mode_config.npatches = fault.npatches
-            c.problem_config.init_vars(varnames)
 
             nucleation_strikes = []
             nucleation_dips = []

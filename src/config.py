@@ -37,6 +37,8 @@ logger = logging.getLogger('config')
 ffo_mode_str = 'ffo'
 geometry_mode_str = 'geometry'
 
+initialization_modes = ['random', 'lsq']
+
 block_vars = [
     'bl_azimuth', 'bl_amplitude']
 seis_vars = ['time', 'duration']
@@ -551,6 +553,10 @@ class FFOConfig(ModeConfig):
         help='Number of patches on full fault. Should not be edited manually!'
              ' Please edit indirectly through patch_widths and patch_lengths'
              ' parameters!')
+    initialization = StringChoice.T(
+        default='random',
+        choices=initialization_modes,
+        help='Initialization of chain starting points, default: random')
 
 
 class ProblemConfig(Object):
@@ -559,7 +565,7 @@ class ProblemConfig(Object):
     """
     mode = StringChoice.T(
         choices=[geometry_mode_str, ffo_mode_str, 'interseismic'],
-        default='geometry',
+        default=geometry_mode_str,
         help='Problem to solve: "%s", "%s",'
              ' "interseismic"' % (geometry_mode_str, ffo_mode_str))
     mode_config = ModeConfig.T(

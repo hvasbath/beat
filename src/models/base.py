@@ -110,7 +110,7 @@ def sample(step, problem):
         from problem.init_sampler()
     problem : :class:`Problem` with characteristics of problem to solve
     """
-
+    pc = problem.config.problem_config
     sc = problem.config.sampler_config
     pa = sc.parameters
 
@@ -119,6 +119,20 @@ def sample(step, problem):
             update = problem
         else:
             update = None
+
+    if pc.mode == bconfig.ffo_mode_str:
+        logger.info('Chain initialization with:')
+        if pc.mode_config.initialization == 'random':
+            logger.info('Random starting point.\n')
+            start = None
+        elif pc.mode_config.initialization == 'lsq':
+            logger.info('Least-squares-solution including "uparr" only.\n')
+            start = []
+            for i in range(step.n_chains):
+                point = problem.get_random_point()
+                start.append(problem.lsq_solution(point))
+    else:
+        start = None
 
     if sc.name == 'Metropolis':
         logger.info('... Starting Metropolis ...\n')
@@ -131,6 +145,7 @@ def sample(step, problem):
             progressbar=sc.progressbar,
             buffer_size=sc.buffer_size,
             homepath=problem.outfolder,
+            start=start,
             burn=pa.burn,
             thin=pa.thin,
             model=problem.model,
@@ -145,6 +160,7 @@ def sample(step, problem):
             step=step,
             progressbar=sc.progressbar,
             model=problem.model,
+            start=start,
             n_jobs=pa.n_jobs,
             stage=pa.stage,
             update=update,
@@ -159,6 +175,7 @@ def sample(step, problem):
             step=step,
             n_chains=pa.n_chains,
             n_samples=pa.n_samples,
+            start=start,
             swap_interval=pa.swap_interval,
             beta_tune_interval=pa.beta_tune_interval,
             n_workers_posterior=pa.n_chains_posterior,
@@ -216,7 +233,8 @@ def estimate_hypers(step, problem):
             buffer_size=sc.buffer_size,
             chunksize=int(pa.n_chains / pa.n_jobs))
 
-    for v, i in pc.hyperparameters.items():
+    for v in problem.hypernames:
+        i = pc.hyperparameters[v]
         d = mtrace.get_values(
             v, combine=True, burn=int(pa.n_steps * pa.burn),
             thin=pa.thin, squeeze=True)

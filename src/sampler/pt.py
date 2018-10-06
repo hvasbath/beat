@@ -245,6 +245,8 @@ class TemperingManager(object):
         if self.sample_count.sum() == 0:
             raise ValueError('No sampling record!')
 
+        print('Acceptance matrix: \n', self.acceptance_matrix)
+        print('Sample matrix: \n', self.sample_count)
         self.history.record(
             self.sample_count, self.acceptance_matrix,
             self.current_scale, acceptance)
@@ -704,7 +706,7 @@ def sample_pt_chain(
 
 
 def pt_sample(
-        step, n_chains, n_samples=100000, swap_interval=(100, 300),
+        step, n_chains, n_samples=100000, start=None, swap_interval=(100, 300),
         beta_tune_interval=10000, n_workers_posterior=1, homepath='',
         progressbar=True, buffer_size=5000, model=None, rm_flag=False,
         resample=False, keep_tmp=False):
@@ -760,6 +762,13 @@ def pt_sample(
     if n_chains < 2:
         raise ValueError(
             'Parallel Tempering requires at least 2 Markov Chains!')
+
+    if start is not None:
+        if len(start) != step.n_chains:
+            raise TypeError('Argument `start` should have dicts equal the '
+                            'number of chains (step.N-chains)')
+        else:
+            step.population = start
 
     sampler_args = [
         step, n_samples, swap_interval, beta_tune_interval,

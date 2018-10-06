@@ -301,8 +301,8 @@ total number of patches: %i ''' % (
         return get_smoothing_operator(
             n_patch_strike=npl,
             n_patch_dip=npw,
-            patch_size_strike=self.ordering.patch_sizes_strike[index] * km,
-            patch_size_dip=self.ordering.patch_sizes_dip[index] * km)
+            patch_size_strike=self.ordering.patch_sizes_strike[index],
+            patch_size_dip=self.ordering.patch_sizes_dip[index])
 
     def fault_locations2idxs(
             self, positions_dip, positions_strike, backend='numpy'):

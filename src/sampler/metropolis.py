@@ -205,7 +205,8 @@ class Metropolis(backend.ArrayStepSharedLLK):
             if not num.isfinite(l_new[self._llk_index]):
                 raise ValueError(
                     'Got NaN in likelihood evaluation! '
-                    'Invalid model definition?')
+                    'Invalid model definition? '
+                    'Or starting point outside prior bounds!')
 
             q_new = q0
 

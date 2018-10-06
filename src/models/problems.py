@@ -280,7 +280,8 @@ class Problem(object):
         point = {}
         if 'hierarchicals' in include:
             for name, param in self.hierarchicals.items():
-                point[name] = param.random()
+                if not isinstance(param, num.ndarray):
+                    point[name] = param.random()
 
         if 'priors' in include:
             for param in pc.priors.values():
@@ -292,7 +293,8 @@ class Problem(object):
                 self.init_hyperparams()
 
             hps = {hp_name: param.random()
-                   for hp_name, param in self.hyperparams.items()}
+                   for hp_name, param in self.hyperparams.items()
+                   if not isinstance(param, num.ndarray)}
 
             point.update(hps)
 
@@ -702,6 +704,83 @@ class DistributionOptimizer(Problem):
             logger.info('Using "%s" regularization ...' % regularization)
 
         self.config = config
+
+    def lsq_solution(self, point):
+        """
+        Returns non-negtive least-squares solution for given input point.
+
+        Parameters
+        ----------
+        point : dict
+            in solution space
+
+        Returns
+        -------
+        point with least-squares solution
+        """
+        from scipy.optimize import nnls
+
+        if self.config.problem_config.mode_config.regularization != \
+                'laplacian':
+            raise ValueError(
+                'Least-squares- solution for distributed slip is only '
+                'available with laplacian regularization!')
+
+        lc = self.composites['laplacian']
+        slip_varnames = ['uparr']
+
+        for var in slip_varnames:
+            if var not in self.varnames:
+                raise ValueError(
+                    'Distributed slip is only available for "uparr",'
+                    ' which was fixed in the setup!')
+
+        Gs = []
+        ds = []
+        for datatype, composite in self.composites.items():
+            if datatype == 'geodetic':
+                crust_ind = composite.config.gf_config.reference_model_idx
+                keys = [composite.get_gflibrary_key(
+                    crust_ind=crust_ind, wavename='static', component=var)
+                    for var in slip_varnames]
+                Gs.extend([composite.gfs[key]._gfmatrix for key in keys])
+                ds.append(composite.sdata.get_value())
+
+            elif datatype == 'seismic':
+                logger.warning(
+                    'Least-squares initialization is not'
+                    ' supported (yet) for seismic data!')
+                if False:
+                    for wmap in composite.wavemaps:
+                        keys = [composite.get_gflibrary_key(
+                            crust_ind=crust_ind,
+                            wavename=wmap.name, component=var)
+                            for var in slip_varnames]
+                        Gs.extend(
+                            [composite.gfs[key]._gfmatrix for key in keys])
+                        ds.append(wmap._prepared_data)
+
+        if len(Gs) == 0:
+            raise ValueError(
+                'No Greens Function matrix available!'
+                ' (needs geodetic datatype!)')
+
+        G = num.vstack(Gs)
+        D = num.vstack([lc.smoothing_op for sv in slip_varnames]) * \
+            point[bconfig.hyper_name_laplacian] ** 2.
+
+        dzero = num.zeros(D.shape[1], dtype=tconfig.floatX)
+        A = num.hstack([G, D])
+        d = num.hstack(ds + [dzero])
+
+        # m, rmse, rankA, singularsA =  num.linalg.lstsq(A.T, d, rcond=None)
+        m, res = nnls(A.T, d)
+        npatches = self.config.problem_config.mode_config.npatches
+        for i, var in enumerate(slip_varnames):
+            point[var] = m[i * npatches: (i + 1) * npatches]
+
+        point['uperp'] = dzero
+        return point
 
 
 problem_modes = list(bconfig.modes_catalog.keys())
