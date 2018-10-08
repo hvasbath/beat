@@ -289,8 +289,8 @@ def correlation_plot(
         for l in range(k):
             fig.delaxes(axs[l, k])
 
+    fig.tight_layout()
     fig.subplots_adjust(wspace=0.05, hspace=0.05)
-
     return fig, axs
 
 
@@ -298,7 +298,7 @@ def correlation_plot_hist(
         mtrace, varnames=None,
         transform=lambda x: x, figsize=None, hist_color='orange', cmap=None,
         grid=50, chains=None, ntickmarks=2, point=None,
-        point_style='.', point_color='red', point_size='6', alpha=0.35):
+        point_style='.', point_color='red', point_size='4', alpha=0.35):
     """
     Plot 2d marginals (with kernel density estimation) showing the correlations
     of the model parameters. In the main diagonal is shown the parameter
@@ -375,7 +375,7 @@ def correlation_plot_hist(
                         reference = point[v_namea]
                         axs[l, k].axvline(
                             x=reference, color=point_color,
-                            lw=int(point_size) / 4.)
+                            lw=float(point_size) / 6.)
                     else:
                         reference = None
                 else:
@@ -386,7 +386,7 @@ def correlation_plot_hist(
                     color='orange', tstd=0., reference=reference,
                     ntickmarks=ntickmarks)
                 axs[l, k].get_yaxis().set_visible(False)
-
+                format_axes(axs[l, k])
                 xticks = axs[l, k].get_xticks()
                 xlim = axs[l, k].get_xlim()
             else:
@@ -431,6 +431,7 @@ def correlation_plot_hist(
         for l in range(k):
             fig.delaxes(axs[l, k])
 
+    fig.tight_layout()
     fig.subplots_adjust(wspace=0.05, hspace=0.05)
     return fig, axs
 
@@ -1420,7 +1421,7 @@ def draw_fuzzy_beachball(problem, po):
         raise NotImplementedError(
             'Fuzzy beachball is not yet implemented for more than one source!')
 
-    if po.reference is None:
+    if not po.reference:
         llk_str = po.post_llk
         stage = Stage(homepath=problem.outfolder)
 
@@ -1613,16 +1614,16 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     n = len(varnames)
     nrow = int(num.ceil(n / 2.))
     ncol = 2
+    fontsize = 10
 
     n_fig = nrow * ncol
-
     if figsize is None:
         if n < 5:
-            figsize = (5.8, 4.1)
-        elif n < 7:
-            figsize = (5.8, 8.2)
+            figsize = mpl_papersize('a6', 'landscape')
+        if n < 7:
+            figsize = mpl_papersize('a5', 'portrait')
         else:
-            figsize = (8.2, 11.7)
+            figsize = figsize = mpl_papersize('a4', 'portrait')
 
     if axs is None:
         fig, axs = plt.subplots(nrow, ncol, figsize=figsize)
@@ -1709,11 +1710,12 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         except KeyError:
                             title = str(v) + ' ' + plot_units[hypername(v)]
 
-                    axs[rowi, coli].set_title(title)
+                    axs[rowi, coli].set_title(title, fontsize=fontsize + 2)
                     axs[rowi, coli].grid(grid)
                     axs[rowi, coli].set_yticks([])
                     axs[rowi, coli].set_yticklabels([])
                     format_axes(axs[rowi, coli])
+                    axs[rowi, coli].tick_params(axis='x', labelsize=fontsize)
     #                axs[rowi, coli].set_ylabel("Frequency")
 
                     if lines:
@@ -1942,9 +1944,16 @@ def draw_correlation_hist(problem, plot_options):
     else:
         chains = None
 
+    if not po.reference:
+        reference = get_result_point(stage, problem.config, po.post_llk)
+        llk_str = po.post_llk
+    else:
+        reference = po.reference
+        llk_str = 'ref'
+
     outpath = os.path.join(
         problem.outfolder, po.figure_dir, 'corr_hist_%s_%s.%s' % (
-            stage.number, po.post_llk, po.outformat))
+            stage.number, llk_str, po.outformat))
 
     if not os.path.exists(outpath) or po.force:
         fig, axs = correlation_plot_hist(
@@ -1953,7 +1962,7 @@ def draw_correlation_hist(problem, plot_options):
             transform=transform,
             cmap=plt.cm.gist_earth_r,
             chains=chains,
-            point=po.reference,
+            point=reference,
             point_size='8',
             point_color='red')
     else:
@@ -2187,14 +2196,17 @@ def fault_slip_distribution(
             width=1., color=color)
 
         if draw_legend:
-            quiver_legend_length = int(num.ceil(
-                num.max(slips * normalisation) * 10.) / 10.)
+            quiver_legend_length = num.ceil(
+                num.max(slips * normalisation) * 10.) / 10.
 
-            plt.quiverkey(
-                quivers, width / 6., height / 6., quiver_legend_length,
-                '%i [m]' % quiver_legend_length)
+            ax.quiverkey(
+                quivers, 0.85, 0.8, 14,
+                '{} [m]'.format(quiver_legend_length), labelpos='E',
+                coordinates='figure')
 
         return quivers, normalisation
+
+    fontsize = 12
 
     reference_slip = num.sqrt(
         reference['uperp'] ** 2 + reference['uparr'] ** 2)
@@ -2203,7 +2215,7 @@ def fault_slip_distribution(
     axs = []
     for i in range(fault.nsubfaults):
         fig, ax = plt.subplots(
-            nrows=1, ncols=1, figsize=mpl_papersize('a4', 'landscape'))
+            nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
 
         height = fault.ordering.patch_sizes_dip[i]
         width = fault.ordering.patch_sizes_strike[i]
@@ -2229,8 +2241,8 @@ def fault_slip_distribution(
         ax.set_xlim(*xlim)
         ax.set_ylim(*ylim)
 
-        ax.set_xlabel('strike-direction [km]')
-        ax.set_ylabel('dip-direction [km]')
+        ax.set_xlabel('strike-direction [km]', fontsize=fontsize)
+        ax.set_ylabel('dip-direction [km]', fontsize=fontsize)
 
         xticker = tick.MaxNLocator(nbins=ntickmarks)
         yticker = tick.MaxNLocator(nbins=ntickmarks)
@@ -2315,12 +2327,14 @@ def fault_slip_distribution(
             ext_source.rake, color='black', draw_legend=True,
             normalisation=normalisation)
 
-        cb = fig.colorbar(pa_col)
-        cb.set_label('slip [m]')
+        cbaxes = fig.add_axes([0.85, 0.4, 0.03, 0.3])
+        cb = fig.colorbar(pa_col, ax=axs, cax=cbaxes)
+        cb.set_label('slip [m]', fontsize=fontsize)
         ax.set_aspect('equal', adjustable='box')
 
         scale_y = {'scale': 1, 'offset': -ylim[1]}
         scale_axes(ax.yaxis, **scale_y)
+        fig.tight_layout()
         figs.append(fig)
         axs.append(ax)
 
