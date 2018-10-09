@@ -131,6 +131,8 @@ default_bounds = dict(
     length=(5., 30.),
     width=(5., 20.),
     slip=(0.1, 8.),
+    nucleation_x=(-1., 1.),
+    nucleation_y=(-1., 1.),
 
     magnitude=(4., 7.),
     mnn=mdiag,
@@ -402,7 +404,7 @@ class WaveformFitConfig(Object):
     name = String.T('any_P')
     blacklist = List.T(
         String.T(),
-        default=[String.D()],
+        default=[''],
         help='Station name for stations to be thrown out.')
     channels = List.T(String.T(), default=['Z'])
     filterer = Filter.T(default=Filter.D())
@@ -453,6 +455,19 @@ class SeismicConfig(Object):
              'displacement COMPONENT.')
     gf_config = GFConfig.T(default=SeismicGFConfig.D())
 
+    def __init__(self, **kwargs):
+
+        waveforms = 'waveforms'
+        wavenames = kwargs.pop('wavenames', ['any_P'])
+        wavemaps = []
+        if waveforms not in kwargs:
+            for wavename in wavenames:
+                wavemaps.append(WaveformFitConfig(name=wavename))
+
+            kwargs[waveforms] = wavemaps
+
+        Object.__init__(self, **kwargs)
+
     def get_waveform_names(self):
         return [wc.name for wc in self.waveforms]
 
@@ -479,7 +494,7 @@ class SeismicConfig(Object):
         else:
             return []
 
-    def init_waveforms(self, wavenames):
+    def init_waveforms(self, wavenames=['any_P']):
         """
         Initialise waveform configurations.
         """
@@ -1005,6 +1020,11 @@ class SeismicGFLibraryConfig(GFLibaryConfig):
     dimensions = Tuple.T(5, Int.T(), default=(0, 0, 0, 0, 0))
 
 
+datatype_catalog = {
+    'geodetic': GeodeticConfig,
+    'seismic': SeismicConfig}
+
+
 class BEATconfig(Object, Cloneable):
     """
     BEATconfig is the overarching configuration class, providing all the
@@ -1145,8 +1165,8 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
         type of optimization problem: 'Geometry' / 'Static'/ 'Kinematic'
     n_sources : int
         number of sources to solve for / discretize depending on mode parameter
-    waveforms : list
-        of strings of waveforms to include into the misfit function and
+    wavenames : list
+        of strings of wavenames to include into the misfit function and
         GF calculation
     sampler : str
         Optimization algorithm to use to sample the solution space
@@ -1199,8 +1219,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
             c.geodetic_config = None
 
         if 'seismic' in datatypes:
-            c.seismic_config = SeismicConfig()
-            c.seismic_config.init_waveforms(waveforms)
+            c.seismic_config = SeismicConfig(wavenames=wavenames)
 
             if not individual_gfs:
                 c.seismic_config.gf_config.reference_location = \

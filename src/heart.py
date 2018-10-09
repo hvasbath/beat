@@ -371,6 +371,8 @@ physical_bounds = dict(
     length=(0., 7000.),
     width=(0., 500.),
     slip=(0., 150.),
+    nucleation_x=(-1., 1.),
+    nucleation_y=(-1., 1.),
     magnitude=(-5., 10.),
 
     time=(-300., 300.),

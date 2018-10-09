@@ -301,6 +301,8 @@ def command_import(args):
 
     command_str = 'import'
 
+    data_formats = io.allowed_formats('load')[2::]
+
     def setup(parser):
 
         parser.add_option(
@@ -331,9 +333,10 @@ def command_import(args):
 
         parser.add_option(
             '--seismic_format', dest='seismic_format',
-            type='string', default='autokiwi',
-            help='Data format to be imported; "autokiwi", ...,'
-                 'Default: "autokiwi"')
+            type='string', default='mseed',
+            choices=data_formats,
+            help='Data format to be imported;'
+                 'Default: "mseed"; Available: %s' % list2string(data_formats))
 
         parser.add_option(
             '--mode', dest='mode',
@@ -361,24 +364,39 @@ def command_import(args):
 
             seismic_outpath = pjoin(c.project_dir, config.seismic_data_name)
             if not os.path.exists(seismic_outpath) or options.force:
+                stations = model.load_stations(
+                    pjoin(sc.datadir, 'stations.txt'))
 
                 if options.seismic_format == 'autokiwi':
-
-                    stations = model.load_stations(
-                        pjoin(sc.datadir, 'stations.txt'))
 
                     data_traces = inputf.load_data_traces(
                         datadir=sc.datadir,
                         stations=stations,
-                        channels=sc.get_unique_channels())
+                        divider='-')
 
-                    logger.info('Pickle seismic data to %s' % seismic_outpath)
-                    utility.dump_objects(seismic_outpath,
-                                         outlist=[stations, data_traces])
+                elif options.seismic_format in data_formats:
+                    data_traces = inputf.load_data_traces(
+                        datadir=sc.datadir,
+                        stations=stations,
+                        divider='.',
+                        data_format=options.seismic_format)
+
                 else:
                     raise TypeError(
                         'Format: %s not implemented yet.' %
                         options.seismic_format)
+
+                inputf.rename_station_channels(stations)
+                inputf.rename_trace_channels(data_traces)
+
+                spec_cha = sc.get_unique_channels()
+                if 'R' in spec_cha or 'T' in spec_cha:
+                    logger.info('Rotating traces to RTZ!')
+                    inputf.rotate()
+
+                logger.info('Pickle seismic data to %s' % seismic_outpath)
+                utility.dump_objects(seismic_outpath,
+                                     outlist=[stations, data_traces])
             else:
                 logger.info('%s exists! Use --force to overwrite!' %
                             seismic_outpath)
@@ -580,22 +598,25 @@ def command_clone(args):
             for datatype in options.datatypes:
                 if datatype not in c.problem_config.datatypes:
                     logger.warn('Datatype %s to be cloned is not'
-                                ' in config!' % datatype)
-                else:
-                    new_datatypes.append(datatype)
+                                ' in config! Adding to new conig!' % datatype)
+                    c[datatype + '_config'] = \
+                        config.datatype_catalog[datatype]()
 
-                    data_path = pjoin(project_dir, datatype + '_data.pkl')
+                new_datatypes.append(datatype)
 
-                    if os.path.exists(data_path) and options.copy_data:
-                        logger.info('Cloning %s data.' % datatype)
-                        cloned_data_path = pjoin(
-                            cloned_dir, datatype + '_data.pkl')
-                        shutil.copyfile(data_path, cloned_data_path)
+                data_path = pjoin(project_dir, datatype + '_data.pkl')
+
+                if os.path.exists(data_path) and options.copy_data:
+                    logger.info('Cloning %s data.' % datatype)
+                    cloned_data_path = pjoin(
+                        cloned_dir, datatype + '_data.pkl')
+                    shutil.copyfile(data_path, cloned_data_path)
+
+            c.problem_config.datatypes = new_datatypes
 
             if options.source_type is None:
                 old_priors = copy.deepcopy(c.problem_config.priors)
 
-                c.problem_config.datatype = new_datatypes
                 new_priors = c.problem_config.select_variables()
                 for prior in new_priors:
                     if prior in list(old_priors.keys()):

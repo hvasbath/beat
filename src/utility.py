@@ -296,14 +296,19 @@ def weed_input_rvs(input_rvs, mode, datatype):
     weeded_input_rvs = copy.copy(input_rvs)
 
     burian = '''
-        lat lon name stf stf1 stf2 stf_mode moment anchor nucleation_x sign
-        nucleation_y velocity interpolation decimation_factor npointsources
+        lat lon name stf stf1 stf2 stf_mode moment anchor sign
+        velocity interpolation decimation_factor npointsources
         elevation
         '''.split()
 
     if mode == 'geometry':
         if datatype == 'geodetic':
-            tobeweeded = ['time', 'duration', 'delta_time'] + burian
+            tobeweeded = [
+                'time',
+                'duration',
+                'delta_time',
+                'nucleation_x',
+                'nucleation_y'] + burian
         elif datatype == 'seismic':
             tobeweeded = ['opening'] + burian
 
