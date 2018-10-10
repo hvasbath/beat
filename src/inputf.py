@@ -1,6 +1,7 @@
 import scipy.io
 import numpy as num
 import copy
+from glob import glob
 
 from beat import heart, utility
 from pyrocko import model, io
@@ -205,6 +206,60 @@ channel_mappings = {
     'BHN': 'N',
     'BHZ': 'Z',
 }
+
+
+def load_obspy_data(datadir):
+    """
+    Load data from the directory through obspy and convert to pyrocko objects.
+
+    Parameters
+    ----------
+    datadir : string
+        absolute path to the data directory
+
+    Returns
+    -------
+    data_traces, stations
+    """
+
+    import obspy
+    from pyrocko import obspy_compat
+
+    obspy_compat.plant()
+
+    filenames = set(glob(datadir + '/*'))
+    copy.deepcopy(filenames)
+
+    stations = []
+    for f in filenames:
+        try:
+            inv = obspy.read_inventory(f)
+            stations.extend(inv.to_pyrocko_stations())
+            filenames.discard(f)
+        except TypeError:
+            logger.debug('File %s not an inventory.' % f)
+
+    data_traces = []
+    for f in filenames:
+        try:
+            stream = obspy.read()
+            pyrocko_traces = stream.to_pyrocko_traces()
+            for tr in pyrocko_traces:
+                data_traces.append(heart.SeismicDataset.from_pyrocko_trace(tr))
+
+            filenames.discard(f)
+
+        except TypeError:
+            logger.debug('File %s not waveforms' % f)
+
+    if len(filenames) > 0:
+        logger.warning(
+            'Could not import these files %s' %
+            utility.list2string(list(filenames)))
+
+    logger.info('Imported %i data_traces and %i stations' %
+                (len(stations), len(data_traces)))
+    return stations, data_traces
 
 
 def load_data_traces(
