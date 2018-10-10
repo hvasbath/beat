@@ -254,10 +254,10 @@ def load_data_traces(
 supported_channels = list(channel_mappings.values())
 
 
-def rename_trace_channels(data_trcs):
+def rename_trace_channels(datatrcs):
 
     logger.info('Checking traces channel names ...')
-    for tr in data_trcs:
+    for tr in datatrcs:
         if tr.channel not in supported_channels:
             try:
                 cha = channel_mappings[tr.channel]
@@ -289,3 +289,36 @@ def rename_station_channels(stations):
                             cha_name, st.station))
 
     logger.info('Stations channels are supported!')
+
+
+def rotate_traces_and_stations(datatraces, stations, event):
+    """
+    Rotate traces and stations into RTZ with respect to the event.
+
+    Parameters
+    ---------
+    datatraces: list
+        of :class:`pyrocko.trace.Trace`
+    stations: list
+        of :class:`pyrocko.model.Station`
+    event: :class:`pyrocko.model.Event`
+    """
+    from pyrocko import trace
+
+    for station in stations:
+        station.set_event_relative_data(event)
+        p = station.guess_projections_to_rtu(out_channels=('R', 'T', 'Z'))
+        station.set_channels(p[0][2])
+
+    station2traces = utility.gather(
+        datatraces, lambda t: t.station)
+
+    outtrcs = []
+    for station in stations:
+        trcs = station2traces[station]
+        channel2trcs = utility.gather(trcs, lambda t: t.channel)
+        r, t = trace.rotate_to_rt(
+            channel2trcs['N'], channel2trcs['E'], event, station)
+        outtrcs.extend([r, t, channel2trcs['Z']])
+
+    return outtrcs

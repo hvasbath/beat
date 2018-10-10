@@ -392,7 +392,8 @@ def command_import(args):
                 spec_cha = sc.get_unique_channels()
                 if 'R' in spec_cha or 'T' in spec_cha:
                     logger.info('Rotating traces to RTZ!')
-                    inputf.rotate()
+                    inputf.otate_traces_and_stations(
+                        data_traces, stations, c.event)
 
                 logger.info('Pickle seismic data to %s' % seismic_outpath)
                 utility.dump_objects(seismic_outpath,
