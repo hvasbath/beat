@@ -299,6 +299,8 @@ def command_init(args):
 
 def command_import(args):
 
+    from pyrocko import io
+
     command_str = 'import'
 
     data_formats = io.allowed_formats('load')[2::]
@@ -333,7 +335,7 @@ def command_import(args):
 
         parser.add_option(
             '--seismic_format', dest='seismic_format',
-            type='string', default='mseed',
+            default='mseed',
             choices=data_formats,
             help='Data format to be imported;'
                  'Default: "mseed"; Available: %s' % list2string(data_formats))
@@ -386,18 +388,16 @@ def command_import(args):
                         'Format: %s not implemented yet.' %
                         options.seismic_format)
 
-                inputf.rename_station_channels(stations)
-                inputf.rename_trace_channels(data_traces)
-
-                spec_cha = sc.get_unique_channels()
-                if 'R' in spec_cha or 'T' in spec_cha:
-                    logger.info('Rotating traces to RTZ!')
-                    inputf.otate_traces_and_stations(
-                        data_traces, stations, c.event)
+                logger.info('Rotating traces to RTZ wrt. event!')
+                data_traces = inputf.rotate_traces_and_stations(
+                    data_traces, stations, c.event)
 
                 logger.info('Pickle seismic data to %s' % seismic_outpath)
                 utility.dump_objects(seismic_outpath,
                                      outlist=[stations, data_traces])
+                logger.info(
+                    'Successfully imported traces for'
+                    ' %i stations!' % len(stations))
             else:
                 logger.info('%s exists! Use --force to overwrite!' %
                             seismic_outpath)
