@@ -155,7 +155,7 @@ class Problem(object):
                         sc.parameters.n_chains,
                         sc.parameters.tune_interval,
                         sc.parameters.n_jobs,
-                        sc.parameters.proposal_distribution))
+                        sc.parameters.proposal_dist))
 
                 t1 = time.time()
                 step = sampler.SMC(
