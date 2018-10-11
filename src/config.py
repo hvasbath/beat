@@ -404,7 +404,7 @@ class WaveformFitConfig(Object):
     name = String.T('any_P')
     blacklist = List.T(
         String.T(),
-        default=[''],
+        default=[],
         help='Station name for stations to be thrown out.')
     channels = List.T(String.T(), default=['Z'])
     filterer = Filter.T(default=Filter.D())
@@ -511,7 +511,6 @@ class GeodeticConfig(Object):
     names = List.T(String.T(), default=['Data prefix filenames here ...'])
     blacklist = List.T(
         String.T(),
-        optional=True,
         default=[],
         help='GPS station name or scene name to be thrown out.')
     types = List.T(

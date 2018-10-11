@@ -228,6 +228,19 @@ class ArrivalTaper(trace.Taper):
     d = Float.T(default=55.,
                 help='end of fading out; [s] w.r.t phase arrival')
 
+    def check_sample_rate_consistency(self, deltat):
+        """
+        Check if taper durations are consistent with GF sample rate.
+        """
+        for chop_b in (['b', 'c'], ['a', 'd']):
+            duration = self.duration(chop_b)
+            ratio = duration / deltat
+            utility.error_not_whole(
+                ratio,
+                errstr='Taper duration %g of %s is inconsistent with'
+                       ' sampling rate of %g!' % (
+                           duration, utility.list2string(chop_b), deltat))
+
     def duration(self, chop_bounds=['b', 'c']):
         t0 = getattr(self, chop_bounds[0])
         t1 = getattr(self, chop_bounds[1])
@@ -1931,7 +1944,7 @@ def geo_layer_synthetics_pscmp(
     return runner.get_results(component='displ', flip_z=True)[0]
 
 
-def get_phase_arrival_time(engine, source, target, wavename):
+def get_phase_arrival_time(engine, source, target, wavename, snap=True):
     """
     Get arrival time from Greens Function store for respective
     :class:`pyrocko.gf.seismosizer.Target`,
@@ -1946,6 +1959,8 @@ def get_phase_arrival_time(engine, source, target, wavename):
     target : :class:`pyrocko.gf.seismosizer.Target`
     wavename : string
         of the tabulated phase that determines the phase arrival
+    snap : if True
+        force arrival time on discrete samples of the store
 
     Returns
     -------
@@ -1959,7 +1974,11 @@ def get_phase_arrival_time(engine, source, target, wavename):
             'No such store with ID %s found, distance [deg] to event: %f ' % (
                 target.store_id, cake.m2d * dist))
 
-    return store.t(wavename, (source.depth, dist)) + source.time
+    atime = store.t(wavename, (source.depth, dist)) + source.time
+    if snap:
+        deltat = 1. / store.config.sample_rate
+        atime = trace.t2ind(atime, deltat, snap=round) * deltat
+    return atime
 
 
 def get_phase_taperer(
@@ -2117,7 +2136,7 @@ class WaveformMapping(object):
         tidxs = []
         for cha in channels:
             tidxs.extend([t2i[target] for target in dtargets[cha]])
-             
+
         return tidxs
 
     def prepare_data(
@@ -2152,6 +2171,7 @@ class WaveformMapping(object):
                 arrival_times=arrival_times,
                 outmode=outmode,
                 chop_bounds=chop_bounds)
+
             self._arrival_times = arrival_times
         else:
             raise ValueError('Wavemap needs configuration!')
@@ -2190,6 +2210,7 @@ class DataWaveformCollection(object):
     def __init__(self, stations, waveforms=None):
         self.stations = stations
         self.waveforms = waveforms
+        self._deltat = None
         self._targets = OrderedDict()
         self._datasets = OrderedDict()
         self._raw_datasets = OrderedDict()
@@ -2207,6 +2228,8 @@ class DataWaveformCollection(object):
                 raise CollectionError(
                     'Downsampled trace %s already in'
                     ' collection!' % utility.list2string(tr.nslc_id))
+
+        self._deltat = deltat
 
     def _check_collection(self, waveform, errormode='not_in', force=False):
         if errormode == 'not_in':
@@ -2464,6 +2487,9 @@ def init_wavemap(
     wmap.config = wc
     wmap.mapnumber = mapnumber
 
+    wmap.config.arrival_taper.check_sample_rate_consistency(
+        datahandler._deltat)
+
     wmap.station_weeding(event, wc.distances, blacklist=wc.blacklist)
     wmap.update_interpolation(wc.interpolation)
     wmap._update_trace_wavenames('_'.join([wc.name, str(wmap.mapnumber)]))
@@ -2638,12 +2664,15 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
             lengths = [tr.ydata.size for tr in synt_trcs]
             tmins = num.array([tr.tmin for tr in synt_trcs])
             tmaxs = num.array([tr.tmax for tr in synt_trcs])
+            tmins -= tmins.min()
 
             print('lengths', lengths)
             print('tmins', tmins)
             print('tmaxs', tmins)
             print('duration', tmaxs - tmins)
             print('arrival_times', arrival_times)
+            print('arrival_times norm', arrival_times - arrival_times.min())
+            trace.snuffle(synt_trcs)
             raise ValueError('Stacking error, traces different lengths!')
 
         # stack traces for all sources
