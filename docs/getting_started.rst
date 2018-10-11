@@ -534,7 +534,7 @@ One should have in mind that for large grids with high sample-rate the stores mi
 
 Lastly, we start the store calculation with::
 
-    beat build_gf Cascadia --execute --datatypes='seismic'
+    beat build_gfs Cascadia --execute --datatypes='seismic'
 
 
 How to setup a Finite Fault Optimization
