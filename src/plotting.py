@@ -81,6 +81,8 @@ plot_units = {
     'nucleation_dip': u_km,
     'nucleation_strike': u_km,
     'nucleation_time': u_s,
+    'nucleation_x': u_hyp,
+    'nucleation_y': u_hyp,
     'time_shift': u_s,
     'uperp': u_m,
     'uparr': u_m,

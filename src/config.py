@@ -1400,5 +1400,6 @@ def load_config(project_dir, mode):
         raise ConfigNeedsUpdatingError()
 
     config.problem_config.validate_priors()
-
+    config.problem_config.validate_hypers()
+    config.problem_config.validate_hierarchicals()
     return config

@@ -150,9 +150,12 @@ class Problem(object):
             elif sc.name == 'SMC':
                 logger.info(
                     '... Initiate Sequential Monte Carlo ... \n'
-                    ' n_chains=%i, tune_interval=%i, n_jobs=%i \n' % (
-                        sc.parameters.n_chains, sc.parameters.tune_interval,
-                        sc.parameters.n_jobs))
+                    ' n_chains=%i, tune_interval=%i, n_jobs=%i,'
+                    ' proposal_distribution %s, \n' % (
+                        sc.parameters.n_chains,
+                        sc.parameters.tune_interval,
+                        sc.parameters.n_jobs,
+                        sc.parameters.proposal_distribution))
 
                 t1 = time.time()
                 step = sampler.SMC(
