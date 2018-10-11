@@ -176,14 +176,15 @@ default_bounds = dict(
     locking_depth=(1., 10.),
 
     hypers=(-20., 20.),
-    ramp=(-0.005, 0.005))
+    ramp=(-0.005, 0.005),
+    offset=(-0.05, 0.05))
 
 default_seis_std = 1.e-6
 default_geo_std = 1.e-3
 
 default_decimation_factors = {
-    'geodetic': 7,
-    'seismic': 20}
+    'geodetic': 4,
+    'seismic': 2}
 
 seismic_data_name = 'seismic_data.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
@@ -543,7 +544,8 @@ class GeodeticConfig(Object):
 
     def get_hierarchical_names(self):
         if self.fit_plane:
-            return [name + '_ramp' for name in self.names]
+            return [name + '_ramp' for name in self.names] + \
+                [name + '_offset' for name in self.names]
         else:
             return []
 
@@ -1109,8 +1111,13 @@ class BEATconfig(Object, Cloneable):
                 shp = 1
                 defaultb_name = name
             else:
-                shp = 2
-                defaultb_name = 'ramp'
+                rampparname = name.split('_')[-1]
+                if rampparname == 'ramp':
+                    shp = 2
+                else:
+                    shp = 1
+
+                defaultb_name = rampparname
 
             hierarchicals[name] = Parameter(
                 name=name,
@@ -1218,7 +1225,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
             c.geodetic_config = None
 
         if 'seismic' in datatypes:
-            c.seismic_config = SeismicConfig(wavenames=wavenames)
+            c.seismic_config = SeismicConfig(wavenames=waveforms)
 
             if not individual_gfs:
                 c.seismic_config.gf_config.reference_location = \

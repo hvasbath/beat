@@ -34,7 +34,7 @@ __all__ = [
     'GeodeticDistributerComposite']
 
 
-def get_ramp_displacement(locx, locy, ramp):
+def get_ramp_displacement(locx, locy, ramp, offset):
     """
     Get synthetic residual plane in azimuth and range direction of the
     satellite.
@@ -45,10 +45,12 @@ def get_ramp_displacement(locx, locy, ramp):
         local coordinates [km] in east direction
     slocy : shared array-like :class:`numpy.ndarray`
         local coordinates [km] in north direction
-    ramp : :class:`theano.tensor.Tensor`
+    ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
         vector of 2 variables with ramp parameters in azimuth[0] & range[1]
+    offset : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
+        scalar of offset in [m]
     """
-    return locy * ramp[0] + locx * ramp[1]
+    return locy * ramp[0] + locx * ramp[1] + offset
 
 
 class GeodeticComposite(Composite):
@@ -206,39 +208,42 @@ class GeodeticComposite(Composite):
         if self.config.fit_plane:
             logger.info('Estimating ramp for each dataset...')
             for data in self.datasets:
-                hierarchical_name = data.name + '_ramp'
-                if not self.config.fit_plane and \
-                        hierarchical_name in hierarchicals:
-                        raise ConfigInconsistentError(
-                            'Plane removal disabled, but they are defined'
-                            ' in the problem configuration (hierarchicals)!')
-
                 if isinstance(data, heart.DiffIFG):
+                    for hierarchical_name in data.plane_names():
 
-                    if self.config.fit_plane and \
-                            hierarchical_name not in hierarchicals:
-                        raise ConfigInconsistentError(
-                            'Plane corrections enabled, but they are'
-                            ' not defined in the problem configuration!'
-                            ' (hierarchicals)')
+                        if not self.config.fit_plane and \
+                                hierarchical_name in hierarchicals:
+                            raise ConfigInconsistentError(
+                                'Plane removal disabled, but they are defined'
+                                ' in the problem configuration'
+                                ' (hierarchicals)!')
 
-                    param = hierarchicals[hierarchical_name]
-                    kwargs = dict(
-                        name=param.name,
-                        shape=param.dimension,
-                        lower=param.lower,
-                        upper=param.upper,
-                        testval=param.testvalue,
-                        transform=None,
-                        dtype=tconfig.floatX)
-                    try:
-                        self.hierarchicals[
-                            hierarchical_name] = Uniform(**kwargs)
+                        if self.config.fit_plane and \
+                                hierarchical_name not in hierarchicals:
+                            raise ConfigInconsistentError(
+                                'Plane corrections enabled, but they are'
+                                ' not defined in the problem configuration!'
+                                ' (hierarchicals)')
 
-                    except TypeError:
-                        kwargs.pop('name')
-                        self.hierarchicals[hierarchical_name] = \
-                            Uniform.dist(**kwargs)
+                        param = hierarchicals[hierarchical_name]
+                        kwargs = dict(
+                            name=param.name,
+                            shape=param.dimension,
+                            lower=param.lower,
+                            upper=param.upper,
+                            testval=param.testvalue,
+                            transform=None,
+                            dtype=tconfig.floatX)
+                        try:
+                            self.hierarchicals[
+                                hierarchical_name] = Uniform(**kwargs)
+
+                        except TypeError:
+                            kwargs.pop('name')
+                            self.hierarchicals[hierarchical_name] = \
+                                Uniform.dist(**kwargs)
+                else:
+                    logger.info('No plane for GNSS data.')
 
         logger.info(
             'Initialized %i hierarchical parameters '
@@ -250,19 +255,20 @@ class GeodeticComposite(Composite):
         """
 
         for i, data in enumerate(self.datasets):
-            hierarchical_name = data.name + '_ramp'
             if isinstance(data, heart.DiffIFG):
                 if not point:
                     locx = self._slocx[i]
                     locy = self._slocy[i]
-                    ramp = self.hierarchicals[hierarchical_name]
+                    ramp = self.hierarchicals[data.ramp_name()]
+                    offset = self.hierarchicals[data.offset_name()]
                 else:
                     locx = data.east_shifts / km
                     locy = data.north_shifts / km
-                    ramp = point[hierarchical_name]
+                    ramp = point[data.ramp_name()]
+                    offset = point[data.offset_name()]
 
                 residuals[i] -= get_ramp_displacement(
-                    locx, locy, ramp)
+                    locx, locy, ramp, offset)
 
         return residuals
 

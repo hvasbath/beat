@@ -7,6 +7,7 @@ from beat import sampler
 from beat.backend import TextStage
 
 from pymc3 import Deterministic
+from collections import OrderedDict
 
 import numpy as num
 
@@ -45,10 +46,10 @@ class Composite(object):
 
     def __init__(self):
 
-        self.input_rvs = {}
-        self.fixed_rvs = {}
-        self.hierarchicals = {}
-        self.hyperparams = {}
+        self.input_rvs = OrderedDict()
+        self.fixed_rvs = OrderedDict()
+        self.hierarchicals = OrderedDict()
+        self.hyperparams = OrderedDict()
         self.name = None
         self._like_name = None
         self.config = None

@@ -238,7 +238,7 @@ class ArrivalTaper(trace.Taper):
             utility.error_not_whole(
                 ratio,
                 errstr='Taper duration %g of %s is inconsistent with'
-                       ' sampling rate of %g!' % (
+                       ' sampling rate of %g! Please adjust Taper values!' % (
                            duration, utility.list2string(chop_b), deltat))
 
     def duration(self, chop_bounds=['b', 'c']):
@@ -414,7 +414,8 @@ physical_bounds = dict(
 
     hypers=(-20., 20.),
 
-    ramp=(-0.01, 0.01))
+    ramp=(-0.01, 0.01),
+    offset=(-1.0, 1.0))
 
 
 class Parameter(Object):
@@ -441,9 +442,12 @@ class Parameter(Object):
 
     def validate_bounds(self):
 
-        if self.name not in physical_bounds.keys():
-            if self.name[-4:] == 'ramp':
-                name = 'ramp'
+        supported_vars = list(physical_bounds.keys())
+
+        if self.name not in supported_vars:
+            candidate = self.name.split('_')[-1]
+            if candidate in supported_vars:
+                name = candidate
             elif self.name[0:2] != 'h_':
                 raise TypeError(
                     'The parameter "%s" cannot'
@@ -453,6 +457,7 @@ class Parameter(Object):
         else:
             name = self.name
 
+        phys_b = physical_bounds[name]
         if self.lower is not None:
             for i in range(self.dimension):
                 if self.upper[i] < self.lower[i]:
@@ -466,8 +471,6 @@ class Parameter(Object):
                     raise ValueError(
                         'The testvalue of parameter "%s" has to'
                         ' be within the upper and lower bounds' % self.name)
-
-                phys_b = physical_bounds[name]
 
                 if self.upper[i] > phys_b[1] or \
                         self.lower[i] < phys_b[0]:
@@ -973,6 +976,15 @@ class DiffIFG(IFG):
             odw=num.ones_like(scene.quadtree.leaf_phis),
             quadtree=quadtree)
         return cls(**d)
+
+    def plane_names(self):
+        return [self.ramp_name()] + [self.offset_name()]
+
+    def ramp_name(self):
+        return self.name + '_ramp'
+
+    def offset_name(self):
+        return self.name + '_offset'
 
 
 class GeodeticResult(Object):
