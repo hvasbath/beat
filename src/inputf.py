@@ -228,31 +228,36 @@ def load_obspy_data(datadir):
     obspy_compat.plant()
 
     filenames = set(glob(datadir + '/*'))
-    copy.deepcopy(filenames)
-
+    remaining_f = copy.deepcopy(filenames)
+    print(filenames)
     stations = []
     for f in filenames:
+        print(f)
         try:
             inv = obspy.read_inventory(f)
             stations.extend(inv.to_pyrocko_stations())
-            filenames.discard(f)
+            remaining_f.discard(f)
         except TypeError:
             logger.debug('File %s not an inventory.' % f)
 
+    filenames = copy.deepcopy(remaining_f)
+    print(filenames)
     data_traces = []
     for f in filenames:
+        print(f)
         try:
-            stream = obspy.read()
+            stream = obspy.read(f)
             pyrocko_traces = stream.to_pyrocko_traces()
             for tr in pyrocko_traces:
                 data_traces.append(heart.SeismicDataset.from_pyrocko_trace(tr))
 
-            filenames.discard(f)
+            remaining_f.discard(f)
 
         except TypeError:
             logger.debug('File %s not waveforms' % f)
 
-    if len(filenames) > 0:
+    print(remaining_f)
+    if len(remaining_f) > 0:
         logger.warning(
             'Could not import these files %s' %
             utility.list2string(list(filenames)))

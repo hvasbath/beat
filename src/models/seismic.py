@@ -268,6 +268,7 @@ class SeismicComposite(Composite):
             for j, obs_tr in enumerate(obs_proc_traces[i]):
 
                 dtrace_proc = obs_tr.copy()
+
                 dtrace_proc.set_ydata(
                     (obs_tr.get_ydata() - syn_proc_traces[i][j].get_ydata()))
 

@@ -440,7 +440,6 @@ def downsample_trace(data_trace, deltat=None, snap=False):
     :class:`pyrocko.trace.Trace`
         new instance
     """
-
     tr = data_trace.copy()
     if deltat is not None:
         if num.abs(tr.deltat - deltat) > 1.e-6:
@@ -448,12 +447,13 @@ def downsample_trace(data_trace, deltat=None, snap=False):
                 tr.downsample_to(
                     deltat, snap=snap, allow_upsample_max=5, demean=False)
                 tr.deltat = deltat
+                tr.snap()
+
             except util.UnavailableDecimation as e:
                 logger.error(
                     'Cannot downsample %s.%s.%s.%s: %s' % (tr.nslc_id + (e,)))
         elif snap:
             if tr.tmin / tr.deltat > 1e-6 or tr.tmax / tr.deltat > 1e-6:
-                tr = tr.copy()
                 tr.snap()
     else:
         raise ValueError('Need to provide target sample rate!')

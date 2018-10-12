@@ -2529,7 +2529,6 @@ def post_process_trace(
         determines where to chop the trace on the taper attributes
         may be combination of [a, b, c, d]
     """
-
     if filterer:
         # filter traces
         trace.bandpass(
@@ -2547,8 +2546,7 @@ def post_process_trace(
 
         trace.extend(lower_cut, upper_cut, fillmethod='zeros')
         trace.taper(taper, inplace=True)
-        trace.chop(tmin=lower_cut,
-                   tmax=upper_cut)
+        trace.chop(tmin=lower_cut, tmax=upper_cut, snap=(num.floor, num.floor))
 
 
 class StackingError(Exception):
