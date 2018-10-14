@@ -9,6 +9,7 @@ import logging
 import sys
 import copy
 import shutil
+from collections import OrderedDict
 
 from optparse import OptionParser
 
@@ -459,6 +460,18 @@ def command_import(args):
 
             point = plotting.get_result_point(stage, problem.config, 'max')
             n_sources = problem.config.problem_config.n_sources
+
+            if 'geodetic' in options.datatypes:
+                if c.geodetic_config.fit_plane:
+
+                    logger.info('Importing ramp parameters ...')
+                    new_bounds = OrderedDict()
+
+                    for var in c.geodetic_config.get_hierarchical_names():
+                        new_bounds[var] = (point[var], point[var])
+
+                    c.problem_config.set_vars(
+                        new_bounds, attribute='hierarchicals')
 
             source_params = list(problem.config.problem_config.priors.keys())
             for param in list(point.keys()):

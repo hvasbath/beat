@@ -226,22 +226,30 @@ class GeodeticComposite(Composite):
                                 ' (hierarchicals)')
 
                         param = hierarchicals[hierarchical_name]
-                        kwargs = dict(
-                            name=param.name,
-                            shape=param.dimension,
-                            lower=param.lower,
-                            upper=param.upper,
-                            testval=param.testvalue,
-                            transform=None,
-                            dtype=tconfig.floatX)
-                        try:
-                            self.hierarchicals[
-                                hierarchical_name] = Uniform(**kwargs)
-
-                        except TypeError:
-                            kwargs.pop('name')
-                            self.hierarchicals[hierarchical_name] = \
-                                Uniform.dist(**kwargs)
+                        if not num.array_equal(
+                                param.lower, param.upper):
+                            kwargs = dict(
+                                name=param.name,
+                                shape=param.dimension,
+                                lower=param.lower,
+                                upper=param.upper,
+                                testval=param.testvalue,
+                                transform=None,
+                                dtype=tconfig.floatX)
+                            try:
+                                self.hierarchicals[
+                                    hierarchical_name] = Uniform(**kwargs)
+                            except TypeError:
+                                kwargs.pop('name')
+                                self.hierarchicals[hierarchical_name] = \
+                                    Uniform.dist(**kwargs)
+                        else:
+                            logger.info(
+                                'not solving for %s, got fixed at %s' % (
+                                    param.name,
+                                    utility.list2string(
+                                        param.lower.flatten())))
+                            self.hierarchicals[hierarchical_name] = param.lower
                 else:
                     logger.info('No plane for GNSS data.')
 

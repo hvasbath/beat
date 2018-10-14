@@ -2625,7 +2625,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
                 arrival_taper=arrival_taper,
                 arrival_time=arrival_times[i]))
 
-    if pre_stack_cut and arrival_taper:
+    if pre_stack_cut and arrival_taper and outmode != 'data':
         for t, taperer in zip(targets, taperers):
             t.update_target_times(sources, taperer)
 

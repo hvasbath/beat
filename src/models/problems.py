@@ -125,7 +125,7 @@ class Problem(object):
             if sc.name == 'Metropolis':
                 logger.info(
                     '... Initiate Metropolis ... \n'
-                    ' proposal_distribution %s, tune_interval=%i,'
+                    ' proposal_distribution: %s, tune_interval=%i,'
                     ' n_jobs=%i \n' % (
                         sc.parameters.proposal_dist,
                         sc.parameters.tune_interval,
@@ -151,7 +151,7 @@ class Problem(object):
                 logger.info(
                     '... Initiate Sequential Monte Carlo ... \n'
                     ' n_chains=%i, tune_interval=%i, n_jobs=%i,'
-                    ' proposal_distribution %s, \n' % (
+                    ' proposal_distribution: %s, \n' % (
                         sc.parameters.n_chains,
                         sc.parameters.tune_interval,
                         sc.parameters.n_jobs,
@@ -170,7 +170,7 @@ class Problem(object):
             elif sc.name == 'PT':
                 logger.info(
                     '... Initiate Metropolis for Parallel Tempering... \n'
-                    ' proposal_distribution %s, tune_interval=%i,'
+                    ' proposal_distribution: %s, tune_interval=%i,'
                     ' n_chains=%i \n' % (
                         sc.parameters.proposal_dist,
                         sc.parameters.tune_interval,

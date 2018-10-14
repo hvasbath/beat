@@ -670,16 +670,17 @@ class ProblemConfig(Object):
                         nvars,
                         dtype=tconfig.floatX) * (lower + (upper / 5.)))
 
-    def set_vars(self, bounds_dict):
+    def set_vars(self, bounds_dict, attribute='priors'):
         """
         Set variable bounds to given bounds.
         """
         for variable, bounds in bounds_dict.items():
-            if variable in list(self.priors.keys()):
-                param = self.priors[variable]
+            upd_dict = getattr(self, attribute)
+            if variable in list(upd_dict.keys()):
+                param = upd_dict[variable]
                 param.lower = num.atleast_1d(bounds[0])
                 param.upper = num.atleast_1d(bounds[1])
-                param.testvalue = num.atleast_1d(num.mean(bounds))
+                param.testvalue = num.atleast_1d(num.mean(bounds, axis=0))
             else:
                 logger.warning(
                     'Prior for variable %s does not exist!'

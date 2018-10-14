@@ -259,6 +259,8 @@ class SeismicComposite(Composite):
             point, outmode=outmode, taper_tolerance_factor=0.,
             chop_bounds=chop_bounds, order='wmap')
 
+        # from pyrocko import trace
+        # trace.snuffle(syn_filt_traces+ obs_filt_traces)
         results = []
         for i, wmap in enumerate(self.wavemaps):
             wc = wmap.config
@@ -491,6 +493,7 @@ class SeismicGeometryComposite(SeismicComposite):
         obs = []
         for wmap in self.wavemaps:
             wc = wmap.config
+
             wmap.prepare_data(
                 source=self.event,
                 engine=self.engine,
