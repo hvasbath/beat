@@ -20,7 +20,7 @@ except ImportError:
 
         @classmethod
         def get_include(self):
-            return ''
+            return 
 
 
 project_root = op.dirname(op.realpath(__file__))
