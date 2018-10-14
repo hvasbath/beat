@@ -919,10 +919,6 @@ def command_build_gfs(args):
                         c.project_dir, config.seismic_data_name)
 
                     stations, _ = utility.load_objects(seismic_data_path)
-                    stations = utility.apply_station_blacklist(
-                        stations, sc.blacklist)
-                    stations = utility.weed_stations(
-                        stations, c.event, distances=sc.distances)
                 else:
                     logger.info(
                         "Creating one global Green's Function store, which is "

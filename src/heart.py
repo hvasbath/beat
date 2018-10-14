@@ -1566,7 +1566,7 @@ def choose_backend(
     elif code == 'qssp':
         source_model = copy.deepcopy(receiver_model)
         receiver_model = None
-        version = '2010'
+        version = '2010beta'
 
         conf = qssp.QSSPConfig(
             qssp_version=version,
