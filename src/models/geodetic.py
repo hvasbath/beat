@@ -5,6 +5,7 @@ from time import time
 
 import numpy as num
 
+from theano.printing import Print
 from theano import shared
 from theano import config as tconfig
 import theano.tensor as tt
@@ -257,26 +258,37 @@ class GeodeticComposite(Composite):
             'Initialized %i hierarchical parameters '
             '(ramps).' % len(self.hierarchicals))
 
-    def remove_ramps(self, residuals, point=None):
+    def remove_ramps(self, residuals, point=None, operation='-'):
         """
         Remove an orbital ramp from the residual displacements
         """
 
         for i, data in enumerate(self.datasets):
             if isinstance(data, heart.DiffIFG):
+                ramp_name = data.ramp_name()
+                offset_name = data.offset_name()
                 if not point:
                     locx = self._slocx[i]
                     locy = self._slocy[i]
-                    ramp = self.hierarchicals[data.ramp_name()]
-                    offset = self.hierarchicals[data.offset_name()]
+                    ramp = self.hierarchicals[ramp_name]
+                    offset = self.hierarchicals[offset_name]
                 else:
                     locx = data.east_shifts / km
                     locy = data.north_shifts / km
-                    ramp = point[data.ramp_name()]
-                    offset = point[data.offset_name()]
+                    try:
+                        ramp = point[ramp_name]
+                        offset = point[offset_name]
+                    except KeyError:
+                        ramp = self.hierarchicals[ramp_name]
+                        offset = self.hierarchicals[offset_name]
 
-                residuals[i] -= get_ramp_displacement(
+                ramp_disp = get_ramp_displacement(
                     locx, locy, ramp, offset)
+
+                if operation == '-':
+                    residuals[i] -= ramp_disp
+                elif operation == '+':
+                    residuals[i] += ramp_disp
 
         return residuals
 
@@ -455,7 +467,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
             synths.append(los_d)
 
         if self.config.fit_plane:
-            synths = self.remove_ramps(synths, point=point)
+            synths = self.remove_ramps(synths, point=point, operation='+')
 
         return synths
 
@@ -737,7 +749,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
 
         synths = self.Bij.a2l(mu)
         if self.config.fit_plane:
-            synths = self.remove_ramps(synths, point=point)
+            synths = self.remove_ramps(synths, point=point, operation='+')
 
         return synths
 

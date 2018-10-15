@@ -628,6 +628,7 @@ def geodetic_fits(problem, stage, plot_options):
 
     datatype = 'geodetic'
     mode = problem.config.problem_config.mode
+    problem.init_hierarchicals()
 
     fontsize = 10
     fontsize_title = 12
