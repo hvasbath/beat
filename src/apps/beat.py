@@ -16,7 +16,7 @@ from optparse import OptionParser
 from beat import heart, utility, inputf, plotting, config
 from beat.config import ffo_mode_str, geometry_mode_str
 from beat.models import load_model, Stage, estimate_hypers, sample
-from beat.backend import TextChain 
+from beat.backend import TextChain, extract_bounds_from_summary
 from beat.sampler import SamplingHistory
 from beat.sources import MTSourceWithMagnitude
 from beat.utility import list2string
@@ -318,8 +318,9 @@ def command_import(args):
                  ' Default: current directory: ./')
 
         parser.add_option(
-            '--results', dest='results', action='store_true',
-            help='Import results from previous modeling step.')
+            '--results', dest='results', type='string', default='',
+            help='Import results from previous modeling step'
+                 ' of given project path')
 
         parser.add_option(
             '--datatypes',
@@ -345,7 +346,7 @@ def command_import(args):
             '--mode', dest='mode',
             choices=mode_choices,
             default=geometry_mode_str,
-            help='Inversion problem to solve; %s Default: "%s"' %
+            help='Inversion problem results to import; %s Default: "%s"' %
                  (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
@@ -443,37 +444,44 @@ def command_import(args):
                             geodetic_outpath)
 
     else:
-        if options.mode == geometry_mode_str:
-            logger.warn('No previous modeling results to be imported!')
+        logger.info(
+            'Attempting to load results with mode %s from directory:'
+            ' %s' % (options.mode, options.results))
+        problem = load_model(
+            options.results, options.mode, hypers=False)
+        source_params = list(problem.config.problem_config.priors.keys())
 
-        elif options.mode == ffo_mode_str:
-            logger.info('Importing non-linear modeling results, i.e.'
-                        ' maximum likelihood result for source geometry.')
-            problem = load_model(
-                c.project_dir, geometry_mode_str, hypers=False)
+        stage = Stage(homepath=problem.outfolder)
+        stage.load_results(
+            varnames=problem.varnames,
+            model=problem.model, stage_number=-1,
+            load='trace', chains=[-1])
 
-            stage = Stage(homepath=problem.outfolder)
-            stage.load_results(
-                varnames=problem.varnames,
-                model=problem.model, stage_number=-1,
-                load='trace', chains=[-1])
+        point = plotting.get_result_point(stage, problem.config, 'max')
 
-            point = plotting.get_result_point(stage, problem.config, 'max')
-            n_sources = problem.config.problem_config.n_sources
+        if 'geodetic' in options.datatypes:
+            if c.geodetic_config.fit_plane:
 
-            if 'geodetic' in options.datatypes:
-                if c.geodetic_config.fit_plane:
+                logger.info('Importing ramp parameters ...')
+                new_bounds = OrderedDict()
 
-                    logger.info('Importing ramp parameters ...')
-                    new_bounds = OrderedDict()
-
-                    for var in c.geodetic_config.get_hierarchical_names():
+                for var in c.geodetic_config.get_hierarchical_names():
+                    if var in point:
                         new_bounds[var] = (point[var], point[var])
+                    else:
+                        logger.warn(
+                            'Ramps were fixed in previous run!'
+                            ' Importing fixed values!')
+                        tpoint = c.problem_config.get_test_point()
+                        new_bounds[var] = (tpoint[var], tpoint[var])
 
-                    c.problem_config.set_vars(
-                        new_bounds, attribute='hierarchicals')
+                c.problem_config.set_vars(
+                    new_bounds, attribute='hierarchicals')
 
-            source_params = list(problem.config.problem_config.priors.keys())
+        if options.mode == geometry_mode_str:
+            logger.info('Importing non-linear source geometry results!')
+
+            n_sources = problem.config.problem_config.n_sources
             for param in list(point.keys()):
                 if param not in source_params:
                     point.pop(param)
@@ -486,8 +494,26 @@ def command_import(args):
                 c.problem_config.source_type, c.problem_config.stf_type)
 
             c.geodetic_config.gf_config.reference_sources = reference_sources
-            config.dump_config(c)
-            logger.info('Successfully updated config file!')
+            if 'seismic' in options.datatypes:
+                c.seismic_config.gf_config.reference_sources = \
+                    reference_sources
+
+        elif options.mode == ffo_mode_str:
+            logger.info('Importing linear static distributed slip results!')
+            from pandas import read_csv
+            summarydf = read_csv(
+                pjoin(problem.outfolder, 'summary.txt'), sep='\s+')
+
+            new_bounds = {}
+            for param in source_params:
+                new_bounds[param] = extract_bounds_from_summary(
+                    summarydf, varname=param, shape=(n_sources,), roundto=1)
+
+            c.problem_config.set_vars(
+                new_bounds, attribute='priors')
+
+        config.dump_config(c)
+        logger.info('Successfully updated config file!')
 
 
 def command_update(args):

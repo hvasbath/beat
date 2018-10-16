@@ -1290,6 +1290,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                 gc = GeodeticConfig()
                 lgf_config = GeodeticLinearGFConfig()
             else:
+                logger.info('Initialising geodetic config')
                 lgf_config = GeodeticLinearGFConfig(
                     earth_model_name=gc.gf_config.earth_model_name,
                     store_superdir=gc.gf_config.store_superdir,
@@ -1300,7 +1301,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
             c.geodetic_config = gc
             c.geodetic_config.gf_config = lgf_config
 
-        elif 'seismic' in datatypes:
+        if 'seismic' in datatypes:
             sc = gmc.seismic_config
             if sc is None:
                 logger.warning(
@@ -1310,6 +1311,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                 sc = SeismicConfig()
                 lgf_config = SeismicLinearGFConfig()
             else:
+                logger.info('Initialising seismic config')
                 lgf_config = SeismicLinearGFConfig(
                     earth_model_name=sc.gf_config.earth_model_name,
                     sample_rate=sc.gf_config.sample_rate,
