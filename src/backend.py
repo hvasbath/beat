@@ -38,6 +38,7 @@ from beat.config import sample_p_outname, transd_vars_dist
 from beat.utility import load_objects, dump_objects, \
     ListArrayOrdering, ListToArrayBijection
 from beat.covariance import calc_sample_covariance
+from beat import utility
 
 from pyrocko import util
 from time import time
@@ -830,6 +831,58 @@ def load_sampler_params(project_dir, stage_number, mode):
         sample_p_outname)
     return load_objects(stage_path)
 
+def get_result_point(stage, config, point_llk='max'):
+    """
+    Return point of a given stage result.
+
+    Parameters
+    ----------
+    stage : :class:`models.Stage`
+    config : :class:`config.BEATConfig`
+    point_llk : str
+        with specified llk(max, mean, min).
+
+    Returns
+    -------
+    dict
+    """
+    if config.sampler_config.name == 'Metropolis':
+        if stage.step is None:
+            raise AttributeError(
+                'Loading Metropolis results requires'
+                ' sampler parameters to be loaded!')
+
+        sc = config.sampler_config.parameters
+        from beat.sampler.metropolis import get_trace_stats
+        pdict, _ = get_trace_stats(
+            stage.mtrace, stage.step, sc.burn, sc.thin)
+        point = pdict[point_llk]
+
+    elif config.sampler_config.name == 'SMC':
+        llk = stage.mtrace.get_values(
+            varname='like',
+            combine=True)
+
+        posterior_idxs = utility.get_fit_indexes(llk)
+
+        point = stage.mtrace.point(idx=posterior_idxs[point_llk])
+
+    elif config.sampler_config.name == 'PT':
+        params = config.sampler_config.parameters
+        llk = stage.mtrace.get_values(
+            varname='like',
+            burn=int(params.n_samples * params.burn),
+            thin=params.thin)
+
+        posterior_idxs = utility.get_fit_indexes(llk)
+
+        point = stage.mtrace.point(idx=posterior_idxs[point_llk])
+
+    else:
+        raise NotImplementedError(
+            'Sampler "%s" is not supported!' % config.sampler_config.name)
+
+    return point
 
 def concatenate_traces(mtraces):
     """
