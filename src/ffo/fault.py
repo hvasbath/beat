@@ -318,7 +318,7 @@ total number of patches: %i ''' % (
         backend : str
             which implementation backend to use [numpy/theano]
         """
-        #  !!!!!!TODO--------------needs subfault index
+        # TODO needs subfault index
         dipidx = positions2idxs(
             positions=positions_dip,
             cell_size=self.ordering.patch_size_dip,

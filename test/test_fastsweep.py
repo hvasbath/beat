@@ -27,8 +27,8 @@ class FastSweepingTestCase(unittest.TestCase):
         self.n_patch_dip = 6
 
     def get_slownesses(self):
-        velo1 = num.ones((self.n_patch_dip, self.n_patch_strike / 2))
-        velo2 = num.ones((self.n_patch_dip, self.n_patch_strike / 2)) * 3.5
+        velo1 = num.ones((self.n_patch_dip, self.n_patch_strike // 2))
+        velo2 = num.ones((self.n_patch_dip, self.n_patch_strike // 2)) * 3.5
         velocities = num.concatenate((velo1, velo2), axis=1)
         return 1. / velocities
 

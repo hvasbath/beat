@@ -638,10 +638,11 @@ class SeismicDistributerComposite(SeismicComposite):
         self.config = sc
         sgfc = sc.gf_config
 
-        if sgfc.patch_width != sgfc.patch_length:
-            raise ValueError(
-                'So far only square patches supported in kinematic'
-                ' model! - fast_sweeping issues')
+        for pw, pl in zip(sgfc.patch_widths, sgfc.patch_lengths):
+            if pw != pl:
+                raise ValueError(
+                    'So far only square patches supported in kinematic'
+                    ' model! - fast_sweeping issues')
 
         if len(sgfc.reference_sources) > 1:
             raise ValueError(
@@ -649,13 +650,15 @@ class SeismicDistributerComposite(SeismicComposite):
                 'fast_sweeping issues')
 
         self.fault = self.load_fault_geometry()
+        # TODO: n_subfaultssupport
         n_p_dip, n_p_strike = self.fault.get_subfault_discretization(0)
 
-        logger.info('Fault discretized to %s [km]'
-                    ' patches.' % sgfc.patch_length)
+        logger.info('Fault(s) discretized to %s [km]'
+                    ' patches.' % utility.list2string(sgfc.patch_lengths))
+
         if not hypers:
             self.sweeper = theanof.Sweeper(
-                sgfc.patch_length,
+                sgfc.patch_lengths[0],
                 n_p_dip,
                 n_p_strike,
                 self.sweep_implementation)

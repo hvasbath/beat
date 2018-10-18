@@ -467,6 +467,16 @@ class SeismicConfig(Object):
 
             kwargs[waveforms] = wavemaps
 
+        mode = kwargs.pop('mode', geometry_mode_str)
+
+        if mode == geometry_mode_str:
+            gf_config = SeismicGFConfig()
+        elif mode == ffo_mode_str:
+            gf_config = SeismicLinearGFConfig()
+
+        if 'gf_config' not in kwargs:
+            kwargs['gf_config'] = gf_config
+
         Object.__init__(self, **kwargs)
 
     def get_waveform_names(self):
@@ -538,6 +548,20 @@ class GeodeticConfig(Object):
              'If false one hyperparameter for each DATATYPE and '
              'displacement COMPONENT.')
     gf_config = GFConfig.T(default=GeodeticGFConfig.D())
+
+    def __init__(self, **kwargs):
+
+        mode = kwargs.pop('mode', geometry_mode_str)
+
+        if mode == geometry_mode_str:
+            gf_config = GeodeticGFConfig()
+        elif mode == ffo_mode_str:
+            gf_config = GeodeticLinearGFConfig()
+
+        if 'gf_config' not in kwargs:
+            kwargs['gf_config'] = gf_config
+
+        Object.__init__(self, **kwargs)
 
     def get_hypernames(self):
         return ['_'.join(('h', typ)) for typ in self.types]
@@ -1308,7 +1332,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                     'Asked for "seismic" datatype but %s config '
                     'has no such datatype! Initialising default "seismic"'
                     ' linear config!' % geometry_mode_str)
-                sc = SeismicConfig()
+                sc = SeismicConfig(mode=mode)
                 lgf_config = SeismicLinearGFConfig()
             else:
                 logger.info('Initialising seismic config')

@@ -358,9 +358,10 @@ def command_import(args):
     project_dir = get_project_directory(
         args, options, nargs_dict[command_str])
 
-    c = config.load_config(project_dir, options.mode)
 
     if not options.results:
+        c = config.load_config(project_dir, options.mode)
+
         if 'seismic' in options.datatypes:
             sc = c.seismic_config
             logger.info('Attempting to import seismic data from %s' %
@@ -444,9 +445,13 @@ def command_import(args):
                             geodetic_outpath)
 
     else:
+        from pandas import read_csv
+
         logger.info(
             'Attempting to load results with mode %s from directory:'
             ' %s' % (options.mode, options.results))
+        c = config.load_config(project_dir, 'ffo')
+
         problem = load_model(
             options.results, options.mode, hypers=False)
         source_params = list(problem.config.problem_config.priors.keys())
@@ -479,9 +484,9 @@ def command_import(args):
                     new_bounds, attribute='hierarchicals')
 
         if options.mode == geometry_mode_str:
+            n_sources = problem.config.problem_config.n_sources
             logger.info('Importing non-linear source geometry results!')
 
-            n_sources = problem.config.problem_config.n_sources
             for param in list(point.keys()):
                 if param not in source_params:
                     point.pop(param)
@@ -499,15 +504,16 @@ def command_import(args):
                     reference_sources
 
         elif options.mode == ffo_mode_str:
+            npatches = problem.config.problem_config.mode_config.npatches
             logger.info('Importing linear static distributed slip results!')
-            from pandas import read_csv
+
             summarydf = read_csv(
                 pjoin(problem.outfolder, 'summary.txt'), sep='\s+')
 
             new_bounds = {}
             for param in source_params:
                 new_bounds[param] = extract_bounds_from_summary(
-                    summarydf, varname=param, shape=(n_sources,), roundto=1)
+                    summarydf, varname=param, shape=(npatches,), roundto=1)
 
             c.problem_config.set_vars(
                 new_bounds, attribute='priors')
@@ -628,9 +634,11 @@ def command_clone(args):
 
     for mode in [options.mode]:
         config_fn = pjoin(project_dir, 'config_' + mode + '.yaml')
+
         if os.path.exists(config_fn):
             logger.info('Cloning %s problem config.' % mode)
             c = config.load_config(project_dir, mode)
+
             c.name = cloned_name
             c.project_dir = cloned_dir
 
@@ -640,7 +648,10 @@ def command_clone(args):
                     logger.warn('Datatype %s to be cloned is not'
                                 ' in config! Adding to new conig!' % datatype)
                     c[datatype + '_config'] = \
-                        config.datatype_catalog[datatype]()
+                        config.datatype_catalog[datatype](mode=options.mode)
+                    re_init = True
+                else:
+                    re_init = False
 
                 new_datatypes.append(datatype)
 
@@ -667,6 +678,13 @@ def command_clone(args):
                 c.problem_config.source_type = options.source_type
                 c.problem_config.init_vars()
                 c.problem_config.set_decimation_factor()
+                re_init = False
+
+            if re_init:
+                logger.info(
+                    'Re-initialized priors because of new datatype!'
+                    ' Please check prior bounds!')
+                c.problem_config.init_vars()
 
             old_hypers = copy.deepcopy(c.problem_config.hyperparameters)
 
