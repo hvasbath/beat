@@ -717,11 +717,11 @@ filename: %s''' % (
 
     @property
     def reference_times(self):
-        return self._tmins[:, -1]
+        return self._tmins[:, 0]
 
     @property
     def deltat(self):
-        return self.config.wave_config.arrival_taper.duration / \
+        return self.config.wave_config.arrival_taper.duration(['b', 'c']) / \
             float(self.nsamples)
 
     @property
@@ -885,9 +885,9 @@ def _process_patch_seismic(
 
     if patch.time < heart.physical_bounds['time'][1]:
         patch.time += gfs.config.event.time
-        logger.info('Adding event time to reference source time!')
+        logger.debug('Adding event time to reference source time!')
     else:
-        logger.info('Using reference source time ...')
+        logger.debug('Using reference source time ...')
 
     source_patches_durations = []
     logger.info('Patch Number %i', patchidx)
@@ -910,25 +910,25 @@ def _process_patch_seismic(
             outmode='data')
 
         # getting patch related arrival time for hypocenter
-        arrival_time = heart.get_phase_arrival_time(
+        ref_arrival_time = heart.get_phase_arrival_time(
             engine=engine,
             source=patch,
             target=target,
             wavename=gfs.config.wave_config.name)
 
-        ptmin = gfs.config.wave_config.arrival_taper.b + arrival_time
+        ptmin = gfs.config.wave_config.arrival_taper.b + ref_arrival_time
         gfs.set_patch_time(targetidx=j, patchidx=patchidx, tmin=ptmin)
 
         # getting event related arrival time valid for all patches
         # as common reference
-        ref_arrival_time = heart.get_phase_arrival_time(
+        event_arrival_time = heart.get_phase_arrival_time(
             engine=engine,
             source=gfs.config.event,
             target=target,
             wavename=gfs.config.wave_config.name)
 
-        ref_tmin = gfs.config.wave_config.arrival_taper.b + ref_arrival_time
-        gfs.set_patch_time(targetidx=j, patchidx=-1, tmin=ref_tmin)
+        event_tmin = gfs.config.wave_config.arrival_taper.b + event_arrival_time
+        gfs.set_patch_time(targetidx=j, patchidx=-1, tmin=event_tmin)
 
         for starttime in starttimes:
             shifted_arrival_time = ref_arrival_time - starttime
