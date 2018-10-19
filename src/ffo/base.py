@@ -903,6 +903,7 @@ def _process_patch_seismic(
             sources=source_patches_durations,
             targets=[target],
             arrival_taper=None,
+            arrival_times=num.array(None),
             wavename=gfs.config.wave_config.name,
             filterer=None,
             reference_taperer=None,

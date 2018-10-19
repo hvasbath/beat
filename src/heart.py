@@ -2609,7 +2609,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
             'Outmode "%s" not available! Available: %s' % (
                 outmode, utility.list2string(stackmodes)))
 
-    if not arrival_times or arrival_times.all():
+    if not arrival_times.all():
         arrival_times = num.zeros((len(targets)), dtype=tconfig.floatX)
         arrival_times[:] = None
 
