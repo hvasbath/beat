@@ -418,6 +418,7 @@ filename: %s''' % (
             index to target
         patchidx : int
             index to patch (source) that is assumed to be hypocenter
+            patch_idx refers to reference time wrt event
         tmin : float
             tmin of the trace(s) if the hypocenter was in the location of this
             patch
@@ -915,28 +916,28 @@ def _process_patch_seismic(
             target=target,
             wavename=gfs.config.wave_config.name)
 
-        ptmin = gfs.config.wave_config.arrival_taper.a + arrival_time
+        ptmin = gfs.config.wave_config.arrival_taper.b + arrival_time
         gfs.set_patch_time(targetidx=j, patchidx=patchidx, tmin=ptmin)
 
         # getting event related arrival time valid for all patches
         # as common reference
-        arrival_time = heart.get_phase_arrival_time(
+        ref_arrival_time = heart.get_phase_arrival_time(
             engine=engine,
             source=gfs.config.event,
             target=target,
             wavename=gfs.config.wave_config.name)
 
-        ref_tmin = gfs.config.wave_config.arrival_taper.a + arrival_time
+        ref_tmin = gfs.config.wave_config.arrival_taper.b + ref_arrival_time
         gfs.set_patch_time(targetidx=j, patchidx=-1, tmin=ref_tmin)
 
         for starttime in starttimes:
-            tmin = ref_tmin - starttime
+            shifted_arrival_time = ref_arrival_time - starttime
 
             synthetics_array = heart.taper_filter_traces(
                 traces=traces,
                 arrival_taper=gfs.config.wave_config.arrival_taper,
                 filterer=gfs.config.wave_config.filterer,
-                tmins=num.ones(durations.size) * tmin,
+                arrival_times=num.ones(durations.size) * shifted_arrival_time,
                 outmode='array',
                 chop_bounds=['b', 'c'])
 

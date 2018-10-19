@@ -408,7 +408,9 @@ class SeisSynthesizer(theano.Op):
 
 
 class SeisDataChopper(theano.Op):
-
+    """
+    Deprecated!
+    """
     __props__ = ('sample_rate', 'traces', 'arrival_taper', 'filterer')
 
     def __init__(self, sample_rate, traces, arrival_taper, filterer):
