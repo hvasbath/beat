@@ -617,9 +617,7 @@ filename: %s''' % (
         """
 
         if targetidxs is None:
-            ntargets = 1
-        else:
-            ntargets = targetidxs.size
+            raise ValueError('Target indexes have to be defined!')
 
         self._check_mode_init(self._mode)
 
@@ -680,6 +678,7 @@ filename: %s''' % (
                 cd.dimshuffle((1, 0, 2)), cslips).sum(axis=0)
 
         elif self._mode == 'numpy':
+            ntargets = 1
             u2d = num.tile(
                 cslips, self.nsamples).reshape(
                     (self.nsamples, self.npatches * nslips * ntargets))
@@ -717,7 +716,7 @@ filename: %s''' % (
 
     @property
     def reference_times(self):
-        return self._tmins[:, 0]
+        return self._tmins[:, -1]
 
     @property
     def deltat(self):

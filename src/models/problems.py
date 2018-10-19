@@ -499,7 +499,8 @@ class Problem(object):
             Flag for opening the seismic waveforms in the snuffler
         """
         for composite in self.composites.values():
-            composite.update_weights(point, n_jobs=n_jobs)
+            if hasattr(composite, 'update_weights'):
+                composite.update_weights(point, n_jobs=n_jobs)
 
     def get_synthetics(self, point, **kwargs):
         """

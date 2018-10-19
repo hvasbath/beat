@@ -252,7 +252,9 @@ total number of patches: %i ''' % (
         velocities = point['velocities']
         # TODO make index dependent   !!!!
         nuc_dip_idx, nuc_strike_idx = self.fault_locations2idxs(
-            nuc_dip, nuc_strike, backend='numpy')
+            index, positions_dip=nuc_dip,
+            positions_strike=nuc_strike, backend='numpy')
+
         return self.get_subfault_starttimes(
             index, velocities, nuc_dip_idx, nuc_strike_idx)
 
@@ -305,7 +307,7 @@ total number of patches: %i ''' % (
             patch_size_dip=self.ordering.patch_sizes_dip[index])
 
     def fault_locations2idxs(
-            self, positions_dip, positions_strike, backend='numpy'):
+            self, index, positions_dip, positions_strike, backend='numpy'):
         """
         Return patch indexes for given location on the fault.
 
@@ -321,11 +323,11 @@ total number of patches: %i ''' % (
         # TODO needs subfault index
         dipidx = positions2idxs(
             positions=positions_dip,
-            cell_size=self.ordering.patch_size_dip,
+            cell_size=self.ordering.patch_sizes_dip[index],
             backend=backend)
         strikeidx = positions2idxs(
             positions=positions_strike,
-            cell_size=self.ordering.patch_size_strike,
+            cell_size=self.ordering.patch_sizes_strike[index],
             backend=backend)
         return dipidx, strikeidx
 

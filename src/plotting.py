@@ -1057,9 +1057,10 @@ def plot_trace(axes, tr, **kwargs):
     return axes.plot(tr.get_xdata(), tr.get_ydata(), **kwargs)
 
 
-def plot_taper(axes, t, taper, **kwargs):
+def plot_taper(axes, t, taper, mode='geometry', **kwargs):
     y = num.ones(t.size) * 0.9
-    taper(y, t[0], t[1] - t[0])
+    if mode == 'geometry':
+        taper(y, t[0], t[1] - t[0])
     y2 = num.concatenate((y, -y[::-1]))
     t2 = num.concatenate((t, t[::-1]))
     axes.fill(t2, y2, **kwargs)
@@ -1261,7 +1262,7 @@ def seismic_fits(problem, stage, plot_options):
 
                 plot_taper(
                     axes2, result.processed_obs.get_xdata(), result.taper,
-                    fc=tap_color_fill, ec=tap_color_edge)
+                    mode=composite._mode, fc=tap_color_fill, ec=tap_color_edge)
 
                 obs_color = scolor('aluminium5')
                 obs_color_light = light(obs_color, 0.5)

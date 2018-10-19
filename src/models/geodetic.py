@@ -754,5 +754,5 @@ class GeodeticDistributerComposite(GeodeticComposite):
         return synths
 
     def update_weights(self, point, n_jobs=1, plot=False):
-        logger.warning('Not implemented yet!')
-        raise NotImplementedError('Not implemented yet!')
+        logger.warning('Cp updating not implemented yet!')
+        pass
