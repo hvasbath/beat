@@ -1485,6 +1485,165 @@ def draw_fuzzy_beachball(problem, po):
         logger.info('Plot already exists! Please use --force to overwrite!')
 
 
+def draw_hudson(problem, po):
+
+    from pyrocko.plot import beachball, hudson
+    from pyrocko import moment_tensor as mtm
+    from numpy import random
+    if problem.config.problem_config.n_sources > 1:
+        raise NotImplementedError(
+            'Hudson plot is not yet implemented for more than one source!')
+
+    if not po.reference:
+        llk_str = po.post_llk
+        stage = Stage(homepath=problem.outfolder)
+
+        stage.load_results(
+            varnames=problem.varnames,
+            model=problem.model, stage_number=po.load_stage,
+            load='trace', chains=[-1])
+
+        n_mts = len(stage.mtrace)
+        m6s = num.empty((n_mts, 6), dtype='float64')
+        for i, varname in enumerate(
+                ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
+            m6s[:, i] = stage.mtrace.get_values(
+                varname, combine=True, squeeze=True).ravel()
+
+    else:
+        llk_str = 'ref'
+        m6s = num.empty((1, 6), dtype='float64')
+        for i, varname in enumerate(
+                ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
+            m6s[:, i] = po.reference[varname].ravel()
+
+    m6s_mean = num.mean(m6s, axis=0)
+    m6s_best = m6s[-1, :]
+
+    fontsize = 12
+    beachball_type = 'full'
+    color = 'black'
+    markersize = fontsize * 1.5
+    markersize_small = markersize * 0.2
+    beachballsize = markersize
+    beachballsize_small = beachballsize * 0.5
+
+    fig = plt.figure(figsize=(4., 4.))
+    fig.subplots_adjust(left=0., right=1., bottom=0., top=1.)
+    axes = fig.add_subplot(1, 1, 1)
+
+    data = []
+    for x in m6s:
+        mt = mtm.MomentTensor(
+            mnn=x[0],
+            mee=x[1],
+            mdd=x[2],
+            mne=x[3],
+            mnd=x[4],
+            med=x[5])
+        u, v = hudson.project(mt)
+
+        if random.random() < 0.1:
+            try:
+                beachball.plot_beachball_mpl(
+                    mt, axes,
+                    beachball_type=beachball_type,
+                    position=(u, v),
+                    size=beachballsize_small,
+                    color_t=color,
+                    alpha=0.5,
+                    zorder=1,
+                    linewidth=0.25)
+            except beachball.BeachballError as e:
+                logger.warn(str(e))
+
+        else:
+            data.append((u, v))
+
+        if data:
+            u, v = num.array(data).T
+            axes.plot(
+                u, v, 'o',
+                color=color,
+                ms=markersize_small,
+                mec='none',
+                mew=0,
+                alpha=0.25,
+                zorder=0)
+
+        hudson.draw_axes(axes)
+
+        mt = mtm.MomentTensor(
+            mnn=m6s_mean[0],
+            mee=m6s_mean[1],
+            mdd=m6s_mean[2],
+            mne=m6s_mean[3],
+            mnd=m6s_mean[4],
+            med=m6s_mean[5])
+        u, v = hudson.project(mt)
+
+        try:
+            beachball.plot_beachball_mpl(
+                mt, axes,
+                beachball_type=beachball_type,
+                position=(u, v),
+                size=beachballsize,
+                color_t=color,
+                zorder=2,
+                linewidth=0.5)
+        except beachball.BeachballError as e:
+            logger.warn(str(e))
+
+        mt = mtm.MomentTensor(
+            mnn=m6s_best[0],
+            mee=m6s_best[1],
+            mdd=m6s_best[2],
+            mne=m6s_best[3],
+            mnd=m6s_best[4],
+            med=m6s_best[5])
+        u, v = hudson.project(mt)
+
+        axes.plot(
+            u, v, 's',
+            markersize=markersize,
+            mew=1,
+            mec='black',
+            mfc='none',
+            zorder=-2)
+
+        mt = problem.event.moment_tensor
+
+        u, v = hudson.project(mt)
+
+        try:
+            beachball.plot_beachball_mpl(
+                mt, axes,
+                beachball_type=beachball_type,
+                position=(u, v),
+                size=beachballsize,
+                color_t='red',
+                zorder=2,
+                linewidth=0.5)
+        except beachball.BeachballError as e:
+            logger.warn(str(e))
+
+    outpath = os.path.join(
+        problem.outfolder,
+        po.figure_dir,
+        'hudson_%i_%s.%s' % (po.load_stage, llk_str, 'png'))
+
+    if not os.path.exists(outpath) or po.force or po.outformat == 'display':
+
+        if not po.outformat == 'display':
+            logger.info('saving figure to %s' % outpath)
+            fig.savefig(outpath, dpi=po.dpi)
+        else:
+            plt.show()
+
+    else:
+        logger.info('Plot already exists! Please use --force to overwrite!')
+
+
 def histplot_op(
         ax, data, reference=None, alpha=.35, color=None, bins=None,
         ntickmarks=5, tstd=None, kwargs={}):
@@ -2466,6 +2625,7 @@ plots_catalog = {
     'scene_fits': draw_geodetic_fits,
     'velocity_models': draw_earthmodels,
     'slip_distribution': draw_slip_dist,
+    'hudson': draw_hudson,
     'fuzzy_beachball': draw_fuzzy_beachball}
 
 
