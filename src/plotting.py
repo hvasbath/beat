@@ -1486,7 +1486,12 @@ def draw_fuzzy_beachball(problem, po):
 
 
 def draw_hudson(problem, po):
-
+    """
+    Modified from grond. Plot the hudson graph for the refrence (red) and
+    the best solution (biggest beachball). The position of the mean solution
+    is indicated by a black rectangle. Also a random number of models from the
+    selected stage are plotted as smaller beachballs on the hudson graph.
+    """
     from pyrocko.plot import beachball, hudson
     from pyrocko import moment_tensor as mtm
     from numpy import random
