@@ -1628,7 +1628,7 @@ def draw_hudson(problem, po):
     outpath = os.path.join(
         problem.outfolder,
         po.figure_dir,
-        'hudson_%i_%s.%s' % (po.load_stage, llk_str, po.format))
+        'hudson_%i_%s.%s' % (po.load_stage, llk_str, po.outformat))
 
     if not os.path.exists(outpath) or po.force or po.outformat == 'display':
 
