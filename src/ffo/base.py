@@ -999,11 +999,11 @@ def seis_construct_gf_linear(
 
     starttimeidxs = num.arange(
         int(num.floor(
-            start_times.min() + nucleation_time_prior.lower.min() /
-            starttime_sampling)),
+            start_times.min() + nucleation_time_prior.lower.min()) /
+            starttime_sampling),
         int(num.ceil(
-            start_times.max() + nucleation_time_prior.upper.max() /
-            starttime_sampling)))
+            start_times.max() + nucleation_time_prior.upper.max()) /
+            starttime_sampling) + 1)
     starttimes = starttimeidxs * starttime_sampling
 
     ndurations = error_not_whole((
