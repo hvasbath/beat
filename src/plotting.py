@@ -625,6 +625,7 @@ def geodetic_fits(problem, stage, plot_options):
     """
     from pyrocko.dataset import gshhg
     from kite.scene import Scene, UserIOWarning
+    import gc
 
     datatype = 'geodetic'
     mode = problem.config.problem_config.mode
@@ -703,16 +704,16 @@ def geodetic_fits(problem, stage, plot_options):
 
                 scale_x['offset'] = source.lon
                 scale_y['offset'] = source.lat
-            elif po.plot_projection == 'utm':
-                ystr = 'UTM Northing [km]'
-                xstr = 'UTM Easting [km]'
-                scale_x = {'scale': 1. / km}
-                scale_y = {'scale': 1. / km}
+
             elif po.plot_projection == 'local':
                 ystr = 'Distance [km]'
                 xstr = 'Distance [km]'
-                scale_x = {'scale': 1. / km}
-                scale_y = {'scale': 1. / km}
+                if scene.frame.isDegree():
+                    scale_x = {'scale': otd.d2m / km}
+                    scale_y = {'scale': otd.d2m / km}
+                else:
+                    scale_x = {'scale': 1. / km}
+                    scale_y = {'scale': 1. / km}
             else:
                 raise Exception(
                     'Plot projection %s not available' % po.plot_projection)
@@ -728,7 +729,7 @@ def geodetic_fits(problem, stage, plot_options):
         axes[0].set_ylabel(ystr, fontsize=fontsize)
         axes[0].set_xlabel(xstr, fontsize=fontsize)
 
-    def draw_coastlines(ax, xlim, ylim, event, po):
+    def draw_coastlines(ax, xlim, ylim, event, scene, po):
         """
         xlim and ylim in Lon/Lat[deg]
         """
@@ -739,12 +740,6 @@ def geodetic_fits(problem, stage, plot_options):
         if po.plot_projection == 'latlon':
             west, east = xlim
             south, north = ylim
-
-        elif po.plot_projection == 'utm':
-            lons, lats = utility.utm_to_lonlat(
-                utmx=xlim, utmy=ylim, zone=po.utm_zone)
-            west, east = lons
-            south, north = lats
 
         elif po.plot_projection == 'local':
             lats, lons = otd.ne_to_latlon(
@@ -760,16 +755,14 @@ def geodetic_fits(problem, stage, plot_options):
             if (p.is_land() or p.is_antarctic_grounding_line() or
                p.is_island_in_lake()):
 
-                if po.plot_projection == 'latlon':
-                    xs = p.lons
-                    ys = p.lats
-
-                elif po.plot_projection == 'utm':
-                    xs, ys = utility.lonlat_to_utm(p.lons, p.lats, po.utm_zone)
-
-                elif po.plot_projection == 'local':
+                if scene.frame.isMeter():
                     ys, xs = otd.latlon_to_ne_numpy(
                         event.lat, event.lon, p.lats, p.lons)
+
+                elif scene.frame.isDegree():
+
+                    xs = p.lons - event.lon
+                    ys = p.lats - event.lat
 
                 ax.plot(xs, ys, '-k', linewidth=0.5)
 
@@ -819,20 +812,27 @@ def geodetic_fits(problem, stage, plot_options):
                    scene.quadtree.leaf_coordinates[:, 1] - offset_n,
                    s=.25, c='black', alpha=.1)
 
-    def draw_sources(ax, sources, po, **kwargs):
-        color = kwargs.pop('color', None)
+    def draw_sources(ax, sources, scene, po, **kwargs):
+        bgcolor = kwargs.pop('color', None)
 
         for i, source in enumerate(sources):
 
-            fn, fe = source.outline(cs='xy').T
+            if scene.frame.isMeter():
+                fn, fe = source.outline(cs='xy').T
+            elif scene.frame.isDegree():
+                fn, fe = source.outline(cs='latlon').T
+                fn -= source.lat
+                fe -= source.lon
 
-            if not color:
+            if not bgcolor:
                 color = mpl_graph_color(i)
+            else:
+                color = bgcolor
 
             if fn.size > 1:
                 ax.plot(
                     fe, fn, '-',
-                    linewidth=1.0, color=color, alpha=0.6, **kwargs)
+                    linewidth=0.5, color=color, alpha=0.6, **kwargs)
                 ax.fill(
                     fe, fn,
                     edgecolor=color,
@@ -946,7 +946,7 @@ def geodetic_fits(problem, stage, plot_options):
 
                 draw_leaves(ax, scene, offset_e, offset_n)
                 draw_coastlines(
-                    ax, lon, lat, sources[0], po)
+                    ax, lon, lat, sources[0], scene, po)
 
             titley = 0.91
             titlex = 0.16
@@ -961,7 +961,7 @@ def geodetic_fits(problem, stage, plot_options):
                 fontsize=fontsize_title)
 
             draw_sources(
-                axes[figidx][rowidx, 1], sources, po)
+                axes[figidx][rowidx, 1], sources, scene, po)
 
             if ref_sources:
                 ref_color = scolor('aluminium4')
@@ -999,10 +999,14 @@ def geodetic_fits(problem, stage, plot_options):
                 cbr.set_label(cblabel, fontsize=fontsize)
 
             axis_config(axes[figidx][rowidx, :], sources[0], scene, po)
+            addArrow(axes[figidx][rowidx, 0], scene)
 
             title = ' Llk_' + po.post_llk
             figures[figidx].suptitle(
                 title, fontsize=fontsize_title, weight='bold')
+
+            del scene
+            gc.collect()
 
     nplots = ndmax * nfigs
     for delidx in range(nrmax, nplots):
