@@ -487,6 +487,57 @@ def plot_log_cov(cov_mat):
     plt.colorbar(im)
     plt.show()
 
+def get_result_source(stage, config, point_llk='max'):
+    """
+    Return point of a given stage result.
+
+    Parameters
+    ----------
+    stage : :class:`models.Stage`
+    config : :class:`config.BEATConfig`
+    point_llk : str
+        with specified llk(max, mean, min).
+
+    Returns
+    -------
+    dict
+    """
+    if config.sampler_config.name == 'Metropolis':
+        if stage.step is None:
+            raise AttributeError(
+                'Loading Metropolis results requires'
+                ' sampler parameters to be loaded!')
+
+        sc = config.sampler_config.parameters
+        pdict, _ = get_trace_stats(
+            stage.mtrace, stage.step, sc.burn, sc.thin)
+        point = pdict[point_llk]
+
+    elif config.sampler_config.name == 'SMC':
+        llk = stage.mtrace.get_values(
+            varname='like',
+            combine=True)
+
+        posterior_idxs = utility.get_fit_indexes(llk)
+
+        source = stage.mtrace.source(idx=posterior_idxs[point_llk])
+
+    elif config.sampler_config.name == 'PT':
+        params = config.sampler_config.parameters
+        llk = stage.mtrace.get_values(
+            varname='like',
+            burn=int(params.n_samples * params.burn),
+            thin=params.thin)
+
+        posterior_idxs = utility.get_fit_indexes(llk)
+
+        source = stage.mtrace.source(idx=posterior_idxs[point_llk])
+
+    else:
+        raise NotImplementedError(
+            'Sampler "%s" is not supported!' % config.sampler_config.name)
+
+    return source
 
 def get_result_point(stage, config, point_llk='max'):
     """
@@ -1522,8 +1573,17 @@ def draw_hudson(problem, po):
                 ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
             m6s[:, i] = po.reference[varname].ravel()
 
-    m6s_mean = num.mean(m6s, axis=0)
-    m6s_best = m6s[-1, :]
+    m6_mean = num.empty((6), dtype='float64')
+    point = get_result_point(stage, problem.config, 'mean')
+    for i, varname in enumerate(
+            ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
+                m6_mean[i] = point[varname]
+
+    m6_max = num.empty((6), dtype='float64')
+    point = get_result_point(stage, problem.config, 'max')
+    for i, varname in enumerate(
+            ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
+                m6_max[i] = point[varname]
 
     fontsize = 12
     beachball_type = 'full'
@@ -1538,14 +1598,8 @@ def draw_hudson(problem, po):
     axes = fig.add_subplot(1, 1, 1)
 
     data = []
-    for x in m6s:
-        mt = mtm.MomentTensor(
-            mnn=x[0],
-            mee=x[1],
-            mdd=x[2],
-            mne=x[3],
-            mnd=x[4],
-            med=x[5])
+    for m6 in m6s:
+        mt = mtm.as_mt(m6)
         u, v = hudson.project(mt)
 
         if random.random() < 0.1:
@@ -1578,13 +1632,8 @@ def draw_hudson(problem, po):
 
         hudson.draw_axes(axes)
 
-        mt = mtm.MomentTensor(
-            mnn=m6s_mean[0],
-            mee=m6s_mean[1],
-            mdd=m6s_mean[2],
-            mne=m6s_mean[3],
-            mnd=m6s_mean[4],
-            med=m6s_mean[5])
+        mt = mtm.as_mt(m6_mean)
+
         u, v = hudson.project(mt)
 
         try:
@@ -1599,13 +1648,8 @@ def draw_hudson(problem, po):
         except beachball.BeachballError as e:
             logger.warn(str(e))
 
-        mt = mtm.MomentTensor(
-            mnn=m6s_best[0],
-            mee=m6s_best[1],
-            mdd=m6s_best[2],
-            mne=m6s_best[3],
-            mnd=m6s_best[4],
-            med=m6s_best[5])
+        mt = mtm.as_mt(m6_max)
+
         u, v = hudson.project(mt)
 
         axes.plot(
@@ -1635,7 +1679,7 @@ def draw_hudson(problem, po):
     outpath = os.path.join(
         problem.outfolder,
         po.figure_dir,
-        'hudson_%i_%s.%s' % (po.load_stage, llk_str, 'png'))
+        'hudson_%i_%s.%s' % (po.load_stage, llk_str, po.format))
 
     if not os.path.exists(outpath) or po.force or po.outformat == 'display':
 
