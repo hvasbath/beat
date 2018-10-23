@@ -1484,6 +1484,18 @@ def draw_fuzzy_beachball(problem, po):
     else:
         logger.info('Plot already exists! Please use --force to overwrite!')
 
+def point2array(a, n_mts=None):
+
+    if n_mts is not None:
+        if a is 'm6s':
+            return num.empty((n_mts, 6), dtype='float64')
+
+    if a is 'm6s':
+            return num.empty((1, 6), dtype='float64')
+
+    if a is 'm6_mean' or 'm6_max':
+            return num.empty((6), dtype='float64')
+
 
 def draw_hudson(problem, po):
     """
@@ -1509,7 +1521,8 @@ def draw_hudson(problem, po):
             load='trace', chains=[-1])
 
         n_mts = len(stage.mtrace)
-        m6s = num.empty((n_mts, 6), dtype='float64')
+        m6s = point2array('m6s', n_mts)
+
         for i, varname in enumerate(
                 ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
             m6s[:, i] = stage.mtrace.get_values(
@@ -1517,18 +1530,18 @@ def draw_hudson(problem, po):
 
     else:
         llk_str = 'ref'
-        m6s = num.empty((1, 6), dtype='float64')
+        m6s = point2array('m6s')
         for i, varname in enumerate(
                 ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
             m6s[:, i] = po.reference[varname].ravel()
 
-    m6_mean = num.empty((6), dtype='float64')
+    m6_mean = point2array('m6_mean')
     point = get_result_point(stage, problem.config, 'mean')
     for i, varname in enumerate(
             ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
                 m6_mean[i] = point[varname]
 
-    m6_max = num.empty((6), dtype='float64')
+    m6_max = point2array('m6_max')
     point = get_result_point(stage, problem.config, 'max')
     for i, varname in enumerate(
             ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
@@ -1547,6 +1560,7 @@ def draw_hudson(problem, po):
     axes = fig.add_subplot(1, 1, 1)
 
     data = []
+
     for m6 in m6s:
         mt = mtm.as_mt(m6)
         u, v = hudson.project(mt)
@@ -1568,62 +1582,61 @@ def draw_hudson(problem, po):
         else:
             data.append((u, v))
 
-        if data:
-            u, v = num.array(data).T
-            axes.plot(
-                u, v, 'o',
-                color=color,
-                ms=markersize_small,
-                mec='none',
-                mew=0,
-                alpha=0.25,
-                zorder=0)
-
-        hudson.draw_axes(axes)
-
-        mt = mtm.as_mt(m6_mean)
-
-        u, v = hudson.project(mt)
-
-        try:
-            beachball.plot_beachball_mpl(
-                mt, axes,
-                beachball_type=beachball_type,
-                position=(u, v),
-                size=beachballsize,
-                color_t=color,
-                zorder=2,
-                linewidth=0.5)
-        except beachball.BeachballError as e:
-            logger.warn(str(e))
-
-        mt = mtm.as_mt(m6_max)
-
-        u, v = hudson.project(mt)
-
+    if data:
+        u, v = num.array(data).T
         axes.plot(
-            u, v, 's',
-            markersize=markersize,
-            mew=1,
-            mec='black',
-            mfc='none',
-            zorder=-2)
+            u, v, 'o',
+            color=color,
+            ms=markersize_small,
+            mec='none',
+            mew=0,
+            alpha=0.25,
+            zorder=0)
 
-        mt = problem.event.moment_tensor
+    hudson.draw_axes(axes)
 
-        u, v = hudson.project(mt)
+    mt = mtm.as_mt(m6_mean)
+    u, v = hudson.project(mt)
 
-        try:
-            beachball.plot_beachball_mpl(
-                mt, axes,
-                beachball_type=beachball_type,
-                position=(u, v),
-                size=beachballsize,
-                color_t='red',
-                zorder=2,
-                linewidth=0.5)
-        except beachball.BeachballError as e:
-            logger.warn(str(e))
+    try:
+        beachball.plot_beachball_mpl(
+            mt, axes,
+            beachball_type=beachball_type,
+            position=(u, v),
+            size=beachballsize,
+            color_t=color,
+            zorder=2,
+            linewidth=0.5)
+    except beachball.BeachballError as e:
+        logger.warn(str(e))
+
+    mt = mtm.as_mt(m6_max)
+
+    u, v = hudson.project(mt)
+
+    axes.plot(
+        u, v, 's',
+        markersize=markersize,
+        mew=1,
+        mec='black',
+        mfc='none',
+        zorder=-2)
+
+    mt = problem.event.moment_tensor
+
+    u, v = hudson.project(mt)
+
+    try:
+        beachball.plot_beachball_mpl(
+            mt, axes,
+            beachball_type=beachball_type,
+            position=(u, v),
+            size=beachballsize,
+            color_t='red',
+            zorder=2,
+            linewidth=0.5)
+    except beachball.BeachballError as e:
+        logger.warn(str(e))
 
     outpath = os.path.join(
         problem.outfolder,
