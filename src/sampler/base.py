@@ -260,8 +260,7 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
 
     if len(shared_params) > 0:
         logger.debug('Accessing shared memory')
-        parallel.borrow_all_memories(
-            shared_params, parallel._shared_memory.values())
+        parallel.borrow_all_memories(shared_params, parallel._shared_memory)
 
     sampling = _iter_sample(draws, step, start, trace, chain,
                             tune, model, random_seed)
@@ -449,7 +448,7 @@ def iter_parallel_chains(
 
         timeout += int(np.ceil(tps * draws)) * n_jobs + 10
 
-        if n_jobs > 1:
+        if n_jobs > 1 and True:
             shared_params = [
                 sparam for sparam in step.logp_forw.get_shared()
                 if sparam.name in parallel._tobememshared]

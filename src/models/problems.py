@@ -751,9 +751,6 @@ class DistributionOptimizer(Problem):
                 ds.append(composite.sdata.get_value())
 
             elif datatype == 'seismic':
-                logger.warning(
-                    'Least-squares initialization is not'
-                    ' supported (yet) for seismic data!')
                 if False:
                     for wmap in composite.wavemaps:
                         keys = [composite.get_gflibrary_key(

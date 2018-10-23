@@ -327,17 +327,19 @@ def memshare_sparams(shared_params):
         size = original.size
         shape = original.shape
         original.shape = size
-        logger.debug('Allocating %s' % param.name)
+        logger.info('Allocating %s' % param.name)
         ctypes = multiprocessing.RawArray(
-            'f' if original.dtype == num.float32 else 'd', original)
-        wrapped = num.frombuffer(ctypes, dtype=original.dtype, count=size)
-        wrapped.shape = shape
+            'f' if original.dtype == num.float32 else 'd', size)
+        memoryview(ctypes)[:] = original
+        # wrapped = num.frombuffer(ctypes, dtype=original.dtype, count=size)
+        # wrapped.shape = shape
 
-        param.set_value(wrapped, borrow=True)
-        _shared_memory[param.name] = ctypes
+        # remove large object from Shared to get through pickle size limitation 
+        param.set_value(num.empty([1 for i in range(len(shape))]), borrow=True)
+        _shared_memory[param.name] = (ctypes, shape)
 
 
-def borrow_memory(shared_param, memshared_instance):
+def borrow_memory(shared_param, memshared_instance, shape):
     """
     Spawn different processes with the shared memory
     of your theano model's variables.
@@ -349,6 +351,8 @@ def borrow_memory(shared_param, memshared_instance):
         shared memory should be used instead.
     memshared_instance : :class:`multiprocessing.RawArray`
         the memory shared across processes (e.g.from `memshare_sparams`)
+    shape : tuple
+        of shape of shared instance
 
     Notes
     -----
@@ -381,8 +385,7 @@ def borrow_memory(shared_param, memshared_instance):
 
         # acquire your dataset (either through some smart shared memory
         # or by reloading it for each process)
-        dataset, dataset_labels = acquire_dataset()
-
+        # dataset, dataset_labels = acquire_dataset()
         # then run your model forward in this process
         epochs = 20
         for epoch in range(epochs):
@@ -391,8 +394,7 @@ def borrow_memory(shared_param, memshared_instance):
     """
 
     logger.debug('%s' % shared_param.name)
-    param_value = num.frombuffer(memshared_instance)
-    param_value.shape = shared_param.get_value(True, True).shape
+    param_value = num.frombuffer(memshared_instance).reshape(shape)
     shared_param.set_value(param_value, borrow=True)
 
 
@@ -407,8 +409,8 @@ def borrow_all_memories(shared_params, memshared_instances):
         of :class:`theano.tensor.sharedvar.TensorSharedVariable`
         the Theano shared variable where
         shared memory should be used instead.
-    memshared_instance : list
-        of :class:`multiprocessing.RawArray`
+    memshared_instances : dict of tuples
+        of :class:`multiprocessing.RawArray` and their shapes
         the memory shared across processes (e.g.from `memshare_sparams`)
 
     Notes
@@ -416,6 +418,5 @@ def borrow_all_memories(shared_params, memshared_instances):
     Same as `borrow_memory` but for lists of shared memories and
     theano variables. See `borrow_memory`
     """
-    for shared_param, memshared_instance in zip(
-            shared_params, memshared_instances):
-        borrow_memory(shared_param, memshared_instance)
+    for sparam in shared_params:
+        borrow_memory(sparam, *memshared_instances[sparam.name])
