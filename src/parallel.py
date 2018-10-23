@@ -330,13 +330,13 @@ def memshare_sparams(shared_params):
         logger.info('Allocating %s' % param.name)
         ctypes = multiprocessing.RawArray(
             'f' if original.dtype == num.float32 else 'd', size)
-        memoryview(ctypes)[:] = original
-        # wrapped = num.frombuffer(ctypes, dtype=original.dtype, count=size)
-        # wrapped.shape = shape
 
-        # remove large object from Shared to get through pickle size limitation 
+        ctypes_numarr = num.ctypeslib.as_array(ctypes)
+        ctypes_numarr[:] = original
+
+        # remove large object from Shared to get through pickle size limitation
         param.set_value(num.empty([1 for i in range(len(shape))]), borrow=True)
-        _shared_memory[param.name] = (ctypes, shape)
+        _shared_memory[param.name] = (ctypes_numarr, shape)
 
 
 def borrow_memory(shared_param, memshared_instance, shape):
