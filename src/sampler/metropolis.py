@@ -148,6 +148,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
         super(Metropolis, self).__init__(vars, out_vars, shared)
 
         self.chain_previous_lpoint = [[]] * self.n_chains
+        self._tps = None
 
     def _sampler_state_blacklist(self):
         """
@@ -189,15 +190,17 @@ class Metropolis(backend.ArrayStepSharedLLK):
         for k, v in state.items():
             setattr(self, k, v)
 
-    def time_per_sample(self, n_points):
-        tps = num.zeros((n_points))
-        for i in range(n_points):
-            q = self.bij.map(self.population[i])
-            t0 = time()
-            self.logp_forw(q)
-            t1 = time()
-            tps[i] = t1 - t0
-        return tps.mean()
+    def time_per_sample(self, n_points=10):
+        if not self._tps:
+            tps = num.zeros((n_points))
+            for i in range(n_points):
+                q = self.bij.map(self.population[i])
+                t0 = time()
+                self.logp_forw(q)
+                t1 = time()
+                tps[i] = t1 - t0
+            self._tps =  tps.mean()
+        return self._tps
 
     def astep(self, q0):
         if self.stage == 0:
