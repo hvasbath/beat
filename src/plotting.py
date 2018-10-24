@@ -1425,6 +1425,7 @@ def draw_fuzzy_beachball(problem, po):
         raise NotImplementedError(
             'Fuzzy beachball is not yet implemented for more than one source!')
 
+    varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
     if not po.reference:
         llk_str = po.post_llk
         stage = Stage(homepath=problem.outfolder)
@@ -1436,17 +1437,22 @@ def draw_fuzzy_beachball(problem, po):
 
         n_mts = len(stage.mtrace)
         m6s = num.empty((n_mts, 6), dtype='float64')
-        for i, varname in enumerate(
-                ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
+        for i, varname in enumerate(varnames):
             m6s[:, i] = stage.mtrace.get_values(
                 varname, combine=True, squeeze=True).ravel()
 
+        point = get_result_point(stage, problem.config, po.post_llk)
+        best_mt = point2array(point, varnames=varnames)
     else:
         llk_str = 'ref'
         m6s = num.empty((1, 6), dtype='float64')
         for i, varname in enumerate(
                 ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
             m6s[:, i] = po.reference[varname].ravel()
+
+        best_mt = None
+
+    logger.info('Drawing Fuzzy Beachball ...')
 
     kwargs = {
         'beachball_type': 'full',
@@ -1469,7 +1475,7 @@ def draw_fuzzy_beachball(problem, po):
     if not os.path.exists(outpath) or po.force or po.outformat == 'display':
 
         beachball.plot_fuzzy_beachball_mpl_pixmap(
-            m6s, axes, best_mt=None, best_color='red', **kwargs)
+            m6s, axes, best_mt=best_mt, best_color='red', **kwargs)
 
         axes.set_xlim(0., 10.)
         axes.set_ylim(0., 10.)
@@ -1484,26 +1490,26 @@ def draw_fuzzy_beachball(problem, po):
     else:
         logger.info('Plot already exists! Please use --force to overwrite!')
 
-def point2array(a, n_mts=None):
 
-    if n_mts is not None:
-        if a is 'm6s':
-            return num.empty((n_mts, 6), dtype='float64')
+def point2array(point, varnames):
+    """
+    Concatenate values of point according to order of given varnames.
+    """
+    array = num.empty((6), dtype='float64')
+    for i, varname in enumerate(varnames):
+        array[i] = point[varname].ravel()
 
-    if a is 'm6s':
-            return num.empty((1, 6), dtype='float64')
-
-    if a is 'm6_mean' or 'm6_max':
-            return num.empty((6), dtype='float64')
+    return array
 
 
 def draw_hudson(problem, po):
     """
-    Modified from grond. Plot the hudson graph for the refrence (red) and
-    the best solution (biggest beachball). The position of the mean solution
-    is indicated by a black rectangle. Also a random number of models from the
+    Modified from grond. Plot the hudson graph for the reference event(grey)
+    and the best solution (red beachball).
+    Also a random number of models from the
     selected stage are plotted as smaller beachballs on the hudson graph.
     """
+
     from pyrocko.plot import beachball, hudson
     from pyrocko import moment_tensor as mtm
     from numpy import random
@@ -1511,6 +1517,7 @@ def draw_hudson(problem, po):
         raise NotImplementedError(
             'Hudson plot is not yet implemented for more than one source!')
 
+    varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
     if not po.reference:
         llk_str = po.post_llk
         stage = Stage(homepath=problem.outfolder)
@@ -1521,35 +1528,23 @@ def draw_hudson(problem, po):
             load='trace', chains=[-1])
 
         n_mts = len(stage.mtrace)
-        m6s = point2array('m6s', n_mts)
-
-        for i, varname in enumerate(
-                ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
+        m6s = num.empty((n_mts, 6), dtype='float64')
+        for i, varname in enumerate(varnames):
             m6s[:, i] = stage.mtrace.get_values(
                 varname, combine=True, squeeze=True).ravel()
 
+        point = get_result_point(stage, problem.config, po.post_llk)
+        best_mt = point2array(point, varnames=varnames)
     else:
         llk_str = 'ref'
-        m6s = point2array('m6s')
-        for i, varname in enumerate(
-                ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
-            m6s[:, i] = po.reference[varname].ravel()
+        m6s = point2array(point=po.reference, varnames=varnames)
+        best_mt = None
 
-    m6_mean = point2array('m6_mean')
-    point = get_result_point(stage, problem.config, 'mean')
-    for i, varname in enumerate(
-            ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
-                m6_mean[i] = point[varname]
-
-    m6_max = point2array('m6_max')
-    point = get_result_point(stage, problem.config, 'max')
-    for i, varname in enumerate(
-            ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
-                m6_max[i] = point[varname]
+    logger.info('Drawing Hudson plot ...')
 
     fontsize = 12
     beachball_type = 'full'
-    color = 'black'
+    color = 'red'
     markersize = fontsize * 1.5
     markersize_small = markersize * 0.2
     beachballsize = markersize
@@ -1558,9 +1553,9 @@ def draw_hudson(problem, po):
     fig = plt.figure(figsize=(4., 4.))
     fig.subplots_adjust(left=0., right=1., bottom=0., top=1.)
     axes = fig.add_subplot(1, 1, 1)
+    hudson.draw_axes(axes)
 
     data = []
-
     for m6 in m6s:
         mt = mtm.as_mt(m6)
         u, v = hudson.project(mt)
@@ -1572,7 +1567,7 @@ def draw_hudson(problem, po):
                     beachball_type=beachball_type,
                     position=(u, v),
                     size=beachballsize_small,
-                    color_t=color,
+                    color_t='black',
                     alpha=0.5,
                     zorder=1,
                     linewidth=0.25)
@@ -1593,50 +1588,40 @@ def draw_hudson(problem, po):
             alpha=0.25,
             zorder=0)
 
-    hudson.draw_axes(axes)
+    if best_mt is not None:
+        mt = mtm.as_mt(best_mt)
+        u, v = hudson.project(mt)
 
-    mt = mtm.as_mt(m6_mean)
-    u, v = hudson.project(mt)
-
-    try:
-        beachball.plot_beachball_mpl(
-            mt, axes,
-            beachball_type=beachball_type,
-            position=(u, v),
-            size=beachballsize,
-            color_t=color,
-            zorder=2,
-            linewidth=0.5)
-    except beachball.BeachballError as e:
-        logger.warn(str(e))
-
-    mt = mtm.as_mt(m6_max)
-
-    u, v = hudson.project(mt)
-
-    axes.plot(
-        u, v, 's',
-        markersize=markersize,
-        mew=1,
-        mec='black',
-        mfc='none',
-        zorder=-2)
+        try:
+            beachball.plot_beachball_mpl(
+                mt, axes,
+                beachball_type=beachball_type,
+                position=(u, v),
+                size=beachballsize,
+                color_t=color,
+                alpha=0.5,
+                zorder=2,
+                linewidth=0.25)
+        except beachball.BeachballError as e:
+            logger.warn(str(e))
 
     mt = problem.event.moment_tensor
-
     u, v = hudson.project(mt)
 
-    try:
-        beachball.plot_beachball_mpl(
-            mt, axes,
-            beachball_type=beachball_type,
-            position=(u, v),
-            size=beachballsize,
-            color_t='red',
-            zorder=2,
-            linewidth=0.5)
-    except beachball.BeachballError as e:
-        logger.warn(str(e))
+    if po.reference:
+        try:
+            beachball.plot_beachball_mpl(
+                mt, axes,
+                beachball_type=beachball_type,
+                position=(u, v),
+                size=beachballsize,
+                color_t='grey',
+                alpha=0.5,
+                zorder=2,
+                linewidth=0.25)
+            logger.info('drawing reference event in grey ...')
+        except beachball.BeachballError as e:
+            logger.warn(str(e))
 
     outpath = os.path.join(
         problem.outfolder,
