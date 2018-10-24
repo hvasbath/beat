@@ -939,8 +939,7 @@ class SeismicDistributerComposite(SeismicComposite):
                 tr = Trace(
                     ydata=synthetics[i, :],
                     tmin=float(
-                        gflibrary.reference_times[i] +
-                        tpoint['nucleation_time']),
+                        gflibrary.reference_times[i]),
                     deltat=gflibrary.deltat)
 
                 tr.set_codes(*target.codes)

@@ -2445,7 +2445,7 @@ def fault_slip_distribution(
                 csteps = int(num.floor(nchains / ncontours))
                 for i in range(0, nchains, csteps):
                     nuc_dip_idx, nuc_strike_idx = fault.fault_locations2idxs(
-                        nuc_dip, nuc_strike, backend='numpy')
+                        0, nuc_dip, nuc_strike, backend='numpy')
                     sts = fault.get_subfault_starttimes(
                         0, velocities[i, :], nuc_dip_idx, nuc_strike_idx)
 

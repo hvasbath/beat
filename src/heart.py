@@ -1380,8 +1380,7 @@ def get_velocity_model(
 
     else:
         logger.info('Using global model ...')
-        source_model = cake.load_model(
-            earth_model_name).extract(depth_max='cmb')
+        source_model = cake.load_model(earth_model_name)
 
     if crust_ind > 0:
         source_model = ensemble_earthmodel(
@@ -1566,7 +1565,7 @@ def choose_backend(
     elif code == 'qssp':
         source_model = copy.deepcopy(receiver_model)
         receiver_model = None
-        version = '2010beta'
+        version = '2010'
 
         conf = qssp.QSSPConfig(
             qssp_version=version,
@@ -1809,28 +1808,25 @@ def geo_construct_gf(
 
     traces_path = os.path.join(store_dir, 'traces')
 
-    if execute and not os.path.exists(traces_path) or force:
-        logger.info('Filling store ...')
+    if execute:
+        if not os.path.exists(traces_path) or force:
+            logger.info('Filling store ...')
 
-        store = gf.store.Store(store_dir, 'r')
-        store.close()
+            store = gf.store.Store(store_dir, 'r')
+            store.close()
 
-        # build store
-        try:
-            ppp.build(store_dir, nworkers=gfc.nworkers, force=force)
-        except ppp.PsCmpError as e:
-            if str(e).find('could not start psgrn/pscmp') != -1:
-                logger.warn('psgrn/pscmp not installed')
-                return
-            else:
-                raise
+            # build store
+            try:
+                ppp.build(store_dir, nworkers=gfc.nworkers, force=force)
+            except ppp.PsCmpError as e:
+                if str(e).find('could not start psgrn/pscmp') != -1:
+                    logger.warn('psgrn/pscmp not installed')
+                    return
+                else:
+                    raise
 
-    elif not execute and not os.path.exists(traces_path):
-        logger.info('Geo GFs can be created in directory: %s ! '
-                    '(execute=True necessary)! GF params: \n' % store_dir)
-        print(fomosto_config, c)
-    else:
-        logger.info('Traces exist use force=True to overwrite!')
+        else:
+            logger.info('Traces exist use force=True to overwrite!')
 
 
 def geo_construct_gf_psgrn(
