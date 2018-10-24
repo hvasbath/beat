@@ -1495,7 +1495,7 @@ def point2array(point, varnames):
     """
     Concatenate values of point according to order of given varnames.
     """
-    array = num.empty((6), dtype='float64')
+    array = num.empty((len(varnames)), dtype='float64')
     for i, varname in enumerate(varnames):
         array[i] = point[varname].ravel()
 
