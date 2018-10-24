@@ -44,6 +44,7 @@ __all__ = [
 
 u_nm = '$[Nm]$'
 u_km = '$[km]$'
+u_km_s = '$[km/s]$'
 u_deg = '$[^{\circ}]$'
 u_m = '$[m]$'
 u_v = '$[m^3]$'
@@ -86,6 +87,8 @@ plot_units = {
     'time_shift': u_s,
     'uperp': u_m,
     'uparr': u_m,
+    'durations': u_s,
+    'velocities': u_km_s,
 
     'mnn': u_nm,
     'mee': u_nm,
@@ -968,7 +971,7 @@ def geodetic_fits(problem, stage, plot_options):
                 logger.info('Plotting reference sources')
                 draw_sources(
                     axes[figidx][rowidx, 1],
-                    ref_sources, po, color=ref_color)
+                    ref_sources, scene, po, color=ref_color)
 
             cbb = 0.68 - (0.3175 * rowidx)
             cbl = 0.46
