@@ -616,7 +616,7 @@ def scale_axes(axis, scale, offset=0.):
 
 def set_anchor(sources, anchor):
     for source in sources:
-        source.anchor=anchor
+        source.anchor = anchor
 
 
 def geodetic_fits(problem, stage, plot_options):
@@ -1429,6 +1429,7 @@ def draw_fuzzy_beachball(problem, po):
         raise NotImplementedError(
             'Fuzzy beachball is not yet implemented for more than one source!')
 
+    varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
     if not po.reference:
         llk_str = po.post_llk
         stage = Stage(homepath=problem.outfolder)
@@ -1440,17 +1441,22 @@ def draw_fuzzy_beachball(problem, po):
 
         n_mts = len(stage.mtrace)
         m6s = num.empty((n_mts, 6), dtype='float64')
-        for i, varname in enumerate(
-                ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
+        for i, varname in enumerate(varnames):
             m6s[:, i] = stage.mtrace.get_values(
                 varname, combine=True, squeeze=True).ravel()
 
+        point = get_result_point(stage, problem.config, po.post_llk)
+        best_mt = point2array(point, varnames=varnames)
     else:
         llk_str = 'ref'
         m6s = num.empty((1, 6), dtype='float64')
         for i, varname in enumerate(
                 ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
             m6s[:, i] = po.reference[varname].ravel()
+
+        best_mt = None
+
+    logger.info('Drawing Fuzzy Beachball ...')
 
     kwargs = {
         'beachball_type': 'full',
@@ -1473,11 +1479,160 @@ def draw_fuzzy_beachball(problem, po):
     if not os.path.exists(outpath) or po.force or po.outformat == 'display':
 
         beachball.plot_fuzzy_beachball_mpl_pixmap(
-            m6s, axes, best_mt=None, best_color='red', **kwargs)
+            m6s, axes, best_mt=best_mt, best_color='red', **kwargs)
 
         axes.set_xlim(0., 10.)
         axes.set_ylim(0., 10.)
         axes.set_axis_off()
+
+        if not po.outformat == 'display':
+            logger.info('saving figure to %s' % outpath)
+            fig.savefig(outpath, dpi=po.dpi)
+        else:
+            plt.show()
+
+    else:
+        logger.info('Plot already exists! Please use --force to overwrite!')
+
+
+def point2array(point, varnames):
+    """
+    Concatenate values of point according to order of given varnames.
+    """
+    array = num.empty((len(varnames)), dtype='float64')
+    for i, varname in enumerate(varnames):
+        array[i] = point[varname].ravel()
+
+    return array
+
+
+def draw_hudson(problem, po):
+    """
+    Modified from grond. Plot the hudson graph for the reference event(grey)
+    and the best solution (red beachball).
+    Also a random number of models from the
+    selected stage are plotted as smaller beachballs on the hudson graph.
+    """
+
+    from pyrocko.plot import beachball, hudson
+    from pyrocko import moment_tensor as mtm
+    from numpy import random
+    if problem.config.problem_config.n_sources > 1:
+        raise NotImplementedError(
+            'Hudson plot is not yet implemented for more than one source!')
+
+    varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
+    if not po.reference:
+        llk_str = po.post_llk
+        stage = Stage(homepath=problem.outfolder)
+
+        stage.load_results(
+            varnames=problem.varnames,
+            model=problem.model, stage_number=po.load_stage,
+            load='trace', chains=[-1])
+
+        n_mts = len(stage.mtrace)
+        m6s = num.empty((n_mts, 6), dtype='float64')
+        for i, varname in enumerate(varnames):
+            m6s[:, i] = stage.mtrace.get_values(
+                varname, combine=True, squeeze=True).ravel()
+
+        point = get_result_point(stage, problem.config, po.post_llk)
+        best_mt = point2array(point, varnames=varnames)
+    else:
+        llk_str = 'ref'
+        m6s = point2array(point=po.reference, varnames=varnames)
+        best_mt = None
+
+    logger.info('Drawing Hudson plot ...')
+
+    fontsize = 12
+    beachball_type = 'full'
+    color = 'red'
+    markersize = fontsize * 1.5
+    markersize_small = markersize * 0.2
+    beachballsize = markersize
+    beachballsize_small = beachballsize * 0.5
+
+    fig = plt.figure(figsize=(4., 4.))
+    fig.subplots_adjust(left=0., right=1., bottom=0., top=1.)
+    axes = fig.add_subplot(1, 1, 1)
+    hudson.draw_axes(axes)
+
+    data = []
+    for m6 in m6s:
+        mt = mtm.as_mt(m6)
+        u, v = hudson.project(mt)
+
+        if random.random() < 0.1:
+            try:
+                beachball.plot_beachball_mpl(
+                    mt, axes,
+                    beachball_type=beachball_type,
+                    position=(u, v),
+                    size=beachballsize_small,
+                    color_t='black',
+                    alpha=0.5,
+                    zorder=1,
+                    linewidth=0.25)
+            except beachball.BeachballError as e:
+                logger.warn(str(e))
+
+        else:
+            data.append((u, v))
+
+    if data:
+        u, v = num.array(data).T
+        axes.plot(
+            u, v, 'o',
+            color=color,
+            ms=markersize_small,
+            mec='none',
+            mew=0,
+            alpha=0.25,
+            zorder=0)
+
+    if best_mt is not None:
+        mt = mtm.as_mt(best_mt)
+        u, v = hudson.project(mt)
+
+        try:
+            beachball.plot_beachball_mpl(
+                mt, axes,
+                beachball_type=beachball_type,
+                position=(u, v),
+                size=beachballsize,
+                color_t=color,
+                alpha=0.5,
+                zorder=2,
+                linewidth=0.25)
+        except beachball.BeachballError as e:
+            logger.warn(str(e))
+
+    mt = problem.event.moment_tensor
+    u, v = hudson.project(mt)
+
+    if po.reference:
+        try:
+            beachball.plot_beachball_mpl(
+                mt, axes,
+                beachball_type=beachball_type,
+                position=(u, v),
+                size=beachballsize,
+                color_t='grey',
+                alpha=0.5,
+                zorder=2,
+                linewidth=0.25)
+            logger.info('drawing reference event in grey ...')
+        except beachball.BeachballError as e:
+            logger.warn(str(e))
+
+    outpath = os.path.join(
+        problem.outfolder,
+        po.figure_dir,
+        'hudson_%i_%s.%s' % (po.load_stage, llk_str, po.outformat))
+
+    if not os.path.exists(outpath) or po.force or po.outformat == 'display':
 
         if not po.outformat == 'display':
             logger.info('saving figure to %s' % outpath)
@@ -2470,6 +2625,7 @@ plots_catalog = {
     'scene_fits': draw_geodetic_fits,
     'velocity_models': draw_earthmodels,
     'slip_distribution': draw_slip_dist,
+    'hudson': draw_hudson,
     'fuzzy_beachball': draw_fuzzy_beachball}
 
 
