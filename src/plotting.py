@@ -2324,7 +2324,7 @@ def draw_earthmodels(problem, plot_options):
 
 def fault_slip_distribution(
         fault, mtrace=None, transform=lambda x: x, alpha=0.9, ntickmarks=5,
-        ncontours=100, reference=None):
+        ncontours=500, reference=None):
     """
     Draw discretized fault geometry rotated to the 2-d view of the foot-wall
     of the fault.
@@ -2445,7 +2445,7 @@ def fault_slip_distribution(
                 csteps = int(num.floor(nchains / ncontours))
                 for i in range(0, nchains, csteps):
                     nuc_dip_idx, nuc_strike_idx = fault.fault_locations2idxs(
-                        0, nuc_dip, nuc_strike, backend='numpy')
+                        0, nuc_dip[i], nuc_strike[i], backend='numpy')
                     sts = fault.get_subfault_starttimes(
                         0, velocities[i, :], nuc_dip_idx, nuc_strike_idx)
 
@@ -2500,7 +2500,7 @@ def fault_slip_distribution(
 
         scale_y = {'scale': 1, 'offset': -ylim[1]}
         scale_axes(ax.yaxis, **scale_y)
-        fig.tight_layout()
+        # fig.tight_layout()
         figs.append(fig)
         axs.append(ax)
 
