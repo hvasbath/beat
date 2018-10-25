@@ -625,13 +625,16 @@ def update_source(source, input_depth='top', **point):
     for (k, v) in point.items():
         if k not in source.keys():
             if source.stf is not None:
-                source.stf[k] = v
+                try:
+                    source.stf[k] = float(v)
+                except(KeyError, TypeError):
+                    logger.warning('Not updating source with %s' % k)
             else:
                 raise AttributeError(
                     'Please set a STF before updating its'
                     ' parameters.')
         else:
-            source[k] = v
+            source[k] = float(v)
 
     if isinstance(source, RectangularSource):
         adjust_fault_reference(source, input_depth=input_depth)

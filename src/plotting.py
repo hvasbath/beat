@@ -1111,6 +1111,7 @@ def seismic_fits(problem, stage, plot_options):
 
     results = composite.assemble_results(point)
     try:
+        composite.point2sources(point, input_depth='center')
         source = composite.sources[0]
     except AttributeError:
         logger.info('FFO waveform fit, using reference source ...')
