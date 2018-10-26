@@ -12,7 +12,6 @@ from beat import utility
 from beat.models import Stage
 from beat.sampler.metropolis import get_trace_stats
 from beat.heart import init_seismic_targets, init_geodetic_targets
-from beat.colormap import slip_colormap
 from beat.config import ffo_mode_str, geometry_mode_str
 
 from matplotlib import pyplot as plt
@@ -2325,7 +2324,7 @@ def draw_earthmodels(problem, plot_options):
 
 def fault_slip_distribution(
         fault, mtrace=None, transform=lambda x: x, alpha=0.9, ntickmarks=5,
-        ncontours=500, reference=None):
+        ncontours=100, reference=None):
     """
     Draw discretized fault geometry rotated to the 2-d view of the foot-wall
     of the fault.
@@ -2373,28 +2372,17 @@ def fault_slip_distribution(
 
         return quivers, normalisation
 
-    fontsize = 12
-
-    reference_slip = num.sqrt(
-        reference['uperp'] ** 2 + reference['uparr'] ** 2)
-
-    figs = []
-    axs = []
-    for i in range(fault.nsubfaults):
-        fig, ax = plt.subplots(
-            nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
-
+    def draw_patches(ax, fault, subfault_idx, patch_values, cmap, alpha):
+        i = subfault_idx
         height = fault.ordering.patch_sizes_dip[i]
         width = fault.ordering.patch_sizes_strike[i]
-        np_h, np_w = fault.get_subfault_discretization(i)
-        ext_source = fault.get_subfault(i)
 
-        draw_patches = []
+        d_patches = []
         lls = []
         for patch_dip_ll in range(np_h, 0, -1):
             for patch_strike_ll in range(np_w):
                 ll = [patch_strike_ll * width, patch_dip_ll * height - height]
-                draw_patches.append(
+                d_patches.append(
                     Rectangle(
                         ll, width=width, height=height, edgecolor='black'))
                 lls.append(ll)
@@ -2408,6 +2396,9 @@ def fault_slip_distribution(
         ax.set_xlim(*xlim)
         ax.set_ylim(*ylim)
 
+        scale_y = {'scale': 1, 'offset': -ylim[1]}
+        scale_axes(ax.yaxis, **scale_y)
+
         ax.set_xlabel('strike-direction [km]', fontsize=fontsize)
         ax.set_ylabel('dip-direction [km]', fontsize=fontsize)
 
@@ -2417,16 +2408,43 @@ def fault_slip_distribution(
         ax.get_xaxis().set_major_locator(xticker)
         ax.get_yaxis().set_major_locator(yticker)
 
-        scm = slip_colormap(100)
         pa_col = PatchCollection(
-            draw_patches, alpha=alpha, match_original=True)
-        pa_col.set(array=reference_slip, cmap=scm)
+            d_patches, alpha=alpha, match_original=True)
+        pa_col.set(array=patch_values, cmap=cmap)
 
         ax.add_collection(pa_col)
+        return pa_col
+
+    def draw_colorbar(fig, ax, cb_related, labeltext):
+        cbaxes = fig.add_axes([0.85, 0.4, 0.03, 0.3])
+        cb = fig.colorbar(cb_related, ax=axs, cax=cbaxes)
+        cb.set_label(labeltext, fontsize=fontsize)
+        ax.set_aspect('equal', adjustable='box')
+
+    from beat.colormap import slip_colormap
+    fontsize = 12
+
+    reference_slip = num.sqrt(
+        reference['uperp'] ** 2 + reference['uparr'] ** 2)
+
+    figs = []
+    axs = []
+    for ns in range(fault.nsubfaults):
+        fig, ax = plt.subplots(
+            nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
+
+        np_h, np_w = fault.get_subfault_discretization(ns)
+
+        alphas = alpha * num.ones(np_h * np_w, dtype='int8')
+        pa_col = draw_patches(
+            ax, fault, subfault_idx=ns, patch_values=reference_slip,
+            cmap=slip_colormap(100), alpha=alpha)
+
+        ext_source = fault.get_subfault(ns)
 
         # patch central locations
-        hpd = fault.ordering.patch_sizes_dip[i] / 2.
-        hps = fault.ordering.patch_sizes_strike[i] / 2.
+        hpd = fault.ordering.patch_sizes_dip[ns] / 2.
+        hps = fault.ordering.patch_sizes_strike[ns] / 2.
 
         xvec = num.linspace(hps, ext_source.length / km - hps, np_w)
         yvec = num.linspace(ext_source.width / km - hpd, hpd, np_h)
@@ -2451,6 +2469,25 @@ def fault_slip_distribution(
                         0, velocities[i, :], nuc_dip_idx, nuc_strike_idx)
 
                     ax.contour(xgr, ygr, sts, colors='gray', alpha=0.1)
+
+                durations = transform(mtrace.get_values(
+                    'durations', combine=True, squeeze=True))
+                std_durations = durations.std(axis=0)
+                alphas = std_durations.min() / std_durations
+
+            # rupture durations
+            fig2, ax2 = plt.subplots(
+                nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
+
+            reference_durations = reference['durations']
+
+            pa_col2 = draw_patches(
+                ax2, fault, subfault_idx=ns, patch_values=reference_durations,
+                cmap=plt.cm.seismic, alpha=alpha)
+
+            draw_colorbar(fig2, ax2, pa_col2, labeltext='durations [s]')
+            figs.append(fig2)
+            axs.append(ax2)
 
             ref_starttimes = fault.point2starttimes(reference)
             contours = ax.contour(xgr, ygr, ref_starttimes, colors='black')
@@ -2488,19 +2525,16 @@ def fault_slip_distribution(
                 xcoords = xgr.ravel()[i] + rot_ellipse[:, 0] + quivers.U[i]
                 ycoords = ygr.ravel()[i] + rot_ellipse[:, 1] + quivers.V[i]
                 ax.plot(xcoords, ycoords, '-k', linewidth=0.5)
+        else:
+            normalisation = None
 
         draw_quivers(
             ax, reference['uperp'], reference['uparr'], xgr, ygr,
             ext_source.rake, color='black', draw_legend=True,
             normalisation=normalisation)
 
-        cbaxes = fig.add_axes([0.85, 0.4, 0.03, 0.3])
-        cb = fig.colorbar(pa_col, ax=axs, cax=cbaxes)
-        cb.set_label('slip [m]', fontsize=fontsize)
-        ax.set_aspect('equal', adjustable='box')
+        draw_colorbar(fig, ax, pa_col, labeltext='slip [m]')
 
-        scale_y = {'scale': 1, 'offset': -ylim[1]}
-        scale_axes(ax.yaxis, **scale_y)
         # fig.tight_layout()
         figs.append(fig)
         axs.append(ax)
@@ -2558,7 +2592,7 @@ def draw_slip_dist(problem, po):
     else:
         outpath = os.path.join(
             problem.outfolder, po.figure_dir,
-            'slip_dist_%s.%s' % (llk_str, po.outformat))
+            'slip_dist_%i_%s.%s' % (stage.number, llk_str, po.outformat))
 
         logger.info('Storing slip-distribution to: %s' % outpath)
         with PdfPages(outpath) as opdf:
