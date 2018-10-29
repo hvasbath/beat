@@ -2600,6 +2600,55 @@ def draw_slip_dist(problem, po):
                 opdf.savefig(fig, dpi=po.dpi)
 
 
+def weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=num.inf):
+    """
+    Draw weighted lines into array
+    https://stackoverflow.com/questions/31638651/how-can-i-draw-lines-into-numpy-arrays
+    """
+    def trapez(y, y0, w):
+        return num.clip(num.minimum(
+            y + 1 + w / 2 - y0,
+            - y + 1 + w / 2 + y0), 0, 1)
+    # The algorithm below works fine if c1 >= c0 and c1-c0 >= abs(r1-r0).
+    # If either of these cases are violated, do some switches.
+    if abs(c1 - c0) < abs(r1 - r0):
+        # Switch x and y, and switch again when returning.
+        xx, yy, val = weighted_line(c0, r0, c1, r1, w, rmin=rmin, rmax=rmax)
+        return (yy, xx, val)
+
+    # At this point we know that the distance in columns (x) is greater
+    # than that in rows (y). Possibly one more switch if c0 > c1.
+    if c0 > c1:
+        return weighted_line(r1, c1, r0, c0, w, rmin=rmin, rmax=rmax)
+
+    # The following is now always < 1 in abs
+    slope = (r1 - r0) / (c1 - c0)
+
+    # Adjust weight by the slope
+    w *= num.sqrt(1 + num.abs(slope)) / 2
+
+    # We write y as a function of x, because the slope is always <= 1
+    # (in absolute value)
+    x = num.arange(c0, c1 + 1, dtype=float)
+    y = x * slope + (c1 * r0 - c0 * r1) / (c1 - c0)
+
+    # Now instead of 2 values for y, we have 2*np.ceil(w/2).
+    # All values are 1 except the upmost and bottommost.
+    thickness = num.ceil(w / 2)
+    yy = (num.floor(y).reshape(-1, 1) +
+          num.arange(-thickness - 1, thickness + 2).reshape(1, -1))
+    xx = num.repeat(x, yy.shape[1])
+    vals = trapez(yy, y.reshape(-1, 1), w).flatten()
+
+    yy = yy.flatten()
+
+    # Exclude useless parts and those outside of the interval
+    # to avoid parts outside of the picture
+    mask = num.logical_and.reduce((yy >= rmin, yy < rmax, vals > 0))
+
+    return (yy[mask].astype(int), xx[mask].astype(int), vals[mask])
+
+
 def draw_moment_rate(problem, po):
     """
     Draw moment rate function for the results of a seismic/joint finite fault
