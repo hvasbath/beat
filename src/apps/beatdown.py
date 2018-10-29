@@ -187,7 +187,8 @@ def get_user_credentials(site):
 
 program_name = 'beatdown'
 description = '''
-Download waveforms from FDSN web services and prepare for beat
+Download waveforms from FDSN web services and prepare for beat, modified from grond
+https://github.com/pyrocko/grond
 '''.strip()
 
 logger = logging.getLogger('')
