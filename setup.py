@@ -153,7 +153,7 @@ setup(
     package_dir={'beat': 'src'},
     entry_points={
         'console_scripts':
-            ['beat = beat.apps.beat:main']
+            ['beat = beat.apps.beat:main', 'beatdown = beat.apps.beatdown:main']
     },
     package_data={'beat': []},
     ext_modules=[
