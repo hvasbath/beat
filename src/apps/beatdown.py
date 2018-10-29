@@ -23,7 +23,7 @@ from pyrocko.client import fdsn
 from pyrocko.io import resp, enhanced_sacpz as epz, stationxml
 from beat import utility
 from beat import heart
-import inspect, os.path
+import os.path
 
 km = 1000.
 
@@ -194,18 +194,18 @@ https://github.com/pyrocko/grond
 logger = logging.getLogger('')
 
 usage = '''
-usage: beatdown [options] [--] <YYYY-MM-DD> <HH:MM:SS> <lat> <lon> \\
+usage: beatdown folder [options] [--] <YYYY-MM-DD> <HH:MM:SS> <lat> <lon> \\
                                <depth_km> <radius_km> <fmin_hz> \\
                                <sampling_rate_hz> \\
                                <eventname>
 
-       beatdown [options] [--] <YYYY-MM-DD> <HH:MM:SS> <radius_km> <fmin_hz> \\
+       beatdown folder [options] [--] <YYYY-MM-DD> <HH:MM:SS> <radius_km> <fmin_hz> \\
                                <sampling_rate_hz> <eventname>
 
-       beatdown [options] [--] <catalog-eventname> <radius_km> <fmin_hz> \\
+       beatdown folder [options] [--] <catalog-eventname> <radius_km> <fmin_hz> \\
                                <sampling_rate_hz> <eventname>
 
-       beatdown [options] --window="<YYYY-MM-DD HH:MM:SS, YYYY-MM-DD HH:MM:\
+       beatdown folder [options] --window="<YYYY-MM-DD HH:MM:SS, YYYY-MM-DD HH:MM:\
 SS>" \\
                                [--] <lat> <lon> <radius_km> <fmin_hz> \\
                                <sampling_rate_hz> <eventname>
@@ -354,7 +354,7 @@ def main():
 
     (options, args) = parser.parse_args(sys.argv[1:])
 
-    if len(args) not in (9, 6, 5):
+    if len(args) not in (10, 7, 6):
         parser.print_help()
         sys.exit(1)
 
@@ -392,30 +392,30 @@ def main():
         ename = ''
         magnitude = None
         mt = None
-        if len(args) == 9:
-            time = util.str_to_time(args[0] + ' ' + args[1])
-            lat = float(args[2])
-            lon = float(args[3])
-            depth = float(args[4])*km
-            iarg = 5
+        if len(args) == 10:
+            time = util.str_to_time(args[1] + ' ' + args[2])
+            lat = float(args[3])
+            lon = float(args[4])
+            depth = float(args[5])*km
+            iarg = 6
 
-        elif len(args) == 6:
-            if args[1].find(':') == -1:
+        elif len(args) == 7:
+            if args[2].find(':') == -1:
                 sname_or_date = None
-                lat = float(args[0])
-                lon = float(args[1])
+                lat = float(args[1])
+                lon = float(args[2])
                 event = None
                 time = None
             else:
-                sname_or_date = args[0] + ' ' + args[1]
+                sname_or_date = args[1] + ' ' + args[2]
 
             iarg = 2
 
-        elif len(args) == 5:
-            sname_or_date = args[0]
-            iarg = 1
+        elif len(args) == 6:
+            sname_or_date = args[1]
+            iarg = 2
 
-        if len(args) in (6, 5) and sname_or_date is not None:
+        if len(args) in (7, 6) and sname_or_date is not None:
             events = get_events_by_name_or_date([sname_or_date],
                                                 catalog=geofon)
             if len(events) == 0:
@@ -439,7 +439,8 @@ def main():
         sample_rate = float(args[iarg+2])
 
         eventname = args[iarg+3]
-        event_dir = op.join('data', 'events', eventname)
+        cwd = str(sys.argv[1])
+        event_dir = op.join(cwd, 'data', 'events', eventname)
         output_dir = op.join(event_dir, 'waveforms')
     except:
         raise
@@ -1081,8 +1082,7 @@ def main():
     util.ensuredirs(fn_stations)
     model.dump_stations(stations, fn_stations)
     model.dump_events([event], fn_event)
-    cwd = os.getcwd()
 
-    utility.dump_objects('seismic_data.pkl', outlist=[stations, traces_beat])
+    utility.dump_objects(output_dir+'seismic_data.pkl', outlist=[stations, traces_beat])
     logger.info('prepared waveforms from %i stations' % len(stations))
 
