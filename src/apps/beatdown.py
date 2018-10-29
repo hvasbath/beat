@@ -185,7 +185,7 @@ def get_user_credentials(site):
     return dict(user=user, passwd=passwd, token=token)
 
 
-program_name = 'beatown'
+program_name = 'beatdown'
 description = '''
 Download waveforms from FDSN web services and prepare for beat
 '''.strip()
@@ -193,18 +193,18 @@ Download waveforms from FDSN web services and prepare for beat
 logger = logging.getLogger('')
 
 usage = '''
-usage: beatown [options] [--] <YYYY-MM-DD> <HH:MM:SS> <lat> <lon> \\
+usage: beatdown [options] [--] <YYYY-MM-DD> <HH:MM:SS> <lat> <lon> \\
                                <depth_km> <radius_km> <fmin_hz> \\
                                <sampling_rate_hz> \\
                                <eventname>
 
-       beatown [options] [--] <YYYY-MM-DD> <HH:MM:SS> <radius_km> <fmin_hz> \\
+       beatdown [options] [--] <YYYY-MM-DD> <HH:MM:SS> <radius_km> <fmin_hz> \\
                                <sampling_rate_hz> <eventname>
 
-       beatown [options] [--] <catalog-eventname> <radius_km> <fmin_hz> \\
+       beatdown [options] [--] <catalog-eventname> <radius_km> <fmin_hz> \\
                                <sampling_rate_hz> <eventname>
 
-       beatown [options] --window="<YYYY-MM-DD HH:MM:SS, YYYY-MM-DD HH:MM:\
+       beatdown [options] --window="<YYYY-MM-DD HH:MM:SS, YYYY-MM-DD HH:MM:\
 SS>" \\
                                [--] <lat> <lon> <radius_km> <fmin_hz> \\
                                <sampling_rate_hz> <eventname>
@@ -582,7 +582,7 @@ def main():
     fn_template_raw = op.join(output_dir, 'raw',  fn_template0)
     fn_stations_raw = op.join(output_dir, 'stations.raw.txt')
     fn_template_rest = op.join(output_dir, 'rest',  fn_template0)
-    fn_commandline = op.join(output_dir, 'beatown.command')
+    fn_commandline = op.join(output_dir, 'beatdown.command')
 
     ftap = (ffade_factors[0]*fmin, fmin, fmax, ffade_factors[1]*fmax)
 
