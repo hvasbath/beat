@@ -2600,6 +2600,88 @@ def draw_slip_dist(problem, po):
                 opdf.savefig(fig, dpi=po.dpi)
 
 
+def draw_moment_rate(problem, po):
+    """
+    Draw moment rate function for the results of a seismic/joint finite fault
+    optimization.
+    """
+    ncontours = 250
+    mode = problem.config.problem_config.mode
+
+    if mode != ffo_mode_str:
+        raise ModeError(
+            'Wrong optimization mode: %s! This plot '
+            'variant is only valid for "%s" mode' % (mode, ffo_mode_str))
+
+    if 'seismic' not in problem.config.problem_config.datatypes:
+        raise TypeError(
+            'Moment rate function only available for optimization results that'
+            ' include seismic data.')
+
+    sc = problem.composites['seismic']
+    fault = sc.load_fault_geometry()
+
+    stage = Stage(homepath=problem.outfolder)
+    stage.load_results(
+        varnames=problem.varnames,
+        stage_number=po.load_stage,
+        load='trace', chains=[-1])
+
+    if not po.reference:
+        reference = get_result_point(stage, problem.config, po.post_llk)
+        llk_str = po.post_llk
+        mtrace = stage.mtrace
+    else:
+        reference = po.reference
+        llk_str = 'ref'
+        mtrace = None
+
+    logger.info('Drawing ensemble of moment rate functions ...')
+    target = sc.wavemaps[0].targets[0]
+    ref_mrf_rates, ref_mrf_times = fault.get_subfault_moment_rate_function(
+        index=0, point=reference, target=target,
+        store=sc.engine.get_store(target.store_id))
+
+    for ns in range(fault.nsubfaults):
+        outpath = os.path.join(
+            problem.outfolder, po.figure_dir,
+            'moment_rate_%i_%i_%s.%s' % (
+                stage.number, ns, llk_str, po.outformat))
+
+        if not os.path.exists(outpath) or po.force:
+            fig, ax = plt.subplots(
+                nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
+
+            if mtrace is not None:
+                nchains = len(mtrace)
+                csteps = int(num.floor(nchains / ncontours))
+                idxs = range(0, nchains, csteps)
+                for idx in idxs:
+                    point = mtrace.point(idx=idx)
+                    mrf_rates, mrf_times = \
+                        fault.get_subfault_moment_rate_function(
+                            index=ns, point=point, target=target,
+                            store=sc.engine.get_store(target.store_id))
+                    ax.plot(mrf_times, mrf_rates, '-k', alpha=0.1)
+
+            ax.plot(
+                ref_mrf_times, ref_mrf_rates,
+                '-r', alpha=0.8, linewidth=1.)
+
+            ax.set_xlabel('Time [s]')
+            ax.set_ylabel('Moment rate [$Nm / s$]')
+
+            logger.info('saving figure to %s' % outpath)
+
+            if po.outformat == 'display':
+                plt.show()
+            else:
+                fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
+
+        else:
+            logger.info('Plot exists! Use --force to overwrite!')
+
+
 def source_geometry(fault, ref_sources):
     """
     Plot source geometry in 3d rotatable view
@@ -2664,7 +2746,8 @@ plots_catalog = {
     'velocity_models': draw_earthmodels,
     'slip_distribution': draw_slip_dist,
     'hudson': draw_hudson,
-    'fuzzy_beachball': draw_fuzzy_beachball}
+    'fuzzy_beachball': draw_fuzzy_beachball,
+    'moment_rate': draw_moment_rate}
 
 
 def available_plots():

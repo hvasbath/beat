@@ -888,6 +888,8 @@ def _process_patch_seismic(
     else:
         logger.debug('Using reference source time ...')
 
+    # ensure stf anchor point at -1
+    patch.stf.anchor = -1
     source_patches_durations = []
     logger.info('Patch Number %i', patchidx)
 

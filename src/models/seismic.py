@@ -885,18 +885,7 @@ class SeismicDistributerComposite(SeismicComposite):
                 tpoint.pop(hyper)
 
         # TODO make nsubfaults ready
-        nuc_dip_idx, nuc_strike_idx = self.fault.fault_locations2idxs(
-            index=0,
-            positions_dip=tpoint['nucleation_dip'],
-            positions_strike=tpoint['nucleation_strike'],
-            backend='numpy')
-
-        starttimes0 = self.fault.get_subfault_starttimes(
-            index=0,
-            rupture_velocities=tpoint['velocities'],
-            nuc_dip_idx=nuc_dip_idx,
-            nuc_strike_idx=nuc_strike_idx).flatten()
-
+        starttimes0 = self.fault.point2starttimes(tpoint, index=0).ravel()
         starttimes0 += point['nucleation_time']
 
         # station corrections

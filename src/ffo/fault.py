@@ -206,6 +206,91 @@ total number of patches: %i ''' % (
 
         return patches
 
+    def get_subfault_patch_moments(
+            self, index, slips, store=None, target=None, datatype='seismic'):
+        """
+        Get the seismic moments on each Patch of the complex fault
+
+        Parameters
+        ----------
+        slips : list or array-like
+            of slips on each fault patch
+        store : string
+            greens function store to use for velocity model extraction
+        target : :class:`pyrocko.gf.targets.Target`
+            with interpolation method to use for GF interpolation
+        datatype : string
+            which RectangularSOurce patches to extract
+        """
+
+        moments = []
+        for i, rs in enumerate(
+                self.get_subfault_patches(index=index, datatype=datatype)):
+            rs.update(slip=slips[i])
+            moments.append(rs.get_moment(target=target, store=store))
+
+        return moments
+
+    def get_subfault_patch_stfs(
+            self, index, durations, starttimes,
+            store=None, target=None, datatype='seismic'):
+        """
+        Get the seismic moments on each Patch of the complex fault
+
+        Parameters
+        ----------
+        durations : list or array-like
+            of slips on each fault patch
+        store : string
+            greens function store to use for velocity model extraction
+        target : :class:`pyrocko.gf.targets.Target`
+            with interpolation method to use for GF interpolation
+        datatype : string
+            which RectangularSOurce patches to extract
+        """
+
+        patch_times = []
+        patch_amplitudes = []
+
+        for i, rs in enumerate(
+                self.get_subfault_patches(index=index, datatype=datatype)):
+
+            rs.stf.duration = durations[i]
+            times, amplitudes = rs.stf.discretize_t(
+                store.config.deltat, starttimes[i])
+
+            patch_times.append(times)
+            patch_amplitudes.append(amplitudes)
+
+        return patch_times, patch_amplitudes
+
+    def get_subfault_moment_rate_function(self, index, point, target, store):
+
+        deltat = store.config.deltat
+        slips = num.sqrt(point['uparr'] ** 2 + point['uperp'] ** 2)
+
+        starttimes = self.point2starttimes(point, index=index).ravel()
+        tmax = num.ceil(
+            (starttimes.max() + point['durations'].max()) / deltat) * deltat
+
+        mrf_times = num.arange(0., tmax, deltat)
+        mrf_rates = num.zeros_like(mrf_times)
+
+        moments = self.get_subfault_patch_moments(
+            index=index, slips=slips,
+            store=store, target=target, datatype='seismic')
+
+        patch_times, patch_amplitudes = self.get_subfault_patch_stfs(
+            index=index, durations=point['durations'], starttimes=starttimes,
+            store=store, target=target, datatype='seismic')
+
+        for m, pt, pa in zip(moments, patch_times, patch_amplitudes):
+            tmoments = pa * m
+            slc = slice(int(pt.min() / deltat), int(pt.max() / deltat + 1))
+            mrf_rates[slc] += tmoments
+
+        return mrf_rates, mrf_times
+
     def get_patch_indexes(self, index):
         """
         Return indexes for sub-fault patches that translate to the solution
