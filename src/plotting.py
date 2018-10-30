@@ -595,13 +595,12 @@ def plot_scene(ax, target, data, scattersize, colim,
         edgecolors='none', vmin=-colim, vmax=colim, **kwargs)
 
 
-def format_axes(ax):
+def format_axes(ax, remove=['right', 'top', 'left']):
     """
     Removes box top, left and right.
     """
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
-    ax.spines['left'].set_visible(False)
+    for rm in remove:
+        ax.spines[rm].set_visible(False)
 
 
 def scale_axes(axis, scale, offset=0.):
@@ -2722,7 +2721,7 @@ def draw_line_on_array(
                 zip(grid.shape, grid_resolution[::-1])):
             check_grid_shape(ngr, naim, axis)
     else:
-        grid = num.zeros((ynstep, xnstep), dtype='int64')
+        grid = num.zeros((ynstep, xnstep), dtype='float64')
 
     xidxs = utility.positions2idxs(X, min_pos=xmin, cell_size=xstep)
     yidxs = utility.positions2idxs(Y, min_pos=ymin, cell_size=ystep)
@@ -2730,13 +2729,57 @@ def draw_line_on_array(
     check_line_in_grid(xidxs, 'x', nmax=xnstep - 1, extent=extent)
     check_line_in_grid(yidxs, 'y', nmax=ynstep - 1, extent=extent)
 
+    new_grid = num.zeros_like(grid)
     for i in range(1, nxs):
         rr, cc, w = _weighted_line(
             c0=xidxs[i - 1], r0=yidxs[i - 1],
             c1=xidxs[i], r1=yidxs[i], w=linewidth)
-        grid[rr, cc] += w.astype('int64')
+        new_grid[rr, cc] = w.astype(grid.dtype)
 
+    grid += new_grid
     return grid, extent
+
+
+def fuzzy_moment_rate(
+        ax, moment_rates, times, rates_color='black',
+        background_color='white'):
+
+    from matplotlib.colors import LinearSegmentedColormap
+
+    ncolors = 256
+    cmap = LinearSegmentedColormap.from_list(
+        'dummy', [background_color, rates_color], N=ncolors)
+
+    nrates = len(moment_rates)
+    ntimes = len(times)
+
+    if nrates != ntimes:
+        raise TypeError(
+            'Number of rates and times have to be identical!'
+            ' %i != %i' % (nrates, ntimes))
+
+    max_rates = max(map(num.max, moment_rates))
+    max_times = max(map(num.max, times))
+
+    extent = (0., max_times, 0., max_rates)
+    grid = num.zeros((500, 500), dtype='float64')
+
+    xvec = num.linspace(0., max_times, grid.shape[0], endpoint=True)
+    yvec = num.linspace(0., max_rates, grid.shape[1], endpoint=True)
+    for mr, time in zip(moment_rates, times):
+        draw_line_on_array(
+            time, mr,
+            grid=grid,
+            extent=extent,
+            grid_resolution=grid.shape,
+            linewidth=7)
+
+    # increase contrast reduce high intense values
+    grid[grid > (nrates / 2)] /= 2.
+
+    ax.imshow(grid, extent=extent, origin='lower', cmap=cmap, aspect='auto')
+    ax.set_xlabel('Time [s]')
+    ax.set_ylabel('Moment rate [$Nm / s$]')
 
 
 def draw_moment_rate(problem, po):
@@ -2744,7 +2787,7 @@ def draw_moment_rate(problem, po):
     Draw moment rate function for the results of a seismic/joint finite fault
     optimization.
     """
-    ncontours = 250
+
     mode = problem.config.problem_config.mode
 
     if mode != ffo_mode_str:
@@ -2793,28 +2836,30 @@ def draw_moment_rate(problem, po):
 
             if mtrace is not None:
                 nchains = len(mtrace)
-                csteps = int(num.floor(nchains / ncontours))
+                csteps = 3
                 idxs = range(0, nchains, csteps)
+                mrfs_rate = []
+                mrfs_time = []
                 for idx in idxs:
                     point = mtrace.point(idx=idx)
-                    mrf_rates, mrf_times = \
+                    mrf_rate, mrf_time = \
                         fault.get_subfault_moment_rate_function(
                             index=ns, point=point, target=target,
                             store=sc.engine.get_store(target.store_id))
-                    ax.plot(mrf_times, mrf_rates, '-k', alpha=0.1)
+                    mrfs_rate.append(mrf_rate)
+                    mrfs_time.append(mrf_time)
+
+                fuzzy_moment_rate(ax, mrfs_rate, mrfs_time)
 
             ax.plot(
                 ref_mrf_times, ref_mrf_rates,
                 '-r', alpha=0.8, linewidth=1.)
-
-            ax.set_xlabel('Time [s]')
-            ax.set_ylabel('Moment rate [$Nm / s$]')
-
-            logger.info('saving figure to %s' % outpath)
+            format_axes(ax, remove=['top', 'right'])
 
             if po.outformat == 'display':
                 plt.show()
             else:
+                logger.info('saving figure to %s' % outpath)
                 fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
         else:
