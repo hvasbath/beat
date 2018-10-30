@@ -1431,3 +1431,19 @@ def get_random_uniform(lower, upper, dimension=1):
         return float(values)
     else:
         return values
+
+
+def positions2idxs(positions, cell_size, min_pos=0., backend=num):
+    """
+    Return index to a grid with a given cell size.npatches
+
+    Parameters
+    ----------
+    positions : :class:`numpy.NdArray` float
+        of positions [km]
+    cell_size : float
+        size of grid cells
+    backend : str
+    """
+    return backend.round((positions - min_pos - (
+        cell_size / 2.)) / cell_size).astype('int16')

@@ -1,8 +1,8 @@
-from beat.utility import list2string
+from beat.utility import list2string, positions2idxs
 from beat.fast_sweeping import fast_sweep
 
 from beat.models.laplacian import get_smoothing_operator
-from .base import backends
+from .base import get_backend
 
 from pyrocko.gf.seismosizer import Cloneable
 
@@ -406,6 +406,7 @@ total number of patches: %i ''' % (
             which implementation backend to use [numpy/theano]
         """
         # TODO needs subfault index
+        backend = get_backend(backend)
         dipidx = positions2idxs(
             positions=positions_dip,
             cell_size=self.ordering.patch_sizes_dip[index],
@@ -480,28 +481,6 @@ class FaultOrdering(object):
 
 class FaultGeometryError(Exception):
     pass
-
-
-def positions2idxs(positions, cell_size, backend='numpy'):
-    """
-    Return index to a grid with a given cell size.npatches
-
-    Parameters
-    ----------
-    positions : :class:`numpy.NdArray` float
-        of positions [km]
-    cell_size : float
-        size of grid cells
-    backend : str
-    """
-    available_backends = backends.keys()
-    if backend not in available_backends:
-        raise NotImplementedError(
-            'Backend not supported! Options: %s' %
-            list2string(available_backends))
-
-    return backends[backend].round((positions - (
-        cell_size / 2.)) / cell_size).astype('int16')
 
 
 def discretize_sources(

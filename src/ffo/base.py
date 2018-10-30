@@ -26,6 +26,16 @@ gf_dtype = 'float64'
 backends = {'numpy': num, 'theano': tt}
 
 
+def get_backend(backend):
+    available_backends = backends.keys()
+    if backend not in available_backends:
+        raise NotImplementedError(
+            'Backend not supported! Options: %s' %
+            list2string(available_backends))
+
+    return backends[backend]
+
+
 km = 1000.
 
 
@@ -524,14 +534,16 @@ filename: %s''' % (
             (output depends on interpolation scheme,
             if multilinear interpolation factors are returned as well)
         """
+        backend = get_backend(self._mode)
+
         if interpolation == 'nearest_neighbor':
-            return backends[self._mode].round(
+            return backend.round(
                 (starttimes - self.starttime_min) /
                 self.starttime_sampling).astype('int16'), None
         elif interpolation == 'multilinear':
             dstarttimes = (starttimes - self.starttime_min) / \
                 self.starttime_sampling
-            ceil_starttimes = backends[self._mode].ceil(
+            ceil_starttimes = backend.ceil(
                 dstarttimes).astype('int16')
             factors = ceil_starttimes - dstarttimes
             return ceil_starttimes, factors
@@ -567,14 +579,16 @@ filename: %s''' % (
         durationidxs, starttimes : :class:`numpy.ndarray` or
             :class:`theano.tensor.Tensor`, int16
         """
+        backend = get_backend(self._mode)
+
         if interpolation == 'nearest_neighbor':
-            return backends[self._mode].round(
+            return backend.round(
                 (durations - self.duration_min) /
                 self.duration_sampling).astype('int16'), None
         elif interpolation == 'multilinear':
             ddurations = (durations - self.duration_min) / \
                 self.duration_sampling
-            ceil_durations = backends[self._mode].ceil(
+            ceil_durations = backend.ceil(
                 ddurations).astype('int16')
             factors = ceil_durations - ddurations
             return ceil_durations, factors
@@ -663,10 +677,11 @@ filename: %s''' % (
             s_st_ceil_rt_floor = (1 - st_factors) * rt_factors * slips
             s_st_floor_rt_floor = st_factors * rt_factors * slips
 
-            cd = backends[self._mode].concatenate(
+            backend = get_backend(self._mode)
+            cd = backend.concatenate(
                 [d_st_ceil_rt_ceil, d_st_floor_rt_ceil,
                  d_st_ceil_rt_floor, d_st_floor_rt_floor], axis=1)
-            cslips = backends[self._mode].concatenate(
+            cslips = backend.concatenate(
                 [s_st_ceil_rt_ceil, s_st_floor_rt_ceil,
                  s_st_ceil_rt_floor, s_st_floor_rt_floor])
         else:

@@ -2435,7 +2435,7 @@ def fault_slip_distribution(
 
         np_h, np_w = fault.get_subfault_discretization(ns)
 
-        alphas = alpha * num.ones(np_h * np_w, dtype='int8')
+        # alphas = alpha * num.ones(np_h * np_w, dtype='int8')
         pa_col = draw_patches(
             ax, fault, subfault_idx=ns, patch_values=reference_slip,
             cmap=slip_colormap(100), alpha=alpha)
@@ -2473,7 +2473,7 @@ def fault_slip_distribution(
                 durations = transform(mtrace.get_values(
                     'durations', combine=True, squeeze=True))
                 std_durations = durations.std(axis=0)
-                alphas = std_durations.min() / std_durations
+                # alphas = std_durations.min() / std_durations
 
             # rupture durations
             fig2, ax2 = plt.subplots(
@@ -2600,7 +2600,7 @@ def draw_slip_dist(problem, po):
                 opdf.savefig(fig, dpi=po.dpi)
 
 
-def weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=num.inf):
+def _weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=num.inf):
     """
     Draw weighted lines into array
     https://stackoverflow.com/questions/31638651/how-can-i-draw-lines-into-numpy-arrays
@@ -2613,13 +2613,13 @@ def weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=num.inf):
     # If either of these cases are violated, do some switches.
     if abs(c1 - c0) < abs(r1 - r0):
         # Switch x and y, and switch again when returning.
-        xx, yy, val = weighted_line(c0, r0, c1, r1, w, rmin=rmin, rmax=rmax)
+        xx, yy, val = _weighted_line(c0, r0, c1, r1, w, rmin=rmin, rmax=rmax)
         return (yy, xx, val)
 
     # At this point we know that the distance in columns (x) is greater
     # than that in rows (y). Possibly one more switch if c0 > c1.
     if c0 > c1:
-        return weighted_line(r1, c1, r0, c0, w, rmin=rmin, rmax=rmax)
+        return _weighted_line(r1, c1, r0, c0, w, rmin=rmin, rmax=rmax)
 
     # The following is now always < 1 in abs
     slope = (r1 - r0) / (c1 - c0)
@@ -2647,6 +2647,96 @@ def weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=num.inf):
     mask = num.logical_and.reduce((yy >= rmin, yy < rmax, vals > 0))
 
     return (yy[mask].astype(int), xx[mask].astype(int), vals[mask])
+
+
+def draw_line_on_array(
+        X, Y, grid=None, extent=[], grid_resolution=(400, 400), linewidth=1):
+    """
+    Draw line on given array by adding 1 to its fields.
+
+    Parameters
+    ----------
+    X : array_like
+        timeseries on xcoordinate (columns of array)
+    Y : array_like
+        timeseries on ycoordinate (rows of array)
+    grid : array_like 2d
+        input array that is used for drawing
+    extent : array extent
+        [xmin, xmax, ymin, ymax] (cols, rows)
+    grid_resolution : tuple
+        shape of given grid or grid that is being used for allocation
+    linewidth : int
+        weight (width) of line drawn on grid
+
+    Returns
+    -------
+    grid, extent
+    """
+
+    def check_grid_shape(ngr, naim, axis):
+        if ngr != naim:
+            raise TypeError(
+                'Gridsize of given grid is inconistent for axis %i!'
+                ' Expected %i got %i' % (axis, naim, ngr))
+
+    def check_line_in_grid(idxs, axis, nmax, extent):
+        imax = idxs.max()
+        if imax > nmax:
+            raise TypeError(
+                'Line endpoint outside of given grid Axis "%s"! %i > %i'
+                ' Extent [%s]' % (
+                    axis, imax, nmax, utility.list2string(extent)))
+
+    nxs = len(X)
+    nys = len(Y)
+    if nxs != nys:
+        raise TypeError(
+            'Length of X and Y have to be identical! %i != %i' % (nxs, nys))
+
+    if len(extent) == 0:
+        xmin = X.min()
+        xmax = X.max()
+        ymin = Y.min()
+        ymax = Y.max()
+        extent = [xmin, xmax, ymin, ymax]
+    elif len(extent) == 4:
+        xmin, xmax, ymin, ymax = extent
+    else:
+        raise TypeError(
+            'extent has to be of length 4! [xmin, xmax, ymin, ymax]')
+
+    if len(grid_resolution) != 2:
+        raise TypeError(
+            'grid_resolution has to be of length 2! [xstep, ystep]!')
+
+    xnstep, ynstep = grid_resolution
+    xvec, xstep = num.linspace(xmin, xmax, xnstep, endpoint=True, retstep=True)
+    yvec, ystep = num.linspace(ymin, ymax, ynstep, endpoint=True, retstep=True)
+
+    if grid is not None:
+        if grid.ndim != 2:
+            raise TypeError('Given grid has to be of dimension 2!')
+
+        for axis, (ngr, naim) in enumerate(
+                zip(grid.shape, grid_resolution[::-1])):
+            check_grid_shape(ngr, naim, axis)
+    else:
+        grid = num.zeros((ynstep, xnstep), dtype='int64')
+
+    xidxs = utility.positions2idxs(X, min_pos=xmin, cell_size=xstep)
+    yidxs = utility.positions2idxs(Y, min_pos=ymin, cell_size=ystep)
+
+    check_line_in_grid(xidxs, 'x', nmax=xnstep - 1, extent=extent)
+    check_line_in_grid(yidxs, 'y', nmax=ynstep - 1, extent=extent)
+
+    for i in range(1, nxs):
+        rr, cc, w = _weighted_line(
+            c0=xidxs[i - 1], r0=yidxs[i - 1],
+            c1=xidxs[i], r1=yidxs[i], w=linewidth)
+        grid[rr, cc] += w.astype('int64')
+
+    return grid, extent
 
 
 def draw_moment_rate(problem, po):
