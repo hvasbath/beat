@@ -444,7 +444,7 @@ Will yield::
     duration: 38.4
 
 Standard pyrocko traces will need to be converted to beat trace objects, this is done simply, assuming that "traces"
-is a list of pyrocko trace objects.
+is a list of pyrocko trace objects, by:
 
     from beat import heart
     traces_beat = []
