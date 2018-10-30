@@ -359,7 +359,15 @@ This command line downloads the available data for the event at time 2009-04-06 
 radius of 1000 km all data from up of .01 Hz, resamples them to 2Hz
 (this frequency should match your GF stores frequency) and saves them in the folder
 /project_directory/data/aquila. Additionally it creates a seismic_data.pkl output which will
-be used by beat into the project_directory. 
+be used by beat into the project_directory.
+
+A useful option is to have a automatically pre-selected subset of stations,
+based on data quality and closeness of stations. The option --nstations-wanted enables this station
+weed and tries to find a suitable subset of stations close to the number given. The actual resulting
+station number then might slightly vary based on station distribution and quality. For the above
+example we might want to use around 60 stations, so the command for that would look like:
+
+    beatdown /project_directory "2009-04-06 01:32:39" 1000. .01 2. aquila  --nstations-wanted=60
                                
 
 Data import
