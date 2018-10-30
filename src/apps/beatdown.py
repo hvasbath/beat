@@ -187,8 +187,8 @@ def get_user_credentials(site):
 
 program_name = 'beatdown'
 description = '''
-Download waveforms from FDSN web services and prepare for beat, modified from grond
-https://github.com/pyrocko/grond
+Download waveforms from FDSN web services and prepare for beat, adapted and
+from grond (https://github.com/pyrocko/grond)
 '''.strip()
 
 logger = logging.getLogger('')
@@ -1082,7 +1082,6 @@ def main():
     util.ensuredirs(fn_stations)
     model.dump_stations(stations, fn_stations)
     model.dump_events([event], fn_event)
-
-    utility.dump_objects(cwd+'seismic_data.pkl', outlist=[stations, traces_beat])
+    utility.dump_objects(cwd+'/seismic_data.pkl', outlist=[stations, traces_beat])
     logger.info('prepared waveforms from %i stations' % len(stations))
 
