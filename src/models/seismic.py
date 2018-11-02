@@ -787,7 +787,7 @@ class SeismicDistributerComposite(SeismicComposite):
         starttimes0 = self.sweeper(
             (1. / input_rvs['velocities']), nuc_dip_idx, nuc_strike_idx)
 
-        starttimes0 += input_rvs['nucleation_time']
+        starttimes0 += input_rvs['time']
         wlogpts = []
         for wmap in self.wavemaps:
             # TODO: for subfault in range(self.fault.nsubfaults):
@@ -886,7 +886,7 @@ class SeismicDistributerComposite(SeismicComposite):
 
         # TODO make nsubfaults ready
         starttimes0 = self.fault.point2starttimes(tpoint, index=0).ravel()
-        starttimes0 += point['nucleation_time']
+        starttimes0 += point['time']
 
         # station corrections
         if len(self.hierarchicals) > 0:

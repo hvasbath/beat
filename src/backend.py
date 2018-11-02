@@ -232,7 +232,7 @@ def extract_variables_from_df(dataframe):
     return flat_names, var_shapes
 
 
-def extract_bounds_from_summary(summary, varname, shape, roundto=1):
+def extract_bounds_from_summary(summary, varname, shape, roundto=None):
     """
     Extract lower and upper bound of random variable.
 
@@ -253,13 +253,13 @@ def extract_bounds_from_summary(summary, varname, shape, roundto=1):
         values = num.empty(shape, 'float64')
         for i, idx in enumerate(indexes):
             adjust = 10. ** roundto
-            if quant == lower_quant and roundto != 0:
-                operation = num.floor
-            elif quant == upper_quant and roundto != 0:
-                operation = num.ceil
+            if roundto is not None:
+                if quant == lower_quant:
+                    operation = num.floor
+                elif quant == upper_quant:
+                    operation = num.ceil
             else:
                 operation = do_nothing
-
             values[i] = operation(summary[quant][idx] * adjust) / adjust
 
         bounds.append(values)

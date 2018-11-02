@@ -403,7 +403,6 @@ physical_bounds = dict(
     uperp=(-150., 150.),
     nucleation_strike=(0., num.inf),
     nucleation_dip=(0., num.inf),
-    nucleation_time=(-40., 40.),
     velocities=(0.5, 7.0),
 
     azimuth=(0, 360),
@@ -1990,7 +1989,7 @@ def get_phase_arrival_time(engine, source, target, wavename, snap=True):
 
 
 def get_phase_taperer(
-        engine, source, wavename, target, arrival_taper, arrival_time=None):
+        engine, source, wavename, target, arrival_taper, arrival_time=num.nan):
     """
     Create phase taperer according to synthetic travel times from
     source- target pair and taper return :class:`pyrocko.trace.CosTaper`
@@ -2012,7 +2011,7 @@ def get_phase_taperer(
     -------
     :class:`pyrocko.trace.CosTaper`
     """
-    if arrival_time is None or arrival_time == num.NAN:
+    if num.isnan(arrival_time):
         logger.warning('Using source reference for tapering!')
         arrival_time = get_phase_arrival_time(
             engine=engine, source=source, target=target, wavename=wavename)

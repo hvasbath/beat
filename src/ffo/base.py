@@ -391,7 +391,7 @@ filename: %s''' % (
         if allocate:
             logger.info('Allocating GF Library')
             self._gfmatrix = num.zeros(self.dimensions)
-            self._tmins = num.zeros([ntargets, npatches + 1])
+            self._tmins = num.zeros([ntargets])
 
         self.set_stack_mode(mode='numpy')
 
@@ -418,7 +418,7 @@ filename: %s''' % (
 
         self.set_stack_mode(mode='theano')
 
-    def set_patch_time(self, targetidx, patchidx, tmin):
+    def set_patch_time(self, targetidx, tmin):
         """
         Fill the GF Library with trace times for one target and one patch.
 
@@ -436,7 +436,7 @@ filename: %s''' % (
 
         if hasattr(parallel, 'tmins'):
             times = num.frombuffer(parallel.tmins).reshape(
-                (self.ntargets, self.npatches + 1))
+                (self.ntargets))
 
         elif self._tmins is None:
             raise GFLibraryError(
@@ -445,7 +445,7 @@ filename: %s''' % (
         else:
             times = self._tmins
 
-        times[targetidx, patchidx] = tmin
+        times[targetidx] = tmin
 
     def put(
             self, entries, targetidx, patchidx,
@@ -496,25 +496,11 @@ filename: %s''' % (
 
         matrix[targetidx, patchidx, durationidxs, starttimeidxs, :] = entries
 
-    def trace_tmin(self, targetidx, patchidx):
+    def trace_tmin(self, targetidx):
         """
-        Returns trace time of single target with respect to hypocentral trace.
+        Returns trace time of single target with respect to reference event.
         """
-        return float(self._tmins[targetidx, patchidx])
-
-    def get_all_tmins(self, patchidx):
-        """
-        Returns tmins for all targets for specified hypocentral patch.
-        """
-        if self._mode == 'theano':
-            if self._stmins is None:
-                raise GFLibraryError(
-                    'To use "get_all_tmins" theano stacking optimization mode'
-                    ' has to be initialised!')
-            return self._stmins[:, patchidx]
-
-        elif self._mode == 'numpy':
-            return self._tmins[:, patchidx]
+        return float(self.reference_times[targetidx])
 
     def starttimes2idxs(self, starttimes, interpolation='nearest_neighbor'):
         """
@@ -596,7 +582,9 @@ filename: %s''' % (
             raise NotImplementedError(
                 'Interpolation scheme %s not implemented!' % interpolation)
 
-    def stack(self, targetidx, patchidxs, durationidxs, starttimeidxs, slips):
+    def stack(
+            self, targetidx, patchidxs, durations, starttimes, slips,
+            interpolation='nearest_neighbor'):
         """
         Stack selected traces from the GF Library of specified
         target, patch, durations and starttimes. Numpy or theano dependend
@@ -610,13 +598,18 @@ filename: %s''' % (
         :class:`numpy.ndarray` or of :class:`theano.tensor.Tensor` dependend
         on stack mode
         """
+        durationidxs, rt_factors = self.durations2idxs(
+            durations, interpolation=interpolation)
+        starttimeidxs, st_factors = self.starttimes2idxs(
+            starttimes, interpolation=interpolation)
+
         return self._stack_switch[self._mode][
             targetidx, patchidxs, durationidxs, starttimeidxs, :].reshape(
                 (slips.shape[0], self.nsamples)).T.dot(slips)
 
     def stack_all(
             self, durations, starttimes, slips, targetidxs=None,
-            interpolation='nearest_neighbor'):
+            patchidxs=None, interpolation='nearest_neighbor'):
         """
         Stack all patches for all targets at once.
         In theano for efficient optimization.
@@ -633,6 +626,12 @@ filename: %s''' % (
         if targetidxs is None:
             raise ValueError('Target indexes have to be defined!')
 
+        if patchidxs is None:
+            patchidxs = self.sw_patchidxs
+            npatches = self.npatches
+        else:
+            npatches = len(patchidxs)
+
         self._check_mode_init(self._mode)
 
         durationidxs, rt_factors = self.durations2idxs(
@@ -644,11 +643,11 @@ filename: %s''' % (
 
             nslips = 1
             cd = self._stack_switch[self._mode][
-                targetidxs, self.sw_patchidxs,
+                targetidxs, patchidxs,
                 durationidxs, starttimeidxs, :]
 
             cd = cd.reshape(
-                (self.ntargets, self.npatches, self.nsamples))
+                (self.ntargets, npatches, self.nsamples))
 
             cslips = slips
 
@@ -656,21 +655,21 @@ filename: %s''' % (
 
             nslips = 4
             d_st_ceil_rt_ceil = self._stack_switch[self._mode][
-                targetidxs, self.sw_patchidxs,
+                targetidxs, patchidxs,
                 durationidxs, starttimeidxs, :].reshape(
-                (self.ntargets, self.npatches, self.nsamples))
+                (self.ntargets, npatches, self.nsamples))
             d_st_floor_rt_ceil = self._stack_switch[self._mode][
-                targetidxs, self.sw_patchidxs,
+                targetidxs, patchidxs,
                 durationidxs, starttimeidxs - 1, :].reshape(
-                (self.ntargets, self.npatches, self.nsamples))
+                (self.ntargets, npatches, self.nsamples))
             d_st_ceil_rt_floor = self._stack_switch[self._mode][
-                targetidxs, self.sw_patchidxs,
+                targetidxs, patchidxs,
                 durationidxs - 1, starttimeidxs, :].reshape(
-                (self.ntargets, self.npatches, self.nsamples))
+                (self.ntargets, npatches, self.nsamples))
             d_st_floor_rt_floor = self._stack_switch[self._mode][
-                targetidxs, self.sw_patchidxs,
+                targetidxs, patchidxs,
                 durationidxs - 1, starttimeidxs - 1, :].reshape(
-                (self.ntargets, self.npatches, self.nsamples))
+                (self.ntargets, npatches, self.nsamples))
 
             s_st_ceil_rt_ceil = (1 - st_factors) * (1 - rt_factors) * slips
             s_st_floor_rt_ceil = st_factors * (1. - rt_factors) * slips
@@ -696,7 +695,7 @@ filename: %s''' % (
             ntargets = 1
             u2d = num.tile(
                 cslips, self.nsamples).reshape(
-                    (self.nsamples, self.npatches * nslips * ntargets))
+                    (self.nsamples, npatches * nslips * ntargets))
             return num.einsum('ijk->ik', cd * u2d.T)
 
     def get_traces(
@@ -731,7 +730,10 @@ filename: %s''' % (
 
     @property
     def reference_times(self):
-        return self._tmins[:, -1]
+        """
+        Returns tmins for all targets for specified hypocentral patch.
+        """
+        return self._tmins + self.config.wave_config.arrival_taper.b
 
     @property
     def deltat(self):
@@ -897,11 +899,9 @@ def geo_construct_gf_linear(
 def _process_patch_seismic(
         engine, gfs, targets, patch, patchidx, durations, starttimes):
 
-    if patch.time < heart.physical_bounds['time'][1]:
-        patch.time += gfs.config.event.time
-        logger.debug('Adding event time to reference source time!')
-    else:
-        logger.debug('Using reference source time ...')
+    # ensur event reference time
+    logger.debug('Using reference event source time ...')
+    patch.time = gfs.config.event.time
 
     # ensure stf anchor point at -1
     patch.stf.anchor = -1
@@ -910,7 +910,7 @@ def _process_patch_seismic(
 
     for duration in durations:
         pcopy = patch.clone()
-        pcopy.stf.duration = duration
+        pcopy.stf.duration = float(duration)
         source_patches_durations.append(pcopy)
 
     for j, target in enumerate(targets):
@@ -926,16 +926,6 @@ def _process_patch_seismic(
             reference_taperer=None,
             outmode='data')
 
-        # getting patch related arrival time for hypocenter
-        ref_arrival_time = heart.get_phase_arrival_time(
-            engine=engine,
-            source=patch,
-            target=target,
-            wavename=gfs.config.wave_config.name)
-
-        ptmin = gfs.config.wave_config.arrival_taper.b + ref_arrival_time
-        gfs.set_patch_time(targetidx=j, patchidx=patchidx, tmin=ptmin)
-
         # getting event related arrival time valid for all patches
         # as common reference
         event_arrival_time = heart.get_phase_arrival_time(
@@ -944,11 +934,10 @@ def _process_patch_seismic(
             target=target,
             wavename=gfs.config.wave_config.name)
 
-        event_tmin = gfs.config.wave_config.arrival_taper.b + event_arrival_time
-        gfs.set_patch_time(targetidx=j, patchidx=-1, tmin=event_tmin)
+        gfs.set_patch_time(targetidx=j, tmin=event_arrival_time)
 
         for starttime in starttimes:
-            shifted_arrival_time = ref_arrival_time - starttime
+            shifted_arrival_time = event_arrival_time - starttime
 
             synthetics_array = heart.taper_filter_traces(
                 traces=traces,
@@ -1083,7 +1072,7 @@ def seis_construct_gf_linear(
             parallel.check_available_memory(gfs.filesize)
 
             shared_gflibrary = RawArray('d', gfs.size)
-            shared_times = RawArray('d', gfs.ntargets * (gfs.npatches + 1))
+            shared_times = RawArray('d', gfs.ntargets)
 
             work = [
                 (engine, gfs, wavemap.targets,
@@ -1102,8 +1091,7 @@ def seis_construct_gf_linear(
             # collect and store away
             gfs._gfmatrix = num.frombuffer(
                 shared_gflibrary).reshape(gfs.dimensions)
-            gfs._tmins = num.frombuffer(shared_times).reshape(
-                (gfs.ntargets, gfs.npatches + 1))
+            gfs._tmins = num.frombuffer(shared_times).reshape((gfs.ntargets))
 
             logger.info('Storing seismic linear GF Library ...')
 

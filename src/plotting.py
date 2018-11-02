@@ -80,7 +80,6 @@ plot_units = {
 
     'nucleation_dip': u_km,
     'nucleation_strike': u_km,
-    'nucleation_time': u_s,
     'nucleation_x': u_hyp,
     'nucleation_y': u_hyp,
     'time_shift': u_s,
@@ -102,7 +101,6 @@ plot_units = {
     'kappa': u_rad,
     'sigma': u_rad,
     'h': u_hyp,
-
 
     'distance': u_km,
     'delta_depth': u_km,
@@ -1114,7 +1112,6 @@ def seismic_fits(problem, stage, plot_options):
     except AttributeError:
         logger.info('FFO waveform fit, using reference source ...')
         source = composite.config.gf_config.reference_sources[0]
-        source.time += problem.config.event.time
 
     logger.info('Plotting waveforms ...')
     target_to_result = {}

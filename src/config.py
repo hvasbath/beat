@@ -84,7 +84,7 @@ interseismic_vars = [
 
 static_dist_vars = ['uparr', 'uperp']
 
-hypo_vars = ['nucleation_strike', 'nucleation_dip', 'nucleation_time']
+hypo_vars = ['nucleation_strike', 'nucleation_dip', 'time']
 partial_kinematic_vars = ['durations', 'velocities']
 voronoi_locations = ['voronoi_strike', 'voronoi_dip']
 
@@ -151,7 +151,7 @@ default_bounds = dict(
     volume_change=(1e8, 1e10),
     diameter=(5., 10.),
     mix=(0, 1),
-    time=(-3., 3.),
+    time=(-5., 5.),
     time_shift=(-5., 5.),
 
     delta_time=(0., 10.),
@@ -166,7 +166,6 @@ default_bounds = dict(
     uperp=(-0.3, 4.),
     nucleation_strike=(0., 10.),
     nucleation_dip=(0., 7.),
-    nucleation_time=(-5., 5.),
     velocities=(0.5, 4.2),
 
     azimuth=(0, 180),
@@ -1160,7 +1159,8 @@ class BEATconfig(Object, Cloneable):
         logger.info('Number of hierarchicals! %i' % n_hierarchicals)
 
 
-def init_reference_sources(source_points, n_sources, source_type, stf_type):
+def init_reference_sources(
+        source_points, n_sources, source_type, stf_type, ref_time=None):
     reference_sources = []
     for i in range(n_sources):
         # rf = source_catalog[source_type](stf=stf_catalog[stf_type]())
@@ -1169,6 +1169,8 @@ def init_reference_sources(source_points, n_sources, source_type, stf_type):
         utility.update_source(rf, input_depth='center', **source_points[i])
         rf.nucleation_x = None
         rf.nucleation_y = None
+        if ref_time is not None:
+            rf.update(time=ref_time)
         reference_sources.append(rf)
 
     return reference_sources
@@ -1300,8 +1302,8 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
         source_points = utility.split_point(point)
 
         reference_sources = init_reference_sources(
-            source_points, n_sources,
-            gmc.problem_config.source_type, gmc.problem_config.stf_type)
+            source_points, n_sources, gmc.problem_config.source_type,
+            gmc.problem_config.stf_type, ref_time=gmc.event.time)
 
         c.date = gmc.date
         c.event = gmc.event
