@@ -2417,6 +2417,40 @@ def fault_slip_distribution(
         cb.set_label(labeltext, fontsize=fontsize)
         ax.set_aspect('equal', adjustable='box')
 
+    def fuzzy_rupture_fronts(ax, rupture_fronts, width, length):
+        """
+        Fuzzy rupture fronts 
+
+        rupture_fronts : list
+            of output of cs = pyplot.contour; cs.allsegs
+        """
+
+        from matplotlib.colors import LinearSegmentedColormap
+
+        ncolors = 256
+        cmap = LinearSegmentedColormap.from_list(
+            'dummy', ['white', 'black'], N=ncolors)
+
+        res_km = 50   # pixel per km
+        grid = num.zeros((width * res_km, length * res_km), dtype='float64')
+        extent = (0., length, 0., width)
+        for rupture_front in rupture_fronts:
+            for level in cs.allsegs:
+                for line in level:
+                    draw_line_on_array(
+                        line[:, 0], line[:, 1],
+                        grid=grid,
+                        extent=extent,
+                        grid_resolution=grid.shape,
+                        linewidth=7)
+
+        ax.imshow(grid, extent=extent, origin='lower', cmap=cmap, aspect='auto')
+        # increase contrast reduce high intense values
+        grid[grid > (nrates / 2)] /= 2.
+
+
+
+
     from beat.colormap import slip_colormap
     fontsize = 12
 
@@ -2464,7 +2498,8 @@ def fault_slip_distribution(
                     sts = fault.get_subfault_starttimes(
                         0, velocities[i, :], nuc_dip_idx, nuc_strike_idx)
 
-                    ax.contour(xgr, ygr, sts, colors='gray', alpha=0.1)
+                    contours = ax.contour(xgr, ygr, sts, colors='gray', alpha=0.1)
+                    fuzzy_rupture_front(contours.allsegs
 
                 durations = transform(mtrace.get_values(
                     'durations', combine=True, squeeze=True))
