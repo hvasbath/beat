@@ -307,22 +307,22 @@ class MTQTSource(gf.SourceWithMagnitude):
 
     v = Float.T(
         default=0.,
-        help='Lune co-longitude transformed to grid'
+        help='Lune co-longitude transformed to grid.'
              'Definded: -1/3 <= v <= 1/3')
 
     kappa = Float.T(
         default=0.,
-        help='Strike angle equivalent of moment tensor plane'
+        help='Strike angle equivalent of moment tensor plane.'
              'Defined: 0 <= kappa <= 2pi')
 
     sigma = Float.T(
         default=0.,
-        help='Rake angle equivalent of moment tensor slip angle'
+        help='Rake angle equivalent of moment tensor slip angle.'
              'Defined: -pi/2 <= sigma <= pi/2')
 
     h = Float.T(
         default=0.,
-        help='Dip angle equivalent of moment tensor plane'
+        help='Dip angle equivalent of moment tensor plane.'
              'Defined: 0 <= h <= 1')
 
     def __init__(self, **kwargs):

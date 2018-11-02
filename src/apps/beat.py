@@ -446,7 +446,6 @@ def command_import(args):
 
     else:
         from pandas import read_csv
-
         logger.info(
             'Attempting to load results with mode %s from directory:'
             ' %s' % (options.mode, options.results))
@@ -495,13 +494,26 @@ def command_import(args):
             source_points = utility.split_point(point)
 
             reference_sources = config.init_reference_sources(
-                source_points, n_sources,
-                c.problem_config.source_type, c.problem_config.stf_type)
+                source_points, n_sources, c.problem_config.source_type,
+                c.problem_config.stf_type, ref_time=c.event.time)
 
-            c.geodetic_config.gf_config.reference_sources = reference_sources
+            if 'geodetic' in options.datatypes:
+                c.geodetic_config.gf_config.reference_sources = \
+                    reference_sources
             if 'seismic' in options.datatypes:
                 c.seismic_config.gf_config.reference_sources = \
                     reference_sources
+
+            summarydf = read_csv(
+                pjoin(problem.outfolder, 'summary.txt'), sep='\s+')
+
+            new_bounds = {}
+            for param in ['time']:
+                new_bounds[param] = extract_bounds_from_summary(
+                    summarydf, varname=param, shape=(n_sources,), roundto=0)
+
+            c.problem_config.set_vars(
+                new_bounds, attribute='priors')
 
         elif options.mode == ffo_mode_str:
             npatches = problem.config.problem_config.mode_config.npatches
@@ -1120,8 +1132,7 @@ def command_build_gfs(args):
                                 fault=fault,
                                 durations_prior=pc.priors['durations'],
                                 velocities_prior=pc.priors['velocities'],
-                                nucleation_time_prior=pc.priors[
-                                    'nucleation_time'],
+                                nucleation_time_prior=pc.priors['time'],
                                 varnames=slip_varnames,
                                 wavemap=wmap,
                                 event=c.event,
