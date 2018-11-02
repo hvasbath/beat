@@ -1167,6 +1167,8 @@ def init_reference_sources(source_points, n_sources, source_type, stf_type):
         # maybe future if several meshtypes
         rf = RectangularSource(stf=stf_catalog[stf_type](anchor=-1))
         utility.update_source(rf, input_depth='center', **source_points[i])
+        rf.nucleation_x = None
+        rf.nucleation_y = None
         reference_sources.append(rf)
 
     return reference_sources
