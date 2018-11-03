@@ -270,8 +270,9 @@ total number of patches: %i ''' % (
         slips = num.sqrt(point['uparr'] ** 2 + point['uperp'] ** 2)
 
         starttimes = self.point2starttimes(point, index=index).ravel()
-        tmax = num.ceil(
-            (starttimes.max() + point['durations'].max()) / deltat) * deltat
+        tmax = (num.ceil(
+            (starttimes.max() + point['durations'].max()) / deltat) + 1) * \
+            deltat
 
         mrf_times = num.arange(0., tmax, deltat)
         mrf_rates = num.zeros_like(mrf_times)

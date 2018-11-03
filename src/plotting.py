@@ -2499,7 +2499,7 @@ def fault_slip_distribution(
                         0, velocities[i, :], nuc_dip_idx, nuc_strike_idx)
 
                     contours = ax.contour(xgr, ygr, sts, colors='gray', alpha=0.1)
-                    fuzzy_rupture_front(contours.allsegs
+ #                   fuzzy_rupture_front(contours.allsegs
 
                 durations = transform(mtrace.get_values(
                     'durations', combine=True, squeeze=True))
@@ -2773,14 +2773,16 @@ def draw_line_on_array(
 
 
 def fuzzy_moment_rate(
-        ax, moment_rates, times, rates_color='black',
-        background_color='white'):
-
-    from matplotlib.colors import LinearSegmentedColormap
-
-    ncolors = 256
-    cmap = LinearSegmentedColormap.from_list(
-        'dummy', [background_color, rates_color], N=ncolors)
+        ax, moment_rates, times, cmap=None):
+    """
+    Plot fuzzy moment rate function into axes.
+    """
+    if cmap is None:
+        # from matplotlib.colors import LinearSegmentedColormap
+        # ncolors = 256
+        # cmap = LinearSegmentedColormap.from_list(
+        #    'dummy', [background_color, rates_color], N=ncolors)
+        cmap = plt.cm.hot_r
 
     nrates = len(moment_rates)
     ntimes = len(times)
@@ -2796,8 +2798,6 @@ def fuzzy_moment_rate(
     extent = (0., max_times, 0., max_rates)
     grid = num.zeros((500, 500), dtype='float64')
 
-    xvec = num.linspace(0., max_times, grid.shape[0], endpoint=True)
-    yvec = num.linspace(0., max_rates, grid.shape[1], endpoint=True)
     for mr, time in zip(moment_rates, times):
         draw_line_on_array(
             time, mr,
@@ -2868,7 +2868,7 @@ def draw_moment_rate(problem, po):
 
             if mtrace is not None:
                 nchains = len(mtrace)
-                csteps = 3
+                csteps = 5
                 idxs = range(0, nchains, csteps)
                 mrfs_rate = []
                 mrfs_time = []
@@ -2885,7 +2885,7 @@ def draw_moment_rate(problem, po):
 
             ax.plot(
                 ref_mrf_times, ref_mrf_rates,
-                '-r', alpha=0.8, linewidth=1.)
+                '-k', alpha=0.8, linewidth=1.)
             format_axes(ax, remove=['top', 'right'])
 
             if po.outformat == 'display':
