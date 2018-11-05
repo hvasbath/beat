@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-
+#!/usr/bin/env python3
 import os
 from setuptools import setup, Extension
 from setuptools.command.build_py import build_py
@@ -21,7 +20,7 @@ except ImportError:
 
         @classmethod
         def get_include(self):
-            return ''
+            return 
 
 
 project_root = op.dirname(op.realpath(__file__))
@@ -127,7 +126,9 @@ subpackages = [
     'beat.fast_sweeping',
     'beat.voronoi',
     'beat.sampler',
-    'beat.models']
+    'beat.models',
+    'beat.ffo',
+    'beat.apps']
 
 setup(
     cmdclass={
@@ -137,10 +138,24 @@ setup(
     version=version,
     author='Hannes Vasyuara-Bathke',
     author_email='hannes.vasyura-bathke@kaust.edu.sa',
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        'Intended Audience :: Science/Research',
+        'Topic :: Scientific/Engineering',
+        'Topic :: Scientific/Engineering :: Physics',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: C',
+        'Operating System :: POSIX',
+        'Operating System :: MacOS',
+        ],
     install_requires=install_reqs,
     packages=['beat'] + subpackages,
     package_dir={'beat': 'src'},
-    scripts=['apps/beat'],
+    entry_points={
+        'console_scripts':
+            ['beat = beat.apps.beat:main', 
+             'beatdown = beat.apps.beatdown:main']
+    },
     package_data={'beat': []},
     ext_modules=[
         Extension(
@@ -151,5 +166,6 @@ setup(
             'voronoi_ext',
             extra_compile_args=['-lm'],
             sources=[op.join('src/voronoi', 'voronoi_ext.c')],
-            include_dirs=[numpy.get_include()])]
+            include_dirs=[numpy.get_include()])
+        ]
 )

@@ -17,7 +17,8 @@ from theano import shared
 import numpy as num
 from scipy import linalg
 
-from pyrocko.guts import Dict, Object, String, StringChoice, Float, Int, Tuple, List
+from pyrocko.guts import (Dict, Object, String, StringChoice,
+                          Float, Int, Tuple, List)
 from pyrocko.guts_array import Array
 
 from pyrocko import crust2x2, gf, cake, orthodrome, trace, util
@@ -227,6 +228,19 @@ class ArrivalTaper(trace.Taper):
     d = Float.T(default=55.,
                 help='end of fading out; [s] w.r.t phase arrival')
 
+    def check_sample_rate_consistency(self, deltat):
+        """
+        Check if taper durations are consistent with GF sample rate.
+        """
+        for chop_b in (['b', 'c'], ['a', 'd']):
+            duration = self.duration(chop_b)
+            ratio = duration / deltat
+            utility.error_not_whole(
+                ratio,
+                errstr='Taper duration %g of %s is inconsistent with'
+                       ' sampling rate of %g! Please adjust Taper values!' % (
+                           duration, utility.list2string(chop_b), deltat))
+
     def duration(self, chop_bounds=['b', 'c']):
         t0 = getattr(self, chop_bounds[0])
         t1 = getattr(self, chop_bounds[1])
@@ -370,6 +384,8 @@ physical_bounds = dict(
     length=(0., 7000.),
     width=(0., 500.),
     slip=(0., 150.),
+    nucleation_x=(-1., 1.),
+    nucleation_y=(-1., 1.),
     magnitude=(-5., 10.),
 
     time=(-300., 300.),
@@ -383,11 +399,10 @@ physical_bounds = dict(
     peak_ratio=(0., 1.),
 
     durations=(0., 600.),
-    uparr=(-0.1, 150.),
+    uparr=(-0.3, 150.),
     uperp=(-150., 150.),
     nucleation_strike=(0., num.inf),
     nucleation_dip=(0., num.inf),
-    nucleation_time=(-40., 40.),
     velocities=(0.5, 7.0),
 
     azimuth=(0, 360),
@@ -398,7 +413,8 @@ physical_bounds = dict(
 
     hypers=(-20., 20.),
 
-    ramp=(-0.01, 0.01))
+    ramp=(-0.01, 0.01),
+    offset=(-1.0, 1.0))
 
 
 class Parameter(Object):
@@ -425,9 +441,12 @@ class Parameter(Object):
 
     def validate_bounds(self):
 
-        if self.name not in physical_bounds.keys():
-            if self.name[-4:] == 'ramp':
-                name = 'ramp'
+        supported_vars = list(physical_bounds.keys())
+
+        if self.name not in supported_vars:
+            candidate = self.name.split('_')[-1]
+            if candidate in supported_vars:
+                name = candidate
             elif self.name[0:2] != 'h_':
                 raise TypeError(
                     'The parameter "%s" cannot'
@@ -437,6 +456,7 @@ class Parameter(Object):
         else:
             name = self.name
 
+        phys_b = physical_bounds[name]
         if self.lower is not None:
             for i in range(self.dimension):
                 if self.upper[i] < self.lower[i]:
@@ -450,8 +470,6 @@ class Parameter(Object):
                     raise ValueError(
                         'The testvalue of parameter "%s" has to'
                         ' be within the upper and lower bounds' % self.name)
-
-                phys_b = physical_bounds[name]
 
                 if self.upper[i] > phys_b[1] or \
                         self.lower[i] < phys_b[0]:
@@ -749,7 +767,7 @@ class GPSDataset(object):
         return list(self.stations.keys())
 
     def get_component_names(self):
-        return self.stations.values()[0].get_component_names()
+        return next(iter(self.stations.values())).get_component_names()
 
     def get_compound(self, name):
         stations = self.stations.values()
@@ -781,53 +799,7 @@ class GPSDataset(object):
             odw=num.ones_like(lats.size))
 
     def iter_stations(self):
-        return self.stations.iteritems()
-
-
-class Quadtree(GeodeticDataset):
-    """
-    In the point coordinates are assumed to be te lower left corner
-    of the quadtree leaves.
-    """
-    sizeN = Array.T(shape=(None,), dtype=num.float, optional=True)
-    sizeE = Array.T(shape=(None,), dtype=num.float, optional=True)
-
-    def iter_leaves(self):
-        """
-        Iterator over the quadtree leaves, returns lower left easting and
-        northing together with the width and height
-        """
-        for E, N, se, sn in zip(
-                self.east_shifts, self.north_shifts, self.sizeE, self.sizeN):
-            yield E, N, se, sn
-
-    @classmethod
-    def from_kite_quadtree(cls, quadtree, **kwargs):
-        east_shifts = num.zeros(quadtree.nleaves)
-        north_shifts = num.zeros(quadtree.nleaves)
-        sizeE = num.zeros(quadtree.nleaves)
-        sizeN = num.zeros(quadtree.nleaves)
-
-        for i, leaf in enumerate(quadtree.leaves):
-            east_shifts[i] = leaf.llE
-            north_shifts[i] = leaf.llN
-            sizeE[i] = leaf.sizeE
-            sizeN[i] = leaf.sizeN
-
-        lats, lons = orthodrome.ne_to_latlon(
-            lat0=quadtree.frame.llLat, lon0=quadtree.frame.llLon,
-            north_m=north_shifts, east_m=east_shifts)
-
-        utme, utmn = utility.lonlat_to_utm(lons, lats, quadtree.frame.utm_zone)
-
-        d = dict(
-            lats=lats,
-            lons=lons,
-            utme=utme,
-            utmn=utmn,
-            sizeE=sizeE,
-            sizeN=sizeN)
-        return cls(**d)
+        return self.stations.items()
 
 
 class ResultReport(Object):
@@ -841,7 +813,7 @@ class ResultReport(Object):
         optional=True,
         default=None,
         help='mean of distributions, used for model'
-             ' prediction covariance calculation.') 
+             ' prediction covariance calculation.')
 
 
 class IFG(GeodeticDataset):
@@ -903,9 +875,6 @@ class DiffIFG(IFG):
     reference_point = Tuple.T(2, Float.T(), optional=True)
     reference_value = Float.T(optional=True, default=0.0)
     displacement = Array.T(shape=(None,), dtype=num.float, optional=True)
-    quadtree = Quadtree.T(
-        optional=True, default=None,
-        help='Quadtree corner coordinate information for plotting.')
     covariance = Covariance.T(
         optional=True,
         help=':py:class:`Covariance` that holds data'
@@ -925,29 +894,40 @@ class DiffIFG(IFG):
             'now, which may take a significant amount of time...' %
             scene.meta.filename)
         covariance = Covariance(data=scene.covariance.covariance_matrix)
-        loce = scene.quadtree.leaf_eastings
-        locn = scene.quadtree.leaf_northings
-        lats, lons = orthodrome.ne_to_latlon(
-            lat0=scene.frame.llLat, lon0=scene.frame.llLon,
-            north_m=locn, east_m=loce)
 
-        quadtree = Quadtree.from_kite_quadtree(scene.quadtree)
-
-        utme, utmn = utility.lonlat_to_utm(lons, lats, scene.frame.utm_zone)
+        if scene.quadtree.frame.isDegree():
+                lats = num.empty(scene.quadtree.nleaves)
+                lons = num.empty(scene.quadtree.nleaves)
+                lats.fill(scene.quadtree.frame.llLat)
+                lons.fill(scene.quadtree.frame.llLon)
+                lons += scene.quadtree.leaf_focal_points[:, 0]
+                lats += scene.quadtree.leaf_focal_points[:, 1]
+        elif scene.quadtree.frame.isMeter():
+                loce = scene.quadtree.leaf_eastings
+                locn = scene.quadtree.leaf_northings
+                lats, lons = orthodrome.ne_to_latlon(
+                    lat0=scene.frame.llLat, lon0=scene.frame.llLon,
+                    north_m=locn, east_m=loce)
 
         d = dict(
             name=scene.meta.filename,
             displacement=scene.quadtree.leaf_means,
-            utme=utme,
-            utmn=utmn,
             lons=lons,
             lats=lats,
             covariance=covariance,
             incidence=90 - num.rad2deg(scene.quadtree.leaf_thetas),
             heading=-num.rad2deg(scene.quadtree.leaf_phis) + 180,
-            odw=num.ones_like(scene.quadtree.leaf_phis),
-            quadtree=quadtree)
+            odw=num.ones_like(scene.quadtree.leaf_phis))
         return cls(**d)
+
+    def plane_names(self):
+        return [self.ramp_name()] + [self.offset_name()]
+
+    def ramp_name(self):
+        return self.name + '_ramp'
+
+    def offset_name(self):
+        return self.name + '_offset'
 
 
 class GeodeticResult(Object):
@@ -1343,8 +1323,7 @@ def get_velocity_model(
 
     else:
         logger.info('Using global model ...')
-        source_model = cake.load_model(
-            earth_model_name).extract(depth_max='cmb')
+        source_model = cake.load_model(earth_model_name)
 
     if crust_ind > 0:
         source_model = ensemble_earthmodel(
@@ -1379,7 +1358,8 @@ def get_slowness_taper(fomosto_config, velocity_model, distances):
     phases = [phase.phases for phase in fc.tabulated_phases]
 
     all_phases = []
-    map(all_phases.extend, phases)
+    for phase in phases:
+        all_phases.extend(phase)
 
     mean_source_depth = num.mean(
         (fc.source_depth_min, fc.source_depth_max)) / km
@@ -1771,28 +1751,25 @@ def geo_construct_gf(
 
     traces_path = os.path.join(store_dir, 'traces')
 
-    if execute and not os.path.exists(traces_path) or force:
-        logger.info('Filling store ...')
+    if execute:
+        if not os.path.exists(traces_path) or force:
+            logger.info('Filling store ...')
 
-        store = gf.store.Store(store_dir, 'r')
-        store.close()
+            store = gf.store.Store(store_dir, 'r')
+            store.close()
 
-        # build store
-        try:
-            ppp.build(store_dir, nworkers=gfc.nworkers, force=force)
-        except ppp.PsCmpError, e:
-            if str(e).find('could not start psgrn/pscmp') != -1:
-                logger.warn('psgrn/pscmp not installed')
-                return
-            else:
-                raise
+            # build store
+            try:
+                ppp.build(store_dir, nworkers=gfc.nworkers, force=force)
+            except ppp.PsCmpError as e:
+                if str(e).find('could not start psgrn/pscmp') != -1:
+                    logger.warn('psgrn/pscmp not installed')
+                    return
+                else:
+                    raise
 
-    elif not execute and not os.path.exists(traces_path):
-        logger.info('Geo GFs can be created in directory: %s ! '
-                    '(execute=True necessary)! GF params: \n' % store_dir)
-        print fomosto_config, c
-    else:
-        logger.info('Traces exist use force=True to overwrite!')
+        else:
+            logger.info('Traces exist use force=True to overwrite!')
 
 
 def geo_construct_gf_psgrn(
@@ -1866,7 +1843,7 @@ def geo_construct_gf_psgrn(
     if not execute:
         logger.info('Geo GFs can be created in directory: %s ! '
                     '(execute=True necessary)! GF params: \n' % c.psgrn_outdir)
-        print c
+        print(c)
 
     if execute:
         logger.info('Creating Geo GFs in directory: %s' % c.psgrn_outdir)
@@ -1918,7 +1895,7 @@ def geo_layer_synthetics_pscmp(
     return runner.get_results(component='displ', flip_z=True)[0]
 
 
-def get_phase_arrival_time(engine, source, target, wavename):
+def get_phase_arrival_time(engine, source, target, wavename, snap=True):
     """
     Get arrival time from Greens Function store for respective
     :class:`pyrocko.gf.seismosizer.Target`,
@@ -1933,6 +1910,8 @@ def get_phase_arrival_time(engine, source, target, wavename):
     target : :class:`pyrocko.gf.seismosizer.Target`
     wavename : string
         of the tabulated phase that determines the phase arrival
+    snap : if True
+        force arrival time on discrete samples of the store
 
     Returns
     -------
@@ -1946,11 +1925,15 @@ def get_phase_arrival_time(engine, source, target, wavename):
             'No such store with ID %s found, distance [deg] to event: %f ' % (
                 target.store_id, cake.m2d * dist))
 
-    return store.t(wavename, (source.depth, dist)) + source.time
+    atime = store.t(wavename, (source.depth, dist)) + source.time
+    if snap:
+        deltat = 1. / store.config.sample_rate
+        atime = trace.t2ind(atime, deltat, snap=round) * deltat
+    return atime
 
 
 def get_phase_taperer(
-        engine, source, wavename, target, arrival_taper, arrival_time=None):
+        engine, source, wavename, target, arrival_taper, arrival_time=num.nan):
     """
     Create phase taperer according to synthetic travel times from
     source- target pair and taper return :class:`pyrocko.trace.CosTaper`
@@ -1972,7 +1955,7 @@ def get_phase_taperer(
     -------
     :class:`pyrocko.trace.CosTaper`
     """
-    if arrival_time is None or arrival_time == num.NAN:
+    if num.isnan(arrival_time):
         logger.warning('Using source reference for tapering!')
         arrival_time = get_phase_arrival_time(
             engine=engine, source=source, target=target, wavename=wavename)
@@ -2139,6 +2122,7 @@ class WaveformMapping(object):
                 arrival_times=arrival_times,
                 outmode=outmode,
                 chop_bounds=chop_bounds)
+
             self._arrival_times = arrival_times
         else:
             raise ValueError('Wavemap needs configuration!')
@@ -2177,6 +2161,7 @@ class DataWaveformCollection(object):
     def __init__(self, stations, waveforms=None):
         self.stations = stations
         self.waveforms = waveforms
+        self._deltat = None
         self._targets = OrderedDict()
         self._datasets = OrderedDict()
         self._raw_datasets = OrderedDict()
@@ -2194,6 +2179,8 @@ class DataWaveformCollection(object):
                 raise CollectionError(
                     'Downsampled trace %s already in'
                     ' collection!' % utility.list2string(tr.nslc_id))
+
+        self._deltat = deltat
 
     def _check_collection(self, waveform, errormode='not_in', force=False):
         if errormode == 'not_in':
@@ -2451,6 +2438,9 @@ def init_wavemap(
     wmap.config = wc
     wmap.mapnumber = mapnumber
 
+    wmap.config.arrival_taper.check_sample_rate_consistency(
+        datahandler._deltat)
+
     wmap.station_weeding(event, wc.distances, blacklist=wc.blacklist)
     wmap.update_interpolation(wc.interpolation)
     wmap._update_trace_wavenames('_'.join([wc.name, str(wmap.mapnumber)]))
@@ -2478,15 +2468,14 @@ def post_process_trace(
         determines where to chop the trace on the taper attributes
         may be combination of [a, b, c, d]
     """
-
-    if filterer is not None:
+    if filterer:
         # filter traces
         trace.bandpass(
             corner_hp=filterer.lower_corner,
             corner_lp=filterer.upper_corner,
             order=filterer.order)
 
-    if taper is not None and outmode != 'data':
+    if taper and outmode != 'data':
         tolerance = (taper.b - taper.a) * taper_tolerance_factor
         lower_cut = getattr(taper, chop_bounds[0]) - tolerance
         upper_cut = getattr(taper, chop_bounds[1]) + tolerance
@@ -2496,8 +2485,7 @@ def post_process_trace(
 
         trace.extend(lower_cut, upper_cut, fillmethod='zeros')
         trace.taper(taper, inplace=True)
-        trace.chop(tmin=lower_cut,
-                   tmax=upper_cut)
+        trace.chop(tmin=lower_cut, tmax=upper_cut, snap=(num.floor, num.floor))
 
 
 class StackingError(Exception):
@@ -2543,7 +2531,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         tolerance to chop traces around taper.a and taper.d
     arrival_times : None or :class:`numpy.NdArray`
         of phase to apply taper, if None theoretic arrival of ray tracing used
-    chop_bounds : str
+    chop_bounds : list  of str
         determines where to chop the trace on the taper attributes
         may be combination of [a, b, c, d]
 
@@ -2560,14 +2548,14 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
             'Outmode "%s" not available! Available: %s' % (
                 outmode, utility.list2string(stackmodes)))
 
-    if arrival_times is None:
+    if not arrival_times.all():
         arrival_times = num.zeros((len(targets)), dtype=tconfig.floatX)
         arrival_times[:] = None
 
     taperers = []
     tapp = taperers.append
     for i, target in enumerate(targets):
-        if arrival_taper is not None:
+        if arrival_taper:
             tapp(get_phase_taperer(
                 engine=engine,
                 source=sources[0],
@@ -2576,7 +2564,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
                 arrival_taper=arrival_taper,
                 arrival_time=arrival_times[i]))
 
-    if pre_stack_cut and arrival_taper is not None:
+    if pre_stack_cut and arrival_taper and outmode != 'data':
         for t, taperer in zip(targets, taperers):
             t.update_target_times(sources, taperer)
 
@@ -2598,7 +2586,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     taper_index = [j for _ in range(ns) for j in range(nt)]
 
     for i, (source, target, tr) in enumerate(response.iter_results()):
-        if arrival_taper is not None:
+        if arrival_taper:
             taper = taperers[taper_index[i]]
         else:
             taper = None
@@ -2618,28 +2606,44 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     if plot:
         trace.snuffle(synt_trcs)
 
-    if arrival_taper is not None and outmode != 'data':
-        synths = num.vstack([tr.ydata for tr in synt_trcs])
+    if arrival_taper and outmode != 'data':
+        try:
+            synths = num.vstack([tr.ydata for tr in synt_trcs])
+        except ValueError:
+            lengths = [tr.ydata.size for tr in synt_trcs]
+            tmins = num.array([tr.tmin for tr in synt_trcs])
+            tmaxs = num.array([tr.tmax for tr in synt_trcs])
+            tmins -= tmins.min()
+
+            print('lengths', lengths)
+            print('tmins', tmins)
+            print('tmaxs', tmins)
+            print('duration', tmaxs - tmins)
+            print('arrival_times', arrival_times)
+            print('arrival_times norm', arrival_times - arrival_times.min())
+            trace.snuffle(synt_trcs)
+            raise ValueError('Stacking error, traces different lengths!')
 
         # stack traces for all sources
         t6 = time()
-        if ns > 1:
+        if ns == 1:
+            outstack = synths
+        else:
             outstack = num.zeros([nt, synths.shape[1]])
             for k in range(ns):
                 outstack += synths[(k * nt):(k + 1) * nt, :]
-        else:
-            outstack = synths
+
         t7 = time()
         logger.debug('Stack traces time %f' % (t7 - t6))
 
         # get taper times for tapering data as well
-        tmins = num.array([at.a for at in taperers])
+        tmins = num.array([getattr(at, chop_bounds[0]) for at in taperers])
     else:
         # no taper defined so return trace tmins
         tmins = num.array([tr.tmin for tr in synt_trcs])
 
     if outmode == 'stacked_traces':
-        if arrival_taper is not None:
+        if arrival_taper:
             outtraces = []
             oapp = outtraces.append
             for i in range(nt):
@@ -2774,7 +2778,7 @@ def taper_filter_traces(
         cut_trace = tr.copy()
         cut_trace.set_location('filt')
 
-        if arrival_taper is not None:
+        if arrival_taper:
             taper = arrival_taper.get_pyrocko_taper(float(arrival_times[i]))
         else:
             taper = None
@@ -2797,7 +2801,7 @@ def taper_filter_traces(
         trace.snuffle(cut_traces + traces)
 
     if outmode == 'array':
-        if arrival_taper is not None:
+        if arrival_taper:
             logger.debug('Returning chopped traces ...')
             return num.vstack(
                 [cut_traces[i].ydata for i in range(len(traces))])

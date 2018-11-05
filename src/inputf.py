@@ -1,6 +1,7 @@
 import scipy.io
 import numpy as num
 import copy
+from glob import glob
 
 from beat import heart, utility
 from pyrocko import model, io
@@ -188,43 +189,119 @@ def load_and_blacklist_stations(datadir, blacklist):
     return utility.apply_station_blacklist(stations, blacklist)
 
 
-def load_data_traces(datadir, stations, channels):
-    '''
-    Load data traces for the given stations and channels.
-    '''
-    trc_name_divider = '-'
-    data_format = 'mseed'
+def load_autokiwi(datadir, stations):
+    return load_data_traces(
+        datadir=datadir, stations=stations,
+        divider='-',
+        load_channels=['u', 'r', 'a'],
+        name_prefix='reference',
+        convert=True)
 
-    ref_channels = []
-    for cha in channels:
-        if cha == 'Z':
-            ref_channels.append('u')
-        elif cha == 'T':
-            ref_channels.append('r')
-        elif cha == 'R':
-            ref_channels.append('a')
-        else:
-            raise Exception('No data for this channel!')
 
-    # load recorded data
+channel_mappings = {
+    'u': 'Z',
+    'r': 'T',
+    'a': 'R',
+    'BHE': 'E',
+    'BHN': 'N',
+    'BHZ': 'Z',
+}
+
+
+def load_obspy_data(datadir):
+    """
+    Load data from the directory through obspy and convert to pyrocko objects.
+
+    Parameters
+    ----------
+    datadir : string
+        absolute path to the data directory
+
+    Returns
+    -------
+    data_traces, stations
+    """
+
+    import obspy
+    from pyrocko import obspy_compat
+
+    obspy_compat.plant()
+
+    filenames = set(glob(datadir + '/*'))
+    remaining_f = copy.deepcopy(filenames)
+    print(filenames)
+    stations = []
+    for f in filenames:
+        print(f)
+        try:
+            inv = obspy.read_inventory(f)
+            stations.extend(inv.to_pyrocko_stations())
+            remaining_f.discard(f)
+        except TypeError:
+            logger.debug('File %s not an inventory.' % f)
+
+    filenames = copy.deepcopy(remaining_f)
+    print(filenames)
+    data_traces = []
+    for f in filenames:
+        print(f)
+        try:
+            stream = obspy.read(f)
+            pyrocko_traces = stream.to_pyrocko_traces()
+            for tr in pyrocko_traces:
+                data_traces.append(heart.SeismicDataset.from_pyrocko_trace(tr))
+
+            remaining_f.discard(f)
+
+        except TypeError:
+            logger.debug('File %s not waveforms' % f)
+
+    print(remaining_f)
+    if len(remaining_f) > 0:
+        logger.warning(
+            'Could not import these files %s' %
+            utility.list2string(list(filenames)))
+
+    logger.info('Imported %i data_traces and %i stations' %
+                (len(stations), len(data_traces)))
+    return stations, data_traces
+
+
+def load_data_traces(
+        datadir, stations, load_channels=[], name_prefix=None,
+        data_format='mseed', divider='-', convert=False):
+    """
+    Load data traces for the given stations from datadir.
+    """
+
     data_trcs = []
-
     # (r)ight transverse, (a)way radial, vertical (u)p
-    for ref_channel in ref_channels:
-        for station in stations:
-            trace_name = trc_name_divider.join(
-                ('reference', station.network, station.station, ref_channel))
+    for station in stations:
+        if not load_channels:
+            channels = station.channels
+        else:
+            channels = [model.Channel(name=cha) for cha in load_channels]
 
-            tracepath = datadir + trace_name + '.' + data_format
+        for channel in channels:
+            trace_name = divider.join(
+                (station.network, station.station,
+                 station.location, channel.name, data_format))
 
+            if name_prefix:
+                trace_name = divider.join(name_prefix, trace_name)
+
+            tracepath = os.path.join(datadir, trace_name)
             try:
                 with open(tracepath):
-                    dt = io.load(tracepath, data_format)[0]
+                    dt = io.load(tracepath, format=data_format)[0]
                     # [nm] convert to m
-                    dt.set_ydata(dt.ydata * m)
-                    dt.station = station.station
-                    dt.network = station.network
-                    dt.location = '0'
+                    if convert:
+                        dt.set_ydata(dt.ydata * m)
+
+                    dt.set_channel(channel.name)
+                    dt.set_station(station.station)
+                    dt.set_network(station.network)
+                    dt.set_location('0')
                     # convert to BEAT seismic Dataset
                     data_trcs.append(
                         heart.SeismicDataset.from_pyrocko_trace(dt))
@@ -232,3 +309,55 @@ def load_data_traces(datadir, stations, channels):
                 logger.warn('Unable to open file: ' + trace_name)
 
     return data_trcs
+
+
+supported_channels = list(channel_mappings.values())
+
+
+def rotate_traces_and_stations(datatraces, stations, event):
+    """
+    Rotate traces and stations into RTZ with respect to the event.
+    Updates channels of stations in place!
+
+    Parameters
+    ---------
+    datatraces: list
+        of :class:`pyrocko.trace.Trace`
+    stations: list
+        of :class:`pyrocko.model.Station`
+    event: :class:`pyrocko.model.Event`
+
+    Returns
+    -------
+    rotated traces to RTZ
+    """
+    from pyrocko import trace
+
+    station2traces = utility.gather(
+        datatraces, lambda t: t.station)
+
+    trs_projected = []
+    for station in stations:
+        station.set_event_relative_data(event)
+        projections = station.guess_projections_to_rtu(
+            out_channels=('R', 'T', 'Z'))
+
+        traces = station2traces[station.station]
+        ntraces = len(traces)
+        if ntraces < 3:
+            logger.warn('Only found %i component(s) for station %s' % (
+                ntraces, station.station))
+
+        for matrix, in_channels, out_channels in projections:
+            proc = trace.project(traces, matrix, in_channels, out_channels)
+            for tr in proc:
+                logger.debug('Outtrace: \n %s' % tr.__str__())
+                for ch in out_channels:
+                    if ch.name == tr.channel:
+                        station.add_channel(ch)
+
+            if proc:
+                logger.debug('Updated station: \n %s' % station.__str__())
+                trs_projected.extend(proc)
+
+    return trs_projected

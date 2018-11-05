@@ -28,7 +28,7 @@ Will display::
       --datatypes=DATATYPES
                             Datatypes to include in the setup; "geodetic,
                             seismic".
-      --mode=MODE           Inversion problem to solve; "geometry", "ffi",
+      --mode=MODE           Inversion problem to solve; "geometry", "ffo",
                             "interseismic" Default: "geometry"
       --source_type=SOURCE_TYPE
                             Source type to solve for; ExplosionSource",
@@ -66,20 +66,20 @@ For example to optimize for a Full Moment Tensor for the Landers EQ by using sei
 
 This will create project directory called LandersEQ in the current directory.
 Within the directoy you will see that there have been two files created:
- - BEAT_log.txt 
- - geometry_config.yaml 
+ - BEAT_log.txt
+ - geometry_config.yaml
 
 The first file is a logging file where all the executed comments and outputs are written to. In case something goes wrong this log file helps to find the error.
 For now it contains::
 
-    2018-01-04 16:15:06,696 - utility - INFO - Getting relevant events from the gCMT catalog for the dates:1992-06-27 00:00:00.000 - 1992-06-29 00:00:00.000 
+    2018-01-04 16:15:06,696 - utility - INFO - Getting relevant events from the gCMT catalog for the dates:1992-06-27 00:00:00.000 - 1992-06-29 00:00:00.000
 
     2018-01-04 16:15:07,097 - config - INFO - Added hyperparameter h_any_P_Z to config and model setup!
     2018-01-04 16:15:07,097 - config - INFO - Added hyperparameter h_any_S_Z to config and model setup!
     2018-01-04 16:15:07,097 - config - INFO - All hyper-parameters ok!
     2018-01-04 16:15:07,097 - config - INFO - Number of hyperparameters! 2
     2018-01-04 16:15:07,098 - config - INFO - All parameter-priors ok!
-    2018-01-04 16:15:07,102 - config - INFO - Project_directory: /home/vasyurhm/BEATS/LandersEQ 
+    2018-01-04 16:15:07,102 - config - INFO - Project_directory: /home/vasyurhm/BEATS/LandersEQ
 
 The second file is a yaml-configuration file and it is where ALL the changes in parameters and settings have to be done to avoid tinkering with the program itself!
 This file can be read as is by the computer, therefore, it is important to keep the syntax clean!
@@ -295,94 +295,130 @@ This example configuration file looks like this::
 
 Each BEAT config consists of some general information, from information collected from the gCMT catalog, of a ProblemConfig, the configurations for each dataset (here only seismic_config) and configurations for the sampling algorithms to use for the optimizations of the general problem (sampler_config) as well as a of an initial guess for the hyperparameters (hyper_sampler_config).
 
-Most of the edits likely will be made in the ProblemConfig, particularly in the priors of the source parameters. For now only uniform priors are available. To change the bounds of the priors simply type other values into the 'upper' and 'lower' fields of each source parameter. Note: The test parameter needs to be within these bounds! 
+Most of the edits likely will be made in the ProblemConfig, particularly in the priors of the source parameters. For now only uniform priors are available. To change the bounds of the priors simply type other values into the 'upper' and 'lower' fields of each source parameter. Note: The test parameter needs to be within these bounds!
 To fix one or the other parameter in the optimizations the upper and lower bounds as well as the test value need to be set equal.
 
 
 Import Data
 -----------
-This is the step to import the user data into the program format and setup. 
+This is the step to import the user data into the program format and setup.
+
+
+geodetic data
+^^^^^^^^^^^^^
+
+InSAR
+=====
+To use static displacement InSAR measurements you need to prepare your data first with `kite <https://github.com/pyrocko/kite>`__.
+Kite handels displacement data from a variety of formats, such as e.g. GMTSAR, ISCE, ROIPAC and GAMMA. After importing the data into kite you
+should consider to subsample it and to calculate the data-error-variance-covariance as described in the `kite documentation <https://pyrocko.org/kite/docs/current/>`__.
+Once you are satisfied with your specifications please store the kite scenes in its native format as "numpy-npz containers".
+
+In the $project_dir you find the config_geometry.yaml, where the geodetic_config variable 'datadir' points to the location where the data are stored.
+Under the 'names' variable, the names of the files of interest have to be entered (without the .npz and .yml suffixes). Afterwards, the following command has to be executed to import the data::
+
+    beat import $project_dir
+
+The data are now accessible to beat as the file geodetic_data.pkl. In case it turns out the pre-processing (subsampling, covariance estimation) had to be repeated, the existing 'geodetic_data.pkl' file can be overwritten by adding the --force option to the import command above.
+
+GNSS
+====
+The supported format for GNSS data is an ASCII file of the following format::
+
+  DOGG  10.0000   15.6546   -0.61   0.44   3.5900     0.18  0.15  0.7000
+  CATT  135.0000  -45.000   0.15    -0.57  1.6100     0.23  0.20  0.9000
+  COOW  45.0000   98.0000   12.20   15.01  22.8600    0.93  0.78  3.5700
+
+The columns are in this order: station name, Longitude, Latitude, velocity east component, velocity north component, velocity vertical component, standard-deviaion east component, standard-deviaion north component, standard-deviaion vertical component,
+The units for the location and the measurements are [decimal deg] and [mm/yr], respectively.
+
+.. note:: This is the native GAMMIT output file.
 
 seismic data
-____________
+^^^^^^^^^^^^
+For the import and aquistion of seismic data for beat exist several options. The command beatdown can be used to download a
+dataset from available FDSN services. Alternatively, exisiting files from any custom source may be converted by using the pyrocko framework.
 
-So far, unfortunately only the output of `autokiwi <https://github.com/emolch/kiwi>`__ is supported for automatic import of seismic data.
+beatdown
+========
+The command line tool beatdown downloads waveforms from all available FDSN web services and prepares them for BEAT,
+including restituting the waveforms to displacements and rotating them into the R,T,Z or E, N,Z coordinate
+systems.
+
+The beatdown command for downloading FDSN data can be executed in different formats, e.g. by giving an event time or an event name.
+It will download all wanted data in a given radius around the origin. For a complete list of input options
+please use:
+
+    beatdown --help
+    
+An example line to download and prepare the data for the 2009 L'Aquila earthquake would be:
+
+    beatdown /path/to/project_directory "2009-04-06 01:32:39" 1000. 0.001 5. Laquila
+    
+This command downloads the available data for the event at time 2009-04-06 01:32:39 in a
+radius of 1000 km restitutes the traces to frequencies between 0.001 and 5. Hz and saves them in the folder
+/path/to/project_directory/data/events/Laquila. Additionally it creates a seismic_data.pkl into the "project_directory", which will
+be used by BEAT.
+
+It may be desired to automatically pre-selected a subset of stations from all available data
+based on data quality and separation of stations. The option --nstations-wanted enables such a station
+weeding and tries to find a suitable subset of stations close to the number provided. The actual resulting
+station number might vary based on station distribution and quality. For the above
+example we might want to use around 60 stations, so the command line for that would look like:
+
+    beatdown /path/to/home_directory "2009-04-06 01:32:39" 1000. 0.001 5. Laquila --nstations-wanted=60
+                               
+
+Data import
+===========
+
+The output of `autokiwi <https://github.com/emolch/kiwi>`__ is supported for automatic import of seismic data.
+
+To see a list of the supported data types ($ending) please see: `Trace Handeling <https://pyrocko.org/docs/current/library/examples/trace_handling.html>`__
+or type.::
+
+    beat import --help
+
+The traces should be named in the format 'network.station..channel.$ending'
+In addition to these an ascii text file with the station information is needed of the format::
+    
+    #network_name.station_name.location_name latitude[deg] longitude[deg] elevation[m] depth[m]
+    IU.TSUM.10            -19.20220       17.58380         1260.0            0.0 
+      BHE             90              0              1   # channel name azimuth[deg] dip[deg] gain \n
+      BHN              0              0              1
+      BHZ              0            -90              1
+    IU.RCBR.00             -5.82740      -35.90140          291.0          109.0 
+      BH1             48              0              1
+      BH2            138              0              1
+      BHZ              0            -90              1
+    ...
+
+To ease the creation of this textfile we refer the user to investigate the pyrocko module: model (Function: dump_stations).
+
+
+Custom Data import
+==================
 To get other types of data imported the user will have to do some programing.
 
 The following remarks are just bits and pieces that may be followed to write a script to bring the data into the necessary format.
 
-The seismic data may be saved using the package "pickle" as a file "seismic_data.pkl" containing a list of 2 lists: 1. list of "pyrocko.trace.Trace" objects alternating for (Z / T) rotated traces. 2. list of "pyrocko.model.Station" objects in the same order like the data traces.
+The seismic data may be saved using the package "pickle" as a file "seismic_data.pkl" containing a list of 2 lists: 1. list of "pyrocko.trace.Trace" objects alternating for (R T Z) rotated traces. 2. list of "pyrocko.model.Station" objects in the same order like the data traces.
 
 Pyrocko supports the import of various data formats and all the necessary tools to remove the instrument response and to convert the traces to displacement.
 How to do this based on some examples is shown `here <https://pyrocko.org/docs/current/library/examples/trace_handling.html#restitute-to-displacement-using-poles-and-zeros>`__ webpage.
 
-Once you have done this with your data, you only need to create the second list of station objects.
-To create this list we provide a helper function 'setup_stations' in the inputf module.
-Within an ipython session type::
+For import from obspy you can use the following pyrocko commands to convert your obspy data into pyrocko data and obspy inventories to pyrocko stations:
 
-    from beat import inputf
-    inputf.setup_stations?
+   `obspy_to_pyrocko conversion <https://pyrocko.org/docs/current/library/reference/obspy_compat.html#pyrocko.obspy_compat.plant>`__
 
-Will show::
+Once you have done this the standard pyrocko traces will need to be converted to beat trace objects, this is done simply, assuming that "traces"
+is a list of pyrocko trace objects, by:
 
-    inputf.setup_stations(lats, lons, names, networks, event)
-    Docstring:
-    Setup station objects, based on station coordinates and reference event.
-
-    Parameters
-    ----------
-    lats : :class:`num.ndarray`
-        of station location latitude
-    lons : :class:`num.ndarray`
-        of station location longitude
-    names : list
-        of strings of station names
-    networks : list
-        of strings of network names for each station
-    event : :class:`pyrocko.model.Event`
-
-    Results
-    -------
-    stations : list
-        of :class:`pyrocko.model.Station`
-
-The event object that may be used in this function is the one shown in the top of the configuration file.
-In an ipython session from within the LandersEQ directory execute::
-
-    from pyrocko import guts
-    from beat import config
-
-    c = guts.load(filename='config_geometry.yaml')
-    print c.event
-
-Will yield::
-
-    --- !pf.Event
-    lat: 34.65
-    lon: -116.65
-    time: 1992-06-28 11:57:53
-    name: 062892C
-    depth: 15000.0
-    magnitude: 7.316312340268055
-    region: SOUTHERN CALIFORNIA
-    catalog: gCMT
-    moment_tensor: !pf.MomentTensor
-      mnn: -6.12e+19
-      mee: 7.001e+19
-      mdd: -8.81e+18
-      mne: -7.335e+19
-      mnd: 3.807e+19
-      med: -9.9e+17
-      strike1: 247.72308708747312
-      dip1: 82.44124210318292
-      rake1: -20.30350409572225
-      strike2: 340.50937853818954
-      dip2: 69.88059010043526
-      rake2: -171.9468551048134
-      moment: 1.0579582033331939e+20
-      magnitude: 7.316312340268055
-    duration: 38.4
-
+    from beat import heart
+    traces_beat = []
+    for tr in traces:
+        tr_beat= heart.SeismicDataset.from_pyrocko_trace(tr)                 
+        traces_beat.append(tr_beat)
 
 Once a list of traces and station objects exists it may be exported to the project directory (here path from example)::
 
@@ -394,8 +430,8 @@ Once a list of traces and station objects exists it may be exported to the proje
 
 How to update the configuration files
 -------------------------------------
-In the course of development in BEAT it happened and may happen in the future that 
-the structure in the configuration file changes. Thus after a code base upgrade it may happen that 
+In the course of development in BEAT it happened and may happen in the future that
+the structure in the configuration file changes. Thus after a code base upgrade it may happen that
 older configuration files cannot be read anymore. The program will raise an Error with the message
 that the configuration file has to be updated and how this can be done. However, it may be of interest to know
 before the actual update what is going to change. These changes can be displayed with::
@@ -424,7 +460,7 @@ we skip the catalog search by not specifiying the date.::
 
 .. note::
     To use the default ak135 earth-model in combination with crust2 one needs to execute above command without the '--use_custom' flag.
- 
+
 This will create a beat project folder named 'Cascadia' and a configuration file 'config_geometry.yaml'.
 In this configuration file we may now edit the reference location and the velocity model to the specific model we
 received from a colleague or found in the literature.::
@@ -450,7 +486,7 @@ In lines 160-165 we find the reference location::
 
 The distance between these two locations determines the center point of the grid of Greens Functions that we want to calculate.
 For our example we set the reference location close to Vancouver, Canada as we want to study the Cascadia subduction zone.
-We ignore the 'elevation' and 'depth' attributes but we set the 'station' attribute, which determines the prefix of the name of the 
+We ignore the 'elevation' and 'depth' attributes but we set the 'station' attribute, which determines the prefix of the name of the
 Greens Function store. ::
 
     reference_location: !beat.heart.ReferenceLocation
@@ -483,7 +519,7 @@ We are going to have stations in a distance of 500km and the events we are going
     source_distance_radius: 500.0
     source_distance_spacing: 1.0
 
-To decide on the resolution of the grid and the sample_rate (line 167) depends on the use-case and aim of the study. 
+To decide on the resolution of the grid and the sample_rate (line 167) depends on the use-case and aim of the study.
 A description of the corner points to have in mind is `here <https://pyrocko.org/docs/current/apps/fomosto/tutorial.html#considerations-for-real-world-applications>`__
 For example for a regional Full Moment Tensor inversion we want to optimize data up to 0.2 Hz. So a source grid of 1. km step size and 1. Hz 'sample_rate' seems a safe way to go.
 As we are in a regional setup we use QSEIS for the calculation of the Greens Functions, which we have to specify in line 166.::
@@ -526,10 +562,10 @@ Below the specified depth it is going to be combined with the earth-model specif
     For the shallow crust one may decide to use the implemented crust2 model and to remove (potential) water layers. Lines 141-143::
 
         earth_model_name: ak135-f-average.m
-        use_crust2: false 
+        use_crust2: false
         replace_water: false
 
-Then, we have to specify under line 135 'store_superdir' the path to the directory where to save the GreensFunction store on disk. 
+Then, we have to specify under line 135 'store_superdir' the path to the directory where to save the GreensFunction store on disk.
 One should have in mind that for large grids with high sample-rate the stores might become several GigaBytes in size and may calculate a very long time!
 
 Lastly, we start the store calculation with::
@@ -540,7 +576,7 @@ Lastly, we start the store calculation with::
 How to setup a Finite Fault Optimization
 ----------------------------------------
 
-In a finite fault optimization in beat a pre-defined RectangularSource (reference fault) is discretized into sub-patches.
+In a finite fault optimization (ffo) in beat a pre-defined RectangularSource (reference fault) is discretized into sub-patches.
 Each of these sub-patches may have up to 4 parameters to be optimized for. In the static case (geodetic data) these are two slip-parameters
 perpendicular and parallel to the rake direction of the reference fault. In the kinematic case there is the temporal evolution of the rupture
 considered as well. So there are additional parameters: (1) the rupture nucleation point from which the rupture originates and propagates accross the fault
@@ -549,22 +585,22 @@ Optimizing for the rupture nucleation point makes the problem non-linear.
 
 The finite fault optimization in beat is considered to be a follow-up step of the geometry optimization for a RectangularSource. Which is why first, a new project directory to solve for the geometry of a RectangularSource has to be created. If the reader has setup such a problem already and finished the optimization for a the geometry the next command can be skipped.::
 
-    beat init FFIproject <date> --datatypes='seismic' --source_type='RectangularSource' --n_sources=1
+    beat init FFOproject <date> --datatypes='seismic' --source_type='RectangularSource' --n_sources=1
 
 If an optimization for the geometry of another source has been done or setup (e.g. MTSource), one can clone this project folder and replace the source object. This saves
-time for specification of the inputs. How to setup the configurations for a "geometry" optimization is discussed 
-`here <https://hvasbath.github.io/beat/examples.html#regional-full-moment-tensor>`__ exemplary on a MomentTensor for regional seismic data. 
+time for specification of the inputs. How to setup the configurations for a "geometry" optimization is discussed
+`here <https://hvasbath.github.io/beat/examples.html#regional-full-moment-tensor>`__ exemplary on a MomentTensor for regional seismic data.
 The "source_type" argument will replace any existing source with the specified source for the new project. With the next project we replace the old source with a RectangularSource.::
 
-    beat clone MTproject FFIproject --datatypes='seismic' --source_type='RectangularSource' --copy_data
+    beat clone MTproject FFOproject --datatypes='seismic' --source_type='RectangularSource' --copy_data
 
 Now the Green's Functions store(s) have to be calculated for the "geometry" problem if not done so yet. Instructions on this and what to keep in mind are given `here <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__. For illustration, the user might have done a MomentTensor optimization already on teleseismic data using Green's Functions depth and distance sampling of 1km with 1Hz sampling. This may be accurate enough for this type of optimization, however for a finite fault optimization the aim is to resolve details of the rupture propagation and the slip distribution. So the setup parameters of the "geometry" Green's Functions would need to be changed to higher resolution. A depth and distance sampling of 250m and 4Hz sample rate might be precise enough, if waveforms up to 1Hz are to be used in the optimization. Of course, these parameters depend on the problem setup and have to be adjusted individually for each problem!
 
-If the Green's Functions for the "geometry" have been calculated previously with sufficient accuracy one can continue initialysing the configuration file for the finite fault optimization.::   
+If the Green's Functions for the "geometry" have been calculated previously with sufficient accuracy one can continue initialysing the configuration file for the finite fault optimization.::
 
-    beat init FFIproject --mode='ffi' --datatypes='seismic'
+    beat init FFOproject --mode='ffo' --datatypes='seismic'
 
-This will load the parameters from the "geometry" problem and import them to the "ffi" setup. The configuration file for the "ffi" mode is called "config_ffi.yaml" and should be in the same directory as the "config_geometry.yaml". The parameters that are different in the "ffi" mode are under the "seismic_config.gf_config" of the mentioned configuration file.::
+This will load the parameters from the "geometry" problem and import them to the "ffo" setup. The configuration file for the "ffo" mode is called "config_ffo.yaml" and should be in the same directory as the "config_geometry.yaml". The parameters that are different in the "ffo" mode are under the "seismic_config.gf_config" of the mentioned configuration file.::
 
     gf_config: !beat.SeismicLinearGFConfig
       store_superdir: ./
@@ -608,7 +644,7 @@ This will load the parameters from the "geometry" problem and import them to the
 In the next step again Green's Functions have to be calculated. What? Again? That's right! This time the geometry of the source needs to be specified. This is defined under the "reference_sources" attribute (see above). The distance units are [m], the angles [deg] and the slip [m]. If an optimization for these "geometry" parameters has been completed, the maximum likelihood result may be imported
 with.::
 
-    beat import FFIproject --results --datatypes='seismic' --mode='ffi'
+    beat import FFOproject --results --datatypes='seismic' --mode='ffo'
 
 If not, the parameters would need to be adjusted manually based on a-priori information from structural geology, literature or ...
 Additionally, the discretization of the subpatches along this reference fault has to be set. The parameters "patch_width" and "patch_length" [km] determine these. So far only square patches are supported. "extension_width" and "extension_length" determine by how much the refernce fault is extended in EACH direction. If this would result in a fault that cuts the surface the intersection with the surface at zero depth is used. Example: 0.1 means that the fault is extended by 10% of its with/length value in each direction and 0. means no extension.
@@ -660,14 +696,14 @@ The "velocities" parameter is referring to the rupture velocity, which is often 
 
 With the following command the reference fault is set up and discretized into patches.::
 
-    beat build_gfs FFIproject --mode='ffi' --datatypes='seismic'
+    beat build_gfs FFOproject --mode='ffo' --datatypes='seismic'
 
 The output might look like this::
 
-    ffi          - INFO     Discretizing seismic source(s)
-    ffi          - INFO     uparr slip component
+    ffo          - INFO     Discretizing seismic source(s)
+    ffo          - INFO     uparr slip component
     sources      - INFO     Fault extended to length=12500.000000, width=5000.000000!
-    ffi          - INFO     Extended fault(s): 
+    ffo          - INFO     Extended fault(s):
      --- !beat.sources.RectangularSource
     lat: 50.410785
     lon: -150.305465
@@ -687,9 +723,9 @@ The output might look like this::
     slip: 1.0
     opening: 0.0
 
-    ffi          - INFO     uperp slip component
+    ffo          - INFO     uperp slip component
     sources      - INFO     Fault extended to length=12500.000000, width=5000.000000!
-    ffi          - INFO     Extended fault(s): 
+    ffo          - INFO     Extended fault(s):
      --- !beat.sources.RectangularSource
     lat: 50.410785
     lon: -150.305465
@@ -709,9 +745,9 @@ The output might look like this::
     slip: 1.0
     opening: 0.0
 
-    beat         - INFO     Storing discretized fault geometry to: /home/vasyurhm/BEATS/Waskahigan2Rect/ffi/linear_gfs/fault_geometry.pkl
+    beat         - INFO     Storing discretized fault geometry to: /home/vasyurhm/BEATS/Waskahigan2Rect/ffo/linear_gfs/fault_geometry.pkl
     beat         - INFO     Updating problem_config:
-    beat         - INFO     
+    beat         - INFO
     Complex Fault Geometry
     number of subfaults: 1
     number of patches: 10
@@ -741,26 +777,19 @@ Finally, we need to pay attention to the "waveforms" under "seismic_config".::
 
 "Name" specifies the seismic phase; "channels" the component of the observations to include, "filterer" the bandpass filter the synthetics are filtered to; "distances" the receiver-source interval of receivers to include; and the "arrival_taper" the part of the synthetics with respect to the theoretical arrival time (from ray-tracing).
 
-Once satisfied with the set-up the "nworkers" parameter in "config_ffi.yaml" may be set to make use of parallel calculation of the Green's Functions. Depending on the specifications the amount of Green's Functions to be calculated may-be significant. The resulting matrix will be of size: number_receivers * number_patches * number_durations * number_starttimes * number_trace_samples * float64 (8bytes).
+Once satisfied with the set-up the "nworkers" parameter in "config_ffo.yaml" may be set to make use of parallel calculation of the Green's Functions. Depending on the specifications the amount of Green's Functions to be calculated may-be significant. The resulting matrix will be of size: number_receivers * number_patches * number_durations * number_starttimes * number_trace_samples * float64 (8bytes).
 
 The calculation of the Green's Functions, which may take some hours (depending on the setup and computer hardware) may be started with::
 
-    beat build_gfs FFIproject --mode='ffi' --datatypes='seismic' --execute
+    beat build_gfs FFOproject --mode='ffo' --datatypes='seismic' --execute
 
 For visual inspection of the resulting seismic traces in the "snuffler" waveform browser::
 
-    beat check FFIproject --what='library' --datatypes='seismic' --mode='ffi'
+    beat check FFOproject --what='library' --datatypes='seismic' --mode='ffo'
 
 This will load the seismic traces for the first receiver, for all patches, durations, starttimes.
 
   .. image:: _static/linear_gf_library.png
 
 Here we see the slip parallel traces for patch 0, starttime of 11s (after the hypocentral source time) and slip durations(tau) of 1.5 and 10.5[s].
-
-To be continued ...
-
-sample
-------
-To be written ...
- 
 

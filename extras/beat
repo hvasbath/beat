@@ -19,7 +19,7 @@ _beat_options()
 
     cur=${COMP_WORDS[COMP_CWORD]}
 
-    _avail_plots="velocity_models stage_posteriors correlation_hist slip_distribution waveform_fits scene_fits fuzzy_beachball"
+    _avail_plots="velocity_models stage_posteriors correlation_hist slip_distribution moment_rate waveform_fits scene_fits fuzzy_beachball hudson"
     _std="--help -h --loglevel --main_path"
 
     declare -A arg_subsub
@@ -31,7 +31,7 @@ _beat_options()
     arg_subsub["summarize"]="--mode --stage_number --force $_std"
     arg_subsub["export"]="--mode --stage_number --force $_std"
     arg_subsub["clone"]="--datatypes --mode --source_type --sampler --copy_data $_std"
-    arg_subsub["plot"]="--mode --post_llk --stage_number --varnames --format --dpi --force --reference --hypers --build $_std"
+    arg_subsub["plot"]="--mode --post_llk --stage_number --varnames --format --dpi --force --reference --hypers --build --plot_projection $_std"
     arg_subsub["check"]="--datatypes --mode --what $_std"
 
 

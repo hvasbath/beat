@@ -252,11 +252,13 @@ class RectangularSource(gf.RectangularSource):
         """
         s = copy.deepcopy(self)
 
-        l = self.length
-        w = self.width
+        length = self.length
+        width = self.width
 
-        new_length = num.ceil((l + (2. * l * extension_length)) / km) * km
-        new_width = num.ceil((w + (2. * w * extension_width)) / km) * km
+        new_length = num.ceil(
+            (length + (2. * length * extension_length)) / km) * km
+        new_width = num.ceil(
+            (width + (2. * width * extension_width)) / km) * km
 
         npl = int(num.ceil(new_length / patch_length))
         npw = int(num.ceil(new_width / patch_width))
@@ -305,22 +307,22 @@ class MTQTSource(gf.SourceWithMagnitude):
 
     v = Float.T(
         default=0.,
-        help='Lune co-longitude transformed to grid'
+        help='Lune co-longitude transformed to grid.'
              'Definded: -1/3 <= v <= 1/3')
 
     kappa = Float.T(
         default=0.,
-        help='Strike angle equivalent of moment tensor plane'
+        help='Strike angle equivalent of moment tensor plane.'
              'Defined: 0 <= kappa <= 2pi')
 
     sigma = Float.T(
         default=0.,
-        help='Rake angle equivalent of moment tensor slip angle'
+        help='Rake angle equivalent of moment tensor slip angle.'
              'Defined: -pi/2 <= sigma <= pi/2')
 
     h = Float.T(
         default=0.,
-        help='Dip angle equivalent of moment tensor plane'
+        help='Dip angle equivalent of moment tensor plane.'
              'Defined: 0 <= h <= 1')
 
     def __init__(self, **kwargs):
@@ -454,7 +456,7 @@ class MTQTSource(gf.SourceWithMagnitude):
         d = {}
         mt = ev.moment_tensor
         if mt:
-            d.update(m6=map(float, mt.m6()))
+            d.update(m6=list(map(float, mt.m6())))
 
         d.update(kwargs)
         return super(MTQTSource, cls).from_pyrocko_event(ev, **d)
@@ -561,7 +563,7 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
         d = {}
         mt = ev.moment_tensor
         if mt:
-            d.update(m6=map(float, mt.m6()))
+            d.update(m6=list(map(float, mt.m6())))
 
         d.update(kwargs)
         return super(MTSourceWithMagnitude, cls).from_pyrocko_event(ev, **d)

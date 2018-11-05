@@ -232,6 +232,41 @@ def extract_variables_from_df(dataframe):
     return flat_names, var_shapes
 
 
+def extract_bounds_from_summary(summary, varname, shape, roundto=None):
+    """
+    Extract lower and upper bound of random variable.
+
+    Returns
+    -------
+    list of num.Ndarray
+    """
+
+    def do_nothing(value):
+        return value
+
+    indexes = ttab.create_flat_names(varname, shape)
+    lower_quant = 'hpd_2.5'
+    upper_quant = 'hpd_97.5'
+
+    bounds = []
+    for quant in [lower_quant, upper_quant]:
+        values = num.empty(shape, 'float64')
+        for i, idx in enumerate(indexes):
+            adjust = 10. ** roundto
+            if roundto is not None:
+                if quant == lower_quant:
+                    operation = num.floor
+                elif quant == upper_quant:
+                    operation = num.ceil
+            else:
+                operation = do_nothing
+            values[i] = operation(summary[quant][idx] * adjust) / adjust
+
+        bounds.append(values)
+
+    return bounds
+
+
 class TextChain(BaseTrace):
     """
     Text trace object
@@ -337,7 +372,7 @@ class TextChain(BaseTrace):
         self.stored_samples += n_samples
 
         if not self.progressbar:
-            if n_samples > self.buffer_size / 2:
+            if n_samples > self.buffer_size // 2:
                 logger.info(
                     'Writing %i / %i samples of chain %i to disk...' %
                     (self.stored_samples, self.draws, self.chain))
@@ -387,7 +422,7 @@ class TextChain(BaseTrace):
                 self.corrupted_flag = True
                 os.remove(self.filename)
 
-            if self.flat_names is None:
+            if self.flat_names is None and not self.corrupted_flag:
                 self.flat_names, self.var_shapes = extract_variables_from_df(
                     self.df)
                 self.varnames = self.var_shapes.keys()

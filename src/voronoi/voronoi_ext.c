@@ -8,43 +8,46 @@
 #include <stdlib.h>
 #include <math.h>
 
+struct module_state {
+    PyObject *error;
+};
+
+#define GETSTATE(m) ((struct module_state*)PyModule_GetState(m))
 
 typedef npy_float64 float64_t;
-
-static PyObject *VoronoiExtError;
 
 int good_array(PyObject* o, int typenum, npy_intp size_want, int ndim_want, npy_intp* shape_want){
     int i;
 
     if (!PyArray_Check(o)) {
-        PyErr_SetString(VoronoiExtError, "not a NumPy array" );
+        PyErr_SetString(PyExc_AttributeError, "not a NumPy array" );
         return 0;
     }
 
     if (PyArray_TYPE((PyArrayObject*)o) != typenum) {
-        PyErr_SetString(VoronoiExtError, "array of unexpected type");
+        PyErr_SetString(PyExc_AttributeError, "array of unexpected type");
         return 0;
     }
 
     if (!PyArray_ISCARRAY((PyArrayObject*)o)) {
-        PyErr_SetString(VoronoiExtError, "array is not contiguous or not well behaved");
+        PyErr_SetString(PyExc_AttributeError, "array is not contiguous or not well behaved");
         return 0;
     }
 
     if (size_want != -1 && size_want != PyArray_SIZE((PyArrayObject*)o)) {
-        PyErr_SetString(VoronoiExtError, "array is of unexpected size");
+        PyErr_SetString(PyExc_AttributeError, "array is of unexpected size");
         return 0;
     }
 
     if (ndim_want != -1 && ndim_want != PyArray_NDIM((PyArrayObject*)o)) {
-        PyErr_SetString(VoronoiExtError, "array is of unexpected ndim");
+        PyErr_SetString(PyExc_AttributeError, "array is of unexpected ndim");
         return 0;
     }
 
     if (ndim_want != -1 && shape_want != NULL) {
         for (i=0; i<ndim_want; i++) {
             if (shape_want[i] != -1 && shape_want[i] != PyArray_DIMS((PyArrayObject*)o)[i]) {
-                PyErr_SetString(VoronoiExtError, "array is of unexpected shape");
+                PyErr_SetString(PyExc_AttributeError, "array is of unexpected shape");
             return 0;
             }
         }
@@ -76,7 +79,7 @@ void GetMinDistances(npy_intp *VOindx4GFPnt, float64_t *GFPoints_stk, float64_t 
 }
 
 
-PyObject* w_voronoi(PyObject *dummy, PyObject *args){
+static PyObject* w_voronoi(PyObject *m, PyObject *args){
     PyObject *gf_points_dip, *gf_points_strike;
     PyObject *voronoi_points_dip, *voronoi_points_strike;
 
@@ -85,10 +88,10 @@ PyObject* w_voronoi(PyObject *dummy, PyObject *args){
     float64_t *gf_dips, *gf_strikes, *voro_dips, *voro_strikes;
     npy_intp n_gfs[1], n_voros[1], *gf2voro_idxs;
 
-    (void) dummy;
+    struct module_state *st = GETSTATE(m);
 
     if (!PyArg_ParseTuple(args, "OOOO", &gf_points_dip, &gf_points_strike, &voronoi_points_dip, &voronoi_points_strike)){
-        PyErr_SetString(VoronoiExtError, "Invalid call to voronoi! \n usage: voronoi(gf_points_dip, gf_points_strike, voronoi_points_dip, voronoi_points_strike)");
+        PyErr_SetString(st->error, "Invalid call to voronoi! \n usage: voronoi(gf_points_dip, gf_points_strike, voronoi_points_dip, voronoi_points_strike)");
         return NULL;
     }
 
@@ -106,7 +109,7 @@ PyObject* w_voronoi(PyObject *dummy, PyObject *args){
 
     gf2voro_idxs_arr = (PyArrayObject*) PyArray_EMPTY(1, n_gfs, NPY_INT64, 0);
     if (gf2voro_idxs_arr==NULL){
-        PyErr_SetString(VoronoiExtError, "Failed to allocate index_matrix!");
+        PyErr_SetString(st->error, "Failed to allocate index_matrix!");
         return NULL;
     }
 
@@ -149,14 +152,47 @@ static PyMethodDef VoronoiExtMethods[] = {
     {NULL, NULL, 0, NULL}  /* Sentinel */
 };
 
-PyMODINIT_FUNC initvoronoi_ext(void){
-    PyObject* m;
+static int voronoi_traverse(PyObject *m, visitproc visit, void *arg) {
+    Py_VISIT(GETSTATE(m)->error);
+    return 0;
+}
 
-    m = Py_InitModule("voronoi_ext", VoronoiExtMethods);
-    if (m == NULL) return;
+static int voronoi_clear(PyObject *m) {
+    Py_CLEAR(GETSTATE(m)->error);
+    return 0;
+}
+
+static struct PyModuleDef moduledef = {
+        PyModuleDef_HEAD_INIT,
+        "voronoi_ext",
+        NULL,
+        sizeof(struct module_state),
+        VoronoiExtMethods,
+        NULL,
+        voronoi_traverse,
+        voronoi_clear,
+        NULL
+};
+
+#define INITERROR return NULL
+
+PyMODINIT_FUNC
+PyInit_voronoi_ext(void)
+{
+    PyObject *module = PyModule_Create(&moduledef);
+    if (module == NULL)
+        INITERROR;
     import_array();
 
-    VoronoiExtError = PyErr_NewException("voronoi_ext.error", NULL, NULL);
-    Py_INCREF(VoronoiExtError);
-    PyModule_AddObject(m, "VoronoiExtError", VoronoiExtError);
+    struct module_state *st = GETSTATE(module);
+    st->error = PyErr_NewException("beat.voronoi.voronoi_ext.error", NULL, NULL);
+    if (st->error == NULL) {
+        Py_DECREF(module);
+        INITERROR;
+    }
+
+    Py_INCREF(st->error);
+    PyModule_AddObject(module, "error", st->error);
+
+    return module;
 }

@@ -66,7 +66,7 @@ class GeoSynthesizer(theano.Op):
         """
         inlist = []
 
-        self.varnames = inputs.keys()
+        self.varnames = list(inputs.keys())
 
         for i in inputs.values():
             inlist.append(tt.as_tensor_variable(i))
@@ -160,7 +160,7 @@ class GeoLayerSynthesizerPsCmp(theano.Op):
             values are :class:`theano.tensor.Tensor`
         """
         inlist = []
-        self.varnames = inputs.keys()
+        self.varnames = list(inputs.keys())
 
         for i in inputs.values():
             inlist.append(tt.as_tensor_variable(i))
@@ -242,7 +242,7 @@ class GeoInterseismicSynthesizer(theano.Op):
         self.fixed_values = {}
         self.varnames = []
 
-        for k, v in inputs.iteritems():
+        for k, v in inputs.items():
             if isinstance(v, FreeRV):
                 self.varnames.append(k)
                 inlist.append(tt.as_tensor_variable(v))
@@ -346,7 +346,7 @@ class SeisSynthesizer(theano.Op):
         """
         inlist = []
 
-        self.varnames = inputs.keys()
+        self.varnames = list(inputs.keys())
 
         for i in inputs.values():
             inlist.append(tt.as_tensor_variable(i))
@@ -381,7 +381,7 @@ class SeisSynthesizer(theano.Op):
             arrival_times = num.array(self.arrival_times) + \
                 mpoint.pop('time_shift').ravel()
         else:
-            arrival_times = self.arrival_times
+            arrival_times = num.array(self.arrival_times)
 
         source_points = utility.split_point(mpoint)
 
@@ -408,7 +408,9 @@ class SeisSynthesizer(theano.Op):
 
 
 class SeisDataChopper(theano.Op):
-
+    """
+    Deprecated!
+    """
     __props__ = ('sample_rate', 'traces', 'arrival_taper', 'filterer')
 
     def __init__(self, sample_rate, traces, arrival_taper, filterer):

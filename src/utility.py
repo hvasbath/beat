@@ -13,7 +13,7 @@ import os
 import re
 import collections
 import copy
-import cPickle as pickle
+import pickle
 
 from pyrocko import util, orthodrome, catalog
 from pyrocko.cake import m2d, LayeredModel, read_nd_model_str
@@ -22,8 +22,6 @@ from pyrocko.gf.seismosizer import RectangularSource
 
 import numpy as num
 from theano import config as tconfig
-
-from pyproj import Proj
 
 
 logger = logging.getLogger('utility')
@@ -296,14 +294,19 @@ def weed_input_rvs(input_rvs, mode, datatype):
     weeded_input_rvs = copy.copy(input_rvs)
 
     burian = '''
-        lat lon name stf stf1 stf2 stf_mode moment anchor nucleation_x sign
-        nucleation_y velocity interpolation decimation_factor npointsources
+        lat lon name stf stf1 stf2 stf_mode moment anchor sign
+        velocity interpolation decimation_factor npointsources
         elevation
         '''.split()
 
     if mode == 'geometry':
         if datatype == 'geodetic':
-            tobeweeded = ['time', 'duration', 'delta_time'] + burian
+            tobeweeded = [
+                'time',
+                'duration',
+                'delta_time',
+                'nucleation_x',
+                'nucleation_y'] + burian
         elif datatype == 'seismic':
             tobeweeded = ['opening'] + burian
 
@@ -435,7 +438,6 @@ def downsample_trace(data_trace, deltat=None, snap=False):
     :class:`pyrocko.trace.Trace`
         new instance
     """
-
     tr = data_trace.copy()
     if deltat is not None:
         if num.abs(tr.deltat - deltat) > 1.e-6:
@@ -443,12 +445,13 @@ def downsample_trace(data_trace, deltat=None, snap=False):
                 tr.downsample_to(
                     deltat, snap=snap, allow_upsample_max=5, demean=False)
                 tr.deltat = deltat
+                tr.snap()
+
             except util.UnavailableDecimation as e:
                 logger.error(
                     'Cannot downsample %s.%s.%s.%s: %s' % (tr.nslc_id + (e,)))
         elif snap:
             if tr.tmin / tr.deltat > 1e-6 or tr.tmax / tr.deltat > 1e-6:
-                tr = tr.copy()
                 tr.snap()
     else:
         raise ValueError('Need to provide target sample rate!')
@@ -551,7 +554,7 @@ def adjust_point_units(point):
     """
 
     mpoint = {}
-    for key, value in point.iteritems():
+    for key, value in point.items():
         if key in kmtypes:
             mpoint[key] = value * km
         else:
@@ -577,14 +580,14 @@ def split_point(point):
     """
     params = point.keys()
     if len(params) > 0:
-        n_sources = point[params[0]].shape[0]
+        n_sources = point[next(iter(params))].shape[0]
     else:
         n_sources = 0
 
     source_points = []
     for i in range(n_sources):
         source_param_dict = dict()
-        for param, value in point.iteritems():
+        for param, value in point.items():
             source_param_dict[param] = float(value[i])
 
         source_points.append(source_param_dict)
@@ -598,7 +601,7 @@ def join_points(ldicts):
     values of keys that are present in multiple dicts.
     """
 
-    keys = set([k for d in ldicts for k in d.iterkeys()])
+    keys = set([k for d in ldicts for k in d.keys()])
 
     jpoint = {}
     for k in keys:
@@ -611,7 +614,7 @@ def join_points(ldicts):
     return jpoint
 
 
-def update_source(source, **point):
+def update_source(source, input_depth='top', **point):
     """
     Update source keeping stf and source params seperate.
     Modifies input source Object!
@@ -623,100 +626,22 @@ def update_source(source, **point):
         :func:`pymc3.model.Point`
     """
 
-    for (k, v) in point.iteritems():
+    for (k, v) in point.items():
         if k not in source.keys():
             if source.stf is not None:
-                source.stf[k] = v
+                try:
+                    source.stf[k] = float(v)
+                except(KeyError, TypeError):
+                    logger.warning('Not updating source with %s' % k)
             else:
                 raise AttributeError(
                     'Please set a STF before updating its'
                     ' parameters.')
         else:
-            source[k] = v
+            source[k] = float(v)
 
     if isinstance(source, RectangularSource):
-        adjust_fault_reference(source, input_depth='top')
-
-
-def utm_to_loc(utmx, utmy, zone, event):
-    """
-    Convert UTM[m] to local coordinates with reference to the
-    :class:`pyrocko.model.Event`
-
-    Parameters
-    ----------
-    utmx : :class:`numpy.ndarray`
-        with UTM easting
-    utmy : :class:`numpy.ndarray`
-        with UTM northing
-    zone : int
-        number with utm zone
-    event : :class:`pyrocko.model.Event`
-
-    Returns
-    -------
-    locx : :class:`numpy.ndarray`
-        Local coordinates [m] for x direction (East)
-    locy : :class:`numpy.ndarray`
-        Local coordinates [m] for y direction (North)
-    """
-
-    p = Proj(proj='utm', zone=zone, ellps='WGS84')
-    ref_x, ref_y = p(event.lon, event.lat)
-    locx = utmx - ref_x
-    locy = utmy - ref_y
-    return locx, locy
-
-
-def lonlat_to_utm(lon, lat, zone):
-    """
-    Convert UTM[m] to local coordinates with reference to the
-    :class:`pyrocko.model.Event`
-
-    Parameters
-    ----------
-    utmx : :class:`numpy.ndarray`
-        with UTM easting
-    utmy : :class:`numpy.ndarray`
-        with UTM northing
-    zone : int
-        number with utm zone
-
-    Returns
-    -------
-    utme : :class:`numpy.ndarray`
-        Local coordinates [m] for x direction (East)
-    utmn : :class:`numpy.ndarray`
-        Local coordinates [m] for y direction (North)
-    """
-
-    p = Proj(proj='utm', zone=zone, ellps='WGS84')
-    utme, utmn = p(lon, lat)
-    return utme, utmn
-
-
-def utm_to_lonlat(utmx, utmy, zone):
-    """
-    Convert UTM[m] to Latitude and Longitude coordinates.
-
-    Parameters
-    ----------
-    utmx : :class:`numpy.ndarray`
-        with UTM easting
-    utmy : :class:`numpy.ndarray`
-        with UTM northing
-    zone : int
-        number with utm zone
-
-    Returns
-    -------
-    lon : :class:`numpy.ndarray` Longitude [decimal deg]
-    lat : :class:`numpy.ndarray` Latitude [decimal deg]
-    """
-
-    p = Proj(proj='utm', zone=zone, ellps='WGS84')
-    lon, lat = p(utmx, utmy, inverse=True)
-    return lon, lat
+        adjust_fault_reference(source, input_depth=input_depth)
 
 
 def setup_logging(project_dir, levelname, logfilename='BEAT_log.txt'):
@@ -802,7 +727,7 @@ def search_catalog(date, min_magnitude, dayrange=1.):
             'found! Please copy the relevant event information to the '
             'configuration file!')
         for event in events:
-            print event
+            print(event)
 
         event = events[0]
 
@@ -943,6 +868,8 @@ def load_objects(loadpath):
 
     try:
         objects = pickle.load(open(loadpath, 'rb'))
+    except UnicodeDecodeError:
+        objects = pickle.load(open(loadpath, 'rb'), encoding='latin1')
     except IOError:
         raise Exception(
             'File %s does not exist!' % loadpath)
@@ -1174,7 +1101,7 @@ def mod_i(i, cycle):
     fullc : int or float depending on input
     rest : int or float depending on input
     """
-    fullc = i / cycle
+    fullc = i // cycle
     rest = i % cycle
     return fullc, rest
 
@@ -1216,7 +1143,7 @@ def gather(l, key, sort=None, filter=None):
         d[k].append(x)
 
     if sort is not None:
-        for v in d.itervalues():
+        for v in d.values():
             v.sort(key=sort)
 
     return d
@@ -1310,13 +1237,6 @@ def PsGrnArray2LayeredModel(psgrn_input_path):
             re.sub('[\[\]]', '', num.array2string(
                 b, precision=4,
                 formatter={'float_kind': lambda x: "%.3f" % x}))))
-
-
-def list_to_str(l):
-    """
-    Transform entries of a list or 1-d array to one single string.
-    """
-    return ''.join('%f ' % entry for entry in l)
 
 
 def swap_columns(array, index1, index2):
@@ -1434,3 +1354,19 @@ def get_random_uniform(lower, upper, dimension=1):
         return float(values)
     else:
         return values
+
+
+def positions2idxs(positions, cell_size, min_pos=0., backend=num):
+    """
+    Return index to a grid with a given cell size.npatches
+
+    Parameters
+    ----------
+    positions : :class:`numpy.NdArray` float
+        of positions [km]
+    cell_size : float
+        size of grid cells
+    backend : str
+    """
+    return backend.round((positions - min_pos - (
+        cell_size / 2.)) / cell_size).astype('int16')

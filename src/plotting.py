@@ -12,23 +12,24 @@ from beat import utility
 from beat.models import Stage
 from beat.sampler.metropolis import get_trace_stats
 from beat.heart import init_seismic_targets, init_geodetic_targets
-from beat.colormap import slip_colormap
+from beat.config import ffo_mode_str, geometry_mode_str
 
 from matplotlib import pyplot as plt
-from matplotlib.patches import Rectangle
+from matplotlib.patches import Rectangle, FancyArrow
 from matplotlib.collections import PatchCollection
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.ticker as tick
 
 from scipy.stats import kde
 import numpy as num
-from pyrocko.guts import Object, String, Dict, List, Bool, Int, load
+from pyrocko.guts import (Object, String, Dict, List,
+                          Bool, Int, load, StringChoice)
 from pyrocko import util, trace
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.cake_plot import light
 
 import pyrocko.moment_tensor as mt
-from pyrocko.plot import mpl_papersize, mpl_init
+from pyrocko.plot import mpl_papersize, mpl_init, mpl_graph_color
 
 logger = logging.getLogger('plotting')
 
@@ -42,6 +43,7 @@ __all__ = [
 
 u_nm = '$[Nm]$'
 u_km = '$[km]$'
+u_km_s = '$[km/s]$'
 u_deg = '$[^{\circ}]$'
 u_m = '$[m]$'
 u_v = '$[m^3]$'
@@ -78,7 +80,13 @@ plot_units = {
 
     'nucleation_dip': u_km,
     'nucleation_strike': u_km,
+    'nucleation_x': u_hyp,
+    'nucleation_y': u_hyp,
     'time_shift': u_s,
+    'uperp': u_m,
+    'uparr': u_m,
+    'durations': u_s,
+    'velocities': u_km_s,
 
     'mnn': u_nm,
     'mee': u_nm,
@@ -104,6 +112,9 @@ plot_units = {
     'like': u_hyp}
 
 
+plot_projections = ['latlon', 'local']
+
+
 def hypername(varname):
     if varname[0:2] == 'h_':
         return 'h_'
@@ -115,8 +126,9 @@ class PlotOptions(Object):
         default='max',
         help='Which model to plot on the specified plot; Default: "max";'
              ' Options: "max", "min", "mean", "all"')
-    plot_projection = String.T(
+    plot_projection = StringChoice.T(
         default='local',
+        choices=plot_projections,
         help='Projection to use for plotting geodetic data; options: "latlon"')
     utm_zone = Int.T(
         default=36,
@@ -129,6 +141,7 @@ class PlotOptions(Object):
         default='figures',
         help='Name of the output directory of plots')
     reference = Dict.T(
+        default={},
         help='Reference point for example from a synthetic test.',
         optional=True)
     outformat = String.T(default='pdf')
@@ -278,8 +291,8 @@ def correlation_plot(
         for l in range(k):
             fig.delaxes(axs[l, k])
 
+    fig.tight_layout()
     fig.subplots_adjust(wspace=0.05, hspace=0.05)
-
     return fig, axs
 
 
@@ -287,7 +300,7 @@ def correlation_plot_hist(
         mtrace, varnames=None,
         transform=lambda x: x, figsize=None, hist_color='orange', cmap=None,
         grid=50, chains=None, ntickmarks=2, point=None,
-        point_style='.', point_color='red', point_size='6', alpha=0.35):
+        point_style='.', point_color='red', point_size='4', alpha=0.35):
     """
     Plot 2d marginals (with kernel density estimation) showing the correlations
     of the model parameters. In the main diagonal is shown the parameter
@@ -364,7 +377,7 @@ def correlation_plot_hist(
                         reference = point[v_namea]
                         axs[l, k].axvline(
                             x=reference, color=point_color,
-                            lw=int(point_size) / 4.)
+                            lw=float(point_size) / 6.)
                     else:
                         reference = None
                 else:
@@ -375,7 +388,7 @@ def correlation_plot_hist(
                     color='orange', tstd=0., reference=reference,
                     ntickmarks=ntickmarks)
                 axs[l, k].get_yaxis().set_visible(False)
-
+                format_axes(axs[l, k])
                 xticks = axs[l, k].get_xticks()
                 xlim = axs[l, k].get_xlim()
             else:
@@ -420,6 +433,7 @@ def correlation_plot_hist(
         for l in range(k):
             fig.delaxes(axs[l, k])
 
+    fig.tight_layout()
     fig.subplots_adjust(wspace=0.05, hspace=0.05)
     return fig, axs
 
@@ -563,9 +577,6 @@ def plot_scene(ax, target, data, scattersize, colim,
     if outmode == 'latlon':
         x = target.lons
         y = target.lats
-    elif outmode == 'utm':
-        x = target.utme / km
-        y = target.utmn / km
     elif outmode == 'local':
         if target.quadtree is not None:
             cmap = kwargs.pop('cmap', plt.cm.jet)
@@ -579,13 +590,29 @@ def plot_scene(ax, target, data, scattersize, colim,
         edgecolors='none', vmin=-colim, vmax=colim, **kwargs)
 
 
-def format_axes(ax):
+def format_axes(ax, remove=['right', 'top', 'left']):
     """
     Removes box top, left and right.
     """
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
-    ax.spines['left'].set_visible(False)
+    for rm in remove:
+        ax.spines[rm].set_visible(False)
+
+
+def scale_axes(axis, scale, offset=0.):
+    from matplotlib.ticker import ScalarFormatter
+
+    class FormatScaled(ScalarFormatter):
+
+        @staticmethod
+        def __call__(value, pos):
+            return '{:,.1f}'.format(offset + value * scale).replace(',', ' ')
+
+    axis.set_major_formatter(FormatScaled())
+
+
+def set_anchor(sources, anchor):
+    for source in sources:
+        source.anchor = anchor
 
 
 def geodetic_fits(problem, stage, plot_options):
@@ -593,10 +620,13 @@ def geodetic_fits(problem, stage, plot_options):
     Plot geodetic data, synthetics and residuals.
     """
     from pyrocko.dataset import gshhg
+    from kite.scene import Scene, UserIOWarning
+    import gc
 
+    datatype = 'geodetic'
     mode = problem.config.problem_config.mode
+    problem.init_hierarchicals()
 
-    scattersize = 16
     fontsize = 10
     fontsize_title = 12
     ndmax = 3
@@ -605,16 +635,22 @@ def geodetic_fits(problem, stage, plot_options):
 
     po = plot_options
 
-    composite = problem.composites['geodetic']
+    composite = problem.composites[datatype]
 
     try:
         sources = composite.sources
+        ref_sources = None
     except AttributeError:
-        logger.info('FFI waveform fit, using reference source ...')
-        sources = composite.config.gf_config.reference_sources
+        logger.info('FFO scene fit, using reference source ...')
+        ref_sources = composite.config.gf_config.reference_sources
+        set_anchor(ref_sources, anchor='top')
+        fault = composite.load_fault_geometry()
+        sources = fault.get_all_subfaults(
+            datatype=datatype, component=composite.slip_varnames[0])
+        set_anchor(sources, anchor='top')
 
-    if po.reference is not None:
-        if mode != 'ffi':
+    if po.reference:
+        if mode != ffo_mode_str:
             composite.point2sources(po.reference)
             ref_sources = copy.deepcopy(composite.sources)
         point = po.reference
@@ -631,14 +667,19 @@ def geodetic_fits(problem, stage, plot_options):
     for dataset, result in zip(composite.datasets, results):
         dataset_to_result[dataset] = result
 
-    nfigs = int(num.ceil(float(nrmax) / float(ndmax)))
+    fullfig, restfig = utility.mod_i(nrmax, ndmax)
+    factors = num.ones(fullfig).tolist()
+    if restfig:
+        factors.append(float(restfig) / ndmax)
 
     figures = []
     axes = []
+    for f in factors:
+        figsize = list(mpl_papersize('a4', 'portrait'))
+        figsize[1] *= f
 
-    for f in range(nfigs):
         fig, ax = plt.subplots(
-            nrows=ndmax, ncols=nxmax, figsize=mpl_papersize('a4', 'portrait'))
+            nrows=int(round(ndmax * f)), ncols=nxmax, figsize=figsize)
         fig.tight_layout()
         fig.subplots_adjust(
             left=0.08,
@@ -646,35 +687,56 @@ def geodetic_fits(problem, stage, plot_options):
             bottom=0.06,
             top=1.0 - 0.06,
             wspace=0.,
-            hspace=0.3)
+            hspace=0.1)
         figures.append(fig)
         axes.append(ax)
 
-    def axis_config(axes, po):
+    nfigs = len(figures)
+
+    def axis_config(axes, source, scene, po):
+
+        for ax in axes:
+            if po.plot_projection == 'latlon':
+                ystr = 'Latitude [deg]'
+                xstr = 'Longitude [deg]'
+                if scene.frame.isDegree():
+                    scale_x = {'scale': 1.}
+                    scale_y = {'scale': 1.}
+                else:
+                    scale_x = {'scale': otd.m2d}
+                    scale_y = {'scale': otd.m2d}
+
+                scale_x['offset'] = source.lon
+                scale_y['offset'] = source.lat
+
+            elif po.plot_projection == 'local':
+                ystr = 'Distance [km]'
+                xstr = 'Distance [km]'
+                if scene.frame.isDegree():
+                    scale_x = {'scale': otd.d2m / km}
+                    scale_y = {'scale': otd.d2m / km}
+                else:
+                    scale_x = {'scale': 1. / km}
+                    scale_y = {'scale': 1. / km}
+            else:
+                raise Exception(
+                    'Plot projection %s not available' % po.plot_projection)
+
+            scale_axes(ax.get_xaxis(), **scale_x)
+            scale_axes(ax.get_yaxis(), **scale_y)
+            ax.set_aspect('equal')
+
         axes[1].get_yaxis().set_ticklabels([])
         axes[2].get_yaxis().set_ticklabels([])
         axes[1].get_xaxis().set_ticklabels([])
         axes[2].get_xaxis().set_ticklabels([])
-
-        if po.plot_projection == 'latlon':
-            ystr = 'Latitude [deg]'
-            xstr = 'Longitude [deg]'
-        elif po.plot_projection == 'utm':
-            ystr = 'UTM Northing [km]'
-            xstr = 'UTM Easting [km]'
-        elif po.plot_projection == 'local':
-            ystr = 'Distance [km]'
-            xstr = 'Distance [km]'
-        else:
-            raise Exception(
-                'Plot projection %s not available' % po.plot_projection)
-
         axes[0].set_ylabel(ystr, fontsize=fontsize)
         axes[0].set_xlabel(xstr, fontsize=fontsize)
 
-    def draw_coastlines(ax, event, po):
-        xlim = ax.get_xlim()
-        ylim = ax.get_ylim()
+    def draw_coastlines(ax, xlim, ylim, event, scene, po):
+        """
+        xlim and ylim in Lon/Lat[deg]
+        """
 
         logger.debug('Drawing coastlines ...')
         coasts = gshhg.GSHHG.full()
@@ -682,12 +744,6 @@ def geodetic_fits(problem, stage, plot_options):
         if po.plot_projection == 'latlon':
             west, east = xlim
             south, north = ylim
-
-        elif po.plot_projection == 'utm':
-            lons, lats = utility.utm_to_lonlat(
-                utmx=xlim, utmy=ylim, zone=po.utm_zone)
-            west, east = lons
-            south, north = lats
 
         elif po.plot_projection == 'local':
             lats, lons = otd.ne_to_latlon(
@@ -703,60 +759,109 @@ def geodetic_fits(problem, stage, plot_options):
             if (p.is_land() or p.is_antarctic_grounding_line() or
                p.is_island_in_lake()):
 
-                if po.plot_projection == 'latlon':
-                    xs = p.lons
-                    ys = p.lats
-
-                elif po.plot_projection == 'utm':
-                    xs, ys = utility.lonlat_to_utm(p.lons, p.lats, po.utm_zone)
-
-                elif po.plot_projection == 'local':
+                if scene.frame.isMeter():
                     ys, xs = otd.latlon_to_ne_numpy(
                         event.lat, event.lon, p.lats, p.lons)
-                    ys /= km
-                    xs /= km
+
+                elif scene.frame.isDegree():
+
+                    xs = p.lons - event.lon
+                    ys = p.lats - event.lat
 
                 ax.plot(xs, ys, '-k', linewidth=0.5)
-                ax.set_xlim(xlim)
-                ax.set_ylim(ylim)
 
-    def draw_sources(ax, sources, po, **kwargs):
-        for source in sources:
-            if po.plot_projection == 'latlon':
-                outline = source.outline(cs='lonlat')
-            elif po.plot_projection == 'utm':
-                outline = source.outline(cs='lonlat')
-                utme, utmn = utility.lonlat_to_utm(
-                    lon=outline[:, 0], lat=outline[:, 1], zone=po.utm_zone)
-                outline = num.vstack([utme / km, utmn / km]).T
-            elif po.plot_projection == 'local':
-                outline = source.outline(cs='xy') / km
-                outline = utility.swap_columns(outline, 0, 1)
+    def addArrow(ax, scene):
+        phi = num.nanmean(scene.phi)
+        los_dx = num.cos(phi + num.pi) * .0625
+        los_dy = num.sin(phi + num.pi) * .0625
 
-            if outline.shape[0] > 1:
+        az_dx = num.cos(phi - num.pi / 2) * .125
+        az_dy = num.sin(phi - num.pi / 2) * .125
+
+        anchor_x = .9 if los_dx < 0 else .1
+        anchor_y = .85 if los_dx < 0 else .975
+
+        az_arrow = FancyArrow(
+            x=anchor_x - az_dx, y=anchor_y - az_dy,
+            dx=az_dx, dy=az_dy,
+            head_width=.025,
+            alpha=.5, fc='k',
+            head_starts_at_zero=False,
+            length_includes_head=True,
+            transform=ax.transAxes)
+
+        los_arrow = FancyArrow(
+            x=anchor_x - az_dx / 2, y=anchor_y - az_dy / 2,
+            dx=los_dx, dy=los_dy,
+            head_width=.02,
+            alpha=.5, fc='k',
+            head_starts_at_zero=False,
+            length_includes_head=True,
+            transform=ax.transAxes)
+
+        ax.add_artist(az_arrow)
+        ax.add_artist(los_arrow)
+
+    def draw_leaves(ax, scene, offset_e=0, offset_n=0):
+        rects = scene.quadtree.getMPLRectangles()
+        for r in rects:
+            r.set_edgecolor((.4, .4, .4))
+            r.set_linewidth(.5)
+            r.set_facecolor('none')
+            r.set_x(r.get_x() - offset_e)
+            r.set_y(r.get_y() - offset_n)
+        map(ax.add_artist, rects)
+
+        ax.scatter(scene.quadtree.leaf_coordinates[:, 0] - offset_e,
+                   scene.quadtree.leaf_coordinates[:, 1] - offset_n,
+                   s=.25, c='black', alpha=.1)
+
+    def draw_sources(ax, sources, scene, po, **kwargs):
+        bgcolor = kwargs.pop('color', None)
+
+        for i, source in enumerate(sources):
+
+            if scene.frame.isMeter():
+                fn, fe = source.outline(cs='xy').T
+            elif scene.frame.isDegree():
+                fn, fe = source.outline(cs='latlon').T
+                fn -= source.lat
+                fe -= source.lon
+
+            if not bgcolor:
+                color = mpl_graph_color(i)
+            else:
+                color = bgcolor
+
+            if fn.size > 1:
                 ax.plot(
-                    outline[:, 0], outline[:, 1], '-',
-                    linewidth=1.0, **kwargs)
+                    fe, fn, '-',
+                    linewidth=0.5, color=color, alpha=0.6, **kwargs)
+                ax.fill(
+                    fe, fn,
+                    edgecolor=color,
+                    facecolor=light(color, .5), alpha=0.6)
                 ax.plot(
-                    outline[0:2, 0], outline[0:2, 1], '-k', linewidth=1.0)
+                    fe[0:2], fn[0:2], '-k', alpha=0.6,
+                    linewidth=1.0)
             else:
                 ax.plot(
-                    outline[:, 0], outline[:, 1], marker='*',
-                    markersize=10, **kwargs)
+                    fe[:, 0], fn[:, 1], marker='*',
+                    markersize=10, color=color, **kwargs)
+
+    def mapDisplacementGrid(displacements, scene):
+        arr = num.full_like(scene.displacement, fill_value=num.nan)
+        qt = scene.quadtree
+
+        for syn_v, l in zip(displacements, qt.leaves):
+            arr[l._slice_rows, l._slice_cols] = syn_v
+
+        arr[scene.displacement_mask] = num.nan
+        return arr
 
     def cbtick(x):
         rx = math.floor(x * 1000.) / 1000.
         return [-rx, rx]
-
-    def str_title(name):
-        if name[0] == 'A':
-            title = 'Orbit: ascending'
-        elif name[0] == 'D':
-            title = 'Orbit: descending'
-        else:
-            title = 'GPS'
-
-        return title
 
     orbits_to_datasets = utility.gather(
         composite.datasets,
@@ -774,46 +879,79 @@ def geodetic_fits(problem, stage, plot_options):
         datasets = orbits_to_datasets[o]
 
         for dataset in datasets:
-            if po.plot_projection == 'local':
-                dataset.update_local_coords(composite.event)
+            try:
+                homepath = problem.config.geodetic_config.datadir
+                scene_path = os.path.join(homepath, dataset.name)
+                logger.info(
+                    'Loading full resolution kite scene: %s' % scene_path)
+                scene = Scene.load(scene_path)
+            except UserIOWarning:
+                logger.warn(
+                    'Full resolution data could not be loaded! Skipping ...')
+                continue
+
+            if scene.frame.isMeter():
+                offset_n, offset_e = map(float, otd.latlon_to_ne_numpy(
+                    scene.frame.llLat, scene.frame.llLon,
+                    sources[0].lat, sources[0].lon))
+
+            elif scene.frame.isDegree():
+                offset_n = sources[0].lat - scene.frame.llLat
+                offset_e = sources[0].lon - scene.frame.llLon
+
+            im_extent = (scene.frame.E.min() - offset_e,
+                         scene.frame.E.max() - offset_e,
+                         scene.frame.N.min() - offset_n,
+                         scene.frame.N.max() - offset_n)
+
+            urE, urN, llE, llN = (0., 0., 0., 0.)
+
+            turE, turN, tllE, tllN = zip(
+                *[(l.gridE.max() - offset_e,
+                   l.gridN.max() - offset_n,
+                   l.gridE.min() - offset_e,
+                   l.gridN.min() - offset_n)
+                  for l in scene.quadtree.leaves])
+
+            turE, turN = map(max, (turE, turN))
+            tllE, tllN = map(min, (tllE, tllN))
+            urE, urN = map(max, ((turE, urE), (urN, turN)))
+            llE, llN = map(min, ((tllE, llE), (llN, tllN)))
+
+            lat, lon = otd.ne_to_latlon(
+                sources[0].lat, sources[0].lon,
+                num.array([llN, urN]), num.array([llE, urE]))
 
             result = dataset_to_result[dataset]
             tidx = dataset_index[dataset]
 
             figidx, rowidx = utility.mod_i(tidx, ndmax)
+            axs = axes[figidx][rowidx, :]
 
-            plot_scene(
-                axes[figidx][rowidx, 0],
-                dataset,
-                result.processed_obs,
-                scattersize,
-                colim=colims[tidx],
-                outmode=po.plot_projection,
-                cmap=cmap)
+            imgs = []
+            for ax, data_str in zip(axs, ['obs', 'syn', 'res']):
+                logger.info('Plotting %s' % data_str)
+                datavec = getattr(result, 'processed_%s' % data_str)
 
-            draw_coastlines(axes[figidx][rowidx, 0], composite.event, po)
+                if data_str == 'res' and po.plot_projection == 'local':
+                    vmin = -dcolims[tidx]
+                    vmax = dcolims[tidx]
+                else:
+                    vmin = -colims[tidx]
+                    vmax = colims[tidx]
 
-            syn = plot_scene(
-                axes[figidx][rowidx, 1],
-                dataset,
-                result.processed_syn,
-                scattersize,
-                colim=colims[tidx],
-                outmode=po.plot_projection,
-                cmap=cmap)
+                imgs.append(ax.imshow(
+                    mapDisplacementGrid(datavec, scene),
+                    extent=im_extent, cmap=cmap,
+                    vmin=vmin, vmax=vmax,
+                    origin='lower'))
 
-            draw_coastlines(axes[figidx][rowidx, 1], composite.event, po)
+                ax.set_xlim(llE, urE)
+                ax.set_ylim(llN, urN)
 
-            res = plot_scene(
-                axes[figidx][rowidx, 2],
-                dataset,
-                result.processed_res,
-                scattersize,
-                colim=dcolims[tidx],
-                outmode=po.plot_projection,
-                cmap=cmap)
-
-            draw_coastlines(axes[figidx][rowidx, 2], composite.event, po)
+                draw_leaves(ax, scene, offset_e, offset_n)
+                draw_coastlines(
+                    ax, lon, lat, sources[0], scene, po)
 
             titley = 0.91
             titlex = 0.16
@@ -827,29 +965,33 @@ def geodetic_fits(problem, stage, plot_options):
                 weight='bold',
                 fontsize=fontsize_title)
 
-            syn_color = scolor('plum1')
-            ref_color = scolor('aluminium5')
-
             draw_sources(
-                axes[figidx][rowidx, 1],
-                sources, po, color=syn_color)
+                axes[figidx][rowidx, 1], sources, scene, po)
 
-            if po.reference is not None and mode != 'ffi':
+            if ref_sources:
+                ref_color = scolor('aluminium4')
+                logger.info('Plotting reference sources')
                 draw_sources(
                     axes[figidx][rowidx, 1],
-                    ref_sources, po, color=ref_color)
+                    ref_sources, scene, po, color=ref_color)
 
-            cbb = 0.68 - (0.3175 * rowidx)
+            f = factors[figidx]
+            if f > 2. / 3:
+                cbb = (0.68 - (0.3175 * rowidx))
+            elif f > 1. / 2:
+                cbb = (0.53 - (0.47 * rowidx))
+            elif f > 1. / 4:
+                cbb = (0.06)
+
             cbl = 0.46
             cbw = 0.15
             cbh = 0.01
 
             cbaxes = figures[figidx].add_axes([cbl, cbb, cbw, cbh])
-            dcbaxes = figures[figidx].add_axes([cbl + 0.3, cbb, cbw, cbh])
 
             cblabel = 'LOS displacement [m]'
             cbs = plt.colorbar(
-                syn,
+                imgs[1],
                 ax=axes[figidx][rowidx, 0],
                 ticks=cbtick(colims[tidx]),
                 cax=cbaxes,
@@ -857,26 +999,22 @@ def geodetic_fits(problem, stage, plot_options):
                 cmap=cmap)
             cbs.set_label(cblabel, fontsize=fontsize)
 
-            cbr = plt.colorbar(
-                res,
-                ax=axes[figidx][rowidx, 2],
-                ticks=cbtick(dcolims[tidx]),
-                cax=dcbaxes,
-                orientation='horizontal',
-                cmap=cmap)
-            cbr.set_label(cblabel, fontsize=fontsize)
+            if po.plot_projection == 'local':
+                dcbaxes = figures[figidx].add_axes([cbl + 0.3, cbb, cbw, cbh])
+                cbr = plt.colorbar(
+                    imgs[2],
+                    ax=axes[figidx][rowidx, 2],
+                    ticks=cbtick(dcolims[tidx]),
+                    cax=dcbaxes,
+                    orientation='horizontal',
+                    cmap=cmap)
+                cbr.set_label(cblabel, fontsize=fontsize)
 
-            axis_config(axes[figidx][rowidx, :], po)
+            axis_config(axes[figidx][rowidx, :], sources[0], scene, po)
+            addArrow(axes[figidx][rowidx, 0], scene)
 
-            title = str_title(o) + ' Llk_' + po.post_llk
-            figures[figidx].suptitle(
-                title, fontsize=fontsize_title, weight='bold')
-
-    nplots = ndmax * nfigs
-    for delidx in range(nrmax, nplots):
-        figidx, rowidx = utility.mod_i(delidx, ndmax)
-        for colidx in range(nxmax):
-            figures[figidx].delaxes(axes[figidx][rowidx, colidx])
+            del scene
+            gc.collect()
 
     return figures
 
@@ -890,7 +1028,7 @@ def draw_geodetic_fits(problem, plot_options):
 
     stage = Stage(homepath=problem.outfolder)
 
-    if po.reference is None:
+    if not po.reference:
         stage.load_results(
             varnames=problem.varnames,
             model=problem.model, stage_number=po.load_stage,
@@ -903,8 +1041,8 @@ def draw_geodetic_fits(problem, plot_options):
 
     outpath = os.path.join(
         problem.config.project_dir,
-        mode, po.figure_dir, 'scenes_%s_%s.%s' % (
-            stage.number, llk_str, po.outformat))
+        mode, po.figure_dir, 'scenes_%s_%s_%s.%s' % (
+            stage.number, llk_str, po.plot_projection, po.outformat))
 
     if not os.path.exists(outpath) or po.force:
         figs = geodetic_fits(problem, stage, po)
@@ -925,9 +1063,10 @@ def plot_trace(axes, tr, **kwargs):
     return axes.plot(tr.get_xdata(), tr.get_ydata(), **kwargs)
 
 
-def plot_taper(axes, t, taper, **kwargs):
+def plot_taper(axes, t, taper, mode='geometry', **kwargs):
     y = num.ones(t.size) * 0.9
-    taper(y, t[0], t[1] - t[0])
+    if mode == 'geometry':
+        taper(y, t[0], t[1] - t[0])
     y2 = num.concatenate((y, -y[::-1]))
     t2 = num.concatenate((t, t[::-1]))
     axes.fill(t2, y2, **kwargs)
@@ -961,7 +1100,7 @@ def seismic_fits(problem, stage, plot_options):
 
     po = plot_options
 
-    if po.reference is None:
+    if not po.reference:
         point = get_result_point(stage, problem.config, po.post_llk)
     else:
         point = po.reference
@@ -971,11 +1110,11 @@ def seismic_fits(problem, stage, plot_options):
 
     results = composite.assemble_results(point)
     try:
+        composite.point2sources(point, input_depth='center')
         source = composite.sources[0]
     except AttributeError:
-        logger.info('FFI waveform fit, using reference source ...')
+        logger.info('FFO waveform fit, using reference source ...')
         source = composite.config.gf_config.reference_sources[0]
-        source.time += problem.config.event.time
 
     logger.info('Plotting waveforms ...')
     target_to_result = {}
@@ -1014,16 +1153,16 @@ def seismic_fits(problem, stage, plot_options):
         nframes = len(targets)
 
         nx = int(math.ceil(math.sqrt(nframes)))
-        ny = (nframes - 1) / nx + 1
+        ny = (nframes - 1) // nx + 1
 
         nxmax = 4
         nymax = 4
 
-        nxx = (nx - 1) / nxmax + 1
-        nyy = (ny - 1) / nymax + 1
+        nxx = (nx - 1) // nxmax + 1
+        nyy = (ny - 1) // nymax + 1
 
-        xs = num.arange(nx) / ((max(2, nx) - 1.0) / 2.)
-        ys = num.arange(ny) / ((max(2, ny) - 1.0) / 2.)
+        xs = num.arange(nx) // ((max(2, nx) - 1.0) / 2.)
+        ys = num.arange(ny) // ((max(2, ny) - 1.0) / 2.)
 
         xs -= num.mean(xs)
         ys -= num.mean(ys)
@@ -1074,13 +1213,13 @@ def seismic_fits(problem, stage, plot_options):
             frame_to_target[iy, ix] = target
 
         figures = {}
-        for iy in xrange(ny):
-            for ix in xrange(nx):
+        for iy in range(ny):
+            for ix in range(nx):
                 if (iy, ix) not in frame_to_target:
                     continue
 
-                ixx = ix / nxmax
-                iyy = iy / nymax
+                ixx = ix // nxmax
+                iyy = iy // nymax
                 if (iyy, ixx) not in figures:
                     figures[iyy, ixx] = plt.figure(
                         figsize=mpl_papersize('a4', 'landscape'))
@@ -1129,7 +1268,7 @@ def seismic_fits(problem, stage, plot_options):
 
                 plot_taper(
                     axes2, result.processed_obs.get_xdata(), result.taper,
-                    fc=tap_color_fill, ec=tap_color_edge)
+                    mode=composite._mode, fc=tap_color_fill, ec=tap_color_edge)
 
                 obs_color = scolor('aluminium5')
                 obs_color_light = light(obs_color, 0.5)
@@ -1223,7 +1362,7 @@ def seismic_fits(problem, stage, plot_options):
                 dist = source.distance_to(target)
                 azi = source.azibazi_to(target)[0]
                 infos.append(str_dist(dist))
-                infos.append(u'%.0f\u00B0' % azi)
+                infos.append('%.0f\u00B0' % azi)
                 # infos.append('%.3f' % gcms[itarget])
                 axes2.annotate(
                     '\n'.join(infos),
@@ -1236,7 +1375,7 @@ def seismic_fits(problem, stage, plot_options):
                     fontsize=fontsize,
                     fontstyle='normal')
 
-        for (iyy, ixx), fig in figures.iteritems():
+        for (iyy, ixx), fig in figures.items():
             title = '.'.join(x for x in cg if x)
             if len(figures) > 1:
                 title += ' (%i/%i, %i/%i)' % (iyy + 1, nyy, ixx + 1, nxx)
@@ -1255,7 +1394,7 @@ def draw_seismic_fits(problem, po):
 
     mode = problem.config.problem_config.mode
 
-    if po.reference is None:
+    if not po.reference:
         llk_str = po.post_llk
         stage.load_results(
             varnames=problem.varnames,
@@ -1295,7 +1434,8 @@ def draw_fuzzy_beachball(problem, po):
     if po.stage_number is None:
         po.stage_number = -1
 
-    if po.reference is None:
+    varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
+    if not po.reference:
         llk_str = po.post_llk
         stage = Stage(homepath=problem.outfolder)
 
@@ -1306,17 +1446,22 @@ def draw_fuzzy_beachball(problem, po):
 
         n_mts = len(stage.mtrace)
         m6s = num.empty((n_mts, 6), dtype='float64')
-        for i, varname in enumerate(
-                ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
+        for i, varname in enumerate(varnames):
             m6s[:, i] = stage.mtrace.get_values(
                 varname, combine=True, squeeze=True).ravel()
 
+        point = get_result_point(stage, problem.config, po.post_llk)
+        best_mt = point2array(point, varnames=varnames)
     else:
         llk_str = 'ref'
         m6s = num.empty((1, 6), dtype='float64')
         for i, varname in enumerate(
                 ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
             m6s[:, i] = po.reference[varname].ravel()
+
+        best_mt = None
+
+    logger.info('Drawing Fuzzy Beachball ...')
 
     kwargs = {
         'beachball_type': 'full',
@@ -1339,11 +1484,160 @@ def draw_fuzzy_beachball(problem, po):
     if not os.path.exists(outpath) or po.force or po.outformat == 'display':
 
         beachball.plot_fuzzy_beachball_mpl_pixmap(
-            m6s, axes, best_mt=None, best_color='red', **kwargs)
+            m6s, axes, best_mt=best_mt, best_color='red', **kwargs)
 
         axes.set_xlim(0., 10.)
         axes.set_ylim(0., 10.)
         axes.set_axis_off()
+
+        if not po.outformat == 'display':
+            logger.info('saving figure to %s' % outpath)
+            fig.savefig(outpath, dpi=po.dpi)
+        else:
+            plt.show()
+
+    else:
+        logger.info('Plot already exists! Please use --force to overwrite!')
+
+
+def point2array(point, varnames):
+    """
+    Concatenate values of point according to order of given varnames.
+    """
+    array = num.empty((len(varnames)), dtype='float64')
+    for i, varname in enumerate(varnames):
+        array[i] = point[varname].ravel()
+
+    return array
+
+
+def draw_hudson(problem, po):
+    """
+    Modified from grond. Plot the hudson graph for the reference event(grey)
+    and the best solution (red beachball).
+    Also a random number of models from the
+    selected stage are plotted as smaller beachballs on the hudson graph.
+    """
+
+    from pyrocko.plot import beachball, hudson
+    from pyrocko import moment_tensor as mtm
+    from numpy import random
+    if problem.config.problem_config.n_sources > 1:
+        raise NotImplementedError(
+            'Hudson plot is not yet implemented for more than one source!')
+
+    varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
+    if not po.reference:
+        llk_str = po.post_llk
+        stage = Stage(homepath=problem.outfolder)
+
+        stage.load_results(
+            varnames=problem.varnames,
+            model=problem.model, stage_number=po.load_stage,
+            load='trace', chains=[-1])
+
+        n_mts = len(stage.mtrace)
+        m6s = num.empty((n_mts, 6), dtype='float64')
+        for i, varname in enumerate(varnames):
+            m6s[:, i] = stage.mtrace.get_values(
+                varname, combine=True, squeeze=True).ravel()
+
+        point = get_result_point(stage, problem.config, po.post_llk)
+        best_mt = point2array(point, varnames=varnames)
+    else:
+        llk_str = 'ref'
+        m6s = point2array(point=po.reference, varnames=varnames)
+        best_mt = None
+
+    logger.info('Drawing Hudson plot ...')
+
+    fontsize = 12
+    beachball_type = 'full'
+    color = 'red'
+    markersize = fontsize * 1.5
+    markersize_small = markersize * 0.2
+    beachballsize = markersize
+    beachballsize_small = beachballsize * 0.5
+
+    fig = plt.figure(figsize=(4., 4.))
+    fig.subplots_adjust(left=0., right=1., bottom=0., top=1.)
+    axes = fig.add_subplot(1, 1, 1)
+    hudson.draw_axes(axes)
+
+    data = []
+    for m6 in m6s:
+        mt = mtm.as_mt(m6)
+        u, v = hudson.project(mt)
+
+        if random.random() < 0.1:
+            try:
+                beachball.plot_beachball_mpl(
+                    mt, axes,
+                    beachball_type=beachball_type,
+                    position=(u, v),
+                    size=beachballsize_small,
+                    color_t='black',
+                    alpha=0.5,
+                    zorder=1,
+                    linewidth=0.25)
+            except beachball.BeachballError as e:
+                logger.warn(str(e))
+
+        else:
+            data.append((u, v))
+
+    if data:
+        u, v = num.array(data).T
+        axes.plot(
+            u, v, 'o',
+            color=color,
+            ms=markersize_small,
+            mec='none',
+            mew=0,
+            alpha=0.25,
+            zorder=0)
+
+    if best_mt is not None:
+        mt = mtm.as_mt(best_mt)
+        u, v = hudson.project(mt)
+
+        try:
+            beachball.plot_beachball_mpl(
+                mt, axes,
+                beachball_type=beachball_type,
+                position=(u, v),
+                size=beachballsize,
+                color_t=color,
+                alpha=0.5,
+                zorder=2,
+                linewidth=0.25)
+        except beachball.BeachballError as e:
+            logger.warn(str(e))
+
+    mt = problem.event.moment_tensor
+    u, v = hudson.project(mt)
+
+    if po.reference:
+        try:
+            beachball.plot_beachball_mpl(
+                mt, axes,
+                beachball_type=beachball_type,
+                position=(u, v),
+                size=beachballsize,
+                color_t='grey',
+                alpha=0.5,
+                zorder=2,
+                linewidth=0.25)
+            logger.info('drawing reference event in grey ...')
+        except beachball.BeachballError as e:
+            logger.warn(str(e))
+
+    outpath = os.path.join(
+        problem.outfolder,
+        po.figure_dir,
+        'hudson_%i_%s.%s' % (po.load_stage, llk_str, po.outformat))
+
+    if not os.path.exists(outpath) or po.force or po.outformat == 'display':
 
         if not po.outformat == 'display':
             logger.info('saving figure to %s' % outpath)
@@ -1488,16 +1782,16 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     n = len(varnames)
     nrow = int(num.ceil(n / 2.))
     ncol = 2
+    fontsize = 10
 
     n_fig = nrow * ncol
-
     if figsize is None:
         if n < 5:
-            figsize = (5.8, 4.1)
-        elif n < 7:
-            figsize = (5.8, 8.2)
+            figsize = mpl_papersize('a6', 'landscape')
+        if n < 7:
+            figsize = mpl_papersize('a5', 'portrait')
         else:
-            figsize = (8.2, 11.7)
+            figsize = figsize = mpl_papersize('a4', 'portrait')
 
     if axs is None:
         fig, axs = plt.subplots(nrow, ncol, figsize=figsize)
@@ -1548,15 +1842,15 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         reference = None
 
                     if color is None:
-                        color = scolor('aluminium4')
-                    elif isource == 2:
-                        color = light(color, 0.3)
+                        pcolor = mpl_graph_color(isource)
+                    else:
+                        pcolor = color
 
                     if plot_style == 'kde':
                         pmp.kdeplot(
                             e, shade=alpha, ax=axs[rowi, coli],
                             color=color, linewidth=1.,
-                            kwargs_shade={'color': color})
+                            kwargs_shade={'color': pcolor})
                         axs[rowi, coli].relim()
                         axs[rowi, coli].autoscale(tight=False)
                         axs[rowi, coli].set_ylim(0)
@@ -1567,7 +1861,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     elif plot_style == 'hist':
                         histplot_op(
                             axs[rowi, coli], e, reference=reference,
-                            bins=varbin, alpha=alpha, color=color,
+                            bins=varbin, alpha=alpha, color=pcolor,
                             kwargs=kwargs)
                     else:
                         raise NotImplementedError(
@@ -1576,7 +1870,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     try:
                         param = prior_bounds[v]
                         title = str(v) + ' ' + plot_units[hypername(v)] + \
-                            ' ' + 'priors: %3.3f, %3.3f' % (
+                            ' priors: {}, {}'.format(
                                 param.lower, param.upper)
                     except KeyError:
                         try:
@@ -1584,11 +1878,12 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         except KeyError:
                             title = str(v) + ' ' + plot_units[hypername(v)]
 
-                    axs[rowi, coli].set_title(title)
+                    axs[rowi, coli].set_title(title, fontsize=fontsize + 2)
                     axs[rowi, coli].grid(grid)
                     axs[rowi, coli].set_yticks([])
                     axs[rowi, coli].set_yticklabels([])
                     format_axes(axs[rowi, coli])
+                    axs[rowi, coli].tick_params(axis='x', labelsize=fontsize)
     #                axs[rowi, coli].set_ylabel("Frequency")
 
                     if lines:
@@ -1600,13 +1895,13 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
                     if posterior:
                         if posterior == 'all':
-                            for k, idx in posterior_idxs.iteritems():
+                            for k, idx in posterior_idxs.items():
                                 axs[rowi, coli].axvline(
                                     x=e[idx], color=colors[k], lw=1.)
                         else:
                             idx = posterior_idxs[posterior]
                             axs[rowi, coli].axvline(
-                                x=e[idx], color=colors[posterior], lw=1.)
+                                x=e[idx], color=pcolor, lw=1.)
 
     fig.tight_layout()
     return fig, axs, varbins
@@ -1637,7 +1932,7 @@ def select_transform(sc, n_steps=None):
         if n_steps == 1:
             return x
         else:
-            nchains = x.shape[0] / n_steps
+            nchains = x.shape[0] // n_steps
             xout = []
             for i in range(nchains):
                 nstart = int((n_steps * i) + (n_steps * pa.burn))
@@ -1774,7 +2069,7 @@ def draw_correlation_hist(problem, plot_options):
     po = plot_options
     mode = problem.config.problem_config.mode
 
-    assert mode == 'geometry'
+    assert mode == geometry_mode_str
     assert po.load_stage != 0
 
     hypers = utility.check_hyper_flag(problem)
@@ -1784,7 +2079,7 @@ def draw_correlation_hist(problem, plot_options):
         varnames = problem.hypernames
     else:
         sc = problem.config.sampler_config
-        varnames = problem.varnames + problem.hypernames + ['like']
+        varnames = list(problem.varnames) + problem.hypernames + ['like']
 
     if len(po.varnames) > 0:
         varnames = po.varnames
@@ -1817,9 +2112,16 @@ def draw_correlation_hist(problem, plot_options):
     else:
         chains = None
 
+    if not po.reference:
+        reference = get_result_point(stage, problem.config, po.post_llk)
+        llk_str = po.post_llk
+    else:
+        reference = po.reference
+        llk_str = 'ref'
+
     outpath = os.path.join(
         problem.outfolder, po.figure_dir, 'corr_hist_%s_%s.%s' % (
-            stage.number, po.post_llk, po.outformat))
+            stage.number, llk_str, po.outformat))
 
     if not os.path.exists(outpath) or po.force:
         fig, axs = correlation_plot_hist(
@@ -1828,7 +2130,7 @@ def draw_correlation_hist(problem, plot_options):
             transform=transform,
             cmap=plt.cm.gist_earth_r,
             chains=chains,
-            point=po.reference,
+            point=reference,
             point_size='8',
             point_color='red')
     else:
@@ -1916,7 +2218,7 @@ def draw_earthmodels(problem, plot_options):
 
     po = plot_options
 
-    for datatype, composite in problem.composites.iteritems():
+    for datatype, composite in problem.composites.items():
 
         if datatype == 'seismic':
             models_dict = {}
@@ -1941,7 +2243,7 @@ def draw_earthmodels(problem, plot_options):
                         earth_model_name=sc.gf_config.earth_model_name,
                         channels=sc.get_unique_channels()[0],
                         sample_rate=sc.gf_config.sample_rate,
-                        crust_inds=range(*sc.gf_config.n_variations),
+                        crust_inds=list(range(*sc.gf_config.n_variations)),
                         interpolation='multilinear')
 
                     models = load_earthmodels(
@@ -1979,7 +2281,7 @@ def draw_earthmodels(problem, plot_options):
                     datasets=composite.datasets,
                     earth_model_name=gc.gf_config.earth_model_name,
                     interpolation='multilinear',
-                    crust_inds=range(*gc.gf_config.n_variations),
+                    crust_inds=list(range(*gc.gf_config.n_variations)),
                     sample_rate=gc.gf_config.sample_rate)
 
                 models = load_earthmodels(
@@ -2001,7 +2303,7 @@ def draw_earthmodels(problem, plot_options):
         figs = []
         axes = []
         tobepopped = []
-        for path, models in models_dict.iteritems():
+        for path, models in models_dict.items():
             if len(models) > 0:
                 fig, axs = n_model_plot(
                     models, axes=None,
@@ -2022,22 +2324,67 @@ def draw_earthmodels(problem, plot_options):
                 fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
+def fuzzy_rupture_fronts(
+        ax, rupture_fronts, xgrid, ygrid, alpha=0.6, linewidth=7, zorder=0):
+    """
+    Fuzzy rupture fronts
+
+    rupture_fronts : list
+        of output of cs = pyplot.contour; cs.allsegs
+    """
+
+    from matplotlib.colors import LinearSegmentedColormap
+
+    ncolors = 256
+    cmap = LinearSegmentedColormap.from_list(
+        'dummy', ['white', 'black'], N=ncolors)
+
+    res_km = 25   # pixel per km
+    xmin = xgrid.min()
+    xmax = xgrid.max()
+    ymin = ygrid.min()
+    ymax = ygrid.max()
+    extent = (xmin, xmax, ymin, ymax)
+    grid = num.zeros(
+        (int((num.abs(ymax) - num.abs(ymin)) * res_km),
+         int((num.abs(xmax) - num.abs(xmin)) * res_km)),
+        dtype='float64')
+    for rupture_front in rupture_fronts:
+        for level in rupture_front:
+            for line in level:
+                draw_line_on_array(
+                    line[:, 0], line[:, 1],
+                    grid=grid,
+                    extent=extent,
+                    grid_resolution=grid.shape,
+                    linewidth=linewidth)
+
+    # increase contrast reduce high intense values
+    truncate = len(rupture_fronts) / 2
+    grid[grid > truncate] = truncate
+    ax.imshow(
+        grid, extent=extent, origin='lower', cmap=cmap, aspect='auto',
+        alpha=alpha, zorder=zorder)
+
+
 def fault_slip_distribution(
         fault, mtrace=None, transform=lambda x: x, alpha=0.9, ntickmarks=5,
-        ncontours=100, reference=None):
+        reference=None):
     """
     Draw discretized fault geometry rotated to the 2-d view of the foot-wall
     of the fault.
 
     Parameters
     ----------
-    fault : :class:`ffi.FaultGeometry`
+    fault : :class:`ffo.fault.FaultGeometry`
 
+    TODO: 0,0 is now ll of fault at depth, need to turn around axis that
+        origin is top-left
     """
 
     def draw_quivers(
             ax, uperp, uparr, xgr, ygr, rake, color='black',
-            draw_legend=False, normalisation=None):
+            draw_legend=False, normalisation=None, zorder=0):
 
         angles = num.arctan2(uperp, uparr) * \
             (180. / num.pi) + rake
@@ -2045,7 +2392,8 @@ def fault_slip_distribution(
         slips = num.sqrt((uperp ** 2 + uparr ** 2)).ravel()
 
         if normalisation is None:
-            normalisation = slips.max() * num.abs(ygr[1, 0] - ygr[0, 0])
+            normalisation = slips.max() * num.abs(
+                ygr[1, 0] - ygr[0, 0]) / (3. / 2.)
 
         slips /= normalisation
 
@@ -2056,39 +2404,30 @@ def fault_slip_distribution(
         quivers = ax.quiver(
             xgr.ravel(), ygr.ravel(), slipsx, slipsy,
             units='dots', angles='xy', scale_units='xy', scale=1,
-            width=1., color=color)
+            width=1., color=color, zorder=zorder)
 
         if draw_legend:
-            quiver_legend_length = int(num.floor(
-                num.max(slips * normalisation) * 10.) / 10.)
+            quiver_legend_length = num.ceil(
+                num.max(slips * normalisation) * 10.) / 10.
 
-            plt.quiverkey(
-                quivers, width / 6., height / 6., quiver_legend_length,
-                '%i [m]' % quiver_legend_length)
+            ax.quiverkey(
+                quivers, 0.85, 0.8, 14,
+                '{} [m]'.format(quiver_legend_length), labelpos='E',
+                coordinates='figure')
 
         return quivers, normalisation
 
-    reference_slip = num.sqrt(
-        reference['uperp'] ** 2 + reference['uparr'] ** 2)
+    def draw_patches(ax, fault, subfault_idx, patch_values, cmap, alpha):
+        i = subfault_idx
+        height = fault.ordering.patch_sizes_dip[i]
+        width = fault.ordering.patch_sizes_strike[i]
 
-    fig, ax = plt.subplots(
-        nrows=1, ncols=1, figsize=mpl_papersize('a4', 'landscape'))
-
-    height = fault.ordering.patch_size_dip
-    width = fault.ordering.patch_size_strike
-
-    figs = []
-    axs = []
-    for i in range(fault.nsubfaults):
-        np_h, np_w = fault.get_subfault_discretization(i)
-        ext_source = fault.get_subfault(i)
-
-        draw_patches = []
+        d_patches = []
         lls = []
         for patch_dip_ll in range(np_h, 0, -1):
             for patch_strike_ll in range(np_w):
                 ll = [patch_strike_ll * width, patch_dip_ll * height - height]
-                draw_patches.append(
+                d_patches.append(
                     Rectangle(
                         ll, width=width, height=height, edgecolor='black'))
                 lls.append(ll)
@@ -2102,8 +2441,11 @@ def fault_slip_distribution(
         ax.set_xlim(*xlim)
         ax.set_ylim(*ylim)
 
-        ax.set_xlabel('strike-direction [km]')
-        ax.set_ylabel('dip-direction [km]')
+        scale_y = {'scale': 1, 'offset': -ylim[1]}
+        scale_axes(ax.yaxis, **scale_y)
+
+        ax.set_xlabel('strike-direction [km]', fontsize=fontsize)
+        ax.set_ylabel('dip-direction [km]', fontsize=fontsize)
 
         xticker = tick.MaxNLocator(nbins=ntickmarks)
         yticker = tick.MaxNLocator(nbins=ntickmarks)
@@ -2111,16 +2453,43 @@ def fault_slip_distribution(
         ax.get_xaxis().set_major_locator(xticker)
         ax.get_yaxis().set_major_locator(yticker)
 
-        scm = slip_colormap(100)
         pa_col = PatchCollection(
-            draw_patches, alpha=alpha, match_original=True)
-        pa_col.set(array=reference_slip, cmap=scm)
+            d_patches, alpha=alpha, match_original=True, zorder=0)
+        pa_col.set(array=patch_values, cmap=cmap)
 
         ax.add_collection(pa_col)
+        return pa_col
+
+    def draw_colorbar(fig, ax, cb_related, labeltext):
+        cbaxes = fig.add_axes([0.85, 0.4, 0.03, 0.3])
+        cb = fig.colorbar(cb_related, ax=axs, cax=cbaxes)
+        cb.set_label(labeltext, fontsize=fontsize)
+        ax.set_aspect('equal', adjustable='box')
+
+    from beat.colormap import slip_colormap
+    fontsize = 12
+
+    reference_slip = num.sqrt(
+        reference['uperp'] ** 2 + reference['uparr'] ** 2)
+
+    figs = []
+    axs = []
+    for ns in range(fault.nsubfaults):
+        fig, ax = plt.subplots(
+            nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
+
+        np_h, np_w = fault.get_subfault_discretization(ns)
+
+        # alphas = alpha * num.ones(np_h * np_w, dtype='int8')
+        pa_col = draw_patches(
+            ax, fault, subfault_idx=ns, patch_values=reference_slip,
+            cmap=slip_colormap(100), alpha=0.65)
+
+        ext_source = fault.get_subfault(ns)
 
         # patch central locations
-        hpd = fault.ordering.patch_size_dip / 2.
-        hps = fault.ordering.patch_size_strike / 2.
+        hpd = fault.ordering.patch_sizes_dip[ns] / 2.
+        hps = fault.ordering.patch_sizes_strike[ns] / 2.
 
         xvec = num.linspace(hps, ext_source.length / km - hps, np_w)
         yvec = num.linspace(ext_source.width / km - hpd, hpd, np_h)
@@ -2137,17 +2506,50 @@ def fault_slip_distribution(
                     'velocities', combine=True, squeeze=True))
 
                 nchains = nuc_dip.size
-                csteps = int(num.floor(nchains / ncontours))
+                csteps = 6
+                rupture_fronts = []
+                dummy_fig, dummy_ax = plt.subplots(
+                    nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
                 for i in range(0, nchains, csteps):
                     nuc_dip_idx, nuc_strike_idx = fault.fault_locations2idxs(
-                        nuc_dip, nuc_strike, backend='numpy')
+                        0, nuc_dip[i], nuc_strike[i], backend='numpy')
                     sts = fault.get_subfault_starttimes(
                         0, velocities[i, :], nuc_dip_idx, nuc_strike_idx)
 
-                    ax.contour(xgr, ygr, sts, colors='gray', alpha=0.1)
+                    contours = dummy_ax.contour(xgr, ygr, sts)
+                    rupture_fronts.append(contours.allsegs)
+
+                fuzzy_rupture_fronts(
+                    ax, rupture_fronts, ygr, xgr,
+                    alpha=1., linewidth=7, zorder=-1)
+
+                durations = transform(mtrace.get_values(
+                    'durations', combine=True, squeeze=True))
+                std_durations = durations.std(axis=0)
+                # alphas = std_durations.min() / std_durations
+
+            # rupture durations
+            fig2, ax2 = plt.subplots(
+                nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
+
+            reference_durations = reference['durations']
+
+            pa_col2 = draw_patches(
+                ax2, fault, subfault_idx=ns, patch_values=reference_durations,
+                cmap=plt.cm.seismic, alpha=alpha)
+
+            draw_colorbar(fig2, ax2, pa_col2, labeltext='durations [s]')
+            figs.append(fig2)
+            axs.append(ax2)
 
             ref_starttimes = fault.point2starttimes(reference)
-            contours = ax.contour(xgr, ygr, ref_starttimes, colors='black')
+            contours = ax.contour(
+                xgr, ygr, ref_starttimes,
+                colors='black', linewidths=0.5, alpha=0.9)
+            ax.plot(
+                reference['nucleation_strike'],
+                reference['nucleation_dip'],
+                marker='*', color='k', markersize=12)
             plt.clabel(contours, inline=True, fontsize=10)
 
         if mtrace is not None:
@@ -2181,16 +2583,18 @@ def fault_slip_distribution(
 
                 xcoords = xgr.ravel()[i] + rot_ellipse[:, 0] + quivers.U[i]
                 ycoords = ygr.ravel()[i] + rot_ellipse[:, 1] + quivers.V[i]
-                ax.plot(xcoords, ycoords, '-k', linewidth=0.5)
+                ax.plot(xcoords, ycoords, '-k', linewidth=0.5, zorder=2)
+        else:
+            normalisation = None
 
         draw_quivers(
             ax, reference['uperp'], reference['uparr'], xgr, ygr,
             ext_source.rake, color='black', draw_legend=True,
-            normalisation=normalisation)
+            normalisation=normalisation, zorder=3)
 
-        cb = fig.colorbar(pa_col)
-        cb.set_label('slip [m]')
-        ax.set_aspect('equal', adjustable='box')
+        draw_colorbar(fig, ax, pa_col, labeltext='slip [m]')
+
+        # fig.tight_layout()
         figs.append(fig)
         axs.append(ax)
 
@@ -2205,12 +2609,12 @@ def draw_slip_dist(problem, po):
 
     mode = problem.config.problem_config.mode
 
-    if mode != 'ffi':
+    if mode != ffo_mode_str:
         raise ModeError(
             'Wrong optimization mode: %s! This plot '
-            'variant is only valid for "ffi" mode' % mode)
+            'variant is only valid for "%s" mode' % (mode, ffo_mode_str))
 
-    datatype, gc = problem.composites.items()[0]
+    datatype, gc = list(problem.composites.items())[0]
 
     fault = gc.load_fault_geometry()
 
@@ -2230,7 +2634,7 @@ def draw_slip_dist(problem, po):
         stage_number=po.load_stage,
         load='trace', chains=[-1])
 
-    if po.reference is None:
+    if not po.reference:
         reference = get_result_point(stage, problem.config, po.post_llk)
         llk_str = po.post_llk
         mtrace = stage.mtrace
@@ -2247,12 +2651,369 @@ def draw_slip_dist(problem, po):
     else:
         outpath = os.path.join(
             problem.outfolder, po.figure_dir,
-            'slip_dist_%s.%s' % (llk_str, po.outformat))
+            'slip_dist_%i_%s.%s' % (stage.number, llk_str, po.outformat))
 
         logger.info('Storing slip-distribution to: %s' % outpath)
         with PdfPages(outpath) as opdf:
             for fig in figs:
                 opdf.savefig(fig, dpi=po.dpi)
+
+
+def _weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=num.inf):
+    """
+    Draw weighted lines into array
+    Modiefied from:
+    https://stackoverflow.com/questions/31638651/how-can-i-draw-lines-into-numpy-arrays
+
+    Parameters
+    ----------
+    r0 : int
+        row index for line end point 0
+    c0 : int
+        col index for line end point 0
+    r1 : int
+        row index for line end point 1
+    c1 : int
+        col index for line end point 1
+    w : int
+        width in pixels for line
+    rmin : int
+        min row index for grid to draw on
+    rmax : int
+        max row index for grid to draw on
+
+    Returns
+    -------
+    rr : array of row indexes of line
+    cc : array of col indexes of line
+    w : array of line weights
+    """
+    def trapez(y, y0, w):
+        return num.clip(num.minimum(
+            y + 1 + w / 2 - y0,
+            - y + 1 + w / 2 + y0), 0, 1)
+    # The algorithm below works fine if c1 >= c0 and c1-c0 >= abs(r1-r0).
+    # If either of these cases are violated, do some switches.
+    if abs(c1 - c0) < abs(r1 - r0):
+        # Switch x and y, and switch again when returning.
+        xx, yy, val = _weighted_line(c0, r0, c1, r1, w=w, rmin=rmin, rmax=rmax)
+        return (yy, xx, val)
+
+    # At this point we know that the distance in columns (x) is greater
+    # than that in rows (y). Possibly one more switch if c0 > c1.
+    if c0 > c1:
+        return _weighted_line(r1, c1, r0, c0, w=w, rmin=rmin, rmax=rmax)
+
+    # The following is now always < 1 in abs
+    slope = (r1 - r0) / (c1 - c0)
+
+    # Adjust weight by the slope
+    w *= num.sqrt(1 + num.abs(slope)) / 2
+
+    # We write y as a function of x, because the slope is always <= 1
+    # (in absolute value)
+    x = num.arange(c0, c1 + 1, dtype=float)
+    y = x * slope + (c1 * r0 - c0 * r1) / (c1 - c0)
+
+    # Now instead of 2 values for y, we have 2*np.ceil(w/2).
+    # All values are 1 except the upmost and bottommost.
+    thickness = num.ceil(w / 2)
+
+    yy = (num.floor(y).reshape(-1, 1) +
+          num.arange(-thickness - 1, thickness + 2).reshape(1, -1))
+    xx = num.repeat(x, yy.shape[1])
+    vals = trapez(yy, y.reshape(-1, 1), w).flatten()
+
+    yy = yy.flatten()
+
+    # Exclude useless parts and those outside of the interval
+    # to avoid parts outside of the picture
+    mask = num.logical_and.reduce((yy >= rmin, yy < rmax, vals > 0))
+
+    return (yy[mask].astype(int), xx[mask].astype(int), vals[mask])
+
+
+def draw_line_on_array(
+        X, Y, grid=None, extent=[], grid_resolution=(400, 400), linewidth=1):
+    """
+    Draw line on given array by adding 1 to its fields.
+
+    Parameters
+    ----------
+    X : array_like
+        timeseries on xcoordinate (columns of array)
+    Y : array_like
+        timeseries on ycoordinate (rows of array)
+    grid : array_like 2d
+        input array that is used for drawing
+    extent : array extent
+        [xmin, xmax, ymin, ymax] (cols, rows)
+    grid_resolution : tuple
+        shape of given grid or grid that is being used for allocation
+    linewidth : int
+        weight (width) of line drawn on grid
+
+    Returns
+    -------
+    grid, extent
+    """
+
+    def check_grid_shape(ngr, naim, axis):
+        if ngr != naim:
+            raise TypeError(
+                'Gridsize of given grid is inconistent for axis %i!'
+                ' Expected %i got %i' % (axis, naim, ngr))
+
+    def check_line_in_grid(idxs, axis, nmax, extent):
+        imax = idxs.max()
+        if imax > nmax:
+            raise TypeError(
+                'Line endpoint outside of given grid Axis "%s"! %i > %i'
+                ' Extent [%s]' % (
+                    axis, imax, nmax, utility.list2string(extent)))
+
+    nxs = len(X)
+    nys = len(Y)
+    if nxs != nys:
+        raise TypeError(
+            'Length of X and Y have to be identical! %i != %i' % (nxs, nys))
+
+    if len(extent) == 0:
+        xmin = X.min()
+        xmax = X.max()
+        ymin = Y.min()
+        ymax = Y.max()
+        extent = [xmin, xmax, ymin, ymax]
+    elif len(extent) == 4:
+        xmin, xmax, ymin, ymax = extent
+    else:
+        raise TypeError(
+            'extent has to be of length 4! [xmin, xmax, ymin, ymax]')
+
+    if len(grid_resolution) != 2:
+        raise TypeError(
+            'grid_resolution has to be of length 2! [xstep, ystep]!')
+
+    xnstep, ynstep = grid_resolution
+    xvec, xstep = num.linspace(xmin, xmax, xnstep, endpoint=True, retstep=True)
+    yvec, ystep = num.linspace(ymin, ymax, ynstep, endpoint=True, retstep=True)
+
+    if grid is not None:
+        if grid.ndim != 2:
+            raise TypeError('Given grid has to be of dimension 2!')
+
+        for axis, (ngr, naim) in enumerate(
+                zip(grid.shape, grid_resolution[::-1])):
+            check_grid_shape(ngr, naim, axis)
+    else:
+        grid = num.zeros((ynstep, xnstep), dtype='float64')
+
+    xidxs = utility.positions2idxs(X, min_pos=xmin, cell_size=xstep)
+    yidxs = utility.positions2idxs(Y, min_pos=ymin, cell_size=ystep)
+
+    check_line_in_grid(xidxs, 'x', nmax=xnstep - 1, extent=extent)
+    check_line_in_grid(yidxs, 'y', nmax=ynstep - 1, extent=extent)
+
+    new_grid = num.zeros_like(grid)
+    for i in range(1, nxs):
+        c0 = xidxs[i - 1]
+        r0 = yidxs[i - 1]
+        c1 = xidxs[i]
+        r1 = yidxs[i]
+        try:
+            rr, cc, w = _weighted_line(
+                c0=c0, r0=r0, c1=c1, r1=r1, w=linewidth, rmax=ynstep - 1)
+
+            new_grid[rr, cc] = w.astype(grid.dtype)
+        except ValueError:
+            # line start and end fall in the same grid point cant be drawn
+            pass
+
+    grid += new_grid
+    return grid, extent
+
+
+def fuzzy_moment_rate(
+        ax, moment_rates, times, cmap=None):
+    """
+    Plot fuzzy moment rate function into axes.
+    """
+    if cmap is None:
+        # from matplotlib.colors import LinearSegmentedColormap
+        # ncolors = 256
+        # cmap = LinearSegmentedColormap.from_list(
+        #    'dummy', [background_color, rates_color], N=ncolors)
+        cmap = plt.cm.hot_r
+
+    nrates = len(moment_rates)
+    ntimes = len(times)
+
+    if nrates != ntimes:
+        raise TypeError(
+            'Number of rates and times have to be identical!'
+            ' %i != %i' % (nrates, ntimes))
+
+    max_rates = max(map(num.max, moment_rates))
+    max_times = max(map(num.max, times))
+
+    extent = (0., max_times, 0., max_rates)
+    grid = num.zeros((500, 500), dtype='float64')
+
+    for mr, time in zip(moment_rates, times):
+        draw_line_on_array(
+            time, mr,
+            grid=grid,
+            extent=extent,
+            grid_resolution=grid.shape,
+            linewidth=7)
+
+    # increase contrast reduce high intense values
+    truncate = nrates / 2
+    grid[grid > truncate] = truncate
+
+    ax.imshow(grid, extent=extent, origin='lower', cmap=cmap, aspect='auto')
+    ax.set_xlabel('Time [s]')
+    ax.set_ylabel('Moment rate [$Nm / s$]')
+
+
+def draw_moment_rate(problem, po):
+    """
+    Draw moment rate function for the results of a seismic/joint finite fault
+    optimization.
+    """
+
+    mode = problem.config.problem_config.mode
+
+    if mode != ffo_mode_str:
+        raise ModeError(
+            'Wrong optimization mode: %s! This plot '
+            'variant is only valid for "%s" mode' % (mode, ffo_mode_str))
+
+    if 'seismic' not in problem.config.problem_config.datatypes:
+        raise TypeError(
+            'Moment rate function only available for optimization results that'
+            ' include seismic data.')
+
+    sc = problem.composites['seismic']
+    fault = sc.load_fault_geometry()
+
+    stage = Stage(homepath=problem.outfolder)
+    stage.load_results(
+        varnames=problem.varnames,
+        stage_number=po.load_stage,
+        load='trace', chains=[-1])
+
+    if not po.reference:
+        reference = get_result_point(stage, problem.config, po.post_llk)
+        llk_str = po.post_llk
+        mtrace = stage.mtrace
+    else:
+        reference = po.reference
+        llk_str = 'ref'
+        mtrace = None
+
+    logger.info('Drawing ensemble of moment rate functions ...')
+    target = sc.wavemaps[0].targets[0]
+    ref_mrf_rates, ref_mrf_times = fault.get_subfault_moment_rate_function(
+        index=0, point=reference, target=target,
+        store=sc.engine.get_store(target.store_id))
+
+    for ns in range(fault.nsubfaults):
+        outpath = os.path.join(
+            problem.outfolder, po.figure_dir,
+            'moment_rate_%i_%i_%s.%s' % (
+                stage.number, ns, llk_str, po.outformat))
+
+        if not os.path.exists(outpath) or po.force:
+            fig, ax = plt.subplots(
+                nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
+
+            if mtrace is not None:
+                nchains = len(mtrace)
+                csteps = 5
+                idxs = range(0, nchains, csteps)
+                mrfs_rate = []
+                mrfs_time = []
+                for idx in idxs:
+                    point = mtrace.point(idx=idx)
+                    mrf_rate, mrf_time = \
+                        fault.get_subfault_moment_rate_function(
+                            index=ns, point=point, target=target,
+                            store=sc.engine.get_store(target.store_id))
+                    mrfs_rate.append(mrf_rate)
+                    mrfs_time.append(mrf_time)
+
+                fuzzy_moment_rate(ax, mrfs_rate, mrfs_time)
+
+            ax.plot(
+                ref_mrf_times, ref_mrf_rates,
+                '-k', alpha=0.8, linewidth=1.)
+            format_axes(ax, remove=['top', 'right'])
+
+            if po.outformat == 'display':
+                plt.show()
+            else:
+                logger.info('saving figure to %s' % outpath)
+                fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
+
+        else:
+            logger.info('Plot exists! Use --force to overwrite!')
+
+
+def source_geometry(fault, ref_sources):
+    """
+    Plot source geometry in 3d rotatable view
+
+    Parameters
+    ----------
+    fault: :class:`beat.ffo.fault.FaultGeometry`
+    ref_sources: list
+        of :class:'beat.sources.RectangularSource'
+    """
+
+    from mpl_toolkits.mplot3d import Axes3D
+    from beat.utility import RS_center
+    alpha = 0.7
+
+    def plot_subfault(ax, source, color):
+        source.anchor = 'top'
+        coords = source.outline()
+        ax.plot(
+            coords[:, 1], coords[:, 0], coords[:, 2] * -1.,
+            color=color, linewidth=2, alpha=alpha)
+        ax.plot(
+            coords[0:2, 1], coords[0:2, 0], coords[0:2, 2] * -1.,
+            '-k', linewidth=2, alpha=alpha)
+        center = RS_center(source)
+        ax.scatter(
+            center[0], center[1], center[2] * -1,
+            marker='o', s=20, color=color, alpha=alpha)
+
+    fig = plt.figure(figsize=mpl_papersize('a4', 'landscape'))
+    ax = fig.add_subplot(111, projection='3d')
+    extfs = fault.get_all_subfaults()
+    for idx, (refs, exts) in enumerate(zip(ref_sources, extfs)):
+
+        plot_subfault(ax, exts, color=mpl_graph_color(idx))
+        plot_subfault(ax, refs, color=scolor('aluminium4'))
+
+        for i, patch in enumerate(fault.get_subfault_patches(idx)):
+            coords = patch.outline()
+            ax.plot(
+                coords[:, 1], coords[:, 0], coords[:, 2] * -1.,
+                color=mpl_graph_color(idx), linewidth=0.5, alpha=alpha)
+            ax.text(
+                patch.east_shift, patch.north_shift, patch.depth * -1., str(i),
+                fontsize=10)
+
+    scale = {'scale': 1. / km}
+    scale_axes(ax.xaxis, **scale)
+    scale_axes(ax.yaxis, **scale)
+    scale_axes(ax.zaxis, **scale)
+    ax.set_zlabel('Depth [km]')
+    ax.set_ylabel('North_shift [km]')
+    ax.set_xlabel('East_shift [km]')
+    plt.show()
 
 
 plots_catalog = {
@@ -2262,7 +3023,9 @@ plots_catalog = {
     'scene_fits': draw_geodetic_fits,
     'velocity_models': draw_earthmodels,
     'slip_distribution': draw_slip_dist,
-    'fuzzy_beachball': draw_fuzzy_beachball}
+    'hudson': draw_hudson,
+    'fuzzy_beachball': draw_fuzzy_beachball,
+    'moment_rate': draw_moment_rate}
 
 
 def available_plots():

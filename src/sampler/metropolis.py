@@ -147,21 +147,21 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
         super(Metropolis, self).__init__(vars, out_vars, shared)
 
-        self.chain_previous_lpoint = []
-        for point in self.population:
-            lpoint = self.logp_forw(self.bij.map(point))
-            self.chain_previous_lpoint.append(lpoint)
+        self.chain_previous_lpoint = [[]] * self.n_chains
+        self._tps = None
 
     def _sampler_state_blacklist(self):
         """
         Returns sampler attributes that are not saved.
         """
-        bl = ['population',
-              'array_population',
-              'check_bnd',
+        bl = ['check_bnd',
               'logp_forw',
               'proposal_samples_array',
               'vars',
+              'bij',
+              'lij',
+              'ordering',
+              'lordering',
               '_BlockedStep__newargs']
         return bl
 
@@ -190,15 +190,17 @@ class Metropolis(backend.ArrayStepSharedLLK):
         for k, v in state.items():
             setattr(self, k, v)
 
-    def time_per_sample(self, n_points):
-        tps = num.zeros((n_points))
-        for i in range(n_points):
-            q = self.bij.map(self.population[i])
-            t0 = time()
-            self.logp_forw(q)
-            t1 = time()
-            tps[i] = t1 - t0
-        return tps.mean()
+    def time_per_sample(self, n_points=10):
+        if not self._tps:
+            tps = num.zeros((n_points))
+            for i in range(n_points):
+                q = self.bij.map(self.population[i])
+                t0 = time()
+                self.logp_forw(q)
+                t1 = time()
+                tps[i] = t1 - t0
+            self._tps =  tps.mean()
+        return self._tps
 
     def astep(self, q0):
         if self.stage == 0:
@@ -206,7 +208,8 @@ class Metropolis(backend.ArrayStepSharedLLK):
             if not num.isfinite(l_new[self._llk_index]):
                 raise ValueError(
                     'Got NaN in likelihood evaluation! '
-                    'Invalid model definition?')
+                    'Invalid model definition? '
+                    'Or starting point outside prior bounds!')
 
             q_new = q0
 
@@ -249,7 +252,13 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
                 q = q0 + delta
 
-            l0 = self.chain_previous_lpoint[self.chain_index]
+            try:
+                l0 = self.chain_previous_lpoint[self.chain_index]
+                llk0 = l0[self._llk_index]
+            except IndexError:
+                l0 = self.logp_forw(q0)
+                self.chain_previous_lpoint[self.chain_index] = l0
+                llk0 = l0[self._llk_index]
 
             if self.check_bound:
                 logger.debug('Checking bound: Chain_%i step_%i' % (
@@ -274,7 +283,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
                         logger.debug('Accepted: Chain_%i step_%i' % (
                             self.chain_index, self.stage_sample))
                         logger.debug('proposed: %f previous: %f' % (
-                            lp[self._llk_index], l0[self._llk_index]))
+                            lp[self._llk_index], llk0))
                         self.accepted += 1
                         l_new = lp
                         self.chain_previous_lpoint[self.chain_index] = l_new
@@ -297,7 +306,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
                 logger.debug('Select: Chain_%i step_%i' % (
                     self.chain_index, self.stage_sample))
                 q_new, accepted = metrop_select(
-                    self.beta * (lp[self._llk_index] - l0[self._llk_index]),
+                    self.beta * (lp[self._llk_index] - llk0),
                     q, q0)
 
                 if accepted:
@@ -502,7 +511,7 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2):
 
     posterior_idxs = utility.get_fit_indexes(llks)
     d = {}
-    for k, v in posterior_idxs.iteritems():
+    for k, v in posterior_idxs.items():
         d[k] = step.bij.rmap(array_population[v, :])
 
     d['dist_mean'] = step.bij.rmap(array_population.mean(axis=0))

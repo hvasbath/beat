@@ -5,6 +5,7 @@ from time import time
 
 import numpy as num
 
+from theano.printing import Print
 from theano import shared
 from theano import config as tconfig
 import theano.tensor as tt
@@ -12,7 +13,7 @@ import theano.tensor as tt
 from pyrocko.gf import LocalEngine, RectangularSource
 
 from beat import theanof, utility
-from beat.ffi import load_gf_library, get_gf_prefix
+from beat.ffo import load_gf_library, get_gf_prefix
 from beat import config as bconfig
 from beat import heart, covariance as cov
 from beat.models.base import ConfigInconsistentError, Composite
@@ -34,7 +35,7 @@ __all__ = [
     'GeodeticDistributerComposite']
 
 
-def get_ramp_displacement(slocx, slocy, ramp):
+def get_ramp_displacement(locx, locy, ramp, offset):
     """
     Get synthetic residual plane in azimuth and range direction of the
     satellite.
@@ -45,10 +46,12 @@ def get_ramp_displacement(slocx, slocy, ramp):
         local coordinates [km] in east direction
     slocy : shared array-like :class:`numpy.ndarray`
         local coordinates [km] in north direction
-    ramp : :class:`theano.tensor.Tensor`
+    ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
         vector of 2 variables with ramp parameters in azimuth[0] & range[1]
+    offset : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
+        scalar of offset in [m]
     """
-    return slocy * ramp[0] + slocx * ramp[1]
+    return locy * ramp[0] + locx * ramp[1] + offset
 
 
 class GeodeticComposite(Composite):
@@ -206,53 +209,86 @@ class GeodeticComposite(Composite):
         if self.config.fit_plane:
             logger.info('Estimating ramp for each dataset...')
             for data in self.datasets:
-                hierarchical_name = data.name + '_ramp'
-                if not self.config.fit_plane and \
-                        hierarchical_name in hierarchicals:
-                        raise ConfigInconsistentError(
-                            'Plane removal disabled, but they are defined'
-                            ' in the problem configuration (hierarchicals)!')
-
                 if isinstance(data, heart.DiffIFG):
+                    for hierarchical_name in data.plane_names():
 
-                    if self.config.fit_plane and \
-                            hierarchical_name not in hierarchicals:
-                        raise ConfigInconsistentError(
-                            'Plane corrections enabled, but they are'
-                            ' not defined in the problem configuration!'
-                            ' (hierarchicals)')
+                        if not self.config.fit_plane and \
+                                hierarchical_name in hierarchicals:
+                            raise ConfigInconsistentError(
+                                'Plane removal disabled, but they are defined'
+                                ' in the problem configuration'
+                                ' (hierarchicals)!')
 
-                    param = hierarchicals[hierarchical_name]
-                    kwargs = dict(
-                        name=param.name,
-                        shape=param.dimension,
-                        lower=param.lower,
-                        upper=param.upper,
-                        testval=param.testvalue,
-                        transform=None,
-                        dtype=tconfig.floatX)
-                    try:
-                        self.hierarchicals[data.name] = Uniform(**kwargs)
+                        if self.config.fit_plane and \
+                                hierarchical_name not in hierarchicals:
+                            raise ConfigInconsistentError(
+                                'Plane corrections enabled, but they are'
+                                ' not defined in the problem configuration!'
+                                ' (hierarchicals)')
 
-                    except TypeError:
-                        kwargs.pop('name')
-                        self.hierarchicals[data.name] = \
-                            Uniform.dist(**kwargs)
+                        param = hierarchicals[hierarchical_name]
+                        if not num.array_equal(
+                                param.lower, param.upper):
+                            kwargs = dict(
+                                name=param.name,
+                                shape=param.dimension,
+                                lower=param.lower,
+                                upper=param.upper,
+                                testval=param.testvalue,
+                                transform=None,
+                                dtype=tconfig.floatX)
+                            try:
+                                self.hierarchicals[
+                                    hierarchical_name] = Uniform(**kwargs)
+                            except TypeError:
+                                kwargs.pop('name')
+                                self.hierarchicals[hierarchical_name] = \
+                                    Uniform.dist(**kwargs)
+                        else:
+                            logger.info(
+                                'not solving for %s, got fixed at %s' % (
+                                    param.name,
+                                    utility.list2string(
+                                        param.lower.flatten())))
+                            self.hierarchicals[hierarchical_name] = param.lower
+                else:
+                    logger.info('No plane for GNSS data.')
 
         logger.info(
             'Initialized %i hierarchical parameters '
-            '(ramps).' % len(self.hierarchicals.keys()))
+            '(ramps).' % len(self.hierarchicals))
 
-    def remove_ramps(self, residuals):
+    def remove_ramps(self, residuals, point=None, operation='-'):
         """
         Remove an orbital ramp from the residual displacements
         """
 
         for i, data in enumerate(self.datasets):
             if isinstance(data, heart.DiffIFG):
-                residuals[i] -= get_ramp_displacement(
-                    self._slocx[i], self._slocy[i],
-                    self.hierarchicals[data.name])
+                ramp_name = data.ramp_name()
+                offset_name = data.offset_name()
+                if not point:
+                    locx = self._slocx[i]
+                    locy = self._slocy[i]
+                    ramp = self.hierarchicals[ramp_name]
+                    offset = self.hierarchicals[offset_name]
+                else:
+                    locx = data.east_shifts / km
+                    locy = data.north_shifts / km
+                    try:
+                        ramp = point[ramp_name]
+                        offset = point[offset_name]
+                    except KeyError:
+                        ramp = self.hierarchicals[ramp_name]
+                        offset = self.hierarchicals[offset_name]
+
+                ramp_disp = get_ramp_displacement(
+                    locx, locy, ramp, offset)
+
+                if operation == '-':
+                    residuals[i] -= ramp_disp
+                elif operation == '+':
+                    residuals[i] += ramp_disp
 
         return residuals
 
@@ -321,14 +357,12 @@ class GeodeticSourceComposite(GeodeticComposite):
             if hyper in tpoint:
                 tpoint.pop(hyper)
 
-        source_params = self.sources[0].keys()
-
-        for param in tpoint.keys():
+        source_params = list(self.sources[0].keys())
+        for param in list(tpoint.keys()):
             if param not in source_params:
                 tpoint.pop(param)
 
         source_points = utility.split_point(tpoint)
-
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
             # reset source time may result in store error otherwise
@@ -355,7 +389,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         -------
         posterior_llk : :class:`theano.tensor.Tensor`
         """
-        hp_specific = problem_config.dataset_specific_residual_noise_estimation
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
 
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs
@@ -429,8 +463,11 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
 
         synths = []
         for disp, data in zip(displacements, self.datasets):
-            synths.append((
-                disp * data.los_vector).sum(axis=1))
+            los_d = (disp * data.los_vector).sum(axis=1)
+            synths.append(los_d)
+
+        if self.config.fit_plane:
+            synths = self.remove_ramps(synths, point=point, operation='+')
 
         return synths
 
@@ -559,8 +596,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
         self.gfs = {}
         self.gf_names = {}
 
-        self.slip_varnames = bconfig.static_dist_vars
-        self._mode = 'ffi'
+        self._mode = 'ffo'
         self.gfpath = os.path.join(
             project_dir, self._mode, bconfig.linear_gf_dir_name)
 
@@ -579,11 +615,12 @@ class GeodeticDistributerComposite(GeodeticComposite):
         make_shared : bool
             if True transforms gfs to :class:`theano.shared` variables
         """
-        if not isinstance(crust_inds, list):
-            raise TypeError('crust_inds need to be a list!')
 
         if crust_inds is None:
             crust_inds = range(*self.config.gf_config.n_variations)
+
+        if not isinstance(crust_inds, list):
+            raise TypeError('crust_inds need to be a list!')
 
         for crust_ind in crust_inds:
             gfs = {}
@@ -636,19 +673,24 @@ class GeodeticDistributerComposite(GeodeticComposite):
         llk : :class:`theano.tensor.Tensor`
             log-likelihood for the distributed slip
         """
-        hp_specific = problem_config.dataset_specific_residual_noise_estimation
+        logger.info("Loading %s Green's Functions" % self.name)
+        self.load_gfs(
+            crust_inds=[self.config.gf_config.reference_model_idx],
+            make_shared=True)
+
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
 
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs
         ref_idx = self.config.gf_config.reference_model_idx
 
         mu = tt.zeros((self.Bij.ordering.size), tconfig.floatX)
-        for var, rv in input_rvs.iteritems():
+        for var in self.slip_varnames:
             key = self.get_gflibrary_key(
                 crust_ind=ref_idx,
                 wavename='static',
                 component=var)
-            mu += self.gfs[key].stack_all(slips=rv)
+            mu += self.gfs[key].stack_all(slips=input_rvs[var])
 
         residuals = self.Bij.srmap(
             tt.cast((self.sdata - mu) * self.sodws, tconfig.floatX))
@@ -681,10 +723,13 @@ class GeodeticDistributerComposite(GeodeticComposite):
         """
 
         ref_idx = self.config.gf_config.reference_model_idx
-        if len(self.gfs.keys()) == 0:
+        if len(self.gfs) == 0:
             self.load_gfs(
                 crust_inds=[ref_idx],
                 make_shared=False)
+
+        for gfs in self.gfs.values():
+            gfs.set_stack_mode('numpy')
 
         tpoint = copy.deepcopy(point)
 
@@ -694,20 +739,20 @@ class GeodeticDistributerComposite(GeodeticComposite):
             if hyper in tpoint:
                 tpoint.pop(hyper)
 
-        for param in tpoint.keys():
-            if param not in self.slip_varnames:
-                tpoint.pop(param)
-
         mu = num.zeros((self.Bij.ordering.size))
-        for var, rv in tpoint.iteritems():
+        for var in self.slip_varnames:
             key = self.get_gflibrary_key(
                 crust_ind=ref_idx,
                 wavename='static',
                 component=var)
-            mu += self.gfs[key].stack_all(slips=rv)
+            mu += self.gfs[key].stack_all(slips=point[var])
 
-        return self.Bij.a2l(mu)
+        synths = self.Bij.a2l(mu)
+        if self.config.fit_plane:
+            synths = self.remove_ramps(synths, point=point, operation='+')
+
+        return synths
 
     def update_weights(self, point, n_jobs=1, plot=False):
-        logger.warning('Not implemented yet!')
-        raise NotImplementedError('Not implemented yet!')
+        logger.warning('Cp updating not implemented yet!')
+        pass

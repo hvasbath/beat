@@ -11,12 +11,12 @@ First install pyrocko following this webpage:
 Then install the following packages: openmpi and beat::
 
     sudo apt-get install libopenmpi-dev
-    sudo pip install mpi4py
+    sudo pip3 install mpi4py
 
     cd ~/src  # or whereever you keep the packages
     git clone https://github.com/hvasbath/beat
     cd beat
-    sudo python setup.py install
+    sudo python3 setup.py install (--user)
 
 Greens Function calculations
 ----------------------------

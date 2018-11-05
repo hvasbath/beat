@@ -4,8 +4,12 @@
 Detailed Installation instructions
 **********************************
 
-BEAT can be installed on any Unix based system with python2.7
+BEAT can be installed on any Unix based system with python>3.5
 that supports its prerequisites.
+
+For any user who has no user rights on the machine where BEAT is supposed to be installed, please add --user at the end of each sudo command, e.g.::
+
+    sudo python3 setup.py install --user
 
 Prerequisites
 -------------
@@ -19,7 +23,7 @@ optimizations of your numerics libraries.
 
 Then we will need a fortran compiler and the python developers library::
 
-    sudo apt-get install git python-dev gfortran
+    sudo apt-get install git python3-dev gfortran
 
 BEAT does many intensive calculations, which is why we need to get as much as
 possible out of the available libraries in terms of computational efficiency.
@@ -77,7 +81,7 @@ Numpy
 This following step is completely optional and one may decide to use a standard pip numpy package.
 Building numpy from source requires cython::
 
-    pip install cython
+    pip3 install cython
 
 If you compile numpy locally against the previously installed OpenBlas
 library you can gain significant speedup. For my machine it resulted 
@@ -90,7 +94,7 @@ in a speed-up of the numpy related calculations by a factor of at least 3.::
 Per default, the current developers branch is being installed. We want to
 install one of the most recent stable branches::
 
-    git checkout v1.14.1
+    git checkout v1.17.1
 
 Next, create a configuration file `site.cfg` that tells numpy where to find the
 previously installed OpenBlas library::
@@ -109,25 +113,21 @@ previously installed OpenBlas library::
 
 To make sure everything is working you should run::
 
-    python setup.py config
+    python3 setup.py config
 
 If everything worked ok,i.e. no mention of the ATLAS library, run::
 
-    python setup.py build
+    python3 setup.py build
 
 Finally::
 
     sudo python setup.py install
 
-or if you prefer you can again use pip and it will be cleaner recognized by the
-packaging::
-
-    pip install .
 
 Test the performance and if everything works fine::
 
     cd ~/src/beat
-    python src/test/numpy_test.py
+    python3 src/test/numpy_test.py
 
 Depending on your hardware something around these numbers should be fine!::
 
@@ -154,7 +154,7 @@ For the bleeding edge installation do::
     cd ~/src
     git clone https://github.com/Theano/Theano
     cd Theano
-    sudo python setup.py install
+    sudo python3 setup.py install
 
 For any troubleshooting and detailed installation instructions I refer to the
 `Theano <http://deeplearning.net/software/theano/install.html>`__ webpage.
@@ -209,6 +209,7 @@ intended to be used. Set amdlibm = True if you did the optional step! ::
 
 GPU setup
 #########
+Only for Theano version < 0.9.
 For NVIDIA graphics cards there is the CUDA package that needs to be installed.::
 
     sudo apt-get install nvidia-current
@@ -260,7 +261,7 @@ as intended::
 
 Using the CPU (amdlibm = False)::
 
-    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python test/gpu_test.py 
+    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py 
 
     [Elemwise{exp,no_inplace}(<TensorType(float32, vector)>)]
     Looping 1000 times took 2.717895 seconds
@@ -270,7 +271,7 @@ Using the CPU (amdlibm = False)::
 
 Using the CPU (amdlibm = True)::
 
-    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python test/gpu_test.py 
+    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py 
 
     [Elemwise{exp,no_inplace}(<TensorType(float32, vector)>)]
     Looping 1000 times took 0.703979 seconds
@@ -283,7 +284,7 @@ That's a speedup of 3.86! On the ELEMENTARY operations like exp(), log(), cos() 
 
 Using the GPU::
 
-    THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python src/test/gpu_test.py 
+    THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python3 src/test/gpu_test.py 
 
     Using gpu device 0: Quadro 5000 (CNMeM is disabled, cuDNN not available)
     [GpuElemwise{exp,no_inplace}(<CudaNdarrayType(float32, vector)>),
@@ -317,7 +318,7 @@ For the bleeding edge::
     cd ~/src
     git clone https://github.com/pymc-devs/pymc3
     cd pymc3
-    sudo python setup.py install
+    sudo python3 setup.py install
 
 Pyrocko
 """""""
@@ -327,7 +328,7 @@ framework to efficiently store and access Greens Functions.::
     cd ~/src
     git clone git://github.com/pyrocko/pyrocko.git pyrocko
     cd pyrocko
-    sudo python setup.py install
+    sudo python3 setup.py install
 
 OpenMPI
 """""""
@@ -335,20 +336,14 @@ For the Parallel Tempering algorithm OpenMPI and the python
 bindings are required.::
 
     sudo apt-get install libopenmpi-dev
-    sudo pip install mpi4py
-
-Pyproj
-""""""
-Pyproj is the last package and also the most easy one to install::
-
-    pip install pyproj
+    sudo pip3 install mpi4py
 
 BEAT
 """"
 After these long and heavy installations, you can setup BEAT itself::
 
     cd ~/src/beat
-    sudo python setup.py install
+    sudo python3 setup.py install
 
 Greens Function calculations
 ############################

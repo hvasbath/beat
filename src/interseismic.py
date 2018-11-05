@@ -65,7 +65,7 @@ def block_mask(easts, norths, sources, east_ref, north_ref):
     def get_vertex(outlines, i, j):
         f1 = outlines[i]
         f2 = outlines[j]
-        print f1, f2
+        print(f1, f2)
         return utility.line_intersect(f1[0, :], f1[1, :], f2[0, :], f2[1, :])
 
     tol = 2. * km
@@ -95,12 +95,12 @@ def block_mask(easts, norths, sources, east_ref, north_ref):
     else:
         poly_vertices.append(get_vertex(outlines, 0, -1))
 
-    print poly_vertices, outlines
+    print(poly_vertices, outlines)
     polygon = Path(num.vstack(poly_vertices), closed=True)
 
     ens = num.vstack([easts.flatten(), norths.flatten()]).T
     ref_en = num.array([east_ref, north_ref]).flatten()
-    print ens
+    print(ens)
     mask = polygon.contains_points(ens)
 
     if not polygon.contains_point(ref_en):

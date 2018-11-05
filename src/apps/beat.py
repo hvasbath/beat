@@ -9,12 +9,14 @@ import logging
 import sys
 import copy
 import shutil
+from collections import OrderedDict
 
 from optparse import OptionParser
 
-from beat import heart, config, utility, inputf, plotting
+from beat import heart, utility, inputf, plotting, config
+from beat.config import ffo_mode_str, geometry_mode_str
 from beat.models import load_model, Stage, estimate_hypers, sample
-from beat.backend import TextChain 
+from beat.backend import TextChain, extract_bounds_from_summary
 from beat.sampler import SamplingHistory
 from beat.sources import MTSourceWithMagnitude
 from beat.utility import list2string
@@ -34,7 +36,7 @@ km = 1000.
 
 
 def d2u(d):
-    return dict((k.replace('-', '_'), v) for (k, v) in d.iteritems())
+    return dict((k.replace('-', '_'), v) for (k, v) in d.items())
 
 
 subcommand_descriptions = {
@@ -67,7 +69,7 @@ subcommand_usages = {
     'export':        'export <event_name> [options]',
 }
 
-subcommands = subcommand_descriptions.keys()
+subcommands = list(subcommand_descriptions.keys())
 
 program_name = 'beat'
 
@@ -110,7 +112,8 @@ nargs_dict = {
     'export': 1,
 }
 
-mode_choices = ['geometry', 'ffi']
+mode_choices = [geometry_mode_str, ffo_mode_str]
+
 supported_geodetic_formats = ['matlab', 'ascii', 'kite']
 supported_samplers = ['SMC', 'Metropolis', 'PT']
 
@@ -160,7 +163,7 @@ def cl_parse(command, args, setup=None, details=None):
     usage = subcommand_usages[command]
     descr = subcommand_descriptions[command]
 
-    if isinstance(usage, basestring):
+    if isinstance(usage, str):
         usage = [usage]
 
     susage = '%s %s' % (program_name, usage[0])
@@ -182,17 +185,6 @@ def cl_parse(command, args, setup=None, details=None):
     project_dir = get_project_directory(args, options, nargs_dict[command])
     process_common_options(options, project_dir)
     return parser, options, args
-
-
-def load_config(fn):
-    try:
-        config = load(filename=fn)
-        assert isinstance(config, config.BEATconfig)
-
-    except IOError:
-        die('cannot load BEAT config from file: %s' % fn)
-
-    return config
 
 
 def list_callback(option, opt, value, parser):
@@ -225,9 +217,9 @@ def command_init(args):
         parser.add_option(
             '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--source_type', dest='source_type',
@@ -308,7 +300,11 @@ def command_init(args):
 
 def command_import(args):
 
+    from pyrocko import io
+
     command_str = 'import'
+
+    data_formats = io.allowed_formats('load')[2::]
 
     def setup(parser):
 
@@ -322,8 +318,9 @@ def command_import(args):
                  ' Default: current directory: ./')
 
         parser.add_option(
-            '--results', dest='results', action='store_true',
-            help='Import results from previous modeling step.')
+            '--results', dest='results', type='string', default='',
+            help='Import results from previous modeling step'
+                 ' of given project path')
 
         parser.add_option(
             '--datatypes',
@@ -340,16 +337,17 @@ def command_import(args):
 
         parser.add_option(
             '--seismic_format', dest='seismic_format',
-            type='string', default='autokiwi',
-            help='Data format to be imported; "autokiwi", ...,'
-                 'Default: "autokiwi"')
+            default='mseed',
+            choices=data_formats,
+            help='Data format to be imported;'
+                 'Default: "mseed"; Available: %s' % list2string(data_formats))
 
         parser.add_option(
             '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem results to import; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--force', dest='force', action='store_true',
@@ -360,9 +358,10 @@ def command_import(args):
     project_dir = get_project_directory(
         args, options, nargs_dict[command_str])
 
-    c = config.load_config(project_dir, options.mode)
 
     if not options.results:
+        c = config.load_config(project_dir, options.mode)
+
         if 'seismic' in options.datatypes:
             sc = c.seismic_config
             logger.info('Attempting to import seismic data from %s' %
@@ -370,24 +369,38 @@ def command_import(args):
 
             seismic_outpath = pjoin(c.project_dir, config.seismic_data_name)
             if not os.path.exists(seismic_outpath) or options.force:
+                stations = model.load_stations(
+                    pjoin(sc.datadir, 'stations.txt'))
 
                 if options.seismic_format == 'autokiwi':
-
-                    stations = model.load_stations(
-                        pjoin(sc.datadir, 'stations.txt'))
 
                     data_traces = inputf.load_data_traces(
                         datadir=sc.datadir,
                         stations=stations,
-                        channels=sc.get_unique_channels())
+                        divider='-')
 
-                    logger.info('Pickle seismic data to %s' % seismic_outpath)
-                    utility.dump_objects(seismic_outpath,
-                                         outlist=[stations, data_traces])
+                elif options.seismic_format in data_formats:
+                    data_traces = inputf.load_data_traces(
+                        datadir=sc.datadir,
+                        stations=stations,
+                        divider='.',
+                        data_format=options.seismic_format)
+
                 else:
                     raise TypeError(
                         'Format: %s not implemented yet.' %
                         options.seismic_format)
+
+                logger.info('Rotating traces to RTZ wrt. event!')
+                data_traces = inputf.rotate_traces_and_stations(
+                    data_traces, stations, c.event)
+
+                logger.info('Pickle seismic data to %s' % seismic_outpath)
+                utility.dump_objects(seismic_outpath,
+                                     outlist=[stations, data_traces])
+                logger.info(
+                    'Successfully imported traces for'
+                    ' %i stations!' % len(stations))
             else:
                 logger.info('%s exists! Use --force to overwrite!' %
                             seismic_outpath)
@@ -432,24 +445,48 @@ def command_import(args):
                             geodetic_outpath)
 
     else:
-        if options.mode == 'geometry':
-            logger.warn('No previous modeling results to be imported!')
+        from pandas import read_csv
+        logger.info(
+            'Attempting to load results with mode %s from directory:'
+            ' %s' % (options.mode, options.results))
+        c = config.load_config(project_dir, 'ffo')
 
-        elif options.mode == 'ffi':
-            logger.info('Importing non-linear modeling results, i.e.'
-                        ' maximum likelihood result for source geometry.')
-            problem = load_model(
-                c.project_dir, 'geometry', hypers=False)
+        problem = load_model(
+            options.results, options.mode, hypers=False)
+        source_params = list(problem.config.problem_config.priors.keys())
 
-            stage = Stage(homepath=problem.outfolder)
-            stage.load_results(
-                model=problem.model, stage_number=-1, load='full')
+        stage = Stage(homepath=problem.outfolder)
+        stage.load_results(
+            varnames=problem.varnames,
+            model=problem.model, stage_number=-1,
+            load='trace', chains=[-1])
 
-            point = plotting.get_result_point(stage, problem.config, 'max')
+        point = plotting.get_result_point(stage, problem.config, 'max')
+
+        if 'geodetic' in options.datatypes:
+            if c.geodetic_config.fit_plane:
+
+                logger.info('Importing ramp parameters ...')
+                new_bounds = OrderedDict()
+
+                for var in c.geodetic_config.get_hierarchical_names():
+                    if var in point:
+                        new_bounds[var] = (point[var], point[var])
+                    else:
+                        logger.warn(
+                            'Ramps were fixed in previous run!'
+                            ' Importing fixed values!')
+                        tpoint = c.problem_config.get_test_point()
+                        new_bounds[var] = (tpoint[var], tpoint[var])
+
+                c.problem_config.set_vars(
+                    new_bounds, attribute='hierarchicals')
+
+        if options.mode == geometry_mode_str:
             n_sources = problem.config.problem_config.n_sources
+            logger.info('Importing non-linear source geometry results!')
 
-            source_params = problem.config.problem_config.priors.keys()
-            for param in point.keys():
+            for param in list(point.keys()):
                 if param not in source_params:
                     point.pop(param)
 
@@ -457,12 +494,44 @@ def command_import(args):
             source_points = utility.split_point(point)
 
             reference_sources = config.init_reference_sources(
-                source_points, n_sources,
-                c.problem_config.source_type, c.problem_config.stf_type)
+                source_points, n_sources, c.problem_config.source_type,
+                c.problem_config.stf_type, ref_time=c.event.time)
 
-            c.geodetic_config.gf_config.reference_sources = reference_sources
-            config.dump_config(c)
-            logger.info('Successfully updated config file!')
+            if 'geodetic' in options.datatypes:
+                c.geodetic_config.gf_config.reference_sources = \
+                    reference_sources
+            if 'seismic' in options.datatypes:
+                c.seismic_config.gf_config.reference_sources = \
+                    reference_sources
+
+            summarydf = read_csv(
+                pjoin(problem.outfolder, 'summary.txt'), sep='\s+')
+
+            new_bounds = {}
+            for param in ['time']:
+                new_bounds[param] = extract_bounds_from_summary(
+                    summarydf, varname=param, shape=(n_sources,), roundto=0)
+
+            c.problem_config.set_vars(
+                new_bounds, attribute='priors')
+
+        elif options.mode == ffo_mode_str:
+            npatches = problem.config.problem_config.mode_config.npatches
+            logger.info('Importing linear static distributed slip results!')
+
+            summarydf = read_csv(
+                pjoin(problem.outfolder, 'summary.txt'), sep='\s+')
+
+            new_bounds = {}
+            for param in source_params:
+                new_bounds[param] = extract_bounds_from_summary(
+                    summarydf, varname=param, shape=(npatches,), roundto=1)
+
+            c.problem_config.set_vars(
+                new_bounds, attribute='priors')
+
+        config.dump_config(c)
+        logger.info('Successfully updated config file!')
 
 
 def command_update(args):
@@ -490,9 +559,9 @@ def command_update(args):
         parser.add_option(
             '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--diff', dest='diff', action='store_true',
@@ -542,9 +611,9 @@ def command_clone(args):
         parser.add_option(
             '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--copy_data', dest='copy_data',
@@ -577,9 +646,11 @@ def command_clone(args):
 
     for mode in [options.mode]:
         config_fn = pjoin(project_dir, 'config_' + mode + '.yaml')
+
         if os.path.exists(config_fn):
             logger.info('Cloning %s problem config.' % mode)
             c = config.load_config(project_dir, mode)
+
             c.name = cloned_name
             c.project_dir = cloned_dir
 
@@ -587,25 +658,31 @@ def command_clone(args):
             for datatype in options.datatypes:
                 if datatype not in c.problem_config.datatypes:
                     logger.warn('Datatype %s to be cloned is not'
-                                ' in config!' % datatype)
+                                ' in config! Adding to new conig!' % datatype)
+                    c[datatype + '_config'] = \
+                        config.datatype_catalog[datatype](mode=options.mode)
+                    re_init = True
                 else:
-                    new_datatypes.append(datatype)
+                    re_init = False
 
-                    data_path = pjoin(project_dir, datatype + '_data.pkl')
+                new_datatypes.append(datatype)
 
-                    if os.path.exists(data_path) and options.copy_data:
-                        logger.info('Cloning %s data.' % datatype)
-                        cloned_data_path = pjoin(
-                            cloned_dir, datatype + '_data.pkl')
-                        shutil.copyfile(data_path, cloned_data_path)
+                data_path = pjoin(project_dir, datatype + '_data.pkl')
+
+                if os.path.exists(data_path) and options.copy_data:
+                    logger.info('Cloning %s data.' % datatype)
+                    cloned_data_path = pjoin(
+                        cloned_dir, datatype + '_data.pkl')
+                    shutil.copyfile(data_path, cloned_data_path)
+
+            c.problem_config.datatypes = new_datatypes
 
             if options.source_type is None:
                 old_priors = copy.deepcopy(c.problem_config.priors)
 
-                c.problem_config.datatype = new_datatypes
                 new_priors = c.problem_config.select_variables()
                 for prior in new_priors:
-                    if prior in old_priors.keys():
+                    if prior in list(old_priors.keys()):
                         c.problem_config.priors[prior] = old_priors[prior]
 
             else:
@@ -613,6 +690,13 @@ def command_clone(args):
                 c.problem_config.source_type = options.source_type
                 c.problem_config.init_vars()
                 c.problem_config.set_decimation_factor()
+                re_init = False
+
+            if re_init:
+                logger.info(
+                    'Re-initialized priors because of new datatype!'
+                    ' Please check prior bounds!')
+                c.problem_config.init_vars()
 
             old_hypers = copy.deepcopy(c.problem_config.hyperparameters)
 
@@ -640,9 +724,9 @@ def command_sample(args):
         parser.add_option(
             '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--main_path', dest='main_path', type='string',
@@ -695,9 +779,9 @@ def command_summarize(args):
         parser.add_option(
             '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--force', dest='force', action='store_true',
@@ -731,7 +815,7 @@ def command_summarize(args):
     if hasattr(sc_params, 'rm_flag'):
         if sc_params.rm_flag:
             logger.info('Removing sampled chains!!!')
-            raw_input('Sure? Press enter! Otherwise Ctrl + C')
+            input('Sure? Press enter! Otherwise Ctrl + C')
             rm_flag = True
         else:
             rm_flag = False
@@ -839,9 +923,9 @@ def command_build_gfs(args):
         parser.add_option(
             '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--datatypes',
@@ -866,7 +950,7 @@ def command_build_gfs(args):
 
     c = config.load_config(project_dir, options.mode)
 
-    if options.mode in ['geometry', 'interseismic']:
+    if options.mode in [geometry_mode_str, 'interseismic']:
         for datatype in options.datatypes:
             if datatype == 'geodetic':
                 gc = c.geodetic_config
@@ -891,10 +975,6 @@ def command_build_gfs(args):
                         c.project_dir, config.seismic_data_name)
 
                     stations, _ = utility.load_objects(seismic_data_path)
-                    stations = utility.apply_station_blacklist(
-                        stations, sc.blacklist)
-                    stations = utility.weed_stations(
-                        stations, c.event, distances=sc.distances)
                 else:
                     logger.info(
                         "Creating one global Green's Function store, which is "
@@ -921,8 +1001,9 @@ def command_build_gfs(args):
             if options.execute:
                 logger.info('%s GF calculations successful!' % datatype)
 
-    elif options.mode == 'ffi':
-        from beat import ffi
+    elif options.mode == ffo_mode_str:
+        from beat import ffo
+        import numpy as num
 
         slip_varnames = c.problem_config.get_slip_variables()
         varnames = c.problem_config.select_variables()
@@ -942,32 +1023,39 @@ def command_build_gfs(args):
                     source.update(lat=c.event.lat, lon=c.event.lon)
 
                 logger.info('Discretizing reference sources ...')
-                fault = ffi.discretize_sources(
+                fault = ffo.discretize_sources(
                     varnames=slip_varnames,
                     sources=gf.reference_sources,
-                    extension_width=gf.extension_width,
-                    extension_length=gf.extension_length,
-                    patch_width=gf.patch_width,
-                    patch_length=gf.patch_length,
+                    extension_widths=gf.extension_widths,
+                    extension_lengths=gf.extension_lengths,
+                    patch_widths=gf.patch_widths,
+                    patch_lengths=gf.patch_lengths,
                     datatypes=options.datatypes)
 
             logger.info(
                 'Storing discretized fault geometry to: %s' % faultpath)
             utility.dump_objects(faultpath, [fault])
 
-            if c.problem_config.n_sources != fault.npatches:
-                logger.info(
-                    'Fault discretization changed! Updating problem_config:')
-                logger.info('%s' % fault.__str__())
-                c.problem_config.n_sources = fault.npatches
-                c.problem_config.init_vars(varnames)
+            logger.info(
+                'Fault discretization done! Updating problem_config...')
+            logger.info('%s' % fault.__str__())
+            c.problem_config.n_sources = fault.nsubfaults
+            c.problem_config.mode_config.npatches = fault.npatches
 
-            ext_source = fault.get_subfault(
-                0, datatype=options.datatypes[0], component='uparr')
+            nucleation_strikes = []
+            nucleation_dips = []
+            for i in range(fault.nsubfaults):
+                ext_source = fault.get_subfault(
+                    i, datatype=options.datatypes[0], component='uparr')
 
+                nucleation_dips.append(ext_source.width / km)
+                nucleation_strikes.append(ext_source.length / km)
+
+            nucl_start = num.zeros(fault.nsubfaults)
             new_bounds = {
-                'nucleation_strike': (0., ext_source.length / km),
-                'nucleation_dip': (0., ext_source.width / km)
+                'nucleation_strike': (
+                    nucl_start, num.array(nucleation_strikes)),
+                'nucleation_dip': (nucl_start, num.array(nucleation_dips))
             }
 
             c.problem_config.set_vars(new_bounds)
@@ -1005,7 +1093,7 @@ def command_build_gfs(args):
                             crust_inds=[crust_ind],
                             sample_rate=gf.sample_rate)
 
-                        ffi.geo_construct_gf_linear(
+                        ffo.geo_construct_gf_linear(
                             engine=engine,
                             outdirectory=outdir,
                             event=c.event,
@@ -1039,11 +1127,12 @@ def command_build_gfs(args):
                                 datahandler=datahandler,
                                 event=c.event)
 
-                            ffi.seis_construct_gf_linear(
+                            ffo.seis_construct_gf_linear(
                                 engine=engine,
                                 fault=fault,
                                 durations_prior=pc.priors['durations'],
                                 velocities_prior=pc.priors['velocities'],
+                                nucleation_time_prior=pc.priors['time'],
                                 varnames=slip_varnames,
                                 wavemap=wmap,
                                 event=c.event,
@@ -1073,12 +1162,11 @@ def command_plot(args):
                  ' Default: current directory: ./')
 
         parser.add_option(
-            '--mode',
-            dest='mode',
+            '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--post_llk',
@@ -1198,7 +1286,7 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
         except AttributeError:
             po.reference = problem.config.problem_config.get_test_point()
     else:
-        po.reference = None
+        po.reference = {}
 
     figure_path = pjoin(problem.outfolder, po.figure_dir)
     util.ensuredir(figure_path)
@@ -1210,15 +1298,15 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
 def command_check(args):
 
     command_str = 'check'
+    whats = ['stores', 'traces', 'library', 'geometry']
 
     def setup(parser):
         parser.add_option(
-            '--mode',
-            dest='mode',
+            '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--main_path',
@@ -1240,9 +1328,10 @@ def command_check(args):
         parser.add_option(
             '--what',
             dest='what',
-            choices=['stores', 'traces', 'library'],
+            choices=whats,
             default='stores',
-            help='Setup item to check; "stores, traces", Default: "stores"')
+            help='Setup item to check; '
+                 '"%s", Default: "stores"' % list2string(whats))
 
         parser.add_option(
             '--targets',
@@ -1261,7 +1350,8 @@ def command_check(args):
         project_dir, options.mode, hypers=False, build=False)
 
     tpoint = problem.config.problem_config.get_test_point()
-    problem.point2sources(tpoint)
+    if options.mode == geometry_mode_str:
+        problem.point2sources(tpoint)
 
     if options.what == 'stores':
         corrupted_stores = heart.check_problem_stores(
@@ -1283,11 +1373,12 @@ def command_check(args):
                 stations=wmap.stations, events=[sc.event])
 
     elif options.what == 'library':
-        if options.mode != 'ffi':
+        if options.mode != ffo_mode_str:
             logger.warning(
-                'GF library exists only for "ffi" optimization mode.')
+                'GF library exists only for "%s" '
+                'optimization mode.' % ffo_mode_str)
         else:
-            from beat import ffi
+            from beat import ffo
 
             for datatype in options.datatypes:
                 for var in problem.config.problem_config.get_slip_variables():
@@ -1299,7 +1390,7 @@ def command_check(args):
                         scomp = problem.composites['seismic']
 
                         for wmap in scomp.wavemaps:
-                            filename = ffi.get_gf_prefix(
+                            filename = ffo.get_gf_prefix(
                                 datatype, component=var,
                                 wavename=wmap.config.name,
                                 crust_ind=sc.gf_config.reference_model_idx)
@@ -1309,17 +1400,29 @@ def command_check(args):
                                 ' Library %s for %s target' % (
                                     filename,
                                     list2string(options.targets)))
-                            gfs = ffi.load_gf_library(
+                            gfs = ffo.load_gf_library(
                                 directory=outdir, filename=filename)
 
                             targets = [
                                 int(target) for target in options.targets]
                             trs = gfs.get_traces(
                                 targetidxs=targets,
-                                patchidxs=range(gfs.npatches),
-                                durationidxs=range(gfs.ndurations),
-                                starttimeidxs=range(gfs.nstarttimes))
+                                patchidxs=list(range(gfs.npatches)),
+                                durationidxs=list(range(gfs.ndurations)),
+                                starttimeidxs=list(range(gfs.nstarttimes)))
                             snuffle(trs)
+    elif options.what == 'geometry':
+        from beat.plotting import source_geometry
+        datatype = problem.config.problem_config.datatypes[0]
+        if options.mode == ffo_mode_str:
+            fault = problem.composites[datatype].load_fault_geometry()
+            reference_sources = problem.config[
+                datatype + '_config'].gf_config.reference_sources
+            source_geometry(fault, reference_sources)
+        else:
+            logger.warning(
+                'Checking geometry is only for'
+                ' "%s" mode available' % ffo_mode_str)
     else:
         raise ValueError('Subject what: %s is not available!' % options.what)
 
@@ -1340,9 +1443,9 @@ def command_export(args):
         parser.add_option(
             '--mode', dest='mode',
             choices=mode_choices,
-            default='geometry',
-            help='Inversion problem to solve; %s Default: "geometry"' %
-                 list2string(mode_choices))
+            default=geometry_mode_str,
+            help='Inversion problem to solve; %s Default: "%s"' %
+                 (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
             '--stage_number',
@@ -1472,7 +1575,7 @@ def command_export(args):
             raise NotImplementedError('Datatype %s not supported!' % datatype)
 
 
-if __name__ == '__main__':
+def main():
 
     if len(sys.argv) < 2:
         sys.exit('Usage: %s' % usage)
@@ -1494,3 +1597,7 @@ if __name__ == '__main__':
 
     else:
         sys.exit('BEAT: error: no such subcommand: %s' % command)
+
+
+if __name__ == '__main__':
+    main()

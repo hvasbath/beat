@@ -7,6 +7,7 @@ from beat import sampler
 from beat.backend import TextStage
 
 from pymc3 import Deterministic
+from collections import OrderedDict
 
 import numpy as num
 
@@ -45,15 +46,24 @@ class Composite(object):
 
     def __init__(self):
 
-        self.input_rvs = {}
-        self.fixed_rvs = {}
-        self.hierarchicals = {}
-        self.hyperparams = {}
+        self.input_rvs = OrderedDict()
+        self.fixed_rvs = OrderedDict()
+        self.hierarchicals = OrderedDict()
+        self.hyperparams = OrderedDict()
         self.name = None
         self._like_name = None
         self.config = None
+        self.slip_varnames = []
 
-    def get_hyper_formula(self, hyperparams, problem_config):
+    def set_slip_varnames(self, varnames):
+        """
+        Set slip components for GFs.
+        """
+        self.slip_varnames = [
+            var for var in varnames
+            if var in bconfig.static_dist_vars]
+
+    def get_hyper_formula(self, hyperparams):
         """
         Get likelihood formula for the hyper model built. Has to be called
         within a with model context.
@@ -61,7 +71,7 @@ class Composite(object):
         problem_config : :class:`config.ProblemConfig`
         """
 
-        hp_specific = problem_config.dataset_specific_residual_noise_estimation
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
         logpts = hyper_normal(
             self.datasets, hyperparams, self._llks,
             hp_specific=hp_specific)
@@ -87,7 +97,7 @@ class Composite(object):
         if self.config is not None:
             return self.config.get_hypernames()
         else:
-            return self.hyperparams.keys()
+            return list(self.hyperparams.keys())
 
 
 def sample(step, problem):
@@ -101,7 +111,7 @@ def sample(step, problem):
         from problem.init_sampler()
     problem : :class:`Problem` with characteristics of problem to solve
     """
-
+    pc = problem.config.problem_config
     sc = problem.config.sampler_config
     pa = sc.parameters
 
@@ -110,6 +120,24 @@ def sample(step, problem):
             update = problem
         else:
             update = None
+
+    if pc.mode == bconfig.ffo_mode_str:
+        logger.info('Chain initialization with:')
+        if pc.mode_config.initialization == 'random':
+            logger.info('Random starting point.\n')
+            start = None
+        elif pc.mode_config.initialization == 'lsq':
+            logger.info('Least-squares-solution including "uparr" only.\n')
+            if 'seismic' in pc.datatypes:
+                logger.warning(
+                    'Least-squares initialization is not'
+                    ' supported (yet) for seismic data, only!')
+            start = []
+            for i in range(step.n_chains):
+                point = problem.get_random_point()
+                start.append(problem.lsq_solution(point))
+    else:
+        start = None
 
     if sc.name == 'Metropolis':
         logger.info('... Starting Metropolis ...\n')
@@ -122,6 +150,7 @@ def sample(step, problem):
             progressbar=sc.progressbar,
             buffer_size=sc.buffer_size,
             homepath=problem.outfolder,
+            start=start,
             burn=pa.burn,
             thin=pa.thin,
             model=problem.model,
@@ -136,6 +165,7 @@ def sample(step, problem):
             step=step,
             progressbar=sc.progressbar,
             model=problem.model,
+            start=start,
             n_jobs=pa.n_jobs,
             stage=pa.stage,
             update=update,
@@ -150,6 +180,7 @@ def sample(step, problem):
             step=step,
             n_chains=pa.n_chains,
             n_samples=pa.n_samples,
+            start=start,
             swap_interval=pa.swap_interval,
             beta_tune_interval=pa.beta_tune_interval,
             n_workers_posterior=pa.n_chains_posterior,
@@ -207,7 +238,8 @@ def estimate_hypers(step, problem):
             buffer_size=sc.buffer_size,
             chunksize=int(pa.n_chains / pa.n_jobs))
 
-    for v, i in pc.hyperparameters.iteritems():
+    for v in problem.hypernames:
+        i = pc.hyperparameters[v]
         d = mtrace.get_values(
             v, combine=True, burn=int(pa.n_steps * pa.burn),
             thin=pa.thin, squeeze=True)
@@ -296,7 +328,7 @@ class Stage(object):
                 stage_number, varnames=varnames, chains=chains)
 
         if 'params' in to_load:
-            if model is None:
+            if model is not None:
                 with model:
                     self.step, self.updates = self.handler.load_sampler_params(
                         stage_number)

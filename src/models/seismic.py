@@ -14,7 +14,7 @@ from pyrocko.gf import LocalEngine
 from pyrocko.trace import Trace
 
 from beat import theanof, utility
-from beat.ffi import load_gf_library, get_gf_prefix
+from beat.ffo import load_gf_library, get_gf_prefix
 from beat import config as bconfig
 from beat import heart, covariance as cov
 from beat.models.base import ConfigInconsistentError, Composite
@@ -259,6 +259,8 @@ class SeismicComposite(Composite):
             point, outmode=outmode, taper_tolerance_factor=0.,
             chop_bounds=chop_bounds, order='wmap')
 
+        # from pyrocko import trace
+        # trace.snuffle(syn_filt_traces+ obs_filt_traces)
         results = []
         for i, wmap in enumerate(self.wavemaps):
             wc = wmap.config
@@ -268,6 +270,7 @@ class SeismicComposite(Composite):
             for j, obs_tr in enumerate(obs_proc_traces[i]):
 
                 dtrace_proc = obs_tr.copy()
+
                 dtrace_proc.set_ydata(
                     (obs_tr.get_ydata() - syn_proc_traces[i][j].get_ydata()))
 
@@ -341,6 +344,7 @@ class SeismicGeometryComposite(SeismicComposite):
         super(SeismicGeometryComposite, self).__init__(
             sc, event, project_dir, hypers=hypers)
 
+        self._mode = 'geometry'
         self.synthesizers = {}
         self.choppers = {}
 
@@ -350,9 +354,17 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.config = sc
 
-    def point2sources(self, point):
+    def point2sources(self, point, input_depth='top'):
         """
         Updates the composite source(s) (in place) with the point values.
+
+        Parameters
+        ----------
+        point : dict
+            with random variables from solution space
+        input_depth : string
+            may be either 'top'- input coordinates are transformed to center
+            'center' - input coordinates are not transformed
         """
         tpoint = copy.deepcopy(point)
         tpoint = utility.adjust_point_units(tpoint)
@@ -365,9 +377,9 @@ class SeismicGeometryComposite(SeismicComposite):
                 tpoint.pop(hyper)
 
         source = self.sources[0]
-        source_params = source.keys() + source.stf.keys()
+        source_params = list(source.keys()) + list(source.stf.keys())
 
-        for param in tpoint.keys():
+        for param in list(tpoint.keys()):
             if param not in source_params:
                 tpoint.pop(param)
 
@@ -376,7 +388,8 @@ class SeismicGeometryComposite(SeismicComposite):
         source_points = utility.split_point(tpoint)
 
         for i, source in enumerate(self.sources):
-            utility.update_source(source, **source_points[i])
+            utility.update_source(
+                source, input_depth=input_depth, **source_points[i])
 
     def get_formula(
             self, input_rvs, fixed_rvs, hyperparams, problem_config):
@@ -398,7 +411,7 @@ class SeismicGeometryComposite(SeismicComposite):
         -------
         posterior_llk : :class:`theano.tensor.Tensor`
         """
-        hp_specific = problem_config.dataset_specific_residual_noise_estimation
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
         tpoint = problem_config.get_test_point()
 
         self.input_rvs = input_rvs
@@ -490,6 +503,7 @@ class SeismicGeometryComposite(SeismicComposite):
         obs = []
         for wmap in self.wavemaps:
             wc = wmap.config
+
             wmap.prepare_data(
                 source=self.event,
                 engine=self.engine,
@@ -627,18 +641,18 @@ class SeismicDistributerComposite(SeismicComposite):
         self.choppers = {}
         self.sweep_implementation = 'c'
 
-        self.slip_varnames = bconfig.static_dist_vars
-        self._mode = 'ffi'
+        self._mode = 'ffo'
         self.gfpath = os.path.join(
             project_dir, self._mode, bconfig.linear_gf_dir_name)
 
         self.config = sc
         sgfc = sc.gf_config
 
-        if sgfc.patch_width != sgfc.patch_length:
-            raise ValueError(
-                'So far only square patches supported in kinematic'
-                ' model! - fast_sweeping issues')
+        for pw, pl in zip(sgfc.patch_widths, sgfc.patch_lengths):
+            if pw != pl:
+                raise ValueError(
+                    'So far only square patches supported in kinematic'
+                    ' model! - fast_sweeping issues')
 
         if len(sgfc.reference_sources) > 1:
             raise ValueError(
@@ -646,13 +660,15 @@ class SeismicDistributerComposite(SeismicComposite):
                 'fast_sweeping issues')
 
         self.fault = self.load_fault_geometry()
+        # TODO: n_subfaultssupport
         n_p_dip, n_p_strike = self.fault.get_subfault_discretization(0)
 
-        logger.info('Fault discretized to %s [km]'
-                    ' patches.' % sgfc.patch_length)
+        logger.info('Fault(s) discretized to %s [km]'
+                    ' patches.' % utility.list2string(sgfc.patch_lengths))
+
         if not hypers:
             self.sweeper = theanof.Sweeper(
-                sgfc.patch_length,
+                sgfc.patch_lengths[0],
                 n_p_dip,
                 n_p_strike,
                 self.sweep_implementation)
@@ -722,7 +738,12 @@ class SeismicDistributerComposite(SeismicComposite):
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
 
-        hp_specific = problem_config.dataset_specific_residual_noise_estimation
+        logger.info("Loading %s Green's Functions" % self.name)
+        self.load_gfs(
+            crust_inds=[self.config.gf_config.reference_model_idx],
+            make_shared=False)
+
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
         tpoint = problem_config.get_test_point()
 
         self.input_rvs = input_rvs
@@ -736,6 +757,9 @@ class SeismicDistributerComposite(SeismicComposite):
         wlogpts = []
 
         self.analyse_noise(tpoint)
+        for gfs in self.gfs.values():
+            gfs.init_optimization()
+
         self.init_weights()
         self.init_hierarchicals(problem_config)
         if self.config.station_corrections:
@@ -753,8 +777,9 @@ class SeismicDistributerComposite(SeismicComposite):
         t2 = time()
         # convert velocities to rupture onset
         logger.debug('Fast sweeping ...')
-
+        # TODO make nsubfaults ready
         nuc_dip_idx, nuc_strike_idx = self.fault.fault_locations2idxs(
+            index=0,
             positions_dip=nuc_dip,
             positions_strike=nuc_strike,
             backend='theano')
@@ -762,13 +787,15 @@ class SeismicDistributerComposite(SeismicComposite):
         starttimes0 = self.sweeper(
             (1. / input_rvs['velocities']), nuc_dip_idx, nuc_strike_idx)
 
-        starttimes0 += input_rvs['nucleation_time']
+        starttimes0 += input_rvs['time']
         wlogpts = []
         for wmap in self.wavemaps:
+            # TODO: for subfault in range(self.fault.nsubfaults):
+
             # station corrections
             if len(self.hierarchicals) > 0:
                 raise NotImplementedError(
-                    'Station corrections not fully implemented! for ffi!')
+                    'Station corrections not fully implemented! for FFO!')
                 starttimes = (
                     tt.tile(starttimes0, wmap.n_t) +
                     tt.repeat(self.hierarchicals[self.correction_name][
@@ -780,13 +807,17 @@ class SeismicDistributerComposite(SeismicComposite):
                     num.atleast_2d(num.arange(wmap.n_t)).T, borrow=True)
             else:
                 starttimes = starttimes0
-                targetidxs = shared(num.lib.index_tricks.s_[:], borrow=True)
+                targetidxs = num.lib.index_tricks.s_[:]
 
             logger.debug('Stacking %s phase ...' % wmap.config.name)
             synthetics = tt.zeros(
                 (wmap.n_t, wmap.config.arrival_taper.nsamples(
                     self.config.gf_config.sample_rate)),
                 dtype=tconfig.floatX)
+
+            # make sure data is init as array, if non-toeplitz above-traces!
+            wmap.prepare_data(
+                source=self.event, engine=self.engine, outmode='array')
 
             for var in self.slip_varnames:
                 logger.debug('Stacking %s variable' % var)
@@ -829,13 +860,21 @@ class SeismicDistributerComposite(SeismicComposite):
         -------
         list with :class:`heart.SeismicDataset` synthetics for each target
         """
+
+        outmode = kwargs.pop('outmode', 'stacked_traces')
+
+        # GF library cut in between [b, c] no [a,d] possible
+        chop_bounds = ['b', 'c']
         order = kwargs.pop('order', 'list')
 
         ref_idx = self.config.gf_config.reference_model_idx
-        if len(self.gfs.keys()) == 0:
+        if len(self.gfs) == 0:
             self.load_gfs(
                 crust_inds=[ref_idx],
                 make_shared=False)
+
+        for gfs in self.gfs.values():
+            gfs.set_stack_mode('numpy')
 
         tpoint = copy.deepcopy(point)
 
@@ -845,19 +884,28 @@ class SeismicDistributerComposite(SeismicComposite):
             if hyper in tpoint:
                 tpoint.pop(hyper)
 
-        nuc_dip_idx, nuc_strike_idx = self.fault.fault_locations2idxs(
-            positions_dip=tpoint['nucleation_dip'],
-            positions_strike=tpoint['nucleation_strike'],
-            backend='numpy')
+        # TODO make nsubfaults ready
+        starttimes0 = self.fault.point2starttimes(tpoint, index=0).ravel()
+        starttimes0 += point['time']
 
-        starttimes = self.fault.get_subfault_starttimes(
-            index=0,
-            rupture_velocities=tpoint['velocities'],
-            nuc_dip_idx=nuc_dip_idx,
-            nuc_strike_idx=nuc_strike_idx).flatten()
+        # station corrections
+        if len(self.hierarchicals) > 0:
+            raise NotImplementedError(
+                'Station corrections not fully implemented! for FFO!')
+            # starttimes = (
+            #    num.tile(starttimes0, wmap.n_t) +
+            #    num.repeat(self.hierarchicals[self.correction_name][
+            #        wmap.station_correction_idxs],
+            #        self.fault.npatches)).reshape(
+            #            wmap.n_t, self.fault.npatches)
+            #
+            # targetidxs = num.atleast_2d(num.arange(wmap.n_t)).T
+        else:
+            starttimes = starttimes0
+            targetidxs = num.lib.index_tricks.s_[:]
 
-        patchidx = self.fault.patchmap(
-            index=0, dipidx=nuc_dip_idx, strikeidx=nuc_strike_idx)
+        # obsolete from variable obs data, patchidx = self.fault.patchmap(
+        #    index=0, dipidx=nuc_dip_idx, strikeidx=nuc_strike_idx)
 
         synth_traces = []
         obs_traces = []
@@ -878,6 +926,7 @@ class SeismicDistributerComposite(SeismicComposite):
 
                 gflibrary.set_stack_mode('numpy')
                 synthetics += gflibrary.stack_all(
+                    targetidxs=targetidxs,
                     starttimes=starttimes,
                     durations=tpoint['durations'],
                     slips=tpoint[var],
@@ -888,35 +937,25 @@ class SeismicDistributerComposite(SeismicComposite):
                 tr = Trace(
                     ydata=synthetics[i, :],
                     tmin=float(
-                        gflibrary.reference_times[i] +
-                        tpoint['nucleation_time']),
+                        gflibrary.reference_times[i]),
                     deltat=gflibrary.deltat)
 
                 tr.set_codes(*target.codes)
                 wmap_synthetics.append(tr)
 
-            if self.config.station_corrections:
-                sh = point[
-                    self.correction_name][wmap.station_correction_idxs]
-
-                for i, tr in enumerate(synth_traces):
-                    tr.tmin += sh[i]
-                    tr.tmax += sh[i]
-
-            wmap_obs = heart.taper_filter_traces(
-                wmap.datasets,
-                arrival_taper=wmap.config.arrival_taper,
-                filterer=wmap.config.filterer,
-                tmins=(gflibrary.get_all_tmins(patchidx)),
-                **kwargs)
+            wmap.prepare_data(
+                source=self.event,
+                engine=self.engine,
+                outmode=outmode,
+                chop_bounds=chop_bounds)
 
             if order == 'list':
                 synth_traces.extend(wmap_synthetics)
-                obs_traces.extend(wmap_obs)
+                obs_traces.extend(wmap._prepared_data)
 
             elif order == 'wmap':
                 synth_traces.append(wmap_synthetics)
-                obs_traces.append(wmap_obs)
+                obs_traces.append(wmap._prepared_data)
 
             else:
                 raise ValueError('Order "%s" is not supported' % order)
@@ -924,5 +963,17 @@ class SeismicDistributerComposite(SeismicComposite):
         return synth_traces, obs_traces
 
     def update_weights(self, point, n_jobs=1, plot=False):
-        logger.warning('Not implemented yet!')
-        raise NotImplementedError('Not implemented yet!')
+        """
+        Updates weighting matrixes (in place) with respect to the point in the
+        solution space.
+
+        Parameters
+        ----------
+        point : dict
+            with numpy array-like items and variable name keys
+        """
+
+        # update data covariances in case model dependend non-toeplitz
+        if self.config.noise_estimator.structure == 'non-toeplitz':
+            logger.info('Updating data-covariances ...')
+            self.analyse_noise(point)
