@@ -670,13 +670,19 @@ def geodetic_fits(problem, stage, plot_options):
     for dataset, result in zip(composite.datasets, results):
         dataset_to_result[dataset] = result
 
-    nfigs = int(num.ceil(float(nrmax) / float(ndmax)))
+    fullfig, restfig = utility.mod_i(nrmax, ndmax)
+    factors = num.ones(fullfig).tolist()
+    if restfig:
+        factors.append(float(restfig) / ndmax)
 
     figures = []
     axes = []
-    for f in range(nfigs):
+    for f in factors:
+        figsize = list(mpl_papersize('a4', 'portrait'))
+        figsize[1] *= f
+
         fig, ax = plt.subplots(
-            nrows=ndmax, ncols=nxmax, figsize=mpl_papersize('a4', 'portrait'))
+            nrows=int(round(ndmax * f)), ncols=nxmax, figsize=figsize)
         fig.tight_layout()
         fig.subplots_adjust(
             left=0.08,
@@ -684,9 +690,11 @@ def geodetic_fits(problem, stage, plot_options):
             bottom=0.06,
             top=1.0 - 0.06,
             wspace=0.,
-            hspace=0.3)
+            hspace=0.1)
         figures.append(fig)
         axes.append(ax)
+
+    nfigs = len(figures)
 
     def axis_config(axes, source, scene, po):
 
@@ -970,7 +978,14 @@ def geodetic_fits(problem, stage, plot_options):
                     axes[figidx][rowidx, 1],
                     ref_sources, scene, po, color=ref_color)
 
-            cbb = 0.68 - (0.3175 * rowidx)
+            f = factors[figidx]
+            if f > 2. / 3:
+                cbb = (0.68 - (0.3175 * rowidx))
+            elif f > 1. / 2:
+                cbb = (0.53 - (0.47 * rowidx))
+            elif f > 1. / 4:
+                cbb = (0.06)
+
             cbl = 0.46
             cbw = 0.15
             cbh = 0.01
@@ -1001,18 +1016,8 @@ def geodetic_fits(problem, stage, plot_options):
             axis_config(axes[figidx][rowidx, :], sources[0], scene, po)
             addArrow(axes[figidx][rowidx, 0], scene)
 
-            title = ' Llk_' + po.post_llk
-            figures[figidx].suptitle(
-                title, fontsize=fontsize_title, weight='bold')
-
             del scene
             gc.collect()
-
-    nplots = ndmax * nfigs
-    for delidx in range(nrmax, nplots):
-        figidx, rowidx = utility.mod_i(delidx, ndmax)
-        for colidx in range(nxmax):
-            figures[figidx].delaxes(axes[figidx][rowidx, colidx])
 
     return figures
 
