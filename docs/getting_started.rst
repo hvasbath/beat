@@ -336,8 +336,45 @@ The units for the location and the measurements are [decimal deg] and [mm/yr], r
 
 seismic data
 ^^^^^^^^^^^^
+For the import and aquistion of seismic data for beat exsist several alternatives. First you can use the command beatdown to download a
+dataset or you can convert any exisiting files from any other source by using the pyrocko framework.
 
-So far, unfortunately only the output of `autokiwi <https://github.com/emolch/kiwi>`__ is supported for automatic import of seismic data.
+beatdown
+====
+The command line tool beatdown downloads waveforms from all available FDSN web services and prepares them for beat,
+including transforming the waveforms into displacement and rotating them into the R,T,U coordinate
+system.
+
+The beatdown commands for downloading FDSN data can be given in different formats, e.g. by given an event time or name and
+will download all wanted data in a given radius around the origin. For a full list of input options
+please use:
+
+    beatdown --help
+    
+An example line to download and prepare the data for the 2009 L'Aquila earthquake would be:
+
+    beatdown /project_directory "2009-04-06 01:32:39" 1000. .01 2. aquila
+    
+This command line downloads the available data for the event at time 2009-04-06 01:32:39 in a
+radius of 1000 km all data from up of .01 Hz, resamples them to 2Hz
+(this frequency should match your GF stores frequency) and saves them in the folder
+/project_directory/data/aquila. Additionally it creates a seismic_data.pkl output which will
+be used by beat into the project_directory.
+
+A useful option is to have a automatically pre-selected subset of stations,
+based on data quality and closeness of stations. The option --nstations-wanted enables this station
+weed and tries to find a suitable subset of stations close to the number given. The actual resulting
+station number then might slightly vary based on station distribution and quality. For the above
+example we might want to use around 60 stations, so the command for that would look like:
+
+    beatdown /project_directory "2009-04-06 01:32:39" 1000. .01 2. aquila  --nstations-wanted=60
+                               
+
+Data import
+====
+
+The output of `autokiwi <https://github.com/emolch/kiwi>`__ is supported for automatic import of seismic data.
+
 To get other types of data imported the user will have to do some programing.
 
 The following remarks are just bits and pieces that may be followed to write a script to bring the data into the necessary format.
@@ -414,6 +451,20 @@ Will yield::
       magnitude: 7.316312340268055
     duration: 38.4
 
+Standard pyrocko traces will need to be converted to beat trace objects, this is done simply, assuming that "traces"
+is a list of pyrocko trace objects, by:
+
+    from beat import heart
+    traces_beat = []
+    for tr in traces:
+        tr_beat= heart.SeismicDataset.from_pyrocko_trace(tr)                 
+        traces_beat.append(tr_beat)
+        
+
+For import from obspy you can use the following pyrocko commands to convert your obspy data into pyrocko data before using the
+above mentioned conversion into beat objects:
+
+ - `pyrocko obspy com <https://pyrocko.org/docs/current/library/reference/obspy_compat.html#pyrocko.obspy_compat.plant>`__
 
 Once a list of traces and station objects exists it may be exported to the project directory (here path from example)::
 
