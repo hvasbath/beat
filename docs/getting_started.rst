@@ -336,122 +336,82 @@ The units for the location and the measurements are [decimal deg] and [mm/yr], r
 
 seismic data
 ^^^^^^^^^^^^
-For the import and aquistion of seismic data for beat exsist several alternatives. First you can use the command beatdown to download a
-dataset or you can convert any exisiting files from any other source by using the pyrocko framework.
+For the import and aquistion of seismic data for beat exist several options. The command beatdown can be used to download a
+dataset from available FDSN services. Alternatively, exisiting files from any custom source may be converted by using the pyrocko framework.
 
 beatdown
-====
-The command line tool beatdown downloads waveforms from all available FDSN web services and prepares them for beat,
-including transforming the waveforms into displacement and rotating them into the R,T,U coordinate
-system.
+========
+The command line tool beatdown downloads waveforms from all available FDSN web services and prepares them for BEAT,
+including restituting the waveforms to displacements and rotating them into the R,T,Z or E, N,Z coordinate
+systems.
 
-The beatdown commands for downloading FDSN data can be given in different formats, e.g. by given an event time or name and
-will download all wanted data in a given radius around the origin. For a full list of input options
+The beatdown command for downloading FDSN data can be executed in different formats, e.g. by giving an event time or an event name.
+It will download all wanted data in a given radius around the origin. For a complete list of input options
 please use:
 
     beatdown --help
     
 An example line to download and prepare the data for the 2009 L'Aquila earthquake would be:
 
-    beatdown /project_directory "2009-04-06 01:32:39" 1000. .01 2. aquila
+    beatdown /path/to/project_directory "2009-04-06 01:32:39" 1000. 0.001 5. Laquila
     
-This command line downloads the available data for the event at time 2009-04-06 01:32:39 in a
-radius of 1000 km all data from up of .01 Hz, resamples them to 2Hz
-(this frequency should match your GF stores frequency) and saves them in the folder
-/project_directory/data/aquila. Additionally it creates a seismic_data.pkl output which will
-be used by beat into the project_directory.
+This command downloads the available data for the event at time 2009-04-06 01:32:39 in a
+radius of 1000 km restitutes the traces to frequencies between 0.001 and 5. Hz and saves them in the folder
+/path/to/project_directory/data/events/Laquila. Additionally it creates a seismic_data.pkl into the "project_directory", which will
+be used by BEAT.
 
-A useful option is to have a automatically pre-selected subset of stations,
-based on data quality and closeness of stations. The option --nstations-wanted enables this station
-weed and tries to find a suitable subset of stations close to the number given. The actual resulting
-station number then might slightly vary based on station distribution and quality. For the above
-example we might want to use around 60 stations, so the command for that would look like:
+It may be desired to automatically pre-selected a subset of stations from all available data
+based on data quality and separation of stations. The option --nstations-wanted enables such a station
+weeding and tries to find a suitable subset of stations close to the number provided. The actual resulting
+station number might vary based on station distribution and quality. For the above
+example we might want to use around 60 stations, so the command line for that would look like:
 
-    beatdown /project_directory "2009-04-06 01:32:39" 1000. .01 2. aquila  --nstations-wanted=60
+    beatdown /path/to/home_directory "2009-04-06 01:32:39" 1000. 0.001 5. Laquila --nstations-wanted=60
                                
 
 Data import
-====
+===========
 
 The output of `autokiwi <https://github.com/emolch/kiwi>`__ is supported for automatic import of seismic data.
 
+To see a list of the supported data types ($ending) please see: `Trace Handeling <https://pyrocko.org/docs/current/library/examples/trace_handling.html>`__
+or type.::
+
+    beat import --help
+
+The traces should be named in the format 'network.station..channel.$ending'
+In addition to these an ascii text file with the station information is needed of the format::
+    
+    #network_name.station_name.location_name latitude[deg] longitude[deg] elevation[m] depth[m]
+    IU.TSUM.10            -19.20220       17.58380         1260.0            0.0 
+      BHE             90              0              1   # channel name azimuth[deg] dip[deg] gain \n
+      BHN              0              0              1
+      BHZ              0            -90              1
+    IU.RCBR.00             -5.82740      -35.90140          291.0          109.0 
+      BH1             48              0              1
+      BH2            138              0              1
+      BHZ              0            -90              1
+    ...
+
+To ease the creation of this textfile we refer the user to investigate the pyrocko module: model (Function: dump_stations).
+
+
+Custom Data import
+==================
 To get other types of data imported the user will have to do some programing.
 
 The following remarks are just bits and pieces that may be followed to write a script to bring the data into the necessary format.
 
-The seismic data may be saved using the package "pickle" as a file "seismic_data.pkl" containing a list of 2 lists: 1. list of "pyrocko.trace.Trace" objects alternating for (Z / T) rotated traces. 2. list of "pyrocko.model.Station" objects in the same order like the data traces.
+The seismic data may be saved using the package "pickle" as a file "seismic_data.pkl" containing a list of 2 lists: 1. list of "pyrocko.trace.Trace" objects alternating for (R T Z) rotated traces. 2. list of "pyrocko.model.Station" objects in the same order like the data traces.
 
 Pyrocko supports the import of various data formats and all the necessary tools to remove the instrument response and to convert the traces to displacement.
 How to do this based on some examples is shown `here <https://pyrocko.org/docs/current/library/examples/trace_handling.html#restitute-to-displacement-using-poles-and-zeros>`__ webpage.
 
-Once you have done this with your data, you only need to create the second list of station objects.
-To create this list we provide a helper function 'setup_stations' in the inputf module.
-Within an ipython session type::
+For import from obspy you can use the following pyrocko commands to convert your obspy data into pyrocko data and obspy inventories to pyrocko stations:
 
-    from beat import inputf
-    inputf.setup_stations?
+   `obspy_to_pyrocko conversion <https://pyrocko.org/docs/current/library/reference/obspy_compat.html#pyrocko.obspy_compat.plant>`__
 
-Will show::
-
-    inputf.setup_stations(lats, lons, names, networks, event)
-    Docstring:
-    Setup station objects, based on station coordinates and reference event.
-
-    Parameters
-    ----------
-    lats : :class:`num.ndarray`
-        of station location latitude
-    lons : :class:`num.ndarray`
-        of station location longitude
-    names : list
-        of strings of station names
-    networks : list
-        of strings of network names for each station
-    event : :class:`pyrocko.model.Event`
-
-    Results
-    -------
-    stations : list
-        of :class:`pyrocko.model.Station`
-
-The event object that may be used in this function is the one shown in the top of the configuration file.
-In an ipython session from within the LandersEQ directory execute::
-
-    from pyrocko import guts
-    from beat import config
-
-    c = guts.load(filename='config_geometry.yaml')
-    print c.event
-
-Will yield::
-
-    --- !pf.Event
-    lat: 34.65
-    lon: -116.65
-    time: 1992-06-28 11:57:53
-    name: 062892C
-    depth: 15000.0
-    magnitude: 7.316312340268055
-    region: SOUTHERN CALIFORNIA
-    catalog: gCMT
-    moment_tensor: !pf.MomentTensor
-      mnn: -6.12e+19
-      mee: 7.001e+19
-      mdd: -8.81e+18
-      mne: -7.335e+19
-      mnd: 3.807e+19
-      med: -9.9e+17
-      strike1: 247.72308708747312
-      dip1: 82.44124210318292
-      rake1: -20.30350409572225
-      strike2: 340.50937853818954
-      dip2: 69.88059010043526
-      rake2: -171.9468551048134
-      moment: 1.0579582033331939e+20
-      magnitude: 7.316312340268055
-    duration: 38.4
-
-Standard pyrocko traces will need to be converted to beat trace objects, this is done simply, assuming that "traces"
+Once you have done this the standard pyrocko traces will need to be converted to beat trace objects, this is done simply, assuming that "traces"
 is a list of pyrocko trace objects, by:
 
     from beat import heart
@@ -459,12 +419,6 @@ is a list of pyrocko trace objects, by:
     for tr in traces:
         tr_beat= heart.SeismicDataset.from_pyrocko_trace(tr)                 
         traces_beat.append(tr_beat)
-        
-
-For import from obspy you can use the following pyrocko commands to convert your obspy data into pyrocko data before using the
-above mentioned conversion into beat objects:
-
- - `pyrocko obspy com <https://pyrocko.org/docs/current/library/reference/obspy_compat.html#pyrocko.obspy_compat.plant>`__
 
 Once a list of traces and station objects exists it may be exported to the project directory (here path from example)::
 

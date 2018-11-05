@@ -23,7 +23,7 @@ from pyrocko.client import fdsn
 from pyrocko.io import resp, enhanced_sacpz as epz, stationxml
 from beat import utility
 from beat import heart
-import os.path
+
 
 km = 1000.
 
@@ -112,7 +112,7 @@ def get_events_by_name_or_date(event_names_or_dates, catalog=geofon):
             events_out.append(event)
         else:
             t = util.str_to_time(stime)
-            events = get_events(time_range=(t-60., t+60.), catalog=catalog)
+            events = get_events(time_range=(t - 60., t + 60.), catalog=catalog)
             events.sort(key=lambda ev: abs(ev.time - t))
             event = events[0]
             events_out.append(event)
@@ -136,7 +136,7 @@ class PhaseWindow(object):
         for ray in self.model.arrivals(
                 phases=self.phases,
                 zstart=depth,
-                distances=[distance*cake.m2d]):
+                distances=[distance * cake.m2d]):
 
             return time + ray.t + self.omin, time + ray.t + self.omax
 
@@ -187,25 +187,25 @@ def get_user_credentials(site):
 
 program_name = 'beatdown'
 description = '''
-Download waveforms from FDSN web services and prepare for beat, adapted and
+Download waveforms from FDSN web services and prepare for beat, adapted
 from grond (https://github.com/pyrocko/grond)
 '''.strip()
 
 logger = logging.getLogger('')
 
 usage = '''
-usage: beatdown folder [options] [--] <YYYY-MM-DD> <HH:MM:SS> <lat> <lon> \\
+usage: beatdown directory [options] [--] <YYYY-MM-DD> <HH:MM:SS> <lat> <lon> \\
                                <depth_km> <radius_km> <fmin_hz> \\
                                <sampling_rate_hz> \\
                                <eventname>
 
-       beatdown folder [options] [--] <YYYY-MM-DD> <HH:MM:SS> <radius_km> <fmin_hz> \\
+       beatdown directory [options] [--] <YYYY-MM-DD> <HH:MM:SS> <radius_km> <fmin_hz> \\
                                <sampling_rate_hz> <eventname>
 
-       beatdown folder [options] [--] <catalog-eventname> <radius_km> <fmin_hz> \\
+       beatdown directory [options] [--] <catalog-eventname> <radius_km> <fmin_hz> \\
                                <sampling_rate_hz> <eventname>
 
-       beatdown folder [options] --window="<YYYY-MM-DD HH:MM:SS, YYYY-MM-DD HH:MM:\
+       beatdown directory [options] --window="<YYYY-MM-DD HH:MM:SS, YYYY-MM-DD HH:MM:\
 SS>" \\
                                [--] <lat> <lon> <radius_km> <fmin_hz> \\
                                <sampling_rate_hz> <eventname>
@@ -396,7 +396,7 @@ def main():
             time = util.str_to_time(args[1] + ' ' + args[2])
             lat = float(args[3])
             lon = float(args[4])
-            depth = float(args[5])*km
+            depth = float(args[5]) * km
             iarg = 6
 
         elif len(args) == 7:
@@ -471,7 +471,7 @@ def main():
 
         low_velocity = 1500.
         timewindow = VelocityWindow(
-            low_velocity, tpad=options.padding_factor/fmin)
+            low_velocity, tpad=options.padding_factor / fmin)
 
         tmin, tmax = timewindow(time, radius, depth)
 
@@ -740,8 +740,8 @@ def main():
                         # sometimes gaps are produced
                         selection.append(
                             nslc + (
-                                tmin_req-deltat*10.0,
-                                tmax_req+deltat*10.0))
+                                tmin_req - deltat * 10.0,
+                                tmax_req + deltat * 10.0))
 
             if options.dry_run:
                 for (net, sta, loc, cha, tmin, tmax) in selection:
@@ -750,16 +750,16 @@ def main():
             else:
                 neach = 100
                 i = 0
-                nbatches = ((len(selection)-1) // neach) + 1
+                nbatches = ((len(selection) - 1) // neach) + 1
                 while i < len(selection):
-                    selection_now = selection[i:i+neach]
+                    selection_now = selection[i:i + neach]
 
                     f = tempfile.NamedTemporaryFile()
                     try:
                         sbatch = ''
                         if nbatches > 1:
                             sbatch = ' (batch %i/%i)' % (
-                                (i//neach) + 1, nbatches)
+                                (i // neach) + 1, nbatches)
 
                         logger.info('downloading data (%s)%s' % (site, sbatch))
                         data = fdsn.dataselect(
@@ -857,7 +857,7 @@ def main():
     for site in sites:
         selection = []
         for nslc in sorted(have_data_site[site]):
-            selection.append(nslc + (tmin-tpad, tmax+tpad))
+            selection.append(nslc + (tmin - tpad, tmax + tpad))
 
         if selection:
             logger.info('downloading response information (%s)' % site)
@@ -936,7 +936,7 @@ def main():
     otinc = 3600.
     otmin = math.floor(p.tmin / otinc) * otinc
     otmax = math.ceil(p.tmax / otinc) * otinc
-    otpad = tpad*2
+    otpad = tpad * 2
 
     fns = []
     rest_traces_b = []
@@ -1003,7 +1003,7 @@ def main():
                 for tr in rest_traces:
                     try:
                         rest_traces_a.append(
-                            tr.chop(win_a[0], win_a[1]+otpad,
+                            tr.chop(win_a[0], win_a[1] + otpad,
                                     inplace=False))
                     except trace.NoData:
                         pass
@@ -1021,7 +1021,7 @@ def main():
     fn_template1 = \
         'DISPL.%(network)s.%(station)s.%(location)s.%(channel)s'
 
-    fn_waveforms = op.join(output_dir, 'prepared',  fn_template1)
+    fn_waveforms = op.join(output_dir, 'prepared', fn_template1)
     fn_stations = op.join(output_dir, 'stations.prepared.txt')
     fn_event = op.join(event_dir, 'event.txt')
 
@@ -1039,23 +1039,12 @@ def main():
     deltat = None
     if sample_rate is not None:
         deltat = 1.0 / sample_rate
-        
+
     traces_beat = []
     used_stations = []
     for nsl, s in nsl_to_station.items():
         s.set_event_relative_data(event)
         traces = p.all(trace_selector=lambda tr: tr.nslc_id[:3] == nsl)
-
-        keep = []
-        for tr in traces:
-            if deltat is not None:
-                try:
-                    tr.downsample_to(deltat, snap=True, allow_upsample_max=5)
-                    keep.append(tr)
-                except util.UnavailableDecimation as e:
-                    logger.warn('Cannot downsample %s.%s.%s.%s: %s'
-                                % (tr.nslc_id + (e,)))
-                    continue
 
         if options.out_components == 'rtu':
             pios = s.guess_projections_to_rtu(out_channels=('R', 'T', 'Z'))
@@ -1068,8 +1057,8 @@ def main():
 
             proc = trace.project(traces, proj, in_channels, out_channels)
             for tr in proc:
-                tr_beat= heart.SeismicDataset.from_pyrocko_trace(tr)                 
-                traces_beat.append(tr_beat) 
+                tr_beat = heart.SeismicDataset.from_pyrocko_trace(tr)
+                traces_beat.append(tr_beat)
                 for ch in out_channels:
                     if ch.name == tr.channel:
                         s.add_channel(ch)
@@ -1082,6 +1071,7 @@ def main():
     util.ensuredirs(fn_stations)
     model.dump_stations(stations, fn_stations)
     model.dump_events([event], fn_event)
-    utility.dump_objects(cwd+'/seismic_data.pkl', outlist=[stations, traces_beat])
+    utility.dump_objects(
+        op.join(cwd, 'seismic_data.pkl'),
+        outlist=[stations, traces_beat])
     logger.info('prepared waveforms from %i stations' % len(stations))
-
