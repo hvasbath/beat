@@ -23,8 +23,6 @@ from pyrocko.gf.seismosizer import RectangularSource
 import numpy as num
 from theano import config as tconfig
 
-from pyproj import Proj
-
 
 logger = logging.getLogger('utility')
 
@@ -638,87 +636,6 @@ def update_source(source, input_depth='top', **point):
 
     if isinstance(source, RectangularSource):
         adjust_fault_reference(source, input_depth=input_depth)
-
-
-def utm_to_loc(utmx, utmy, zone, event):
-    """
-    Convert UTM[m] to local coordinates with reference to the
-    :class:`pyrocko.model.Event`
-
-    Parameters
-    ----------
-    utmx : :class:`numpy.ndarray`
-        with UTM easting
-    utmy : :class:`numpy.ndarray`
-        with UTM northing
-    zone : int
-        number with utm zone
-    event : :class:`pyrocko.model.Event`
-
-    Returns
-    -------
-    locx : :class:`numpy.ndarray`
-        Local coordinates [m] for x direction (East)
-    locy : :class:`numpy.ndarray`
-        Local coordinates [m] for y direction (North)
-    """
-
-    p = Proj(proj='utm', zone=zone, ellps='WGS84')
-    ref_x, ref_y = p(event.lon, event.lat)
-    locx = utmx - ref_x
-    locy = utmy - ref_y
-    return locx, locy
-
-
-def lonlat_to_utm(lon, lat, zone):
-    """
-    Convert UTM[m] to local coordinates with reference to the
-    :class:`pyrocko.model.Event`
-
-    Parameters
-    ----------
-    utmx : :class:`numpy.ndarray`
-        with UTM easting
-    utmy : :class:`numpy.ndarray`
-        with UTM northing
-    zone : int
-        number with utm zone
-
-    Returns
-    -------
-    utme : :class:`numpy.ndarray`
-        Local coordinates [m] for x direction (East)
-    utmn : :class:`numpy.ndarray`
-        Local coordinates [m] for y direction (North)
-    """
-
-    p = Proj(proj='utm', zone=zone, ellps='WGS84')
-    utme, utmn = p(lon, lat)
-    return utme, utmn
-
-
-def utm_to_lonlat(utmx, utmy, zone):
-    """
-    Convert UTM[m] to Latitude and Longitude coordinates.
-
-    Parameters
-    ----------
-    utmx : :class:`numpy.ndarray`
-        with UTM easting
-    utmy : :class:`numpy.ndarray`
-        with UTM northing
-    zone : int
-        number with utm zone
-
-    Returns
-    -------
-    lon : :class:`numpy.ndarray` Longitude [decimal deg]
-    lat : :class:`numpy.ndarray` Latitude [decimal deg]
-    """
-
-    p = Proj(proj='utm', zone=zone, ellps='WGS84')
-    lon, lat = p(utmx, utmy, inverse=True)
-    return lon, lat
 
 
 def setup_logging(project_dir, levelname, logfilename='BEAT_log.txt'):

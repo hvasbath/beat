@@ -577,9 +577,6 @@ def plot_scene(ax, target, data, scattersize, colim,
     if outmode == 'latlon':
         x = target.lons
         y = target.lats
-    elif outmode == 'utm':
-        x = target.utme / km
-        y = target.utmn / km
     elif outmode == 'local':
         if target.quadtree is not None:
             cmap = kwargs.pop('cmap', plt.cm.jet)

@@ -802,52 +802,6 @@ class GPSDataset(object):
         return self.stations.items()
 
 
-class Quadtree(GeodeticDataset):
-    """
-    In the point coordinates are assumed to be te lower left corner
-    of the quadtree leaves.
-    """
-    sizeN = Array.T(shape=(None,), dtype=num.float, optional=True)
-    sizeE = Array.T(shape=(None,), dtype=num.float, optional=True)
-
-    def iter_leaves(self):
-        """
-        Iterator over the quadtree leaves, returns lower left easting and
-        northing together with the width and height
-        """
-        for E, N, se, sn in zip(
-                self.east_shifts, self.north_shifts, self.sizeE, self.sizeN):
-            yield E, N, se, sn
-
-    @classmethod
-    def from_kite_quadtree(cls, quadtree, **kwargs):
-        east_shifts = num.zeros(quadtree.nleaves)
-        north_shifts = num.zeros(quadtree.nleaves)
-        sizeE = num.zeros(quadtree.nleaves)
-        sizeN = num.zeros(quadtree.nleaves)
-
-        for i, leaf in enumerate(quadtree.leaves):
-            east_shifts[i] = leaf.llE
-            north_shifts[i] = leaf.llN
-            sizeE[i] = leaf.sizeE
-            sizeN[i] = leaf.sizeN
-
-        lats, lons = orthodrome.ne_to_latlon(
-            lat0=quadtree.frame.llLat, lon0=quadtree.frame.llLon,
-            north_m=north_shifts, east_m=east_shifts)
-
-        utme, utmn = utility.lonlat_to_utm(lons, lats, quadtree.frame.utm_zone)
-
-        d = dict(
-            lats=lats,
-            lons=lons,
-            utme=utme,
-            utmn=utmn,
-            sizeE=sizeE,
-            sizeN=sizeN)
-        return cls(**d)
-
-
 class ResultReport(Object):
 
     solution_point = Dict.T(help='result point')
@@ -921,9 +875,6 @@ class DiffIFG(IFG):
     reference_point = Tuple.T(2, Float.T(), optional=True)
     reference_value = Float.T(optional=True, default=0.0)
     displacement = Array.T(shape=(None,), dtype=num.float, optional=True)
-    quadtree = Quadtree.T(
-        optional=True, default=None,
-        help='Quadtree corner coordinate information for plotting.')
     covariance = Covariance.T(
         optional=True,
         help=':py:class:`Covariance` that holds data'
@@ -958,22 +909,15 @@ class DiffIFG(IFG):
                     lat0=scene.frame.llLat, lon0=scene.frame.llLon,
                     north_m=locn, east_m=loce)
 
-        quadtree = Quadtree.from_kite_quadtree(scene.quadtree)
-
-        utme, utmn = utility.lonlat_to_utm(lons, lats, scene.frame.utm_zone)
-
         d = dict(
             name=scene.meta.filename,
             displacement=scene.quadtree.leaf_means,
-            utme=utme,
-            utmn=utmn,
             lons=lons,
             lats=lats,
             covariance=covariance,
             incidence=90 - num.rad2deg(scene.quadtree.leaf_thetas),
             heading=-num.rad2deg(scene.quadtree.leaf_phis) + 180,
-            odw=num.ones_like(scene.quadtree.leaf_phis),
-            quadtree=quadtree)
+            odw=num.ones_like(scene.quadtree.leaf_phis))
         return cls(**d)
 
     def plane_names(self):
