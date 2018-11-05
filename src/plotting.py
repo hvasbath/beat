@@ -881,7 +881,8 @@ def geodetic_fits(problem, stage, plot_options):
                     'Loading full resolution kite scene: %s' % scene_path)
                 scene = Scene.load(scene_path)
             except UserIOWarning:
-                logger.warn('Full resolution data could not be loaded!')
+                logger.warn(
+                    'Full resolution data could not be loaded! Skipping ...')
                 continue
 
             if scene.frame.isMeter():
@@ -2318,9 +2319,52 @@ def draw_earthmodels(problem, plot_options):
                 fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
+def fuzzy_rupture_fronts(
+        ax, rupture_fronts, xgrid, ygrid, alpha=0.6, linewidth=7, zorder=0):
+    """
+    Fuzzy rupture fronts
+
+    rupture_fronts : list
+        of output of cs = pyplot.contour; cs.allsegs
+    """
+
+    from matplotlib.colors import LinearSegmentedColormap
+
+    ncolors = 256
+    cmap = LinearSegmentedColormap.from_list(
+        'dummy', ['white', 'black'], N=ncolors)
+
+    res_km = 25   # pixel per km
+    xmin = xgrid.min()
+    xmax = xgrid.max()
+    ymin = ygrid.min()
+    ymax = ygrid.max()
+    extent = (xmin, xmax, ymin, ymax)
+    grid = num.zeros(
+        (int((num.abs(ymax) - num.abs(ymin)) * res_km),
+         int((num.abs(xmax) - num.abs(xmin)) * res_km)),
+        dtype='float64')
+    for rupture_front in rupture_fronts:
+        for level in rupture_front:
+            for line in level:
+                draw_line_on_array(
+                    line[:, 0], line[:, 1],
+                    grid=grid,
+                    extent=extent,
+                    grid_resolution=grid.shape,
+                    linewidth=linewidth)
+
+    # increase contrast reduce high intense values
+    truncate = len(rupture_fronts) / 2
+    grid[grid > truncate] = truncate
+    ax.imshow(
+        grid, extent=extent, origin='lower', cmap=cmap, aspect='auto',
+        alpha=alpha, zorder=zorder)
+
+
 def fault_slip_distribution(
         fault, mtrace=None, transform=lambda x: x, alpha=0.9, ntickmarks=5,
-        ncontours=100, reference=None):
+        reference=None):
     """
     Draw discretized fault geometry rotated to the 2-d view of the foot-wall
     of the fault.
@@ -2335,7 +2379,7 @@ def fault_slip_distribution(
 
     def draw_quivers(
             ax, uperp, uparr, xgr, ygr, rake, color='black',
-            draw_legend=False, normalisation=None):
+            draw_legend=False, normalisation=None, zorder=0):
 
         angles = num.arctan2(uperp, uparr) * \
             (180. / num.pi) + rake
@@ -2355,7 +2399,7 @@ def fault_slip_distribution(
         quivers = ax.quiver(
             xgr.ravel(), ygr.ravel(), slipsx, slipsy,
             units='dots', angles='xy', scale_units='xy', scale=1,
-            width=1., color=color)
+            width=1., color=color, zorder=zorder)
 
         if draw_legend:
             quiver_legend_length = num.ceil(
@@ -2405,7 +2449,7 @@ def fault_slip_distribution(
         ax.get_yaxis().set_major_locator(yticker)
 
         pa_col = PatchCollection(
-            d_patches, alpha=alpha, match_original=True)
+            d_patches, alpha=alpha, match_original=True, zorder=0)
         pa_col.set(array=patch_values, cmap=cmap)
 
         ax.add_collection(pa_col)
@@ -2416,40 +2460,6 @@ def fault_slip_distribution(
         cb = fig.colorbar(cb_related, ax=axs, cax=cbaxes)
         cb.set_label(labeltext, fontsize=fontsize)
         ax.set_aspect('equal', adjustable='box')
-
-    def fuzzy_rupture_fronts(ax, rupture_fronts, width, length):
-        """
-        Fuzzy rupture fronts 
-
-        rupture_fronts : list
-            of output of cs = pyplot.contour; cs.allsegs
-        """
-
-        from matplotlib.colors import LinearSegmentedColormap
-
-        ncolors = 256
-        cmap = LinearSegmentedColormap.from_list(
-            'dummy', ['white', 'black'], N=ncolors)
-
-        res_km = 50   # pixel per km
-        grid = num.zeros((width * res_km, length * res_km), dtype='float64')
-        extent = (0., length, 0., width)
-        for rupture_front in rupture_fronts:
-            for level in cs.allsegs:
-                for line in level:
-                    draw_line_on_array(
-                        line[:, 0], line[:, 1],
-                        grid=grid,
-                        extent=extent,
-                        grid_resolution=grid.shape,
-                        linewidth=7)
-
-        ax.imshow(grid, extent=extent, origin='lower', cmap=cmap, aspect='auto')
-        # increase contrast reduce high intense values
-        grid[grid > (nrates / 2)] /= 2.
-
-
-
 
     from beat.colormap import slip_colormap
     fontsize = 12
@@ -2468,7 +2478,7 @@ def fault_slip_distribution(
         # alphas = alpha * num.ones(np_h * np_w, dtype='int8')
         pa_col = draw_patches(
             ax, fault, subfault_idx=ns, patch_values=reference_slip,
-            cmap=slip_colormap(100), alpha=alpha)
+            cmap=slip_colormap(100), alpha=0.65)
 
         ext_source = fault.get_subfault(ns)
 
@@ -2491,15 +2501,22 @@ def fault_slip_distribution(
                     'velocities', combine=True, squeeze=True))
 
                 nchains = nuc_dip.size
-                csteps = int(num.floor(nchains / ncontours))
+                csteps = 6
+                rupture_fronts = []
+                dummy_fig, dummy_ax = plt.subplots(
+                    nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
                 for i in range(0, nchains, csteps):
                     nuc_dip_idx, nuc_strike_idx = fault.fault_locations2idxs(
                         0, nuc_dip[i], nuc_strike[i], backend='numpy')
                     sts = fault.get_subfault_starttimes(
                         0, velocities[i, :], nuc_dip_idx, nuc_strike_idx)
 
-                    contours = ax.contour(xgr, ygr, sts, colors='gray', alpha=0.1)
- #                   fuzzy_rupture_front(contours.allsegs
+                    contours = dummy_ax.contour(xgr, ygr, sts)
+                    rupture_fronts.append(contours.allsegs)
+
+                fuzzy_rupture_fronts(
+                    ax, rupture_fronts, ygr, xgr,
+                    alpha=1., linewidth=7, zorder=-1)
 
                 durations = transform(mtrace.get_values(
                     'durations', combine=True, squeeze=True))
@@ -2521,7 +2538,13 @@ def fault_slip_distribution(
             axs.append(ax2)
 
             ref_starttimes = fault.point2starttimes(reference)
-            contours = ax.contour(xgr, ygr, ref_starttimes, colors='black')
+            contours = ax.contour(
+                xgr, ygr, ref_starttimes,
+                colors='black', linewidths=0.5, alpha=0.9)
+            ax.plot(
+                reference['nucleation_strike'],
+                reference['nucleation_dip'],
+                marker='*', color='k', markersize=12)
             plt.clabel(contours, inline=True, fontsize=10)
 
         if mtrace is not None:
@@ -2555,14 +2578,14 @@ def fault_slip_distribution(
 
                 xcoords = xgr.ravel()[i] + rot_ellipse[:, 0] + quivers.U[i]
                 ycoords = ygr.ravel()[i] + rot_ellipse[:, 1] + quivers.V[i]
-                ax.plot(xcoords, ycoords, '-k', linewidth=0.5)
+                ax.plot(xcoords, ycoords, '-k', linewidth=0.5, zorder=2)
         else:
             normalisation = None
 
         draw_quivers(
             ax, reference['uperp'], reference['uparr'], xgr, ygr,
             ext_source.rake, color='black', draw_legend=True,
-            normalisation=normalisation)
+            normalisation=normalisation, zorder=3)
 
         draw_colorbar(fig, ax, pa_col, labeltext='slip [m]')
 
@@ -2634,7 +2657,31 @@ def draw_slip_dist(problem, po):
 def _weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=num.inf):
     """
     Draw weighted lines into array
+    Modiefied from:
     https://stackoverflow.com/questions/31638651/how-can-i-draw-lines-into-numpy-arrays
+
+    Parameters
+    ----------
+    r0 : int
+        row index for line end point 0
+    c0 : int
+        col index for line end point 0
+    r1 : int
+        row index for line end point 1
+    c1 : int
+        col index for line end point 1
+    w : int
+        width in pixels for line
+    rmin : int
+        min row index for grid to draw on
+    rmax : int
+        max row index for grid to draw on
+
+    Returns
+    -------
+    rr : array of row indexes of line
+    cc : array of col indexes of line
+    w : array of line weights
     """
     def trapez(y, y0, w):
         return num.clip(num.minimum(
@@ -2644,13 +2691,13 @@ def _weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=num.inf):
     # If either of these cases are violated, do some switches.
     if abs(c1 - c0) < abs(r1 - r0):
         # Switch x and y, and switch again when returning.
-        xx, yy, val = _weighted_line(c0, r0, c1, r1, w, rmin=rmin, rmax=rmax)
+        xx, yy, val = _weighted_line(c0, r0, c1, r1, w=w, rmin=rmin, rmax=rmax)
         return (yy, xx, val)
 
     # At this point we know that the distance in columns (x) is greater
     # than that in rows (y). Possibly one more switch if c0 > c1.
     if c0 > c1:
-        return _weighted_line(r1, c1, r0, c0, w, rmin=rmin, rmax=rmax)
+        return _weighted_line(r1, c1, r0, c0, w=w, rmin=rmin, rmax=rmax)
 
     # The following is now always < 1 in abs
     slope = (r1 - r0) / (c1 - c0)
@@ -2666,6 +2713,7 @@ def _weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=num.inf):
     # Now instead of 2 values for y, we have 2*np.ceil(w/2).
     # All values are 1 except the upmost and bottommost.
     thickness = num.ceil(w / 2)
+
     yy = (num.floor(y).reshape(-1, 1) +
           num.arange(-thickness - 1, thickness + 2).reshape(1, -1))
     xx = num.repeat(x, yy.shape[1])
@@ -2763,10 +2811,18 @@ def draw_line_on_array(
 
     new_grid = num.zeros_like(grid)
     for i in range(1, nxs):
-        rr, cc, w = _weighted_line(
-            c0=xidxs[i - 1], r0=yidxs[i - 1],
-            c1=xidxs[i], r1=yidxs[i], w=linewidth)
-        new_grid[rr, cc] = w.astype(grid.dtype)
+        c0 = xidxs[i - 1]
+        r0 = yidxs[i - 1]
+        c1 = xidxs[i]
+        r1 = yidxs[i]
+        try:
+            rr, cc, w = _weighted_line(
+                c0=c0, r0=r0, c1=c1, r1=r1, w=linewidth, rmax=ynstep - 1)
+
+            new_grid[rr, cc] = w.astype(grid.dtype)
+        except ValueError:
+            # line start and end fall in the same grid point cant be drawn
+            pass
 
     grid += new_grid
     return grid, extent
@@ -2807,7 +2863,8 @@ def fuzzy_moment_rate(
             linewidth=7)
 
     # increase contrast reduce high intense values
-    grid[grid > (nrates / 2)] /= 2.
+    truncate = nrates / 2
+    grid[grid > truncate] = truncate
 
     ax.imshow(grid, extent=extent, origin='lower', cmap=cmap, aspect='auto')
     ax.set_xlabel('Time [s]')
