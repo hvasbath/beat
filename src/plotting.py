@@ -29,7 +29,7 @@ from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.cake_plot import light
 
 import pyrocko.moment_tensor as mt
-from pyrocko.plot import mpl_papersize, mpl_init, mpl_graph_color
+from pyrocko.plot import mpl_papersize, mpl_init, mpl_graph_color, mpl_margins
 
 logger = logging.getLogger('plotting')
 
@@ -1674,7 +1674,7 @@ def histplot_op(
             bins = int(num.ceil((maxd - mind) / step))
 
         ax.hist(
-            d, bins=bins, normed=True, stacked=True, alpha=alpha,
+            d, bins=bins, density=True, stacked=True, alpha=alpha,
             align='left', histtype='stepfilled', color=color, edgecolor=color,
             **kwargs)
 
@@ -2838,6 +2838,7 @@ def fuzzy_moment_rate(
     """
     Plot fuzzy moment rate function into axes.
     """
+
     if cmap is None:
         # from matplotlib.colors import LinearSegmentedColormap
         # ncolors = 256
@@ -2881,7 +2882,7 @@ def draw_moment_rate(problem, po):
     Draw moment rate function for the results of a seismic/joint finite fault
     optimization.
     """
-
+    fontsize = 12
     mode = problem.config.problem_config.mode
 
     if mode != ffo_mode_str:
@@ -2918,6 +2919,7 @@ def draw_moment_rate(problem, po):
         index=0, point=reference, target=target,
         store=sc.engine.get_store(target.store_id))
 
+    mpl_init(fontsize=fontsize)
     for ns in range(fault.nsubfaults):
         outpath = os.path.join(
             problem.outfolder, po.figure_dir,
@@ -2926,8 +2928,9 @@ def draw_moment_rate(problem, po):
 
         if not os.path.exists(outpath) or po.force:
             fig, ax = plt.subplots(
-                nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
-
+                nrows=1, ncols=1, figsize=mpl_papersize('a7', 'landscape'))
+            labelpos = mpl_margins(fig, left=5, bottom=4, top=1.5, right=0.5, units=fontsize)
+            labelpos(ax, 2., 1.5)
             if mtrace is not None:
                 nchains = len(mtrace)
                 csteps = 5

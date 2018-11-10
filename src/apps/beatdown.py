@@ -31,6 +31,7 @@ g_sites_available = sorted(fdsn.g_site_abbr.keys())
 
 geofon = catalog.Geofon()
 usgs = catalog.USGS(catalog=None)
+gcmt = catalog.GlobalCMT()
 
 tfade_factor = 1.0
 ffade_factors = 0.5, 1.5
@@ -112,9 +113,17 @@ def get_events_by_name_or_date(event_names_or_dates, catalog=geofon):
             events_out.append(event)
         else:
             t = util.str_to_time(stime)
-            events = get_events(time_range=(t - 60., t + 60.), catalog=catalog)
-            events.sort(key=lambda ev: abs(ev.time - t))
-            event = events[0]
+            try:
+                events = get_events(
+                    time_range=(t - 60., t + 60.), catalog=catalog)
+                events.sort(key=lambda ev: abs(ev.time - t))
+                event = events[0]
+            except IndexError:
+                logger.info('Nothing found in geofon! Trying gCMT!')
+                events = get_events(
+                    time_range=(t - 60., t + 60.), catalog=gcmt)
+                events.sort(key=lambda ev: abs(ev.time - t))
+                event = events[0]     
             events_out.append(event)
 
     return events_out
