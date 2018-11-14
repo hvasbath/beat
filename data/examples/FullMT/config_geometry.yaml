@@ -1,5 +1,5 @@
 --- !beat.BEATconfig
-name: /home/vasyurhm/BEATS/FullMT
+name: MTtest_nont
 date: dummy
 event: !pf.Event
   lat: 29.07
@@ -26,32 +26,31 @@ event: !pf.Event
     moment: 7.223676349339025e+19
     magnitude: 7.20583885303153
   duration: 22.0
-project_dir: /home/vasyurhm/BEATS/FullMT
+project_dir: /home/vasyurhm/BEATS/MTtest_nont
 problem_config: !beat.ProblemConfig
   mode: geometry
   source_type: MTSource
   stf_type: HalfSinusoid
   n_sources: 1
   datatypes: [seismic]
-  dataset_specific_residual_noise_estimation: false
   hyperparameters:
-    h_any_P_T: !beat.heart.Parameter
-      name: h_any_P_T
+    h_any_P_0_Z: !beat.heart.Parameter
+      name: h_any_P_0_Z
       form: Uniform
-      lower: [-20.0]
-      upper: [20.0]
-      testvalue: [0.0]
-    h_any_P_Z: !beat.heart.Parameter
-      name: h_any_P_Z
+      lower: [0.0]
+      upper: [5.0]
+      testvalue: [2.0]
+    h_any_P_1_T: !beat.heart.Parameter
+      name: h_any_P_1_T
       form: Uniform
-      lower: [-20.0]
-      upper: [20.0]
-      testvalue: [0.0]
+      lower: [0.0]
+      upper: [6.0]
+      testvalue: [3.0]
   priors:
     depth: !beat.heart.Parameter
       name: depth
       form: Uniform
-      lower: [0.0]
+      lower: [1.0]
       upper: [15.0]
       testvalue: [8.0]
     duration: !beat.heart.Parameter
@@ -123,29 +122,46 @@ problem_config: !beat.ProblemConfig
 seismic_config: !beat.SeismicConfig
   datadir: ./
   noise_estimator: !beat.SeismicNoiseAnalyserConfig
-    structure: identity
+    structure: non-toeplitz
     pre_arrival_time: 5.0
   pre_stack_cut: true
   station_corrections: false
   waveforms:
   - !beat.WaveformFitConfig
     include: true
+    preprocess_data: true
     name: any_P
-    blacklist: []
     channels: [Z]
     filterer: !beat.heart.Filter
       lower_corner: 0.01
       upper_corner: 0.1
       order: 3
-    distances: [0.0, 9.0]
+    distances: [0.0, 90.0]
     interpolation: multilinear
     arrival_taper: !beat.heart.ArrivalTaper
-      a: -20.0
-      b: -10.0
-      c: 250.0
-      d: 270.0
+      a: -30.0
+      b: -20.0
+      c: 230.0
+      d: 250.0
+  - !beat.WaveformFitConfig
+    include: true
+    preprocess_data: true
+    name: any_P
+    channels: [T]
+    filterer: !beat.heart.Filter
+      lower_corner: 0.01
+      upper_corner: 0.1
+      order: 3
+    distances: [0.0, 90.0]
+    interpolation: multilinear
+    arrival_taper: !beat.heart.ArrivalTaper
+      a: -30.0
+      b: -20.0
+      c: 230.0
+      d: 250.0
+  dataset_specific_residual_noise_estimation: false
   gf_config: !beat.SeismicGFConfig
-    store_superdir: /home/vasyurhm/BEATS/GF
+    store_superdir: /home/vasyurhm/BEATS/MTtest
     reference_model_idx: 0
     n_variations: [0, 1]
     earth_model_name: ak135-f-average.m
@@ -186,11 +202,11 @@ sampler_config: !beat.SamplerConfig
     rm_flag: false
     n_jobs: 4
     n_steps: 100
-    n_chains: 400
+    n_chains: 1000
     coef_variation: 1.0
     stage: 0
     proposal_dist: MultivariateNormal
-    update_covariances: false
+    update_covariances: true
 hyper_sampler_config: !beat.SamplerConfig
   name: Metropolis
   progressbar: true

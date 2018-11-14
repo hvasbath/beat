@@ -345,8 +345,8 @@ After these long and heavy installations, you can setup BEAT itself::
     cd ~/src/beat
     sudo python3 setup.py install
 
-Greens Function calculations
-############################
+Greens Functions
+----------------
 
 To calculate the Greens Functions we rely on modeling codes written by
 `Rongjiang Wang <http://www.gfz-potsdam.de/en/section/physics-of-earthquakes-and-volcanoes/staff/profil/rongjiang-wang/>`__.
@@ -360,6 +360,10 @@ For Unix systems the codes had to be repackaged.
 The packages below are also github repositories and you may want to use "git clone" to download:
 
     git clone <url>
+
+For example to clone the github repository for QSEIS please execute::
+
+    git clone https://github.com/pyrocko/fomosto-qseis
 
 This also enables easy updating for potential future changes.
 

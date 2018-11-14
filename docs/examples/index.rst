@@ -18,4 +18,4 @@ In the following example we will use real data.
 .. toctree::
    :maxdepth: 3
 
-   Rectangular_InSAR
+   Rectangular

@@ -1041,8 +1041,8 @@ def draw_geodetic_fits(problem, plot_options):
 
     outpath = os.path.join(
         problem.config.project_dir,
-        mode, po.figure_dir, 'scenes_%s_%s_%s.%s' % (
-            stage.number, llk_str, po.plot_projection, po.outformat))
+        mode, po.figure_dir, 'scenes_%s_%s_%s' % (
+            stage.number, llk_str, po.plot_projection))
 
     if not os.path.exists(outpath) or po.force:
         figs = geodetic_fits(problem, stage, po)
@@ -1054,9 +1054,13 @@ def draw_geodetic_fits(problem, plot_options):
         plt.show()
     else:
         logger.info('saving figures to %s' % outpath)
-        with PdfPages(outpath) as opdf:
-            for fig in figs:
-                opdf.savefig(fig)
+        if po.outformat == 'pdf':
+            with PdfPages(outpath + '.pdf') as opdf:
+                for fig in figs:
+                    opdf.savefig(fig)
+        else:
+            for i, fig in enumerate(figs):
+                fig.savefig(outpath + '_%i.%s' % (i, po.outformat), dpi=po.dpi)
 
 
 def plot_trace(axes, tr, **kwargs):
@@ -1405,8 +1409,8 @@ def draw_seismic_fits(problem, po):
 
     outpath = os.path.join(
         problem.config.project_dir,
-        mode, po.figure_dir, 'waveforms_%s_%s.%s' % (
-            stage.number, llk_str, po.outformat))
+        mode, po.figure_dir, 'waveforms_%s_%s' % (
+            stage.number, llk_str))
 
     if not os.path.exists(outpath) or po.force:
         figs = seismic_fits(problem, stage, po)
@@ -1418,9 +1422,13 @@ def draw_seismic_fits(problem, po):
         plt.show()
     else:
         logger.info('saving figures to %s' % outpath)
-        with PdfPages(outpath) as opdf:
-            for fig in figs:
-                opdf.savefig(fig)
+        if po.outformat == 'pdf':
+            with PdfPages(outpath + '.pdf') as opdf:
+                for fig in figs:
+                    opdf.savefig(fig)
+        else:
+            for i, fig in enumerate(figs):
+                fig.savefig(outpath + '_%i.%s' % (i, po.outformat), dpi=po.dpi)
 
 
 def draw_fuzzy_beachball(problem, po):

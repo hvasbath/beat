@@ -1,5 +1,5 @@
-Regional Full Moment Tensor, synthetic seismic displacement (waveforms)
------------------------------------------------------------------------
+Scenario 0: Regional Full Moment Tensor
+---------------------------------------
 Clone project
 ^^^^^^^^^^^^^
 This setup is comprised of 20 seismic stations that are randomly distributed within distances of 40 to 1000 km compared to a reference event.
@@ -16,8 +16,8 @@ Calculate Greens Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 The station-event geometry determines the grid of Greens Functions (GFs) that will need to be calculated next.
 
-Please open $project_directory/config_geometry.yaml with any text editor (e.g. vi) and check the line 144: store_superdir. Here is written for now /home/vasyurhm/BEATS/GF, which is an example path to the directory of Greens Functions.
-This path needs to be replaced with the path to where the GFs are supposed to be stored on your computer. This directory is refered to as the $GF_path in the rest of the text. It is strongly recommended to use a seperate directory apart from the beat source directory and the $project_directory as the GF databases can become very large, depending on the problem! For real examples, the GF databases may require up to several Gigabyte of free disc space. For our example the database that we are going to create is only around 30 Megabyte.::
+Please open $project_directory/config_geometry.yaml with any text editor (e.g. vi) and search for "store_superdir". Here, it is written for now /home/vasyurhm/BEATS/GF, which is an example path to the directory of Greens Functions.
+This path needs to be replaced with the path to where the GFs are supposed to be stored on your computer. This directory is referred to as the $GF_path in the rest of the text. It is strongly recommended to use a separate directory apart from the beat source directory and the $project_directory as the GF databases can become very large, depending on the problem! For real examples, the GF databases may require up to several Gigabyte of free disc space. For our example the database that we are going to create is only around 30 Megabyte.::
 
     cd $beat_models
     beat build_gfs FullMT --datatypes='seismic'
@@ -64,7 +64,7 @@ Here we see that instead of the global velocity model ak135 a custom velocity mo
 Below are the grid definitions of the GFs. In this example the source depth grid is limited to one depth (8 km) to reduce calculation time.
 As we have stations up to a distance of 970km distance to the event, the distance grid is accordingly extending up to 1000km.
 These grid sampling parameters as well as the sample rate are of major importance for the overall optimization. How to adjust these parameters
-according to other case studies is described `here <https://pyrocko.org/docs/current/apps/fomosto/tutorial.html#considerations-for-real-world-applications>`__.
+according to individual case studies is described `here <https://pyrocko.org/docs/current/apps/fomosto/tutorial.html#considerations-for-real-world-applications>`__.
 
 The 'nworkers' variable defines the number of CPUs to use in parallel for the GF calculations. As these calculations may become very expensive and time-consuming it is of advantage to use as many CPUs as available. To be still able to navigate in your Operating System without crashing the system it is good to leave one CPU work-less. Please edit the 'nworkers' parameter now!
 
@@ -418,7 +418,7 @@ Obviously, in the previos run the white-noise assumption was not working well. S
 
 Other options are to "import" to use the covariance matrixes that have been imported with the data
 Also the option "non-toeplitz" to estimate non-stationary, correlated noise on the residuals following [Dettmer2007]_
-in this case the values from the priors and hypers "testvalues" are used as reference to calculate the residuals
+in this case the values from the priors and hypers "testvalues" are used as reference to calculate the residuals.
 
 
 References

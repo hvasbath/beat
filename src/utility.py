@@ -445,7 +445,8 @@ def downsample_trace(data_trace, deltat=None, snap=False):
                 tr.downsample_to(
                     deltat, snap=snap, allow_upsample_max=5, demean=False)
                 tr.deltat = deltat
-                tr.snap()
+                if snap:
+                    tr.snap()
 
             except util.UnavailableDecimation as e:
                 logger.error(
