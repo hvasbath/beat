@@ -123,7 +123,7 @@ def get_events_by_name_or_date(event_names_or_dates, catalog=geofon):
                 events = get_events(
                     time_range=(t - 60., t + 60.), catalog=gcmt)
                 events.sort(key=lambda ev: abs(ev.time - t))
-                event = events[0]     
+                event = events[0]
             events_out.append(event)
 
     return events_out
@@ -208,17 +208,18 @@ usage: beatdown directory [options] [--] <YYYY-MM-DD> <HH:MM:SS> <lat> <lon> \\
                                <sampling_rate_hz> \\
                                <eventname>
 
-       beatdown directory [options] [--] <YYYY-MM-DD> <HH:MM:SS> <radius_km> <fmin_hz> \\
-                               <sampling_rate_hz> <eventname>
+       beatdown directory [options] [--] <YYYY-MM-DD> <HH:MM:SS> <radius_km>\\
+                                <fmin_hz> <sampling_rate_hz> <eventname>
 
-       beatdown directory [options] [--] <catalog-eventname> <radius_km> <fmin_hz> \\
-                               <sampling_rate_hz> <eventname>
+       beatdown directory [options] [--] <catalog-eventname> <radius_km>\\
+                                <fmin_hz> <sampling_rate_hz> <eventname>
 
-       beatdown directory [options] --window="<YYYY-MM-DD HH:MM:SS, YYYY-MM-DD HH:MM:\
-SS>" \\
-                               [--] <lat> <lon> <radius_km> <fmin_hz> \\
-                               <sampling_rate_hz> <eventname>
+       beatdown directory [options] --window="<YYYY-MM-DD HH:MM:SS, \\
+                                YYYY-MM-DD HH:MM:SS>" \\
+                                [--] <lat> <lon> <radius_km> <fmin_hz> \\
+                                <sampling_rate_hz> <eventname>
 '''.strip()
+
 
 def main():
     parser = OptionParser(
@@ -263,6 +264,12 @@ def main():
     parser.add_option(
         '--local-stations',
         dest='local_stations',
+        action='append',
+        help='add local stations file')
+
+    parser.add_option(
+        '--selection',
+        dest='selection_file',
         action='append',
         help='add local stations file')
 
@@ -525,7 +532,6 @@ def main():
     if event is not None:
         event.name = eventname
 
-    tlen = tmax - tmin
     tfade = tfade_factor / fmin
 
     tpad = tfade
@@ -700,12 +706,24 @@ def main():
                 continue
 
             selection = []
-            channels = sx.choose_channels(
-                target_sample_rate=target_sample_rate,
-                priority_band_code=priority_band_code,
-                priority_units=priority_units,
-                priority_instrument_code=priority_instrument_code,
-                timespan=(tmin_win, tmax_win))
+            if options.selection_file:
+                stations = []
+                channels = {}
+                for fn in options.selection_file:
+                    stations.extend(model.load_stations(fn))
+                for st in stations:
+                    for cha in st.channels:
+                        cha.latitude = st.lat
+                        cha.longitude = st.lon
+                        cha.sample_rate = target_sample_rate
+                        channels[st.nsl() + (cha.name,)] = cha
+            else:
+                channels = sx.choose_channels(
+                    target_sample_rate=target_sample_rate,
+                    priority_band_code=priority_band_code,
+                    priority_units=priority_units,
+                    priority_instrument_code=priority_instrument_code,
+                    timespan=(tmin_win, tmax_win))
 
             for nslc in sorted(channels.keys()):
                 if nsls_selected is not None and nslc[:3] not in nsls_selected:
@@ -719,10 +737,14 @@ def main():
                         lat_, lon_ = event.lat, event.lon
                     else:
                         lat_, lon_ = lat, lon
-
-                    dist = orthodrome.distance_accurate50m_numpy(
-                        lat_, lon_,
-                        channel.latitude.value, channel.longitude.value)
+                    try:
+                        dist = orthodrome.distance_accurate50m_numpy(
+                            lat_, lon_,
+                            channel.latitude.value, channel.longitude.value)
+                    except:
+                        dist = orthodrome.distance_accurate50m_numpy(
+                            lat_, lon_,
+                            channel.latitude, channel.longitude)
 
                     if event:
                         depth_ = event.depth
@@ -738,9 +760,11 @@ def main():
 
                     tmin_req = max(tmin_win, tmin_this)
                     tmax_req = min(tmax_win, tmax_this)
-
                     if channel.sample_rate:
-                        deltat = 1.0 / channel.sample_rate.value
+                        try:
+                            deltat = 1.0 / channel.sample_rate.value
+                        except:
+                            deltat = 1.0 / channel.sample_rate
                     else:
                         deltat = 1.0
 
@@ -751,7 +775,6 @@ def main():
                             nslc + (
                                 tmin_req - deltat * 10.0,
                                 tmax_req + deltat * 10.0))
-
             if options.dry_run:
                 for (net, sta, loc, cha, tmin, tmax) in selection:
                     available_through[net, sta, loc, cha].add(site)
@@ -898,6 +921,7 @@ def main():
     if options.local_responses_pz:
         sxs['local'] = epz.make_stationxml(
             epz.iload(options.local_responses_pz))
+
 
     if options.local_responses_resp:
         local_stations = []
