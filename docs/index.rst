@@ -40,6 +40,7 @@ Contents:
    updating
    getting_started
    examples/index
+   faq
    api
 
 Indices and tables

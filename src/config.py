@@ -37,7 +37,6 @@ logger = logging.getLogger('config')
 ffo_mode_str = 'ffo'
 geometry_mode_str = 'geometry'
 
-initialization_modes = ['random', 'lsq']
 
 block_vars = [
     'bl_azimuth', 'bl_amplitude']
@@ -198,6 +197,13 @@ sample_p_outname = 'sample.params'
 summary_name = 'summary.txt'
 
 km = 1000.
+
+
+_interpolation_choices = ['nearest_neighbor', 'multilinear']
+_structure_choices = ['identity', 'exponential', 'import', 'non-toeplitz']
+_mode_choices = [geometry_mode_str, ffo_mode_str]
+_regularization_choices = ['laplacian', 'none']
+_initialization_choices = ['random', 'lsq']
 
 
 class GFConfig(Object):
@@ -410,9 +416,10 @@ class WaveformFitConfig(Object):
     filterer = Filter.T(default=Filter.D())
     distances = Tuple.T(2, Float.T(), default=(30., 90.))
     interpolation = StringChoice.T(
-        choices=['nearest_neighbor', 'multilinear'],
+        choices=_interpolation_choices,
         default='multilinear',
-        help='GF interpolation sceme')
+        help='GF interpolation sceme. Choices: %s' %
+        utility.list2string(_interpolation_choices))
     arrival_taper = trace.Taper.T(
         default=ArrivalTaper.D(),
         help='Taper a,b/c,d time [s] before/after wave arrival')
@@ -421,9 +428,10 @@ class WaveformFitConfig(Object):
 class SeismicNoiseAnalyserConfig(Object):
 
     structure = StringChoice.T(
-        choices=['identity', 'exponential', 'import', 'non-toeplitz'],
+        choices=_structure_choices,
         default='identity',
-        help='Determines data-covariance matrix structure.')
+        help='Determines data-covariance matrix structure.'
+             ' Choices: %s' % utility.list2string(_structure_choices))
     pre_arrival_time = Float.T(
         default=5.,
         help='Time [s] before synthetic P-wave arrival until '
@@ -532,9 +540,10 @@ class GeodeticConfig(Object):
         help='Flag for calculating the data covariance matrix, '
              'outsourced to "kite"')
     interpolation = StringChoice.T(
-        choices=['nearest_neighbor', 'multilinear'],
+        choices=_interpolation_choices,
         default='multilinear',
-        help='GF interpolation scheme during synthetics generation')
+        help='GF interpolation scheme during synthetics generation.'
+             ' Choices: %s' % utility.list2string(_interpolation_choices))
     fit_plane = Bool.T(
         default=False,
         help='Flag for inverting for additional plane parameters on each'
@@ -584,8 +593,9 @@ class FFOConfig(ModeConfig):
 
     regularization = StringChoice.T(
         default='none',
-        choices=['laplacian', 'trans-dimensional', 'none'],
-        help='Flag for regularization in distributed slip-optimization.')
+        choices=_regularization_choices,
+        help='Flag for regularization in distributed slip-optimization.'
+             ' Choices: %s' % utility.list2string(_regularization_choices))
     npatches = Int.T(
         default=None,
         optional=True,
@@ -594,8 +604,9 @@ class FFOConfig(ModeConfig):
              ' parameters!')
     initialization = StringChoice.T(
         default='random',
-        choices=initialization_modes,
-        help='Initialization of chain starting points, default: random')
+        choices=_initialization_choices,
+        help='Initialization of chain starting points, default: random.'
+             ' Choices: %s' % utility.list2string(_initialization_choices))
 
 
 class ProblemConfig(Object):
@@ -603,22 +614,22 @@ class ProblemConfig(Object):
     Config for optimization problem to setup.
     """
     mode = StringChoice.T(
-        choices=[geometry_mode_str, ffo_mode_str, 'interseismic'],
+        choices=_mode_choices,
         default=geometry_mode_str,
-        help='Problem to solve: "%s", "%s",'
-             ' "interseismic"' % (geometry_mode_str, ffo_mode_str))
+        help='Problem to solve. Choices: %s' %
+        utility.list2string(_mode_choices))
     mode_config = ModeConfig.T(
         optional=True,
         help='Global optimization mode specific parameters.')
     source_type = StringChoice.T(
         default='RectangularSource',
         choices=source_names,
-        help='Source type to optimize for. Options: %s' % (
+        help='Source type to optimize for. Choices: %s' % (
             ', '.join(name for name in source_names)))
     stf_type = StringChoice.T(
         default='HalfSinusoid',
         choices=stf_names,
-        help='Source time function type to use. Options: %s' % (
+        help='Source time function type to use. Choices: %s' % (
             ', '.join(name for name in stf_names)))
     decimation_factors = Dict.T(
         default=None,

@@ -13,9 +13,10 @@ In the following tutorials we will use synthetic example data.
 
    FullMT_regional
 
-In the following example we will use real data.
+In the following examples we will use real data.
 
 .. toctree::
    :maxdepth: 3
 
    Rectangular
+   FFO_static

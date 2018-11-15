@@ -2659,12 +2659,16 @@ def draw_slip_dist(problem, po):
     else:
         outpath = os.path.join(
             problem.outfolder, po.figure_dir,
-            'slip_dist_%i_%s.%s' % (stage.number, llk_str, po.outformat))
+            'slip_dist_%i_%s' % (stage.number, llk_str))
 
         logger.info('Storing slip-distribution to: %s' % outpath)
-        with PdfPages(outpath) as opdf:
-            for fig in figs:
-                opdf.savefig(fig, dpi=po.dpi)
+        if po.outformat == 'pdf':
+            with PdfPages(outpath + '.pdf') as opdf:
+                for fig in figs:
+                    opdf.savefig(fig, dpi=po.dpi)
+        else:
+            for i, fig in enumerate(figs):
+                fig.savefig(outpath + '_%i.%s' % (i, po.outformat), dpi=po.dpi)
 
 
 def _weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=num.inf):
