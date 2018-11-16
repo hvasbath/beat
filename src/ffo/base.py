@@ -723,7 +723,7 @@ filename: %s''' % (
                                 durationidx),
                             location='t0_%.2f' % self.idxs2starttimes(
                                 starttimeidx),
-                            tmin=self.trace_tmin(targetidx, -1))
+                            tmin=self.trace_tmin(targetidx))
                         traces.append(tr)
 
         return traces

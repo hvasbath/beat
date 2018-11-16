@@ -13,10 +13,11 @@ In the following tutorials we will use synthetic example data.
 
    FullMT_regional
 
-In the following examples we will use real data.
+In the following examples we will use real data of the 2009 L'aquila earthquake.
 
 .. toctree::
    :maxdepth: 3
 
    Rectangular
    FFO_static
+   FFO_kinematic
