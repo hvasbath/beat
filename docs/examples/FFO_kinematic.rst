@@ -83,16 +83,6 @@ You will notice now that the lower and upper bounds of the slip parameters *upar
 .. note:: We could not reproduce the plot yet right away as we did not create the *fault_geometry.pkl* object yet.
 
 
-Optimization setup
-^^^^^^^^^^^^^^^^^^
-
-TODO:  arrival taper, filterer, wavemaps
-
-#check data and filter settings
-beat check LaquilaJointPonlyUPDATE_wide_kin --what=traces
-
-
-
 Calculate Green's Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Elementary GFs
@@ -101,6 +91,52 @@ Now the Green's Functions store(s) have to be calculated again for the "geometry
 Running this calculation will take a long time depending on the number of CPUs at hand. (With 25 CPUs the calculation took approximately 15Hrs)::
 
   beat build_gfs Laquila --datatypes='seismic' --execute
+
+
+Data windowing
+^^^^^^^^^^^^^^
+Now we need to decide on the post-processing parameters of the data and synthetics, i.e.:
+ - which phase arrivals
+ - which channels to use
+ - bandpass filtering parameters
+ - tapering- ergo time window around phase arrival  
+
+We can adjust all these setting under the *wavemaps* listed in the *seismic_config.waveforms* attribute::
+
+  waveforms:
+  - !beat.WaveformFitConfig
+    include: true
+    preprocess_data: true
+    blacklist: []
+    name: any_P
+    channels: [Z]
+    filterer: !beat.heart.Filter
+      lower_corner: 0.001
+      upper_corner: 0.5
+      order: 4
+    distances: [30.0, 90.0]
+    interpolation: multilinear
+    arrival_taper: !beat.heart.ArrivalTaper
+      a: -15.0
+      b: -10.0
+      c: 50.0
+      d: 55.0 
+
+Here we see that we use the *any_P* phase, i.e. P waves on the Z component (under *channels*), with a bandpass-filter between 0.001 and 0.5 Hz.
+All the stations in a distance range of 30-90 degrees. If we wanted to throw out a station from the setup, we could write the station name in the *blacklist* as a string.
+The data that is used for the posterior likelihood calculation is defined by the *arrival_taper* b and c value, i.e. here 10 seconds before and 50 seconds after the synthetic P-wave arrival (relative to the *event* location). 
+
+All these values are fine for now- of course the user may change them as it pleases.
+
+To inspect the filtered and tapered data that is being actually used in the optimization execute::
+
+  beat check Laquila_kinematic --what=traces --mode=ff0
+
+.. image:: ../_static/scenario3/datawindowing.png
+
+The first two traces are the full unfiltered data in full length and the tapered filtered data as will be used in the optimization. If the user is not happy with one or the other parameters they can be adjusted and then the *beat check* command as above should be executed again until everything is set-up to the satisfaction of the user.
+
+.. note:: The bandpass-filter and taper parameters will be used as well in the next step to calculate the *linear* Gfs.
 
 GF Library
 ==========
@@ -149,10 +185,7 @@ Please set the lower and upper bounds of the durations to 0. and 4. seconds, res
 
 Also we need to specify the bounds on the rupture velocities. The shear-wave velocity from the velocity model is a good proxy for that. So please set the lower and upper bounds on the velocities to 2.2 and 4.5 [km/s], respectively. These velocities are sampled for each patch individually and indirectly determine the rupture onset time of each patch depending on the hypocentral location (*nucleation_dip* and *nucleation_strike*). To assure causal rupture propagation starting from the hypocentre the Eikonal equation is solved each forward calculation, which then determines the rupture onset time on each patch [Minson2013]_.
 
-
-
-TODO: hypocentral time (shift),
-
+So far we defined everything with respect to the hypocentre, but we have to keep in mind that its location and the hypocentral time are unknowns as well. The time-shift with respect to the *event.time* has been determined in Scenario I before roughly assuming constant rupture velocity and uniform slip on the RectangularSource. Likely, the refined hypocentral time in this optimization will be converging to a similar time estimate as previously determined. This previously determined timing information has been imported as well in the "import results" - step. However, these bounds should be relaxed again as we are using different frequency content in the data and we allow for a much complexer optimization setup. Please set the lower and upper bounds for the *time* to -13. and 0., respectively.
 
 
 Finally, we are left with specifying the *duration_sampling* and *starttime_sampling* under the *seismic_config.gf_config*. These determine the steps taken between the upper and lower bounds for the *durations* and the discrete starttime-shifts.
@@ -168,9 +201,10 @@ Now we are ready to calculate the seismic GF *library*. Depending on the priors 
 
 .. warning:: The seismic GF *libraries* can become very fast very big if the prior bounds are set too wide. These matrixes (two, i.e. one for each slip-component) have to be able to fit in the memory of your computer during sampling.
 
-Like for the geodetic GFs this will create two files for each GF *library* in the **$linear_gfs** directory:
+Like for the geodetic GFs this will create three files for each GF *library* in the **$linear_gfs** directory:
  - *seismic_uparr_static_0.traces.npy* a numpy array containing the linear GFs
  - *seismic_uparr_static_0.yaml* a yaml file with the meta information
+ - *seismic_uparr_any_P_0.times.npy* a numpy array containing the start-times of each trace
 
 For visual inspection of the resulting seismic traces in the "snuffler" waveform browser::
 
@@ -180,13 +214,100 @@ This will load the seismic traces for the first station (target), for all patche
 
 .. image:: ../_static/scenario3/uparr_library_gf.png
 
-Here we see the slip parallel traces for patch 0, at starttime (t0) of -1s (after the hypocentral source time) and slip durations(tau) of 0. and 0.25[s].
+Here we see the slip parallel traces for patch 0, at starttime (t0) of -1s (after the hypocentral source time wrt. the *event.time*(see time- explanation above)) and slip durations(tau) of 0. and 0.25[s].
 
 
+Sample the solution space
+^^^^^^^^^^^^^^^^^^^^^^^^^
+Please refer to the 'Sample the solution space section' of `Scenario 0 <https://hvasbath.github.io/beat/examples.html#sample-the-solution-space>`__ scenario for a more detailed description of the sampling and associated parameters.
+
+Firstly, we only optimize for the noise scaling or hyperparameters (HPs) including the laplacian smoothing weight::
+
+   beat sample Laquila_kinematic --hypers --mode=ffo
+
+Checking the $project_directory/config_ffo.yaml, the hyperparameter bounds show something like::
+
+   hyperparameters:
+   h_SAR: !beat.heart.Parameter
+     name: h_SAR
+     form: Uniform
+     lower: [-1.0]
+     upper: [5.0]
+     testvalue: [2.0]
+   h_any_P_0_Z: !beat.heart.Parameter
+     name: h_any_P_0_Z
+     form: Uniform
+     lower: [0.0]
+     upper: [4.0]
+     testvalue: [1.5]
+   h_laplacian: !beat.heart.Parameter
+     name: h_laplacian
+     form: Uniform
+     lower: [-5.0]
+     upper: [5.0]
+     testvalue: [0.5]
 
 
+Markov Chain initialization
+===========================
+The *initialization* argument determines at which point in the solution space to initialize the Markov Chains. In Scenario II we set this argument to *lsq*.
+Here we are going to use *random* again, please set it now! We initially narrowed down the slip-parameters by importing the results from Scenario II. Thus, we already have a pretty good estimate on how the slip-distribution should look like, explaining the geodetic data reasonably well.
+
+The 'n_jobs' number should be set to as many CPUs as the user can spare under the *sampler_config*. The number of sampled MarkovChains and the number of steps for each chain of the SMC sampler should be set to high values as we are optimizing now for ca 500 random variables (if the values from the tutorial haven't been altered by the user); for example to 8000 and 400, respectively.
+
+.. warning:: With these sampler parameters a huge amount of samples are going to be stored to disk! Please see `Scenario 0 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#summarize-the-results>`__ for an instruction on how to keep only the important samples to reduce the disk usage.
+
+Finally, we are set to run the full optimization for the static slip-distribution with::
+
+  beat sample Laquila_kinematic --mode=ffo
 
 
-beat sample LaquilaJointPonlyUPDATE_wide_kin --mode=ffo
+Summarize and plotting
+^^^^^^^^^^^^^^^^^^^^^^
+After the sampling successfully finished, the final stage results have to be summarized with::
 
--
+ beat summarize Laquila_kinematic --stage_number=-1 --mode=ffo
+
+After that several figures illustrating the results can be created.
+
+For the kineamtic slip-distribution please run::
+
+  beat plot Laquila_kinematic slip_distribution --mode=ffo
+
+.. image:: ../_static/scenario3/slip_distribution_-1_max.png
+
+Compared to Scenario II we also see here the location of the hypocentre (black star) as well as the fuzzy rupture fronts based on the posterior ensemble of solutions.
+
+To get histograms for the laplacian smoothing, the noise scalings, the hypocentral parameters and the posterior likelihood please run::
+
+  beat plot Laquila_kinematic stage_posteriors --mode=ffo --force --stage_number=-1 --varnames=h_laplacian,h_any_P_0_Z,h_SAR,nucleation_dip,nucleation_strike,time,like
+
+.. image:: ../_static/scenario3/stage_-1_max.png
+
+For a comparison between data, synthetic displacements and residuals for the two InSAR tracks in a local coordinate system please run::
+
+  beat plot Laquila_kinematic scene_fits --mode=ffo
+
+.. image:: ../_static/scenario3/scenes_-1_max_local_0.png
+
+The plot should show something like this. Here the residuals are displayed with an individual color scale according to their minimum and maximum values.
+
+For a plot using the global geographic coordinate system where the residuals have the same color bar as data and synthetics please run::
+
+  beat plot Laquila_kinematic scene_fits --mode=ffo --plot_projection=latlon
+
+.. image:: ../_static/scenario3/scenes_-1_max_latlon_0.png
+
+For the waveformfits::
+
+  beat plot Laquila_kinematic waveform_fits --mode=ffo
+
+.. image:: ../_static/scenario3/waveforms_-1_max_0.png
+
+For the fuzzy moment rate function::
+
+  beat plot Laquila_kinematic moment_rate --mode=ffo 
+
+.. image:: ../_static/scenario3/moment_rate_-1_0_max.png
+
+Here the MAP moment rate function is displayed by the black solid line.
