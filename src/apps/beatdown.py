@@ -644,19 +644,35 @@ def main():
 
     nsl_to_sites = defaultdict(list)
     nsl_to_station = {}
+
+    if options.selection_file:
+        logger.info('using stations from stations file!')
+        stations = []
+        for fn in options.selection_file:
+            stations.extend(model.load_stations(fn))
+
+        nsls_selected = set(s.nsl() for s in stations)
+    else:
+        nsls_selected = None
+
     for sx, site in zip(sxs, sites):
         site_stations = sx.get_pyrocko_stations()
         for s in site_stations:
             nsl = s.nsl()
+
             nsl_to_sites[nsl].append(site)
             if nsl not in nsl_to_station:
-                nsl_to_station[nsl] = s  # using first site with this station
-    logger.info('number of stations found: %i' % len(nsl_to_station))
+                if nsls_selected:
+                    if nsl in nsls_selected:
+                        nsl_to_station[nsl] = s
+                else:
+                    nsl_to_station[nsl] = s  # using first site with this station
+
+        logger.info('number of stations found: %i' % len(nsl_to_station))
 
     # station weeding
-
-    nsls_selected = None
     if options.nstations_wanted:
+        nsls_selected = None
         stations_all = [
             nsl_to_station[nsl_] for nsl_ in sorted(nsl_to_station.keys())]
 
@@ -706,24 +722,12 @@ def main():
                 continue
 
             selection = []
-            if options.selection_file:
-                stations = []
-                channels = {}
-                for fn in options.selection_file:
-                    stations.extend(model.load_stations(fn))
-                for st in stations:
-                    for cha in st.channels:
-                        cha.latitude = st.lat
-                        cha.longitude = st.lon
-                        cha.sample_rate = target_sample_rate
-                        channels[st.nsl() + (cha.name,)] = cha
-            else:
-                channels = sx.choose_channels(
-                    target_sample_rate=target_sample_rate,
-                    priority_band_code=priority_band_code,
-                    priority_units=priority_units,
-                    priority_instrument_code=priority_instrument_code,
-                    timespan=(tmin_win, tmax_win))
+            channels = sx.choose_channels(
+                target_sample_rate=target_sample_rate,
+                priority_band_code=priority_band_code,
+                priority_units=priority_units,
+                priority_instrument_code=priority_instrument_code,
+                timespan=(tmin_win, tmax_win))
 
             for nslc in sorted(channels.keys()):
                 if nsls_selected is not None and nslc[:3] not in nsls_selected:
@@ -756,7 +760,7 @@ def main():
                     tmin_, tmax_ = timewindow(time_, dist, depth_)
 
                     tmin_this = tmin_ - tpad
-                    tmax_this = tmax_ + tpad
+                    tmax_this = float(tmax_ + tpad)
 
                     tmin_req = max(tmin_win, tmin_this)
                     tmax_req = min(tmax_win, tmax_this)

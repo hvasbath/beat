@@ -347,11 +347,11 @@ systems.
 
 The beatdown command for downloading FDSN data can be executed in different formats, e.g. by giving an event time or an event name.
 It will download all wanted data in a given radius around the origin. For a complete list of input options
-please use:
+please use::
 
     beatdown --help
     
-An example line to download and prepare the data for the 2009 L'Aquila earthquake would be:
+An example line to download and prepare the data for the 2009 L'Aquila earthquake would be::
 
     beatdown /path/to/project_directory "2009-04-06 01:32:39" 1000. 0.001 5. Laquila
     
@@ -364,7 +364,7 @@ It may be desired to automatically pre-selected a subset of stations from all av
 based on data quality and separation of stations. The option --nstations-wanted enables such a station
 weeding and tries to find a suitable subset of stations close to the number provided. The actual resulting
 station number might vary based on station distribution and quality. For the above
-example we might want to use around 60 stations, so the command line for that would look like:
+example we might want to use around 60 stations, so the command line for that would look like::
 
     beatdown /path/to/home_directory "2009-04-06 01:32:39" 1000. 0.001 5. Laquila --nstations-wanted=60
                                
@@ -641,10 +641,9 @@ This will load the parameters from the "geometry" problem and import them to the
       duration_sampling: 1.0
       starttime_sampling: 1.0
 
-In the next step again Green's Functions have to be calculated. What? Again? That's right! This time the geometry of the source needs to be specified. This is defined under the "reference_sources" attribute (see above). The distance units are [m], the angles [deg] and the slip [m]. If an optimization for these "geometry" parameters has been completed, the maximum likelihood result may be imported
-with.::
+In the next step again Green's Functions have to be calculated. What? Again? That's right! This time the geometry of the source needs to be specified. This is defined under the "reference_sources" attribute (see above). The distance units are [m], the angles [deg] and the slip [m]. If an optimization for these "geometry" parameters has been completed, the maximum likelihood result may be imported with.::
 
-    beat import FFOproject --results --datatypes='seismic' --mode='ffo'
+    beat import FFOproject --results=/path_to_geometry_project --datatypes='seismic' --mode='geometry'
 
 If not, the parameters would need to be adjusted manually based on a-priori information from structural geology, literature or ...
 Additionally, the discretization of the subpatches along this reference fault has to be set. The parameters "patch_width" and "patch_length" [km] determine these. So far only square patches are supported. "extension_width" and "extension_length" determine by how much the refernce fault is extended in EACH direction. If this would result in a fault that cuts the surface the intersection with the surface at zero depth is used. Example: 0.1 means that the fault is extended by 10% of its with/length value in each direction and 0. means no extension.
