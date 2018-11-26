@@ -772,13 +772,17 @@ def main():
                     else:
                         deltat = 1.0
 
+                    deltat = round(deltat, 3)
                     if tmin_req < tmax_req:
+                        logger.debug('deltat %f' % deltat)
                         # extend time window by some samples because otherwise
                         # sometimes gaps are produced
+                        # apparently the WS are only sensitive to full seconds
+                        # round to avoid gaps, increase safetiy window
                         selection.append(
                             nslc + (
-                                tmin_req - deltat * 10.0,
-                                tmax_req + deltat * 10.0))
+                                tmin_req - math.floor(deltat * 20.0),
+                                tmax_req + math.ceil(deltat * 20.0)))
             if options.dry_run:
                 for (net, sta, loc, cha, tmin, tmax) in selection:
                     available_through[net, sta, loc, cha].add(site)
@@ -812,8 +816,24 @@ def main():
 
                         trs = io.load(f.name)
                         for tr in trs:
+                            tr.deltat = deltat
+                            logger.debug(
+                                'cutting window: %f - %f' %
+                                (tmin_win, tmax_win))
+                            logger.debug(
+                                'available window: %f - %f, nsamples: %g' %
+                                (tr.tmin, tr.tmax, tr.ydata.size))
                             try:
-                                tr.chop(tmin_win, tmax_win)
+                                logger.debug('tmin before snap %f' % tr.tmin)
+                                tr.snap()
+                                logger.debug('tmin after snap %f' % tr.tmin)
+                                tr.chop(
+                                    tmin_win, tmax_win,
+                                    snap=(math.floor, math.ceil),
+                                    include_last=True)
+                                logger.debug(
+                                    'cut window: %f - %f, nsamles: %g' %
+                                    (tr.tmin, tr.tmax, tr.ydata.size))
                                 have_data.add(tr.nslc_id)
                                 have_data_site[site].add(tr.nslc_id)
                             except trace.NoData:
