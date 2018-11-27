@@ -772,7 +772,6 @@ def main():
                     else:
                         deltat = 1.0
 
-                    deltat = round(deltat, 3)
                     if tmin_req < tmax_req:
                         logger.debug('deltat %f' % deltat)
                         # extend time window by some samples because otherwise
@@ -815,7 +814,7 @@ def main():
 
                         trs = io.load(f.name)
                         for tr in trs:
-                            tr.deltat = deltat
+                            tr.fix_deltat_rounding_errors()
                             logger.debug(
                                 'cutting window: %f - %f' %
                                 (tmin_win, tmax_win))
