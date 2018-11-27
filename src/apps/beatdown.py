@@ -766,9 +766,9 @@ def main():
                     tmax_req = min(tmax_win, tmax_this)
                     if channel.sample_rate:
                         try:
-                            deltat = 1.0 / channel.sample_rate.value
+                            deltat = 1.0 / int(channel.sample_rate.value)
                         except:
-                            deltat = 1.0 / channel.sample_rate
+                            deltat = 1.0 / int(channel.sample_rate)
                     else:
                         deltat = 1.0
 
@@ -781,8 +781,8 @@ def main():
                         # round to avoid gaps, increase safetiy window
                         selection.append(
                             nslc + (
-                                tmin_req - math.floor(deltat * 20.0),
-                                tmax_req + math.ceil(deltat * 20.0)))
+                                math.floor(tmin_req - deltat * 20.0),
+                                math.ceil(tmax_req + deltat * 20.0)))
             if options.dry_run:
                 for (net, sta, loc, cha, tmin, tmax) in selection:
                     available_through[net, sta, loc, cha].add(site)
@@ -793,7 +793,6 @@ def main():
                 nbatches = ((len(selection) - 1) // neach) + 1
                 while i < len(selection):
                     selection_now = selection[i:i + neach]
-
                     f = tempfile.NamedTemporaryFile()
                     try:
                         sbatch = ''
@@ -825,7 +824,7 @@ def main():
                                 (tr.tmin, tr.tmax, tr.ydata.size))
                             try:
                                 logger.debug('tmin before snap %f' % tr.tmin)
-                                tr.snap()
+                                tr.snap(interpolate=True)
                                 logger.debug('tmin after snap %f' % tr.tmin)
                                 tr.chop(
                                     tmin_win, tmax_win,
