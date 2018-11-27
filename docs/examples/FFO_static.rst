@@ -204,11 +204,11 @@ Once happy with the displayed changes the changes will be applied to the file wi
 
 Sample the solution space
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-Please refer to the 'Sample the solution space section' of `Scenario 0 <https://hvasbath.github.io/beat/examples.html#sample-the-solution-space>`__ scenario for a more detailed description of the sampling and associated parameters.
+Please refer to the 'Sample the solution space section' of `Scenario 0 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#sample-the-solution-space>`__ scenario for a more detailed description of the sampling and associated parameters.
 
 Firstly, we only optimize for the noise scaling or hyperparameters (HPs) including the laplacian smoothing weight::
 
-   beat sample Laquila --hypers
+   beat sample Laquila --hypers --mode=ffo
 
 Checking the $project_directory/config_ffo.yaml, the hyperparameter bounds show something like::
 
@@ -219,12 +219,12 @@ Checking the $project_directory/config_ffo.yaml, the hyperparameter bounds show 
      lower: [-1.0]
      upper: [5.0]
      testvalue: [2.0]
-    h_laplacian: !beat.heart.Parameter
-      name: h_laplacian
-      form: Uniform
-      lower: [-5.0]
-      upper: [5.0]
-      testvalue: [0.5]
+   h_laplacian: !beat.heart.Parameter
+     name: h_laplacian
+     form: Uniform
+     lower: [-5.0]
+     upper: [5.0]
+     testvalue: [0.5]
 
 
 Markov Chain initialization
