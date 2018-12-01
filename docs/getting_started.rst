@@ -349,12 +349,12 @@ The beatdown command for downloading FDSN data can be executed in different form
 It will download all wanted data in a given radius around the origin. For a complete list of input options
 please use::
 
-    beatdown --help
-    
+  beatdown --help
+
 An example line to download and prepare the data for the 2009 L'Aquila earthquake would be::
 
-    beatdown /path/to/project_directory "2009-04-06 01:32:39" 1000. 0.001 5. Laquila
-    
+  beatdown /path/to/project_directory "2009-04-06 01:32:39" 1000. 0.001 5. Laquila
+
 This command downloads the available data for the event at time 2009-04-06 01:32:39 in a
 radius of 1000 km restitutes the traces to frequencies between 0.001 and 5. Hz and saves them in the folder
 /path/to/project_directory/data/events/Laquila. Additionally it creates a seismic_data.pkl into the "project_directory", which will
@@ -366,8 +366,8 @@ weeding and tries to find a suitable subset of stations close to the number prov
 station number might vary based on station distribution and quality. For the above
 example we might want to use around 60 stations, so the command line for that would look like::
 
-    beatdown /path/to/home_directory "2009-04-06 01:32:39" 1000. 0.001 5. Laquila --nstations-wanted=60
-                               
+  beatdown /path/to/home_directory "2009-04-06 01:32:39" 1000. 0.001 5. Laquila --nstations-wanted=60
+
 
 Data import
 ===========
@@ -407,12 +407,10 @@ The seismic data may be saved using the package "pickle" as a file "seismic_data
 Pyrocko supports the import of various data formats and all the necessary tools to remove the instrument response and to convert the traces to displacement.
 How to do this based on some examples is shown `here <https://pyrocko.org/docs/current/library/examples/trace_handling.html#restitute-to-displacement-using-poles-and-zeros>`__ webpage.
 
-For import from obspy you can use the following pyrocko commands to convert your obspy data into pyrocko data and obspy inventories to pyrocko stations:
-
-   `obspy_to_pyrocko conversion <https://pyrocko.org/docs/current/library/reference/obspy_compat.html#pyrocko.obspy_compat.plant>`__
-
+For import from obspy you can checkout the `obspy_compat <https://pyrocko.org/docs/current/library/reference/obspy_compat.html#pyrocko.obspy_compat.plant>`__
+pyrocko module to convert your obspy data into pyrocko data and obspy inventories to pyrocko stations.
 Once you have done this the standard pyrocko traces will need to be converted to beat trace objects, this is done simply, assuming that "traces"
-is a list of pyrocko trace objects, by:
+is a list of pyrocko trace objects, by::
 
     from beat import heart
     traces_beat = []

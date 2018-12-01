@@ -163,14 +163,28 @@ The seismic phases for which the GFs are going to be calculated are defined unde
           c: 250.0
           d: 270.0
 
-In this case the GFs are going to be calculated for the P body waves as can be seen by the "name" parameter "any_P". How to calculate GFs also for S or surface waves is discussed in `Scenario 0 <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__.
+In this case the GFs are going to be calculated for the P body waves as can be seen by the "name" parameter "any_P". How to calculate GFs also for S or surface waves is discussed in `Scenario 0 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#calculate-greens-functions>`__.
 
 The specifications for the Green's Functions are fine now and we can start the setup with::
 
   beat build_gfs Laquila --datatypes='seismic' --execute
 
+To check if the calculated GF stores are complete please run::
 
-.. note:: Please also see `Scenario 0 <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__ for more detailed instructions like quality control.
+  beat check Laquila --what=stores
+
+Everything worked well if the output is like that::
+
+  heart        - INFO     Checking stores for empty traces ...
+  beat         - WARNING  Store(s) with empty traces! : [] 
+
+If there are stores with empty traces please rerun::
+
+  beat build_gfs Laquila --datatypes='seismic' --execute --force
+
+In case the holes still persist likely the velocity model has to be adjusted. 
+
+.. note:: Please also see `Scenario 0 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#calculate-greens-functions>`__ for more detailed instructions like quality control.
 
 
 Optimization setup
@@ -237,7 +251,7 @@ These two commands could also be executed in one line.::
 
 Sample the solution space
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-Please refer to the 'Sample the solution space section' of `Scenario 0 <https://hvasbath.github.io/beat/examples.html#sample-the-solution-space>`__ scenario for a more detailed description of the sampling and associated parameters.
+Please refer to the 'Sample the solution space section' of `Scenario 0 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#sample-the-solution-space>`__ scenario for a more detailed description of the sampling and associated parameters.
 
 Firstly, we only optimize for the noise scaling or hyperparameters (HPs)::
 

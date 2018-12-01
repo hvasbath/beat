@@ -214,12 +214,12 @@ This will load the seismic traces for the first station (target), for all patche
 
 .. image:: ../_static/scenario3/uparr_library_gf.png
 
-Here we see the slip parallel traces for patch 0, at starttime (t0) of -1s (after the hypocentral source time wrt. the *event.time*(see time- explanation above)) and slip durations(tau) of 0. and 0.25[s].
+Here we see the slip parallel traces for patch 0, at starttime (t0) of -1s (after the hypocentral source time wrt. the *event.time* (see time explanation above) and slip durations(tau) of 0. and 0.25[s].
 
 
 Sample the solution space
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-Please refer to the 'Sample the solution space section' of `Scenario 0 <https://hvasbath.github.io/beat/examples.html#sample-the-solution-space>`__ scenario for a more detailed description of the sampling and associated parameters.
+Please refer to the 'Sample the solution space section' of `Scenario 0 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#sample-the-solution-space>`__ scenario for a more detailed description of the sampling and associated parameters.
 
 Firstly, we only optimize for the noise scaling or hyperparameters (HPs) including the laplacian smoothing weight::
 
