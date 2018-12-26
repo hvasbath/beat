@@ -182,8 +182,8 @@ seismic_config: !beat.SeismicConfig
     n_variations: [0, 1]
     earth_model_name: ak135-f-continental.m
     nworkers: 4
-    use_crust2: true
-    replace_water: true
+    use_crust2: false
+    replace_water: false
     source_depth_min: 0.0
     source_depth_max: 30.0
     source_depth_spacing: 4.0

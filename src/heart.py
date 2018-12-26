@@ -1319,7 +1319,7 @@ def get_velocity_model(
             logger.debug('Not replacing water layers')
 
         source_model = cake.load_model(
-            earth_model_name, crust2_profile=profile).extract(depth_max='cmb')
+            earth_model_name, crust2_profile=profile)
 
     else:
         logger.info('Using global model ...')
