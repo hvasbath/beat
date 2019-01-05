@@ -367,7 +367,7 @@ intersphinx_mapping = {
     'python': ('https://docs.python.org/', None),
     'numpy': ('http://docs.scipy.org/doc/numpy/', None),
     'pymc3': ('http://pymc-devs.github.io/pymc3/', None),
-    'pyrocko': ('http://pyrocko.org/v0.3/', None),
+    'pyrocko': ('http://pyrocko.org/', None),
     'theano': ('http://deeplearning.net/software/theano/', None)
 }
 
