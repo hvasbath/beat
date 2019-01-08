@@ -5,7 +5,7 @@ In this scenario we will explore the parameter space of a Rectangular Source [Ok
 It is up to the user to decide, which data is going to be used in the optimization, teleseismic waveforms and/or geodetic data.
 
 The geodetic data consists of two static displacements data sets from the 06.04.2009 Mw6.3 L'Aquila earthquake. The data are InSAR displacement maps from ascending
-and descending orbits. 
+and descending orbits.
 The data has been pre-processed with `kite <https://github.com/pyrocko/kite>`__. For details on the use and data display we refer to the tutorial on the website.
 
 .. image:: ../_static/scenario1/Laquila_asc.png
@@ -78,7 +78,7 @@ You can also change the number of cores available to your system with the variab
 The GF grid spacing is important and can be modified in x,y direction with 'source_distance_spacing' and in depth with 'source_depth_spacing'.
 The grid extent can be modified by 'source_distance_radius'. All the units are given in [km].
 
-.. note:: Please keep the extent of the expected finite rectangular fault in mind! The source grid has to cover **always** the **complete** fault!. **Example**: For a fault with expected width between 10 - 15 km with, a dip of 70-90 degrees and an upper edge depth of 0-2. km; the depth grid of the GF store (including safety buffer) has to range from: 0. km to 17.5 km 
+.. note:: Please keep the extent of the expected finite rectangular fault in mind! The source grid has to cover **always** the **complete** fault!. **Example**: For a fault with expected width between 10 - 15 km with, a dip of 70-90 degrees and an upper edge depth of 0-2. km; the depth grid of the GF store (including safety buffer) has to range from: 0. km to 17.5 km
 
 The GF parameters for the 2009 L'Aquila static example are good for now.::
 
@@ -128,17 +128,17 @@ In the $project_path/config_geometry.yaml under seismic config we find the gf_co
     sample_rate: 0.5
     rm_gfs: true
 
-Here we see that we use the global velocity model ak135 for all the stations. We could decide to use the CRUST2.0 model [Bassin2000]_ (set use_crust2: True) to replace the shallow crustal model, so that each station would have an individual velocity model depending on their location. 
+Here we see that we use the global velocity model ak135 for all the stations. We could decide to use the CRUST2.0 model [Bassin2000]_ (set use_crust2: True) to replace the shallow crustal model, so that each station would have an individual velocity model depending on their location.
 Below are the grid definitions of the GFs. These grid sampling parameters as well as the sample rate are of major importance for the overall optimization.
 With such a setup, Greens Function stores for each station named $station_name_ak135_0.500Hz_0 are going to be created in the $GF_path.
 The respective distance grid of GFs is relative to each station-event distance.
 
-.. note:: **Example**: The event-station distance is 1000 km and source_distance_radius is set to 60 km, the resulting distance grid will be from 940 to 1060 km. 
+.. note:: **Example**: The event-station distance is 1000 km and source_distance_radius is set to 60 km, the resulting distance grid will be from 940 to 1060 km.
 
 How to adjust the other parameters such as the grid spacing and the sample_rate are very problem dependend.
 Rule of thumbs for setting these parameters for other individual studies are discussed `here <https://pyrocko.org/docs/current/apps/fomosto/tutorial.html#considerations-for-real-world-applications>`__.
 
-.. note:: Please keep the extent of the expected finite rectangular fault in mind! The source grid has to cover **always** the **complete** fault!. **Example**: For a fault with expected width between 10 - 15 km with, a dip of 70-90 degrees and an upper edge depth of 0-2. km; the depth grid of the GF store (including safety buffer) has to range from: 0. km to 17.5 km 
+.. note:: Please keep the extent of the expected finite rectangular fault in mind! The source grid has to cover **always** the **complete** fault!. **Example**: For a fault with expected width between 10 - 15 km with, a dip of 70-90 degrees and an upper edge depth of 0-2. km; the depth grid of the GF store (including safety buffer) has to range from: 0. km to 17.5 km
 
 The 'nworkers' variable defines the number of CPUs to use in parallel for the GF calculations. As these calculations may become very expensive and time-consuming it is of advantage to use as many CPUs as available. To be still able to navigate in your Operating System without crashing the system it is recommended to leave at least one CPU work-less. Please edit the 'nworkers' parameter now!
 
@@ -176,13 +176,13 @@ To check if the calculated GF stores are complete please run::
 Everything worked well if the output is like that::
 
   heart        - INFO     Checking stores for empty traces ...
-  beat         - WARNING  Store(s) with empty traces! : [] 
+  beat         - WARNING  Store(s) with empty traces! : []
 
 If there are stores with empty traces please rerun::
 
   beat build_gfs Laquila --datatypes='seismic' --execute --force
 
-In case the holes still persist likely the velocity model has to be adjusted. 
+In case the holes still persist likely the velocity model has to be adjusted.
 
 .. note:: Please also see `Scenario 0 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#calculate-greens-functions>`__ for more detailed instructions like quality control.
 
@@ -198,7 +198,7 @@ The parameters to explore are the sources east_shift, north_shift, depth, strike
 The unit for slip is [m] and for all the other length measures (length, width, depth etc...) it is [km]. The angles (strike, dip and rake) are given in [degree].
 If **seismic** data is used, also kinematic parameters as source time, duration, nucleation_x, nucleation_y are optimized for (assuming constant rupture velocity of 3.5km/s).
 
-Often there the user has some apriori knowledge about the parameters of the Rectangular Source. These can be defined under the "priors" dictionary in the problem_config section.  
+Often there the user has some apriori knowledge about the parameters of the Rectangular Source. These can be defined under the "priors" dictionary in the problem_config section.
 Here is an example::
 
    priors:
@@ -214,7 +214,7 @@ Here is an example::
 
 However, for the L'Aquila example we are now satisfied with the pre-set priors, in the config_geometry.yaml file. These are chosen with broad bounds around the reference solution, demonstrating a case where some prior knowledge is available. This allows for a faster search of the solution space.
 
-The 'decimation_factor' variable controls how detailed the displacement from the source should be calculated. 
+The 'decimation_factor' variable controls how detailed the displacement from the source should be calculated.
 High numbers allow for faster calculation through each forward calculation, but the accuracy will be lower.
 The sub variable 'geodetic' controls the decimation for the geodetic data only.
 As the datasets for the L'Aquila earthquake example consist of subsampled datasets at a low resolution, we can set the decimation_factor to 4.
@@ -281,7 +281,7 @@ After the sampling successfully finished, the final stage results have to be sum
 
  beat summarize Laquila --stage_number=-1
 
-After that several figures illustrating the results can be created. (TODO: To do so the **kite** software needs to be installed and the FULL original data needs to be downloaded and put into the specified data path).
+After that several figures illustrating the results can be created. To do so the **kite** software needs to be installed and the original displacement data needs to be downloaded `here <https://github.com/braunfuss/laquila_kite_container>`__. They need to be put into the specified data path given under "datadir" in the geodetic_config section of the configuration file.
 For a comparison between data, synthetic displacements and residuals for the two InSAR tracks in a local coordinate system please run::
 
   beat plot Laquila scene_fits
