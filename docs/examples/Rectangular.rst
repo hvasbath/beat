@@ -281,7 +281,7 @@ After the sampling successfully finished, the final stage results have to be sum
 
  beat summarize Laquila --stage_number=-1
 
-After that several figures illustrating the results can be created. To do so the **kite** software needs to be installed and the original displacement data needs to be downloaded `here <https://github.com/braunfuss/laquila_kite_container>`__. They need to be put into the specified data path given under "datadir" in the geodetic_config section of the configuration file.
+After that, several figures illustrating the results can be created. To do so the **kite** software needs to be installed and the original displacement data needs to be downloaded `here <https://github.com/braunfuss/laquila_kite_container>`__. They need to be put into the specified data path given under "datadir" in the geodetic_config section of the configuration file.
 For a comparison between data, synthetic displacements and residuals for the two InSAR tracks in a local coordinate system please run::
 
   beat plot Laquila scene_fits

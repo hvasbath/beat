@@ -197,6 +197,7 @@ Adding the --diff option will display the changes to the config to screen instea
   beat update Laquila --mode=ffo --diff --parameters=hypers
 
 Once happy with the displayed changes the changes will be applied to the file with::
+
   beat update Laquila --mode=ffo --parameters=hypers
 
 .. note:: The *None* regularization would be used if covariance matrices that describe the theory errors for the velocity model and/or the fault geometry have been estimated [Duputel2014]_ , [Ragon2018]_. How to do that in BEAT will be part of another tutorial in the future.
