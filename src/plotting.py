@@ -3031,6 +3031,119 @@ def source_geometry(fault, ref_sources):
     plt.show()
 
 
+def draw_station_map(problem, po):
+    import matplotlib.ticker as mticker
+
+    try:
+        import cartopy as ctp
+    except ImportError:
+        logger.error(
+            'Cartopy is not installed.'
+            'For a station map cartopy needs to be installed!')
+
+    def draw_gridlines(ax):
+        gl = ax.gridlines(crs=grid_proj, color='black', linewidth=0.5)
+        gl.n_steps = 300
+        gl.xlines = False
+        gl.ylocator = mticker.FixedLocator([30, 60, 90])
+
+    fontsize = 12
+
+    if 'seismic' not in problem.config.problem_config.datatypes:
+        raise TypeError(
+            'Station map is available only for seismic stations!'
+            ' However, the datatypes do not include "seismic" data')
+
+    event = problem.config.event
+
+    sc = problem.composites['seismic']
+
+    mpl_init(fontsize=fontsize)
+    stations_proj = ctp.crs.PlateCarree()
+    for wmap in sc.wavemaps:
+        outpath = os.path.join(
+            problem.outfolder, po.figure_dir, 'station_map_%s_%i.%s' % (
+                wmap.name, wmap.mapnumber, po.outformat))
+
+        if not os.path.exists(outpath) or po.force:
+            if max(wmap.config.distances) > 30:
+                map_proj = ctp.crs.Orthographic(
+                    central_longitude=event.lon, central_latitude=event.lat)
+                extent = None
+            else:
+                max_dist = math.ceil(wmap.config.distances[1])
+                map_proj = ctp.crs.PlateCarree()
+                extent = [
+                    event.lon - max_dist, event.lon + max_dist,
+                    event.lat - max_dist, event.lat + max_dist]
+
+            grid_proj = ctp.crs.RotatedPole(
+                pole_longitude=event.lon, pole_latitude=event.lat)
+            fig, ax = plt.subplots(
+                nrows=1, ncols=1, figsize=mpl_papersize('a6', 'landscape'),
+                subplot_kw={'projection': map_proj})
+
+            stations_meta = [
+                (station.lat, station.lon, station.station)
+                for station in wmap.stations]
+
+            if extent:
+                # regional map
+                labelpos = mpl_margins(
+                    fig, left=2, bottom=2, top=2, right=2, units=fontsize)
+
+                import cartopy.feature as cfeature
+                from cartopy.mpl.gridliner import \
+                    LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+
+                ax.set_extent(extent, crs=map_proj)
+                ax.add_feature(cfeature.NaturalEarthFeature(
+                    category='physical', name='land',
+                    scale='50m', **cfeature.LAND.kwargs))
+                ax.add_feature(cfeature.NaturalEarthFeature(
+                    category='physical', name='ocean',
+                    scale='50m', **cfeature.OCEAN.kwargs))
+
+                gl = ax.gridlines(
+                    color='black', linewidth=0.5, draw_labels=True)
+                gl.ylocator = tick.MaxNLocator(nbins=5)
+                gl.xlocator = tick.MaxNLocator(nbins=5)
+                gl.xlabels_top = False
+                gl.ylabels_right = False
+                gl.xformatter = LONGITUDE_FORMATTER
+                gl.yformatter = LATITUDE_FORMATTER
+
+            else:
+                # global teleseismic map
+                labelpos = mpl_margins(
+                    fig, left=1, bottom=1, top=1, right=1, units=fontsize)
+
+                ax.coastlines(linewidth=0.2)
+                draw_gridlines(ax)
+                ax.stock_img()
+
+            for (lat, lon, name) in stations_meta:
+                ax.plot(
+                    lon, lat, 'r^', transform=stations_proj,
+                    markeredgecolor='black', markeredgewidth=0.3)
+                ax.text(
+                    lon, lat, name, fontsize=10, transform=stations_proj,
+                    horizontalalignment='center', verticalalignment='top')
+
+            ax.plot(
+                event.lon, event.lat, '*', transform=stations_proj,
+                markeredgecolor='black', markeredgewidth=0.3, markersize=12,
+                markerfacecolor=scolor('butter1'))
+            if po.outformat == 'display':
+                plt.show()
+            else:
+                logger.info('saving figure to %s' % outpath)
+                fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
+
+        else:
+            logger.info('Plot exists! Use --force to overwrite!')
+
+
 plots_catalog = {
     'correlation_hist': draw_correlation_hist,
     'stage_posteriors': draw_posteriors,
@@ -3040,7 +3153,8 @@ plots_catalog = {
     'slip_distribution': draw_slip_dist,
     'hudson': draw_hudson,
     'fuzzy_beachball': draw_fuzzy_beachball,
-    'moment_rate': draw_moment_rate}
+    'moment_rate': draw_moment_rate,
+    'station_map': draw_station_map}
 
 
 def available_plots():
