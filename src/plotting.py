@@ -2409,8 +2409,8 @@ def fault_slip_distribution(
         slips = num.sqrt((uperp ** 2 + uparr ** 2)).ravel()
 
         if normalisation is None:
-            normalisation = slips.max() * num.abs(
-                ygr[1, 0] - ygr[0, 0]) / (3. / 2.)
+            normalisation = slips.max() / num.abs(
+                ygr[1, 0] - ygr[0, 0]) * (3. / 2.)
 
         slips /= normalisation
 
@@ -2427,10 +2427,10 @@ def fault_slip_distribution(
             quiver_legend_length = num.ceil(
                 num.max(slips * normalisation) * 10.) / 10.
 
-            ax.quiverkey(
-                quivers, 0.85, 0.8, 14,
-                '{} [m]'.format(quiver_legend_length), labelpos='E',
-                coordinates='figure')
+            #ax.quiverkey(
+            #    quivers, 0.9, 0.8, quiver_legend_length,
+            #    '{} [m]'.format(quiver_legend_length), labelpos='E',
+            #    coordinates='figure')
 
         return quivers, normalisation
 
@@ -2478,7 +2478,7 @@ def fault_slip_distribution(
         return pa_col
 
     def draw_colorbar(fig, ax, cb_related, labeltext):
-        cbaxes = fig.add_axes([0.85, 0.4, 0.03, 0.3])
+        cbaxes = fig.add_axes([0.88, 0.4, 0.03, 0.3])
         cb = fig.colorbar(cb_related, ax=axs, cax=cbaxes)
         cb.set_label(labeltext, fontsize=fontsize)
         ax.set_aspect('equal', adjustable='box')
