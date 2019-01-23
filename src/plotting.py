@@ -2339,6 +2339,12 @@ def fuzzy_rupture_fronts(
 
     rupture_fronts : list
         of output of cs = pyplot.contour; cs.allsegs
+    xgrid : array_like
+        of center coordinates of the sub-patches of the fault in
+        strike-direction in [km]
+    ygrid : array_like
+        of center coordinates of the sub-patches of the fault in
+        dip-direction in [km]
     """
 
     from matplotlib.colors import LinearSegmentedColormap
@@ -2348,15 +2354,18 @@ def fuzzy_rupture_fronts(
         'dummy', ['white', 'black'], N=ncolors)
 
     res_km = 25   # pixel per km
+
     xmin = xgrid.min()
     xmax = xgrid.max()
     ymin = ygrid.min()
     ymax = ygrid.max()
     extent = (xmin, xmax, ymin, ymax)
+
     grid = num.zeros(
         (int((num.abs(ymax) - num.abs(ymin)) * res_km),
          int((num.abs(xmax) - num.abs(xmin)) * res_km)),
         dtype='float64')
+
     for rupture_front in rupture_fronts:
         for level in rupture_front:
             for line in level:
@@ -2528,7 +2537,7 @@ def fault_slip_distribution(
                     rupture_fronts.append(contours.allsegs)
 
                 fuzzy_rupture_fronts(
-                    ax, rupture_fronts, ygr, xgr,
+                    ax, rupture_fronts, xgr, ygr,
                     alpha=1., linewidth=7, zorder=-1)
 
                 durations = transform(mtrace.get_values(
@@ -2806,7 +2815,8 @@ def draw_line_on_array(
         raise TypeError(
             'grid_resolution has to be of length 2! [xstep, ystep]!')
 
-    xnstep, ynstep = grid_resolution
+    ynstep, xnstep = grid_resolution
+
     xvec, xstep = num.linspace(xmin, xmax, xnstep, endpoint=True, retstep=True)
     yvec, ystep = num.linspace(ymin, ymax, ynstep, endpoint=True, retstep=True)
 
@@ -2815,7 +2825,7 @@ def draw_line_on_array(
             raise TypeError('Given grid has to be of dimension 2!')
 
         for axis, (ngr, naim) in enumerate(
-                zip(grid.shape, grid_resolution[::-1])):
+                zip(grid.shape, grid_resolution)):
             check_grid_shape(ngr, naim, axis)
     else:
         grid = num.zeros((ynstep, xnstep), dtype='float64')
@@ -2941,7 +2951,8 @@ def draw_moment_rate(problem, po):
         if not os.path.exists(outpath) or po.force:
             fig, ax = plt.subplots(
                 nrows=1, ncols=1, figsize=mpl_papersize('a7', 'landscape'))
-            labelpos = mpl_margins(fig, left=5, bottom=4, top=1.5, right=0.5, units=fontsize)
+            labelpos = mpl_margins(
+                fig, left=5, bottom=4, top=1.5, right=0.5, units=fontsize)
             labelpos(ax, 2., 1.5)
             if mtrace is not None:
                 nchains = len(mtrace)
