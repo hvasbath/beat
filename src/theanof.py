@@ -304,6 +304,8 @@ class SeisSynthesizer(theano.Op):
         containing :class:`pyrocko.gf.seismosizer.Target` Objects
 
     arrival_taper : :class:`heart.ArrivalTaper`
+    arrival_times : :class:`ǹumpy.NdArray`
+        with synthetic arrival times wrt reference event
     filterer : :class:`heart.Filterer`
     """
 

@@ -1965,9 +1965,26 @@ def get_phase_taperer(
 
 class WaveformMapping(object):
     """
-    Weights have to be theano.shared variables!
-    """
+    Maps synthetic waveform parameters to targets, stations and data
 
+    Parameters
+    ----------
+    name : str
+        name of the waveform according to travel time tables
+    stations : list
+        of :class:`pyrocko.model.Station`
+    weights : list
+        of theano.shared variables
+    channels : list
+        of channel names valid for all the stations of this wavemap
+    datasets : list
+        of :class:`heart.Dataset` inherited from :class:`pyrocko.trace.Trace`
+    targets : list
+        of :class:`pyrocko.gf.target.Target`
+    station_correction_idxs : :class:`numpy.NdArray`
+        of indexes to the time_shift random variable array for
+        station corrections during the sampling
+    """
     def __init__(self, name, stations, weights=None, channels=['Z'],
                  datasets=[], targets=[], station_correction_idxs=None):
 
@@ -2069,7 +2086,11 @@ class WaveformMapping(object):
         if hasattr(self, 'mapnumber'):
             return '_'.join((self.name, str(self.mapnumber)))
         else:
-            raise self.name
+            return self.name
+
+    @property
+    def time_shifts_id(self):
+        return 'time_shifts_' + self.name
 
     @property
     def n_t(self):
@@ -2226,7 +2247,7 @@ class DataWaveformCollection(object):
 
     def get_station_correction_idxs(self, targets):
         """
-        Returns array of indexes to problem stations,
+        Returns array of indexes to problem stations for given targets.
 
         Parameters
         ----------
