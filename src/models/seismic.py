@@ -217,7 +217,7 @@ class SeismicComposite(Composite):
         """
         Return unique station names from all wavemaps
         """
-        return utility.unique_list(self.get_all_station_names)
+        return utility.unique_list(self.get_all_station_names())
 
     @property
     def n_t(self):
@@ -538,9 +538,9 @@ class SeismicGeometryComposite(SeismicComposite):
             if self.config.station_corrections:
                 try:
                     arrival_times += point[
-                        self.correction_name][wmap.station_correction_idxs]
+                        wmap.time_shifts_id][wmap.station_correction_idxs]
                 except IndexError:  # got reference point from config
-                    arrival_times += float(point[self.correction_name]) * \
+                    arrival_times += float(point[wmap.time_shifts_id]) * \
                         num.ones(wmap.n_t)
 
             synthetics, _ = heart.seis_synthetics(
@@ -610,7 +610,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 arrival_times = wmap._arrival_times
                 if self.config.station_corrections:
                     arrival_times += point[
-                        self.correction_name][wmap.station_correction_idxs]
+                        wmap.time_shifts_id][wmap.station_correction_idxs]
 
                 for channel in wmap.channels:
                     tidxs = wmap.get_target_idxs([channel])
@@ -924,7 +924,7 @@ class SeismicDistributerComposite(SeismicComposite):
                 'Station corrections not fully implemented! for FFO!')
             # starttimes = (
             #    num.tile(starttimes0, wmap.n_t) +
-            #    num.repeat(self.hierarchicals[self.correction_name][
+            #    num.repeat(self.hierarchicals[wmap.time_shifts_id][
             #        wmap.station_correction_idxs],
             #        self.fault.npatches)).reshape(
             #            wmap.n_t, self.fault.npatches)
