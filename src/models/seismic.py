@@ -150,14 +150,16 @@ class SeismicComposite(Composite):
 
         if self.correction_name in problem_config.hierarchicals:
             logger.info(
-                'Estimating time shift for each station...')
-            for time_shifts_id in self.get_unique_time_shifts_ids():
-                nhierarchs = len(self.get_unique_station_names())
+                'Estimating time shift for each station and waveform map...')
+            for wmap in self.wavemaps:
+                nhierarchs = len(wmap.get_station_names())
+
                 logger.info(
-                    'For %s with %i shifts' % (time_shifts_id, nhierarchs))
+                    'For %s with %i shifts' % (
+                        wmap.time_shifts_id, nhierarchs))
                 param = problem_config.hierarchicals[self.correction_name]
                 kwargs = dict(
-                    name=time_shifts_id,
+                    name=wmap.time_shifts_id,
                     shape=nhierarchs,
                     lower=num.repeat(param.lower, nhierarchs),
                     upper=num.repeat(param.upper, nhierarchs),
@@ -172,7 +174,7 @@ class SeismicComposite(Composite):
                     kwargs.pop('name')
                     station_corrs_rv = Uniform.dist(**kwargs)
 
-                self.hierarchicals[time_shifts_id] = station_corrs_rv
+                self.hierarchicals[wmap.time_shifts_id] = station_corrs_rv
         else:
             nhierarchs = 0
 
@@ -539,8 +541,8 @@ class SeismicGeometryComposite(SeismicComposite):
                 try:
                     arrival_times += point[
                         wmap.time_shifts_id][wmap.station_correction_idxs]
-                except IndexError:  # got reference point from config
-                    arrival_times += float(point[wmap.time_shifts_id]) * \
+                except KeyError:  # got reference point from config
+                    arrival_times += float(point[self.correction_name]) * \
                         num.ones(wmap.n_t)
 
             synthetics, _ = heart.seis_synthetics(

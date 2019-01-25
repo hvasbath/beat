@@ -380,8 +380,8 @@ class SeisSynthesizer(theano.Op):
         mpoint = utility.adjust_point_units(point)
 
         if self.station_corrections:
-            arrival_times = num.array(self.arrival_times) + \
-                mpoint.pop('time_shift').ravel()
+            time_shifts = mpoint.pop('time_shift').ravel()
+            arrival_times = num.array(self.arrival_times) + time_shifts
         else:
             arrival_times = num.array(self.arrival_times)
 

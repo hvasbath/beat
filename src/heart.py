@@ -1981,12 +1981,9 @@ class WaveformMapping(object):
         of :class:`heart.Dataset` inherited from :class:`pyrocko.trace.Trace`
     targets : list
         of :class:`pyrocko.gf.target.Target`
-    station_correction_idxs : :class:`numpy.NdArray`
-        of indexes to the time_shift random variable array for
-        station corrections during the sampling
     """
     def __init__(self, name, stations, weights=None, channels=['Z'],
-                 datasets=[], targets=[], station_correction_idxs=None):
+                 datasets=[], targets=[]):
 
         self.name = name
         self.stations = stations
@@ -1994,15 +1991,15 @@ class WaveformMapping(object):
         self.datasets = datasets
         self.targets = targets
         self.channels = channels
-        self._station_correction_reference = copy.deepcopy(
-            station_correction_idxs)
-        self.station_correction_idxs = station_correction_idxs
+        self.station_correction_idxs = None
         self._prepared_data = None
         self._arrival_times = None
         self._target2index = None
+        self._station2index = None
 
         if self.datasets is not None:
             self._update_trace_wavenames()
+            self._update_station_corrections()
 
     def target_index_mapping(self):
         if self._target2index is None:
@@ -2010,6 +2007,13 @@ class WaveformMapping(object):
                 (target, i) for (i, target) in enumerate(
                     self.targets))
         return self._target2index
+
+    def station_index_mapping(self):
+        if self._station2index is None:
+            self._station2index = dict(
+                (station, i) for (i, station) in enumerate(
+                    self.stations))
+        return self._station2index
 
     def add_weights(self, weights, force=False):
         n_w = len(weights)
@@ -2019,6 +2023,19 @@ class WaveformMapping(object):
                     n_w, self.n_t))
 
         self.weights = weights
+
+    def _update_station_corrections(self):
+        """
+        Update station_correction_idx
+        """
+        s2i = self.station_index_mapping()
+        station_idxs = []
+        for channel in self.channels:
+            station_idxs.extend(
+                [s2i[station] for station in self.stations])
+
+        self.station_correction_idxs = num.array(
+            station_idxs, dtype='int16')
 
     def station_weeding(self, event, distances, blacklist=[]):
         """
@@ -2037,15 +2054,12 @@ class WaveformMapping(object):
 
         self.targets = utility.weed_targets(self.targets, self.stations)
 
-        if self.n_t > 0:
-            # update station_correction_idx
-            target_idxs = num.array(
-                [self.target_index_mapping()[target]
-                 for target in self.targets], dtype='int16')
-            self.station_correction_idxs = \
-                self._station_correction_reference[target_idxs]
+        # reset mappings
+        self._target2index = None
+        self._station2index = None
 
-            self._target2index = None   # reset mapping
+        if self.n_t > 0:
+            self._update_station_corrections()
 
         self.check_consistency()
 
@@ -2090,7 +2104,7 @@ class WaveformMapping(object):
 
     @property
     def time_shifts_id(self):
-        return 'time_shifts_' + self.name
+        return 'time_shifts_' + self._mapid
 
     @property
     def n_t(self):
@@ -2188,7 +2202,6 @@ class DataWaveformCollection(object):
         self._raw_datasets = OrderedDict()
         self._target2index = None
         self._station2index = None
-        self._station_correction_indexes = None
 
     def adjust_sampling_datasets(self, deltat, snap=False, force=False):
 
@@ -2237,43 +2250,6 @@ class DataWaveformCollection(object):
                 (target, i) for (i, target) in enumerate(
                     self._targets.values()))
         return self._target2index
-
-    def station_index_mapping(self):
-        if self._station2index is None:
-            self._station2index = dict(
-                (station, i) for (i, station) in enumerate(
-                    self.stations))
-        return self._station2index
-
-    def get_station_correction_idxs(self, targets):
-        """
-        Returns array of indexes to problem stations for given targets.
-
-        Parameters
-        ----------
-        targets : list
-            containing :class:`DynamicTarget` Objects
-
-        Notes
-        -----
-        Not to mix up with the wavemap specific stations!
-        """
-
-        if self._station_correction_indexes is None:
-            s2i = self.station_index_mapping()
-
-            snames2stations = utility.gather(
-                self.stations, lambda t: t.station)
-
-            s2corr_idxs = []
-            for target in targets:
-                idx = s2i[snames2stations[target.codes[1]][0]]
-                s2corr_idxs.append(idx)
-
-            self._station_correction_indexes = num.array(
-                s2corr_idxs, dtype='int16')
-
-        return self._station_correction_indexes
 
     def get_waveform_names(self):
         return self.waveforms
@@ -2360,8 +2336,7 @@ class DataWaveformCollection(object):
             stations=copy.deepcopy(self.stations),
             datasets=copy.deepcopy(datasets),
             targets=copy.deepcopy(targets),
-            channels=channels,
-            station_correction_idxs=self.get_station_correction_idxs(targets))
+            channels=channels)
 
 
 def concatenate_datasets(datasets):

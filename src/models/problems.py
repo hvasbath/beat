@@ -39,7 +39,7 @@ class InconsistentNumberHyperparametersError(Exception):
     context = 'Configuration file has to be updated!' + \
               ' Hyperparameters have to be re-estimated. \n' + \
               ' Please run "beat update <project_dir>' + \
-              ' --parameters=hypers, hierarchicals"'
+              ' --parameters=hypers,hierarchicals"'
 
     def __init__(self, errmess=''):
         self.errmess = errmess
