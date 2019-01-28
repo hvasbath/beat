@@ -658,7 +658,7 @@ def command_clone(args):
             for datatype in options.datatypes:
                 if datatype not in c.problem_config.datatypes:
                     logger.warn('Datatype %s to be cloned is not'
-                                ' in config! Adding to new conig!' % datatype)
+                                ' in config! Adding to new config!' % datatype)
                     c[datatype + '_config'] = \
                         config.datatype_catalog[datatype](mode=options.mode)
                     re_init = True

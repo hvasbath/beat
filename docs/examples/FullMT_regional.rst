@@ -7,7 +7,7 @@ We will explore the solution space of a Full Moment Tensor .
 To copy the scenario (including the data) to a directory outside of the package source directory, please edit the 'model path' (referred to as $beat_models now on) and execute::
 
     cd /path/to/beat/data/examples/
-    beat clone FullMT /'model path'/FullMT --copy_data
+    beat clone FullMT /'model path'/FullMT --copy_data --datatypes=seismic
 
 This will create a BEAT project directory named 'FullMT' with a configuration file (config_geometry.yaml) and some synthetic example data (seismic_data.pkl).
 This directory is going to be referred to as '$project_directory' in the following.
