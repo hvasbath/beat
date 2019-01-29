@@ -181,6 +181,11 @@ class Problem(object):
                     tune_interval=sc.parameters.tune_interval,
                     proposal_name=sc.parameters.proposal_dist)
 
+            else:
+                raise ValueError(
+                    'Sampler "%s" not supported! '
+                    ' Typo in config file?' % sc.name)
+
         return step
 
     def built_model(self):
