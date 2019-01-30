@@ -1487,7 +1487,7 @@ def draw_fuzzy_beachball(problem, po):
     outpath = os.path.join(
         problem.outfolder,
         po.figure_dir,
-        'fuzzy_beachball_%i_%s.%s' % (po.load_stage, llk_str, po.format))
+        'fuzzy_beachball_%i_%s.%s' % (po.load_stage, llk_str, po.outformat))
 
     if not os.path.exists(outpath) or po.force or po.outformat == 'display':
 
