@@ -1439,8 +1439,8 @@ def draw_fuzzy_beachball(problem, po):
         raise NotImplementedError(
             'Fuzzy beachball is not yet implemented for more than one source!')
 
-    if po.stage_number is None:
-        po.stage_number = -1
+    if po.load_stage is None:
+        po.load_stage = -1
 
     varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
     if not po.reference:
@@ -1487,7 +1487,7 @@ def draw_fuzzy_beachball(problem, po):
     outpath = os.path.join(
         problem.outfolder,
         po.figure_dir,
-        'fuzzy_beachball_%i_%s.%s' % (po.load_stage, llk_str, 'png'))
+        'fuzzy_beachball_%i_%s.%s' % (po.load_stage, llk_str, po.format))
 
     if not os.path.exists(outpath) or po.force or po.outformat == 'display':
 
@@ -1682,7 +1682,7 @@ def histplot_op(
             bins = int(num.ceil((maxd - mind) / step))
 
         ax.hist(
-            d, bins=bins, density=True, stacked=True, alpha=alpha,
+            d, bins=bins, normed=True, stacked=True, alpha=alpha,
             align='left', histtype='stepfilled', color=color, edgecolor=color,
             **kwargs)
 
