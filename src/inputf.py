@@ -130,7 +130,7 @@ def load_kite_scenes(datadir, names):
     return diffgs
 
 
-def load_ascii_gps(filedir, filename):
+def load_ascii_gnss(filedir, filename):
     """
     Load ascii file columns containing:
     station name, Lon, Lat, ve, vn, vu, sigma_ve, sigma_vn, sigma_vu
@@ -139,7 +139,7 @@ def load_ascii_gps(filedir, filename):
 
     Returns
     -------
-    :class:`heart.GPSDataset`
+    :class:`heart.GNSSDataset`
     """
     filepath = os.path.join(filedir, filename)
     names = num.loadtxt(filepath, usecols=[0], dtype='string')
@@ -148,34 +148,34 @@ def load_ascii_gps(filedir, filename):
     if names.size != d.shape[0]:
         raise Exception('Number of stations and available data differs!')
 
-    data = heart.GPSDataset()
+    data = heart.GNSSDataset()
     for i, name in enumerate(names):
 
-        gps_station = heart.GPSStation(
+        gnss_station = heart.GNSSStation(
             name=str(name), lon=float(d[i, 0]), lat=float(d[i, 1]))
         for j, comp in enumerate('ENU'):
 
-            gps_station.add_component(
-                heart.GPSComponent(
+            gnss_station.add_component(
+                heart.GNSSComponent(
                     name=comp,
                     v=float(d[i, j + 2] / km),
                     sigma=float(d[i, j + 5] / km)))
-        data.add_station(gps_station)
+        data.add_station(gnss_station)
 
     return data
 
 
-def load_and_blacklist_GPS(datadir, filename, blacklist):
+def load_and_blacklist_gnss(datadir, filename, blacklist):
     """
-    Load ascii GPS data, apply blacklist and initialise targets.
+    Load ascii GNSS data, apply blacklist and initialise targets.
     """
-    gps_ds = load_ascii_gps(datadir, filename)
-    gps_ds.remove_stations(blacklist)
-    comps = gps_ds.get_component_names()
+    gnss_ds = load_ascii_gnss(datadir, filename)
+    gnss_ds.remove_stations(blacklist)
+    comps = gnss_ds.get_component_names()
 
     targets = []
     for c in comps:
-        targets.append(gps_ds.get_compound(c))
+        targets.append(gnss_ds.get_compound(c))
 
     return targets
 

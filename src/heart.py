@@ -596,10 +596,10 @@ class GeodeticDataset(gf.meta.MultiLocation):
 
     typ = String.T(
         default='SAR',
-        help='Type of geodetic data, e.g. SAR, GPS, ...')
+        help='Type of geodetic data, e.g. SAR, GNSS, ...')
     name = String.T(
         default='A',
-        help='e.g. GPS station name or InSAR satellite track ')
+        help='e.g. GNSS station name or InSAR satellite track ')
     utmn = Array.T(shape=(None,), dtype=num.float, optional=True)
     utme = Array.T(shape=(None,), dtype=num.float, optional=True)
 
@@ -618,10 +618,6 @@ class GeodeticDataset(gf.meta.MultiLocation):
 
         self.north_shifts, self.east_shifts = orthodrome.latlon_to_ne_numpy(
             loc.lat, loc.lon, self.lats, self.lons)
-
-        if hasattr(self, 'quadtree'):
-            if isinstance(self.quadtree, Quadtree):
-                self.quadtree.update_local_coords(loc)
 
         return self.north_shifts, self.east_shifts
 
@@ -643,9 +639,9 @@ class GeodeticDataset(gf.meta.MultiLocation):
         return n
 
 
-class GPSComponent(Object):
+class GNSSComponent(Object):
     """
-    Object holding the GPS data for a single station.
+    Object holding the GNSS data for a single station.
     """
     name = String.T(default='E', help='direction of measurement, E/N/U')
     v = Float.T(default=0.1, help='Average velocity in [m/yr]')
@@ -653,13 +649,13 @@ class GPSComponent(Object):
     unit = String.T(default='m/yr', help='Unit of velocity v')
 
 
-class GPSStation(Station):
+class GNSSStation(Station):
     """
-    GPS station object, holds the displacment components and has all pyrocko
+    GNSS station object, holds the displacment components and has all pyrocko
     station functionality.
     """
 
-    components = List.T(GPSComponent.T())
+    components = List.T(GNSSComponent.T())
 
     def set_components(self, components):
         self.components = []
@@ -688,9 +684,9 @@ class GPSStation(Station):
                 return c
 
 
-class GPSCompoundComponent(GeodeticDataset):
+class GNSSCompoundComponent(GeodeticDataset):
     """
-    Collecting many GPS components and merging them into arrays.
+    Collecting many GNSS components and merging them into arrays.
     Make synthetics generation more efficient.
     """
     los_vector = Array.T(shape=(None, 3), dtype=num.float, optional=True)
@@ -722,16 +718,16 @@ class GPSCompoundComponent(GeodeticDataset):
         return self.los_vector
 
     def __str__(self):
-        s = 'GPS\n compound: \n'
+        s = 'GNSS\n compound: \n'
         s += '  component: %s\n' % self.name
         if self.lats is not None:
             s += '  number of stations: %i\n' % self.samples
         return s
 
 
-class GPSDataset(object):
+class GNSSDataset(object):
     """
-    Collecting many GPS stations into one object. Easy managing and assessing
+    Collecting many GNSS stations into one object. Easy managing and assessing
     single stations and also merging all the stations components into compound
     components for fast and easy modeling.
     """
@@ -745,10 +741,10 @@ class GPSDataset(object):
                 self.stations[station.name] = station
 
     def add_station(self, station, force=False):
-        if not isinstance(station, GPSStation):
+        if not isinstance(station, GNSSStation):
             raise TypeError(
                 'Input object is not a valid station of'
-                ' class: %s' % GPSStation)
+                ' class: %s' % GNSSStation)
 
         if station.name not in self.stations.keys() or force:
             self.stations[station.name] = station
@@ -786,8 +782,8 @@ class GPSDataset(object):
             raise ValueError(
                 'Requested component %s does not exist in the dataset' % name)
 
-        return GPSCompoundComponent(
-            typ='GPS',
+        return GNSSCompoundComponent(
+            typ='GNSS',
             station_names=self.get_station_names(),
             displacement=vs,
             covariance=Covariance(data=num.eye(lats.size) * variances),

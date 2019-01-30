@@ -530,11 +530,11 @@ class GeodeticConfig(Object):
     blacklist = List.T(
         String.T(),
         default=[],
-        help='GPS station name or scene name to be thrown out.')
+        help='GNSS station name or scene name to be thrown out.')
     types = List.T(
         String.T(),
         default=['SAR'],
-        help='Types of geodetic data, i.e. SAR, GPS, ...')
+        help='Types of geodetic data, i.e. SAR, GNSS, ...')
     calc_data_cov = Bool.T(
         default=True,
         help='Flag for calculating the data covariance matrix, '
@@ -552,7 +552,7 @@ class GeodeticConfig(Object):
         default=False,
         help='If set, for EACH DATASET specific hyperparameter estimation.'
              'For geodetic data: n_hypers = nimages (SAR) or '
-             'nstations * ncomponents (GPS).'
+             'nstations * ncomponents (GNSS).'
              'If false one hyperparameter for each DATATYPE and '
              'displacement COMPONENT.')
     gf_config = GFConfig.T(default=GeodeticGFConfig.D())

@@ -427,15 +427,15 @@ def command_import(args):
                                 'Format %s not implemented yet for SAR data.' %
                                 options.geodetic_format)
 
-                    elif typ == 'GPS':
+                    elif typ == 'GNSS':
                         if 'ascii' in options.geodetic_format:
                             for name in gc.names:
                                 gtargets.extend(
-                                    inputf.load_and_blacklist_GPS(
+                                    inputf.load_and_blacklist_gnss(
                                         gc.datadir, name, gc.blacklist))
                         else:
                             raise ImportError(
-                                'Format %s not implemented yet for GPS data.' %
+                                'Format %s not implemented yet for GNSS data.' %
                                 options.geodetic_format)
 
                 logger.info('Pickleing geodetic data to %s' % geodetic_outpath)
