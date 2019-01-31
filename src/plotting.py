@@ -1088,6 +1088,268 @@ def plot_dtrace(axes, tr, space, mi, ma, **kwargs):
         **kwargs)
 
 
+def ensemble_waveforms(problem, stage, plot_options, ensemble_size=10):
+    """
+    Plot fuzzy ensemble of synthetic waveforms with data on top.
+    """
+    from tqdm import tqdm
+
+    fontsize = 8
+    fontsize_title = 10
+
+    composite = problem.composites['seismic']
+    target_index = dict(
+        (target, i) for (i, target) in enumerate(composite.targets))
+
+    po = plot_options
+
+    if not po.reference:
+        point = get_result_point(stage, problem.config, po.post_llk)
+    else:
+        point = po.reference
+
+    mresults = composite.assemble_results(point)
+    try:
+        composite.point2sources(point, input_depth='center')
+        source = composite.sources[0]
+    except AttributeError:
+        logger.info('FFO waveform fit, using reference source ...')
+        source = composite.config.gf_config.reference_sources[0]
+
+    nchains = len(stage.mtrace)
+    csteps = int(float(nchains) / ensemble_size)
+    idxs = range(0, nchains, csteps)
+    ens_results = []
+    points = []
+    logger.info('Collecting ensemble of synthetic waveforms ...')
+    for idx in tqdm(idxs):
+        point = stage.mtrace.point(idx=idx)
+        points.append(point)
+        results = composite.assemble_results(point)
+        ens_results.append(results)
+
+    logger.info('Plotting waveform ensemble ...')
+    target_to_result = {}
+    for target in composite.targets:
+        i = target_index[target]
+        target_to_result[target] = mresults[i]
+
+    cg_to_targets = utility.gather(
+        composite.targets,
+        lambda t: t.codes[3],
+        filter=lambda t: t in target_to_result)
+
+    cgs = cg_to_targets.keys()
+
+    figs = []
+
+    for cg in cgs:
+        targets = cg_to_targets[cg]
+
+        # can keep from here ... until
+        nframes = len(targets)
+
+        nx = int(math.ceil(math.sqrt(nframes)))
+        ny = (nframes - 1) // nx + 1
+
+        nxmax = 4
+        nymax = 4
+
+        nxx = (nx - 1) // nxmax + 1
+        nyy = (ny - 1) // nymax + 1
+
+        xs = num.arange(nx) // ((max(2, nx) - 1.0) / 2.)
+        ys = num.arange(ny) // ((max(2, ny) - 1.0) / 2.)
+
+        xs -= num.mean(xs)
+        ys -= num.mean(ys)
+
+        fxs = num.tile(xs, ny)
+        fys = num.repeat(ys, nx)
+
+        data = []
+
+        for target in targets:
+            azi = source.azibazi_to(target)[0]
+            dist = source.distance_to(target)
+            x = dist * num.sin(num.deg2rad(azi))
+            y = dist * num.cos(num.deg2rad(azi))
+            data.append((x, y, dist))
+
+        gxs, gys, dists = num.array(data, dtype=num.float).T
+
+        iorder = num.argsort(dists)
+
+        gxs = gxs[iorder]
+        gys = gys[iorder]
+        targets_sorted = [targets[ii] for ii in iorder]
+
+        gxs -= num.mean(gxs)
+        gys -= num.mean(gys)
+
+        gmax = max(num.max(num.abs(gys)), num.max(num.abs(gxs)))
+        if gmax == 0.:
+            gmax = 1.
+
+        gxs /= gmax
+        gys /= gmax
+
+        dists = num.sqrt(
+            (fxs[num.newaxis, :] - gxs[:, num.newaxis]) ** 2 +
+            (fys[num.newaxis, :] - gys[:, num.newaxis]) ** 2)
+
+        distmax = num.max(dists)
+
+        availmask = num.ones(dists.shape[1], dtype=num.bool)
+        frame_to_target = {}
+        for itarget, target in enumerate(targets_sorted):
+            iframe = num.argmin(
+                num.where(availmask, dists[itarget], distmax + 1.))
+            availmask[iframe] = False
+            iy, ix = num.unravel_index(iframe, (ny, nx))
+            frame_to_target[iy, ix] = target
+
+        figures = {}
+        for iy in range(ny):
+            for ix in range(nx):
+                if (iy, ix) not in frame_to_target:
+                    continue
+
+                ixx = ix // nxmax
+                iyy = iy // nymax
+                if (iyy, ixx) not in figures:
+                    figures[iyy, ixx] = plt.figure(
+                        figsize=mpl_papersize('a4', 'landscape'))
+
+                    figures[iyy, ixx].subplots_adjust(
+                        left=0.03,
+                        right=1.0 - 0.03,
+                        bottom=0.03,
+                        top=1.0 - 0.06,
+                        wspace=0.2,
+                        hspace=0.2)
+
+                    figs.append(figures[iyy, ixx])
+
+                fig = figures[iyy, ixx]
+
+                target = frame_to_target[iy, ix]
+
+                ny_this = nymax  # min(ny, nymax)
+                nx_this = nxmax  # min(nx, nxmax)
+                i_this = (iy % ny_this) * nx_this + (ix % nx_this) + 1
+
+                axes = fig.add_subplot(ny_this, nx_this, i_this)
+
+                axes.set_axis_off()
+
+                itarget = target_index[target]
+                result = target_to_result[target]
+
+                tap_color_annot = (0.35, 0.35, 0.25)
+                tap_color_edge = (0.85, 0.85, 0.80)
+                tap_color_fill = plt.cm.magma_r.colors[0]
+
+                plot_taper(
+                    axes2, result.processed_obs.get_xdata(), result.taper,
+                    mode=composite._mode, fc=tap_color_fill, ec=tap_color_edge)
+
+                obs_color = scolor('aluminium5')
+                obs_color_light = light(obs_color, 0.5)
+
+                syn_color = scolor('scarletred2')
+                syn_color_light = light(syn_color, 0.5)
+
+                misfit_color = scolor('scarletred2')
+
+                plot_dtrace(
+                    axes2, dtrace, space, 0., 1.,
+                    fc=light(misfit_color, 0.3),
+                    ec=misfit_color)
+
+                plot_trace(
+                    axes, result.filtered_syn,
+                    color=syn_color_light, lw=1.0)
+
+                plot_trace(
+                    axes, result.filtered_obs,
+                    color=obs_color_light, lw=0.75)
+
+                plot_trace(
+                    axes, result.processed_syn,
+                    color=syn_color, lw=1.0)
+
+                plot_trace(
+                    axes, result.processed_obs,
+                    color=obs_color, lw=0.75)
+
+                xdata = result.filtered_obs.get_xdata()
+                axes.set_xlim(xdata[0], xdata[-1])
+
+                tmarks = [
+                    result.processed_obs.tmin,
+                    result.processed_obs.tmax]
+
+                for tmark in tmarks:
+                    axes2.plot(
+                        [tmark, tmark], [-0.9, 0.1], color=tap_color_annot)
+
+                for tmark, text, ha, va in [
+                        (tmarks[0],
+                         '$\,$ ' + str_duration(tmarks[0] - source.time),
+                         'right',
+                         'bottom'),
+                        (tmarks[1],
+                         '$\Delta$ ' + str_duration(tmarks[1] - tmarks[0]),
+                         'left',
+                         'top')]:
+
+                    axes2.annotate(
+                        text,
+                        xy=(tmark, -0.9),
+                        xycoords='data',
+                        xytext=(
+                            fontsize * 0.4 * [-1, 1][ha == 'left'],
+                            fontsize * 0.2),
+                        textcoords='offset points',
+                        ha=ha,
+                        va=va,
+                        color=tap_color_annot,
+                        fontsize=fontsize)
+
+                scale_string = None
+
+                infos = []
+                if scale_string:
+                    infos.append(scale_string)
+
+                infos.append('.'.join(x for x in target.codes if x))
+                dist = source.distance_to(target)
+                azi = source.azibazi_to(target)[0]
+                infos.append(str_dist(dist))
+                infos.append('%.0f\u00B0' % azi)
+                # infos.append('%.3f' % gcms[itarget])
+                axes2.annotate(
+                    '\n'.join(infos),
+                    xy=(0., 1.),
+                    xycoords='axes fraction',
+                    xytext=(2., 2.),
+                    textcoords='offset points',
+                    ha='left',
+                    va='top',
+                    fontsize=fontsize,
+                    fontstyle='normal')
+
+        for (iyy, ixx), fig in figures.items():
+            title = '.'.join(x for x in cg if x)
+            if len(figures) > 1:
+                title += ' (%i/%i, %i/%i)' % (iyy + 1, nyy, ixx + 1, nxx)
+
+            fig.suptitle(title, fontsize=fontsize_title)
+
+    return figs
+
+
 def seismic_fits(problem, stage, plot_options):
     """
     Modified from grond. Plot synthetic and data waveforms and the misfit for
@@ -1416,6 +1678,48 @@ def draw_seismic_fits(problem, po):
         figs = seismic_fits(problem, stage, po)
     else:
         logger.info('waveform plots exist. Use force=True for replotting!')
+        return
+
+    if po.outformat == 'display':
+        plt.show()
+    else:
+        logger.info('saving figures to %s' % outpath)
+        if po.outformat == 'pdf':
+            with PdfPages(outpath + '.pdf') as opdf:
+                for fig in figs:
+                    opdf.savefig(fig)
+        else:
+            for i, fig in enumerate(figs):
+                fig.savefig(outpath + '_%i.%s' % (i, po.outformat), dpi=po.dpi)
+
+
+def draw_fuzzy_waveforms(problem, po):
+
+    if 'seismic' not in problem.composites.keys():
+        raise Exception('No seismic composite defined for this problem!')
+
+    stage = Stage(homepath=problem.outfolder)
+
+    mode = problem.config.problem_config.mode
+
+    if not po.reference:
+        llk_str = po.post_llk
+        stage.load_results(
+            varnames=problem.varnames,
+            model=problem.model, stage_number=po.load_stage,
+            load='trace', chains=[-1])
+    else:
+        llk_str = 'ref'
+
+    outpath = os.path.join(
+        problem.config.project_dir,
+        mode, po.figure_dir, 'fuzzy_waveforms_%s_%s' % (
+            stage.number, llk_str))
+
+    if not os.path.exists(outpath) or po.force:
+        figs = seismic_fits(problem, stage, po)
+    else:
+        logger.info('fuzzy waveform plots exist. Use force=True for replotting!')
         return
 
     if po.outformat == 'display':
@@ -2332,6 +2636,52 @@ def draw_earthmodels(problem, plot_options):
                 fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
+def fuzzy_waveforms(
+        ax, traces, linewidth, zorder, grid_size=(500, 500), cmap=None,
+        alpha=0.6):
+    """
+    Fuzzy waveforms
+
+    traces : list
+        of class:`pyrocko.trace.Trace`, the times of the traces should not
+        vary too much, traces must have the same length
+    """
+
+    if cmap is None:
+        cmap = plt.cm.magma_r
+
+    ydatas = [tr.ydata for tr in traces]
+    xdatas = [tr.get_xdata() for tr in traces]
+
+    ymins = map(num.min, ydatas)
+    ymaxs = map(num.max, ydatas)
+
+    ymax = max(num.abs(ymins).max(), max(ymaxs))
+    ymin = -ymax
+
+    xmin = min(map(num.min, xdatas))
+    xmax = max(map(num.max, xdatas))
+
+    extent = [xmin, xmax, ymin, ymax]
+    grid = num.zeros(grid_size, dtype='float64')
+
+    for ydata, xdata in zip(ydatas, xdatas):
+
+        draw_line_on_array(
+            tr.xdata, tr.ydata,
+            grid=grid,
+            extent=extent,
+            grid_resolution=grid.shape,
+            linewidth=linewidth)
+
+    # increase contrast reduce high intense values
+    truncate = len(traces) / 2
+    grid[grid > truncate] = truncate
+    ax.imshow(
+        grid, extent=extent, origin='lower', cmap=cmap, aspect='auto',
+        alpha=alpha, zorder=zorder)
+
+
 def fuzzy_rupture_fronts(
         ax, rupture_fronts, xgrid, ygrid, alpha=0.6, linewidth=7, zorder=0):
     """
@@ -2856,7 +3206,7 @@ def draw_line_on_array(
 
 
 def fuzzy_moment_rate(
-        ax, moment_rates, times, cmap=None):
+        ax, moment_rates, times, cmap=None, grid_size=(500, 500)):
     """
     Plot fuzzy moment rate function into axes.
     """
@@ -2880,7 +3230,7 @@ def fuzzy_moment_rate(
     max_times = max(map(num.max, times))
 
     extent = (0., max_times, 0., max_rates)
-    grid = num.zeros((500, 500), dtype='float64')
+    grid = num.zeros(grid_size, dtype='float64')
 
     for mr, time in zip(moment_rates, times):
         draw_line_on_array(
