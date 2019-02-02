@@ -1193,6 +1193,14 @@ def command_plot(args):
                  ' Default: empty string --> all')
 
         parser.add_option(
+            '--nensemble',
+            dest='nensemble',
+            type='int',
+            default=1,
+            help='Int of the number of solutions that'
+                 ' are used for fuzzy plots')
+
+        parser.add_option(
             '--format',
             dest='format',
             choices=['display', 'pdf', 'png', 'svg', 'eps'],
@@ -1276,7 +1284,8 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
         outformat=options.format,
         force=options.force,
         dpi=options.dpi,
-        varnames=options.varnames)
+        varnames=options.varnames,
+        nensemble=options.nensemble)
 
     if options.reference:
         try:
