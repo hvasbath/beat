@@ -1357,7 +1357,8 @@ def get_random_uniform(lower, upper, dimension=1):
         return values
 
 
-def positions2idxs(positions, cell_size, min_pos=0., backend=num):
+def positions2idxs(
+        positions, cell_size, min_pos=0., backend=num, dtype='int16'):
     """
     Return index to a grid with a given cell size.npatches
 
@@ -1368,6 +1369,8 @@ def positions2idxs(positions, cell_size, min_pos=0., backend=num):
     cell_size : float
         size of grid cells
     backend : str
+    dtype : str
+        data type of returned array, default: int16
     """
     return backend.round((positions - min_pos - (
-        cell_size / 2.)) / cell_size).astype('int16')
+        cell_size / 2.)) / cell_size).astype(dtype)

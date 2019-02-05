@@ -1303,10 +1303,10 @@ def seismic_fits(problem, stage, plot_options):
 
                 if po.nensemble > 1:
                     xmin, xmax = trace.minmaxtime(traces, key=skey)[key]
-                    #extent = [xmin, xmax, ymin, ymax]
+                    extent = [xmin, xmax, ymin, ymax]
                     fuzzy_waveforms(
                         axes, traces, linewidth=7, zorder=0,
-                        grid_size=(1000, 1000), alpha=1.0)
+                        grid_size=(500, 500), alpha=1.0)
 
                 tap_color_annot = (0.35, 0.35, 0.25)
                 tap_color_edge = (0.85, 0.85, 0.80)
@@ -2804,7 +2804,7 @@ def _weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=num.inf):
     # We write y as a function of x, because the slope is always <= 1
     # (in absolute value)
     x = num.arange(c0, c1 + 1, dtype=float)
-    y = x * slope + (c1 * r0 - c0 * r1) / (c1 - c0)
+    y = (x * slope) + ((c1 * r0) - (c0 * r1)) / (c1 - c0)
 
     # Now instead of 2 values for y, we have 2*np.ceil(w/2).
     # All values are 1 except the upmost and bottommost.
@@ -2813,6 +2813,7 @@ def _weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=num.inf):
     yy = (num.floor(y).reshape(-1, 1) +
           num.arange(-thickness - 1, thickness + 2).reshape(1, -1))
     xx = num.repeat(x, yy.shape[1])
+
     vals = trapez(yy, y.reshape(-1, 1), w).flatten()
 
     yy = yy.flatten()
@@ -2900,8 +2901,10 @@ def draw_line_on_array(
     else:
         grid = num.zeros((ynstep, xnstep), dtype='float64')
 
-    xidxs = utility.positions2idxs(X, min_pos=xmin, cell_size=xstep)
-    yidxs = utility.positions2idxs(Y, min_pos=ymin, cell_size=ystep)
+    xidxs = utility.positions2idxs(
+        X, min_pos=xmin, cell_size=xstep, dtype='int32')
+    yidxs = utility.positions2idxs(
+        Y, min_pos=ymin, cell_size=ystep, dtype='int32')
 
     check_line_in_grid(xidxs, 'x', nmax=xnstep - 1, extent=extent)
     check_line_in_grid(yidxs, 'y', nmax=ynstep - 1, extent=extent)
@@ -2914,8 +2917,7 @@ def draw_line_on_array(
         r1 = yidxs[i]
         try:
             rr, cc, w = _weighted_line(
-                c0=c0, r0=r0, c1=c1, r1=r1, w=linewidth, rmax=ynstep - 1)
-
+                r0=r0, c0=c0, r1=r1, c1=c1, w=linewidth, rmax=ynstep - 1)
             new_grid[rr, cc] = w.astype(grid.dtype)
         except ValueError:
             # line start and end fall in the same grid point cant be drawn
