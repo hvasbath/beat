@@ -255,9 +255,11 @@ class SeismicComposite(Composite):
 
         # will yield exactly the same as previous call needs wmap.prepare data
         # to be aware of taper_tolerance_factor
-        syn_filt_traces, obs_filt_traces = self.get_synthetics(
-            point, outmode=outmode, taper_tolerance_factor=0.,
-            chop_bounds=chop_bounds, order='wmap')
+        # DEPRECATED but keep for now
+        # syn_filt_traces, obs_filt_traces = self.get_synthetics(
+        #    point, outmode=outmode, taper_tolerance_factor=0.,
+        #    chop_bounds=chop_bounds, order='wmap')
+        syn_filt_traces, obs_filt_traces = syn_proc_traces, obs_proc_traces
 
         # from pyrocko import trace
         # trace.snuffle(syn_filt_traces+ obs_filt_traces)
@@ -912,7 +914,6 @@ class SeismicDistributerComposite(SeismicComposite):
 
         # obsolete from variable obs data, patchidx = self.fault.patchmap(
         #    index=0, dipidx=nuc_dip_idx, strikeidx=nuc_strike_idx)
-
         synth_traces = []
         obs_traces = []
         for wmap in self.wavemaps:
@@ -931,6 +932,7 @@ class SeismicDistributerComposite(SeismicComposite):
                         ' %s' % (key, utility.list2string(self.gfs.keys())))
 
                 gflibrary.set_stack_mode('numpy')
+
                 synthetics += gflibrary.stack_all(
                     targetidxs=targetidxs,
                     starttimes=starttimes,

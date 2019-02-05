@@ -1116,8 +1116,8 @@ def seismic_fits(problem, stage, plot_options):
         logger.info(
             'Collecting ensemble of %i synthetic waveforms ...' % po.nensemble)
         nchains = len(stage.mtrace)
-        csteps = int(float(nchains) / po.nensemble)
-        idxs = range(0, nchains, csteps)
+        csteps = float(nchains) / po.nensemble
+        idxs = num.floor(num.arange(0, nchains, csteps)).astype('int32')
         ens_results = []
         points = []
         for idx in tqdm(idxs):
@@ -1472,6 +1472,11 @@ def draw_fuzzy_beachball(problem, po):
             m6s[:, i] = stage.mtrace.get_values(
                 varname, combine=True, squeeze=True).ravel()
 
+        csteps = float(n_mts) / po.nensemble
+        idxs = num.floor(
+            num.arange(0, n_mts, csteps)).astype('int32')
+        m6s = m6s[idxs, :]
+
         point = get_result_point(stage, problem.config, po.post_llk)
         best_mt = point2array(point, varnames=varnames)
     else:
@@ -1501,7 +1506,8 @@ def draw_fuzzy_beachball(problem, po):
     outpath = os.path.join(
         problem.outfolder,
         po.figure_dir,
-        'fuzzy_beachball_%i_%s.%s' % (po.load_stage, llk_str, po.outformat))
+        'fuzzy_beachball_%i_%s_%i.%s' % (
+            po.load_stage, llk_str, po.nensemble, po.outformat))
 
     if not os.path.exists(outpath) or po.force or po.outformat == 'display':
 
@@ -2456,7 +2462,7 @@ def fuzzy_rupture_fronts(
 
 def fault_slip_distribution(
         fault, mtrace=None, transform=lambda x: x, alpha=0.9, ntickmarks=5,
-        reference=None):
+        reference=None, nensemble=1):
     """
     Draw discretized fault geometry rotated to the 2-d view of the foot-wall
     of the fault.
@@ -2597,7 +2603,10 @@ def fault_slip_distribution(
                 rupture_fronts = []
                 dummy_fig, dummy_ax = plt.subplots(
                     nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
-                for i in range(0, nchains, csteps):
+                csteps = float(nchains) / nensemble
+                idxs = num.floor(
+                    num.arange(0, nchains, csteps)).astype('int32')
+                for i in idxs:
                     nuc_dip_idx, nuc_strike_idx = fault.fault_locations2idxs(
                         0, nuc_dip[i], nuc_strike[i], backend='numpy')
                     sts = fault.get_subfault_starttimes(
@@ -2731,14 +2740,15 @@ def draw_slip_dist(problem, po):
         mtrace = None
 
     figs, axs = fault_slip_distribution(
-        fault, mtrace, transform=transform, reference=reference)
+        fault, mtrace, transform=transform,
+        reference=reference, nensemble=po.nensemble)
 
     if po.outformat == 'display':
         plt.show()
     else:
         outpath = os.path.join(
             problem.outfolder, po.figure_dir,
-            'slip_dist_%i_%s' % (stage.number, llk_str))
+            'slip_dist_%i_%s_%i' % (stage.number, llk_str, po.nensemble))
 
         logger.info('Storing slip-distribution to: %s' % outpath)
         if po.outformat == 'pdf':
@@ -3007,7 +3017,8 @@ def draw_moment_rate(problem, po):
         llk_str = 'ref'
         mtrace = None
 
-    logger.info('Drawing ensemble of moment rate functions ...')
+    logger.info(
+        'Drawing ensemble of %i moment rate functions ...' % po.nensemble)
     target = sc.wavemaps[0].targets[0]
     ref_mrf_rates, ref_mrf_times = fault.get_subfault_moment_rate_function(
         index=0, point=reference, target=target,
@@ -3017,8 +3028,8 @@ def draw_moment_rate(problem, po):
     for ns in range(fault.nsubfaults):
         outpath = os.path.join(
             problem.outfolder, po.figure_dir,
-            'moment_rate_%i_%i_%s.%s' % (
-                stage.number, ns, llk_str, po.outformat))
+            'moment_rate_%i_%i_%s_%i.%s' % (
+                stage.number, ns, llk_str, po.nensemble, po.outformat))
 
         if not os.path.exists(outpath) or po.force:
             fig, ax = plt.subplots(
@@ -3028,8 +3039,9 @@ def draw_moment_rate(problem, po):
             labelpos(ax, 2., 1.5)
             if mtrace is not None:
                 nchains = len(mtrace)
-                csteps = 5
-                idxs = range(0, nchains, csteps)
+                csteps = float(nchains) / po.nensemble
+                idxs = num.floor(
+                    num.arange(0, nchains, csteps)).astype('int32')
                 mrfs_rate = []
                 mrfs_time = []
                 for idx in idxs:
