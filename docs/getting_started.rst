@@ -369,6 +369,16 @@ example we might want to use around 60 stations, so the command line for that wo
   beatdown /path/to/home_directory "2009-04-06 01:32:39" 1000. 0.001 5. Laquila --nstations-wanted=60
 
 
+To convert a distance in degree, e.g. 30 and 90 degrees for minimum and maximum data retrieval
+radii (rmin and rmax), you can use pyrockos cake function inbuilt converter factor d2m.
+The conversion than could look like this to retrieve rmin and rmax radii in km::
+
+  from pyrocko import cake
+  km = 1000.
+  rmin = 30.*cake.d2m/km
+  rmax = 90.*cake.d2m/km
+
+
 Data import
 ===========
 
@@ -381,13 +391,13 @@ or type.::
 
 The traces should be named in the format 'network.station..channel.$ending'
 In addition to these an ascii text file with the station information is needed of the format::
-    
+
     #network_name.station_name.location_name latitude[deg] longitude[deg] elevation[m] depth[m]
-    IU.TSUM.10            -19.20220       17.58380         1260.0            0.0 
+    IU.TSUM.10            -19.20220       17.58380         1260.0            0.0
       BHE             90              0              1   # channel name azimuth[deg] dip[deg] gain \n
       BHN              0              0              1
       BHZ              0            -90              1
-    IU.RCBR.00             -5.82740      -35.90140          291.0          109.0 
+    IU.RCBR.00             -5.82740      -35.90140          291.0          109.0
       BH1             48              0              1
       BH2            138              0              1
       BHZ              0            -90              1
@@ -415,7 +425,7 @@ is a list of pyrocko trace objects, by::
     from beat import heart
     traces_beat = []
     for tr in traces:
-        tr_beat= heart.SeismicDataset.from_pyrocko_trace(tr)                 
+        tr_beat= heart.SeismicDataset.from_pyrocko_trace(tr)
         traces_beat.append(tr_beat)
 
 Once a list of traces and station objects exists it may be exported to the project directory (here path from example)::
@@ -789,4 +799,3 @@ This will load the seismic traces for the first receiver, for all patches, durat
   .. image:: _static/linear_gf_library.png
 
 Here we see the slip parallel traces for patch 0, starttime of 11s (after the hypocentral source time) and slip durations(tau) of 1.5 and 10.5[s].
-
