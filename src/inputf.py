@@ -165,6 +165,40 @@ def load_ascii_gnss(filedir, filename):
     return data
 
 
+def load_repsonses_from_file(projectpath):
+
+    from pyrocko.trace import PoleZeroResponse
+
+    network = ''
+    location = ''
+
+    response_filename = os.path.join(projectpath, 'responses.txt')
+    logger.info('Loading responses from: %s', response_filename)
+
+    responses = {}
+    for line in open(response_filename, 'r'):
+        t = line.split()
+        logger.info(t)
+
+        if len(t) == 8:
+            sta, cha, instrument, lat, lon, mag, damp, period = t
+            # plese see the file format below
+            if damp == 'No_damping':
+                damp = 0.001
+
+            lat, lon, mag, damp, period = [
+                float(x) for x in (lat, lon, mag, damp, period)]
+
+            # transform to pole-zero represantation
+            z, p, k = heart.proto2zpk(mag, damp, period)
+            hist_response = PoleZeroResponse(zeros=z, poles=p, constant=k)
+
+            responses[(network, sta, location, cha)] = hist_response
+            logger.debug('%s %s %s %s %s' % (sta, cha, z, p, k))
+
+    return responses
+
+
 def load_and_blacklist_gnss(datadir, filename, blacklist):
     """
     Load ascii GNSS data, apply blacklist and initialise targets.

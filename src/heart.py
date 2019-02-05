@@ -294,7 +294,8 @@ class Trace(Object):
 
 class Filter(Object):
     """
-    Filter object defining frequency range of traces after filtering
+    Filter object defining frequency range of traces after time-domain
+    filtering.
     """
 
     lower_corner = Float.T(
@@ -306,6 +307,18 @@ class Filter(Object):
     order = Int.T(
         default=4,
         help='order of filter, the higher the steeper')
+
+
+class FrequencyFilter(Object):
+
+    freqlimits = Tuple.T(
+        4, Float.T(),
+        default=(0.005, 0.006, 166., 200.),
+        help='Corner frequencies 4-tuple [Hz] for frequency domain filter.')
+    tfade = Float.T(
+        default=10.,
+        help='Rise/fall time in seconds of taper applied in timedomain at both'
+             ' ends of trace.')
 
 
 class SeismicResult(Object):
@@ -511,6 +524,8 @@ class Parameter(Object):
 
 
 class DynamicTarget(gf.Target):
+
+    response = trace.PoleZeroResponse.T(default=None, optional=True)
 
     def update_target_times(self, sources=None, taperer=None):
         """
@@ -1979,7 +1994,7 @@ class WaveformMapping(object):
         of :class:`pyrocko.gf.target.Target`
     """
     def __init__(self, name, stations, weights=None, channels=['Z'],
-                 datasets=[], targets=[]):
+                 datasets=[], targets=[], responses=None):
 
         self.name = name
         self.stations = stations
@@ -2196,6 +2211,7 @@ class DataWaveformCollection(object):
         self._targets = OrderedDict()
         self._datasets = OrderedDict()
         self._raw_datasets = OrderedDict()
+        self._responses = None
         self._target2index = None
         self._station2index = None
 
@@ -2261,6 +2277,13 @@ class DataWaveformCollection(object):
             self._check_collection(waveform, errormode='in', force=force)
             self.waveforms.append(waveform)
 
+    def add_responses(self, responses):
+
+        self._responses = OrderedDict()
+
+        for k, v in responses.items():
+            self._responses[k] = v
+
     def add_targets(self, targets, replace=False, force=False):
 
         if replace:
@@ -2319,6 +2342,15 @@ class DataWaveformCollection(object):
                     'No data trace for target %s in '
                     'the collection!' % str(nslc_id))
 
+            responses = []
+            if self._responses:
+                try:
+                    target.response = self._responses[nslc_id]
+                except KeyError:
+                    logger.warn(
+                        'No response for target %s in '
+                        'the collection!' % str(nslc_id))
+
         ndata = len(datasets)
         n_t = len(targets)
 
@@ -2332,7 +2364,8 @@ class DataWaveformCollection(object):
             stations=copy.deepcopy(self.stations),
             datasets=copy.deepcopy(datasets),
             targets=copy.deepcopy(targets),
-            channels=channels)
+            channels=channels,
+            responses=copy.deepcopy(responses))
 
 
 def concatenate_datasets(datasets):
@@ -2386,6 +2419,10 @@ def init_datahandler(seismic_config, seismic_data_path='./'):
     sc = seismic_config
 
     stations, data_traces = utility.load_objects(seismic_data_path)
+
+    if seismic_config.responses:
+        responses = utility.load_objects(respo)
+
     wavenames = sc.get_waveform_names()
 
     target_deltat = 1. / sc.gf_config.sample_rate
@@ -2444,7 +2481,7 @@ def init_wavemap(
 
 def post_process_trace(
         trace, taper, filterer, taper_tolerance_factor=0.,
-        outmode=None, chop_bounds=['b', 'c']):
+        outmode=None, chop_bounds=['b', 'c'], transfer_function=None):
     """
     Taper, filter and then chop one trace in place.
 
@@ -2461,11 +2498,18 @@ def post_process_trace(
         may be combination of [a, b, c, d]
     """
     if filterer:
-        # filter traces
-        trace.bandpass(
-            corner_hp=filterer.lower_corner,
-            corner_lp=filterer.upper_corner,
-            order=filterer.order)
+        if isinstance(filterer, Filter):
+            # filter traces
+            trace.bandpass(
+                corner_hp=filterer.lower_corner,
+                corner_lp=filterer.upper_corner,
+                order=filterer.order)
+
+        elif isinstance(filterer, FrequencyFilter):
+            trace = trace.transfer(
+                filterer.tfade, filterer.freqlimits,
+                transfer_function=transfer_function,
+                invert=False, cut_off_fading=True)
 
     if taper and outmode != 'data':
         tolerance = (taper.b - taper.a) * taper_tolerance_factor
@@ -2484,11 +2528,43 @@ class StackingError(Exception):
     pass
 
 
+nzeros = {
+    'displacement': 2,
+    'velocity': 3,
+}
+
+
+def proto2zpk(magnification, damping, period, quantity='displacement'):
+    """
+    Convert magnification, damping and period of a station to poles and zeros.
+
+    Parameters
+    ----------
+    magnification : float
+        gain of station
+    damping : float
+        in []
+    period : float
+        in [s]
+    quantity : string
+        in which related data are recorded
+    """
+
+    zeros = num.zeros(nzeros[quantity])
+    omega0 = 2.0 * num.pi / period
+    preal = - damping * omega0
+    pimag = 1.0J * omega0 * num.sqrt(1.0 - damping ** 2)
+    poles = num.array([preal + pimag, preal - pimag])
+    return zeros, poles, magnification
+
+
+
 def seis_synthetics(engine, sources, targets, arrival_taper=None,
                     wavename='any_P', filterer=None, reference_taperer=None,
                     plot=False, nprocs=1, outmode='array',
                     pre_stack_cut=False, taper_tolerance_factor=0.,
-                    arrival_times=None, chop_bounds=['b', 'c']):
+                    arrival_times=None, chop_bounds=['b', 'c'],
+                    transfer_functions=[]):
     """
     Calculate synthetic seismograms of combination of targets and sources,
     filtering and tapering afterwards (filterer)
@@ -2526,6 +2602,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
     chop_bounds : list  of str
         determines where to chop the trace on the taper attributes
         may be combination of [a, b, c, d]
+    transfer_functions : list
+        of transfer functions to convolve the synthetics with
 
     Returns
     -------
@@ -2545,7 +2623,9 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         arrival_times[:] = None
 
     taperers = []
+    transfer
     tapp = taperers.append
+
     for i, target in enumerate(targets):
         if arrival_taper:
             tapp(get_phase_taperer(
