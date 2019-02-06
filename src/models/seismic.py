@@ -65,8 +65,17 @@ class SeismicComposite(Composite):
         seismic_data_path = os.path.join(
             project_dir, bconfig.seismic_data_name)
 
+        if hasattr(sc, 'responses_path'):
+            responses_path = os.path.join(
+                sc.responses_path, bconfig.response_file_name)
+            print(responses_path)
+        else:
+            responses_path = None
+
         self.datahandler = heart.init_datahandler(
-            seismic_config=sc, seismic_data_path=seismic_data_path)
+            seismic_config=sc,
+            seismic_data_path=seismic_data_path,
+            responses_path=responses_path)
 
         self.noise_analyser = cov.SeismicNoiseAnalyser(
             structure=sc.noise_estimator.structure,

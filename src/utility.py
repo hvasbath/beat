@@ -397,7 +397,7 @@ def weed_data_traces(data_traces, stations):
     return weeded_data_traces
 
 
-def weed_targets(targets, stations):
+def weed_targets(targets, stations, discard_targets=[]):
     """
     Throw out targets belonging to stations that are not in the
     stations list. Keeps list orders and returns new list!
@@ -419,7 +419,10 @@ def weed_targets(targets, stations):
     weeded_targets = []
     for target in targets:
         if target.codes[1] in station_names:
-            weeded_targets.append(target)
+            if target in discard_targets:
+                pass
+            else:
+                weeded_targets.append(target)
 
     return weeded_targets
 

@@ -19,7 +19,7 @@ from pyrocko import trace, model, util, gf
 from pyrocko.gf import RectangularSource as PyrockoRS
 from pyrocko.gf.seismosizer import Cloneable, stf_classes
 
-from beat.heart import Filter, ArrivalTaper, Parameter
+from beat.heart import Filter, FilterBase, ArrivalTaper, Parameter
 from beat.heart import ReferenceLocation
 from beat.sources import RectangularSource, MTSourceWithMagnitude, MTQTSource
 
@@ -185,6 +185,7 @@ default_decimation_factors = {
     'seismic': 2}
 
 seismic_data_name = 'seismic_data.pkl'
+response_file_name = 'responses.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
 
 linear_gf_dir_name = 'linear_gfs'
@@ -413,7 +414,7 @@ class WaveformFitConfig(Object):
         default=[],
         help='Station name for stations to be thrown out.')
     channels = List.T(String.T(), default=['Z'])
-    filterer = Filter.T(default=Filter.D())
+    filterer = FilterBase.T(default=Filter.D())
     distances = Tuple.T(2, Float.T(), default=(30., 90.))
     interpolation = StringChoice.T(
         choices=_interpolation_choices,
@@ -447,6 +448,10 @@ class SeismicConfig(Object):
     noise_estimator = SeismicNoiseAnalyserConfig.T(
         default=SeismicNoiseAnalyserConfig.D(),
         help='Determines the structure of the data-covariance matrix.')
+    responses_path = String.T(
+        default=None,
+        optional=True,
+        help='Path to response file')
     pre_stack_cut = Bool.T(
         default=True,
         help='Cut the GF traces before stacking around the specified arrival'
