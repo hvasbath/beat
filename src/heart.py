@@ -16,6 +16,7 @@ from theano import config as tconfig
 from theano import shared
 import numpy as num
 from scipy import linalg
+from scipy.signal import lfilter, zpk2tf
 
 from pyrocko.guts import (Dict, Object, String, StringChoice,
                           Float, Int, Tuple, List)
@@ -292,7 +293,11 @@ class Trace(Object):
     pass
 
 
-class Filter(Object):
+class FilterBase(Object):
+    pass
+
+
+class Filter(FilterBase):
     """
     Filter object defining frequency range of traces after time-domain
     filtering.
@@ -309,7 +314,7 @@ class Filter(Object):
         help='order of filter, the higher the steeper')
 
 
-class FrequencyFilter(Object):
+class FrequencyFilter(FilterBase):
 
     freqlimits = Tuple.T(
         4, Float.T(),
@@ -526,6 +531,23 @@ class Parameter(Object):
 class DynamicTarget(gf.Target):
 
     response = trace.PoleZeroResponse.T(default=None, optional=True)
+
+    def update_response(self, magnification, damping, period):
+        z, p, k = proto2zpk(
+            magnification, damping, period, quantity='displacement')
+        b, a = zpk2tf(z, p, k)
+
+        if self.response:
+            self.response.zeros = z
+            self.response.poles = p
+            self.response.constant = k
+        else:
+            logger.debug('Initializing new response!')
+            self.response = trace.PoleZeroResponse(
+                zeros=z, poles=p, constant=k)
+
+        self.response.a = a
+        self.response.b = b
 
     def update_target_times(self, sources=None, taperer=None):
         """
@@ -1906,6 +1928,10 @@ def geo_layer_synthetics_pscmp(
     return runner.get_results(component='displ', flip_z=True)[0]
 
 
+class RayPathError(Exception):
+    pass
+
+
 def get_phase_arrival_time(engine, source, target, wavename, snap=True):
     """
     Get arrival time from Greens Function store for respective
@@ -1936,7 +1962,17 @@ def get_phase_arrival_time(engine, source, target, wavename, snap=True):
             'No such store with ID %s found, distance [deg] to event: %f ' % (
                 target.store_id, cake.m2d * dist))
 
-    atime = store.t(wavename, (source.depth, dist)) + source.time
+    logger.debug('Arrival time for wavename "%s" distance %f [deg]' % (
+        wavename, cake.m2d * dist))
+
+    try:
+        atime = store.t(wavename, (source.depth, dist)) + source.time
+    except TypeError:
+        raise RayPathError(
+            'No wave-arrival for wavename "%s" distance %f [deg]! '
+            'Please adjust the distance range in the wavemap config!' % (
+                wavename, cake.m2d * dist))
+
     if snap:
         deltat = 1. / store.config.sample_rate
         atime = trace.t2ind(atime, deltat, snap=round) * deltat
@@ -2277,11 +2313,16 @@ class DataWaveformCollection(object):
             self._check_collection(waveform, errormode='in', force=force)
             self.waveforms.append(waveform)
 
-    def add_responses(self, responses):
+    def add_responses(self, responses, location=None):
 
         self._responses = OrderedDict()
 
         for k, v in responses.items():
+            if location is not None:
+                k = list(k)
+                k[2] = str(location)
+                k = tuple(k)
+
             self._responses[k] = v
 
     def add_targets(self, targets, replace=False, force=False):
@@ -2332,6 +2373,7 @@ class DataWaveformCollection(object):
             targets.extend(dtargets[cha])
 
         datasets = []
+        discard_targets = []
         for target in targets:
             nslc_id = target.codes
             try:
@@ -2340,16 +2382,19 @@ class DataWaveformCollection(object):
             except KeyError:
                 logger.warn(
                     'No data trace for target %s in '
-                    'the collection!' % str(nslc_id))
+                    'the collection! Removing target!' % str(nslc_id))
+                discard_targets.append(target)
 
-            responses = []
             if self._responses:
                 try:
-                    target.response = self._responses[nslc_id]
+                    target.update_response(*self._responses[nslc_id])
                 except KeyError:
                     logger.warn(
                         'No response for target %s in '
                         'the collection!' % str(nslc_id))
+
+        targets = utility.weed_targets(
+            targets, self.stations, discard_targets=discard_targets)
 
         ndata = len(datasets)
         n_t = len(targets)
@@ -2402,7 +2447,8 @@ def concatenate_datasets(datasets):
     return datasets, los_vectors, odws, Bij
 
 
-def init_datahandler(seismic_config, seismic_data_path='./'):
+def init_datahandler(
+        seismic_config, seismic_data_path='./', responses_path=None):
     """
     Initialise datahandler.
 
@@ -2419,9 +2465,6 @@ def init_datahandler(seismic_config, seismic_data_path='./'):
     sc = seismic_config
 
     stations, data_traces = utility.load_objects(seismic_data_path)
-
-    if seismic_config.responses:
-        responses = utility.load_objects(respo)
 
     wavenames = sc.get_waveform_names()
 
@@ -2440,6 +2483,10 @@ def init_datahandler(seismic_config, seismic_data_path='./'):
         data_traces, location=sc.gf_config.reference_model_idx)
     datahandler.adjust_sampling_datasets(target_deltat, snap=True)
     datahandler.add_targets(targets)
+    if responses_path:
+        responses = utility.load_objects(responses_path)
+        datahandler.add_responses(
+            responses, location=sc.gf_config.reference_model_idx)
     return datahandler
 
 
@@ -2510,6 +2557,8 @@ def post_process_trace(
                 filterer.tfade, filterer.freqlimits,
                 transfer_function=transfer_function,
                 invert=False, cut_off_fading=True)
+            trace.set_ydata(lfilter(
+                transfer_function.a, transfer_function.b, trace.ydata))
 
     if taper and outmode != 'data':
         tolerance = (taper.b - taper.a) * taper_tolerance_factor
@@ -2548,23 +2597,26 @@ def proto2zpk(magnification, damping, period, quantity='displacement'):
         in [s]
     quantity : string
         in which related data are recorded
-    """
 
-    zeros = num.zeros(nzeros[quantity])
+    Returns
+    -------
+    lists of zeros, poles and gain
+    """
+    print(magnification, damping, period)
+    zeros = num.zeros(nzeros[quantity]).tolist()
     omega0 = 2.0 * num.pi / period
     preal = - damping * omega0
     pimag = 1.0J * omega0 * num.sqrt(1.0 - damping ** 2)
-    poles = num.array([preal + pimag, preal - pimag])
+    poles = [preal + pimag, preal - pimag]
     return zeros, poles, magnification
 
 
-
-def seis_synthetics(engine, sources, targets, arrival_taper=None,
-                    wavename='any_P', filterer=None, reference_taperer=None,
-                    plot=False, nprocs=1, outmode='array',
-                    pre_stack_cut=False, taper_tolerance_factor=0.,
-                    arrival_times=None, chop_bounds=['b', 'c'],
-                    transfer_functions=[]):
+def seis_synthetics(
+        engine, sources, targets, arrival_taper=None,
+        wavename='any_P', filterer=None, reference_taperer=None,
+        plot=False, nprocs=1, outmode='array',
+        pre_stack_cut=False, taper_tolerance_factor=0.,
+        arrival_times=None, chop_bounds=['b', 'c']):
     """
     Calculate synthetic seismograms of combination of targets and sources,
     filtering and tapering afterwards (filterer)
@@ -2623,9 +2675,7 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
         arrival_times[:] = None
 
     taperers = []
-    transfer
     tapp = taperers.append
-
     for i, target in enumerate(targets):
         if arrival_taper:
             tapp(get_phase_taperer(
@@ -2669,7 +2719,8 @@ def seis_synthetics(engine, sources, targets, arrival_taper=None,
             filterer=filterer,
             taper_tolerance_factor=taper_tolerance_factor,
             outmode=outmode,
-            chop_bounds=chop_bounds)
+            chop_bounds=chop_bounds,
+            transfer_function=target.response)
 
         sapp(tr)
 
