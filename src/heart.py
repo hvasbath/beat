@@ -321,7 +321,7 @@ class FrequencyFilter(FilterBase):
         default=(0.005, 0.006, 166., 200.),
         help='Corner frequencies 4-tuple [Hz] for frequency domain filter.')
     tfade = Float.T(
-        default=10.,
+        default=20.,
         help='Rise/fall time in seconds of taper applied in timedomain at both'
              ' ends of trace.')
 
@@ -535,7 +535,7 @@ class DynamicTarget(gf.Target):
     def update_response(self, magnification, damping, period):
         z, p, k = proto2zpk(
             magnification, damping, period, quantity='displacement')
-        b, a = zpk2tf(z, p, k)
+        #b, a = zpk2tf(z, p, k)
 
         if self.response:
             self.response.zeros = z
@@ -545,9 +545,6 @@ class DynamicTarget(gf.Target):
             logger.debug('Initializing new response!')
             self.response = trace.PoleZeroResponse(
                 zeros=z, poles=p, constant=k)
-
-        self.response.a = a
-        self.response.b = b
 
     def update_target_times(self, sources=None, taperer=None):
         """
@@ -1932,7 +1929,7 @@ class RayPathError(Exception):
     pass
 
 
-def get_phase_arrival_time(engine, source, target, wavename, snap=True):
+def get_phase_arrival_time(engine, source, target, wavename=None, snap=True):
     """
     Get arrival time from Greens Function store for respective
     :class:`pyrocko.gf.seismosizer.Target`,
@@ -1947,6 +1944,8 @@ def get_phase_arrival_time(engine, source, target, wavename, snap=True):
     target : :class:`pyrocko.gf.seismosizer.Target`
     wavename : string
         of the tabulated phase that determines the phase arrival
+        needs to be the Id of a tabulated phase in the respective target.store
+        if "None" uses first tabulated phase
     snap : if True
         force arrival time on discrete samples of the store
 
@@ -1961,6 +1960,12 @@ def get_phase_arrival_time(engine, source, target, wavename, snap=True):
         raise gf.seismosizer.NoSuchStore(
             'No such store with ID %s found, distance [deg] to event: %f ' % (
                 target.store_id, cake.m2d * dist))
+
+    if wavename is None:
+        wavename = store.config.tabulated_phases[0].id
+        logger.debug(
+            'Wavename not specified using '
+            'first tabulated phase! %s' % wavename)
 
     logger.debug('Arrival time for wavename "%s" distance %f [deg]' % (
         wavename, cake.m2d * dist))
@@ -2547,6 +2552,15 @@ def post_process_trace(
         determines where to chop the trace on the taper attributes
         may be combination of [a, b, c, d]
     """
+    if transfer_function:
+        # convolve invert False deconvolve invert True
+        dummy_filterer = FrequencyFilter()
+        trace = trace.transfer(
+            dummy_filterer.tfade, dummy_filterer.freqlimits,
+            transfer_function=transfer_function,
+            invert=False, cut_off_fading=False)
+        logger.debug('transfer trace: %s' % trace.__str__())
+
     if filterer:
         if isinstance(filterer, Filter):
             # filter traces
@@ -2555,13 +2569,10 @@ def post_process_trace(
                 corner_lp=filterer.upper_corner,
                 order=filterer.order)
 
-        elif isinstance(filterer, FrequencyFilter):
+        if isinstance(filterer, FrequencyFilter):
             trace = trace.transfer(
                 filterer.tfade, filterer.freqlimits,
-                transfer_function=transfer_function,
-                invert=False, cut_off_fading=True)
-            trace.set_ydata(lfilter(
-                transfer_function.a, transfer_function.b, trace.ydata))
+                invert=False, cut_off_fading=False)
 
     if taper and outmode != 'data':
         tolerance = (taper.b - taper.a) * taper_tolerance_factor
@@ -2574,6 +2585,9 @@ def post_process_trace(
         trace.extend(lower_cut, upper_cut, fillmethod='zeros')
         trace.taper(taper, inplace=True)
         trace.chop(tmin=lower_cut, tmax=upper_cut, snap=(num.floor, num.floor))
+        logger.debug('chopped trace: %s' % trace.__str__())
+
+    return trace
 
 
 class StackingError(Exception):
@@ -2605,11 +2619,12 @@ def proto2zpk(magnification, damping, period, quantity='displacement'):
     -------
     lists of zeros, poles and gain
     """
-    print(magnification, damping, period)
+    import cmath
+
     zeros = num.zeros(nzeros[quantity]).tolist()
     omega0 = 2.0 * num.pi / period
     preal = - damping * omega0
-    pimag = 1.0J * omega0 * num.sqrt(1.0 - damping ** 2)
+    pimag = 1.0J * omega0 * cmath.sqrt(1.0 - damping ** 2)
     poles = [preal + pimag, preal - pimag]
     return zeros, poles, magnification
 
@@ -2716,7 +2731,7 @@ def seis_synthetics(
         else:
             taper = None
 
-        post_process_trace(
+        tr = post_process_trace(
             trace=tr,
             taper=taper,
             filterer=filterer,
@@ -2913,7 +2928,7 @@ def taper_filter_traces(
             'Filtering, tapering, chopping ... '
             'trace_samples: %i' % cut_trace.ydata.size)
 
-        post_process_trace(
+        cut_trace = post_process_trace(
             trace=cut_trace,
             taper=taper,
             filterer=filterer,
