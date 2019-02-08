@@ -214,7 +214,7 @@ class SeismicNoiseAnalyser(object):
         filterer = wmap.config.filterer
         scalings = []
         for i, (tr, target) in enumerate(zip(wmap.datasets, wmap.targets)):
-            wavename = 'any_P'   # hardcode here, want always pre P time
+            wavename = None   # None uses first tabulated phase
             arrival_time = heart.get_phase_arrival_time(
                 engine=self.engine, source=self.event,
                 target=target, wavename=wavename)

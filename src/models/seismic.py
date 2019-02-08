@@ -65,12 +65,11 @@ class SeismicComposite(Composite):
         seismic_data_path = os.path.join(
             project_dir, bconfig.seismic_data_name)
 
-        if hasattr(sc, 'responses_path'):
+        if sc.responses_path is not None:
             responses_path = os.path.join(
                 sc.responses_path, bconfig.response_file_name)
-            print(responses_path)
         else:
-            responses_path = None
+            responses_path = sc.responses_path
 
         self.datahandler = heart.init_datahandler(
             seismic_config=sc,
@@ -295,9 +294,9 @@ class SeismicComposite(Composite):
         #    point, outmode=outmode, taper_tolerance_factor=0.,
         #    chop_bounds=chop_bounds, order='wmap')
         syn_filt_traces, obs_filt_traces = syn_proc_traces, obs_proc_traces
+        #from pyrocko import trace
+        #trace.snuffle(syn_proc_traces + obs_proc_traces)
 
-        # from pyrocko import trace
-        # trace.snuffle(syn_filt_traces+ obs_filt_traces)
         results = []
         for i, wmap in enumerate(self.wavemaps):
             wc = wmap.config

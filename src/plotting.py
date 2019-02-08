@@ -2374,8 +2374,8 @@ def fuzzy_waveforms(
 
         ncolors = 256
         cmap = LinearSegmentedColormap.from_list(
-            'dummy', ['white', 'yellow', 'orange'], N=ncolors)
-        #cmap = plt.cm.Oranges
+            'dummy', ['white', scolor('chocolate2'), scolor('scarletred2')], N=ncolors)
+        #cmap = plt.cm.gist_earth_r
 
     if extent is None:
         key = traces[0].channel
@@ -2401,8 +2401,8 @@ def fuzzy_waveforms(
             linewidth=linewidth)
 
     # increase contrast reduce high intense values
-    truncate = len(traces) / 2
-    grid[grid > truncate] = truncate
+    #truncate = len(traces) / 2
+    #grid[grid > truncate] = truncate
     ax.imshow(
         grid, extent=extent, origin='lower', cmap=cmap, aspect='auto',
         alpha=alpha, zorder=zorder)
@@ -2591,6 +2591,7 @@ def fault_slip_distribution(
 
         if 'seismic' in fault.datatypes:
             if mtrace is not None:
+                from tqdm import tqdm
                 nuc_dip = transform(mtrace.get_values(
                     'nucleation_dip', combine=True, squeeze=True))
                 nuc_strike = transform(mtrace.get_values(
@@ -2606,7 +2607,8 @@ def fault_slip_distribution(
                 csteps = float(nchains) / nensemble
                 idxs = num.floor(
                     num.arange(0, nchains, csteps)).astype('int32')
-                for i in idxs:
+                logger.info('Rendering rupture fronts ...')
+                for i in tqdm(idxs):
                     nuc_dip_idx, nuc_strike_idx = fault.fault_locations2idxs(
                         0, nuc_dip[i], nuc_strike[i], backend='numpy')
                     sts = fault.get_subfault_starttimes(
@@ -2649,6 +2651,7 @@ def fault_slip_distribution(
             plt.clabel(contours, inline=True, fontsize=10)
 
         if mtrace is not None:
+            logger.info('Drawing quantiles ...')
             uparr = transform(
                 mtrace.get_values('uparr', combine=True, squeeze=True))
             uperp = transform(
@@ -2683,6 +2686,7 @@ def fault_slip_distribution(
         else:
             normalisation = None
 
+        logger.info('Drawing slip vectors ...')
         draw_quivers(
             ax, reference['uperp'], reference['uparr'], xgr, ygr,
             ext_source.rake, color='black', draw_legend=True,
