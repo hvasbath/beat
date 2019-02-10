@@ -2256,7 +2256,8 @@ def draw_earthmodels(problem, plot_options):
                 plot_stations = composite.get_unique_stations()
             else:
                 plot_stations = [composite.get_unique_stations()[0]]
-                plot_stations[0].station = \
+                print(sc.gf_config.reference_location)
+                plot_stations[0] = \
                     sc.gf_config.reference_location.station
 
             for station in plot_stations:
@@ -3256,5 +3257,33 @@ plots_catalog = {
     'station_map': draw_station_map}
 
 
-def available_plots():
-    return list(plots_catalog.keys())
+common_plots = [
+    'stage_posteriors',
+    'waveform_fits',
+    'velocity_models',
+    'station_map',
+    'scene_fits']
+
+
+geometry_plots = [
+    'correlation_hist',
+    'hudson',
+    'fuzzy_beachball']
+
+
+ffo_plots = [
+    'moment_rate',
+    'slip_distribution']
+
+
+plots_mode_catalog = {
+    'geometry': common_plots + geometry_plots,
+    'ffo': common_plots + ffo_plots,
+}
+
+
+def available_plots(mode=None):
+    if mode is None:
+        return list(plots_catalog.keys())
+    else:
+        return plots_mode_catalog[mode]

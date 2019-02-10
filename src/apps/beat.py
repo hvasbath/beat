@@ -1263,7 +1263,7 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
         args, options, nargs_dict[command_str], popflag=True)
 
     if args[0] == 'all':
-        plotnames = plots_avail
+        plotnames = plotting.available_plots(options.mode)
     else:
         plotnames = args[0].split(',')
 
