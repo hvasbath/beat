@@ -149,27 +149,32 @@ class SeismicComposite(Composite):
                     ' in the problem configuration!')
 
         if self.correction_name in problem_config.hierarchicals:
-            nhierarchs = len(self.get_unique_stations())
-            param = problem_config.hierarchicals[self.correction_name]
             logger.info(
-                'Estimating time shift for each station...')
-            kwargs = dict(
-                name=self.correction_name,
-                shape=nhierarchs,
-                lower=num.repeat(param.lower, nhierarchs),
-                upper=num.repeat(param.upper, nhierarchs),
-                testval=num.repeat(param.testvalue, nhierarchs),
-                transform=None,
-                dtype=tconfig.floatX)
+                'Estimating time shift for each station and waveform map...')
+            for wmap in self.wavemaps:
+                nhierarchs = len(wmap.get_station_names())
 
-            try:
-                station_corrs_rv = Uniform(**kwargs)
+                logger.info(
+                    'For %s with %i shifts' % (
+                        wmap.time_shifts_id, nhierarchs))
+                param = problem_config.hierarchicals[self.correction_name]
+                kwargs = dict(
+                    name=wmap.time_shifts_id,
+                    shape=nhierarchs,
+                    lower=num.repeat(param.lower, nhierarchs),
+                    upper=num.repeat(param.upper, nhierarchs),
+                    testval=num.repeat(param.testvalue, nhierarchs),
+                    transform=None,
+                    dtype=tconfig.floatX)
 
-            except TypeError:
-                kwargs.pop('name')
-                station_corrs_rv = Uniform.dist(**kwargs)
+                try:
+                    station_corrs_rv = Uniform(**kwargs)
 
-            self.hierarchicals[self.correction_name] = station_corrs_rv
+                except TypeError:
+                    kwargs.pop('name')
+                    station_corrs_rv = Uniform.dist(**kwargs)
+
+                self.hierarchicals[wmap.time_shifts_id] = station_corrs_rv
         else:
             nhierarchs = 0
 
@@ -189,11 +194,32 @@ class SeismicComposite(Composite):
 
             wmap.add_weights(weights)
 
-    def get_unique_stations(self):
+    def get_all_station_names(self):
+        """
+        Returns list of station names in the order of wavemaps.
+        """
         us = []
         for wmap in self.wavemaps:
             us.extend(wmap.get_station_names())
-        return utility.unique_list(us)
+
+        return us
+
+    def get_unique_time_shifts_ids(self):
+        """
+        Return unique time_shifts ids from wavemaps, which are keys to
+        hierarchical RVs of station corrections
+        """
+        ts = []
+        for wmap in self.wavemaps:
+            ts.append(wmap.time_shifts_id)
+
+        return utility.unique_list(ts)
+
+    def get_unique_station_names(self):
+        """
+        Return unique station names from all wavemaps
+        """
+        return utility.unique_list(self.get_all_station_names())
 
     @property
     def n_t(self):
@@ -402,7 +428,7 @@ class SeismicGeometryComposite(SeismicComposite):
         Parameters
         ----------
         input_rvs : list
-            of :class:`pymc3.distribution.Distribution`
+            of :class:`pymc3.distribution.Distribution` of source parameters
         fixed_rvs : dict
             of :class:`numpy.array`
         hyperparams : dict
@@ -432,12 +458,12 @@ class SeismicGeometryComposite(SeismicComposite):
         if self.config.station_corrections:
             logger.info(
                 'Initialized %i hierarchical parameters for '
-                'station corrections.' % len(self.get_unique_stations()))
+                'station corrections.' % len(self.get_all_station_names()))
 
         for wmap in self.wavemaps:
             if len(self.hierarchicals) > 0:
                 time_shifts = self.hierarchicals[
-                    self.correction_name][wmap.station_correction_idxs]
+                    wmap.time_shifts_id][wmap.station_correction_idxs]
                 self.input_rvs[self.correction_name] = time_shifts
 
             wc = wmap.config
@@ -516,8 +542,8 @@ class SeismicGeometryComposite(SeismicComposite):
             if self.config.station_corrections:
                 try:
                     arrival_times += point[
-                        self.correction_name][wmap.station_correction_idxs]
-                except IndexError:  # got reference point from config
+                        wmap.time_shifts_id][wmap.station_correction_idxs]
+                except KeyError:  # got reference point from config
                     arrival_times += float(point[self.correction_name]) * \
                         num.ones(wmap.n_t)
 
@@ -588,7 +614,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 arrival_times = wmap._arrival_times
                 if self.config.station_corrections:
                     arrival_times += point[
-                        self.correction_name][wmap.station_correction_idxs]
+                        wmap.time_shifts_id][wmap.station_correction_idxs]
 
                 for channel in wmap.channels:
                     tidxs = wmap.get_target_idxs([channel])
@@ -773,7 +799,7 @@ class SeismicDistributerComposite(SeismicComposite):
         if self.config.station_corrections:
             logger.info(
                 'Initialized %i hierarchical parameters for '
-                'station corrections.' % len(self.get_unique_stations()))
+                'station corrections.' % len(self.get_all_station_names()))
 
         self.input_rvs.update(fixed_rvs)
 
@@ -806,7 +832,7 @@ class SeismicDistributerComposite(SeismicComposite):
                     'Station corrections not fully implemented! for FFO!')
                 starttimes = (
                     tt.tile(starttimes0, wmap.n_t) +
-                    tt.repeat(self.hierarchicals[self.correction_name][
+                    tt.repeat(self.hierarchicals[wmap.time_shifts_id][
                         wmap.station_correction_idxs],
                         self.fault.npatches)).reshape(
                             wmap.n_t, self.fault.npatches)
@@ -902,7 +928,7 @@ class SeismicDistributerComposite(SeismicComposite):
                 'Station corrections not fully implemented! for FFO!')
             # starttimes = (
             #    num.tile(starttimes0, wmap.n_t) +
-            #    num.repeat(self.hierarchicals[self.correction_name][
+            #    num.repeat(self.hierarchicals[wmap.time_shifts_id][
             #        wmap.station_correction_idxs],
             #        self.fault.npatches)).reshape(
             #            wmap.n_t, self.fault.npatches)

@@ -304,6 +304,8 @@ class SeisSynthesizer(theano.Op):
         containing :class:`pyrocko.gf.seismosizer.Target` Objects
 
     arrival_taper : :class:`heart.ArrivalTaper`
+    arrival_times : :class:`ǹumpy.NdArray`
+        with synthetic arrival times wrt reference event
     filterer : :class:`heart.Filterer`
     """
 
@@ -378,8 +380,8 @@ class SeisSynthesizer(theano.Op):
         mpoint = utility.adjust_point_units(point)
 
         if self.station_corrections:
-            arrival_times = num.array(self.arrival_times) + \
-                mpoint.pop('time_shift').ravel()
+            time_shifts = mpoint.pop('time_shift').ravel()
+            arrival_times = num.array(self.arrival_times) + time_shifts
         else:
             arrival_times = num.array(self.arrival_times)
 
