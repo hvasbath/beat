@@ -2035,7 +2035,7 @@ class WaveformMapping(object):
         of :class:`pyrocko.gf.target.Target`
     """
     def __init__(self, name, stations, weights=None, channels=['Z'],
-                 datasets=[], targets=[], responses=None):
+                 datasets=[], targets=[]):
 
         self.name = name
         self.stations = stations
@@ -2414,8 +2414,7 @@ class DataWaveformCollection(object):
             stations=copy.deepcopy(self.stations),
             datasets=copy.deepcopy(datasets),
             targets=copy.deepcopy(targets),
-            channels=channels,
-            responses=copy.deepcopy(responses))
+            channels=channels)
 
 
 def concatenate_datasets(datasets):

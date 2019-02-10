@@ -722,7 +722,7 @@ def geodetic_fits(problem, stage, plot_options):
                     scale_x = {'scale': 1. / km}
                     scale_y = {'scale': 1. / km}
             else:
-                raise Exception(
+                raise TypeError(
                     'Plot projection %s not available' % po.plot_projection)
 
             scale_axes(ax.get_xaxis(), **scale_x)
@@ -1024,8 +1024,8 @@ def geodetic_fits(problem, stage, plot_options):
 
 def draw_geodetic_fits(problem, plot_options):
 
-    if 'geodetic' not in problem.composites.keys():
-        raise Exception('No geodetic composite defined in the problem!')
+    if 'geodetic' not in list(problem.composites.keys()):
+        raise TypeError('No geodetic composite defined in the problem!')
 
     po = plot_options
 
@@ -1405,8 +1405,8 @@ def seismic_fits(problem, stage, plot_options):
 
 def draw_seismic_fits(problem, po):
 
-    if 'seismic' not in problem.composites.keys():
-        raise Exception('No seismic composite defined for this problem!')
+    if 'seismic' not in list(problem.composites.keys()):
+        raise TypeError('No seismic composite defined for this problem!')
 
     stage = Stage(homepath=problem.outfolder)
 
@@ -2115,7 +2115,7 @@ def draw_correlation_hist(problem, plot_options):
     logger.info('Plotting variables: %s' % (', '.join((v for v in varnames))))
 
     if len(varnames) < 2:
-        raise Exception('Need at least two parameters to compare!'
+        raise TypeError('Need at least two parameters to compare!'
                         'Found only %i variables! ' % len(varnames))
 
     if po.load_stage is None and not hypers and sc.name == 'Metropolis':
@@ -2253,11 +2253,10 @@ def draw_earthmodels(problem, plot_options):
             sc = problem.config.seismic_config
 
             if sc.gf_config.reference_location is None:
-                plot_stations = composite.get_unique_stations()
+                plot_stations = composite.datahandler.stations
             else:
-                plot_stations = [composite.get_unique_stations()[0]]
-                print(sc.gf_config.reference_location)
-                plot_stations[0] = \
+                plot_stations = [composite.datahandler.stations[0]]
+                plot_stations[0].station = \
                     sc.gf_config.reference_location.station
 
             for station in plot_stations:
@@ -3259,9 +3258,15 @@ plots_catalog = {
 
 common_plots = [
     'stage_posteriors',
-    'waveform_fits',
-    'velocity_models',
+    'velocity_models']
+
+
+seismic_plots = [
     'station_map',
+    'waveform_fits']
+
+
+geodetic_plots = [
     'scene_fits']
 
 
@@ -3281,9 +3286,18 @@ plots_mode_catalog = {
     'ffo': common_plots + ffo_plots,
 }
 
+plots_datatype_catalog = {
+    'seismic': seismic_plots,
+    'geodetic': geodetic_plots,
+}
 
-def available_plots(mode=None):
+
+def available_plots(mode=None, datatypes=['geodetic', 'seismic']):
     if mode is None:
         return list(plots_catalog.keys())
     else:
-        return plots_mode_catalog[mode]
+        plots = plots_mode_catalog[mode]
+        for datatype in datatypes:
+            plots.extend(plots_datatype_catalog[datatype])
+
+        return plots
