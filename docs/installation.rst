@@ -333,9 +333,13 @@ framework to efficiently store and access Greens Functions.::
 OpenMPI
 """""""
 For the Parallel Tempering algorithm OpenMPI and the python 
-bindings are required.::
+bindings are required. If you do not have any MPI library installed, this needs to be installed first.
+To install openmpi::
 
-    sudo apt-get install libopenmpi-dev
+    sudo apt-get install libopenmpi-dev openmpi-bin
+
+Finally, the python wrapper::
+
     sudo pip3 install mpi4py
 
 BEAT

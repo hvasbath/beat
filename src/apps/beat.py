@@ -13,7 +13,7 @@ from collections import OrderedDict
 
 from optparse import OptionParser
 
-from beat import heart, utility, inputf, plotting, config
+from beat import heart, utility, inputf, plotting, config as bconfig
 from beat.config import ffo_mode_str, geometry_mode_str
 from beat.models import load_model, Stage, estimate_hypers, sample
 from beat.backend import TextChain, extract_bounds_from_summary
@@ -223,11 +223,11 @@ def command_init(args):
 
         parser.add_option(
             '--source_type', dest='source_type',
-            choices=config.source_names,
+            choices=bconfig.source_names,
             default='RectangularSource',
             help='Source type to solve for; %s'
                  '. Default: "RectangularSource"' % (
-                     '", "'.join(name for name in config.source_names)))
+                     '", "'.join(name for name in bconfig.source_names)))
 
         parser.add_option(
             '--n_sources', dest='n_sources', type='int',
@@ -284,7 +284,7 @@ def command_init(args):
         name = args[0]
         date = None
 
-    return config.init_config(name, date,
+    return bconfig.init_config(name, date,
                               main_path=options.main_path,
                               min_magnitude=options.min_mag,
                               datatypes=options.datatypes,
@@ -360,14 +360,14 @@ def command_import(args):
 
 
     if not options.results:
-        c = config.load_config(project_dir, options.mode)
+        c = bconfig.load_config(project_dir, options.mode)
 
         if 'seismic' in options.datatypes:
             sc = c.seismic_config
             logger.info('Attempting to import seismic data from %s' %
                         sc.datadir)
 
-            seismic_outpath = pjoin(c.project_dir, config.seismic_data_name)
+            seismic_outpath = pjoin(c.project_dir, bconfig.seismic_data_name)
             if not os.path.exists(seismic_outpath) or options.force:
                 stations = model.load_stations(
                     pjoin(sc.datadir, 'stations.txt'))
@@ -410,7 +410,7 @@ def command_import(args):
             logger.info('Attempting to import geodetic data from %s' %
                         gc.datadir)
 
-            geodetic_outpath = pjoin(c.project_dir, config.geodetic_data_name)
+            geodetic_outpath = pjoin(c.project_dir, bconfig.geodetic_data_name)
             if not os.path.exists(geodetic_outpath) or options.force:
 
                 gtargets = []
@@ -449,7 +449,7 @@ def command_import(args):
         logger.info(
             'Attempting to load results with mode %s from directory:'
             ' %s' % (options.mode, options.results))
-        c = config.load_config(project_dir, 'ffo')
+        c = bconfig.load_config(project_dir, 'ffo')
 
         problem = load_model(
             options.results, options.mode, hypers=False)
@@ -493,7 +493,7 @@ def command_import(args):
             point = utility.adjust_point_units(point)
             source_points = utility.split_point(point)
 
-            reference_sources = config.init_reference_sources(
+            reference_sources = bconfig.init_reference_sources(
                 source_points, n_sources, c.problem_config.source_type,
                 c.problem_config.stf_type, ref_time=c.event.time)
 
@@ -530,7 +530,7 @@ def command_import(args):
             c.problem_config.set_vars(
                 new_bounds, attribute='priors')
 
-        config.dump_config(c)
+        bconfig.dump_config(c)
         logger.info('Successfully updated config file!')
 
 
@@ -602,11 +602,11 @@ def command_clone(args):
 
         parser.add_option(
             '--source_type', dest='source_type',
-            choices=config.source_names,
+            choices=bconfig.source_names,
             default=None,
             help='Source type to replace in config; %s'
                  '. Default: "dont change"' % (
-                     '", "'.join(name for name in config.source_names)))
+                     '", "'.join(name for name in bconfig.source_names)))
 
         parser.add_option(
             '--mode', dest='mode',
@@ -649,7 +649,7 @@ def command_clone(args):
 
         if os.path.exists(config_fn):
             logger.info('Cloning %s problem config.' % mode)
-            c = config.load_config(project_dir, mode)
+            c = bconfig.load_config(project_dir, mode)
 
             c.name = cloned_name
             c.project_dir = cloned_dir
@@ -660,7 +660,7 @@ def command_clone(args):
                     logger.warn('Datatype %s to be cloned is not'
                                 ' in config! Adding to new config!' % datatype)
                     c[datatype + '_config'] = \
-                        config.datatype_catalog[datatype](mode=options.mode)
+                        bconfig.datatype_catalog[datatype](mode=options.mode)
                     re_init = True
                 else:
                     re_init = False
@@ -710,7 +710,7 @@ def command_clone(args):
 
             c.regularize()
             c.validate()
-            config.dump_config(c)
+            bconfig.dump_config(c)
 
         else:
             raise IOError('Config file: %s does not exist!' % config_fn)
@@ -893,7 +893,7 @@ def command_summarize(args):
                 'Trace collection previously failed. Please rerun'
                 ' "beat summarize <project_dir> --force!"')
 
-        summary_file = pjoin(problem.outfolder, config.summary_name)
+        summary_file = pjoin(problem.outfolder, bconfig.summary_name)
 
         if os.path.exists(summary_file) and options.force:
             os.remove(summary_file)
@@ -948,7 +948,7 @@ def command_build_gfs(args):
     project_dir = get_project_directory(
         args, options, nargs_dict[command_str])
 
-    c = config.load_config(project_dir, options.mode)
+    c = bconfig.load_config(project_dir, options.mode)
 
     if options.mode in [geometry_mode_str, 'interseismic']:
         for datatype in options.datatypes:
@@ -972,7 +972,7 @@ def command_build_gfs(args):
                     logger.info("Creating Green's Function stores individually"
                                 " for each station!")
                     seismic_data_path = pjoin(
-                        c.project_dir, config.seismic_data_name)
+                        c.project_dir, bconfig.seismic_data_name)
 
                     stations, _ = utility.load_objects(seismic_data_path)
                 else:
@@ -1007,10 +1007,10 @@ def command_build_gfs(args):
 
         slip_varnames = c.problem_config.get_slip_variables()
         varnames = c.problem_config.select_variables()
-        outdir = pjoin(c.project_dir, options.mode, config.linear_gf_dir_name)
+        outdir = pjoin(c.project_dir, options.mode, bconfig.linear_gf_dir_name)
         util.ensuredir(outdir)
 
-        faultpath = pjoin(outdir, config.fault_geometry_name)
+        faultpath = pjoin(outdir, bconfig.fault_geometry_name)
         if not os.path.exists(faultpath) or options.force:
             for datatype in options.datatypes:
                 try:
@@ -1059,7 +1059,7 @@ def command_build_gfs(args):
             }
 
             c.problem_config.set_vars(new_bounds)
-            config.dump_config(c)
+            bconfig.dump_config(c)
 
         elif os.path.exists(faultpath):
             logger.info("Discretized fault geometry exists! Use --force to"
@@ -1077,7 +1077,7 @@ def command_build_gfs(args):
                     gf = c.geodetic_config.gf_config
 
                     geodetic_data_path = pjoin(
-                        c.project_dir, config.geodetic_data_name)
+                        c.project_dir, bconfig.geodetic_data_name)
 
                     datasets = utility.load_objects(geodetic_data_path)
 
@@ -1107,7 +1107,7 @@ def command_build_gfs(args):
 
                 elif datatype == 'seismic':
                     seismic_data_path = pjoin(
-                        c.project_dir, config.seismic_data_name)
+                        c.project_dir, bconfig.seismic_data_name)
                     sc = c.seismic_config
                     gf = sc.gf_config
                     pc = c.problem_config
@@ -1263,7 +1263,10 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
         args, options, nargs_dict[command_str], popflag=True)
 
     if args[0] == 'all':
-        plotnames = plots_avail
+        c = bconfig.load_config(project_dir, options.mode)
+        plotnames = plotting.available_plots(
+            options.mode, datatypes=c.problem_config.datatypes)
+        logger.info('Plotting "all" plots: %s' % list2string(plotnames))
     else:
         plotnames = args[0].split(',')
 
@@ -1393,7 +1396,7 @@ def command_check(args):
                 for var in problem.config.problem_config.get_slip_variables():
                     outdir = pjoin(
                         problem.config.project_dir, options.mode,
-                        config.linear_gf_dir_name)
+                        bconfig.linear_gf_dir_name)
                     if datatype == 'seismic':
                         sc = problem.config.seismic_config
                         scomp = problem.composites['seismic']
@@ -1500,7 +1503,7 @@ def command_export(args):
         load='trace', chains=[-1])
 
     trace_name = 'chain--1.csv'
-    results_path = pjoin(problem.outfolder, config.results_dir_name)
+    results_path = pjoin(problem.outfolder, bconfig.results_dir_name)
     logger.info('Saving results to %s' % results_path)
     util.ensuredir(results_path)
 

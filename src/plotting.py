@@ -722,7 +722,7 @@ def geodetic_fits(problem, stage, plot_options):
                     scale_x = {'scale': 1. / km}
                     scale_y = {'scale': 1. / km}
             else:
-                raise Exception(
+                raise TypeError(
                     'Plot projection %s not available' % po.plot_projection)
 
             scale_axes(ax.get_xaxis(), **scale_x)
@@ -1024,8 +1024,8 @@ def geodetic_fits(problem, stage, plot_options):
 
 def draw_geodetic_fits(problem, plot_options):
 
-    if 'geodetic' not in problem.composites.keys():
-        raise Exception('No geodetic composite defined in the problem!')
+    if 'geodetic' not in list(problem.composites.keys()):
+        raise TypeError('No geodetic composite defined in the problem!')
 
     po = plot_options
 
@@ -1405,8 +1405,8 @@ def seismic_fits(problem, stage, plot_options):
 
 def draw_seismic_fits(problem, po):
 
-    if 'seismic' not in problem.composites.keys():
-        raise Exception('No seismic composite defined for this problem!')
+    if 'seismic' not in list(problem.composites.keys()):
+        raise TypeError('No seismic composite defined for this problem!')
 
     stage = Stage(homepath=problem.outfolder)
 
@@ -2115,7 +2115,7 @@ def draw_correlation_hist(problem, plot_options):
     logger.info('Plotting variables: %s' % (', '.join((v for v in varnames))))
 
     if len(varnames) < 2:
-        raise Exception('Need at least two parameters to compare!'
+        raise TypeError('Need at least two parameters to compare!'
                         'Found only %i variables! ' % len(varnames))
 
     if po.load_stage is None and not hypers and sc.name == 'Metropolis':
@@ -2253,9 +2253,9 @@ def draw_earthmodels(problem, plot_options):
             sc = problem.config.seismic_config
 
             if sc.gf_config.reference_location is None:
-                plot_stations = composite.get_unique_stations()
+                plot_stations = composite.datahandler.stations
             else:
-                plot_stations = [composite.get_unique_stations()[0]]
+                plot_stations = [composite.datahandler.stations[0]]
                 plot_stations[0].station = \
                     sc.gf_config.reference_location.station
 
@@ -2374,8 +2374,8 @@ def fuzzy_waveforms(
 
         ncolors = 256
         cmap = LinearSegmentedColormap.from_list(
-            'dummy', ['white', 'yellow', 'orange'], N=ncolors)
-        #cmap = plt.cm.Oranges
+            'dummy', ['white', scolor('chocolate2'), scolor('scarletred2')], N=ncolors)
+        #cmap = plt.cm.gist_earth_r
 
     if extent is None:
         key = traces[0].channel
@@ -2401,8 +2401,8 @@ def fuzzy_waveforms(
             linewidth=linewidth)
 
     # increase contrast reduce high intense values
-    truncate = len(traces) / 2
-    grid[grid > truncate] = truncate
+    #truncate = len(traces) / 2
+    #grid[grid > truncate] = truncate
     ax.imshow(
         grid, extent=extent, origin='lower', cmap=cmap, aspect='auto',
         alpha=alpha, zorder=zorder)
@@ -2591,6 +2591,7 @@ def fault_slip_distribution(
 
         if 'seismic' in fault.datatypes:
             if mtrace is not None:
+                from tqdm import tqdm
                 nuc_dip = transform(mtrace.get_values(
                     'nucleation_dip', combine=True, squeeze=True))
                 nuc_strike = transform(mtrace.get_values(
@@ -2606,7 +2607,8 @@ def fault_slip_distribution(
                 csteps = float(nchains) / nensemble
                 idxs = num.floor(
                     num.arange(0, nchains, csteps)).astype('int32')
-                for i in idxs:
+                logger.info('Rendering rupture fronts ...')
+                for i in tqdm(idxs):
                     nuc_dip_idx, nuc_strike_idx = fault.fault_locations2idxs(
                         0, nuc_dip[i], nuc_strike[i], backend='numpy')
                     sts = fault.get_subfault_starttimes(
@@ -2649,6 +2651,7 @@ def fault_slip_distribution(
             plt.clabel(contours, inline=True, fontsize=10)
 
         if mtrace is not None:
+            logger.info('Drawing quantiles ...')
             uparr = transform(
                 mtrace.get_values('uparr', combine=True, squeeze=True))
             uperp = transform(
@@ -2683,6 +2686,7 @@ def fault_slip_distribution(
         else:
             normalisation = None
 
+        logger.info('Drawing slip vectors ...')
         draw_quivers(
             ax, reference['uperp'], reference['uparr'], xgr, ygr,
             ext_source.rake, color='black', draw_legend=True,
@@ -3252,5 +3256,48 @@ plots_catalog = {
     'station_map': draw_station_map}
 
 
-def available_plots():
-    return list(plots_catalog.keys())
+common_plots = [
+    'stage_posteriors',
+    'velocity_models']
+
+
+seismic_plots = [
+    'station_map',
+    'waveform_fits']
+
+
+geodetic_plots = [
+    'scene_fits']
+
+
+geometry_plots = [
+    'correlation_hist',
+    'hudson',
+    'fuzzy_beachball']
+
+
+ffo_plots = [
+    'moment_rate',
+    'slip_distribution']
+
+
+plots_mode_catalog = {
+    'geometry': common_plots + geometry_plots,
+    'ffo': common_plots + ffo_plots,
+}
+
+plots_datatype_catalog = {
+    'seismic': seismic_plots,
+    'geodetic': geodetic_plots,
+}
+
+
+def available_plots(mode=None, datatypes=['geodetic', 'seismic']):
+    if mode is None:
+        return list(plots_catalog.keys())
+    else:
+        plots = plots_mode_catalog[mode]
+        for datatype in datatypes:
+            plots.extend(plots_datatype_catalog[datatype])
+
+        return plots

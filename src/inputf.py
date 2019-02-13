@@ -15,7 +15,7 @@ km = 1000.
 m = 0.000000001
 
 
-def setup_stations(lats, lons, names, networks, event):
+def setup_stations(lats, lons, names, networks, event, rotate=True):
     """
     Setup station objects, based on station coordinates and reference event.
 
@@ -43,7 +43,8 @@ def setup_stations(lats, lons, names, networks, event):
             lat=lat, lon=lon, station=name, network=network)
         s.set_event_relative_data(event)
         s.set_channels_by_name('E', 'N', 'Z')
-        p = s.guess_projections_to_rtu(out_channels=('R', 'T', 'Z'))
+        if rotate:
+            p = s.guess_projections_to_rtu(out_channels=('R', 'T', 'Z'))
         s.set_channels(p[0][2])
         stations.append(s)
 
@@ -165,6 +166,34 @@ def load_ascii_gnss(filedir, filename):
     return data
 
 
+def load_repsonses_from_file(projectpath):
+
+    network = ''
+    location = ''
+
+    response_filename = os.path.join(projectpath, 'responses.txt')
+    logger.info('Loading responses from: %s', response_filename)
+
+    responses = {}
+    for line in open(response_filename, 'r'):
+        t = line.split()
+        logger.info(t)
+
+        if len(t) == 8:
+            sta, cha, instrument, lat, lon, mag, damp, period = t
+            # plese see the file format below
+            if damp == 'No_damping':
+                damp = 0.001
+
+            lat, lon, mag, damp, period = [
+                float(x) for x in (lat, lon, mag, damp, period)]
+
+            responses[(network, sta, location, cha)] = (mag, damp, period)
+            logger.debug('%s %s %s %s %s' % (sta, cha, mag, damp, period))
+
+    return responses
+
+
 def load_and_blacklist_gnss(datadir, filename, blacklist):
     """
     Load ascii GNSS data, apply blacklist and initialise targets.
@@ -268,8 +297,9 @@ def load_obspy_data(datadir):
 
 
 def load_data_traces(
-        datadir, stations, load_channels=[], name_prefix=None,
-        data_format='mseed', divider='-', convert=False):
+        datadir, stations, load_channels=[],
+        name_prefix=None, name_suffix=None,
+        data_format='mseed', divider='-', convert=False, no_network=False):
     """
     Load data traces for the given stations from datadir.
     """
@@ -283,12 +313,20 @@ def load_data_traces(
             channels = [model.Channel(name=cha) for cha in load_channels]
 
         for channel in channels:
-            trace_name = divider.join(
-                (station.network, station.station,
-                 station.location, channel.name, data_format))
+            if no_network:
+                trace_name = divider.join(
+                    (station.station,
+                     station.location, channel.name))
+            else:
+                trace_name = divider.join(
+                    (station.network, station.station,
+                     station.location, channel.name))
+
+            if name_suffix:
+                trace_name = divider.join((trace_name, name_suffix))
 
             if name_prefix:
-                trace_name = divider.join(name_prefix, trace_name)
+                trace_name = divider.join((name_prefix, trace_name))
 
             tracepath = os.path.join(datadir, trace_name)
             try:
