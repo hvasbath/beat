@@ -4,7 +4,7 @@
 Detailed Installation instructions
 **********************************
 
-BEAT can be installed on any Unix based system with python>3.5
+BEAT can be installed on any Unix based system with python>=3.5
 that supports its prerequisites.
 
 For any user who has no user rights on the machine where BEAT is supposed to be installed, please add --user at the end of each sudo command, e.g.::

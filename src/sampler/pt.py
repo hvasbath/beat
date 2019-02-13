@@ -277,12 +277,14 @@ class TemperingManager(object):
         """
         Returns acceptance rate for swapping states between chains.
         """
-        logger.debug(
+        logger.info(
             'Counting accepted swaps of '
             'posterior chains with beta == %f', beta)
 
         worker_idxs = self.get_workers_ge_beta(beta)
 
+        logger.info('Worker indexes of beta greater %f: %s' % (
+            beta, list2string(worker_idxs)))
         tempered_worker = worker_idxs.pop()
 
         rowidxs, colidxs = num.meshgrid(worker_idxs, tempered_worker)
@@ -291,15 +293,18 @@ class TemperingManager(object):
         rowidxs -= 1
         colidxs -= 1
 
-        n_samples = float(
+        n_samples = int(
             self.sample_count[rowidxs, colidxs].sum() +
             self.sample_count[colidxs, rowidxs].sum())
-        accepted_samples = float(
+        accepted_samples = int(
             self.acceptance_matrix[rowidxs, colidxs].sum() +
             self.acceptance_matrix[colidxs, rowidxs].sum())
 
+        logger.info(
+            'Number of samples %i and accepted samples %i of acceptance'
+            ' evaluation, respectively.' % (n_samples, accepted_samples))
         if n_samples:
-            return accepted_samples / n_samples
+            return float(accepted_samples) / float(n_samples)
         else:
             return n_samples
 
