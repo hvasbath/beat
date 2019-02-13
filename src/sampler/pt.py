@@ -21,11 +21,10 @@ from beat.sampler.base import _iter_sample, Proposal, choose_proposal, \
 from beat.config import sample_p_outname
 
 from tqdm import tqdm
-from logging import getLogger
+from logging import getLogger, getLevelName
 from tqdm import tqdm
 from theano import config as tconfig
 
-from logging import getLogger
 from collections import OrderedDict
 from copy import deepcopy
 
@@ -469,8 +468,9 @@ def master_process(
 
     if n_workers_posterior >= n_workers:
         raise ValueError(
-            'Specified more workers that sample in the posterior,'
-            ' than there are total number of workers')
+            'Specified more workers that sample in the posterior "%i",'
+            ' than there are total number of workers "%i"' % (
+                n_workers_posterior, n_workers))
 
     stage = -1
     active_workers = 0
@@ -775,13 +775,15 @@ def pt_sample(
         n_workers_posterior, homepath, progressbar, buffer_size, resample,
         rm_flag]
 
+    loglevel = getLevelName(logger.getEffectiveLevel()).lower()
+
     distributed.run_mpi_sampler(
         sampler_name='pt',
         model=model,
         sampler_args=sampler_args,
         keep_tmp=keep_tmp,
         n_jobs=n_chains + 1,    # add master process
-        loglevel='info')
+        loglevel=loglevel)
 
 
 def _sample():
@@ -792,6 +794,7 @@ def _sample():
     comm = MPI.COMM_WORLD
     status = MPI.Status()
 
+    logger.debug('communicator size %i' % comm.size)
     model = load_objects(distributed.pymc_model_name)
     with model:
         for i in range(comm.size):
