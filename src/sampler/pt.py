@@ -129,7 +129,6 @@ class TemperingManager(object):
             self.n_workers - self.n_workers_posterior)
 
         self._worker_package_mapping = OrderedDict()
-        self._posterior_workers = None
         self._betas = None
         self._t_scale_min = 1.01
         self._t_scale_max = 2.0
@@ -263,15 +262,22 @@ class TemperingManager(object):
         dump_objects(
             os.path.join(save_dir, self.history.filename), self.history)
 
-    def get_workers_ge_beta(self, beta):
+    def get_workers_ge_beta(self, beta, idxs=False):
         """
         Get worker source indexes greater, equal given beta.
-        Workers in decreasing beta order.
+        If idxs is True return indexes to sample and acceptance arrays
         """
 
-        return [
+        workers = [
             source for source, package in self._worker_package_mapping.items()
             if package['step'].beta >= beta]
+
+        if idxs:
+            w2i = self.worker_index_mapping()
+            return [w2i[w] for w in workers]
+
+        else:
+            return workers
 
     def get_acceptance_swap(self, beta, beta_tune_interval):
         """
@@ -281,17 +287,22 @@ class TemperingManager(object):
             'Counting accepted swaps of '
             'posterior chains with beta == %f', beta)
 
-        worker_idxs = self.get_workers_ge_beta(beta)
+        worker_idxs = self.get_workers_ge_beta(beta, idxs=True)
 
         logger.info('Worker indexes of beta greater %f: %s' % (
             beta, list2string(worker_idxs)))
-        tempered_worker = worker_idxs.pop()
 
-        rowidxs, colidxs = num.meshgrid(worker_idxs, tempered_worker)
+        tempered_worker_idxs = deepcopy(worker_idxs)
+        for worker_idx in self.get_posterior_workers(idxs=True):
+            tempered_worker_idxs.remove(worker_idx)
 
-        # remove master
-        rowidxs -= 1
-        colidxs -= 1
+        logger.info(
+            'Workers of tempered chains: %s' % list2string(
+                tempered_worker_idxs))
+
+        rowidxs, colidxs = num.meshgrid(worker_idxs, tempered_worker_idxs)
+
+        print(rowidxs, colidxs)
 
         n_samples = int(
             self.sample_count[rowidxs, colidxs].sum() +
@@ -336,19 +347,18 @@ class TemperingManager(object):
         self.record_tuning_history(acceptance)
         self.update_betas(t_scale)
 
-    @property
-    def workers(self):
-        return list(self._worker_package_mapping.keys())
+    def get_workers(self, idxs=False):
+        """
+        If idxs is True return indexes to sample and acceptance arrays
+        """
+        return self.get_workers_ge_beta(0., idxs=idxs)
 
-    @property
-    def posterior_workers(self):
+    def get_posterior_workers(self, idxs=False):
         """
         Worker indexes that are sampling from the posterior (beta == 1.)
+        If idxs is True return indexes to sample and acceptance arrays
         """
-        if self._posterior_workers is None:
-            self._posterior_workers = self.get_workers_ge_beta(1.)
-
-        return self._posterior_workers
+        return self.get_workers_ge_beta(1., idxs=idxs)
 
     def get_package(self, source, resample=False):
         """
@@ -442,7 +452,7 @@ class TemperingManager(object):
         if self._worker2index is None:
             self._worker2index = dict(
                 (worker, i) for (i, worker) in enumerate(
-                    self.workers))
+                    self.get_workers()))
         return self._worker2index
 
     def worker2package(self, source):
@@ -521,8 +531,10 @@ def master_process(
     counter = ChainCounter(
         n=n_samples, n_jobs=1, perc_disp=0.01, subject='samples')
 
-    logger.info('Posterior workers %s', list2string(manager.posterior_workers))
-    logger.info('Tuning worker betas every %i samples. \n' % beta_tune_interval)
+    logger.info('Posterior workers %s', list2string(
+        manager.get_posterior_workers()))
+    logger.info(
+        'Tuning worker betas every %i samples. \n' % beta_tune_interval)
     logger.info('Sampling ...')
     logger.info('------------')
     while True:
@@ -541,7 +553,7 @@ def master_process(
 
         # write results to trace if workers sample from posterior
         for source, m in zip([source1, source2], [m1, m2]):
-            if source in manager.posterior_workers:
+            if source in manager.get_posterior_workers():
                 count_sample += 1
                 counter(source)
                 trace.write(m, count_sample)

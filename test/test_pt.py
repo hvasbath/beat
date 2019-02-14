@@ -32,10 +32,10 @@ class TestPT(unittest.TestCase):
         self.n_workers_posterior = 2
         self.n_samples = int(3e4)
         self.tune_interval = 50
-        self.beta_tune_interval = 5000
+        self.beta_tune_interval = 3000
         self.swap_interval = (10, 15)
         self.buffer_size = self.n_samples / 10.
-        self.burn = 0.3
+        self.burn = 0.5
         self.thin = 1
 
     def _test_sample(self, n_jobs, test_folder):
@@ -96,7 +96,7 @@ class TestPT(unittest.TestCase):
 
         stage_handler = TextStage(test_folder)
 
-        mtrace = stage_handler.load_multitrace(-1, model=PT_test)
+        mtrace = stage_handler.load_multitrace(-1, varnames=PT_test.vars)
         history = load_objects(os.path.join(stage_handler.stage_path(-1), sample_p_outname))
 
         n_steps = self.n_samples
@@ -118,7 +118,8 @@ class TestPT(unittest.TestCase):
 
         from pymc3 import traceplot
         from matplotlib import pyplot as plt
-        traceplot(mtrace, transform=burn_sample)
+        with PT_test:
+            traceplot(mtrace, transform=burn_sample)
 
         fig, axes = plt.subplots(
             nrows=1, ncols=2, figsize=mpl_papersize('a5', 'portrait'))
@@ -191,5 +192,5 @@ class TestPT(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    util.setup_logging('test_pt', 'debug')
+    util.setup_logging('test_pt', 'info')
     unittest.main()
