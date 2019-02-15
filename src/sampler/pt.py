@@ -302,8 +302,6 @@ class TemperingManager(object):
 
         rowidxs, colidxs = num.meshgrid(worker_idxs, tempered_worker_idxs)
 
-        print(rowidxs, colidxs)
-
         n_samples = int(
             self.sample_count[rowidxs, colidxs].sum() +
             self.sample_count[colidxs, rowidxs].sum())
@@ -792,6 +790,7 @@ def pt_sample(
         n_workers_posterior, homepath, progressbar, buffer_size, resample,
         rm_flag]
 
+    project_dir = os.path.dirname(homepath)
     loglevel = getLevelName(logger.getEffectiveLevel()).lower()
 
     distributed.run_mpi_sampler(
@@ -800,7 +799,8 @@ def pt_sample(
         sampler_args=sampler_args,
         keep_tmp=keep_tmp,
         n_jobs=n_chains + 1,    # add master process
-        loglevel=loglevel)
+        loglevel=loglevel,
+        project_dir=project_dir)
 
 
 def _sample():
@@ -833,5 +833,14 @@ def _sample():
 
 if __name__ == '__main__':
 
-    setup_logging('', sys.argv[1], logfilename='BEAT_log.txt')
+    try:
+        _, levelname, project_dir = sys.argv
+    except ValueError:
+        _, levelname = sys.argv
+        project_dir = ''
+
+    setup_logging(
+        project_dir=project_dir,
+        levelname=levelname,
+        logfilename='BEAT_log.txt')
     _sample()

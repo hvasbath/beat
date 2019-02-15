@@ -74,14 +74,14 @@ class MPIRunner(object):
         self.tempdir = mkdtemp(prefix='mpiexec-', dir=tmp)
         logger.info('Done initialising mpi runner')
 
-    def run(self, script_path, n_jobs=None, loglevel='info'):
+    def run(self, script_path, n_jobs=None, loglevel='info', project_dir=''):
 
         if n_jobs is None:
             raise ValueError('n_jobs has to be defined!')
 
         program = program_bins['mpi']
-        args = ' -n %i python%i %s %s' % (
-            n_jobs, self.py_version, script_path, loglevel)
+        args = ' -n %i python%i %s %s %s' % (
+            n_jobs, self.py_version, script_path, loglevel, project_dir)
         commandstr = program + args
 
         old_wd = os.getcwd()
@@ -146,7 +146,7 @@ samplers = {
 
 def run_mpi_sampler(
         sampler_name, model, sampler_args, keep_tmp, n_jobs,
-        loglevel='info'):
+        loglevel='info', project_dir=''):
     """
     Execute a sampling algorithm that requires the call of mpiexec
     as it uses MPI for parallelization.
@@ -166,6 +166,11 @@ def run_mpi_sampler(
     keep_tmp : boolean
         if true dont remove the run directory after execution
     n_jobs : number of processors to call MPI with
+    loglevel : string
+        loglevels defined by the logging package
+    project_dir : string
+        main directory path to the logfile, if left empty- written to tmp
+        directory
     """
 
     from beat.info import project_root
@@ -187,5 +192,5 @@ def run_mpi_sampler(
 
     samplerdir = pjoin(project_root, sampler)
     logger.info('sampler directory: %s' % samplerdir)
-    runner.run(samplerdir, n_jobs=n_jobs, loglevel=loglevel)
-
+    runner.run(
+        samplerdir, n_jobs=n_jobs, loglevel=loglevel, project_dir=project_dir)

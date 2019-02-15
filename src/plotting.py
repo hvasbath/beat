@@ -1554,6 +1554,9 @@ def draw_hudson(problem, po):
         raise NotImplementedError(
             'Hudson plot is not yet implemented for more than one source!')
 
+    if po.load_stage is None:
+        po.load_stage = -1
+
     varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
     if not po.reference:
         llk_str = po.post_llk
@@ -1570,11 +1573,16 @@ def draw_hudson(problem, po):
             m6s[:, i] = stage.mtrace.get_values(
                 varname, combine=True, squeeze=True).ravel()
 
+        csteps = float(n_mts) / po.nensemble
+        idxs = num.floor(
+            num.arange(0, n_mts, csteps)).astype('int32')
+        m6s = m6s[idxs, :]
+
         point = get_result_point(stage, problem.config, po.post_llk)
         best_mt = point2array(point, varnames=varnames)
     else:
         llk_str = 'ref'
-        m6s = point2array(point=po.reference, varnames=varnames)
+        m6s = [point2array(point=po.reference, varnames=varnames)]
         best_mt = None
 
     logger.info('Drawing Hudson plot ...')
@@ -1854,7 +1862,6 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
                 for isource, e in enumerate(d.T):
                     e = pmp.utils.make_2d(e)
-
                     if make_bins_flag:
                         varbin = make_bins(e, nbins=nbins)
                         varbins.append(varbin)
