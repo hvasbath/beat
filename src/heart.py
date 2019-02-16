@@ -1313,7 +1313,7 @@ def get_velocity_model(
         else:
             global_model = cake.load_model(earth_model_name)
             source_model = utility.join_models(
-                global_model, custom_velocity_model).extract(depth_max='cmb')
+                global_model, custom_velocity_model)
 
     elif gfc.use_crust2:
         logger.info('Using crust2 profile')
