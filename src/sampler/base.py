@@ -258,7 +258,7 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
         sparam for sparam in step.logp_forw.get_shared()
         if sparam.name in parallel._tobememshared]
 
-    if len(shared_params) > 0:
+    if len(parallel._shared_memory) > 0:
         logger.debug('Accessing shared memory')
         parallel.borrow_all_memories(shared_params, parallel._shared_memory)
 

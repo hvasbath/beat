@@ -76,7 +76,7 @@ program_name = 'beat'
 usage = program_name + ''' <subcommand> <arguments> ... [options]
 BEAT: Bayesian earthquake analysis tool
  Version 1.0beta
-author: Hannes Vasyuara-Bathke
+author: Hannes Vasyura-Bathke
 email: hannes.vasyura-bathke@kaust.edu.sa
 
 Subcommands:
