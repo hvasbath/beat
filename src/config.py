@@ -90,6 +90,7 @@ voronoi_locations = ['voronoi_strike', 'voronoi_dip']
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars + hypo_vars
 transd_vars_dist = partial_kinematic_vars + static_dist_vars + \
     voronoi_locations
+dist_vars = static_dist_vars + partial_kinematic_vars
 
 interseismic_catalog = {
     'geodetic': interseismic_vars}

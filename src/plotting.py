@@ -12,7 +12,7 @@ from beat import utility
 from beat.models import Stage
 from beat.sampler.metropolis import get_trace_stats
 from beat.heart import init_seismic_targets, init_geodetic_targets
-from beat.config import ffo_mode_str, geometry_mode_str
+from beat.config import ffo_mode_str, geometry_mode_str, dist_vars
 
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle, FancyArrow
@@ -149,6 +149,10 @@ class PlotOptions(Object):
     force = Bool.T(default=False)
     varnames = List.T(
         default=[], optional=True, help='Names of variables to plot')
+    source_idxs = List.T(
+        default=None,
+        optional=True,
+        help='Indexes to patches of slip distribution to draw marginals for')
     nensemble = Int.T(
         default=1,
         help='Number of draws from the PPD to display fuzzy results.')
@@ -1731,7 +1735,7 @@ def histplot_op(
 
 def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
               lines={}, chains=None, combined=False, grid=False,
-              varbins=None, nbins=40, color=None,
+              varbins=None, nbins=40, color=None, source_idxs=None,
               alpha=0.35, priors=None, prior_alpha=1, prior_style='--',
               axs=None, posterior=None, fig=None, plot_style='kde',
               prior_bounds={}, kwargs={}):
@@ -1761,6 +1765,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     combined : bool
         Flag for combining multiple chains into a single chain. If False
         (default), chains will be plotted separately.
+    source_idxs : list
+        array like, indexes to sources to plot marginals
     grid : bool
         Flag for adding gridlines to histogram. Defaults to True.
     varbins : list of arrays
@@ -1825,10 +1831,10 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     if figsize is None:
         if n < 5:
             figsize = mpl_papersize('a6', 'landscape')
-        if n < 7:
+        elif n < 7:
             figsize = mpl_papersize('a5', 'portrait')
         else:
-            figsize = figsize = mpl_papersize('a4', 'portrait')
+            figsize = mpl_papersize('a4', 'portrait')
 
     if axs is None:
         fig, axs = plt.subplots(nrow, ncol, figsize=figsize)
@@ -1861,7 +1867,26 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                 d = transform(d)
                 # iterate over columns in case varsize > 1
 
-                for isource, e in enumerate(d.T):
+                if v in dist_vars:
+                    if source_idxs is None:
+                        logger.info('No patches defined using 1 every 10!')
+                        source_idxs = num.arange(0, d.shape[1], 10).tolist()
+
+                    logger.info(
+                        'Plotting patches: %s' % utility.list2string(
+                            source_idxs))
+
+                    try:
+                        selected = d.T[source_idxs]
+                    except IndexError:
+                        raise IndexError(
+                            'One or several patches do not exist! '
+                            'Patch idxs: %s' % utility.list2string(
+                                source_idxs))
+                else:
+                    selected = d.T
+
+                for isource, e in enumerate(selected):
                     e = pmp.utils.make_2d(e)
                     if make_bins_flag:
                         varbin = make_bins(e, nbins=nbins)
@@ -1905,9 +1930,20 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
                     try:
                         param = prior_bounds[v]
-                        title = str(v) + ' ' + plot_units[hypername(v)] + \
-                            ' priors: {}, {}'.format(
-                                param.lower, param.upper)
+
+                        if v in dist_vars:
+                            try:  # variable bounds
+                                lower = param.lower[source_idxs]
+                                upper = param.upper[source_idxs]
+                            except IndexError:
+                                lower, upper = param.lower, param.upper
+
+                            title = str(v) + ' ' + plot_units[hypername(v)]
+                        else:
+                            lower, upper = param.lower, param.upper
+
+                            title = str(v) + ' ' + plot_units[hypername(v)] + \
+                                ' priors: {}, {}'.format(lower, upper)
                     except KeyError:
                         try:
                             title = str(v) + ' ' + str(float(lines[v]))
@@ -1938,6 +1974,9 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                             idx = posterior_idxs[posterior]
                             axs[rowi, coli].axvline(
                                 x=e[idx], color=pcolor, lw=1.)
+
+    if source_idxs:
+        axs[rowi, coli].legend(source_idxs)
 
     fig.tight_layout()
     return fig, axs, varbins
@@ -2042,10 +2081,15 @@ def draw_posteriors(problem, plot_options):
 
         transform = select_transform(sc=sc, n_steps=draws)
 
+        if po.source_idxs:
+            sidxs = utility.list2string(po.source_idxs, fill='_')
+        else:
+            sidxs = ''
+
         outpath = os.path.join(
             problem.outfolder,
             po.figure_dir,
-            'stage_%i_%s.%s' % (s, po.post_llk, po.outformat))
+            'stage_%i_%s_%s.%s' % (s, sidxs, po.post_llk, po.outformat))
 
         if not os.path.exists(outpath) or po.force:
             logger.info('plotting stage: %s' % stage.handler.stage_path(s))
@@ -2072,6 +2116,7 @@ def draw_posteriors(problem, plot_options):
                 transform=transform,
                 chains=chains,
                 combined=True,
+                source_idxs=po.source_idxs,
                 plot_style='hist',
                 lines=po.reference,
                 posterior='max',

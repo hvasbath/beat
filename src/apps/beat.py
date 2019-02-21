@@ -1201,6 +1201,14 @@ def command_plot(args):
                  ' are used for fuzzy plots')
 
         parser.add_option(
+            '--source_idxs',
+            action='callback', callback=list_callback,
+            type='string',
+            default='',
+            help='Indexes to patches'
+                 ' of slip distribution to draw marginals for')
+
+        parser.add_option(
             '--format',
             dest='format',
             choices=['display', 'pdf', 'png', 'svg', 'eps'],
@@ -1280,6 +1288,11 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
     problem = load_model(
         project_dir, options.mode, options.hypers, options.build)
 
+    if len(options.source_idxs) < 1:
+        source_idxs = None
+    else:
+        source_idxs = [int(idx) for idx in options.source_idxs]
+
     po = plotting.PlotOptions(
         plot_projection=options.plot_projection,
         post_llk=options.post_llk,
@@ -1288,7 +1301,8 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
         force=options.force,
         dpi=options.dpi,
         varnames=options.varnames,
-        nensemble=options.nensemble)
+        nensemble=options.nensemble,
+        source_idxs=source_idxs)
 
     if options.reference:
         try:
