@@ -19,7 +19,7 @@
 import sphinx_sleekcat_theme
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../src'))
+sys.path.insert(0, os.path.abspath('../beat'))
 sys.setrecursionlimit(1500)
 
 # -- General configuration ------------------------------------------------
