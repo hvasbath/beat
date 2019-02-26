@@ -140,7 +140,7 @@ in the directory %s'''.lstrip() % (program, self.tempdir))
 
 
 samplers = {
-    'pt': 'src/sampler/pt.py'
+    'pt': 'beat/sampler/pt.py'
 }
 
 

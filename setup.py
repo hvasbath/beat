@@ -57,7 +57,7 @@ def git_infos():
 
 
 def make_info_module(packname, version):
-    '''Put version and revision information into file src/info.py.'''
+    '''Put version and revision information into file beat/info.py.'''
 
     sha1, local_modifications = None, None
     combi = '%s-%s' % (packname, version)
@@ -84,7 +84,7 @@ installed_date = %s
         project_root, sha1, local_modifications, version, combi, datestr)])
 
     try:
-        f = open(op.join('src', 'info.py'), 'w')
+        f = open(op.join('beat', 'info.py'), 'w')
         f.write(s)
         f.close()
     except Exception:
@@ -150,7 +150,7 @@ setup(
         ],
     install_requires=install_reqs,
     packages=['beat'] + subpackages,
-    package_dir={'beat': 'src'},
+    package_dir={'beat': 'beat'},
     entry_points={
         'console_scripts':
             ['beat = beat.apps.beat:main', 
@@ -160,12 +160,12 @@ setup(
     ext_modules=[
         Extension(
             'fast_sweep_ext',
-            sources=[op.join('src/fast_sweeping', 'fast_sweep_ext.c')],
+            sources=[op.join('beat/fast_sweeping', 'fast_sweep_ext.c')],
             include_dirs=[numpy.get_include()]),
         Extension(
             'voronoi_ext',
             extra_compile_args=['-lm'],
-            sources=[op.join('src/voronoi', 'voronoi_ext.c')],
+            sources=[op.join('beat/voronoi', 'voronoi_ext.c')],
             include_dirs=[numpy.get_include()])
         ]
 )
