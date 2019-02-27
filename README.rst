@@ -55,6 +55,19 @@ containing a list of 2 lists:
 We invite the users to propose data formats or outputs of specific programs that they would 
 like to see implemented. 
 
+Support
+=======
+For substantial issues please use the "issues" tab here in the repository.
+For smaller issues or short clarifications there is a support chat `here <https://hive.pyrocko.org/pyrocko-support/channels/beat>`__ . This is provided by the pyrocko project and is accessible after a short account creation.
+
+Finally, there is the option to write an email to:
+
+Hannes Vasyura-Bathke
+hvasbath@uni-potsdam.de
+
+Andreas Steinberg
+andreas.steinberg@ifg.uni-kiel.de
+
 Contributions
 =============
 This is an open source project and contributions to the repository are welcome!
