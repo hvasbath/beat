@@ -102,6 +102,7 @@ class FastSweepingTestCase(unittest.TestCase):
         t2 = time()
         logger.info('Theano C wrapper compile time %f' % (t1 - t0))
         logger.info('done theano C wrapper fast_sweeping in %f' % (t2 - t1))
+        print('Theano C wrapper compile time %f' % (t1 - t0))
         return theano_c_wrap_start_times
 
     def _c_implementation(self):
