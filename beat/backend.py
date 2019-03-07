@@ -17,31 +17,29 @@ index labels.  For example, the heading
 represents two variables, x and y, where x is a scalar and y has a
 shape of (3, 2).
 """
-from glob import glob
-
-import itertools
 import copy
-import os
-import pandas as pd
+import itertools
 import logging
+import os
 import shutil
-import numpy as num
+from glob import glob
+from time import time
 
-from pymc3.model import modelcontext
+import numpy as num
+import pandas as pd
+from pandas.errors import EmptyDataError
+from pandas.io.common import CParserError
 from pymc3.backends import base, ndarray
 from pymc3.backends import tracetab as ttab
 from pymc3.blocking import DictToArrayBijection, ArrayOrdering
-
+from pymc3.model import modelcontext
 from pymc3.step_methods.arraystep import BlockedStep
+from pyrocko import util
 
 from beat.config import sample_p_outname, transd_vars_dist
+from beat.covariance import calc_sample_covariance
 from beat.utility import load_objects, dump_objects, \
     ListArrayOrdering, ListToArrayBijection
-from beat.covariance import calc_sample_covariance
-
-from pyrocko import util
-from time import time
-
 
 logger = logging.getLogger('backend')
 
@@ -322,6 +320,8 @@ class TextChain(BaseTrace):
         self.buffer_size = buffer_size
         self.stored_samples = 0
         self.buffer = []
+        self.count = 0
+        self.draws = 0
 
     def setup(self, draws, chain, overwrite=True):
         """
@@ -411,13 +411,13 @@ class TextChain(BaseTrace):
             try:
                 self.df = pd.read_csv(self.filename)
             except pd.errors.EmptyDataError:
-                logger.warn(
+                logger.warning(
                     'Trace %s is empty and needs to be resampled!' %
                     self.filename)
                 os.remove(self.filename)
                 self.corrupted_flag = True
             except pd.io.common.CParserError:
-                logger.warn(
+                logger.warning(
                     'Trace %s has wrong size!' % self.filename)
                 self.corrupted_flag = True
                 os.remove(self.filename)
@@ -489,6 +489,175 @@ class TextChain(BaseTrace):
             vals = self.df[self.flat_names[varname]].iloc[idx]
             pt[varname] = vals.values.reshape(self.var_shapes[varname])
         return pt
+
+
+class TextChainBin(TextChain):
+
+    def __init__(self, name, model=None, vars=None, buffer_size=5000, progressbar=False, k=None):
+
+        super(TextChainBin, self).__init__(name, model, vars)
+        self.__data_structure = self.__contruct_data_structure()
+        self.__data_fromfile = None
+
+    def setup(self, draws, chain, overwrite=True):
+        """
+        Perform chain-specific setup.
+        :param draws: int. Expected number of draws
+        :param chain: int. Chain number
+        :param overwrite: Bool (optional). True(default) if file need to be overwrite, false otherwise.
+        """
+
+        logger.debug('SetupTrace: Chain_%i step_%i' % (chain, draws))
+        self.chain = chain
+        self.count = 0
+        self.draws = draws
+        self.filename = os.path.join(self.name, 'chain-{}.bin'.format(chain))
+
+        # cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
+        # creating data formats
+        #self.__contruct_data_structure()
+
+        if os.path.exists(self.filename):
+
+            if overwrite:
+                os.remove(self.filename)
+            else:
+                logger.info('Found existing trace, appending!')
+
+    def __contruct_data_structure(self):
+        """
+        Create a dtype for storage the data based on varnames.
+        :return: A numpy.dtype
+        """
+
+        # creating data type as float
+        data_types = ['f8'] * len(self.varnames)
+        # last must be integer
+        data_types[-1] = 'i4'
+        # get the size of each array within varnames
+        data_size = ["{}".format(len(self.flat_names[name])) for name in self.varnames]
+        formats = [size + data_type for size, data_type in zip(data_size, data_types)]
+        # set data structure
+        return num.dtype({'names': self.varnames, 'formats': formats})
+
+    def __write_data_to_file(self, data_to_write=None):
+        """
+        Write the lpoint to file. If data_to_write is None it will try to write from buffer.
+        :param data_to_write: A lpoint data, expected an list of numpy arrays.
+        """
+        # Write binnary
+        if data_to_write is None and self.buffer == []:
+            logger.info("There is no data to write into file.")
+            raise ValueError("There is no data to write into file.")
+
+        try:
+            # create initial data using the data structure.
+            data = num.zeros(1, dtype=self.__data_structure)
+
+            with open(self.filename, mode="ab+") as file:
+                if data_to_write is None:
+                    for lpoint, draw in self.buffer:
+                        for names, array in zip(self.varnames, lpoint):
+                            data[names] = array
+                        data.tofile(file)
+                else:
+                    for names, array in zip(self.varnames, data_to_write):
+                        data[names] = array
+                    data.tofile(file)
+        except EnvironmentError as e:
+            print("Error on write file: ", e)
+
+    def record_buffer(self):
+
+        n_samples = len(self.buffer)
+        self.stored_samples += n_samples
+
+        if not self.progressbar:
+            if n_samples > self.buffer_size // 2:
+                logger.info(
+                    'Writing %i / %i samples of chain %i to disk...' %
+                    (self.stored_samples, self.draws, self.chain))
+
+        t0 = time()
+        logger.debug(
+            'Start Record: Chain_%i' % self.chain)
+        self.__write_data_to_file()
+        # for lpoint, draw in self.buffer:
+        #    self.record(lpoint, draw)
+
+        t1 = time()
+        logger.debug('End Record: Chain_%i' % self.chain)
+        logger.debug('Writing to file took %f' % (t1 - t0))
+        self.empty_buffer()
+
+    def record(self, lpoint, draw):
+        """
+        Record results of a sampling iteration.
+
+        Parameters
+        ----------
+        lpoint : List of variable values
+            Values mapped to variable names
+        """
+
+        # here we maybe should include a method to check if lpoint has a right size.
+        # columns = itertools.chain.from_iterable(
+        #   map(str, value.ravel()) for value in lpoint)
+        # data = num.array([tuple(columns)], dtype=self.__data_structure)
+        data = num.zeros(1, dtype=self.__data_structure)
+        for names, array in zip(self.varnames, lpoint):
+            data[names] = array
+
+        logger.debug('Writing...: Chain_%i step_%i' % (self.chain, draw))
+
+        self.__write_data_to_file(lpoint)
+        # Write binnary
+        #try:
+        #    with open(self.filename, mode="ab+") as file:
+        #        data.tofile(file)
+        #except EnvironmentError as e:
+        #    print("Error on write file: ", e)
+
+    def _load_df(self):
+        if self.__data_fromfile is None:
+            try:
+                with open(self.filename, mode="rb") as file:
+                    self.__data_fromfile = num.fromfile(file, dtype=self.__data_structure)
+            except EOFError as e:
+                print(e)
+
+    def get_values(self, varname, burn=0, thin=1):
+        self._load_df()
+        data = self.__data_fromfile[varname]
+        # data = self.df[self.flat_names[varname]].to_numpy()
+        return data[burn::thin]
+
+    def point(self, idx):
+        """
+        Get point of current chain with variables names as keys.
+
+        Parameters
+        ----------
+        idx : int
+            Index of the nth step of the chain
+
+        Returns
+        -------
+        dictionary of point values
+        """
+        idx = int(idx)
+        self._load_df()
+        pt = {}
+        for varname in self.varnames:
+            vals = num.array(self.get_values(varname)[idx])
+            pt[varname] = vals
+        return pt
+
+    def clear_data(self):
+        """
+        Clear the data loaded from file.
+        """
+        self.__data_fromfile = None
 
 
 class TextStage(object):
