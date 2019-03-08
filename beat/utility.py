@@ -7,22 +7,20 @@ manipulation of various pyrocko objects
 and many more ...
 """
 
-import logging
-
-import os
-import re
 import collections
 import copy
+import logging
+import os
 import pickle
-
-from pyrocko import util, orthodrome, catalog
-from pyrocko.cake import m2d, LayeredModel, read_nd_model_str
-
-from pyrocko.gf.seismosizer import RectangularSource
+import re
+from functools import wraps
+from timeit import Timer
 
 import numpy as num
+from pyrocko import util, orthodrome, catalog
+from pyrocko.cake import m2d, LayeredModel, read_nd_model_str
+from pyrocko.gf.seismosizer import RectangularSource
 from theano import config as tconfig
-
 
 logger = logging.getLogger('utility')
 
@@ -1377,3 +1375,16 @@ def positions2idxs(
     """
     return backend.round((positions - min_pos - (
         cell_size / 2.)) / cell_size).astype(dtype)
+
+
+def time_method(loop=10000):
+    def timer_decorator(func):
+        @wraps(func)
+        def wrap_func(*args, **kwargs):
+            total_time = Timer(lambda: func(*args, **kwargs)).timeit(number=loop)
+            print("Method {name} run {loop} times".format(name=func.__name__, loop=loop))
+            print("It took: {time} s, Mean: {mean_time} s".
+                  format(mean_time=total_time / loop, time=total_time))
+            # return func(*args, **kwargs)
+        return wrap_func
+    return timer_decorator

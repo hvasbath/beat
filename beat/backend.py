@@ -19,6 +19,7 @@ shape of (3, 2).
 """
 import copy
 import itertools
+import json
 import logging
 import os
 import shutil
@@ -129,7 +130,6 @@ class BaseTrace(object):
 
             # Get variable shapes. Most backends will need this
             # information.
-
             self.var_shapes_list = [var.tag.test_value.shape for var in vars]
             self.var_dtypes_list = [var.tag.test_value.dtype for var in vars]
 
@@ -344,11 +344,12 @@ class TextChain(BaseTrace):
 
         if os.path.exists(self.filename):
             if overwrite:
-                os.remove(self.filename)
+                os.remove(self.filename) # Not necessary here...just open file with flag w
             else:
                 logger.info('Found existing trace, appending!')
                 return
 
+        # This will always overwrite your file!!!
         with open(self.filename, 'w') as fh:
             fh.write(','.join(cnames) + '\n')
 
@@ -491,20 +492,37 @@ class TextChain(BaseTrace):
         return pt
 
 
-class TextChainBin(TextChain):
+class NumpyChain(TextChain):
+
+    flat_names_tag = "flat_names"
+    var_shape_tag = "var_shapes"
+    __data_fromfile = None
 
     def __init__(self, name, model=None, vars=None, buffer_size=5000, progressbar=False, k=None):
 
-        super(TextChainBin, self).__init__(name, model, vars)
-        self.__data_structure = self.__contruct_data_structure()
-        self.__data_fromfile = None
+        super(NumpyChain, self).__init__(name, model, vars)
+        self.__data_structure = self.construct_data_structure()
+
+    def __repr__(self):
+        return "NumpyChain({},{},{},{},{},{})".format(self.name, self.model, self.vars, self.buffer_size,
+                                                      self.progressbar, self.k)
+
+    @property
+    def get_data_structure(self):
+        return self.__data_structure
 
     def setup(self, draws, chain, overwrite=True):
         """
         Perform chain-specific setup.
-        :param draws: int. Expected number of draws
-        :param chain: int. Chain number
-        :param overwrite: Bool (optional). True(default) if file need to be overwrite, false otherwise.
+
+        Parameters
+        ----------
+        draws: int.
+            Expected number of draws
+        chain:
+            int. Chain number
+        overwrite:
+            Bool (optional). True(default) if file need to be overwrite, false otherwise.
         """
 
         logger.debug('SetupTrace: Chain_%i step_%i' % (chain, draws))
@@ -520,14 +538,28 @@ class TextChainBin(TextChain):
         if os.path.exists(self.filename):
 
             if overwrite:
-                os.remove(self.filename)
+                # os.remove(self.filename)
+                with open(self.filename, 'wb') as fh:
+                    header_data = {self.flat_names_tag: self.flat_names, self.var_shape_tag: self.var_shapes}
+                    header = (json.dumps(header_data) + '\n').encode()
+                    fh.write(header)
             else:
                 logger.info('Found existing trace, appending!')
 
-    def __contruct_data_structure(self):
+    def extract_variables_from_header(self, file_header):
+        header_data = json.loads(file_header)
+        flat_names = header_data[self.flat_names_tag]
+        var_shapes = {key: tuple(val) for key, val in header_data[self.var_shape_tag].items()}
+        varnames = [key for key in self.flat_names]
+        return flat_names, var_shapes, varnames
+
+    def construct_data_structure(self):
         """
         Create a dtype for storage the data based on varnames.
-        :return: A numpy.dtype
+
+        Returns
+        -------
+            A numpy.dtype
         """
 
         # creating data type as float
@@ -543,7 +575,11 @@ class TextChainBin(TextChain):
     def __write_data_to_file(self, data_to_write=None):
         """
         Write the lpoint to file. If data_to_write is None it will try to write from buffer.
-        :param data_to_write: A lpoint data, expected an list of numpy arrays.
+
+        Parameters
+        ----------
+        data_to_write:
+            A lpoint data, expected an list of numpy arrays.
         """
         # Write binnary
         if data_to_write is None and self.buffer == []:
@@ -552,7 +588,7 @@ class TextChainBin(TextChain):
 
         try:
             # create initial data using the data structure.
-            data = num.zeros(1, dtype=self.__data_structure)
+            data = num.zeros(1, dtype=self.get_data_structure)
 
             with open(self.filename, mode="ab+") as file:
                 if data_to_write is None:
@@ -604,7 +640,7 @@ class TextChainBin(TextChain):
         # columns = itertools.chain.from_iterable(
         #   map(str, value.ravel()) for value in lpoint)
         # data = num.array([tuple(columns)], dtype=self.__data_structure)
-        data = num.zeros(1, dtype=self.__data_structure)
+        data = num.zeros(1, dtype=self.get_data_structure)
         for names, array in zip(self.varnames, lpoint):
             data[names] = array
 
@@ -620,16 +656,22 @@ class TextChainBin(TextChain):
 
     def _load_df(self):
         if self.__data_fromfile is None:
+            file_header = ""
             try:
                 with open(self.filename, mode="rb") as file:
-                    self.__data_fromfile = num.fromfile(file, dtype=self.__data_structure)
+                    # read header.
+                    file_header = file.readline().decode()
+                    # read data
+                    self.__data_fromfile = num.fromfile(file, dtype=self.get_data_structure)
             except EOFError as e:
                 print(e)
+
+            if self.flat_names is None and not self.corrupted_flag:
+                self.flat_names, self.var_shapes, self.varnames = self.extract_variables_from_header(file_header)
 
     def get_values(self, varname, burn=0, thin=1):
         self._load_df()
         data = self.__data_fromfile[varname]
-        # data = self.df[self.flat_names[varname]].to_numpy()
         return data[burn::thin]
 
     def point(self, idx):
@@ -647,10 +689,7 @@ class TextChainBin(TextChain):
         """
         idx = int(idx)
         self._load_df()
-        pt = {}
-        for varname in self.varnames:
-            vals = num.array(self.get_values(varname)[idx])
-            pt[varname] = vals
+        pt = {name: num.array(self.get_values(name)[idx]) for name in self.varnames}
         return pt
 
     def clear_data(self):
