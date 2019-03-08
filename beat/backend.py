@@ -8,7 +8,7 @@ File format
 -----------
 
 Sampling values for each chain are saved in a separate file (under a
-directory specified by the `name` argument).  The rows correspond to
+directory specified by the `dir_path` argument).  The rows correspond to
 sampling iterations.  The column names consist of variable names and
 index labels.  For example, the heading
 
@@ -100,7 +100,7 @@ class BaseTrace(object):
     Parameters
     ----------
 
-    name : str
+    dir_path : str
         Name of backend
     model : Model
         If None, the model is taken from the `with` context.
@@ -109,8 +109,8 @@ class BaseTrace(object):
         `model.unobserved_RVs` is used.
     """
 
-    def __init__(self, name, model=None, vars=None):
-        self.name = name
+    def __init__(self, dir_path, model=None, vars=None):
+        self.dir_path = dir_path
         self.model = None
         self.vars = None
         self.var_shapes = None
@@ -272,7 +272,7 @@ class TextChain(BaseTrace):
     Parameters
     ----------
 
-    name : str
+    dir_path : str
         Name of directory to store text files
     model : Model
         If None, the model is taken from the `with` context.
@@ -290,13 +290,13 @@ class TextChain(BaseTrace):
     """
 
     def __init__(
-            self, name, model=None, vars=None,
+            self, dir_path, model=None, vars=None,
             buffer_size=5000, progressbar=False, k=None):
 
-        if not os.path.exists(name):
-            os.mkdir(name)
+        if not os.path.exists(dir_path):
+            os.mkdir(dir_path)
 
-        super(TextChain, self).__init__(name, model, vars)
+        super(TextChain, self).__init__(dir_path, model, vars)
 
         self.flat_names = None
         if self.var_shapes is not None:
@@ -338,7 +338,7 @@ class TextChain(BaseTrace):
         self.chain = chain
         self.count = 0
         self.draws = draws
-        self.filename = os.path.join(self.name, 'chain-{}.csv'.format(chain))
+        self.filename = os.path.join(self.dir_path, 'chain-{}.csv'.format(chain))
 
         cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
 
@@ -497,19 +497,26 @@ class NumpyChain(TextChain):
     flat_names_tag = "flat_names"
     var_shape_tag = "var_shapes"
     __data_fromfile = None
+    __data_structure = None
 
-    def __init__(self, name, model=None, vars=None, buffer_size=5000, progressbar=False, k=None):
+    def __init__(self, dir_path, model=None, vars=None, buffer_size=5000, progressbar=False, k=None):
 
-        super(NumpyChain, self).__init__(name, model, vars)
-        self.__data_structure = self.construct_data_structure()
+        super(NumpyChain, self).__init__(dir_path, model, vars)
 
     def __repr__(self):
-        return "NumpyChain({},{},{},{},{},{})".format(self.name, self.model, self.vars, self.buffer_size,
+        return "NumpyChain({},{},{},{},{},{})".format(self.dir_path, self.model, self.vars, self.buffer_size,
                                                       self.progressbar, self.k)
 
     @property
     def get_data_structure(self):
         return self.__data_structure
+
+    @property
+    def get_file_header(self):
+        with open(self.filename, mode="rb") as file:
+            # read header.
+            file_header = file.readline().decode()
+            return file_header
 
     def setup(self, draws, chain, overwrite=True):
         """
@@ -529,7 +536,8 @@ class NumpyChain(TextChain):
         self.chain = chain
         self.count = 0
         self.draws = draws
-        self.filename = os.path.join(self.name, 'chain-{}.bin'.format(chain))
+        self.filename = os.path.join(self.dir_path, 'chain-{}.bin'.format(chain))
+        self.__data_structure = self.construct_data_structure()
 
         # cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
         # creating data formats
@@ -561,6 +569,9 @@ class NumpyChain(TextChain):
         -------
             A numpy.dtype
         """
+
+        if self.flat_names is None and not self.corrupted_flag:
+            self.flat_names, self.var_shapes, self.varnames = self.extract_variables_from_header(self.get_file_header)
 
         # creating data type as float
         data_types = ['f8'] * len(self.varnames)
@@ -656,18 +667,14 @@ class NumpyChain(TextChain):
 
     def _load_df(self):
         if self.__data_fromfile is None:
-            file_header = ""
             try:
                 with open(self.filename, mode="rb") as file:
-                    # read header.
-                    file_header = file.readline().decode()
+                    # skip header.
+                    next(file)
                     # read data
                     self.__data_fromfile = num.fromfile(file, dtype=self.get_data_structure)
             except EOFError as e:
                 print(e)
-
-            if self.flat_names is None and not self.corrupted_flag:
-                self.flat_names, self.var_shapes, self.varnames = self.extract_variables_from_header(file_header)
 
     def get_values(self, varname, burn=0, thin=1):
         self._load_df()
@@ -880,7 +887,7 @@ class TransDTextChain(object):
 
         for k in range(dimensions.lower, dimensions.upper + 1):
             self._straces[k] = TextChain(
-                name=name,
+                dir_path=name,
                 model=model,
                 buffer_size=buffer_size,
                 progressbar=progressbar,
@@ -888,7 +895,7 @@ class TransDTextChain(object):
 
         # init indexing chain
         self._index = TextChain(
-            name=name,
+            dir_path=name,
             vars=[],
             buffer_size=self.buffer_size,
             progressbar=self.progressbar)

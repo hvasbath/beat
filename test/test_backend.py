@@ -66,7 +66,7 @@ class TestBackend(TestCase):
 
     def test_text_chain(self):
 
-        textchain = TextChain(name=self.test_dir_path, model=self.PT_test)
+        textchain = TextChain(dir_path=self.test_dir_path, model=self.PT_test)
         textchain.setup(10, 1, overwrite=True)
 
         # write data to buffer
@@ -89,7 +89,7 @@ class TestBackend(TestCase):
 
     def test_text_chain_bin(self):
 
-        numpy_chain = NumpyChain(name=self.test_dir_path, model=self.PT_test)
+        numpy_chain = NumpyChain(dir_path=self.test_dir_path, model=self.PT_test)
         numpy_chain.setup(10, 1, overwrite=True)
         print(numpy_chain)
         # write data to buffer
