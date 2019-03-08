@@ -5,14 +5,14 @@ import numpy as num
 import pymc3 as pm
 import theano.tensor as tt
 
-from beat.backend import TextChain, TextChainBin
+from beat.backend import TextChain, NumpyChain
 
 
 class TestBackend(TestCase):
 
     def setUp(self):
         self.data_keys = ["Data", "like"]
-        number_of_parameters = 100
+        number_of_parameters = 5
 
         mu1 = num.ones(number_of_parameters) * (1. / 2)
         mu2 = -mu1
@@ -52,7 +52,7 @@ class TestBackend(TestCase):
         chain_data = num.arange(number_of_parameters).astype(num.float)
         chain_like = num.array([10])
         self.lpoint = [chain_data, chain_like]
-        self.data_size = 100
+        self.data_size = 2
         self.data = []
         self.expected_chain_data = []
         self.expected_chain_like = []
@@ -89,21 +89,29 @@ class TestBackend(TestCase):
 
     def test_text_chain_bin(self):
 
-        textchainbin = TextChainBin(name=self.test_dir_path, model=self.PT_test)
-        textchainbin.setup(10, 1, overwrite=True)
-
+        numpy_chain = NumpyChain(name=self.test_dir_path, model=self.PT_test)
+        numpy_chain.setup(10, 1, overwrite=True)
+        print(numpy_chain)
         # write data to buffer
         draw = 0
         for lpoint in self.data:
             draw += 1
-            textchainbin.write(lpoint, draw)
+            numpy_chain.write(lpoint, draw)
 
-        textchainbin.record_buffer()
+        numpy_chain.record_buffer()
 
-        chain_data = textchainbin.get_values(self.data_keys[0])
-        chain_like = textchainbin.get_values(self.data_keys[1])
+        # print("Var shapes: ", numpy_chain.var_shapes)
+        # print("flat names: ", numpy_chain.flat_names)
+        # print("Var names: ", numpy_chain.varnames)
+
+        chain_data = numpy_chain.get_values(self.data_keys[0])
+        chain_like = numpy_chain.get_values(self.data_keys[1])
+        # print("Data: ", chain_data)
+        # print("Var shapes: ", numpy_chain.var_shapes)
+        # print("flat names: ", numpy_chain.flat_names)
+        # print("Var names: ", numpy_chain.varnames)
         data_index = 1
-        chain_at = textchainbin.point(data_index)
+        chain_at = numpy_chain.point(data_index)
 
         self.assertEqual(chain_data.all(), self.expected_chain_data.all())
         self.assertEqual(chain_like.all(), self.expected_chain_like.all())
