@@ -344,12 +344,11 @@ class TextChain(BaseTrace):
 
         if os.path.exists(self.filename):
             if overwrite:
-                os.remove(self.filename) # Not necessary here...just open file with flag w
+                os.remove(self.filename)
             else:
                 logger.info('Found existing trace, appending!')
                 return
 
-        # This will always overwrite your file!!!
         with open(self.filename, 'w') as fh:
             fh.write(','.join(cnames) + '\n')
 
@@ -543,16 +542,13 @@ class NumpyChain(TextChain):
         # creating data formats
         #self.__contruct_data_structure()
 
-        if os.path.exists(self.filename):
-
-            if overwrite:
-                # os.remove(self.filename)
-                with open(self.filename, 'wb') as fh:
-                    header_data = {self.flat_names_tag: self.flat_names, self.var_shape_tag: self.var_shapes}
-                    header = (json.dumps(header_data) + '\n').encode()
-                    fh.write(header)
-            else:
-                logger.info('Found existing trace, appending!')
+        if os.path.exists(self.filename) and not overwrite:
+            logger.info('Found existing trace, appending!')
+        else:
+            with open(self.filename, 'wb') as fh:
+                header_data = {self.flat_names_tag: self.flat_names, self.var_shape_tag: self.var_shapes}
+                header = (json.dumps(header_data) + '\n').encode()
+                fh.write(header)
 
     def extract_variables_from_header(self, file_header):
         header_data = json.loads(file_header)
