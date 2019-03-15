@@ -841,15 +841,16 @@ def geodetic_fits(problem, stage, plot_options):
                 color = bgcolor
 
             if fn.size > 1:
+                alpha = 0.4
                 ax.plot(
                     fe, fn, '-',
-                    linewidth=0.5, color=color, alpha=0.6, **kwargs)
+                    linewidth=0.5, color=color, alpha=alpha, **kwargs)
                 ax.fill(
                     fe, fn,
                     edgecolor=color,
-                    facecolor=light(color, .5), alpha=0.6)
+                    facecolor=light(color, .5), alpha=alpha)
                 ax.plot(
-                    fe[0:2], fn[0:2], '-k', alpha=0.6,
+                    fe[0:2], fn[0:2], '-k', alpha=0.7,
                     linewidth=1.0)
             else:
                 ax.plot(
@@ -882,9 +883,10 @@ def geodetic_fits(problem, stage, plot_options):
         num.max(num.abs(r.processed_syn))]) for r in results]
     dcolims = [num.max(num.abs(r.processed_res)) for r in results]
 
-    for o in ott:
+    import string
+    for idata, o in enumerate(ott):
         datasets = orbits_to_datasets[o]
-
+        subplot_letter = string.ascii_lowercase[idata]
         for dataset in datasets:
             try:
                 homepath = problem.config.geodetic_config.datadir
@@ -960,17 +962,17 @@ def geodetic_fits(problem, stage, plot_options):
                 draw_coastlines(
                     ax, lon, lat, sources[0], scene, po)
 
-            titley = 0.91
-            titlex = 0.16
+            fontdict = {
+                'fontsize': fontsize,
+                'fontweight': 'bold',
+                'verticalalignment': 'top'}
 
-            axes[figidx][rowidx, 0].annotate(
-                o,
-                xy=(titlex, titley),
-                xycoords='axes fraction',
-                xytext=(2., 2.),
-                textcoords='offset points',
-                weight='bold',
-                fontsize=fontsize_title)
+            axes[figidx][rowidx, 0].text(
+                .025, 1.025, '({}) {}'.format(subplot_letter, o),
+                fontsize=fontsize_title, alpha=1.,
+                va='bottom', transform=axes[figidx][rowidx, 0].transAxes)
+            for i, quantity in enumerate(['data', 'model', 'residual']):
+                axes[figidx][rowidx, i].set_title(quantity, fontdict, y=0.935)
 
             draw_sources(
                 axes[figidx][rowidx, 1], sources, scene, po)
@@ -984,7 +986,7 @@ def geodetic_fits(problem, stage, plot_options):
 
             f = factors[figidx]
             if f > 2. / 3:
-                cbb = (0.68 - (0.3175 * rowidx))
+                cbb = (0.68 - (0.3075 * rowidx))
             elif f > 1. / 2:
                 cbb = (0.53 - (0.47 * rowidx))
             elif f > 1. / 4:
@@ -2749,7 +2751,7 @@ def fault_slip_distribution(
 
         draw_colorbar(fig, ax, pa_col, labeltext='slip [m]')
 
-        # fig.tight_layout()
+        fig.tight_layout()
         figs.append(fig)
         axs.append(ax)
 
