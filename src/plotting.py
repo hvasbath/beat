@@ -1790,6 +1790,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
     ax : matplotlib axes
     """
+    num.set_printoptions(precision=3)
+
     def make_bins(data, nbins=40):
         d = data.flatten()
         mind = d.min()
@@ -1938,17 +1940,17 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                             except IndexError:
                                 lower, upper = param.lower, param.upper
 
-                            title = str(v) + ' ' + plot_units[hypername(v)]
+                            title = '{} {}'.format(v, plot_units[hypername(v)])
                         else:
                             lower, upper = param.lower, param.upper
 
-                            title = str(v) + ' ' + plot_units[hypername(v)] + \
-                                ' priors: {}, {}'.format(lower, upper)
+                            title = '{} {} priors: {}, {}'.format(
+                                v, plot_units[hypername(v)], lower, upper)
                     except KeyError:
                         try:
-                            title = str(v) + ' ' + str(float(lines[v]))
+                            title = '{} {}'.format(v, float(lines[v]))
                         except KeyError:
-                            title = str(v) + ' ' + plot_units[hypername(v)]
+                            title = '{} {}'.format(v, plot_units[hypername(v)])
 
                     axs[rowi, coli].set_title(title, fontsize=fontsize + 2)
                     axs[rowi, coli].grid(grid)
