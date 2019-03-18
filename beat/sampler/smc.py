@@ -76,6 +76,9 @@ class SMC(Metropolis):
     model : :class:`pymc3.Model`
         Optional model for sampling step.
         Defaults to None (taken from context).
+    backend :  str
+        type of backend to use for sample results storage, for alternatives
+        see :class:`backend.backend:catalog`
 
     References
     ----------
@@ -92,14 +95,14 @@ class SMC(Metropolis):
     def __init__(self, vars=None, out_vars=None, covariance=None, scale=1.,
                  n_chains=100, tune=True, tune_interval=100, model=None,
                  check_bound=True, likelihood_name='like',
-                 proposal_name='MultivariateNormal',
+                 proposal_name='MultivariateNormal', backend='csv',
                  coef_variation=1., **kwargs):
 
         super(SMC, self).__init__(
             vars=vars, out_vars=out_vars, covariance=covariance, scale=scale,
             n_chains=n_chains, tune=tune, tune_interval=tune_interval,
             model=model, check_bound=check_bound,
-            likelihood_name=likelihood_name,
+            likelihood_name=likelihood_name, backend=backend,
             proposal_name=proposal_name, **kwargs)
 
         self.beta = 0
@@ -423,7 +426,7 @@ def smc_sample(
                             'a variable %s '
                             'as defined in `step`.' % step.likelihood_name)
 
-    stage_handler = backend.TextStage(homepath)
+    stage_handler = backend.SampleStage(homepath, backend=step.backend)
 
     chains, step, update = init_stage(
         stage_handler=stage_handler,

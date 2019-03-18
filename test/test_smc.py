@@ -84,7 +84,7 @@ class TestSMC(unittest.TestCase):
             model=SMC_test,
             rm_flag=False)
 
-        stage_handler = backend.TextStage(test_folder)
+        stage_handler = backend.SampleStage(test_folder)
 
         mtrace = stage_handler.load_multitrace(-1, model=SMC_test)
 

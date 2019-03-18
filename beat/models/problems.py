@@ -117,6 +117,8 @@ class Problem(object):
         else:
             sc = self.config.sampler_config
 
+        logger.info('Using "%s" backend to store samples!' % sc.backend)
+
         if self.model is None:
             raise Exception(
                 'Model has to be built before initialising the sampler.')
@@ -137,13 +139,15 @@ class Problem(object):
                         n_chains=sc.parameters.n_chains,
                         likelihood_name=self._like_name,
                         tune_interval=sc.parameters.tune_interval,
-                        proposal_name=sc.parameters.proposal_dist)
+                        proposal_name=sc.parameters.proposal_dist,
+                        backend=sc.backend)
                 else:
                     step = sampler.Metropolis(
                         n_chains=sc.parameters.n_chains,
                         tune_interval=sc.parameters.tune_interval,
                         likelihood_name=self._like_name,
-                        proposal_name=sc.parameters.proposal_dist)
+                        proposal_name=sc.parameters.proposal_dist,
+                        backend=sc.backend)
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
 
@@ -163,7 +167,8 @@ class Problem(object):
                     tune_interval=sc.parameters.tune_interval,
                     coef_variation=sc.parameters.coef_variation,
                     proposal_dist=sc.parameters.proposal_dist,
-                    likelihood_name=self._like_name)
+                    likelihood_name=self._like_name,
+                    backend=sc.backend)
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
 
@@ -179,7 +184,8 @@ class Problem(object):
                     n_chains=sc.parameters.n_chains,
                     likelihood_name=self._like_name,
                     tune_interval=sc.parameters.tune_interval,
-                    proposal_name=sc.parameters.proposal_dist)
+                    proposal_name=sc.parameters.proposal_dist,
+                    backend=sc.backend)
 
             else:
                 raise ValueError(

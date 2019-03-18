@@ -62,6 +62,9 @@ class Metropolis(backend.ArrayStepSharedLLK):
     likelihood_name : string
         name of the :class:`pymc3.determinsitic` variable that contains the
         model likelihood - defaults to 'like'
+    backend :  str
+        type of backend to use for sample results storage, for alternatives
+        see :class:`backend.backend:catalog`
     proposal_dist :
         :class:`pymc3.metropolis.Proposal`
         Type of proposal distribution, see
@@ -77,7 +80,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
     def __init__(self, vars=None, out_vars=None, covariance=None, scale=1.,
                  n_chains=100, tune=True, tune_interval=100, model=None,
-                 check_bound=True, likelihood_name='like',
+                 check_bound=True, likelihood_name='like', backend='csv',
                  proposal_name='MultivariateNormal', **kwargs):
 
         model = modelcontext(model)
@@ -127,6 +130,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
         self.likelihood_name = likelihood_name
         self._llk_index = out_varnames.index(likelihood_name)
+        self.backend = backend
         self.discrete = num.concatenate(
             [[v.dtype in discrete_types] * (v.dsize or 1) for v in vars])
         self.any_discrete = self.discrete.any()
@@ -364,7 +368,7 @@ def get_final_stage(homepath, n_stages, model):
 
 
 def metropolis_sample(
-        n_steps=10000, homepath=None, start=None,
+        n_steps=10000, homepath=None, start=None, backend='csv',
         progressbar=False, rm_flag=False, buffer_size=5000,
         step=None, model=None, n_jobs=1, update=None, burn=0.5, thin=2):
     """
@@ -403,7 +407,7 @@ def metropolis_sample(
                             'a variable %s '
                             'as defined in `step`.' % step.likelihood_name)
 
-    stage_handler = backend.TextStage(homepath)
+    stage_handler = backend.SampleStage(homepath, backend=step.backend)
 
     util.ensuredir(homepath)
 

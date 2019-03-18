@@ -14,7 +14,7 @@ import numpy as num
 from beat.utility import load_objects, list2string, setup_logging, \
     dump_objects
 from beat.sampler import distributed
-from beat.backend import MemoryTrace, TextChain, TextStage
+from beat.backend import MemoryTrace, backend_catalog, SampleStage
 
 from beat.sampler.base import _iter_sample, Proposal, choose_proposal, \
     ChainCounter, multivariate_proposals
@@ -502,12 +502,12 @@ def master_process(
         swap_interval=swap_interval,
         beta_tune_interval=beta_tune_interval)
 
-    stage_handler = TextStage(homepath)
+    stage_handler = SampleStage(homepath, backend=step.backend)
     stage_handler.clean_directory(stage, chains=None, rm_flag=rm_flag)
 
     logger.info('Initializing result trace...')
     logger.info('Writing samples to file every %i samples.' % buffer_size)
-    trace = TextChain(
+    trace = backend_catalog[step.backend](
         name=stage_handler.stage_path(stage),
         model=model,
         buffer_size=buffer_size,

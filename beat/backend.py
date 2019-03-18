@@ -707,7 +707,7 @@ backend_catalog = {
 }
 
 
-class TextStage(object):
+class SampleStage(object):
     def __init__(self, base_dir, backend='csv'):
         self.base_dir = base_dir
         self.project_dir = os.path.dirname(base_dir)
@@ -720,7 +720,7 @@ class TextStage(object):
 
     def stage_number(self, stage_path):
         """
-        Inverse function of TextStage.path
+        Inverse function of SampleStage.path
         """
         return int(os.path.basename(stage_path).split('_')[-1])
 
