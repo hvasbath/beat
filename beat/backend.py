@@ -498,13 +498,16 @@ class NumpyChain(TextChain):
     __data_fromfile = None
     __data_structure = None
 
-    def __init__(self, dir_path, model=None, vars=None, buffer_size=5000, progressbar=False, k=None):
+    def __init__(
+            self, dir_path, model=None, vars=None, buffer_size=5000,
+            progressbar=False, k=None):
 
         super(NumpyChain, self).__init__(dir_path, model, vars)
 
     def __repr__(self):
-        return "NumpyChain({},{},{},{},{},{})".format(self.dir_path, self.model, self.vars, self.buffer_size,
-                                                      self.progressbar, self.k)
+        return "NumpyChain({},{},{},{},{},{})".format(
+            self.dir_path, self.model, self.vars, self.buffer_size,
+            self.progressbar, self.k)
 
     @property
     def get_data_structure(self):
@@ -528,32 +531,37 @@ class NumpyChain(TextChain):
         chain:
             int. Chain number
         overwrite:
-            Bool (optional). True(default) if file need to be overwrite, false otherwise.
+            Bool (optional). True(default) if file need to be overwrite,
+            false otherwise.
         """
 
         logger.debug('SetupTrace: Chain_%i step_%i' % (chain, draws))
         self.chain = chain
         self.count = 0
         self.draws = draws
-        self.filename = os.path.join(self.dir_path, 'chain-{}.bin'.format(chain))
+        self.filename = os.path.join(
+            self.dir_path, 'chain-{}.bin'.format(chain))
         self.__data_structure = self.construct_data_structure()
 
         # cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
         # creating data formats
-        #self.__contruct_data_structure()
+        # self.__contruct_data_structure()
 
         if os.path.exists(self.filename) and not overwrite:
             logger.info('Found existing trace, appending!')
         else:
             with open(self.filename, 'wb') as fh:
-                header_data = {self.flat_names_tag: self.flat_names, self.var_shape_tag: self.var_shapes}
+                header_data = {
+                    self.flat_names_tag: self.flat_names,
+                    self.var_shape_tag: self.var_shapes}
                 header = (json.dumps(header_data) + '\n').encode()
                 fh.write(header)
 
     def extract_variables_from_header(self, file_header):
         header_data = json.loads(file_header)
         flat_names = header_data[self.flat_names_tag]
-        var_shapes = {key: tuple(val) for key, val in header_data[self.var_shape_tag].items()}
+        var_shapes = {key: tuple(val) for key, val in header_data[
+            self.var_shape_tag].items()}
         varnames = [key for key in self.flat_names]
         return flat_names, var_shapes, varnames
 
@@ -567,21 +575,25 @@ class NumpyChain(TextChain):
         """
 
         if self.flat_names is None and not self.corrupted_flag:
-            self.flat_names, self.var_shapes, self.varnames = self.extract_variables_from_header(self.get_file_header)
+            self.flat_names, self.var_shapes, self.varnames = \
+                self.extract_variables_from_header(self.get_file_header)
 
         # creating data type as float
         data_types = ['f8'] * len(self.varnames)
         # last must be integer
         data_types[-1] = 'i4'
         # get the size of each array within varnames
-        data_size = ["{}".format(len(self.flat_names[name])) for name in self.varnames]
-        formats = [size + data_type for size, data_type in zip(data_size, data_types)]
+        data_size = ["{}".format(
+            len(self.flat_names[name])) for name in self.varnames]
+        formats = [
+            size + data_type for size, data_type in zip(data_size, data_types)]
         # set data structure
         return num.dtype({'names': self.varnames, 'formats': formats})
 
     def __write_data_to_file(self, data_to_write=None):
         """
-        Write the lpoint to file. If data_to_write is None it will try to write from buffer.
+        Write the lpoint to file. If data_to_write is None it
+        will try to write from buffer.
 
         Parameters
         ----------
@@ -589,7 +601,7 @@ class NumpyChain(TextChain):
             A lpoint data, expected an list of numpy arrays.
         """
         # Write binnary
-        if data_to_write is None and self.buffer == []:
+        if data_to_write is None and len(self.buffer) == 0:
             logger.info("There is no data to write into file.")
             raise ValueError("There is no data to write into file.")
 
@@ -642,24 +654,9 @@ class NumpyChain(TextChain):
         lpoint : List of variable values
             Values mapped to variable names
         """
-
-        # here we maybe should include a method to check if lpoint has a right size.
-        # columns = itertools.chain.from_iterable(
-        #   map(str, value.ravel()) for value in lpoint)
-        # data = num.array([tuple(columns)], dtype=self.__data_structure)
-        data = num.zeros(1, dtype=self.get_data_structure)
-        for names, array in zip(self.varnames, lpoint):
-            data[names] = array
-
         logger.debug('Writing...: Chain_%i step_%i' % (self.chain, draw))
 
         self.__write_data_to_file(lpoint)
-        # Write binnary
-        #try:
-        #    with open(self.filename, mode="ab+") as file:
-        #        data.tofile(file)
-        #except EnvironmentError as e:
-        #    print("Error on write file: ", e)
 
     def _load_df(self):
         if self.__data_fromfile is None:
@@ -668,7 +665,8 @@ class NumpyChain(TextChain):
                     # skip header.
                     next(file)
                     # read data
-                    self.__data_fromfile = num.fromfile(file, dtype=self.get_data_structure)
+                    self.__data_fromfile = num.fromfile(
+                        file, dtype=self.get_data_structure)
             except EOFError as e:
                 print(e)
 
@@ -692,7 +690,8 @@ class NumpyChain(TextChain):
         """
         idx = int(idx)
         self._load_df()
-        pt = {name: num.array(self.get_values(name)[idx]) for name in self.varnames}
+        pt = {name: num.array(
+            self.get_values(name)[idx]) for name in self.varnames}
         return pt
 
     def clear_data(self):
@@ -702,11 +701,18 @@ class NumpyChain(TextChain):
         self.__data_fromfile = None
 
 
+backend_catalog = {
+    'csv': TextChain,
+    'bin': NumpyChain
+}
+
+
 class TextStage(object):
-    def __init__(self, base_dir):
+    def __init__(self, base_dir, backend='csv'):
         self.base_dir = base_dir
         self.project_dir = os.path.dirname(base_dir)
         self.mode = os.path.basename(base_dir)
+        self.backend = backend
         util.ensuredir(self.base_dir)
 
     def stage_path(self, stage):
@@ -828,7 +834,8 @@ class TextStage(object):
         """
         dirname = self.stage_path(stage)
         return load_multitrace(
-            dirname=dirname, chains=chains, varnames=varnames)
+            dirname=dirname, chains=chains,
+            varnames=varnames, backend=self.backend)
 
     def recover_existing_results(self, stage, draws, step, varnames=None):
         stage_path = self.stage_path(stage)
@@ -941,7 +948,7 @@ class TransDTextChain(object):
         raise NotImplementedError()
 
 
-def load_multitrace(dirname, varnames=None, chains=None):
+def load_multitrace(dirname, varnames=None, chains=None, backend='csv'):
     """
     Load TextChain database.
 
@@ -961,7 +968,7 @@ def load_multitrace(dirname, varnames=None, chains=None):
     if not istransd(varnames)[0]:
         logger.info('Loading multitrace from %s' % dirname)
         if chains is None:
-            files = glob(os.path.join(dirname, 'chain-*.csv'))
+            files = glob(os.path.join(dirname, 'chain-*.%s' % backend))
             chains = [
                 int(os.path.splitext(
                     os.path.basename(f))[0].replace('chain-', ''))
@@ -975,7 +982,8 @@ def load_multitrace(dirname, varnames=None, chains=None):
         else:
             files = [
                 os.path.join(
-                    dirname, 'chain-%i.csv' % chain) for chain in chains]
+                    dirname, 'chain-%i.%s' % (
+                        chain, backend)) for chain in chains]
             for f in files:
                 if not os.path.exists(f):
                     raise IOError(
@@ -984,7 +992,7 @@ def load_multitrace(dirname, varnames=None, chains=None):
 
         straces = []
         for chain, f in zip(chains, files):
-            strace = TextChain(dirname)
+            strace = backend_catalog[backend](dirname)
             strace.chain = chain
             strace.filename = f
             straces.append(strace)

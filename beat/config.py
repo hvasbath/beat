@@ -206,6 +206,7 @@ _structure_choices = ['identity', 'exponential', 'import', 'non-toeplitz']
 _mode_choices = [geometry_mode_str, ffo_mode_str]
 _regularization_choices = ['laplacian', 'none']
 _initialization_choices = ['random', 'lsq']
+_backend_choices = ['csv', 'bin']
 
 
 class GFConfig(Object):
@@ -996,6 +997,12 @@ class SamplerConfig(Object):
         default='SMC',
         help='Sampler to use for sampling the solution space.'
              ' Metropolis/ SMC')
+    backend = StringChoice.T(
+        default='csv',
+        choices=_backend_choices,
+        help='File type to store output traces. Binary is fast, '
+             'csv is good for easy sample inspection. Choices: %s.'
+             ' Default: csv' % utility.list2string(_backend_choices))
     progressbar = Bool.T(
         default=True,
         help='Display progressbar(s) during sampling.')
