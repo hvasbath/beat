@@ -50,13 +50,13 @@ class TestBackend(TestCase):
 
         # create data.
         chain_data = num.arange(number_of_parameters).astype(num.float)
-        chain_like = num.array([10])
+        chain_like = num.array([10.]).astype(num.float)
         self.lpoint = [chain_data, chain_like]
-        self.data_size = 2
+        self.sample_size = 5
         self.data = []
         self.expected_chain_data = []
         self.expected_chain_like = []
-        for i in range(self.data_size):
+        for i in range(self.sample_size):
             self.data.append(self.lpoint)
             self.expected_chain_data.append(chain_data)
             self.expected_chain_like.append(chain_like)
@@ -87,7 +87,7 @@ class TestBackend(TestCase):
         self.assertEqual(chain_at[self.data_keys[0]].all(), self.expected_chain_data[data_index].all())
         self.assertEqual(chain_at[self.data_keys[1]].all(), self.expected_chain_like[data_index].all())
 
-    def test_text_chain_bin(self):
+    def test_chain_bin(self):
 
         numpy_chain = NumpyChain(dir_path=self.test_dir_path, model=self.PT_test)
         numpy_chain.setup(10, 1, overwrite=True)
@@ -106,7 +106,7 @@ class TestBackend(TestCase):
 
         chain_data = numpy_chain.get_values(self.data_keys[0])
         chain_like = numpy_chain.get_values(self.data_keys[1])
-        # print("Data: ", chain_data)
+        print("Data: ", chain_data)
         # print("Var shapes: ", numpy_chain.var_shapes)
         # print("flat names: ", numpy_chain.flat_names)
         # print("Var names: ", numpy_chain.varnames)
@@ -117,3 +117,14 @@ class TestBackend(TestCase):
         self.assertEqual(chain_like.all(), self.expected_chain_like.all())
         self.assertEqual(chain_at[self.data_keys[0]].all(), self.expected_chain_data[data_index].all())
         self.assertEqual(chain_at[self.data_keys[1]].all(), self.expected_chain_like[data_index].all())
+
+    def test_load_bin_chain(self):
+        numpy_chain = NumpyChain(dir_path=self.test_dir_path, model=self.PT_test)
+        numpy_chain.setup(5, 1)
+        chain_at = numpy_chain.point(1)
+        print(chain_at)
+
+
+    #def tearDown(self):
+    #    import shutil
+    #    shutil.rmtree(self.test_dir_path)
