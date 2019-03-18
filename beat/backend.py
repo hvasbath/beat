@@ -578,8 +578,7 @@ class NumpyChain(TextChain):
 
         # creating data type as float
         data_types = ['f8'] * len(self.varnames)
-        # last must be integer
-        data_types[-1] = 'i4'
+
         # get the size of each array within varnames
         data_size = ["{}".format(
             len(self.flat_names[name])) for name in self.varnames]
