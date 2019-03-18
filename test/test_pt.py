@@ -4,7 +4,7 @@ import os
 
 from beat.sampler import pt, metropolis
 from beat.sampler.pt import SamplingHistory
-from beat.backend import TextStage
+from beat.backend import SampleStage
 from beat.utility import load_objects, mod_i
 from beat.config import sample_p_outname
 
@@ -94,7 +94,7 @@ class TestPT(unittest.TestCase):
             rm_flag=False,
             keep_tmp=False)
 
-        stage_handler = TextStage(test_folder)
+        stage_handler = SampleStage(test_folder)
 
         mtrace = stage_handler.load_multitrace(-1, varnames=PT_test.vars)
         history = load_objects(os.path.join(stage_handler.stage_path(-1), sample_p_outname))

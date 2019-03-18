@@ -4,7 +4,7 @@ import os
 from beat import config as bconfig
 from beat.models import hyper_normal
 from beat import sampler
-from beat.backend import TextStage
+from beat.backend import SampleStage
 
 from pymc3 import Deterministic
 from collections import OrderedDict
@@ -211,7 +211,7 @@ def estimate_hypers(step, problem):
     name = problem.outfolder
     ensuredir(name)
 
-    stage_handler = TextStage(problem.outfolder)
+    stage_handler = SampleStage(problem.outfolder, backend=sc.backend)
     chains, step, update = init_stage(
         stage_handler=stage_handler,
         step=step,
@@ -270,12 +270,12 @@ class Stage(object):
     updates = None
     mtrace = None
 
-    def __init__(self, handler=None, homepath=None, stage_number=-1):
+    def __init__(self, handler=None, homepath=None, stage_number=-1, backend='csv'):
 
         if handler is not None:
             self.handler = handler
         elif handler is None and homepath is not None:
-            self.handler = TextStage(homepath)
+            self.handler = SampleStage(homepath, backend=backend)
         else:
             raise TypeError('Either handler or homepath have to be not None')
 
