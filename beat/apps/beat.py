@@ -16,7 +16,7 @@ from optparse import OptionParser
 from beat import heart, utility, inputf, plotting, config as bconfig
 from beat.config import ffo_mode_str, geometry_mode_str
 from beat.models import load_model, Stage, estimate_hypers, sample
-from beat.backend import TextChain, extract_bounds_from_summary
+from beat.backend import backend_catalog, extract_bounds_from_summary
 from beat.sampler import SamplingHistory
 from beat.sources import MTSourceWithMagnitude
 from beat.utility import list2string
@@ -810,6 +810,7 @@ def command_summarize(args):
     if len(stage_numbers) == 0:
         raise ValueError('No stage result found where sampling completed!')
 
+    sc = problem.config.sampler_config
     sc_params = problem.config.sampler_config.parameters
     sampler_name = problem.config.sampler_config.name
     if hasattr(sc_params, 'rm_flag'):
@@ -849,7 +850,7 @@ def command_summarize(args):
                     'Summarize function still needs to be implemented '
                     'for %s sampler' % problem.config.sampler_config.name)
 
-            rtrace = TextChain(stage_path, model=problem.model)
+            rtrace = backend_catalog[sc.backend](stage_path, model=problem.model)
             rtrace.setup(
                 draws=draws, chain=-1)
 

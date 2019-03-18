@@ -502,7 +502,9 @@ class NumpyChain(TextChain):
             self, dir_path, model=None, vars=None, buffer_size=5000,
             progressbar=False, k=None):
 
-        super(NumpyChain, self).__init__(dir_path, model, vars)
+        super(NumpyChain, self).__init__(
+            dir_path, model, vars, progressbar=progressbar,
+            buffer_size=buffer_size, k=k)
 
     def __repr__(self):
         return "NumpyChain({},{},{},{},{},{})".format(
@@ -510,11 +512,11 @@ class NumpyChain(TextChain):
             self.progressbar, self.k)
 
     @property
-    def get_data_structure(self):
+    def data_structure(self):
         return self.__data_structure
 
     @property
-    def get_file_header(self):
+    def file_header(self):
         with open(self.filename, mode="rb") as file:
             # read header.
             file_header = file.readline().decode()
@@ -543,10 +545,6 @@ class NumpyChain(TextChain):
             self.dir_path, 'chain-{}.bin'.format(chain))
         self.__data_structure = self.construct_data_structure()
 
-        # cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
-        # creating data formats
-        # self.__contruct_data_structure()
-
         if os.path.exists(self.filename) and not overwrite:
             logger.info('Found existing trace, appending!')
         else:
@@ -562,7 +560,7 @@ class NumpyChain(TextChain):
         flat_names = header_data[self.flat_names_tag]
         var_shapes = {key: tuple(val) for key, val in header_data[
             self.var_shape_tag].items()}
-        varnames = [key for key in self.flat_names]
+        varnames = [key for key in flat_names]
         return flat_names, var_shapes, varnames
 
     def construct_data_structure(self):
@@ -576,7 +574,7 @@ class NumpyChain(TextChain):
 
         if self.flat_names is None and not self.corrupted_flag:
             self.flat_names, self.var_shapes, self.varnames = \
-                self.extract_variables_from_header(self.get_file_header)
+                self.extract_variables_from_header(self.file_header)
 
         # creating data type as float
         data_types = ['f8'] * len(self.varnames)
@@ -600,14 +598,13 @@ class NumpyChain(TextChain):
         data_to_write:
             A lpoint data, expected an list of numpy arrays.
         """
-        # Write binnary
+        # Write binary
         if data_to_write is None and len(self.buffer) == 0:
-            logger.info("There is no data to write into file.")
-            raise ValueError("There is no data to write into file.")
+            logger.debug("There is no data to write into file.")
 
         try:
             # create initial data using the data structure.
-            data = num.zeros(1, dtype=self.get_data_structure)
+            data = num.zeros(1, dtype=self.data_structure)
 
             with open(self.filename, mode="ab+") as file:
                 if data_to_write is None:
@@ -637,8 +634,6 @@ class NumpyChain(TextChain):
         logger.debug(
             'Start Record: Chain_%i' % self.chain)
         self.__write_data_to_file()
-        # for lpoint, draw in self.buffer:
-        #    self.record(lpoint, draw)
 
         t1 = time()
         logger.debug('End Record: Chain_%i' % self.chain)
@@ -656,7 +651,10 @@ class NumpyChain(TextChain):
         """
         logger.debug('Writing...: Chain_%i step_%i' % (self.chain, draw))
 
-        self.__write_data_to_file(lpoint)
+        if lpoint:
+            self.__write_data_to_file(lpoint)
+        else:
+            raise ValueError('Nothing to record!')
 
     def _load_df(self):
         if self.__data_fromfile is None:
@@ -666,7 +664,7 @@ class NumpyChain(TextChain):
                     next(file)
                     # read data
                     self.__data_fromfile = num.fromfile(
-                        file, dtype=self.get_data_structure)
+                        file, dtype=self.data_structure)
             except EOFError as e:
                 print(e)
 

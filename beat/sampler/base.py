@@ -4,7 +4,7 @@ import os
 import shutil
 
 from beat import parallel
-from beat.backend import check_multitrace, load_multitrace, TextChain
+from beat.backend import check_multitrace, load_multitrace, backend_catalog
 from beat.utility import list2string
 
 from numpy.random import seed, randint
@@ -411,7 +411,7 @@ def iter_parallel_chains(
     n_chains = len(chains)
 
     if n_chains == 0:
-        mtrace = load_multitrace(dirname=stage_path, varnames=varnames)
+        mtrace = load_multitrace(dirname=stage_path, varnames=varnames, backend=step.backend)
 
     # while is necessary if any worker times out - rerun in case
     while n_chains > 0:
@@ -423,8 +423,8 @@ def iter_parallel_chains(
         logger.info('Initialising %i chain traces ...' % n_chains)
         for chain in chains:
             trace_list.append(
-                TextChain(
-                    name=stage_path, model=model,
+                backend_catalog[step.backend](
+                    dir_path=stage_path, model=model,
                     buffer_size=buffer_size, progressbar=progressbar))
 
         max_int = np.iinfo(np.int32).max
@@ -484,7 +484,7 @@ def iter_parallel_chains(
             pass
 
         # return chain indexes that have been corrupted
-        mtrace = load_multitrace(dirname=stage_path, varnames=varnames)
+        mtrace = load_multitrace(dirname=stage_path, varnames=varnames, backend=step.backend)
         corrupted_chains = check_multitrace(
             mtrace, draws=draws, n_chains=step.n_chains)
 
