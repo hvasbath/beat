@@ -9,7 +9,7 @@ import logging
 import copy
 
 from beat import utility
-from beat.models import Stage
+from beat.models import Stage, load_stage
 from beat.sampler.metropolis import get_trace_stats
 from beat.heart import init_seismic_targets, init_geodetic_targets
 from beat.config import ffo_mode_str, geometry_mode_str, dist_vars
@@ -1033,7 +1033,8 @@ def draw_geodetic_fits(problem, plot_options):
 
     po = plot_options
 
-    stage = Stage(homepath=problem.outfolder)
+    stage = Stage(homepath=problem.outfolder,
+                  backend=problem.config.sampler_config.backend)
 
     if not po.reference:
         stage.load_results(
@@ -1412,7 +1413,10 @@ def draw_seismic_fits(problem, po):
     if 'seismic' not in list(problem.composites.keys()):
         raise TypeError('No seismic composite defined for this problem!')
 
-    stage = Stage(homepath=problem.outfolder)
+    logger.info('Drawing Waveform fits ...')
+
+    stage = Stage(homepath=problem.outfolder,
+                  backend=problem.config.sampler_config.backend)
 
     mode = problem.config.problem_config.mode
 
@@ -1463,12 +1467,7 @@ def draw_fuzzy_beachball(problem, po):
     varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
     if not po.reference:
         llk_str = po.post_llk
-        stage = Stage(homepath=problem.outfolder)
-
-        stage.load_results(
-            varnames=problem.varnames,
-            model=problem.model, stage_number=po.load_stage,
-            load='trace', chains=[-1])
+        stage = load_stage(problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
         n_mts = len(stage.mtrace)
         m6s = num.empty((n_mts, 6), dtype='float64')
@@ -1564,12 +1563,7 @@ def draw_hudson(problem, po):
     varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
     if not po.reference:
         llk_str = po.post_llk
-        stage = Stage(homepath=problem.outfolder)
-
-        stage.load_results(
-            varnames=problem.varnames,
-            model=problem.model, stage_number=po.load_stage,
-            load='trace', chains=[-1])
+        stage = load_stage(problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
         n_mts = len(stage.mtrace)
         m6s = num.empty((n_mts, 6), dtype='float64')
@@ -2050,7 +2044,8 @@ def draw_posteriors(problem, plot_options):
     hypers = utility.check_hyper_flag(problem)
     po = plot_options
 
-    stage = Stage(homepath=problem.outfolder)
+    stage = Stage(homepath=problem.outfolder,
+                  backend=problem.config.sampler_config.backend)
 
     pc = problem.config.problem_config
 
@@ -2180,11 +2175,7 @@ def draw_correlation_hist(problem, plot_options):
 
     transform = select_transform(sc=sc, n_steps=draws)
 
-    stage = Stage(homepath=problem.outfolder)
-    stage.load_results(
-        varnames=problem.varnames,
-        model=problem.model, stage_number=po.load_stage,
-        load='trace', chains=[-1])
+    stage = load_stage(problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
     if sc.name == 'Metropolis' and po.post_llk != 'all':
         chains = select_metropolis_chains(problem, stage.mtrace, po.post_llk)
@@ -2781,11 +2772,7 @@ def draw_slip_dist(problem, po):
 
     transform = select_transform(sc=sc, n_steps=draws)
 
-    stage = Stage(homepath=problem.outfolder)
-    stage.load_results(
-        varnames=problem.varnames,
-        stage_number=po.load_stage,
-        load='trace', chains=[-1])
+    stage = load_stage(problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
     if not po.reference:
         reference = get_result_point(stage, problem.config, po.post_llk)
@@ -3059,11 +3046,7 @@ def draw_moment_rate(problem, po):
     sc = problem.composites['seismic']
     fault = sc.load_fault_geometry()
 
-    stage = Stage(homepath=problem.outfolder)
-    stage.load_results(
-        varnames=problem.varnames,
-        stage_number=po.load_stage,
-        load='trace', chains=[-1])
+    stage = load_stage(problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
     if not po.reference:
         reference = get_result_point(stage, problem.config, po.post_llk)
@@ -3186,12 +3169,14 @@ def source_geometry(fault, ref_sources):
 def draw_station_map(problem, po):
     import matplotlib.ticker as mticker
 
+    logger.info('Drawing Station Map ...')
     try:
         import cartopy as ctp
     except ImportError:
         logger.error(
             'Cartopy is not installed.'
             'For a station map cartopy needs to be installed!')
+        return
 
     def draw_gridlines(ax):
         gl = ax.gridlines(crs=grid_proj, color='black', linewidth=0.5)
