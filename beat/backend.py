@@ -511,9 +511,23 @@ class NumpyChain(TextChain):
             self.dir_path, self.model, self.vars, self.buffer_size,
             self.progressbar, self.k)
 
+    def __len__(self):
+        if self.filename is None:
+            return 0
+
+        self._load_df()
+
+        if self.__data_fromfile is None:
+            return 0
+        else:
+            return self.__data_fromfile.shape[0] + len(self.buffer)
+
     @property
     def data_structure(self):
         return self.__data_structure
+
+    def data_file(self):
+        return self.__data_fromfile
 
     @property
     def file_header(self):
@@ -656,6 +670,10 @@ class NumpyChain(TextChain):
             raise ValueError('Nothing to record!')
 
     def _load_df(self):
+
+        if not self.__data_structure:
+            self.__data_structure = self.construct_data_structure()
+
         if self.__data_fromfile is None:
             try:
                 with open(self.filename, mode="rb") as file:
@@ -669,8 +687,11 @@ class NumpyChain(TextChain):
 
     def get_values(self, varname, burn=0, thin=1):
         self._load_df()
+
         data = self.__data_fromfile[varname]
-        return data[burn::thin]
+        shape = (self.__data_fromfile.shape[0],) + self.var_shapes[varname]
+        vals = data.ravel().reshape(shape)
+        return vals[burn::thin]
 
     def point(self, idx):
         """

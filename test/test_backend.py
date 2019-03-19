@@ -5,7 +5,7 @@ import numpy as num
 import pymc3 as pm
 import theano.tensor as tt
 
-from beat.backend import TextChain, NumpyChain
+from beat.backend import TextChain, NumpyChain, load_multitrace, check_multitrace
 
 
 class TestBackend(TestCase):
@@ -67,7 +67,7 @@ class TestBackend(TestCase):
     def test_text_chain(self):
 
         textchain = TextChain(dir_path=self.test_dir_path, model=self.PT_test)
-        textchain.setup(10, 1, overwrite=True)
+        textchain.setup(10, 0, overwrite=True)
 
         # write data to buffer
         draw = 0
@@ -90,7 +90,7 @@ class TestBackend(TestCase):
     def test_chain_bin(self):
 
         numpy_chain = NumpyChain(dir_path=self.test_dir_path, model=self.PT_test)
-        numpy_chain.setup(10, 1, overwrite=True)
+        numpy_chain.setup(10, 0, overwrite=True)
         print(numpy_chain)
         # write data to buffer
         draw = 0
@@ -120,11 +120,17 @@ class TestBackend(TestCase):
 
     def test_load_bin_chain(self):
         numpy_chain = NumpyChain(dir_path=self.test_dir_path, model=self.PT_test)
-        numpy_chain.setup(5, 1)
+        numpy_chain.setup(5, 0, overwrite=False)
         chain_at = numpy_chain.point(1)
         print(chain_at)
 
+    def test_load_check_multitrace(self):
+        mtrace = load_multitrace(self.test_dir_path, varnames=self.PT_test.vars, backend='bin')
+        mtrace.point(1)
 
-    #def tearDown(self):
-    #    import shutil
-    #    shutil.rmtree(self.test_dir_path)
+        corrupted = check_multitrace(mtrace, 5, 1)
+        self.assertEqual(len(corrupted), 0)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.test_dir_path)
