@@ -279,6 +279,7 @@ class Stage(object):
         else:
             raise TypeError('Either handler or homepath have to be not None')
 
+        self.backend = backend
         self.number = stage_number
 
     def load_results(
@@ -336,11 +337,12 @@ class Stage(object):
                 raise ValueError('To load sampler params model is required!')
 
 
-def load_stage(problem, stage_number, load='trace'):
+def load_stage(problem, stage_number, load='trace', chains=[-1]):
 
     stage = Stage(
-        homepath=problem.outfolder, stage_number=stage_number)
+        homepath=problem.outfolder, stage_number=stage_number,
+        backend=problem.config.sampler_config.backend)
     stage.load_results(
-        varnames=problem.varnames,
+        varnames=problem.varnames, chains=chains,
         model=problem.model, stage_number=stage_number, load=load)
     return stage

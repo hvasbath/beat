@@ -455,7 +455,7 @@ def command_import(args):
             options.results, options.mode, hypers=False)
         source_params = list(problem.config.problem_config.priors.keys())
 
-        stage = Stage(homepath=problem.outfolder)
+        stage = Stage(homepath=problem.outfolder, backend=problem.config.sampler_config.backend)
         stage.load_results(
             varnames=problem.varnames,
             model=problem.model, stage_number=-1,
@@ -804,7 +804,7 @@ def command_summarize(args):
     problem = load_model(project_dir, options.mode)
     problem.plant_lijection()
 
-    stage = Stage(homepath=problem.outfolder)
+    stage = Stage(homepath=problem.outfolder, backend=problem.config.sampler_config.backend)
     stage_numbers = stage.handler.get_stage_indexes(options.stage_number)
     logger.info('Summarizing stage(s): %s' % list2string(stage_numbers))
     if len(stage_numbers) == 0:
@@ -1510,7 +1510,7 @@ def command_export(args):
 
     sc = problem.config.sampler_config
 
-    stage = Stage(homepath=problem.outfolder)
+    stage = Stage(homepath=problem.outfolder, backend=problem.config.sampler_config.backend)
 
     stage.load_results(
         varnames=problem.varnames,
