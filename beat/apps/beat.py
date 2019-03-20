@@ -852,7 +852,7 @@ def command_summarize(args):
 
             rtrace = backend_catalog[sc.backend](stage_path, model=problem.model)
             rtrace.setup(
-                draws=draws, chain=-1)
+                draws=draws, chain=-1, overwrite=True)
 
             if hasattr(problem, 'sources'):
                 source = problem.sources[0]
@@ -874,11 +874,13 @@ def command_summarize(args):
                         point.update(jpoint)
 
                     lpoint = problem.model.lijection.d2l(point)
-                    rtrace.record(lpoint, draw=chain)
+                    rtrace.write(lpoint, draw=chain)
 
                 if rm_flag:
                     # remove chain
                     os.remove(stage.mtrace._straces[chain].filename)
+
+            rtrace.record_buffer()
         else:
             logger.info(
                 'Summarized trace exists! Use force=True to overwrite!')
@@ -1510,14 +1512,15 @@ def command_export(args):
 
     sc = problem.config.sampler_config
 
-    stage = Stage(homepath=problem.outfolder, backend=problem.config.sampler_config.backend)
+    stage = Stage(homepath=problem.outfolder,
+                  backend=problem.config.sampler_config.backend)
 
     stage.load_results(
         varnames=problem.varnames,
         model=problem.model, stage_number=options.stage_number,
         load='trace', chains=[-1])
 
-    trace_name = 'chain--1.csv'
+    trace_name = 'chain--1.{}'.format(problem.config.sampler_config.backend)
     results_path = pjoin(problem.outfolder, bconfig.results_dir_name)
     logger.info('Saving results to %s' % results_path)
     util.ensuredir(results_path)
