@@ -411,7 +411,8 @@ def iter_parallel_chains(
     n_chains = len(chains)
 
     if n_chains == 0:
-        mtrace = load_multitrace(dirname=stage_path, varnames=varnames, backend=step.backend)
+        mtrace = load_multitrace(
+            dirname=stage_path, varnames=varnames, backend=step.backend)
 
     # while is necessary if any worker times out - rerun in case
     while n_chains > 0:

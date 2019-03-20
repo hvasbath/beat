@@ -109,12 +109,16 @@ class BaseTrace(object):
         `model.unobserved_RVs` is used.
     """
 
-    def __init__(self, dir_path, model=None, vars=None):
+    def __init__(self, dir_path, model=None, vars=None, buffer_size=5000):
         self.dir_path = dir_path
         self.model = None
         self.vars = None
         self.var_shapes = None
         self.chain = None
+
+        self.buffer_size = buffer_size
+        self.buffer = []
+        self.count = 0
 
         if model is not None:
             self.model = modelcontext(model)
@@ -153,6 +157,109 @@ class BaseTrace(object):
     def __setstate__(self, state):
         self.__dict__.update(state)
 
+    def empty_buffer(self):
+        self.buffer = []
+        self.count = 0
+
+
+class LoggingTrace(BaseTrace):
+
+    def __init__(
+            self, dir_path, model=None, vars=None, buffer_size=5000,
+            progressbar=False, k=None):
+
+        super(LoggingTrace, self).__init__(
+            dir_path=dir_path, model=model, vars=vars, buffer_size=buffer_size)
+
+        if not os.path.exists(dir_path):
+            os.mkdir(dir_path)
+
+        self.flat_names = None
+        if self.var_shapes is not None:
+            if k is not None:
+                self.flat_names = {}
+                for var, shape in self.var_shapes.items():
+                    if var in transd_vars_dist:
+                        shape = (k,)
+
+                    self.flat_names[var] = ttab.create_flat_names(var, shape)
+
+            else:
+                self.flat_names = {v: ttab.create_flat_names(v, shape)
+                                   for v, shape in self.var_shapes.items()}
+
+        self.k = k
+
+        self.corrupted_flag = False
+        self.progressbar = progressbar
+
+        self.stored_samples = 0
+        self.draws = 0
+        self._df = None
+        self.filename = None
+
+    def __len__(self):
+        if self.filename is None:
+            return 0
+
+        self._load_df()
+
+        if self._df is None:
+            return 0
+        else:
+            return self._df.shape[0] + len(self.buffer)
+
+    def _load_df(self):
+        raise ValueError('This method must be defined in inheriting classes!')
+
+    def _write_data_to_file(self):
+        raise ValueError('This method must be defined in inheriting classes!')
+
+    def data_file(self):
+        return self._df
+
+    def record_buffer(self):
+
+        if self.chain is None:
+            raise ValueError(
+                'Chain has not been setup. Saving samples not possible!')
+
+        else:
+            n_samples = len(self.buffer)
+            self.stored_samples += n_samples
+
+            if not self.progressbar:
+                if n_samples > self.buffer_size // 2:
+                    logger.info(
+                        'Writing %i / %i samples of chain %i to disk...' %
+                        (self.stored_samples, self.draws, self.chain))
+
+            t0 = time()
+            logger.debug(
+                'Start Record: Chain_%i' % self.chain)
+            self._write_data_to_file()
+
+            t1 = time()
+            logger.debug('End Record: Chain_%i' % self.chain)
+            logger.debug('Writing to file took %f' % (t1 - t0))
+            self.empty_buffer()
+
+    def write(self, lpoint, draw):
+        """
+        Write sampling results into buffer.
+        If buffer is full write it out to file.
+        """
+        self.buffer.append((lpoint, draw))
+        self.count += 1
+        if self.count == self.buffer_size:
+            self.record_buffer()
+
+    def clear_data(self):
+        """
+        Clear the data loaded from file.
+        """
+        self._df = None
+
 
 class MemoryTraceError(Exception):
     pass
@@ -162,10 +269,6 @@ class MemoryTrace(BaseTrace):
     """
     Slim memory trace object. Keeps points in a list in memory.
     """
-    def __init__(self, buffer_size=1000):
-        self.buffer_size = buffer_size
-        self.buffer = None
-        self.count = 0
 
     def setup(self, draws, chain):
         self.draws = draws
@@ -198,74 +301,7 @@ class MemoryTrace(BaseTrace):
         return cov
 
 
-def extract_variables_from_df(dataframe):
-    """
-    Extract random variables and their shapes from the pymc3-pandas data-frame
-
-    Parameters
-    ----------
-    dataframe : :class:`pandas.DataFrame`
-
-    Returns
-    -------
-    flat_names : dict
-        with variable-names and respective flat-name indexes to data-frame
-    var_shapes : dict
-        with variable names and shapes
-    """
-    all_df_indexes = [str(flatvar) for flatvar in dataframe.columns]
-    varnames = list(set([index.split('__')[0] for index in all_df_indexes]))
-
-    flat_names = {}
-    var_shapes = {}
-    for varname in varnames:
-        indexes = []
-        for index in all_df_indexes:
-            if index.split('__')[0] == varname:
-                indexes.append(index)
-
-        flat_names[varname] = indexes
-        var_shapes[varname] = ttab._create_shape(indexes)
-
-    return flat_names, var_shapes
-
-
-def extract_bounds_from_summary(summary, varname, shape, roundto=None):
-    """
-    Extract lower and upper bound of random variable.
-
-    Returns
-    -------
-    list of num.Ndarray
-    """
-
-    def do_nothing(value):
-        return value
-
-    indexes = ttab.create_flat_names(varname, shape)
-    lower_quant = 'hpd_2.5'
-    upper_quant = 'hpd_97.5'
-
-    bounds = []
-    for quant in [lower_quant, upper_quant]:
-        values = num.empty(shape, 'float64')
-        for i, idx in enumerate(indexes):
-            adjust = 10. ** roundto
-            if roundto is not None:
-                if quant == lower_quant:
-                    operation = num.floor
-                elif quant == upper_quant:
-                    operation = num.ceil
-            else:
-                operation = do_nothing
-            values[i] = operation(summary[quant][idx] * adjust) / adjust
-
-        bounds.append(values)
-
-    return bounds
-
-
-class TextChain(BaseTrace):
+class TextChain(LoggingTrace):
     """
     Text trace object
 
@@ -293,37 +329,10 @@ class TextChain(BaseTrace):
             self, dir_path, model=None, vars=None,
             buffer_size=5000, progressbar=False, k=None):
 
-        if not os.path.exists(dir_path):
-            os.mkdir(dir_path)
+        super(TextChain, self).__init__(
+            dir_path, model, vars, buffer_size, progressbar, k)
 
-        super(TextChain, self).__init__(dir_path, model, vars)
-
-        self.flat_names = None
-        if self.var_shapes is not None:
-            if k is not None:
-                self.flat_names = {}
-                for var, shape in self.var_shapes.items():
-                    if var in transd_vars_dist:
-                        shape = (k,)
-
-                    self.flat_names[var] = ttab.create_flat_names(var, shape)
-
-            else:
-                self.flat_names = {v: ttab.create_flat_names(v, shape)
-                                   for v, shape in self.var_shapes.items()}
-
-        self.k = k
-        self.filename = None
-        self.df = None
-        self.corrupted_flag = False
-        self.progressbar = progressbar
-        self.buffer_size = buffer_size
-        self.stored_samples = 0
-        self.buffer = []
-        self.count = 0
-        self.draws = 0
-
-    def setup(self, draws, chain, overwrite=True):
+    def setup(self, draws, chain, overwrite=False):
         """
         Perform chain-specific setup.
 
@@ -336,80 +345,62 @@ class TextChain(BaseTrace):
         """
         logger.debug('SetupTrace: Chain_%i step_%i' % (chain, draws))
         self.chain = chain
-        self.count = 0
+
         self.draws = draws
-        self.filename = os.path.join(self.dir_path, 'chain-{}.csv'.format(chain))
+        self.filename = os.path.join(
+            self.dir_path, 'chain-{}.csv'.format(chain))
 
         cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
 
         if os.path.exists(self.filename):
             if overwrite:
+                self.count = 0
                 os.remove(self.filename)
             else:
-                logger.info('Found existing trace, appending!')
+                logger.debug('Found existing trace, appending!')
                 return
 
+        # writing header
         with open(self.filename, 'w') as fh:
             fh.write(','.join(cnames) + '\n')
 
-    def empty_buffer(self):
-        self.buffer = []
-        self.count = 0
-
-    def write(self, lpoint, draw):
+    def _write_data_to_file(self, lpoint=None):
         """
-        Write sampling results into buffer.
-        If buffer is full write it out to file.
-        """
-        self.buffer.append((lpoint, draw))
-        self.count += 1
-        if self.count == self.buffer_size:
-            self.record_buffer()
-
-    def record_buffer(self):
-
-        n_samples = len(self.buffer)
-        self.stored_samples += n_samples
-
-        if not self.progressbar:
-            if n_samples > self.buffer_size // 2:
-                logger.info(
-                    'Writing %i / %i samples of chain %i to disk...' %
-                    (self.stored_samples, self.draws, self.chain))
-
-        t0 = time()
-        logger.debug(
-            'Start Record: Chain_%i' % self.chain)
-        for lpoint, draw in self.buffer:
-            self.record(lpoint, draw)
-
-        t1 = time()
-        logger.debug('End Record: Chain_%i' % self.chain)
-        logger.debug('Writing to file took %f' % (t1 - t0))
-        self.empty_buffer()
-
-    def record(self, lpoint, draw):
-        """
-        Record results of a sampling iteration.
+        Write the lpoint to file. If lpoint is None it
+        will try to write from buffer.
 
         Parameters
         ----------
-        lpoint : List of variable values
-            Values mapped to variable names
+        lpoint: list
+            of numpy arrays
         """
 
-        columns = itertools.chain.from_iterable(
-            map(str, value.ravel()) for value in lpoint)
+        def lpoint2file(filehandle, lpoint):
+            columns = itertools.chain.from_iterable(
+                map(str, value.ravel()) for value in lpoint)
 
-        logger.debug('Writing...: Chain_%i step_%i' % (
-            self.chain, draw))
-        with open(self.filename, 'a') as fh:
-            fh.write(','.join(columns) + '\n')
+            filehandle.write(','.join(columns) + '\n')
+
+        # Write binary
+        if lpoint is None and len(self.buffer) == 0:
+            logger.debug("There is no data to write into file.")
+
+        try:
+            with open(self.filename, mode="a+") as fh:
+                if lpoint is None:
+                    for lpoint, draw in self.buffer:
+                        lpoint2file(fh, lpoint)
+
+                else:
+                    lpoint2file(fh, lpoint)
+
+        except EnvironmentError as e:
+            print("Error on write file: ", e)
 
     def _load_df(self):
-        if self.df is None:
+        if self._df is None:
             try:
-                self.df = pd.read_csv(self.filename)
+                self._df = pd.read_csv(self.filename)
             except pd.errors.EmptyDataError:
                 logger.warning(
                     'Trace %s is empty and needs to be resampled!' %
@@ -424,19 +415,8 @@ class TextChain(BaseTrace):
 
             if self.flat_names is None and not self.corrupted_flag:
                 self.flat_names, self.var_shapes = extract_variables_from_df(
-                    self.df)
+                    self._df)
                 self.varnames = self.var_shapes.keys()
-
-    def __len__(self):
-        if self.filename is None:
-            return 0
-
-        self._load_df()
-
-        if self.df is None:
-            return 0
-        else:
-            return self.df.shape[0] + len(self.buffer)
 
     def get_values(self, varname, burn=0, thin=1):
         """
@@ -459,8 +439,8 @@ class TextChain(BaseTrace):
         :class:`numpy.array`
         """
         self._load_df()
-        var_df = self.df[self.flat_names[varname]]
-        shape = (self.df.shape[0],) + self.var_shapes[varname]
+        var_df = self._df[self.flat_names[varname]]
+        shape = (self._df.shape[0],) + self.var_shapes[varname]
         vals = var_df.values.ravel().reshape(shape)
         return vals[burn::thin]
 
@@ -486,16 +466,15 @@ class TextChain(BaseTrace):
         self._load_df()
         pt = {}
         for varname in self.varnames:
-            vals = self.df[self.flat_names[varname]].iloc[idx]
+            vals = self._df[self.flat_names[varname]].iloc[idx]
             pt[varname] = vals.values.reshape(self.var_shapes[varname])
         return pt
 
 
-class NumpyChain(TextChain):
+class NumpyChain(LoggingTrace):
 
     flat_names_tag = "flat_names"
     var_shape_tag = "var_shapes"
-    __data_fromfile = None
     __data_structure = None
 
     def __init__(
@@ -506,28 +485,16 @@ class NumpyChain(TextChain):
             dir_path, model, vars, progressbar=progressbar,
             buffer_size=buffer_size, k=k)
 
+        self.k = k
+
     def __repr__(self):
         return "NumpyChain({},{},{},{},{},{})".format(
             self.dir_path, self.model, self.vars, self.buffer_size,
             self.progressbar, self.k)
 
-    def __len__(self):
-        if self.filename is None:
-            return 0
-
-        self._load_df()
-
-        if self.__data_fromfile is None:
-            return 0
-        else:
-            return self.__data_fromfile.shape[0] + len(self.buffer)
-
     @property
     def data_structure(self):
         return self.__data_structure
-
-    def data_file(self):
-        return self.__data_fromfile
 
     @property
     def file_header(self):
@@ -536,7 +503,7 @@ class NumpyChain(TextChain):
             file_header = file.readline().decode()
             return file_header
 
-    def setup(self, draws, chain, overwrite=True):
+    def setup(self, draws, chain, overwrite=False):
         """
         Perform chain-specific setup.
 
@@ -601,86 +568,53 @@ class NumpyChain(TextChain):
         # set data structure
         return num.dtype({'names': self.varnames, 'formats': formats})
 
-    def __write_data_to_file(self, data_to_write=None):
+    def _write_data_to_file(self, lpoint=None):
         """
-        Write the lpoint to file. If data_to_write is None it
+        lpoint to file. If lpoint is None it
         will try to write from buffer.
 
         Parameters
         ----------
-        data_to_write:
-            A lpoint data, expected an list of numpy arrays.
+        lpoint: list
+            of numpy arrays.
         """
+
+        def lpoint2file(filehandle, varnames, data, lpoint):
+            for names, array in zip(varnames, lpoint):
+                data[names] = array
+
+            data.tofile(fh)
+
         # Write binary
-        if data_to_write is None and len(self.buffer) == 0:
+        if lpoint is None and len(self.buffer) == 0:
             logger.debug("There is no data to write into file.")
 
         try:
             # create initial data using the data structure.
             data = num.zeros(1, dtype=self.data_structure)
 
-            with open(self.filename, mode="ab+") as file:
-                if data_to_write is None:
+            with open(self.filename, mode="ab+") as fh:
+                if lpoint is None:
                     for lpoint, draw in self.buffer:
-                        for names, array in zip(self.varnames, lpoint):
-                            data[names] = array
-                        data.tofile(file)
+                        lpoint2file(fh, self.varnames, data, lpoint)
                 else:
-                    for names, array in zip(self.varnames, data_to_write):
-                        data[names] = array
-                    data.tofile(file)
+                    lpoint2file(fh, self.varnames, data, lpoint)
+
         except EnvironmentError as e:
             print("Error on write file: ", e)
-
-    def record_buffer(self):
-
-        n_samples = len(self.buffer)
-        self.stored_samples += n_samples
-
-        if not self.progressbar:
-            if n_samples > self.buffer_size // 2:
-                logger.info(
-                    'Writing %i / %i samples of chain %i to disk...' %
-                    (self.stored_samples, self.draws, self.chain))
-
-        t0 = time()
-        logger.debug(
-            'Start Record: Chain_%i' % self.chain)
-        self.__write_data_to_file()
-
-        t1 = time()
-        logger.debug('End Record: Chain_%i' % self.chain)
-        logger.debug('Writing to file took %f' % (t1 - t0))
-        self.empty_buffer()
-
-    def record(self, lpoint, draw):
-        """
-        Record results of a sampling iteration.
-
-        Parameters
-        ----------
-        lpoint : List of variable values
-            Values mapped to variable names
-        """
-        logger.debug('Writing...: Chain_%i step_%i' % (self.chain, draw))
-
-        if lpoint:
-            self.__write_data_to_file(lpoint)
-        else:
-            raise ValueError('Nothing to record!')
 
     def _load_df(self):
 
         if not self.__data_structure:
             self.__data_structure = self.construct_data_structure()
 
-        if self.__data_fromfile is None:
+        if self._df is None:
             try:
                 with open(self.filename, mode="rb") as file:
                     # skip header.
                     next(file)
                     # read data
-                    self.__data_fromfile = num.fromfile(
+                    self._df = num.fromfile(
                         file, dtype=self.data_structure)
             except EOFError as e:
                 print(e)
@@ -688,8 +622,8 @@ class NumpyChain(TextChain):
     def get_values(self, varname, burn=0, thin=1):
         self._load_df()
 
-        data = self.__data_fromfile[varname]
-        shape = (self.__data_fromfile.shape[0],) + self.var_shapes[varname]
+        data = self._df[varname]
+        shape = (self._df.shape[0],) + self.var_shapes[varname]
         vals = data.ravel().reshape(shape)
         return vals[burn::thin]
 
@@ -712,17 +646,96 @@ class NumpyChain(TextChain):
             self.get_values(name)[idx]) for name in self.varnames}
         return pt
 
-    def clear_data(self):
-        """
-        Clear the data loaded from file.
-        """
-        self.__data_fromfile = None
-
 
 backend_catalog = {
     'csv': TextChain,
     'bin': NumpyChain
 }
+
+
+class TransDTextChain(object):
+    """
+    Result Trace object for trans-d problems.
+    Manages several TextChains one for each dimension.
+    """
+    def __init__(
+            self, name, model=None, vars=None,
+            buffer_size=5000, progressbar=False):
+
+        self._straces = {}
+        self.buffer_size = buffer_size
+        self.progressbar = progressbar
+
+        if vars is None:
+            vars = model.unobserved_RVs
+
+        transd, dims_idx = istransd(model)
+        if transd:
+            self.dims_idx
+        else:
+            raise ValueError(
+                'Model is not trans-d but TransD Chain initialized!')
+
+        dimensions = model.unobserved_RVs[self.dims_idx]
+
+        for k in range(dimensions.lower, dimensions.upper + 1):
+            self._straces[k] = TextChain(
+                dir_path=name,
+                model=model,
+                buffer_size=buffer_size,
+                progressbar=progressbar,
+                k=k)
+
+        # init indexing chain
+        self._index = TextChain(
+            dir_path=name,
+            vars=[],
+            buffer_size=self.buffer_size,
+            progressbar=self.progressbar)
+        self._index.flat_names = {
+            'draw__0': (1,), 'k__0': (1,), 'k_idx__0': (1,)}
+
+    def setup(self, draws, chain):
+        self.draws = num.zeros(1, dtype='int32')
+        for k, trace in self._straces.items():
+            trace.setup(draws=draws, chain=k)
+
+        self._index.setup(draws, chain=0)
+
+    def write(self, lpoint, draw):
+        self.draws[0] = draw
+        ipoint = [self.draws, lpoint[self.dims_idx]]
+
+        self._index.write(ipoint, draw)
+        self._straces[lpoint[self.dims_idx]].write(lpoint, draw)
+
+    def __len__(self):
+        return int(self._index[-1])
+
+    def record_buffer(self):
+        for trace in self._straces:
+            trace.record_buffer()
+
+        self._index.record_buffer()
+
+    def point(self, idx):
+        """
+        Get point of current chain with variables names as keys.
+
+        Parameters
+        ----------
+        idx : int
+            Index of the nth step of the chain
+
+        Returns
+        -------
+        dict : of point values
+        """
+        ipoint = self._index.point(idx)
+        return self._straces[ipoint['k']].point(ipoint['k_idx'])
+
+    def get_values(self, varname):
+        raise NotImplementedError()
 
 
 class SampleStage(object):
@@ -879,91 +892,6 @@ def istransd(varnames):
     else:
         logger.debug('Did not find "%s" random variable in model!' % dims)
         return False, None
-
-
-class TransDTextChain(object):
-    """
-    Result Trace object for trans-d problems.
-    Manages several TextChains one for each dimension.
-    """
-    def __init__(
-            self, name, model=None, vars=None,
-            buffer_size=5000, progressbar=False):
-
-        self._straces = {}
-        self.buffer_size = buffer_size
-        self.progressbar = progressbar
-
-        if vars is None:
-            vars = model.unobserved_RVs
-
-        transd, dims_idx = istransd(model)
-        if transd:
-            self.dims_idx
-        else:
-            raise ValueError(
-                'Model is not trans-d but TransD Chain initialized!')
-
-        dimensions = model.unobserved_RVs[self.dims_idx]
-
-        for k in range(dimensions.lower, dimensions.upper + 1):
-            self._straces[k] = TextChain(
-                dir_path=name,
-                model=model,
-                buffer_size=buffer_size,
-                progressbar=progressbar,
-                k=k)
-
-        # init indexing chain
-        self._index = TextChain(
-            dir_path=name,
-            vars=[],
-            buffer_size=self.buffer_size,
-            progressbar=self.progressbar)
-        self._index.flat_names = {
-            'draw__0': (1,), 'k__0': (1,), 'k_idx__0': (1,)}
-
-    def setup(self, draws, chain):
-        self.draws = num.zeros(1, dtype='int32')
-        for k, trace in self._straces.items():
-            trace.setup(draws=draws, chain=k)
-
-        self._index.setup(draws, chain=0)
-
-    def write(self, lpoint, draw):
-        self.draws[0] = draw
-        ipoint = [self.draws, lpoint[self.dims_idx]]
-
-        self._index.write(ipoint, draw)
-        self._straces[lpoint[self.dims_idx]].write(lpoint, draw)
-
-    def __len__(self):
-        return int(self._index[-1])
-
-    def record_buffer(self):
-        for trace in self._straces:
-            trace.record_buffer()
-
-        self._index.record_buffer()
-
-    def point(self, idx):
-        """
-        Get point of current chain with variables names as keys.
-
-        Parameters
-        ----------
-        idx : int
-            Index of the nth step of the chain
-
-        Returns
-        -------
-        dict : of point values
-        """
-        ipoint = self._index.point(idx)
-        return self._straces[ipoint['k']].point(ipoint['k_idx'])
-
-    def get_values(self, varname):
-        raise NotImplementedError()
 
 
 def load_multitrace(dirname, varnames=None, chains=None, backend='csv'):
@@ -1124,3 +1052,71 @@ def concatenate_traces(mtraces):
         cat_trace._straces[chain].df = cat_dfs[chain]
 
     return cat_trace
+
+
+def extract_variables_from_df(dataframe):
+    """
+    Extract random variables and their shapes from the pymc3-pandas data-frame
+
+    Parameters
+    ----------
+    dataframe : :class:`pandas.DataFrame`
+
+    Returns
+    -------
+    flat_names : dict
+        with variable-names and respective flat-name indexes to data-frame
+    var_shapes : dict
+        with variable names and shapes
+    """
+    all_df_indexes = [str(flatvar) for flatvar in dataframe.columns]
+    varnames = list(set([index.split('__')[0] for index in all_df_indexes]))
+
+    flat_names = {}
+    var_shapes = {}
+    for varname in varnames:
+        indexes = []
+        for index in all_df_indexes:
+            if index.split('__')[0] == varname:
+                indexes.append(index)
+
+        flat_names[varname] = indexes
+        var_shapes[varname] = ttab._create_shape(indexes)
+
+    return flat_names, var_shapes
+
+
+def extract_bounds_from_summary(summary, varname, shape, roundto=None):
+    """
+    Extract lower and upper bound of random variable.
+
+    Returns
+    -------
+    list of num.Ndarray
+    """
+
+    def do_nothing(value):
+        return value
+
+    indexes = ttab.create_flat_names(varname, shape)
+    lower_quant = 'hpd_2.5'
+    upper_quant = 'hpd_97.5'
+
+    bounds = []
+    for quant in [lower_quant, upper_quant]:
+        values = num.empty(shape, 'float64')
+        for i, idx in enumerate(indexes):
+            adjust = 10. ** roundto
+            if roundto is not None:
+                if quant == lower_quant:
+                    operation = num.floor
+                elif quant == upper_quant:
+                    operation = num.ceil
+            else:
+                operation = do_nothing
+            values[i] = operation(summary[quant][idx] * adjust) / adjust
+
+        bounds.append(values)
+
+    return bounds
+

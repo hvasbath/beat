@@ -121,6 +121,7 @@ class TestBackend(TestCase):
     def test_load_bin_chain(self):
         numpy_chain = NumpyChain(dir_path=self.test_dir_path, model=self.PT_test)
         numpy_chain.setup(5, 0, overwrite=False)
+        print(len(numpy_chain), numpy_chain.data_file())
         chain_at = numpy_chain.point(1)
         print(chain_at)
 
@@ -131,6 +132,6 @@ class TestBackend(TestCase):
         corrupted = check_multitrace(mtrace, 5, 1)
         self.assertEqual(len(corrupted), 0)
 
-    def tearDown(self):
-        import shutil
-        shutil.rmtree(self.test_dir_path)
+#    def tearDown(self):
+#        import shutil
+#        shutil.rmtree(self.test_dir_path)
