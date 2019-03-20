@@ -187,8 +187,8 @@ class TestPT(unittest.TestCase):
     def test_multicore(self):
         self._test_sample(self.n_chains, self.test_folder_multi)
 
-   # def tearDown(self):
-   #     shutil.rmtree(self.test_folder_multi)
+    def tearDown(self):
+        shutil.rmtree(self.test_folder_multi)
 
 
 if __name__ == '__main__':

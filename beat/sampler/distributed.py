@@ -36,7 +36,7 @@ def have_backend():
     for cmd in [[exe] for exe in program_bins.values()]:
         try:
             p = Popen(cmd, stdout=PIPE, stderr=PIPE, stdin=PIPE)
-            (stdout, stderr) = p.communicate()
+            _ = p.communicate()
             have_any = True
 
         except OSError:
@@ -70,6 +70,7 @@ class MPIRunner(object):
             logger.info('Detected python%i ' % py_version)
 
         self.py_version = py_version
+        self.python_cmd = 'python{}'.format(self.py_version)
         self.keep_tmp = keep_tmp
         self.tempdir = mkdtemp(prefix='mpiexec-', dir=tmp)
         logger.info('Done initialising mpi runner')
@@ -80,8 +81,8 @@ class MPIRunner(object):
             raise ValueError('n_jobs has to be defined!')
 
         program = program_bins['mpi']
-        args = ' -n %i python%i %s %s %s' % (
-            n_jobs, self.py_version, script_path, loglevel, project_dir)
+        args = ' -n %i %s %s %s %s' % (
+            n_jobs, self.python_cmd, script_path, loglevel, project_dir)
         commandstr = program + args
 
         old_wd = os.getcwd()
@@ -112,7 +113,36 @@ class MPIRunner(object):
             signal.signal(signal.SIGINT, original)
 
         if interrupted:
-            raise KeyboardInterrupt()
+            logger.warning(
+                'Got Ctrl + C, collecting and '
+                'shutting down child processes ...')
+            import psutil
+
+            exit_counter = 1
+            while exit_counter:
+                processes = [
+                    process for process in psutil.process_iter() if
+                    self.python_cmd in process.name().lower()]
+
+                nprocesses = len(processes)
+                logger.debug('Found {} {} processes'.format(
+                    nprocesses, self.python_cmd))
+
+                exit_counter = 0
+                for p in processes:
+                    try:
+                        cmdline = p.cmdline()
+                        if len(cmdline) > 1:
+                            if cmdline[1] == script_path:
+                                logger.debug(
+                                    'Shutting down: PID {}'.format(p.pid))
+                                p.terminate()
+                                exit_counter += 1
+                    except psutil.NoSuchProcess:
+                        pass
+
+            logger.warning('Done shutting down child processes!')
+            raise KeyboardInterrupt('Master interupted!')
 
         errmess = []
         if proc.returncode != 0:
@@ -135,7 +165,7 @@ in the directory %s'''.lstrip() % (program, self.tempdir))
                 shutil.rmtree(self.tempdir)
                 self.tempdir = None
             else:
-                logger.warn(
+                logger.warning(
                     'not removing temporary directory: %s' % self.tempdir)
 
 
@@ -181,7 +211,7 @@ def run_mpi_sampler(
     except KeyError:
         raise NotImplementedError(
             'Currently only samplers: %s supported!' %
-            list2string(samplers.keys()))
+            list2string(list(samplers.keys())))
 
     runner = MPIRunner(keep_tmp=keep_tmp)
     args_path = pjoin(runner.tempdir, mpiargs_name)

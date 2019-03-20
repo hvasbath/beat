@@ -14,7 +14,7 @@ import numpy as num
 from beat.utility import load_objects, list2string, setup_logging, \
     dump_objects
 from beat.sampler import distributed
-from beat.backend import MemoryTrace, backend_catalog, SampleStage
+from beat.backend import MemoryChain, backend_catalog, SampleStage
 
 from beat.sampler.base import _iter_sample, Proposal, choose_proposal, \
     ChainCounter, multivariate_proposals
@@ -388,7 +388,7 @@ class TemperingManager(object):
             step.stage = 1
             package = deepcopy(self._default_package_kwargs)
             package['chain'] = chain
-            package['trace'] = MemoryTrace(buffer_size=self.buffer_size)
+            package['trace'] = MemoryChain(buffer_size=self.buffer_size)
 
             if resample:
                 logger.info('Resampling chain %i at the testvalue' % chain)
@@ -508,7 +508,7 @@ def master_process(
     logger.info('Initializing result trace...')
     logger.info('Writing samples to file every %i samples.' % buffer_size)
     trace = backend_catalog[step.backend](
-        name=stage_handler.stage_path(stage),
+        dir_path=stage_handler.stage_path(stage),
         model=model,
         buffer_size=buffer_size,
         progressbar=progressbar)

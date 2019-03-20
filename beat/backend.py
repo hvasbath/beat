@@ -94,14 +94,13 @@ class ArrayStepSharedLLK(BlockedStep):
         return self.bij.rmap(apoint), alist
 
 
-class BaseTrace(object):
-    """Base trace object
+class BaseChain(object):
+    """
+    Base chain object, independent of file or memory output.
 
     Parameters
     ----------
 
-    dir_path : str
-        Name of backend
     model : Model
         If None, the model is taken from the `with` context.
     vars : list of variables
@@ -109,8 +108,8 @@ class BaseTrace(object):
         `model.unobserved_RVs` is used.
     """
 
-    def __init__(self, dir_path, model=None, vars=None, buffer_size=5000):
-        self.dir_path = dir_path
+    def __init__(self, model=None, vars=None, buffer_size=5000):
+
         self.model = None
         self.vars = None
         self.var_shapes = None
@@ -162,17 +161,23 @@ class BaseTrace(object):
         self.count = 0
 
 
-class LoggingTrace(BaseTrace):
-
+class FileChain(BaseChain):
+    """
+    Base class for a trace written to a file with buffer functionality and
+    rogressbar. Buffer is a list of tuples of lpoints and a draw index. Inheriting classes
+    must define the methods: '_write_data_to_file' and '_load_df'
+    """
     def __init__(
-            self, dir_path, model=None, vars=None, buffer_size=5000,
+            self, dir_path='', model=None, vars=None, buffer_size=5000,
             progressbar=False, k=None):
 
-        super(LoggingTrace, self).__init__(
-            dir_path=dir_path, model=model, vars=vars, buffer_size=buffer_size)
+        super(FileChain, self).__init__(
+            model=model, vars=vars, buffer_size=buffer_size)
 
         if not os.path.exists(dir_path):
             os.mkdir(dir_path)
+
+        self.dir_path = dir_path
 
         self.flat_names = None
         if self.var_shapes is not None:
@@ -265,10 +270,20 @@ class MemoryTraceError(Exception):
     pass
 
 
-class MemoryTrace(BaseTrace):
+class MemoryChain(BaseChain):
     """
     Slim memory trace object. Keeps points in a list in memory.
+
+    Parameters
+    ----------
+    draws : int
+        Number of samples
+    chain : int
+        Chain number
     """
+    def __init__(self, buffer_size=5000):
+
+        super(MemoryChain, self).__init__(buffer_size=buffer_size)
 
     def setup(self, draws, chain):
         self.draws = draws
@@ -301,9 +316,10 @@ class MemoryTrace(BaseTrace):
         return cov
 
 
-class TextChain(LoggingTrace):
+class TextChain(FileChain):
     """
-    Text trace object
+    Text trace object based on '.csv' files. Slow in reading and writing.
+    Good for debugging.
 
     Parameters
     ----------
@@ -471,7 +487,30 @@ class TextChain(LoggingTrace):
         return pt
 
 
-class NumpyChain(LoggingTrace):
+class NumpyChain(FileChain):
+    """
+    Numpy binary trace object based on '.bin' files. Fast in reading and
+    writing. Bad for debugging.
+
+    Parameters
+    ----------
+
+    dir_path : str
+        Name of directory to store text files
+    model : Model
+        If None, the model is taken from the `with` context.
+    vars : list of variables
+        Sampling values will be stored for these variables. If None,
+        `model.unobserved_RVs` is used.
+    buffer_size : int
+        this is the number of samples after which the buffer is written to disk
+        or if the chain end is reached
+    progressbar : boolean
+        flag if a progressbar is active, if not a logmessage is printed
+        everytime the buffer is written to disk
+    k : int, optional
+        if given dont use shape from testpoint as size of transd variables
+    """
 
     flat_names_tag = "flat_names"
     var_shape_tag = "var_shapes"
@@ -505,7 +544,8 @@ class NumpyChain(LoggingTrace):
 
     def setup(self, draws, chain, overwrite=False):
         """
-        Perform chain-specific setup.
+        Perform chain-specific setup. Creates file with header.
+        If exist not overwritten again unless flag is set.
 
         Parameters
         ----------
@@ -546,7 +586,7 @@ class NumpyChain(LoggingTrace):
 
     def construct_data_structure(self):
         """
-        Create a dtype for storage the data based on varnames.
+        Create a dtype to store the data based on varnames in a numpy array.
 
         Returns
         -------
@@ -570,7 +610,7 @@ class NumpyChain(LoggingTrace):
 
     def _write_data_to_file(self, lpoint=None):
         """
-        lpoint to file. If lpoint is None it
+        Writes lpoint to file. If lpoint is None it
         will try to write from buffer.
 
         Parameters
