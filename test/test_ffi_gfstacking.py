@@ -4,14 +4,14 @@ from pyrocko import orthodrome as otd
 from pyrocko import moment_tensor as mt
 from pyrocko import trace
 from beat.sources import RectangularSource
-from beat import ffo, models
+from beat import ffi, models
 
 import numpy as num
 from beat import inputf, utility, heart, config
 import os
 
 km = 1000.
-util.setup_logging('test_ffo_stacking', 'info')
+util.setup_logging('test_ffi_stacking', 'info')
 
 
 # set random seed for reproducible station locations
@@ -26,7 +26,7 @@ project_dir = '/home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE_wide_kin'
 store_superdirs = ['/home/vasyurhm/GF/Laquila']
 white_noise_perc_max = 0.025   # White noise to disturb the synthetic data, in percent to the maximum amplitude [Hallo et al. 2016 use 0.01]
 
-problem = models.load_model(project_dir, mode='ffo', build=False)
+problem = models.load_model(project_dir, mode='ffi', build=False)
 event = problem.config.event
 
 components = ['uparr']  #, 'uperp']
@@ -98,8 +98,8 @@ targets = sc.wavemaps[0].targets
 filterer = sc.wavemaps[0].config.filterer
 ntargets = len(targets)
 
-gfs = ffo.load_gf_library(
-    directory=project_dir + '/ffo/linear_gfs/',
+gfs = ffi.load_gf_library(
+    directory=project_dir + '/ffi/linear_gfs/',
     filename='seismic_uparr_any_P_0')
 ats = gfs.reference_times - arrival_taper.b
 

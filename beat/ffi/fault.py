@@ -15,7 +15,7 @@ import numpy as num
 from theano import shared
 
 
-logger = getLogger('ffo.fault')
+logger = getLogger('ffi.fault')
 
 
 __all__ = [

@@ -14,7 +14,7 @@ from collections import OrderedDict
 from optparse import OptionParser
 
 from beat import heart, utility, inputf, plotting, config as bconfig
-from beat.config import ffo_mode_str, geometry_mode_str
+from beat.config import ffi_mode_str, geometry_mode_str
 from beat.models import load_model, Stage, estimate_hypers, sample
 from beat.backend import backend_catalog, extract_bounds_from_summary
 from beat.sampler import SamplingHistory
@@ -112,7 +112,7 @@ nargs_dict = {
     'export': 1,
 }
 
-mode_choices = [geometry_mode_str, ffo_mode_str]
+mode_choices = [geometry_mode_str, ffi_mode_str]
 
 supported_geodetic_formats = ['matlab', 'ascii', 'kite']
 supported_samplers = ['SMC', 'Metropolis', 'PT']
@@ -449,7 +449,7 @@ def command_import(args):
         logger.info(
             'Attempting to load results with mode %s from directory:'
             ' %s' % (options.mode, options.results))
-        c = bconfig.load_config(project_dir, 'ffo')
+        c = bconfig.load_config(project_dir, 'ffi')
 
         problem = load_model(
             options.results, options.mode, hypers=False)
@@ -515,7 +515,7 @@ def command_import(args):
             c.problem_config.set_vars(
                 new_bounds, attribute='priors')
 
-        elif options.mode == ffo_mode_str:
+        elif options.mode == ffi_mode_str:
             npatches = problem.config.problem_config.mode_config.npatches
             logger.info('Importing linear static distributed slip results!')
 
@@ -1004,8 +1004,8 @@ def command_build_gfs(args):
             if options.execute:
                 logger.info('%s GF calculations successful!' % datatype)
 
-    elif options.mode == ffo_mode_str:
-        from beat import ffo
+    elif options.mode == ffi_mode_str:
+        from beat import ffi
         import numpy as num
 
         slip_varnames = c.problem_config.get_slip_variables()
@@ -1026,7 +1026,7 @@ def command_build_gfs(args):
                     source.update(lat=c.event.lat, lon=c.event.lon)
 
                 logger.info('Discretizing reference sources ...')
-                fault = ffo.discretize_sources(
+                fault = ffi.discretize_sources(
                     varnames=slip_varnames,
                     sources=gf.reference_sources,
                     extension_widths=gf.extension_widths,
@@ -1096,7 +1096,7 @@ def command_build_gfs(args):
                             crust_inds=[crust_ind],
                             sample_rate=gf.sample_rate)
 
-                        ffo.geo_construct_gf_linear(
+                        ffi.geo_construct_gf_linear(
                             engine=engine,
                             outdirectory=outdir,
                             event=c.event,
@@ -1130,7 +1130,7 @@ def command_build_gfs(args):
                                 datahandler=datahandler,
                                 event=c.event)
 
-                            ffo.seis_construct_gf_linear(
+                            ffi.seis_construct_gf_linear(
                                 engine=engine,
                                 fault=fault,
                                 durations_prior=pc.priors['durations'],
@@ -1402,12 +1402,12 @@ def command_check(args):
                 stations=wmap.stations, events=[sc.event])
 
     elif options.what == 'library':
-        if options.mode != ffo_mode_str:
+        if options.mode != ffi_mode_str:
             logger.warning(
                 'GF library exists only for "%s" '
-                'optimization mode.' % ffo_mode_str)
+                'optimization mode.' % ffi_mode_str)
         else:
-            from beat import ffo
+            from beat import ffi
 
             for datatype in options.datatypes:
                 for var in problem.config.problem_config.get_slip_variables():
@@ -1419,7 +1419,7 @@ def command_check(args):
                         scomp = problem.composites['seismic']
 
                         for wmap in scomp.wavemaps:
-                            filename = ffo.get_gf_prefix(
+                            filename = ffi.get_gf_prefix(
                                 datatype, component=var,
                                 wavename=wmap.config.name,
                                 crust_ind=sc.gf_config.reference_model_idx)
@@ -1429,7 +1429,7 @@ def command_check(args):
                                 ' Library %s for %s target' % (
                                     filename,
                                     list2string(options.targets)))
-                            gfs = ffo.load_gf_library(
+                            gfs = ffi.load_gf_library(
                                 directory=outdir, filename=filename)
 
                             targets = [
@@ -1443,7 +1443,7 @@ def command_check(args):
     elif options.what == 'geometry':
         from beat.plotting import source_geometry
         datatype = problem.config.problem_config.datatypes[0]
-        if options.mode == ffo_mode_str:
+        if options.mode == ffi_mode_str:
             fault = problem.composites[datatype].load_fault_geometry()
             reference_sources = problem.config[
                 datatype + '_config'].gf_config.reference_sources
@@ -1451,7 +1451,7 @@ def command_check(args):
         else:
             logger.warning(
                 'Checking geometry is only for'
-                ' "%s" mode available' % ffo_mode_str)
+                ' "%s" mode available' % ffi_mode_str)
     else:
         raise ValueError('Subject what: %s is not available!' % options.what)
 

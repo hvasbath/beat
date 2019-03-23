@@ -14,7 +14,7 @@ from logging import getLogger
 import os
 
 
-logger = getLogger('ffo.laplacian')
+logger = getLogger('ffi.laplacian')
 
 LOG_2PI = num.log(2. * num.pi)
 
@@ -30,7 +30,7 @@ class LaplacianDistributerComposite(Composite):
 
         super(LaplacianDistributerComposite, self).__init__()
 
-        self._mode = 'ffo'
+        self._mode = 'ffi'
 
         # dummy for hyperparam name
         self.hyperparams[bconfig.hyper_name_laplacian] = None
@@ -71,7 +71,7 @@ class LaplacianDistributerComposite(Composite):
 
         Returns
         -------
-        :class:`ffo.fault.FaultGeometry`
+        :class:`ffi.fault.FaultGeometry`
         """
         return load_objects(
             os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]

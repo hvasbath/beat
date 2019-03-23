@@ -121,7 +121,7 @@ def sample(step, problem):
         else:
             update = None
 
-    if pc.mode == bconfig.ffo_mode_str:
+    if pc.mode == bconfig.ffi_mode_str:
         logger.info('Chain initialization with:')
         if pc.mode_config.initialization == 'random':
             logger.info('Random starting point.\n')

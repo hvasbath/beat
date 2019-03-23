@@ -12,7 +12,7 @@ from beat import utility
 from beat.models import Stage, load_stage
 from beat.sampler.metropolis import get_trace_stats
 from beat.heart import init_seismic_targets, init_geodetic_targets
-from beat.config import ffo_mode_str, geometry_mode_str, dist_vars
+from beat.config import ffi_mode_str, geometry_mode_str, dist_vars
 
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle, FancyArrow
@@ -648,7 +648,7 @@ def geodetic_fits(problem, stage, plot_options):
         sources = composite.sources
         ref_sources = None
     except AttributeError:
-        logger.info('FFO scene fit, using reference source ...')
+        logger.info('FFI scene fit, using reference source ...')
         ref_sources = composite.config.gf_config.reference_sources
         set_anchor(ref_sources, anchor='top')
         fault = composite.load_fault_geometry()
@@ -657,7 +657,7 @@ def geodetic_fits(problem, stage, plot_options):
         set_anchor(sources, anchor='top')
 
     if po.reference:
-        if mode != ffo_mode_str:
+        if mode != ffi_mode_str:
             composite.point2sources(po.reference)
             ref_sources = copy.deepcopy(composite.sources)
         point = po.reference
@@ -1141,7 +1141,7 @@ def seismic_fits(problem, stage, plot_options):
         composite.point2sources(point, input_depth='center')
         source = composite.sources[0]
     except AttributeError:
-        logger.info('FFO waveform fit, using reference source ...')
+        logger.info('FFI waveform fit, using reference source ...')
         source = composite.config.gf_config.reference_sources[0]
 
     logger.info('Plotting waveforms ...')
@@ -2517,7 +2517,7 @@ def fault_slip_distribution(
 
     Parameters
     ----------
-    fault : :class:`ffo.fault.FaultGeometry`
+    fault : :class:`ffi.fault.FaultGeometry`
 
     TODO: 0,0 is now ll of fault at depth, need to turn around axis that
         origin is top-left
@@ -2757,10 +2757,10 @@ def draw_slip_dist(problem, po):
 
     mode = problem.config.problem_config.mode
 
-    if mode != ffo_mode_str:
+    if mode != ffi_mode_str:
         raise ModeError(
             'Wrong optimization mode: %s! This plot '
-            'variant is only valid for "%s" mode' % (mode, ffo_mode_str))
+            'variant is only valid for "%s" mode' % (mode, ffi_mode_str))
 
     datatype, gc = list(problem.composites.items())[0]
 
@@ -3037,10 +3037,10 @@ def draw_moment_rate(problem, po):
     fontsize = 12
     mode = problem.config.problem_config.mode
 
-    if mode != ffo_mode_str:
+    if mode != ffi_mode_str:
         raise ModeError(
             'Wrong optimization mode: %s! This plot '
-            'variant is only valid for "%s" mode' % (mode, ffo_mode_str))
+            'variant is only valid for "%s" mode' % (mode, ffi_mode_str))
 
     if 'seismic' not in problem.config.problem_config.datatypes:
         raise TypeError(
@@ -3120,7 +3120,7 @@ def source_geometry(fault, ref_sources):
 
     Parameters
     ----------
-    fault: :class:`beat.ffo.fault.FaultGeometry`
+    fault: :class:`beat.ffi.fault.FaultGeometry`
     ref_sources: list
         of :class:'beat.sources.RectangularSource'
     """
@@ -3318,14 +3318,14 @@ geometry_plots = [
     'fuzzy_beachball']
 
 
-ffo_plots = [
+ffi_plots = [
     'moment_rate',
     'slip_distribution']
 
 
 plots_mode_catalog = {
     'geometry': common_plots + geometry_plots,
-    'ffo': common_plots + ffo_plots,
+    'ffi': common_plots + ffi_plots,
 }
 
 plots_datatype_catalog = {

@@ -1,14 +1,14 @@
 
-Scenario I: Rectangular source
+Example 2: Rectangular source
 ------------------------------
-In this scenario we will explore the parameter space of a Rectangular Source [Okada1985]_ for the L'aquila 2009 earthquake.
+In this example we will explore the parameter space of a Rectangular Source [Okada1985]_ for the L'aquila 2009 earthquake.
 It is up to the user to decide, which data is going to be used in the optimization, teleseismic waveforms and/or geodetic data.
 
 The geodetic data consists of two static displacements data sets from the 06.04.2009 Mw6.3 L'Aquila earthquake. The data are InSAR displacement maps from ascending
 and descending orbits.
 The data has been pre-processed with `kite <https://github.com/pyrocko/kite>`__. For details on the use and data display we refer to the tutorial on the website.
 
-.. image:: ../_static/scenario1/Laquila_asc.png
+.. image:: ../_static/example2/Laquila_asc.png
 
 The seismic data consists of teleseismic waveforms of 35 stations that have been restituted to displacement, rotated to RTZ and downsampled to 2.5 Hz.
 
@@ -16,7 +16,7 @@ The seismic data consists of teleseismic waveforms of 35 stations that have been
 Clone project
 ^^^^^^^^^^^^^
 
-To copy the scenario (including the data) to a directory outside of the package source directory, please edit the '&beat_models_path' and depending on which datatypes you want to use in the optimization fill the datatypes argument. For both datatypes (if only selected datatypes are of interest please delete either)::
+To copy the example (including the data) to a directory outside of the package source directory, please edit the '&beat_models_path' and depending on which datatypes you want to use in the optimization fill the datatypes argument. For both datatypes (if only selected datatypes are of interest please delete either)::
 
    cd /path/to/beat/data/examples/
    beat clone Rectangular $beat_models_path/Laquila --datatypes=seismic,geodetic --copy_data
@@ -32,7 +32,7 @@ Please change to your &beat_models_path with::
 
 Calculate Greens Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
-We need to calculate a Greens function (GF) store, as done in `Scenario 0 <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__
+We need to calculate a Greens function (GF) store, as done in `Example 1 <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__
 the regional Full Moment Tensor example.
 Depending on the datatypes you selected earlier you will have to calculate the Greens Functions for both or either datatypes.
 
@@ -92,7 +92,7 @@ For this 2009 L'Aquila static datatype, we can next build the Green's Functions 
    beat build_gfs Laquila --force --execute
 
 This will take some time, depending on how much cores you specified to execute in parallel at 'nworkers'. However, this only has to be done once and
-the GF store can be reused for different scenarios if the velocity model does not differ between the different cases.
+the GF store can be reused for different examples if the velocity model does not differ between the different cases.
 
 
 Seismic
@@ -163,7 +163,7 @@ The seismic phases for which the GFs are going to be calculated are defined unde
           c: 250.0
           d: 270.0
 
-In this case the GFs are going to be calculated for the P body waves as can be seen by the "name" parameter "any_P". How to calculate GFs also for S or surface waves is discussed in `Scenario 0 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#calculate-greens-functions>`__.
+In this case the GFs are going to be calculated for the P body waves as can be seen by the "name" parameter "any_P". How to calculate GFs also for S or surface waves is discussed in `Example 1 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#calculate-greens-functions>`__.
 
 The specifications for the Green's Functions are fine now and we can start the setup with::
 
@@ -184,7 +184,7 @@ If there are stores with empty traces please rerun::
 
 In case the holes still persist likely the velocity model has to be adjusted.
 
-.. note:: Please also see `Scenario 0 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#calculate-greens-functions>`__ for more detailed instructions like quality control.
+.. note:: Please also see `Example 1 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#calculate-greens-functions>`__ for more detailed instructions like quality control.
 
 
 Optimization setup
@@ -251,7 +251,7 @@ These two commands could also be executed in one line.::
 
 Sample the solution space
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-Please refer to the 'Sample the solution space section' of `Scenario 0 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#sample-the-solution-space>`__ scenario for a more detailed description of the sampling and associated parameters.
+Please refer to the 'Sample the solution space section' of `Example 1 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#sample-the-solution-space>`__ example for a more detailed description of the sampling and associated parameters.
 
 Firstly, we only optimize for the noise scaling or hyperparameters (HPs)::
 
@@ -287,20 +287,20 @@ For a comparison between data, synthetic displacements and residuals for the two
   beat plot Laquila scene_fits
 
 The plot should show something like this. Here the residuals are displayed with an individual color scale according to their minimum and maximum values:
- .. image:: ../_static/scenario1/Laquila_scenes_-1_max_local_0.png
+ .. image:: ../_static/example2/Laquila_scenes_-1_max_local_0.png
 
 For a plot using the global geographic coordinate system where the residuals have the same color bar as data and synthetics please run::
 
   beat plot Laquila scene_fits --plot_projection=latlon
 
-.. image:: ../_static/scenario1/Laquila_scenes_-1_max_latlon_0.png
+.. image:: ../_static/example2/Laquila_scenes_-1_max_latlon_0.png
 
 To plot waveform fits::
 
   beat plot Laquila waveform_fits
 
 
-.. image:: ../_static/scenario1/Laquila_waveforms_-1_max_0.png
+.. image:: ../_static/example2/Laquila_waveforms_-1_max_0.png
 
 
 To plot the posterior marginal distributions of the source parameters for only the final stage, please run::
@@ -308,7 +308,7 @@ To plot the posterior marginal distributions of the source parameters for only t
   beat plot Laquila stage_posteriors --stage_number=-1
 
 
-.. image:: ../_static/scenario1/Laquila_stage_-1_max.png
+.. image:: ../_static/example2/Laquila_stage_-1_max.png
 
 Here h_SAR are the noise scaling parameters for the two InSAR scenes and h_any_P_0_Z is the noise scaling for the P-phases.
 
@@ -318,7 +318,7 @@ For a correlation plot of the parameter marginals please run::
   beat plot LaquilaJointPonlyUPDATE correlation_hist --format=png --varnames=depth,north_shift,dip,east_shift,slip,width,time,nucleation_x,rake,nucleation_y,strike,length
 
 
-.. image:: ../_static/scenario1/Laquila_corr_hist_-1_max.png
+.. image:: ../_static/example2/Laquila_corr_hist_-1_max.png
 
 Here the "varnames" argument determines the order of the plotted variables and which variable to plot. The kinematic source parameters are only resolved by using seismic data. So for optimization results that include only **geodetic** data, the parameters time, duration, nucleation_x and nucleation_y have to be omitted.
 

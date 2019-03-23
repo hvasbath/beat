@@ -19,7 +19,7 @@ import theano.tensor as tt
 import numpy as num
 
 
-logger = logging.getLogger('ffo')
+logger = logging.getLogger('ffi')
 
 gf_dtype = 'float64'
 
@@ -119,7 +119,7 @@ class GFLibrary(object):
         filename = '%s.yaml' % self.filename
         outpath = os.path.join(outdir, filename)
         logger.debug('Dumping GF config to %s' % outpath)
-        header = 'beat.ffo.%s YAML Config' % self.__class__.__name__
+        header = 'beat.ffi.%s YAML Config' % self.__class__.__name__
         self.config.regularize()
         self.config.validate()
         self.config.dump(filename=outpath, header=header)

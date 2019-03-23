@@ -1,10 +1,10 @@
 
-Scenario II: static finite-fault optimization
+Example 3: static finite-fault optimization
 ---------------------------------------------
 
-In this scenario we will determine a variable slip distribution for the L'aquila 2009 earthquake by using static InSAR data.
-The data is the exact same from `Scenario I <https://hvasbath.github.io/beat/examples/Rectangular.html#>`__, where the overall geometry of the fault plane was estimated.
-It is a requirement to have Scenario I completed in order to follow the instructions and commands given in this scenario.
+In this example we will determine a variable slip distribution for the L'aquila 2009 earthquake by using static InSAR data.
+The data is the exact same from `example 2 <https://hvasbath.github.io/beat/examples/Rectangular.html#>`__, where the overall geometry of the fault plane was estimated.
+It is a requirement to have example I completed in order to follow the instructions and commands given in this example.
 
 Please make sure that you are one level above the Laquila project folder (created earlier).::
 
@@ -12,10 +12,10 @@ Please make sure that you are one level above the Laquila project folder (create
 
 Init
 ^^^^
-In this scenario you will first make use of the **mode** argument. The default is: *geometry*, which is why it was not necessary to specify it in the earlier scenarios. Now we will always have to set **mode** to *ffo*, which is an abbreviation for finite-fault-optimization. 
-The following command will create a configuration file for the *ffo* mode called *config_ffo.yaml* right next to the *config_geometry.yaml*::
+In this example you will first make use of the **mode** argument. The default is: *geometry*, which is why it was not necessary to specify it in the earlier examples. Now we will always have to set **mode** to *ffi*, which is an abbreviation for finite-fault-optimization.
+The following command will create a configuration file for the *ffi* mode called *config_ffi.yaml* right next to the *config_geometry.yaml*::
 
-  beat init Laquila --mode='ffo' --datatypes=geodetic
+  beat init Laquila --mode='ffi' --datatypes=geodetic
 
 It will load the *config_geometry.yaml* and port arguments that have been specified before to ensure consistency and will only use *geodetic* data.
 
@@ -60,7 +60,7 @@ The fault geometry needs to be defined in the *geodetic.gf_config.reference_sour
     extension_lengths: [0.4]
     sample_rate: 1.1574074074074073e-05
 
-The values shown above are parts of the MAP solution from the optimization from Scenario I. The results can been imported through the import command specifiying the --results option. We want to import the results from the *Laquila* project_directory from an optimization in *geometry* mode and we want to update the *geodetic* part of the *config_ffo.yaml*::
+The values shown above are parts of the MAP solution from the optimization from example I. The results can been imported through the import command specifiying the --results option. We want to import the results from the *Laquila* project_directory from an optimization in *geometry* mode and we want to update the *geodetic* part of the *config_ffi.yaml*::
 
   beat import Laquila --results=Laquila --mode='geometry' --datatypes=geodetic
 
@@ -72,16 +72,16 @@ Now we need to specify the dimensions of the patches we want to discretize the r
 
 Once we decided for the discretization and the reference fault values we can create the discretized fault through.::
 
-  beat build_gfs Laquila --datatypes=geodetic --mode=ffo
+  beat build_gfs Laquila --datatypes=geodetic --mode=ffi
 
-This will create a directory (**$linear_gfs**): *Laquila/ffo/linear_gfs* where the fault geometry is saved as a pickle file 'fault_geometry.pkl'.
+This will create a directory (**$linear_gfs**): *Laquila/ffi/linear_gfs* where the fault geometry is saved as a pickle file 'fault_geometry.pkl'.
 We can inspect the geometry of the resulting extended discretized fault wrt. the reference fault with::
 
-  beat check Laquila --what=geometry --mode=ffo
+  beat check Laquila --what=geometry --mode=ffi
 
 This will open an interactive 3d plot of the fault geometry, which looks along the lines of
 
-.. image:: ../_static/scenario2/Laquila_FaultGeometry.png
+.. image:: ../_static/example3/Laquila_FaultGeometry.png
 
 The grey rectangle shows the geometry of the fault specified under *reference_sources* and the red rectangle(s) show the extended fault with the respective discretization of the sub-patches. The grey and red dots mark the centres of the *reference_fault(s)* and the extended faults, respectively.
 The numbers are the indexes of the repsective sub-patch in the Green's Function matrix we are going to calculate next.
@@ -90,13 +90,13 @@ The numbers are the indexes of the repsective sub-patch in the Green's Function 
 
 To repeat the fault discretization after changing some parameters please add the --force option and the previously fault geometry will be overwritten.::
 
-  beat build_gfs Laquila --datatypes=geodetic --mode=ffo --force
+  beat build_gfs Laquila --datatypes=geodetic --mode=ffi --force
 
 The next command starts the calculation of the linear Green's Function matrixes (also called *library*) using *nworkers* CPUs in parallel with unit slip in each slip-direction.::
 
-  beat build_gfs Laquila --datatypes=geodetic --mode=ffo --execute
+  beat build_gfs Laquila --datatypes=geodetic --mode=ffi --execute
 
-.. note:: The slip components are not dip-slip and strike-slip, but rake-parallel (uparr in *config_ffo.yaml* priors) and rake-perpendicular (uperp in *config_ffo.yaml* priors) wrt to *reference_fault(s)* rake angle(s). This is following the convention of [Minson2013]_.
+.. note:: The slip components are not dip-slip and strike-slip, but rake-parallel (uparr in *config_ffi.yaml* priors) and rake-perpendicular (uperp in *config_ffi.yaml* priors) wrt to *reference_fault(s)* rake angle(s). This is following the convention of [Minson2013]_.
 
 This will create two files for each GF *library* in the **$linear_gfs** directory:
  - *geodetic_uparr_static_0.traces.npy* a numpy array containing the linear GFs
@@ -111,8 +111,8 @@ Optimization setup
 Under the *problem_config* we find the parameters that we need to adjust::
 
     problem_config: !beat.ProblemConfig
-      mode: ffo
-      mode_config: !beat.FFOConfig
+      mode: ffi
+      mode_config: !beat.FFIConfig
         regularization: none
         npatches: 121
         initialization: random
@@ -175,7 +175,7 @@ Under the *problem_config* we find the parameters that we need to adjust::
 Hierarchicals
 =============
 
-Please notice the hierarchicals parameters! These are the MAP parameters for the orbital ramps for each radar scene that have been optimized in Scenario I.
+Please notice the hierarchicals parameters! These are the MAP parameters for the orbital ramps for each radar scene that have been optimized in example I.
 These parameters are imported if the *fit_plane* parameter in the *geodetic_config* was set to True. The default is to fix these ramp parameters during the static distributed slip optimization, because leaving them open often results in tradeoffs with patches at greater depth and thus artificial slip is optimized at greater depth.
 Nevertheless, the user may want to try out to free the upper and lower bounds again to include the parameters into the optimization.
 
@@ -194,24 +194,24 @@ The *regularization* argument should be set to *laplacian* to introduce a smooth
 Once this is enabled we need to update the configuration file to initialize the slip-smoothing weight as a random variable in the optimization [Fukuda2008]_.
 Adding the --diff option will display the changes to the config to screen instead of applying them to the file.::
 
-  beat update Laquila --mode=ffo --diff --parameters=hypers
+  beat update Laquila --mode=ffi --diff --parameters=hypers
 
 Once happy with the displayed changes the changes will be applied to the file with::
 
-  beat update Laquila --mode=ffo --parameters=hypers
+  beat update Laquila --mode=ffi --parameters=hypers
 
 .. note:: The *None* regularization would be used if covariance matrices that describe the theory errors for the velocity model and/or the fault geometry have been estimated [Duputel2014]_ , [Ragon2018]_. How to do that in BEAT will be part of another tutorial in the future.
 
 
 Sample the solution space
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-Please refer to the 'Sample the solution space section' of `Scenario 0 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#sample-the-solution-space>`__ scenario for a more detailed description of the sampling and associated parameters.
+Please refer to the 'Sample the solution space section' of `example 0 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#sample-the-solution-space>`__ example for a more detailed description of the sampling and associated parameters.
 
 Firstly, we only optimize for the noise scaling or hyperparameters (HPs) including the laplacian smoothing weight::
 
-   beat sample Laquila --hypers --mode=ffo
+   beat sample Laquila --hypers --mode=ffi
 
-Checking the $project_directory/config_ffo.yaml, the hyperparameter bounds show something like::
+Checking the $project_directory/config_ffi.yaml, the hyperparameter bounds show something like::
 
    hyperparameters:
    h_SAR: !beat.heart.Parameter
@@ -234,49 +234,49 @@ The *initialization* argument determines at which point in the solution space to
 
 The 'n_jobs' number should be set to as many CPUs as the user can spare under the *sampler_config*. The number of sampled MarkovChains and the number of steps for each chain of the SMC sampler should be set to high values as we are optimizing now for ca 250 random variables (if the values from the tutorial haven't been altered by the user); for example to 5000 and 400, respectively.
 
-.. warning:: With these sampler parameters a huge amount of samples are going to be stored to disk! With the values from the tutorial approximately *140GB* of samples are created in the course of the sampling. Please see `Scenario 0 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#summarize-the-results>`__ for an instruction on how to keep only the important samples to reduce the disk usage.
+.. warning:: With these sampler parameters a huge amount of samples are going to be stored to disk! With the values from the tutorial approximately *140GB* of samples are created in the course of the sampling. Please see `example 0 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#summarize-the-results>`__ for an instruction on how to keep only the important samples to reduce the disk usage.
 
 Finally, we are set to run the full optimization for the static slip-distribution with::
 
-  beat sample Laquila --mode=ffo
+  beat sample Laquila --mode=ffi
 
 
 Summarize and plotting
 ^^^^^^^^^^^^^^^^^^^^^^
 After the sampling successfully finished, the final stage results have to be summarized with::
 
- beat summarize Laquila --stage_number=-1 --mode=ffo
+ beat summarize Laquila --stage_number=-1 --mode=ffi
 
 After that several figures illustrating the results can be created.
 
 For the slip-distribution please run::
 
-  beat plot Laquila slip_distribution --mode=ffo
+  beat plot Laquila slip_distribution --mode=ffi
 
-.. image:: ../_static/scenario2/Laquila_static_slip_dist_-1_max.png
+.. image:: ../_static/example3/Laquila_static_slip_dist_-1_max.png
 
 To get histograms for the laplacian smoothing, the noise scalings and the posterior likelihood please run::
 
-  beat plot LaquilaJointPonlyUPDATE_wide stage_posteriors --stage_number=-1 --mode=ffo --varnames=h_laplacian,h_SAR,like
+  beat plot LaquilaJointPonlyUPDATE_wide stage_posteriors --stage_number=-1 --mode=ffi --varnames=h_laplacian,h_SAR,like
 
-.. image:: ../_static/scenario2/stage_-1_max.png
+.. image:: ../_static/example3/stage_-1_max.png
    :height: 350px
    :width: 350 px
 
 For a comparison between data, synthetic displacements and residuals for the two InSAR tracks in a local coordinate system please run::
 
-  beat plot Laquila scene_fits --mode=ffo
+  beat plot Laquila scene_fits --mode=ffi
 
-.. image:: ../_static/scenario2/scenes_-1_max_local_0.png
+.. image:: ../_static/example3/scenes_-1_max_local_0.png
 
 The plot should show something like this. Here the residuals are displayed with an individual color scale according to their minimum and maximum values.
 
 
 For a plot using the global geographic coordinate system where the residuals have the same color bar as data and synthetics please run::
 
-  beat plot Laquila scene_fits --mode=ffo --plot_projection=latlon
+  beat plot Laquila scene_fits --mode=ffi --plot_projection=latlon
 
-.. image:: ../_static/scenario2/scenes_-1_max_latlon_0.png
+.. image:: ../_static/example3/scenes_-1_max_latlon_0.png
 
 
 References

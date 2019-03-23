@@ -34,7 +34,7 @@ guts_prefix = 'beat'
 
 logger = logging.getLogger('config')
 
-ffo_mode_str = 'ffo'
+ffi_mode_str = 'ffi'
 geometry_mode_str = 'geometry'
 
 
@@ -99,13 +99,13 @@ geometry_catalog = {
     'geodetic': source_catalog,
     'seismic': source_catalog}
 
-ffo_catalog = {
+ffi_catalog = {
     'geodetic': static_dist_vars,
     'seismic': kinematic_dist_vars}
 
 modes_catalog = OrderedDict([
     [geometry_mode_str, geometry_catalog],
-    [ffo_mode_str, ffo_catalog],
+    [ffi_mode_str, ffi_catalog],
     ['interseismic', interseismic_catalog]])
 
 hyper_name_laplacian = 'h_laplacian'
@@ -203,7 +203,7 @@ km = 1000.
 
 _interpolation_choices = ['nearest_neighbor', 'multilinear']
 _structure_choices = ['identity', 'exponential', 'import', 'non-toeplitz']
-_mode_choices = [geometry_mode_str, ffo_mode_str]
+_mode_choices = [geometry_mode_str, ffi_mode_str]
 _regularization_choices = ['laplacian', 'none']
 _initialization_choices = ['random', 'lsq']
 _backend_choices = ['csv', 'bin']
@@ -485,7 +485,7 @@ class SeismicConfig(Object):
 
         if mode == geometry_mode_str:
             gf_config = SeismicGFConfig()
-        elif mode == ffo_mode_str:
+        elif mode == ffi_mode_str:
             gf_config = SeismicLinearGFConfig()
 
         if 'gf_config' not in kwargs:
@@ -570,7 +570,7 @@ class GeodeticConfig(Object):
 
         if mode == geometry_mode_str:
             gf_config = GeodeticGFConfig()
-        elif mode == ffo_mode_str:
+        elif mode == ffi_mode_str:
             gf_config = GeodeticLinearGFConfig()
 
         if 'gf_config' not in kwargs:
@@ -596,7 +596,7 @@ class ModeConfig(Object):
     pass
 
 
-class FFOConfig(ModeConfig):
+class FFIConfig(ModeConfig):
 
     regularization = StringChoice.T(
         default='none',
@@ -668,9 +668,9 @@ class ProblemConfig(Object):
         if mode in kwargs:
             omode = kwargs[mode]
 
-            if omode == ffo_mode_str:
+            if omode == ffi_mode_str:
                 if mode_config not in kwargs:
-                    kwargs[mode_config] = FFOConfig()
+                    kwargs[mode_config] = FFIConfig()
 
         Object.__init__(self, **kwargs)
 
@@ -782,7 +782,7 @@ class ProblemConfig(Object):
         """
         Return a list of slip variable names defined in the ProblemConfig.
         """
-        if self.mode == ffo_mode_str:
+        if self.mode == ffi_mode_str:
             return [
                 var for var in static_dist_vars if var in self.priors.keys()]
         elif self.mode == geometry_mode_str:
@@ -862,7 +862,7 @@ class ProblemConfig(Object):
 
 
 def get_parameter_shape(param, pc):
-    if pc.mode == ffo_mode_str:
+    if pc.mode == ffi_mode_str:
         if param.name not in hypo_vars:
             shape = pc.mode_config.npatches
         else:
@@ -1108,7 +1108,7 @@ class BEATconfig(Object, Cloneable):
         if self.seismic_config is not None:
             hypernames.extend(self.seismic_config.get_hypernames())
 
-        if self.problem_config.mode == ffo_mode_str:
+        if self.problem_config.mode == ffi_mode_str:
             if self.problem_config.mode_config.regularization == 'laplacian':
                 hypernames.append(hyper_name_laplacian)
 
@@ -1296,7 +1296,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
         else:
             c.seismic_config = None
 
-    elif mode == ffo_mode_str:
+    elif mode == ffi_mode_str:
 
         if source_type != 'RectangularSource':
             raise TypeError('Distributed slip is so far only supported'
