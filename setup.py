@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import os
-from setuptools import setup, Extension
+import sys
+
+from setuptools import setup, Extension, Command
 from setuptools.command.build_py import build_py
 import shutil
 import time
@@ -104,6 +106,97 @@ def bash_completions_dir():
         return None
 
 
+def find_beat_installs():
+    found = []
+    seen = set()
+    orig_sys_path = sys.path
+    for p in sys.path:
+
+        ap = op.abspath(p)
+        if ap == op.abspath('.'):
+            continue
+
+        if ap in seen:
+            continue
+
+        seen.add(ap)
+
+        sys.path = [p]
+
+        try:
+            import beat
+            dpath = op.dirname(op.abspath(beat.__file__))
+            x = (beat.installed_date, p, dpath,
+                 beat.long_version)
+            found.append(x)
+            del sys.modules['beat']
+            del sys.modules['beat.info']
+        except (ImportError, AttributeError):
+            pass
+
+    sys.path = orig_sys_path
+    return found
+
+
+def print_installs(found, file):
+    print(
+        '\nsys.path configuration is: \n  %s\n' % '\n  '.join(sys.path),
+        file=file)
+
+    dates = sorted([xx[0] for xx in found])
+    i = 1
+
+    for (installed_date, p, installed_path, long_version) in found:
+        oldnew = ''
+        if len(dates) >= 2:
+            if installed_date == dates[0]:
+                oldnew = ' (oldest)'
+
+            if installed_date == dates[-1]:
+                oldnew = ' (newest)'
+
+        print('''BEAT installation #%i:
+  date installed: %s%s
+  version: %s
+  path: %s
+''' % (i, installed_date, oldnew, long_version, installed_path), file=file)
+        i += 1
+
+
+class Uninstall(Command):
+    description = 'delete installations of BEAT known to the invoked ' \
+                  'Python interpreter'''
+
+    user_options = []
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        found = find_beat_installs()
+        print_installs(found, sys.stdout)
+
+        if found:
+            print('''
+Use the following commands to remove the BEAT installation(s) known to the
+currently running Python interpreter:
+
+  sudo rm -rf build''')
+
+            for _, _, install_path, _ in found:
+                print('  sudo rm -rf "%s"' % install_path)
+
+            print()
+
+        else:
+            print('''
+No BEAT installations found with the currently running Python interpreter.
+''')
+
+
 class custom_build_py(build_py):
     def run(self):
 
@@ -132,7 +225,8 @@ subpackages = [
 
 setup(
     cmdclass={
-        'build_py': custom_build_py},
+        'build_py': custom_build_py,
+        'uninstall': Uninstall},
     name='beat',
     description='Bayesian Earthquake Analysis Tool',
     version=version,
