@@ -43,10 +43,10 @@ The :mod:`sampler` Module
    :members:
 
 
-The :mod:`ffo` Module
+The :mod:`ffi` Module
 ---------------------
 
-.. automodule:: ffo
+.. automodule:: ffi
    :members:
 
 

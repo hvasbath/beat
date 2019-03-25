@@ -301,7 +301,6 @@ def memshare_sparams(shared_params):
 
     Returns
     -------
-
     memshared_instances : list
         of :class:`multiprocessing.sharedctypes.RawArray`
         list of sharedctypes (shared memory arrays) that point
@@ -309,14 +308,14 @@ def memshare_sparams(shared_params):
 
     Notes
     -----
-    Modiefied from:
+    Modified from:
     https://github.com/JonathanRaiman/theano_lstm/blob/master/theano_lstm/shared_memory.py
 
-        # define some theano function:
-        myfunction = myfunction(20, 50, etc...)
+    # define some theano function:
+    myfunction = myfunction(20, 50, etc...)
 
-        # wrap the memory of the Theano variables:
-        memshared_instances = make_params_shared(myfunction.get_shared())
+    # wrap the memory of the Theano variables:
+    memshared_instances = make_params_shared(myfunction.get_shared())
 
     Then you can use this memory in child processes
     (See usage of `borrow_memory`)
@@ -367,29 +366,27 @@ def borrow_memory(shared_param, memshared_instance, shape):
 
     Examples
     --------
-    def spawn_model(path, wrapped_params):
+    >>> def spawn_model(path, wrapped_params):
         # prevent recompilation and arbitrary locks
-        theano.config.reoptimize_unpickled_function = False
-        theano.gof.compilelock.set_lock_status(False)
-
+    >>>     theano.config.reoptimize_unpickled_function = False
+    >>>     theano.gof.compilelock.set_lock_status(False)
         # load your function from its pickled instance (from path)
-        myfunction = MyFunction.load(path)
-
+    >>>     myfunction = MyFunction.load(path)
         # for each parameter in your function
         # apply the borrow memory strategy to replace
         # the internal parameter's memory with the
         # across-process memory:
-        for param, memshared_instance in zip(
-                myfunction.get_shared(), memshared_instances):
-            borrow_memory(param, memory)
-
+    >>>     for param, memshared_instance in zip(
+    >>>             myfunction.get_shared(), memshared_instances):
+    >>>         borrow_memory(param, memory)
         # acquire your dataset (either through some smart shared memory
         # or by reloading it for each process)
         # dataset, dataset_labels = acquire_dataset()
         # then run your model forward in this process
-        epochs = 20
-        for epoch in range(epochs):
-            model.update_fun(dataset, dataset_labels)
+    >>>     epochs = 20
+    >>>     for epoch in range(epochs):
+    >>>         model.update_fun(dataset, dataset_labels)
+
     See `borrow_all_memories` for list usage.
     """
 

@@ -1,15 +1,7 @@
 """
 Sequential Monte Carlo Sampler module;
-in geosciences also known as
-Adaptive Transitional Marcov Chain Monte Carlo sampler module.
 
 Runs on any pymc3 model.
-
-Created on March, 2016
-
-Various significant updates July, August 2016
-
-@author: Hannes Vasyura-Bathke
 """
 
 import numpy as np
@@ -34,9 +26,7 @@ logger = logging.getLogger('smc')
 
 class SMC(Metropolis):
     """
-    Adaptive Transitional Markov-Chain Monte-Carlo sampler class.
-
-    Creates initial samples and framework around the (C)ATMIP parameters
+    Sequential Monte-Carlo sampler class.
 
     Parameters
     ----------

@@ -16,7 +16,7 @@ There might be future changes in the API that cause previous versions to break.
 Tutorials
 =========
 Step by step points on how to use the tool for several scenarios can be found here:
-`Scenarios <https://hvasbath.github.io/beat/examples/index.html>`__
+`Examples <https://hvasbath.github.io/beat/examples/index.html>`__
 
 Data import
 ===========

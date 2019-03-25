@@ -1,7 +1,7 @@
-Scenarios
-============
+Examples
+========
 To get familiar with the basic functionality of BEAT we provide scenarios that can be followed step by step.
-The example scenarios are located in the directory::
+The examples are located in the directory::
 
      beat/data/examples
 

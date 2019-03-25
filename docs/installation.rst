@@ -207,8 +207,8 @@ intended to be used. Set amdlibm = True if you did the optional step! ::
     amdlibm = False  # if applicable set True here
 
 
-GPU setup
-#########
+GPU setup DEPRECATED
+####################
 Only for Theano version < 0.9.
 For NVIDIA graphics cards there is the CUDA package that needs to be installed.::
 
