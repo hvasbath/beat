@@ -14,6 +14,7 @@ from collections import OrderedDict
 from optparse import OptionParser
 
 from beat import heart, utility, inputf, plotting, config as bconfig
+from beat.info import version
 from beat.config import ffi_mode_str, geometry_mode_str
 from beat.models import load_model, Stage, estimate_hypers, sample
 from beat.backend import backend_catalog, extract_bounds_from_summary
@@ -70,12 +71,13 @@ subcommand_usages = {
 }
 
 subcommands = list(subcommand_descriptions.keys())
+subcommand_descriptions['version'] = version
 
 program_name = 'beat'
 
 usage = program_name + ''' <subcommand> <arguments> ... [options]
 BEAT: Bayesian earthquake analysis tool
- Version 1.0beta
+ Version %(version)s
 author: Hannes Vasyura-Bathke
 email: hannes.vasyura-bathke@kaust.edu.sa
 

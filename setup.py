@@ -8,7 +8,7 @@ import time
 op = os.path
 
 packname = 'beat'
-version = '1.0rc1'
+version = '1.0'
 
 
 try:
