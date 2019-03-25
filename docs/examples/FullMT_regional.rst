@@ -234,7 +234,28 @@ Sample the solution space
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Firstly, we fix the source parameters to some random value and only optimize for the noise scaling or hyperparameters (HPs).
-How many different random source parameters are choosen and the sampling repeated is determined by the hyper_sampler_config parameters 'n_chains' (default:20). In case there are several CPUs available the 'n_jobs' parameter determines how many processes (Markov Chains) are sampled in paralell. You may want to increase that now! To start the sampling please run ::
+The configuration of the hyper parameter sampling, is determined by the hyper_sampler_config parameters.::
+
+    hyper_sampler_config: !beat.SamplerConfig
+      name: Metropolis
+      progressbar: true
+      buffer_size: 5000
+      parameters: !beat.MetropolisConfig
+        tune_interval: 50
+        proposal_dist: Normal
+        check_bnd: true
+        rm_flag: false
+        n_jobs: 1
+        n_steps: 25000
+        n_chains: 20
+        thin: 5
+        burn: 0.5
+
+Here we use an adaptive Metropolis algorithm to sample the solution space.
+How many different random source parameters are chosen and how often the sampling is repeated is controlled by 'n_chains' (default:20).
+In case there are several CPUs available the 'n_jobs' parameter determines how many processes (Markov Chains (MCs)) are sampled in parallel.
+Each MC will contain 25k samples ('n_steps') and every 50 samples the step-size will be adjusted ('tune_interval').
+You may want to increase that now! To start the sampling please run ::
 
     beat sample FullMT --hypers
 
@@ -242,103 +263,59 @@ This reduces the initial search space from 40 orders of magnitude to usually 5 t
 the HPs parameter bounds show something like::
 
     hyperparameters:
-      h_any_P_T: !beat.heart.Parameter
-        name: h_any_P_T
+      h_any_P_0_Z: !beat.heart.Parameter
+        name: h_any_P_0_Z
         form: Uniform
         lower: [-3.0]
         upper: [3.0]
         testvalue: [0.0]
-      h_any_P_Z: !beat.heart.Parameter
-        name: h_any_P_Z
+      h_any_P_1_T: !beat.heart.Parameter
+        name: h_any_P_1_T
         form: Uniform
         lower: [-3.0]
         upper: [2.0]
         testvalue: [-0.5]
 
-At this point the bounds could be relaxed again as well by manually editing the configuration file, or the step could be entirely skipped.
-Now that we have an initial guess on the hyperparameters we can run the optimization using the default sampling algorithm, a Sequential Monte Carlo sampler.
-The sampler can effectively exploit the parallel architecture of nowadays computers. The 'n_jobs' number should be set to as many CPUs as possible in the configuration file.
-Note: 'n_chains' divided by 'n_jobs' MUST yield a whole number! An error is going to be thrown if this is not the case!::
+Now that we have determined the noise scalings we want to sample the full problem. The sampler to be used can be configured under 'sampler_config'.::
 
     sampler_config: !beat.SamplerConfig
-      name: SMC
+      name: PT
       progressbar: true
-      parameters: !beat.SMCConfig
-        n_chains: 500
-        n_steps: 100
-        n_jobs: 1
+      buffer_size: 1000
+      parameters: !beat.ParallelTemperingConfig
         tune_interval: 10
-        coef_variation: 1.0
-        stage: 0
         proposal_dist: MultivariateNormal
         check_bnd: true
-        update_covariances: false
-        rm_flag: true
+        rm_flag: false
+        n_samples: 50000
+        n_chains: 8
+        swap_interval: [10, 30]
+        beta_tune_interval: 1000
+        n_chains_posterior: 3
+        resample: false
+        thin: 1
+        burn: 0.6
 
-Dependend on the hardware, sampler specifications and number of jobs that have been defined, this calculation is going to take few hours.
-Therefore, in order to avoid crashes or in the case of remote connection via ssh it is very much recommended to use something like 'screen'
-to detach the terminal where the process is running. For now we do not do that, simply run::
+Here we use a Parallel Tempering algorithm (please see the paper and references therein for details). The sampler should stop after the chains that sample from the posterior have collected 50k samples ('n_samples').
+The total number of MCs used for sampling and the ones that sample from the posterior, can be adjusted with the parameters 'n_chains' and 'n_chains_posterior', respectively.
+We propose to swap chain states randomly every 10 to 30 samples ('swap_interval') between random chains. We also adaptively tune the tempering parameters of each chain based on the swap acceptance every 'beta_tune_interval'.
 
-    beat sample FullMT
-
-The sampling is successfully finished if the screen shows something like this::
-
-    ...
-    backend      - INFO     Loading multitrace from /home/vasyurhm/BEATS/FullMT/geometry/stage_25
-    smc          - INFO     Beta > 1.: 1.293753
-    smc          - INFO     Sample final stage
-    smc          - INFO     Initialising 400 chain traces ...
-    smc          - INFO     Sampling ...
-    paripool     - INFO     Worker timeout after 12 second(s)
-    paripool     - INFO     Overseer timeout after 400 second(s)
-    paripool     - INFO     Chunksize: 4
-    paripool     - INFO     Feierabend! Done with the work!
-    backend      - INFO     Loading multitrace from /home/vasyurhm/BEATS/FullMT2/geometry/stage_-1
-    smc          - INFO     Finished sampling!
-
-
-Restarting sampling
-^^^^^^^^^^^^^^^^^^^
-For one or the other reason it may happen that sampling crashes and you will want to restart at the point where it crashed.
-Otherwise all the sampling that has been done before would be lost. First you have to find out in which 'stage' of the sampling the
-algorithm crashed. You can do this in two ways. Either by checking the output to the screen of the terminal where you did run the job.
-If that is not available anymore check the last lines of the $project_directory/BEAT_log.txt. Open it in any texteditor and go to the end of the file.
-There might be written for example::
-
-    2018-01-09 20:05:26,749 - backend - INFO - Loading multitrace from /home/vasyurhm/BEATS/FullMT/geometry/stage_19
-    2018-01-09 20:05:32,035 - smc - INFO - Beta: 0.117085 Stage: 20
-    2018-01-09 20:05:32,035 - smc - INFO - Initialising 400 chain traces ...
-    2018-01-09 20:05:32,355 - smc - INFO - Sampling ...
-
-This means that the algorithm crashed in 'stage' 20. To restart from this stage please open $project_directory/config_geometry.yaml and got to
-the 'sampler_config'. There under 'parameters' must be a parameter 'stage'. At this point if the algorithm has been started from the beginning there should be
-'0'. So here we put now 20 as we want to restart in stage 20. As we want to keep all the previous sampling results of that stage, we have to make sure that again under
-'parameters' the flag 'rm_flag' shows 'false'! If 'true', all the previous sampling results will be deleted in the course of new sampling.
-Now that we redefined the starting point of the sampling algorithm we are good to start the sampling again.::
+Finally, we sample the solution space with::
 
     beat sample FullMT
 
 
 Summarize the results
 ^^^^^^^^^^^^^^^^^^^^^
-The sampled chain results of the SMC sampler are stored in seperate files and have to be summarized.
+The sampled chain results of the PT sampler are stored in seperate files and have to be summarized.
 
 .. note::
     Only for MomentTensor MTSource: The moment tensor components have to be normalized again with respect to the magnitude.
 
-.. note::
-    Only for SMC:
-    All the chain_*.csv files under the $project_directory/geometry/stage_* directories can be problematic for
-    the operation system, e.g. on Clusters. Once a stage finished sampling these can be also deleted by setting the 'rm_flag'
-    under the 'SamplerConfig.parameters'. The program will ask again once for safety reasons if the files are really supposed to be deleted. Once they are gone, they are gone! Restarting the sampling from that stage (see above) wont be possible anymore.
-
-To summarize all the stages of the SMC sampler please run the summarize command.::
+To summarize all the stages of the sampler please run the summarize command.::
 
     beat summarize FullMT
 
-To summarize only a specific stage please add the 'stage_number' option, e.g. the final stage -1::
-
-    beat summarize FullMT --stage_number=-1
 
 If the final stage is included in the stages to be summarized also a summary file with the posterior quantiles will be created.
 If you check the summary.txt file (path then also printed to the screen)::

@@ -24,7 +24,7 @@ The new *config_ffi.yaml* will have an additional *seismic_config* and the *prob
 Import results
 ^^^^^^^^^^^^^^
 In this step we want to import the results from the previous two optimizations to the configuration file.
-Firstly, we want to import the results from Example I(geometry optimization). But this time also the *seismic_config* is updated::
+Firstly, we want to import the results from Example 2(geometry optimization). But this time also the *seismic_config* is updated::
 
   beat import Laquila_kinematic --results=Laquila --mode=geometry --datatypes=geodetic,seismic
 
@@ -87,7 +87,7 @@ Calculate Green's Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Elementary GFs
 ==============
-Now the Green's Functions store(s) have to be calculated again for the "geometry" problem with higher resolutions. Please remember `Example I <https://hvasbath.github.io/beat/examples/Rectangular.html#calculate-greens-functions>`__. There the optimization was run using Green's Functions depth and distance sampling of 4km with 0.5Hz sampling. This may be accurate enough for the *geometry* type of optimization, however, for a finite fault optimization the aim is to resolve details of the rupture propagation and the slip distribution. So the setup parameters of the "geometry" Green's Functions would need to be changed to higher resolution. In this case we want to use wavelengths of up to 0.5Hz ergo a depth and distance sampling of 1 km and 2Hz sample rate may be precise enough. Of course, these parameters depend on the problem setup and have to be adjusted individually for each problem! So please open the *Laquila/config_geometry.yaml* and edit the parameters accordingly.
+Now the Green's Functions store(s) have to be calculated again for the "geometry" problem with higher resolutions. Please remember `Example 2 <https://hvasbath.github.io/beat/examples/Rectangular.html#calculate-greens-functions>`__. There the optimization was run using Green's Functions depth and distance sampling of 4km with 0.5Hz sampling. This may be accurate enough for the *geometry* type of optimization, however, for a finite fault optimization the aim is to resolve details of the rupture propagation and the slip distribution. So the setup parameters of the "geometry" Green's Functions would need to be changed to higher resolution. In this case we want to use wavelengths of up to 0.5Hz ergo a depth and distance sampling of 1 km and 2Hz sample rate may be precise enough. Of course, these parameters depend on the problem setup and have to be adjusted individually for each problem! So please open the *Laquila/config_geometry.yaml* and edit the parameters accordingly.
 Running this calculation will take a long time depending on the number of CPUs at hand. (With 25 CPUs the calculation took approximately 15Hrs)::
 
   beat build_gfs Laquila --datatypes='seismic' --execute
@@ -185,7 +185,7 @@ Please set the lower and upper bounds of the durations to 0. and 4. seconds, res
 
 Also we need to specify the bounds on the rupture velocities. The shear-wave velocity from the velocity model is a good proxy for that. So please set the lower and upper bounds on the velocities to 2.2 and 4.5 [km/s], respectively. These velocities are sampled for each patch individually and indirectly determine the rupture onset time of each patch depending on the hypocentral location (*nucleation_dip* and *nucleation_strike*). To assure causal rupture propagation starting from the hypocentre the Eikonal equation is solved each forward calculation, which then determines the rupture onset time on each patch [Minson2013]_.
 
-So far we defined everything with respect to the hypocentre, but we have to keep in mind that its location and the hypocentral time are unknowns as well. The time-shift with respect to the *event.time* has been determined in Example I before roughly assuming constant rupture velocity and uniform slip on the RectangularSource. Likely, the refined hypocentral time in this optimization will be converging to a similar time estimate as previously determined. This previously determined timing information has been imported as well in the "import results" - step. However, these bounds should be relaxed again as we are using different frequency content in the data and we allow for a much complexer optimization setup. Please set the lower and upper bounds for the *time* to -13. and 0., respectively.
+So far we defined everything with respect to the hypocentre, but we have to keep in mind that its location and the hypocentral time are unknowns as well. The time-shift with respect to the *event.time* has been determined in Example 2 before roughly assuming constant rupture velocity and uniform slip on the RectangularSource. Likely, the refined hypocentral time in this optimization will be converging to a similar time estimate as previously determined. This previously determined timing information has been imported as well in the "import results" - step. However, these bounds should be relaxed again as we are using different frequency content in the data and we allow for a much complexer optimization setup. Please set the lower and upper bounds for the *time* to -13. and 0., respectively.
 
 
 Finally, we are left with specifying the *duration_sampling* and *starttime_sampling* under the *seismic_config.gf_config*. These determine the steps taken between the upper and lower bounds for the *durations* and the discrete starttime-shifts.
@@ -219,7 +219,7 @@ Here we see the slip parallel traces for patch 0, at starttime (t0) of -1s (afte
 
 Sample the solution space
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-Please refer to the 'Sample the solution space section' of `Example 1 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#sample-the-solution-space>`__ Example for a more detailed description of the sampling and associated parameters.
+Please refer to the 'Sample the solution space section' of `Example 2 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#sample-the-solution-space>`__ Example for a more detailed description of the sampling and associated parameters.
 
 Firstly, we only optimize for the noise scaling or hyperparameters (HPs) including the laplacian smoothing weight::
 
@@ -255,7 +255,7 @@ Here we are going to use *random* again, please set it now! We initially narrowe
 
 The 'n_jobs' number should be set to as many CPUs as the user can spare under the *sampler_config*. The number of sampled MarkovChains and the number of steps for each chain of the SMC sampler should be set to high values as we are optimizing now for ca 500 random variables (if the values from the tutorial haven't been altered by the user); for example to 8000 and 400, respectively.
 
-.. warning:: With these sampler parameters a huge amount of samples are going to be stored to disk! Please see `Example 1 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#summarize-the-results>`__ for an instruction on how to keep only the important samples to reduce the disk usage.
+.. warning:: With these sampler parameters a huge amount of samples are going to be stored to disk! Please see `Example 2 <https://hvasbath.github.io/beat/examples/Rectangular.html#summarize-and-plotting>`__ for an instruction on how to keep only the important samples to reduce the disk usage.
 
 Finally, we are set to run the full optimization for the static slip-distribution with::
 

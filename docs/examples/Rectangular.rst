@@ -251,7 +251,6 @@ These two commands could also be executed in one line.::
 
 Sample the solution space
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-Please refer to the 'Sample the solution space section' of `Example 1 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#sample-the-solution-space>`__ example for a more detailed description of the sampling and associated parameters.
 
 Firstly, we only optimize for the noise scaling or hyperparameters (HPs)::
 
@@ -267,19 +266,86 @@ Checking the $project_directory/config_geometry.yaml, the HPs parameter bounds s
      upper: [5.0]
      testvalue: [2.0]
 
-The 'n_jobs' number should be set to as many CPUs as the user can spare under the sampler_config. The number of sampled MarkovChains and the number of steps for each chain of the SMC sampler has been reduced for this example to allow for a fast result, at the cost of a more thorough exploration of the parameter space.
-After the determination of the hyperparameters we can now start the sampling with::
+At this point the bounds could be relaxed again as well by manually editing the configuration file, or the step could be entirely skipped.
+Now that we have an initial guess on the hyperparameters we can run the optimization using the default sampling algorithm, a Sequential Monte Carlo sampler.
+The sampler can effectively exploit the parallel architecture of nowadays computers. The 'n_jobs' number should be set to as many CPUs as possible in the configuration file.
 
-   beat sample Laquila
+.. note:: 'n_chains' divided by 'n_jobs' MUST yield a whole number! An error is going to be thrown if this is not the case!::
+
+    sampler_config: !beat.SamplerConfig
+      name: SMC
+      progressbar: true
+      parameters: !beat.SMCConfig
+        n_chains: 500
+        n_steps: 100
+        n_jobs: 1
+        tune_interval: 10
+        coef_variation: 1.0
+        stage: 0
+        proposal_dist: MultivariateNormal
+        check_bnd: true
+        update_covariances: false
+        rm_flag: true
+
+Dependend on the hardware, sampler specifications and number of jobs that have been defined, this calculation is going to take few hours.
+Therefore, in order to avoid crashes or in the case of remote connection via ssh it is very much recommended to use something like 'screen'
+to detach the terminal where the process is running. For now we do not do that, simply run::
+
+    beat sample Laquila
+
+The sampling is successfully finished if the screen shows something like this::
+
+    ...
+    backend      - INFO     Loading multitrace from /home/vasyurhm/BEATS/Laquila/geometry/stage_25
+    smc          - INFO     Beta > 1.: 1.293753
+    smc          - INFO     Sample final stage
+    smc          - INFO     Initialising 400 chain traces ...
+    smc          - INFO     Sampling ...
+    paripool     - INFO     Worker timeout after 12 second(s)
+    paripool     - INFO     Overseer timeout after 400 second(s)
+    paripool     - INFO     Chunksize: 4
+    paripool     - INFO     Feierabend! Done with the work!
+    backend      - INFO     Loading multitrace from /home/vasyurhm/BEATS/Laquila/geometry/stage_-1
+    smc          - INFO     Finished sampling!
+
 
 .. note::  For more detailed search of the solution space please modify the parameters 'n_steps' and 'n_chains' for the SMC sampler in the $project_directory/config_geometry.yaml file to higher numbers. Depending on these specifications and the available hardware the sampling may take several hours/few days.
 
 
+Restarting sampling
+^^^^^^^^^^^^^^^^^^^
+For one or the other reason it may happen that sampling crashes and you will want to restart at the point where it crashed.
+Otherwise all the sampling that has been done before would be lost. First you have to find out in which 'stage' of the sampling the
+algorithm crashed. You can do this in two ways. Either by checking the output to the screen of the terminal where you did run the job.
+If that is not available anymore check the last lines of the $project_directory/BEAT_log.txt. Open it in any texteditor and go to the end of the file.
+There might be written for example::
+
+    2018-01-09 20:05:26,749 - backend - INFO - Loading multitrace from /home/vasyurhm/BEATS/Laquila/geometry/stage_19
+    2018-01-09 20:05:32,035 - smc - INFO - Beta: 0.117085 Stage: 20
+    2018-01-09 20:05:32,035 - smc - INFO - Initialising 500 chain traces ...
+    2018-01-09 20:05:32,355 - smc - INFO - Sampling ...
+
+This means that the algorithm crashed in 'stage' 20. To restart from this stage please open $project_directory/config_geometry.yaml and got to
+the 'sampler_config'. There under 'parameters' must be a parameter 'stage'. At this point if the algorithm has been started from the beginning there should be
+'0'. So here we put now 20 as we want to restart in stage 20. As we want to keep all the previous sampling results of that stage, we have to make sure that again under
+'parameters' the flag 'rm_flag' shows 'false'! If 'true', all the previous sampling results will be deleted in the course of new sampling.
+Now that we redefined the starting point of the sampling algorithm we are good to start the sampling again.::
+
+    beat sample Laquila
+
+
 Summarize and plotting
 ^^^^^^^^^^^^^^^^^^^^^^
-After the sampling successfully finished, the final stage results have to be summarized with::
+The SMC sampler has several stages that would need to be summarized if their results is meant to be plotted.
+To summarize only a specific stage please add the 'stage_number' option, e.g. the final stage -1::
 
- beat summarize Laquila --stage_number=-1
+    beat summarize FullMT --stage_number=-1
+
+.. note::
+    Only for SMC:
+    All the chain_*.csv files under the $project_directory/geometry/stage_* directories can be problematic for
+    the operation system, e.g. on Clusters. Once a stage finished sampling these can be also deleted by setting the 'rm_flag'
+    under the 'SamplerConfig.parameters'. The program will ask again once for safety reasons if the files are really supposed to be deleted. Once they are gone, they are gone! Restarting the sampling from that stage (see above) wont be possible anymore.
 
 After that, several figures illustrating the results can be created. To do so the **kite** software needs to be installed and the original displacement data needs to be downloaded `here <https://github.com/braunfuss/laquila_kite_container>`__. They need to be put into the specified data path given under "datadir" in the geodetic_config section of the configuration file.
 For a comparison between data, synthetic displacements and residuals for the two InSAR tracks in a local coordinate system please run::

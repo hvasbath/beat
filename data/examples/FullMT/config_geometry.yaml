@@ -122,8 +122,8 @@ problem_config: !beat.ProblemConfig
 seismic_config: !beat.SeismicConfig
   datadir: ./
   noise_estimator: !beat.SeismicNoiseAnalyserConfig
-    structure: non-toeplitz
-    pre_arrival_time: 5.0
+    structure: identity
+    pre_arrival_time: 3.0
   pre_stack_cut: true
   station_corrections: false
   waveforms:
@@ -193,20 +193,22 @@ seismic_config: !beat.SeismicConfig
     sample_rate: 1.0
     rm_gfs: true
 sampler_config: !beat.SamplerConfig
-  name: SMC
+  name: PT
   progressbar: true
-  buffer_size: 5000
-  parameters: !beat.SMCConfig
+  buffer_size: 1000
+  parameters: !beat.ParallelTemperingConfig
     tune_interval: 10
+    proposal_dist: MultivariateNormal
     check_bnd: true
     rm_flag: false
-    n_jobs: 4
-    n_steps: 100
-    n_chains: 1000
-    coef_variation: 1.0
-    stage: 0
-    proposal_dist: MultivariateNormal
-    update_covariances: true
+    n_samples: 50000
+    n_chains: 8
+    swap_interval: [10, 30]
+    beta_tune_interval: 1000
+    n_chains_posterior: 3
+    resample: false
+    thin: 1
+    burn: 0.6
 hyper_sampler_config: !beat.SamplerConfig
   name: Metropolis
   progressbar: true

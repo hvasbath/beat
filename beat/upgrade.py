@@ -38,9 +38,13 @@ def drop_attribute(old):
     return func
 
 
-def set_attribute(k, v):
+def set_attribute(k, v, cond=None):
     def func(path, obj):
-        obj[k] = v
+        if cond:
+            if obj[k] == cond:
+                obj[k] = v
+        else:
+            obj[k] = v
 
     return func
 
@@ -67,12 +71,6 @@ def color_diff(diff):
 
 def upgrade_config_file(fn, diff=True, update=[]):
     rules = [
-        ('beat.GeodeticConfig',
-            set_attribute(
-                'dataset_specific_residual_noise_estimation', False)),
-        ('beat.SeismicConfig',
-            set_attribute(
-                'dataset_specific_residual_noise_estimation', False)),
         ('beat.SeismicConfig',
             drop_attribute('blacklist')),
         ('beat.SeismicConfig',
@@ -86,6 +84,8 @@ def upgrade_config_file(fn, diff=True, update=[]):
                     '''))),
         ('beat.ProblemConfig',
             drop_attribute('dataset_specific_residual_noise_estimation')),
+        ('beat.ProblemConfig',
+            set_attribute('mode', 'ffi', 'ffo')),
         ('beat.WaveformFitConfig',
             set_attribute('blacklist', [])),
         ('beat.WaveformFitConfig',
@@ -96,6 +96,8 @@ def upgrade_config_file(fn, diff=True, update=[]):
             drop_attribute('stage')),
         ('beat.ParallelTemperingConfig',
             set_attribute('resample', False)),
+        ('beat.FFOConfig',
+        rename_class('beat.FFIConfig')),
     ]
 
     def apply_rules(path, obj):

@@ -3,8 +3,8 @@ Example 3: static finite-fault optimization
 ---------------------------------------------
 
 In this example we will determine a variable slip distribution for the L'aquila 2009 earthquake by using static InSAR data.
-The data is the exact same from `example 2 <https://hvasbath.github.io/beat/examples/Rectangular.html#>`__, where the overall geometry of the fault plane was estimated.
-It is a requirement to have example I completed in order to follow the instructions and commands given in this example.
+The data is the exact same from `Example 2 <https://hvasbath.github.io/beat/examples/Rectangular.html#>`__, where the overall geometry of the fault plane was estimated.
+It is a requirement to have Example 2 completed in order to follow the instructions and commands given in this example.
 
 Please make sure that you are one level above the Laquila project folder (created earlier).::
 
@@ -60,7 +60,7 @@ The fault geometry needs to be defined in the *geodetic.gf_config.reference_sour
     extension_lengths: [0.4]
     sample_rate: 1.1574074074074073e-05
 
-The values shown above are parts of the MAP solution from the optimization from example I. The results can been imported through the import command specifiying the --results option. We want to import the results from the *Laquila* project_directory from an optimization in *geometry* mode and we want to update the *geodetic* part of the *config_ffi.yaml*::
+The values shown above are parts of the MAP solution from the optimization from Example 2. The results can been imported through the import command specifiying the --results option. We want to import the results from the *Laquila* project_directory from an optimization in *geometry* mode and we want to update the *geodetic* part of the *config_ffi.yaml*::
 
   beat import Laquila --results=Laquila --mode='geometry' --datatypes=geodetic
 
@@ -175,7 +175,7 @@ Under the *problem_config* we find the parameters that we need to adjust::
 Hierarchicals
 =============
 
-Please notice the hierarchicals parameters! These are the MAP parameters for the orbital ramps for each radar scene that have been optimized in example I.
+Please notice the hierarchicals parameters! These are the MAP parameters for the orbital ramps for each radar scene that have been optimized in Example 2.
 These parameters are imported if the *fit_plane* parameter in the *geodetic_config* was set to True. The default is to fix these ramp parameters during the static distributed slip optimization, because leaving them open often results in tradeoffs with patches at greater depth and thus artificial slip is optimized at greater depth.
 Nevertheless, the user may want to try out to free the upper and lower bounds again to include the parameters into the optimization.
 
@@ -205,7 +205,7 @@ Once happy with the displayed changes the changes will be applied to the file wi
 
 Sample the solution space
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-Please refer to the 'Sample the solution space section' of `example 0 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#sample-the-solution-space>`__ example for a more detailed description of the sampling and associated parameters.
+Please refer to the 'Sample the solution space section' of `example 2 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#sample-the-solution-space>`__ example for a more detailed description of the sampling and associated parameters.
 
 Firstly, we only optimize for the noise scaling or hyperparameters (HPs) including the laplacian smoothing weight::
 
