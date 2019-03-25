@@ -87,15 +87,13 @@ def upgrade_config_file(fn, diff=True, update=[]):
         ('beat.ProblemConfig',
             set_attribute('mode', 'ffi', 'ffo')),
         ('beat.WaveformFitConfig',
-            set_attribute('blacklist', [])),
-        ('beat.WaveformFitConfig',
-            set_attribute('preprocess_data', True)),
+            set_attribute('preprocess_data', True, True)),
         ('beat.MetropolisConfig',
             drop_attribute('n_stages')),
         ('beat.MetropolisConfig',
             drop_attribute('stage')),
         ('beat.ParallelTemperingConfig',
-            set_attribute('resample', False)),
+            set_attribute('resample', False, False)),
         ('beat.FFOConfig',
         rename_class('beat.FFIConfig')),
     ]
@@ -128,6 +126,7 @@ def upgrade_config_file(fn, diff=True, update=[]):
         if 'hierarchicals' in update:
             t2.update_hierarchicals()
 
+        t2.problem_config.validate_priors()
         guts.dump(t2, filename=fn_tmp)
         t2 = aguts.load(filename=fn_tmp)
     else:

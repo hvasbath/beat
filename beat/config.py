@@ -209,6 +209,30 @@ _initialization_choices = ['random', 'lsq']
 _backend_choices = ['csv', 'bin']
 
 
+class InconsistentParameterNaming(Exception):
+    context = '"{}" Parameter name is inconsistent with its key "{}"!\n' + \
+              ' Please edit the config_{}.yaml accordingly!'
+
+    def __init__(self, keyname='', parameter='', mode=''):
+        self.parameter = parameter
+        self.mode = mode
+        self.keyname = keyname
+
+    def __str__(self):
+        return self.context.format(self.parameter, self.keyname, self.mode)
+
+
+class ConfigNeedsUpdatingError(Exception):
+    context = 'Configuration file has to be updated! \n' + \
+              ' Please run "beat update <project_dir --parameters=structure>'
+
+    def __init__(self, errmess=''):
+        self.errmess = errmess
+
+    def __str__(self):
+        return '\n%s\n%s' % (self.errmess, self.context)
+
+
 class GFConfig(Object):
     """
     Base config for GreensFunction calculation parameters.
@@ -805,40 +829,60 @@ class ProblemConfig(Object):
         else:
             self.decimation_factors = None
 
+    def _validate_parameters(self, dict_name=None):
+        """
+        Check if parameters and their test values do not contradict!
+
+        Parameters
+        ----------
+        dict_name : str
+            of dict to be tested
+        """
+
+        d = getattr(self, dict_name)
+        double_check = []
+        if d is not None:
+            for name, param in d.items():
+                param.validate_bounds()
+                if name not in double_check:
+                    if name != param.name:
+                        raise InconsistentParameterNaming(
+                            name, param.name, self.mode)
+                    double_check.append(name)
+                else:
+                    raise ValueError(
+                        'Parameter %s not unique in %s!'.format(
+                            name, dict_name))
+
+            logger.info('All {} ok!'.format(dict_name))
+        else:
+            logger.info('No {} defined!'.format(dict_name))
+
+    def validate_all(self):
+        """
+        Validate all involved sampling parameters.
+        """
+        self.validate_hierarchicals()
+        self.validate_hypers()
+        self.validate_priors()
+
     def validate_priors(self):
         """
         Check if priors and their test values do not contradict!
         """
-        for param in self.priors.values():
-            param.validate_bounds()
-
-        logger.info('All parameter-priors ok!')
+        self._validate_parameters(dict_name='priors')
 
     def validate_hypers(self):
         """
         Check if hyperparameters and their test values do not contradict!
         """
-        if self.hyperparameters is not None:
-            for hp in self.hyperparameters.values():
-                hp.validate_bounds()
-
-            logger.info('All hyper-parameters ok!')
-
-        else:
-            logger.info('No hyper-parameters defined!')
+        self._validate_parameters(dict_name='hyperparameters')
 
     def validate_hierarchicals(self):
         """
         Check if hierarchicals and their test values do not contradict!
         """
-        if self.hierarchicals is not None:
-            for hp in self.hierarchicals.values():
-                hp.validate_bounds()
-
-            logger.info('All hierarchical-parameters ok!')
-
-        else:
-            logger.info('No hyper-parameters defined!')
+        self._validate_parameters(dict_name='hierarchicals')
 
     def get_test_point(self):
         """
@@ -1412,18 +1456,6 @@ def dump_config(config):
     dump(config, filename=conf_out)
 
 
-class ConfigNeedsUpdatingError(Exception):
-
-    context = 'Configuration file has to be updated! \n' + \
-              ' Please run "beat update <project_dir --parameters=structure>'
-
-    def __init__(self, errmess=''):
-        self.errmess = errmess
-
-    def __str__(self):
-        return '\n%s\n%s' % (self.errmess, self.context)
-
-
 def load_config(project_dir, mode):
     """
     Load configuration file.
@@ -1454,7 +1486,5 @@ def load_config(project_dir, mode):
     except ArgumentError:
         raise ConfigNeedsUpdatingError()
 
-    config.problem_config.validate_priors()
-    config.problem_config.validate_hypers()
-    config.problem_config.validate_hierarchicals()
+    config.problem_config.validate_all()
     return config
