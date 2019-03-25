@@ -41,9 +41,9 @@ Unfortunately, some incompatibility arose from beta to version 1.0. Finite fault
 2. Rename "$project_folder/ffo" to "$project_folder/ffi"
 3. To update the config file run::
 
-  beat update $project_folder --mode=ffi  # (--diff to display updates first)
+    beat update $project_folder --mode=ffi  # (--diff to display updates first)
 4. According to the $datatypes that were included in the project, recreate the fault geometry with::
 
-  beat build_gfs $project_folder --mode=ffi --force --datatypes=$datatypes
+    beat build_gfs $project_folder --mode=ffi --force --datatypes=$datatypes
 
 
