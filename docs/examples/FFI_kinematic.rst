@@ -278,9 +278,9 @@ For the kineamtic slip-distribution please run::
 
 Compared to Example 3 we also see here the location of the hypocentre (black star) as well as the fuzzy rupture fronts based on the posterior ensemble of solutions.
 
-To get histograms for the laplacian smoothing, the noise scalings, the hypocentral parameters and the posterior likelihood please run::
+To get histograms for the parameters of individual patches use the --source_idxs option(here: 15, 51 and 67) please run::
 
-  beat plot Laquila_kinematic stage_posteriors --mode=ffi --force --stage_number=-1 --varnames=h_laplacian,h_any_P_0_Z,h_SAR,nucleation_dip,nucleation_strike,time,like
+  beat plot Laquila_kinematic stage_posteriors --mode=ffi --force --stage_number=-1 --varnames=uparr,uperp,durations,velocities --source_idxs=15,51,67
 
 .. image:: ../_static/example4/stage_-1_max.png
 
