@@ -1,5 +1,5 @@
 Example 1: Regional Full Moment Tensor
----------------------------------------
+--------------------------------------
 Clone project
 ^^^^^^^^^^^^^
 This setup is comprised of 20 seismic stations that are randomly distributed within distances of 40 to 1000 km compared to a reference event.

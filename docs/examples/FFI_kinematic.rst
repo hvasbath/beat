@@ -1,6 +1,6 @@
 
-Example 4: kinematic finite-fault optimization
--------------------------------------------------
+Example 4: Kinematic finite-fault estimation
+--------------------------------------------
 
 It is a requirement to have Example 2 and 3 completed in order to follow the instructions and commands given in this Example.
 The data is the exact same from `Example 2 <https://hvasbath.github.io/beat/examples/Rectangular.html#>`__, where the overall geometry of the fault plane was estimated.

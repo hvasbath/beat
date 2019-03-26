@@ -1,6 +1,6 @@
 
 Example 2: Rectangular source
-------------------------------
+-----------------------------
 In this example we will explore the parameter space of a Rectangular Source [Okada1985]_ for the L'aquila 2009 earthquake.
 It is up to the user to decide, which data is going to be used in the optimization, teleseismic waveforms and/or geodetic data.
 
@@ -268,9 +268,7 @@ Checking the $project_directory/config_geometry.yaml, the HPs parameter bounds s
 
 At this point the bounds could be relaxed again as well by manually editing the configuration file, or the step could be entirely skipped.
 Now that we have an initial guess on the hyperparameters we can run the optimization using the default sampling algorithm, a Sequential Monte Carlo sampler.
-The sampler can effectively exploit the parallel architecture of nowadays computers. The 'n_jobs' number should be set to as many CPUs as possible in the configuration file.
-
-.. note:: 'n_chains' divided by 'n_jobs' MUST yield a whole number! An error is going to be thrown if this is not the case!::
+The sampler can effectively exploit the parallel architecture of nowadays computers. The 'n_jobs' number should be set to as many CPUs as possible in the configuration file.::
 
     sampler_config: !beat.SamplerConfig
       name: SMC
@@ -286,6 +284,8 @@ The sampler can effectively exploit the parallel architecture of nowadays comput
         check_bnd: true
         update_covariances: false
         rm_flag: true
+
+.. note:: 'n_chains' divided by 'n_jobs' MUST yield a whole number! An error is going to be thrown if this is not the case!
 
 Dependend on the hardware, sampler specifications and number of jobs that have been defined, this calculation is going to take few hours.
 Therefore, in order to avoid crashes or in the case of remote connection via ssh it is very much recommended to use something like 'screen'
