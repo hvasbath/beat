@@ -10,8 +10,7 @@ Based on pyrocko, theano and pymc3
 Documentation (under construction) can be found here:
 https://hvasbath.github.io/beat/
 
-This repository is still beta version and under development!
-There might be future changes in the API that cause previous versions to break.
+The first version 1.0 of BEAT is released!
 
 Tutorials
 =========
