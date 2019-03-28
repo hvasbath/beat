@@ -366,21 +366,21 @@ class SeismicComposite(Composite):
 
         Returns
         -------
-        array of standardized residuals
+        list of arrays of standardized residuals,
+        following order of self.datasets
         """
         results = self.assemble_results(
-            point, order='wmap', chop_bounds=['b', 'c'])
+            point, order='list', chop_bounds=['b', 'c'])
         self.update_weights(point)
 
         stdz_res = []
-        for wmap, wmresults in zip(self.wavemaps, results):
-            for dtr, result in zip(wmap.datasets, wmresults):
-                hp_name = get_hyper_name(data)
-                choli = num.linalg.inv(
-                    dtr.covariance.chol * num.exp(point[hp_name])
-                stdz_res.append(choli.dot(result.filtered_res))
+        for data_trc, result in zip(self.datasets, results):
+            hp_name = get_hyper_name(data_trc)
+            choli = num.linalg.inv(
+                data_trc.covariance.chol * num.exp(point[hp_name]))
+            stdz_res.append(choli.dot(result.filtered_res.get_ydata()))
 
-        return num.hstack(stdz_res)
+        return stdz_res
 
 
 class SeismicGeometryComposite(SeismicComposite):

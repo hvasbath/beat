@@ -39,7 +39,7 @@ km = 1000.
 __all__ = [
     'PlotOptions', 'correlation_plot', 'correlation_plot_hist',
     'get_result_point', 'seismic_fits', 'geodetic_fits', 'traceplot',
-    'select_transform']
+    'select_transform', 'histplot_op']
 
 u_nm = '$[Nm]$'
 u_km = '$[km]$'
