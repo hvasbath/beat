@@ -18,7 +18,7 @@ from beat.ffi import load_gf_library, get_gf_prefix
 from beat import config as bconfig
 from beat import heart, covariance as cov
 from beat.models.base import ConfigInconsistentError, Composite
-from beat.models.distributions import multivariate_normal_chol
+from beat.models.distributions import multivariate_normal_chol, get_hyper_name
 
 from pymc3 import Uniform, Deterministic
 
@@ -354,6 +354,33 @@ class SeismicComposite(Composite):
             tmp = choli.dot(result.processed_res.ydata)
             _llk = num.asarray([num.dot(tmp, tmp)])
             self._llks[k].set_value(_llk)
+
+    def get_standardized_residuals(self, point):
+        """
+        Parameters
+        ----------
+        composite : :class:`models.base.Composite`
+        point : dict
+            with parameters to point in solution space to calculate standardized
+            residuals for
+
+        Returns
+        -------
+        array of standardized residuals
+        """
+        results = self.assemble_results(
+            point, order='wmap', chop_bounds=['b', 'c'])
+        self.update_weights(point)
+
+        stdz_res = []
+        for wmap, wmresults in zip(self.wavemaps, results):
+            for dtr, result in zip(wmap.datasets, wmresults):
+                hp_name = get_hyper_name(data)
+                choli = num.linalg.inv(
+                    dtr.covariance.chol * num.exp(point[hp_name])
+                stdz_res.append(choli.dot(result.filtered_res))
+
+        return num.hstack(stdz_res)
 
 
 class SeismicGeometryComposite(SeismicComposite):

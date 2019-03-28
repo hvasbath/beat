@@ -18,7 +18,12 @@ log_2pi = num.log(2 * num.pi)
 __all__ = [
     'multivariate_normal',
     'multivariate_normal_chol',
-    'hyper_normal']
+    'hyper_normal',
+    'get_hyper_name']
+
+
+def get_hyper_name(dataset):
+    return '_'.join(('h', dataset.typ))
 
 
 def multivariate_normal(datasets, weights, hyperparams, residuals):
@@ -50,7 +55,7 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
     for l, data in enumerate(datasets):
         M = tt.cast(shared(
             data.samples, name='nsamples', borrow=True), 'int16')
-        hp_name = '_'.join(('h', data.typ))
+        hp_name = get_hyper_name(data)
         norm = (M * (2 * hyperparams[hp_name] + log_2pi))
         logpts = tt.set_subtensor(
             logpts[l:l + 1],
@@ -108,7 +113,7 @@ def multivariate_normal_chol(
     for l, data in enumerate(datasets):
         M = tt.cast(shared(
             data.samples, name='nsamples', borrow=True), 'int16')
-        hp_name = '_'.join(('h', data.typ))
+        hp_name = get_hyper_name(data)
 
         if hp_specific:
             hp = hyperparams[hp_name][count(hp_name)]
@@ -153,7 +158,7 @@ def hyper_normal(datasets, hyperparams, llks, hp_specific=False):
 
     for k, data in enumerate(datasets):
         M = data.samples
-        hp_name = '_'.join(('h', data.typ))
+        hp_name = get_hyper_name(data)
 #        print('hypername', hp_name)
         if hp_specific:
             idx = count(hp_name)
