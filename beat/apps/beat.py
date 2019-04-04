@@ -1532,6 +1532,10 @@ def command_export(args):
 
     point = plotting.get_result_point(
         stage, problem.config, point_llk=options.post_llk)
+    rpoint = heart.ResultPoint(point=point, post_llk=options.post_llk)
+    dump(rpoint,
+         filename=pjoin(
+             results_path, 'solution_{}.yaml'.format(options.post_llk)))
 
     for datatype, composite in problem.composites.items():
         logger.info(
@@ -1542,9 +1546,9 @@ def command_export(args):
                 varname, list2string(value.ravel().tolist())))
 
         results = composite.assemble_results(point)
-
         if datatype == 'seismic':
             from pyrocko import io
+
 
             for traces, attribute in heart.results_for_export(
                     results, datatype=datatype):
@@ -1567,6 +1571,9 @@ def command_export(args):
                             '(the --fix_output option will truncate to '
                             'last 4 characters!)')
 
+            # export stdz residuals
+
+
             if hasattr(sc.parameters, 'update_covariances'):
                 if sc.parameters.update_covariances:
                     logger.info('Saving velocity model covariance matrixes...')
@@ -1574,7 +1581,7 @@ def command_export(args):
                     for wmap in composite.wavemaps:
                         pcovs = {
                             list2string(dataset.nslc_id):
-                            dataset.covariance.pred_v
+                                dataset.covariance.pred_v
                             for dataset in wmap.datasets}
 
                         outname = pjoin(
@@ -1587,7 +1594,7 @@ def command_export(args):
                 for wmap in composite.wavemaps:
                     dcovs = {
                         list2string(dataset.nslc_id):
-                        dataset.covariance.data
+                            dataset.covariance.data
                         for dataset in wmap.datasets}
 
                     outname = pjoin(
@@ -1599,12 +1606,19 @@ def command_export(args):
         elif datatype == 'geodetic':
             for ifgs, attribute in heart.results_for_export(
                     results, datatype=datatype):
-                    pass
+                pass
 
             raise NotImplementedError(
                 'Geodetic export not yet implemented!')
         else:
             raise NotImplementedError('Datatype %s not supported!' % datatype)
+
+        stdzd_res_path = pjoin(
+            results_path, '{}_stdzd_residuals.pkl'.format(datatype))
+        logger.info('Exporting standardized residuals to %s' % stdzd_res_path)
+        stdzd_res = composite.get_standardized_residuals(point)
+        if stdzd_res:
+            utility.dump_objects(stdzd_res_path, outlist=stdzd_res)
 
 
 def main():

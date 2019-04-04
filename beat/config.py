@@ -1445,7 +1445,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
 
 def dump_config(config):
     """
-    Load configuration file.
+    Dump configuration file.
 
     Parameters
     ----------

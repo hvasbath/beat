@@ -319,6 +319,7 @@ class SeismicComposite(Composite):
                     float(obs_tr.tmin - at.a))
 
                 wmap_results.append(heart.SeismicResult(
+                    point=point,
                     processed_obs=obs_tr,
                     processed_syn=syn_proc_traces[i][j],
                     processed_res=dtrace_proc,
@@ -359,7 +360,6 @@ class SeismicComposite(Composite):
         """
         Parameters
         ----------
-        composite : :class:`models.base.Composite`
         point : dict
             with parameters to point in solution space to calculate standardized
             residuals for
