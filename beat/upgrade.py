@@ -40,7 +40,7 @@ def drop_attribute(old):
 
 def set_attribute(k, v, cond=None):
     def func(path, obj):
-        if cond:
+        if cond is not None:
             if obj[k] == cond:
                 obj[k] = v
         else:
@@ -81,7 +81,7 @@ def upgrade_config_file(fn, diff=True, update=[]):
                 aguts.load(string='''!beat.SeismicNoiseAnalyserConfig
                       structure: identity
                       pre_arrival_time: 5
-                    '''))),
+                    '''), False)),
         ('beat.ProblemConfig',
             drop_attribute('dataset_specific_residual_noise_estimation')),
         ('beat.ProblemConfig',
