@@ -99,6 +99,10 @@ def multivariate_normal_chol(
     Returns
     -------
     array_like
+
+    Notes
+    -----
+    adapted from https://www.quora.com/What-is-the-role-of-the-Cholesky-decomposition-in-finding-multivariate-normal-PDF
     """
     if sparse:
         import theano.sparse as ts
