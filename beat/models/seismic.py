@@ -377,7 +377,7 @@ class SeismicComposite(Composite):
         for data_trc, result in zip(self.datasets, results):
             hp_name = get_hyper_name(data_trc)
             choli = num.linalg.inv(
-                data_trc.covariance.chol * num.exp(point[hp_name]))
+                data_trc.covariance.chol * num.exp(point[hp_name]) / 2.)
             stdz_res.append(choli.dot(result.filtered_res.get_ydata()))
 
         return stdz_res
