@@ -206,7 +206,7 @@ _structure_choices = ['identity', 'exponential', 'import', 'non-toeplitz']
 _mode_choices = [geometry_mode_str, ffi_mode_str]
 _regularization_choices = ['laplacian', 'none']
 _initialization_choices = ['random', 'lsq']
-_backend_choices = ['csv', 'bin']
+_backend_choices = ['csv']
 
 
 class InconsistentParameterNaming(Exception):
