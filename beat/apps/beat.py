@@ -1545,7 +1545,7 @@ def command_export(args):
             logger.info('%s: %s' % (
                 varname, list2string(value.ravel().tolist())))
 
-        results = composite.assemble_results(point)
+        results = composite.assemble_results(point, chop_bounds=['b', 'c'])
         if datatype == 'seismic':
             from pyrocko import io
 

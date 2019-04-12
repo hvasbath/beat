@@ -373,11 +373,18 @@ class SeismicComposite(Composite):
             point, order='list', chop_bounds=['b', 'c'])
         self.update_weights(point)
 
+        counter = utility.Counter()
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
         stdz_res = []
         for data_trc, result in zip(self.datasets, results):
             hp_name = get_hyper_name(data_trc)
+            if hp_specific:
+                hp = point[hp_name][counter(hp_name)]
+            else:
+                hp = point[hp_name]
+                
             choli = num.linalg.inv(
-                data_trc.covariance.chol * num.exp(point[hp_name]) / 2.)
+                data_trc.covariance.chol * num.exp(hp) / 2.)
             stdz_res.append(choli.dot(result.filtered_res.get_ydata()))
 
         return stdz_res
