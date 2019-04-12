@@ -21,6 +21,7 @@ from beat.models.base import ConfigInconsistentError, Composite
 from beat.models.distributions import multivariate_normal_chol, get_hyper_name
 
 from pymc3 import Uniform, Deterministic
+from collections import OrderedDict
 
 
 logger = getLogger('seismic')
@@ -375,17 +376,17 @@ class SeismicComposite(Composite):
 
         counter = utility.Counter()
         hp_specific = self.config.dataset_specific_residual_noise_estimation
-        stdz_res = []
+        stdz_res = OrderedDict()
         for data_trc, result in zip(self.datasets, results):
             hp_name = get_hyper_name(data_trc)
             if hp_specific:
                 hp = point[hp_name][counter(hp_name)]
             else:
                 hp = point[hp_name]
-                
+
             choli = num.linalg.inv(
                 data_trc.covariance.chol * num.exp(hp) / 2.)
-            stdz_res.append(choli.dot(result.filtered_res.get_ydata()))
+            stdz_res[data_trc.nslc_id] = choli.dot(result.filtered_res.get_ydata())
 
         return stdz_res
 
