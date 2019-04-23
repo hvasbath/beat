@@ -79,7 +79,7 @@ def upgrade_config_file(fn, diff=True, update=[]):
             set_attribute(
                 'noise_estimator',
                 aguts.load(string='''!beat.SeismicNoiseAnalyserConfig
-                      structure: identity
+                      structure: variance
                       pre_arrival_time: 5
                     '''), False)),
         ('beat.ProblemConfig',

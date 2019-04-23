@@ -22,6 +22,7 @@ from pyrocko.gf.seismosizer import Cloneable, stf_classes
 from beat.heart import Filter, FilterBase, ArrivalTaper, Parameter
 from beat.heart import ReferenceLocation
 from beat.sources import RectangularSource, MTSourceWithMagnitude, MTQTSource
+from beat.covariance import available_noise_structures
 
 from beat import utility
 
@@ -202,7 +203,7 @@ km = 1000.
 
 
 _interpolation_choices = ['nearest_neighbor', 'multilinear']
-_structure_choices = ['identity', 'exponential', 'import', 'non-toeplitz']
+_structure_choices = available_noise_structures()
 _mode_choices = [geometry_mode_str, ffi_mode_str]
 _regularization_choices = ['laplacian', 'none']
 _initialization_choices = ['random', 'lsq']
