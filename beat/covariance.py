@@ -83,7 +83,7 @@ def ones_data_covariance(n, dt=None, tzero=None):
 
 
 NoiseStructureCatalog = {
-    'identity': identity_data_covariance,
+    'variance': identity_data_covariance,
     'exponential': exponential_data_covariance,
     'import': ones_data_covariance,
     'non-toeplitz': ones_data_covariance,
@@ -91,7 +91,7 @@ NoiseStructureCatalog = {
 
 
 def available_noise_structures():
-    return NoiseStructureCatalog.keys()
+    return list(NoiseStructureCatalog.keys())
 
 
 def import_data_covariance(data_trace, arrival_taper, sample_rate):

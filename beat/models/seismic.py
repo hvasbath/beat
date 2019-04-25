@@ -18,9 +18,10 @@ from beat.ffi import load_gf_library, get_gf_prefix
 from beat import config as bconfig
 from beat import heart, covariance as cov
 from beat.models.base import ConfigInconsistentError, Composite
-from beat.models.distributions import multivariate_normal_chol
+from beat.models.distributions import multivariate_normal_chol, get_hyper_name
 
 from pymc3 import Uniform, Deterministic
+from collections import OrderedDict
 
 
 logger = getLogger('seismic')
@@ -319,6 +320,7 @@ class SeismicComposite(Composite):
                     float(obs_tr.tmin - at.a))
 
                 wmap_results.append(heart.SeismicResult(
+                    point=point,
                     processed_obs=obs_tr,
                     processed_syn=syn_proc_traces[i][j],
                     processed_res=dtrace_proc,
@@ -354,6 +356,39 @@ class SeismicComposite(Composite):
             tmp = choli.dot(result.processed_res.ydata)
             _llk = num.asarray([num.dot(tmp, tmp)])
             self._llks[k].set_value(_llk)
+
+    def get_standardized_residuals(self, point):
+        """
+        Parameters
+        ----------
+        point : dict
+            with parameters to point in solution space to calculate standardized
+            residuals for
+
+        Returns
+        -------
+        list of arrays of standardized residuals,
+        following order of self.datasets
+        """
+        results = self.assemble_results(
+            point, order='list', chop_bounds=['b', 'c'])
+        self.update_weights(point)
+
+        counter = utility.Counter()
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
+        stdz_res = OrderedDict()
+        for data_trc, result in zip(self.datasets, results):
+            hp_name = get_hyper_name(data_trc)
+            if hp_specific:
+                hp = point[hp_name][counter(hp_name)]
+            else:
+                hp = point[hp_name]
+
+            choli = num.linalg.inv(
+                data_trc.covariance.chol * num.exp(hp) / 2.)
+            stdz_res[data_trc.nslc_id] = choli.dot(result.filtered_res.get_ydata())
+
+        return stdz_res
 
 
 class SeismicGeometryComposite(SeismicComposite):

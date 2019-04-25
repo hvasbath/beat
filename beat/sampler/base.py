@@ -275,6 +275,8 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
             position=n,
             leave=False,
             ncols=65)
+
+    strace = None
     try:
         for strace in sampling:
             pass
@@ -288,7 +290,8 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
             if hasattr(parallel, 'counter'):
                 parallel.counter(n)
 
-        strace.record_buffer()
+        if strace:
+            strace.record_buffer()
 
     return chain
 

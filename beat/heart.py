@@ -326,10 +326,27 @@ class FrequencyFilter(FilterBase):
              ' ends of trace.')
 
 
+class ResultPoint(Object):
+    """
+    Containing point in solution space.
+    """
+    post_llk = String.T(
+        optional=True,
+        help='describes which posterior likelihood value the point belongs to')
+    point = Dict.T(
+        String.T(),
+        Array.T(
+            serialize_as='list',
+            dtype=tconfig.floatX),
+        default={},
+        help='Point in Solution space for which result is produced.')
+
+
 class SeismicResult(Object):
     """
     Result object assembling different traces of misfit.
     """
+    point = ResultPoint.T(default=ResultPoint.D())
     processed_obs = Trace.T(optional=True)
     filtered_obs = Trace.T(optional=True)
     processed_syn = Trace.T(optional=True)
@@ -964,6 +981,7 @@ class GeodeticResult(Object):
     """
     Result object assembling different geodetic data.
     """
+    point = ResultPoint.T(default=ResultPoint.D())
     processed_obs = GeodeticDataset.T(optional=True)
     processed_syn = GeodeticDataset.T(optional=True)
     processed_res = GeodeticDataset.T(optional=True)
