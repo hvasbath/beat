@@ -355,7 +355,7 @@ class GeodeticGFConfig(NonlinearGFConfig):
         default=1.,
         help='Depth spacing [km] for GF medium grid.')
     medium_distance_spacing = Float.T(
-        default=1.,
+        default=10.,
         help='Distance spacing [km] for GF medium grid.')
 
 
