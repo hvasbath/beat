@@ -408,10 +408,10 @@ class Problem(object):
                     if composite.config:   # only data composites
                         if composite.config.dataset_specific_residual_noise_estimation:
                             if datatype == 'seismic':
-                                raise NotImplementedError('Not fully implemented!')
-                                # TODO: fix this needs to be wavemap stations specific
+                                wmap = composite.hyper2wavemap(hp_name)
+                                ndata = wmap.hypersize
                             else:
-                                ndata = len(composite.get_unique_stations())
+                                ndata = len(composite.get_all_station_names())
                         else:
                             ndata = 1
                     else:

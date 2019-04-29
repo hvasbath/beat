@@ -2178,6 +2178,19 @@ class WaveformMapping(object):
         return len(self.targets)
 
     @property
+    def hypersize(self):
+        """
+        Return the size of the related hyperparameters as an integer.
+        """
+        nhyp = self.n_t / len(self.channels)
+        if nhyp.is_integer():
+            return int(nhyp)
+        else:
+            raise ValueError(
+                'hyperparameter size is not integer '
+                'for wavemap %s' % self._mapid)
+
+    @property
     def n_data(self):
         return len(self.datasets)
 

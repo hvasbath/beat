@@ -106,6 +106,17 @@ class SeismicComposite(Composite):
                     shared(
                         num.array([1.]), name='seis_llk_%i' % t, borrow=True))
 
+    def hyper2wavemap(self, hypername):
+
+        dummy = '_'.join(hypername.split('_')[:-1])
+
+        for wmap in self.wavemaps:
+            if wmap._mapid == dummy:
+                return wmap
+
+        raise ValueError(
+            'No waveform mapping found for hyperparameter! %s' % hypername)
+
     def __getstate__(self):
         self.engine.close_cashed_stores()
         return self.__dict__.copy()

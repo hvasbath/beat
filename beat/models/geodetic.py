@@ -154,7 +154,7 @@ class GeodeticComposite(Composite):
     def n_t(self):
         return len(self.datasets)
 
-    def get_unique_stations(self):
+    def get_all_station_names(self):
         """
         Return unique GPS stations and radar acquisitions.
         """
@@ -162,14 +162,14 @@ class GeodeticComposite(Composite):
         for dataset in self.datasets:
             if isinstance(dataset, heart.DiffIFG):
                 names.append(dataset.name)
-            elif isinstance(dataset, heart.GPSCompoundComponent):
+            elif isinstance(dataset, heart.GNSSCompoundComponent):
                 names.extent(dataset.station_names)
             else:
                 TypeError(
                     'Geodetic Dataset of class "%s" not '
                     'supported' % dataset.__class__.__name__)
 
-        return list(set(names))
+        return names
 
     def assemble_results(self, point):
         """
