@@ -11,8 +11,9 @@ from beat.backend import TextChain, NumpyChain, load_multitrace, check_multitrac
 class TestBackend(TestCase):
 
     def setUp(self):
-        self.data_keys = ["Data", "like"]
+        self.data_keys = ["Data", "A", "F", "D", "B", "Hood", "like"]
         number_of_parameters = 5
+        self.like_index = self.data_keys.index("like")
 
         mu1 = num.ones(number_of_parameters) * (1. / 2)
         mu2 = -mu1
@@ -35,10 +36,13 @@ class TestBackend(TestCase):
             return tt.log(w1 * tt.exp(log_like1) + w2 * tt.exp(log_like2))
 
         with pm.Model() as self.PT_test:
-            uniform = pm.Uniform(self.data_keys[0], shape=number_of_parameters, lower=-2. * num.ones_like(mu1),
+            for data_key in self.data_keys:
+                if data_key != "like":
+                    uniform = pm.Uniform(data_key, shape=number_of_parameters, lower=-2. * num.ones_like(mu1),
                                  upper=2. * num.ones_like(mu1), testval=-1. * num.ones_like(mu1), transform=None)
-            like = pm.Deterministic('tmp', two_gaussians(uniform))
-            pm.Potential(self.data_keys[1], like)
+                else:
+                    like = pm.Deterministic('tmp', two_gaussians(uniform))
+            pm.Potential(self.data_keys[self.like_index], like)
 
         # create or get test folder to write files.
         self.test_dir_path = os.path.join(os.path.dirname(__file__), 'PT_TEST')
@@ -49,20 +53,26 @@ class TestBackend(TestCase):
                 print(e)
 
         # create data.
-        chain_data = num.arange(number_of_parameters).astype(num.float)
-        chain_like = num.array([10.]).astype(num.float)
-        self.lpoint = [chain_data, chain_like]
+        data_increment = 1
+        self.lpoint = []
+        for data_key in self.data_keys:
+            if data_key != "like":
+                chain_data = num.arange(number_of_parameters).astype(num.float)*data_increment
+            else:
+                chain_data = num.array([10.]).astype(num.float)
+            data_increment += 1
+            self.lpoint.append(chain_data)
+
         self.sample_size = 5
         self.data = []
-        self.expected_chain_data = []
-        self.expected_chain_like = []
+        self.expected_chain_data = {}
         for i in range(self.sample_size):
             self.data.append(self.lpoint)
-            self.expected_chain_data.append(chain_data)
-            self.expected_chain_like.append(chain_like)
-
-        self.expected_chain_data = num.array(self.expected_chain_data)
-        self.expected_chain_like = num.array(self.expected_chain_like)
+        for data_key, chain_data in zip(self.data_keys, self.lpoint):
+            data = []
+            for i in range(self.sample_size):
+                data.append(chain_data)
+            self.expected_chain_data[data_key] = num.array(data)
 
     def test_text_chain(self):
 
@@ -77,15 +87,12 @@ class TestBackend(TestCase):
 
         textchain.record_buffer()
 
-        chain_data = textchain.get_values(self.data_keys[0])
-        chain_like = textchain.get_values(self.data_keys[1])
-        data_index = 1
-        chain_at = textchain.point(data_index)
-
-        self.assertEqual(chain_data.all(), self.expected_chain_data.all())
-        self.assertEqual(chain_like.all(), self.expected_chain_like.all())
-        self.assertEqual(chain_at[self.data_keys[0]].all(), self.expected_chain_data[data_index].all())
-        self.assertEqual(chain_at[self.data_keys[1]].all(), self.expected_chain_like[data_index].all())
+        for data_key in self.data_keys:
+            chain_data = textchain.get_values(data_key)
+            data_index = 1
+            chain_at = textchain.point(data_index)
+            self.assertEqual(chain_data.all(), self.expected_chain_data.get(data_key).all())
+            self.assertEqual(chain_at[data_key].all(), self.expected_chain_data.get(data_key)[data_index].all())
 
     def test_chain_bin(self):
 
@@ -104,19 +111,18 @@ class TestBackend(TestCase):
         # print("flat names: ", numpy_chain.flat_names)
         # print("Var names: ", numpy_chain.varnames)
 
-        chain_data = numpy_chain.get_values(self.data_keys[0])
-        chain_like = numpy_chain.get_values(self.data_keys[1])
-        print("Data: ", chain_data)
+
         # print("Var shapes: ", numpy_chain.var_shapes)
         # print("flat names: ", numpy_chain.flat_names)
         # print("Var names: ", numpy_chain.varnames)
-        data_index = 1
-        chain_at = numpy_chain.point(data_index)
 
-        self.assertEqual(chain_data.all(), self.expected_chain_data.all())
-        self.assertEqual(chain_like.all(), self.expected_chain_like.all())
-        self.assertEqual(chain_at[self.data_keys[0]].all(), self.expected_chain_data[data_index].all())
-        self.assertEqual(chain_at[self.data_keys[1]].all(), self.expected_chain_like[data_index].all())
+        for data_key in self.data_keys:
+            chain_data = numpy_chain.get_values(data_key)
+            data_index = 1
+            chain_at = numpy_chain.point(data_index)
+            print(data_key + ": ", chain_data)
+            self.assertEqual(chain_data.all(), self.expected_chain_data.get(data_key).all())
+            self.assertEqual(chain_at[data_key].all(), self.expected_chain_data.get(data_key)[data_index].all())
 
     def test_load_bin_chain(self):
         numpy_chain = NumpyChain(dir_path=self.test_dir_path, model=self.PT_test)
@@ -129,7 +135,7 @@ class TestBackend(TestCase):
         mtrace = load_multitrace(self.test_dir_path, varnames=self.PT_test.vars, backend='bin')
         mtrace.point(1)
 
-        corrupted = check_multitrace(mtrace, 5, 1)
+        corrupted = check_multitrace(mtrace, self.sample_size, 1)
         self.assertEqual(len(corrupted), 0)
 
 #    def tearDown(self):
