@@ -327,7 +327,7 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
 
     step.chain_index = chain
 
-    trace.setup(draws, chain)
+    trace.setup(draws, chain, overwrite=True)
     for i in range(draws):
         if i == tune:
             step = stop_tuning(step)

@@ -575,17 +575,14 @@ class DynamicTarget(gf.Target):
             containing :class:`pyrocko.gf.seismosizer.Source` Objects
         taperer : :class:`pyrocko.trace.CosTaper`
         """
-        times = [source.time for source in sources]
-        min_t = min(times)
-        max_t = max(times)
 
         if sources is None or taperer is None:
             self.tmin = None
             self.tmax = None
         else:
-            tolerance = 4 * (taperer.b - taperer.a)
-            self.tmin = taperer.a - tolerance - max_t
-            self.tmax = taperer.d + tolerance - min_t
+            tolerance = 2 * (taperer.b - taperer.a)
+            self.tmin = taperer.a - tolerance
+            self.tmax = taperer.d + tolerance
 
 
 class SeismicDataset(trace.Trace):

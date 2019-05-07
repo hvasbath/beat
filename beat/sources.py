@@ -433,7 +433,7 @@ class MTQTSource(gf.SourceWithMagnitude):
 
     def discretize_basesource(self, store, target=None):
         times, amplitudes = self.effective_stf_pre().discretize_t(
-            store.config.deltat, 0.0)
+            store.config.deltat, self.time)
         m0 = mtm.magnitude_to_moment(self.magnitude)
         m6s = self.m6 * m0
         return meta.DiscretizedMTSource(
@@ -540,7 +540,7 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
 
     def discretize_basesource(self, store, target=None):
         times, amplitudes = self.effective_stf_pre().discretize_t(
-            store.config.deltat, 0.0)
+            store.config.deltat, self.time)
         m0 = mtm.magnitude_to_moment(self.magnitude)
         m6s = self.scaled_m6 * m0
         return meta.DiscretizedMTSource(

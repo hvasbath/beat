@@ -285,11 +285,14 @@ class MemoryChain(BaseChain):
 
         super(MemoryChain, self).__init__(buffer_size=buffer_size)
 
-    def setup(self, draws, chain):
+    def setup(self, draws, chain, overwrite=False):
         self.draws = draws
         self.chain = chain
 
         if self.buffer is None:
+            self.buffer = []
+
+        if overwrite:
             self.buffer = []
 
     def write(self, lpoint, draw):
