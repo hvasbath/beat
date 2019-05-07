@@ -207,7 +207,7 @@ _structure_choices = available_noise_structures()
 _mode_choices = [geometry_mode_str, ffi_mode_str]
 _regularization_choices = ['laplacian', 'none']
 _initialization_choices = ['random', 'lsq']
-_backend_choices = ['csv']
+_backend_choices = ['csv', 'bin']
 
 
 class InconsistentParameterNaming(Exception):
