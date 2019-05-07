@@ -108,8 +108,8 @@ class SeismicComposite(Composite):
 
     def hyper2wavemap(self, hypername):
 
-        dummy = '_'.join(hypername.split('_')[:-1])
-
+        dummy = '_'.join(hypername.split('_')[1:-1])
+        
         for wmap in self.wavemaps:
             if wmap._mapid == dummy:
                 return wmap

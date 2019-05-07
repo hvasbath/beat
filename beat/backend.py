@@ -602,14 +602,10 @@ class NumpyChain(FileChain):
 
         # creating data type as float
         data_types = ['f8'] * len(self.varnames)
-
-        # get the size of each array within varnames
-        #data_size = ["{}".format(
-        #    len(self.flat_names[name])) for name in self.varnames]
-        # we need more test here!!
         data_size = ["{}".format(self.var_shapes[name]) for name in self.varnames]
         formats = [
             size + data_type for size, data_type in zip(data_size, data_types)]
+
         # set data structure
         return num.dtype({'names': self.varnames, 'formats': formats})
 
