@@ -1,6 +1,6 @@
 
-Example 3: static finite-fault optimization
----------------------------------------------
+Example 3: Static finite-fault estimation
+-----------------------------------------
 
 In this example we will determine a variable slip distribution for the L'aquila 2009 earthquake by using static InSAR data.
 The data is the exact same from `Example 2 <https://hvasbath.github.io/beat/examples/Rectangular.html#>`__, where the overall geometry of the fault plane was estimated.

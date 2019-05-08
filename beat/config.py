@@ -22,6 +22,7 @@ from pyrocko.gf.seismosizer import Cloneable, stf_classes
 from beat.heart import Filter, FilterBase, ArrivalTaper, Parameter
 from beat.heart import ReferenceLocation
 from beat.sources import RectangularSource, MTSourceWithMagnitude, MTQTSource
+from beat.covariance import available_noise_structures
 
 from beat import utility
 
@@ -202,11 +203,11 @@ km = 1000.
 
 
 _interpolation_choices = ['nearest_neighbor', 'multilinear']
-_structure_choices = ['identity', 'exponential', 'import', 'non-toeplitz']
+_structure_choices = available_noise_structures()
 _mode_choices = [geometry_mode_str, ffi_mode_str]
 _regularization_choices = ['laplacian', 'none']
 _initialization_choices = ['random', 'lsq']
-_backend_choices = ['csv', 'bin']
+_backend_choices = ['csv']
 
 
 class InconsistentParameterNaming(Exception):
@@ -354,7 +355,7 @@ class GeodeticGFConfig(NonlinearGFConfig):
         default=1.,
         help='Depth spacing [km] for GF medium grid.')
     medium_distance_spacing = Float.T(
-        default=1.,
+        default=10.,
         help='Distance spacing [km] for GF medium grid.')
 
 
@@ -1445,7 +1446,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
 
 def dump_config(config):
     """
-    Load configuration file.
+    Dump configuration file.
 
     Parameters
     ----------

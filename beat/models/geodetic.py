@@ -194,11 +194,28 @@ class GeodeticComposite(Composite):
             res = data.displacement - processed_synts[i]
 
             results.append(heart.GeodeticResult(
+                point=point,
                 processed_obs=data.displacement,
                 processed_syn=processed_synts[i],
                 processed_res=res))
 
         return results
+
+    def get_standardized_residuals(self, point):
+        """
+        Parameters
+        ----------
+        point : dict
+            with parameters to point in solution space to calculate standardized
+            residuals for
+
+        Returns
+        -------
+        list of arrays of standardized residuals,
+        following order of self.datasets
+        """
+        logger.warning('Standardized residuals not implemented for geodetics!')
+        return None
 
     def init_hierarchicals(self, problem_config):
         """

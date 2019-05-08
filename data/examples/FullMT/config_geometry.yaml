@@ -122,7 +122,7 @@ problem_config: !beat.ProblemConfig
 seismic_config: !beat.SeismicConfig
   datadir: ./
   noise_estimator: !beat.SeismicNoiseAnalyserConfig
-    structure: identity
+    structure: variance
     pre_arrival_time: 3.0
   pre_stack_cut: true
   station_corrections: false
