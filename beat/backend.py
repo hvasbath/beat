@@ -26,6 +26,8 @@ import shutil
 from glob import glob
 from time import time
 
+from collections import OrderedDict
+
 import numpy as num
 import pandas as pd
 from pandas.errors import EmptyDataError
@@ -136,8 +138,10 @@ class BaseChain(object):
             self.var_shapes_list = [var.tag.test_value.shape for var in vars]
             self.var_dtypes_list = [var.tag.test_value.dtype for var in vars]
 
-            self.var_shapes = dict(zip(self.varnames, self.var_shapes_list))
-            self.var_dtypes = dict(zip(self.varnames, self.var_dtypes_list))
+            self.var_shapes = OrderedDict(
+                zip(self.varnames, self.var_shapes_list))
+            self.var_dtypes = OrderedDict(
+                zip(self.varnames, self.var_dtypes_list))
         else:
             logger.debug('No model or variables given!')
 
@@ -179,7 +183,7 @@ class FileChain(BaseChain):
 
         self.dir_path = dir_path
 
-        self.flat_names = None
+        self.flat_names = OrderedDict()
         if self.var_shapes is not None:
             if k is not None:
                 self.flat_names = {}
@@ -190,8 +194,8 @@ class FileChain(BaseChain):
                     self.flat_names[var] = ttab.create_flat_names(var, shape)
 
             else:
-                self.flat_names = {v: ttab.create_flat_names(v, shape)
-                                   for v, shape in self.var_shapes.items()}
+                for v, shape in self.var_shapes.items():
+                    self.flat_names[v] = ttab.create_flat_names(v, shape)
 
         self.k = k
 
@@ -435,7 +439,7 @@ class TextChain(FileChain):
             if self.flat_names is None and not self.corrupted_flag:
                 self.flat_names, self.var_shapes = extract_variables_from_df(
                     self._df)
-                self.varnames = self.var_shapes.keys()
+                self.varnames = list(self.var_shapes.keys())
 
     def get_values(self, varname, burn=0, thin=1):
         """
@@ -572,24 +576,25 @@ class NumpyChain(FileChain):
         if os.path.exists(self.filename) and not overwrite:
             logger.info('Found existing trace, appending!')
         else:
+            data_type = OrderedDict()
             with open(self.filename, 'wb') as fh:
-                # is necessary to convert data type to string for save in the header.
-                data_type = {k: "{}".format(v) for k, v in self.var_dtypes.items()}
+                for k, v in self.var_dtypes.items():
+                    data_type[k] = "{}".format(v)
+
                 header_data = {
                     self.flat_names_tag: self.flat_names,
                     self.var_shape_tag: self.var_shapes,
                     self.var_dtypes_tag: data_type}
-                header = (json.dumps(header_data) + '\n').encode()
+                header = (json.dumps(
+                    header_data, object_pairs_hook=OrderedDict) + '\n').encode()
                 fh.write(header)
 
     def extract_variables_from_header(self, file_header):
-        header_data = json.loads(file_header)
+        header_data = json.loads(file_header, object_pairs_hook=OrderedDict)
         flat_names = header_data[self.flat_names_tag]
-        var_shapes = {key: tuple(val) for key, val in header_data[
-            self.var_shape_tag].items()}
-        var_dtypes = {key: val for key, val in header_data[
-            self.var_dtypes_tag].items()}
-        varnames = [key for key in flat_names]
+        var_shapes = header_data[self.var_shape_tag]
+        var_dtypes = header_data[self.var_dtypes_tag]
+        varnames = [key for key in flat_names.keys()]
         return flat_names, var_shapes, var_dtypes, varnames
 
     def construct_data_structure(self):
@@ -617,7 +622,9 @@ class NumpyChain(FileChain):
         #    size + data_type for size, data_type in zip(data_size, data_types)]
         # New way to get data type. The information now is kept in the file header.
         formats = [
-            "{shape}{dtype}".format(shape=self.var_shapes[name], dtype=self.var_dtypes[name]) for name in self.varnames]
+            "{shape}{dtype}".format(
+                shape=self.var_shapes[name], dtype=self.var_dtypes[name])
+            for name in self.varnames]
         # set data structure
         return num.dtype({'names': self.varnames, 'formats': formats})
 
@@ -1125,8 +1132,8 @@ def extract_variables_from_df(dataframe):
     all_df_indexes = [str(flatvar) for flatvar in dataframe.columns]
     varnames = list(set([index.split('__')[0] for index in all_df_indexes]))
 
-    flat_names = {}
-    var_shapes = {}
+    flat_names = OrderedDict()
+    var_shapes = OrderedDict()
     for varname in varnames:
         indexes = []
         for index in all_df_indexes:
