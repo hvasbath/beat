@@ -585,16 +585,17 @@ class NumpyChain(FileChain):
                     self.flat_names_tag: self.flat_names,
                     self.var_shape_tag: self.var_shapes,
                     self.var_dtypes_tag: data_type}
-                header = (json.dumps(
-                    header_data, object_pairs_hook=OrderedDict) + '\n').encode()
+                header = (json.dumps(header_data) + '\n').encode()
                 fh.write(header)
 
     def extract_variables_from_header(self, file_header):
         header_data = json.loads(file_header, object_pairs_hook=OrderedDict)
         flat_names = header_data[self.flat_names_tag]
-        var_shapes = header_data[self.var_shape_tag]
+        var_shapes = OrderedDict()
+        for k, v in header_data[self.var_shape_tag].items():
+            var_shapes[k] = tuple(v)
         var_dtypes = header_data[self.var_dtypes_tag]
-        varnames = [key for key in flat_names.keys()]
+        varnames = list(flat_names.keys())
         return flat_names, var_shapes, var_dtypes, varnames
 
     def construct_data_structure(self):
@@ -606,7 +607,7 @@ class NumpyChain(FileChain):
             A numpy.dtype
         """
 
-        if self.flat_names is None and not self.corrupted_flag:
+        if len(self.flat_names) == 0 and not self.corrupted_flag:
             self.flat_names, self.var_shapes, self.var_dtypes, self.varnames = \
                 self.extract_variables_from_header(self.file_header)
 
