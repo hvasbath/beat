@@ -120,16 +120,19 @@ class TestBackend(TestCase):
             chain_data = numpy_chain.get_values(data_key)
             data_index = 1
             chain_at = numpy_chain.point(data_index)
-            print(data_key + ": ", chain_data)
+            # print(data_key + ": ", chain_data)
             self.assertEqual(chain_data.all(), self.expected_chain_data.get(data_key).all())
             self.assertEqual(chain_at[data_key].all(), self.expected_chain_data.get(data_key)[data_index].all())
 
     def test_load_bin_chain(self):
         numpy_chain = NumpyChain(dir_path=self.test_dir_path, model=self.PT_test)
         numpy_chain.setup(5, 0, overwrite=False)
-        print(len(numpy_chain), numpy_chain.data_file())
-        chain_at = numpy_chain.point(1)
-        print(chain_at)
+        # print(len(numpy_chain), numpy_chain.data_file())
+        data_index = 1
+        chain_at = numpy_chain.point(data_index)
+        # print(chain_at)
+        for data_key in self.data_keys:
+            self.assertEqual(chain_at[data_key].all(), self.expected_chain_data.get(data_key)[data_index].all())
 
     def test_load_check_multitrace(self):
         mtrace = load_multitrace(self.test_dir_path, varnames=self.PT_test.vars, backend='bin')
