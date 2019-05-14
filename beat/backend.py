@@ -514,6 +514,7 @@ class NumpyChain(FileChain):
 
     flat_names_tag = "flat_names"
     var_shape_tag = "var_shapes"
+    var_dtypes_tag = "var_dtypes"
     __data_structure = None
 
     def __init__(
@@ -565,14 +566,16 @@ class NumpyChain(FileChain):
         self.filename = os.path.join(
             self.dir_path, 'chain-{}.bin'.format(chain))
         self.__data_structure = self.construct_data_structure()
-
         if os.path.exists(self.filename) and not overwrite:
             logger.info('Found existing trace, appending!')
         else:
             with open(self.filename, 'wb') as fh:
+                # is necessary to convert data type to string for save in the header.
+                data_type = {k: "{}".format(v) for k, v in self.var_dtypes.items()}
                 header_data = {
                     self.flat_names_tag: self.flat_names,
-                    self.var_shape_tag: self.var_shapes}
+                    self.var_shape_tag: self.var_shapes,
+                    self.var_dtypes_tag: data_type}
                 header = (json.dumps(header_data) + '\n').encode()
                 fh.write(header)
 
@@ -581,8 +584,10 @@ class NumpyChain(FileChain):
         flat_names = header_data[self.flat_names_tag]
         var_shapes = {key: tuple(val) for key, val in header_data[
             self.var_shape_tag].items()}
+        var_dtypes = {key: val for key, val in header_data[
+            self.var_dtypes_tag].items()}
         varnames = [key for key in flat_names]
-        return flat_names, var_shapes, varnames
+        return flat_names, var_shapes, var_dtypes, varnames
 
     def construct_data_structure(self):
         """
@@ -594,19 +599,22 @@ class NumpyChain(FileChain):
         """
 
         if self.flat_names is None and not self.corrupted_flag:
-            self.flat_names, self.var_shapes, self.varnames = \
+            self.flat_names, self.var_shapes, self.var_dtypes, self.varnames = \
                 self.extract_variables_from_header(self.file_header)
 
         # creating data type as float
-        data_types = ['f8'] * len(self.varnames)
+        # data_types = ['f8'] * len(self.varnames)
 
         # get the size of each array within varnames
-        #data_size = ["{}".format(
+        # data_size = ["{}".format(
         #    len(self.flat_names[name])) for name in self.varnames]
         # we need more test here!!
-        data_size = ["{}".format(self.var_shapes[name]) for name in self.varnames]
+        # data_size = ["{}".format(self.var_shapes[name]) for name in self.varnames]
+        # formats = [
+        #    size + data_type for size, data_type in zip(data_size, data_types)]
+        # New way to get data type. The information now is kept in the file header.
         formats = [
-            size + data_type for size, data_type in zip(data_size, data_types)]
+            "{shape}{dtype}".format(shape=self.var_shapes[name], dtype=self.var_dtypes[name]) for name in self.varnames]
         # set data structure
         return num.dtype({'names': self.varnames, 'formats': formats})
 
