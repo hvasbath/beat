@@ -178,8 +178,8 @@ def load_ascii_gnss_globk(filedir, filename):
     :class:`heart.GNSSDataset`
     """
     filepath = os.path.join(filedir, filename)
-    names = num.loadtxt(filepath, skiprows=1, usecols=[12], dtype='str')
-    d = num.loadtxt(filepath, skiprows=1, usecols=range(12), dtype='float')
+    names = num.loadtxt(filepath, skiprows=3, usecols=[12], dtype='str')
+    d = num.loadtxt(filepath, skiprows=3, usecols=range(12), dtype='float')
     velocity_idxs = [2, 3, 9]
     std_idxs = [6, 7, 11]
 
