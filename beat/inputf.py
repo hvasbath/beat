@@ -166,6 +166,44 @@ def load_ascii_gnss(filedir, filename):
     return data
 
 
+def load_ascii_gnss_globk(filedir, filename):
+    """
+    Load ascii file columns containing:
+    station name, Lon, Lat, ve, vn, vu, sigma_ve, sigma_vn, sigma_vu
+    location [decimal deg]
+    measurement unit [mm/yr]
+
+    Returns
+    -------
+    :class:`heart.GNSSDataset`
+    """
+    filepath = os.path.join(filedir, filename)
+    names = num.loadtxt(filepath, skiprows=1, usecols=[12], dtype='str')
+    d = num.loadtxt(filepath, skiprows=1, usecols=range(12), dtype='float')
+    velocity_idxs = [2, 3, 9]
+    std_idxs = [6, 7, 11]
+
+    if names.size != d.shape[0]:
+        raise Exception('Number of stations and available data differs!')
+
+    data = heart.GNSSDataset()
+    for i, name in enumerate(names):
+
+        gnss_station = heart.GNSSStation(
+            name=str(name), lon=float(d[i, 0]), lat=float(d[i, 1]))
+        for j, (comp, vel_idx, std_idx) in enumerate(
+                zip('ENU', velocity_idxs, std_idxs)):
+
+            gnss_station.add_component(
+                heart.GNSSComponent(
+                    name=comp,
+                    v=float(d[i, vel_idx] / km),
+                    sigma=float(d[i, std_idx] / km)))
+        data.add_station(gnss_station)
+
+    return data
+
+
 def load_repsonses_from_file(projectpath):
 
     network = ''
@@ -196,9 +234,10 @@ def load_repsonses_from_file(projectpath):
 
 def load_and_blacklist_gnss(datadir, filename, blacklist):
     """
-    Load ascii GNSS data, apply blacklist and initialise targets.
+    Load ascii GNSS data from GLOBK, apply blacklist and initialise targets.
     """
-    gnss_ds = load_ascii_gnss(datadir, filename)
+    # gnss_ds = load_ascii_gnss()
+    gnss_ds = load_ascii_gnss_globk(datadir, filename)
     gnss_ds.remove_stations(blacklist)
     comps = gnss_ds.get_component_names()
 
