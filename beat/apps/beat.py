@@ -117,6 +117,7 @@ nargs_dict = {
 mode_choices = [geometry_mode_str, ffi_mode_str]
 
 supported_geodetic_formats = ['matlab', 'ascii', 'kite']
+supported_geodetic_types = ['SAR', 'GNSS']
 supported_samplers = ['SMC', 'Metropolis', 'PT']
 
 
@@ -439,6 +440,12 @@ def command_import(args):
                             raise ImportError(
                                 'Format %s not implemented yet for GNSS data.' %
                                 options.geodetic_format)
+
+                    else:
+                        raise TypeError(
+                            'Geodetic datatype "%s" is not supported! '
+                            'Supported types are: %s ' % (
+                                typ, list2string(supported_geodetic_types)))
 
                 logger.info('Pickleing geodetic data to %s' % geodetic_outpath)
                 utility.dump_objects(geodetic_outpath, outlist=gtargets)
