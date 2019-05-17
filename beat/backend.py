@@ -186,7 +186,7 @@ class FileChain(BaseChain):
         self.flat_names = OrderedDict()
         if self.var_shapes is not None:
             if k is not None:
-                self.flat_names = {}
+                self.flat_names = OrderedDict()
                 for var, shape in self.var_shapes.items():
                     if var in transd_vars_dist:
                         shape = (k,)
@@ -436,7 +436,7 @@ class TextChain(FileChain):
                 self.corrupted_flag = True
                 os.remove(self.filename)
 
-            if self.flat_names is None and not self.corrupted_flag:
+            if len(self.flat_names) == 0 and not self.corrupted_flag:
                 self.flat_names, self.var_shapes = extract_variables_from_df(
                     self._df)
                 self.varnames = list(self.var_shapes.keys())
@@ -462,6 +462,7 @@ class TextChain(FileChain):
         :class:`numpy.array`
         """
         self._load_df()
+
         var_df = self._df[self.flat_names[varname]]
         shape = (self._df.shape[0],) + self.var_shapes[varname]
         vals = var_df.values.ravel().reshape(shape)
