@@ -514,6 +514,13 @@ def discretize_sources(
     :class:'FaultGeometry'
     """
 
+    def check_subfault_consistency(a, nsources, parameter):
+        na = len(a)
+        if  na != nsources:
+            raise ValueError(
+                '"%s" have to be specified for each subfault! Only %i set,'
+                ' but %i subfaults are configured!' % (parameter, na, nsources))
+
     for i, (pl, pw) in enumerate(zip(patch_lengths, patch_widths)):
         if pl != pw:
             raise ValueError(
@@ -527,6 +534,11 @@ def discretize_sources(
         logger.warning(
             'Seismic kinematic finite fault optimization does'
             ' not support rupture propagation across sub-faults yet!')
+
+    check_subfault_consistency(patch_lengths, nsources, 'patch_lengths')
+    check_subfault_consistency(patch_widths, nsources, 'patch_widths')
+    check_subfault_consistency(extension_lengths, nsources, 'extension_lengths')
+    check_subfault_consistency(extension_widths, nsources, 'extension_widths')
 
     npls = []
     npws = []

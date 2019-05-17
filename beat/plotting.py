@@ -2607,6 +2607,15 @@ def fault_slip_distribution(
         cb.set_label(labeltext, fontsize=fontsize)
         ax.set_aspect('equal', adjustable='box')
 
+    def get_values_from_trace(mtrace, varname, reference):
+        try:
+            u = transform(
+                mtrace.get_values(
+                    varname, combine=True, squeeze=True))
+        except ValueError:
+            u = num.atleast_2d(reference[varname])
+        return u
+
     from beat.colormap import slip_colormap
     fontsize = 12
 
@@ -2627,6 +2636,7 @@ def fault_slip_distribution(
             cmap=slip_colormap(100), alpha=0.65)
 
         ext_source = fault.get_subfault(ns)
+        patch_idxs = fault.get_patch_indexes(ns)
 
         # patch central locations
         hpd = fault.ordering.patch_sizes_dip[ns] / 2.
@@ -2700,10 +2710,11 @@ def fault_slip_distribution(
 
         if mtrace is not None:
             logger.info('Drawing quantiles ...')
-            uparr = transform(
-                mtrace.get_values('uparr', combine=True, squeeze=True))
-            uperp = transform(
-                mtrace.get_values('uperp', combine=True, squeeze=True))
+
+            uparr = get_values_from_trace(
+                mtrace, 'uparr', reference)[:, patch_idxs]
+            uperp = get_values_from_trace(
+                mtrace, 'uperp', reference)[:, patch_idxs]
 
             uparrmean = uparr.mean(axis=0)
             uperpmean = uperp.mean(axis=0)
@@ -2736,8 +2747,8 @@ def fault_slip_distribution(
 
         logger.info('Drawing slip vectors ...')
         draw_quivers(
-            ax, reference['uperp'], reference['uparr'], xgr, ygr,
-            ext_source.rake, color='black', draw_legend=True,
+            ax, reference['uperp'][patch_idxs], reference['uparr'][patch_idxs],
+            xgr, ygr, ext_source.rake, color='black', draw_legend=True,
             normalisation=normalisation, zorder=3)
 
         draw_colorbar(fig, ax, pa_col, labeltext='slip [m]')
@@ -2779,7 +2790,9 @@ def draw_slip_dist(problem, po):
     stage = load_stage(problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
     if not po.reference:
-        reference = get_result_point(stage, problem.config, po.post_llk)
+        reference = problem.config.problem_config.get_test_point()
+        res_point = get_result_point(stage, problem.config, po.post_llk)
+        reference.update(res_point)
         llk_str = po.post_llk
         mtrace = stage.mtrace
     else:
