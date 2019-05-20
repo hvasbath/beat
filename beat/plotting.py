@@ -2612,7 +2612,7 @@ def fault_slip_distribution(
             u = transform(
                 mtrace.get_values(
                     varname, combine=True, squeeze=True))
-        except ValueError:
+        except(ValueError, KeyError):
             u = num.atleast_2d(reference[varname])
         return u
 
