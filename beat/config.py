@@ -39,8 +39,7 @@ ffi_mode_str = 'ffi'
 geometry_mode_str = 'geometry'
 
 
-block_vars = [
-    'bl_azimuth', 'bl_amplitude']
+block_vars = ['bl_azimuth', 'bl_amplitude']
 seis_vars = ['time', 'duration']
 
 source_names = '''
@@ -67,16 +66,16 @@ source_classes = [
     gf.RingfaultSource]
 
 stf_names = '''
-Boxcar
-Triangular
-HalfSinusoid
-'''.split()
+    Boxcar
+    Triangular
+    HalfSinusoid
+    '''.split()
 
 source_catalog = {name: source_class for name, source_class in zip(
-    source_names, source_classes)}
+source_names, source_classes)}
 
 stf_catalog = {name: stf_class for name, stf_class in zip(
-    stf_names, stf_classes[1:4])}
+stf_names, stf_classes[1:4])}
 
 interseismic_vars = [
     'east_shift', 'north_shift', 'strike', 'dip', 'length',
@@ -90,7 +89,7 @@ voronoi_locations = ['voronoi_strike', 'voronoi_dip']
 
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars + hypo_vars
 transd_vars_dist = partial_kinematic_vars + static_dist_vars + \
-    voronoi_locations
+voronoi_locations
 dist_vars = static_dist_vars + partial_kinematic_vars
 
 interseismic_catalog = {
@@ -206,6 +205,7 @@ _interpolation_choices = ['nearest_neighbor', 'multilinear']
 _structure_choices = available_noise_structures()
 _mode_choices = [geometry_mode_str, ffi_mode_str]
 _regularization_choices = ['laplacian', 'none']
+_discretization_choices = ['uniform', 'resolution']
 _initialization_choices = ['random', 'lsq']
 _backend_choices = ['csv', 'bin']
 
@@ -359,13 +359,15 @@ class GeodeticGFConfig(NonlinearGFConfig):
         help='Distance spacing [km] for GF medium grid.')
 
 
-class LinearGFConfig(GFConfig):
+class DiscretizationConfig(Object):
     """
-    Config for linear GreensFunction calculation parameters.
+    Config to determine the discretization of the finite fault(s)
     """
-    reference_sources = List.T(
-        RectangularSource.T(),
-        help='Geometry of the reference source(s) to fix')
+    pass
+
+
+class UniformDiscretization(DiscretizationConfig):
+
     patch_widths = List.T(
         Float.T(),
         default=[5.],
@@ -394,9 +396,75 @@ class LinearGFConfig(GFConfig):
              ' strike-direction. 0.1 means extension of the fault by 10% in'
              ' each direction, i.e. 20% in total. Each value is applied '
              ' following the list-order to the respective reference source.')
+
+
+class ResolutionDiscretizationConfig(DiscretizationConfig):
+    """
+    Parameters that control the source discretization optimization following
+    Atzori & Antonioli 2011:
+        Optimal fault resolution in geodetic inversion of coseismic data
+    """
+
+    epsilon = Float.T(
+        default=0.2,
+        help='Damping constant for SVD of Greens Functions. '
+             'Reasonable between: [10e-2 to 10e-5]')
+    resolution_thresh = Float.T(
+        default=0.95,
+        help='Resolution threshold discretization continues until all patches '
+             'are below this threshold. The lower the finer the discretization. '
+             'Reasonable between: [0.95, 0.99]')
+    depth_penalty = Float.T(
+        default=5,
+        help='The higher the number the more penalty on the deeper '
+             'patches-ergo larger patches.')
+    alpha = Float.T(
+        default=0.2,
+        help='Decimal percentage of largest patches that are subdivided '
+             'further. Reasonable: [0.1, 0.3]')
+    patch_bounds_dip = List.T(Float.T(),
+        default=[1., 5.],
+        help='Patch width [km] for min/max initial discretization of patches.')
+    patch_bounds_strike = List.T(Float.T(),
+        default=[1., 5.],
+        help='Patch length [km] for min/max initial discretization of'
+             ' patches.')
+
+
+discretization_catalog = {
+    'uniform': UniformDiscretization,
+    'resolution': ResolutionDiscretizationConfig}
+
+
+class LinearGFConfig(GFConfig):
+    """
+    Config for linear GreensFunction calculation parameters.
+    """
+    reference_sources = List.T(
+        RectangularSource.T(),
+        help='Geometry of the reference source(s) to fix')
     sample_rate = Float.T(
         default=2.,
         help='Sample rate for the Greens Functions.')
+    discretization = StringChoice.T(
+        default='uniform',
+        choices=_discretization_choices,
+        help='Flag for discretization of finite sources into patches.'
+             ' Choices: %s' % utility.list2string(_discretization_choices))
+    discretization_config = DiscretizationConfig.T(
+        default=UniformDiscretization.D(),
+        help='Discretization configuration that allows customization.'
+    )
+
+    def __init__(self, **kwargs):
+
+        discretization_config = kwargs.pop('discretization_config', None)
+        discr = kwargs.pop('discretization', None)
+
+        if discr and not discretization_config:
+            kwargs['discretization_config'] = discretization_catalog[discr]()
+
+        Object.__init__(self, **kwargs)
 
 
 class SeismicLinearGFConfig(LinearGFConfig):
@@ -447,7 +515,7 @@ class WaveformFitConfig(Object):
         choices=_interpolation_choices,
         default='multilinear',
         help='GF interpolation sceme. Choices: %s' %
-        utility.list2string(_interpolation_choices))
+             utility.list2string(_interpolation_choices))
     arrival_taper = trace.Taper.T(
         default=ArrivalTaper.D(),
         help='Taper a,b/c,d time [s] before/after wave arrival')
@@ -609,7 +677,7 @@ class GeodeticConfig(Object):
     def get_hierarchical_names(self):
         if self.fit_plane:
             return [name + '_ramp' for name in self.names] + \
-                [name + '_offset' for name in self.names]
+                   [name + '_offset' for name in self.names]
         else:
             return []
 
@@ -649,7 +717,7 @@ class ProblemConfig(Object):
         choices=_mode_choices,
         default=geometry_mode_str,
         help='Problem to solve. Choices: %s' %
-        utility.list2string(_mode_choices))
+             utility.list2string(_mode_choices))
     mode_config = ModeConfig.T(
         optional=True,
         help='Global optimization mode specific parameters.')
@@ -1167,11 +1235,11 @@ class BEATconfig(Object, Cloneable):
             hypers[name] = Parameter(
                 name=name,
                 lower=num.ones(1, dtype=tconfig.floatX) *
-                default_bounds[defaultb_name][0],
+                      default_bounds[defaultb_name][0],
                 upper=num.ones(1, dtype=tconfig.floatX) *
-                default_bounds[defaultb_name][1],
+                      default_bounds[defaultb_name][1],
                 testvalue=num.ones(1, dtype=tconfig.floatX) *
-                num.mean(default_bounds[defaultb_name]))
+                          num.mean(default_bounds[defaultb_name]))
 
         self.problem_config.hyperparameters = hypers
         self.problem_config.validate_hypers()
@@ -1215,11 +1283,11 @@ class BEATconfig(Object, Cloneable):
             hierarchicals[name] = Parameter(
                 name=name,
                 lower=num.ones(shp, dtype=tconfig.floatX) *
-                default_bounds[defaultb_name][0],
+                      default_bounds[defaultb_name][0],
                 upper=num.ones(shp, dtype=tconfig.floatX) *
-                default_bounds[defaultb_name][1],
+                      default_bounds[defaultb_name][1],
                 testvalue=num.ones(shp, dtype=tconfig.floatX) *
-                num.mean(default_bounds[defaultb_name]))
+                          num.mean(default_bounds[defaultb_name]))
 
         self.problem_config.hierarchicals = hierarchicals
         self.problem_config.validate_hierarchicals()

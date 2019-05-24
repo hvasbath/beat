@@ -2,9 +2,10 @@ from beat.utility import list2string, positions2idxs
 from beat.fast_sweeping import fast_sweep
 
 from beat.models.laplacian import get_smoothing_operator
-from .base import get_backend
+from .base import get_backend, geo_construct_gf_linear
 
 from pyrocko.gf.seismosizer import Cloneable
+from pyrocko.guts import Float, Object, List
 
 import copy
 from logging import getLogger
@@ -40,6 +41,7 @@ km = 1000.
 class FaultGeometry(Cloneable):
     """
     Object to construct complex fault-geometries with several subfaults.
+    Subfaults have uniform patch discretization.
     Stores information for subfault geometries and
     inversion variables (e.g. slip-components).
     Yields patch objects for requested subfault, dataset and component.
@@ -180,7 +182,7 @@ total number of patches: %i ''' % (
 
         subfault = self.get_subfault(
             index, datatype=datatype, component=component)
-        npw, npl = self.get_subfault_discretization(index)
+        npw, npl = self.ordering.get_subfault_discretization(index)
 
         return subfault.patches(nl=npl, nw=npw, datatype=datatype)
 
@@ -311,23 +313,6 @@ total number of patches: %i ''' % (
         self._check_index(index)
         return self.ordering.vmap[index].slc
 
-    def get_subfault_discretization(self, index):
-        """
-        Return number of patches in strike and dip-directions of a subfault.
-
-        Parameters
-        ----------
-        index : int
-            index to the subfault
-
-        Returns
-        -------
-        tuple (dip, strike)
-            number of patches in fault direction
-        """
-        self._check_index(index)
-        return self.ordering.vmap[index].shp
-
     def point2starttimes(self, point, index=0):
         """
         Calculate starttimes for point in solution space.
@@ -361,8 +346,8 @@ total number of patches: %i ''' % (
         nuc_strike_idx : int
             rupture nucleation idx to patch in strike-direction
         """
-
-        npw, npl = self.get_subfault_discretization(index)
+        self._check_index(index)
+        npw, npl = self.ordering.get_subfault_discretization(index)
         slownesses = 1. / rupture_velocities.reshape((npw, npl))
 
         start_times = fast_sweep.get_rupture_times_numpy(
@@ -384,8 +369,8 @@ total number of patches: %i ''' % (
         :class:`numpy.Ndarray`
             (n_patch_strike + n_patch_dip) x (n_patch_strike + n_patch_dip)
         """
-
-        npw, npl = self.get_subfault_discretization(index)
+        self._check_index(index)
+        npw, npl = self.ordering.get_subfault_discretization(index)
         return get_smoothing_operator(
             n_patch_strike=npl,
             n_patch_dip=npw,
@@ -442,6 +427,7 @@ total number of patches: %i ''' % (
 class FaultOrdering(object):
     """
     A mapping of source patches to the arrays of optimization results.
+    For faults with uniform gridsize.
 
     Parameters
     ----------
@@ -479,6 +465,26 @@ class FaultOrdering(object):
 
         self.npatches = dim
 
+    def get_subfault_discretization(self, index):
+        """
+        Return number of patches in strike and dip-directions of a subfault.
+
+        Parameters
+        ----------
+        index : int
+            index to the subfault
+
+        Returns
+        -------
+        tuple (dip, strike)
+            number of patches in fault direction
+        """
+        self.vmap[index].shp
+
+    #@property
+    #def has_optimization(self):
+    #    return True if self.
+
 
 class FaultGeometryError(Exception):
     pass
@@ -491,8 +497,8 @@ def discretize_sources(
     """
     Build complex discretized fault.
 
-    Extend sources into all directions and discretize sources into patches.
-    Rounds dimensions to have no half-patches.
+    Extend sources into all directions and discretize sources into uniformly
+    discretized patches. Rounds dimensions to have no half-patches.
 
     Parameters
     ----------

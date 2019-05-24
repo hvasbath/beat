@@ -891,9 +891,11 @@ def geo_construct_gf_linear(
             gfs._gfmatrix = num.frombuffer(
                 shared_gflibrary).reshape(gfs.dimensions)
 
-            logger.info('Storing geodetic linear GF Library ...')
-
-            gfs.save(outdir=outdirectory)
+            if outdirectory:
+                logger.info('Storing geodetic linear GF Library ...')
+                gfs.save(outdir=outdirectory)
+            else:
+                return gfs._gfmatrix
 
 
 def _process_patch_seismic(
