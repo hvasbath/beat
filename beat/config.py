@@ -463,6 +463,19 @@ class LinearGFConfig(GFConfig):
 
         if discr and not discretization_config:
             kwargs['discretization_config'] = discretization_catalog[discr]()
+        elif discr and discretization_config:
+            wanted_config = discretization_catalog[discr]
+            if not isinstance(
+                    discretization_config, wanted_config):
+                logger.info('Fault discretization method changed!'
+                            ' Initializing new config...')
+                kwargs['discretization_config'] = wanted_config()
+            else:
+                kwargs['discretization_config'] = discretization_config
+        else:
+            raise ValueError('Discretization has to be specified!')
+
+        kwargs['discretization'] = discr
 
         Object.__init__(self, **kwargs)
 
@@ -486,6 +499,14 @@ class SeismicLinearGFConfig(LinearGFConfig):
         help="Calculate Green's Functions for varying rupture onset times."
              "These are determined by the (rupture) velocity prior bounds "
              "and the hypocenter location.")
+
+    def __init__(self, **kwargs):
+
+        Object.__init__(self, **kwargs)
+
+        if self.discretization == 'resolution':
+            raise ValueError('Resolution based discretization only available '
+                             'for geodetic data!')
 
 
 class GeodeticLinearGFConfig(LinearGFConfig):
@@ -1303,7 +1324,7 @@ def init_reference_sources(
         # rf = source_catalog[source_type](stf=stf_catalog[stf_type]())
         # maybe future if several meshtypes
         rf = RectangularSource(stf=stf_catalog[stf_type](anchor=-1))
-        utility.update_source(rf, input_depth='center', **source_points[i])
+        utility.update_source(rf, **source_points[i])
         rf.nucleation_x = None
         rf.nucleation_y = None
         if ref_time is not None:

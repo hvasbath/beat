@@ -96,6 +96,14 @@ def upgrade_config_file(fn, diff=True, update=[]):
             set_attribute('resample', False, False)),
         ('beat.FFOConfig',
         rename_class('beat.FFIConfig')),
+        ('beat.LinearGFConfig',
+         drop_attribute('extension_widths')),
+        ('beat.LinearGFConfig',
+         drop_attribute('extension_lengths')),
+        ('beat.LinearGFConfig',
+         drop_attribute('patch_widths')),
+        ('beat.LinearGFConfig',
+         drop_attribute('patch_lengths')),
     ]
 
     def apply_rules(path, obj):

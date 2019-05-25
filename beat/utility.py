@@ -528,7 +528,8 @@ def transform_sources(sources, datatypes, decimation_factors=None):
 
             if decimation_factors is not None:
                 transformed_source.update(
-                    decimation_factor=decimation_factors[datatype])
+                    decimation_factor=decimation_factors[datatype],
+                    anchor='top')
 
             if datatype == 'geodetic':
                 transformed_source.stf = None
@@ -616,7 +617,7 @@ def join_points(ldicts):
     return jpoint
 
 
-def update_source(source, input_depth='top', **point):
+def update_source(source, **point):
     """
     Update source keeping stf and source params seperate.
     Modifies input source Object!
@@ -641,9 +642,6 @@ def update_source(source, input_depth='top', **point):
                     ' parameters.')
         else:
             source[k] = float(v)
-
-    if isinstance(source, RectangularSource):
-        adjust_fault_reference(source, input_depth=input_depth)
 
 
 def setup_logging(project_dir, levelname, logfilename='BEAT_log.txt'):
