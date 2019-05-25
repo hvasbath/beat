@@ -161,12 +161,13 @@ class RectangularSource(gf.RectangularSource):
             (bd[2] * num.sin(d2r * self.strike) / num.tan(d2r * self.dip))
         return num.array([xtrace, ytrace, 0.])
 
-    def patches(self, nl, nw, datatype):
+    def patches(self, nl, nw, datatype, type='pyrocko'):
         """
         Cut source into n by m sub-faults and return n times m
         :class:`RectangularSource` Objects.
         Discretization starts at shallow depth going row-wise deeper.
-        REQUIRES: self.depth to be TOP DEPTH!!!
+        REQUIRES: self.depth to be TOP DEPTH!!! Returned faults also have depth
+        reference at the top!
 
         Parameters
         ----------
@@ -183,6 +184,12 @@ class RectangularSource(gf.RectangularSource):
         :class:`pyrocko.gf.seismosizer.RectangularSource` depending on
         datatype. Depth is being updated from top_depth to center_depth.
         """
+        if type = 'pyrocko':
+            source_class = gf.RectangularSource
+        elif type = 'beat':
+            source_class = RectangularSource
+        else:
+            raise ValueError('Supported types are: "beat, pyrocko"')
 
         length = self.length / float(nl)
         width = self.width / float(nw)
@@ -190,19 +197,19 @@ class RectangularSource(gf.RectangularSource):
         patches = []
         for j in range(nw):
             for i in range(nl):
-                sub_center = self.center(self.width) + \
+                sub_top = self.depth + \
                     self.strikevector * ((i + 0.5 - 0.5 * nl) * length) + \
                     self.dipvector * ((j + 0.5 - 0.5 * nw) * width)
 
-                patch = gf.RectangularSource(
+                patch = source_class(
                     lat=float(self.lat),
                     lon=float(self.lon),
-                    east_shift=float(sub_center[0]),
-                    north_shift=float(sub_center[1]),
-                    depth=float(sub_center[2]),
+                    east_shift=float(sub_top[0]),
+                    north_shift=float(sub_top[1]),
+                    depth=float(sub_top[2]),
                     strike=self.strike, dip=self.dip, rake=self.rake,
                     length=length, width=width, stf=self.stf,
-                    time=self.time, slip=self.slip, anchor='center')
+                    time=self.time, slip=self.slip, anchor='top')
 
                 patches.append(patch)
 

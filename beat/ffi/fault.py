@@ -592,3 +592,19 @@ def discretize_sources(
             fault.setup_subfaults(datatype, var, ext_sources)
 
     return fault
+
+
+def optimize_discretization(
+        fault, datasets, varnames, engine, targets, event, force, nworkers):
+    """
+    Resolution based discretization of the fault surfaces based on:
+    Atzori & Antonioli 2011:
+        Optimal fault resolution in geodetic inversion of coseismic data
+    :return:
+    """
+
+    gfs_array = geo_construct_gf_linear(
+        engine=engine, outdirectory='', crust_ind=0, datasets=datasets,
+        targets=targets, fault=fault, varnames=varnames, force=force,
+        event=event, nworkers=nworkers)
+
