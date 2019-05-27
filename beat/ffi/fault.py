@@ -680,7 +680,7 @@ def discretize_sources(
 
 
 def optimize_discretization(
-        config, fault, datasets, varnames,
+        config, fault, datasets, varnames, crust_ind,
         engine, targets, event, force, nworkers):
     """
     Resolution based discretization of the fault surfaces based on:
@@ -692,16 +692,52 @@ def optimize_discretization(
     logger.info('Optimizing fault discretization based on resolution: ... \n')
 
     datatype = 'geodetic'
-    patches = []
+    patches_comp = {}
+
+    patch_widths, patch_lengths = config.get_patch_dimensions()
     for component in varnames:
         for index, sf in enumerate(
                 fault.iter_subfaults(datatype, component)):
-            npw, npl = fault.ordering.get_subfault_discretization(index)
+            npw = sf.get_n_patches(patch_widths[index] * 2. * km, 'width')
+            npl = sf.get_n_patches(patch_lengths[index] * 2. * km, 'length')
             patches.extent(sf.patches(
                 nl=npl, nw=npw, datatype=datatype, type='beat'))
 
-    gfs_array = geo_construct_gf_linear(
-        engine=engine, outdirectory='', crust_ind=0, datasets=datasets,
-        targets=targets, fault=fault, varnames=varnames, force=force,
-        event=event, nworkers=nworkers)
+        patches_comp[component] = patches
 
+    tobedivided = range(len(patches))
+
+    while tobedivided:
+        for component in varnames:
+            gfs_array = []
+            for idx in tobedivided:
+                # pull out patch to be divided
+                patch = patches_comp[component].pop(idx)
+                if patch.length >= patch.width:
+                    div_patches = patch.patches(
+                        nl=2, nw=1, datatype=datatype, type='beat')
+                else:
+                    div_patches = patch.patches(
+                        nl=1, nw=2, datatype=datatype, type='beat')
+
+                # insert back divided patches
+                for i, dpatch in enumerate(div_patches):
+                    patches_comp[component].insert(idx + i, dpatch)
+
+                # todo resolve subfault index
+            fault.set_subfault_patches(
+                index, patches_comp[component], datatype, component)
+
+            npatches = len(patches_comp[component])
+
+            # calculate GFs for patches is [npatches, nobservations]
+            gfs = geo_construct_gf_linear(
+                engine=engine, outdirectory='', crust_ind=crust_ind,
+                datasets=datasets, targets=targets, fault=fault,
+                varnames=varnames, force=force, event=event, nworkers=nworkers)
+            gfs_array.append(gfs.T)
+
+        # U data-space, L singular values, V model space
+        U, L, V = num.linalg.svd(num.hstack(gfs_array), full_matrices=True)
+
+        config.epsilon
