@@ -1131,12 +1131,13 @@ def command_build_gfs(args):
                                 datasets=datasets,
                                 varnames=slip_varnames,
                                 engine=engine,
+                                crust_ind=crust_ind,
                                 targets=targets,
                                 event=c.event,
                                 force=options.force,
                                 nworkers=gf.nworkers)
                             logger.info(
-                                'Storing optimizated discretized fault'
+                                'Storing optimized discretized fault'
                                 ' geometry to: %s' % faultpath)
                             utility.dump_objects(faultpath, [fault])
                             logger.info(
