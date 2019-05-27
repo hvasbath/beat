@@ -1036,12 +1036,9 @@ def command_build_gfs(args):
 
                 logger.info('Discretizing reference sources ...')
                 fault = ffi.discretize_sources(
+                    config=gf.discretization_config,
                     varnames=slip_varnames,
                     sources=gf.reference_sources,
-                    extension_widths=gf.extension_widths,
-                    extension_lengths=gf.extension_lengths,
-                    patch_widths=gf.patch_widths,
-                    patch_lengths=gf.patch_lengths,
                     datatypes=options.datatypes)
 
             logger.info(
@@ -1105,17 +1102,29 @@ def command_build_gfs(args):
                             crust_inds=[crust_ind],
                             sample_rate=gf.sample_rate)
 
-                        ffi.geo_construct_gf_linear(
-                            engine=engine,
-                            outdirectory=outdir,
-                            event=c.event,
-                            crust_ind=crust_ind,
-                            datasets=datasets,
-                            targets=targets,
-                            nworkers=gf.nworkers,
-                            fault=fault,
-                            varnames=slip_varnames,
-                            force=options.force)
+                        if fault.is_discretized and fault.needs_optimization:
+                            ffi.optimize_discretization(
+                                config=gf.discretization_config,
+                                fault=fault,
+                                datasets=datasets,
+                                varnames=slip_varnames,
+                                engine=engine,
+                                targets=targets,
+                                event=c.event,
+                                force=options.force,
+                                nworkers=gf.nworkers)
+                        else:
+                            ffi.geo_construct_gf_linear(
+                                engine=engine,
+                                outdirectory=outdir,
+                                event=c.event,
+                                crust_ind=crust_ind,
+                                datasets=datasets,
+                                targets=targets,
+                                nworkers=gf.nworkers,
+                                fault=fault,
+                                varnames=slip_varnames,
+                                force=options.force)
 
                 elif datatype == 'seismic':
                     seismic_data_path = pjoin(

@@ -363,23 +363,6 @@ class DiscretizationConfig(Object):
     """
     Config to determine the discretization of the finite fault(s)
     """
-    pass
-
-
-class UniformDiscretization(DiscretizationConfig):
-
-    patch_widths = List.T(
-        Float.T(),
-        default=[5.],
-        help='List of Patch width [km] to divide reference sources. Each value'
-             ' is applied following the list-order to the respective reference'
-             ' source')
-    patch_lengths = List.T(
-        Float.T(),
-        default=[5.],
-        help='Patch length [km] to divide reference sources Each value'
-             ' is applied following the list-order to the respective reference'
-             ' source')
     extension_widths = List.T(
         Float.T(),
         default=[0.1],
@@ -396,6 +379,25 @@ class UniformDiscretization(DiscretizationConfig):
              ' strike-direction. 0.1 means extension of the fault by 10% in'
              ' each direction, i.e. 20% in total. Each value is applied '
              ' following the list-order to the respective reference source.')
+
+
+class UniformDiscretizationConfig(DiscretizationConfig):
+
+    patch_widths = List.T(
+        Float.T(),
+        default=[5.],
+        help='List of Patch width [km] to divide reference sources. Each value'
+             ' is applied following the list-order to the respective reference'
+             ' source')
+    patch_lengths = List.T(
+        Float.T(),
+        default=[5.],
+        help='Patch length [km] to divide reference sources Each value'
+             ' is applied following the list-order to the respective reference'
+             ' source')
+
+    def get_patch_dimensions(self):
+        return self.patch_widths, self.patch_lengths
 
 
 class ResolutionDiscretizationConfig(DiscretizationConfig):
@@ -422,17 +424,36 @@ class ResolutionDiscretizationConfig(DiscretizationConfig):
         default=0.2,
         help='Decimal percentage of largest patches that are subdivided '
              'further. Reasonable: [0.1, 0.3]')
-    patch_bounds_dip = List.T(Float.T(),
-        default=[1., 5.],
-        help='Patch width [km] for min/max initial discretization of patches.')
-    patch_bounds_strike = List.T(Float.T(),
-        default=[1., 5.],
-        help='Patch length [km] for min/max initial discretization of'
+    patch_widths_min = List.T(
+        Float.T(),
+        default=[1.],
+        help='Patch width [km] for min final discretization of patches.')
+    patch_widths_max = List.T(
+        Float.T(),
+        default=[5.],
+        help='Patch width [km] for max initial discretization of patches.')
+    patch_lengths_min = List.T(
+        Float.T(),
+        default=[1.],
+        help='Patch length [km] for min final discretization of'
              ' patches.')
+    patch_lengths_max= List.T(
+        Float.T(),
+        default=[5.],
+        help='Patch length [km] for max initial discretization of'
+             ' patches.')
+
+    def get_patch_dimensions(self):
+        """
+        Returns
+        -------
+        List of patch_widths, List of patch_lengths
+        """
+        return self.patch_widths_max, self.patch_lengths_max
 
 
 discretization_catalog = {
-    'uniform': UniformDiscretization,
+    'uniform': UniformDiscretizationConfig,
     'resolution': ResolutionDiscretizationConfig}
 
 

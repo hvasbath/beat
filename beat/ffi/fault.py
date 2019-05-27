@@ -1,6 +1,7 @@
 from beat.utility import list2string, positions2idxs
 from beat.fast_sweeping import fast_sweep
 
+from beat.config import ResolutionDiscretizationConfig
 from beat.models.laplacian import get_smoothing_operator
 from .base import get_backend, geo_construct_gf_linear
 
@@ -61,6 +62,7 @@ class FaultGeometry(Cloneable):
         self.datatypes = datatypes
         self.components = components
         self._ext_sources = OrderedDict()
+        self._discretized_patches = OrderedDict()
         self.ordering = ordering
 
     def __str__(self):
@@ -101,9 +103,6 @@ total number of patches: %i ''' % (
         return datatype + '_' + component + '_' + str(index)
 
     def setup_subfaults(self, datatype, component, ext_sources, replace=False):
-
-        self._check_datatype(datatype)
-        self._check_component(component)
 
         if len(ext_sources) != self.nsubfaults:
             raise FaultGeometryError('Setup does not match fault ordering!')
@@ -164,7 +163,19 @@ total number of patches: %i ''' % (
 
         return subfaults
 
-    def get_subfault_patches(self, index, datatype=None, component=None):
+    def set_subfault_patches(
+            self, index, patches, datatype, component, replace=False):
+
+        source_key = get_subfault_key(index, datatype, component)
+
+        if source_key not in list(self._discretized_patches.keys()) or replace:
+            self._discretized_patches[source_key] = copy.deepcopy(patches)
+        else:
+            raise FaultGeometryError(
+                'Discretized Patches already specified in geometry!')
+
+    def get_subfault_patches(
+            self, index, datatype=None, component=None, type='pyrocko'):
         """
         Get all Patches to a subfault in the geometry.
 
@@ -180,11 +191,12 @@ total number of patches: %i ''' % (
         datatype = self._assign_datatype(datatype)
         component = self._assign_component(component)
 
-        subfault = self.get_subfault(
-            index, datatype=datatype, component=component)
-        npw, npl = self.ordering.get_subfault_discretization(index)
+        source_key = get_subfault_key(index, datatype, component)
 
-        return subfault.patches(nl=npl, nw=npw, datatype=datatype)
+        if source_key in list(self._discretized_patches.keys()):
+            return self._discretized_patches[source_key]
+        else:
+            raise FaultGeometryError('Requested Patches not defined!')
 
     def get_all_patches(self, datatype=None, component=None):
         """
@@ -423,6 +435,17 @@ total number of patches: %i ''' % (
     def npatches(self):
         return self.ordering.npatches
 
+    @property
+    def needs_optimization(self):
+        return isinstance(self.config, ResolutionDiscretizationConfig)
+
+    @property
+    def is_discretized(self):
+        npatches = 0
+        for patches in self._discretized_patches:
+            npatches += len(patches)
+        return True if npatches == self.npatches else False
+
 
 class FaultOrdering(object):
     """
@@ -481,16 +504,12 @@ class FaultOrdering(object):
         """
         self.vmap[index].shp
 
-    #@property
-    #def has_optimization(self):
-    #    return True if self.
-
 
 class FaultGeometryError(Exception):
     pass
 
 
-def discretize_sources(
+def initialise_fault_geometry(
         sources=None, extension_widths=[0.1], extension_lengths=[0.1],
         patch_widths=[5.], patch_lengths=[5.], datatypes=['geodetic'],
         varnames=['']):
@@ -594,14 +613,74 @@ def discretize_sources(
     return fault
 
 
+def discretize_sources(
+        config, sources=None, datatypes=['geodetic'], varnames=['']):
+    """
+    Create Fault Geometry and do uniform discretization
+
+    Paraameters
+    -----------
+    config: :class: `config.DiscretizationConfig`
+    sources : :class:`sources.RectangularSource`
+        Reference plane, which is being extended and
+    datatypes: list
+        of strings with datatypes
+    varnames : list
+        of str with variable names that are being optimized for
+
+    Returns
+    -------
+    """
+    patch_widths, patch_lengths = config.get_patch_dimensions()
+
+    fault = initialise_fault_geometry(
+        sources=sources,
+        extension_widths=config.extension_widths,
+        extension_lengths=config.extension_lengths,
+        patch_widths=patch_widths,
+        patch_lengths=patch_lengths,
+        datatypes=datatypes,
+        varnames=varnames)
+
+    if not fault.needs_optimization:
+        logger.info('Discretizing Fault uniformly')
+        # uniform discretization
+        for component in varnames:
+            for datatype in datatypes:
+                for index, sf in enumerate(
+                        fault.iter_subfaults(datatypes, component)):
+
+                    npw, npl = fault.ordering.get_subfault_discretization(index)
+                    patches = sf.patches(
+                        nl=npl, nw=npw, datatype=datatype, type='pyrocko')
+                    fault.set_subfault_patches(
+                        index, patches, datatype, component)
+    else:
+        if 'seismic' in datatypes:
+            raise ValueError(
+                'Resolution based discretizeation '
+                'is available for geodetic data only! ')
+
+        logger.info(
+            'Fault discretization selected to be resolution based.'
+            'Please execute Greens Function calculation '
+            'to optimize discretization!')
+
+    return fault
+
+
+
 def optimize_discretization(
-        fault, datasets, varnames, engine, targets, event, force, nworkers):
+        config, fault, datasets, varnames,
+        engine, targets, event, force, nworkers):
     """
     Resolution based discretization of the fault surfaces based on:
     Atzori & Antonioli 2011:
         Optimal fault resolution in geodetic inversion of coseismic data
     :return:
     """
+
+
 
     gfs_array = geo_construct_gf_linear(
         engine=engine, outdirectory='', crust_ind=0, datasets=datasets,
