@@ -1031,15 +1031,20 @@ def command_build_gfs(args):
                     raise AttributeError(
                         'Datatype "%s" not existing in config!' % datatype)
 
-                for source in gf.reference_sources:
-                    source.update(lat=c.event.lat, lon=c.event.lon)
+            if len(c.problem_config.datatypes) > 1:
+                logger.warning(
+                    'Found two datatypes! Please be aware that the reference'
+                    ' fault geometries have to be consistent!')
 
-                logger.info('Discretizing reference sources ...')
-                fault = ffi.discretize_sources(
-                    config=gf.discretization_config,
-                    varnames=slip_varnames,
-                    sources=gf.reference_sources,
-                    datatypes=options.datatypes)
+            for source in gf.reference_sources:
+                source.update(lat=c.event.lat, lon=c.event.lon)
+
+            logger.info('Discretizing reference sources ...')
+            fault = ffi.discretize_sources(
+                config=gf.discretization_config,
+                varnames=slip_varnames,
+                sources=gf.reference_sources,
+                datatypes=c.problem_config.datatypes)
 
             logger.info(
                 'Storing discretized fault geometry to: %s' % faultpath)
@@ -1113,6 +1118,16 @@ def command_build_gfs(args):
                                 event=c.event,
                                 force=options.force,
                                 nworkers=gf.nworkers)
+                            logger.info(
+                                'Storing optimizated discretized fault'
+                                ' geometry to: %s' % faultpath)
+                            utility.dump_objects(faultpath, [fault])
+                            logger.info(
+                                'Fault discretization optimization done!'
+                                'Updating problem_config...')
+                            logger.info('%s' % fault.__str__())
+                            c.problem_config.mode_config.npatches = fault.npatches
+                            bconfig.dump_config(c)
                         else:
                             ffi.geo_construct_gf_linear(
                                 engine=engine,

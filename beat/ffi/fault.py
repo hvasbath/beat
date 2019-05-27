@@ -613,6 +613,19 @@ def initialise_fault_geometry(
     return fault
 
 
+class InvalidDiscretizationError(Exception):
+
+    context = 'Resolution based discretizeation ' + \
+              ' is available for geodetic data only! \n' + \
+              ' Please assure uniform discretization in the configuration file!'
+
+    def __init__(self, errmess=''):
+        self.errmess = errmess
+
+    def __str__(self):
+        return '\n%s\n%s' % (self.errmess, self.context)
+
+
 def discretize_sources(
         config, sources=None, datatypes=['geodetic'], varnames=['']):
     """
@@ -642,29 +655,25 @@ def discretize_sources(
         datatypes=datatypes,
         varnames=varnames)
 
-    if not fault.needs_optimization:
-        logger.info('Discretizing Fault uniformly')
+    if fault.needs_optimization:
+        if 'seismic' in datatypes:
+            raise InvalidDiscretizationError('Seismic dataset!')
+
+        logger.info(
+            'Fault discretization selected to be resolution based.')
+    else:
+        logger.info('Discretization of Fault uniformly (initial)')
         # uniform discretization
         for component in varnames:
             for datatype in datatypes:
                 for index, sf in enumerate(
-                        fault.iter_subfaults(datatypes, component)):
+                        fault.iter_subfaults(datatype, component)):
 
                     npw, npl = fault.ordering.get_subfault_discretization(index)
                     patches = sf.patches(
                         nl=npl, nw=npw, datatype=datatype, type='pyrocko')
                     fault.set_subfault_patches(
                         index, patches, datatype, component)
-    else:
-        if 'seismic' in datatypes:
-            raise ValueError(
-                'Resolution based discretizeation '
-                'is available for geodetic data only! ')
-
-        logger.info(
-            'Fault discretization selected to be resolution based.'
-            'Please execute Greens Function calculation '
-            'to optimize discretization!')
 
     return fault
 
@@ -680,7 +689,16 @@ def optimize_discretization(
     :return:
     """
 
+    logger.info('Optimizing fault discretization based on resolution: ... \n')
 
+    datatype = 'geodetic'
+    patches = []
+    for component in varnames:
+        for index, sf in enumerate(
+                fault.iter_subfaults(datatype, component)):
+            npw, npl = fault.ordering.get_subfault_discretization(index)
+            patches.extent(sf.patches(
+                nl=npl, nw=npw, datatype=datatype, type='beat'))
 
     gfs_array = geo_construct_gf_linear(
         engine=engine, outdirectory='', crust_ind=0, datasets=datasets,
