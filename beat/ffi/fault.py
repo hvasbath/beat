@@ -166,7 +166,7 @@ total number of patches: %i ''' % (
     def set_subfault_patches(
             self, index, patches, datatype, component, replace=False):
 
-        source_key = get_subfault_key(index, datatype, component)
+        source_key = self.get_subfault_key(index, datatype, component)
 
         if source_key not in list(self._discretized_patches.keys()) or replace:
             self._discretized_patches[source_key] = copy.deepcopy(patches)
@@ -175,7 +175,7 @@ total number of patches: %i ''' % (
                 'Discretized Patches already specified in geometry!')
 
     def get_subfault_patches(
-            self, index, datatype=None, component=None, type='pyrocko'):
+            self, index, datatype=None, component=None):
         """
         Get all Patches to a subfault in the geometry.
 
@@ -191,7 +191,7 @@ total number of patches: %i ''' % (
         datatype = self._assign_datatype(datatype)
         component = self._assign_component(component)
 
-        source_key = get_subfault_key(index, datatype, component)
+        source_key = self.get_subfault_key(index, datatype, component)
 
         if source_key in list(self._discretized_patches.keys()):
             return self._discretized_patches[source_key]
@@ -389,6 +389,17 @@ total number of patches: %i ''' % (
             patch_size_strike=self.ordering.patch_sizes_strike[index],
             patch_size_dip=self.ordering.patch_sizes_dip[index])
 
+    def get_all_patch_sizes(self, datatype='geodetic'):
+        """
+        Return two vectors of width and length with patch sizes
+        """
+        patches = self.get_all_patches(datatype)
+
+        widths = num.array([patch.width for patch in patches])
+        lengths = num.array([patch.length for patch in patches])
+
+        return widths, lengths
+
     def fault_locations2idxs(
             self, index, positions_dip, positions_strike, backend='numpy'):
         """
@@ -432,8 +443,19 @@ total number of patches: %i ''' % (
         return len(self.ordering.vmap)
 
     @property
+    def subfault_npatches(self):
+        if len(self._discretized_patches) > 0:
+            npatches = []
+            for patches in self._discretized_patches:
+                npatches.append(len(patches))
+
+            return npatches
+        else:
+            return 0.
+
+    @property
     def npatches(self):
-        return self.ordering.npatches
+        return sum(self.subfault_npatches)
 
     @property
     def needs_optimization(self):
@@ -441,10 +463,8 @@ total number of patches: %i ''' % (
 
     @property
     def is_discretized(self):
-        npatches = 0
-        for patches in self._discretized_patches:
-            npatches += len(patches)
-        return True if npatches == self.npatches else False
+        # todo needs resolving
+        return True if self.npatches else False
 
 
 class FaultOrdering(object):
@@ -689,10 +709,28 @@ def optimize_discretization(
     :return:
     """
 
+    def sv_vec2matrix(sv_vec, ndata):
+        """
+        Transform vector of singular values to matrix (M, N),
+        M - data length
+        N - number of singular values
+
+        Parameters
+        ----------
+        sv_vec:
+        ndata: number of observations
+
+        Returns
+        -------
+        array-like (M x N)
+        """
+        return num.vstack(
+            [num.diag(sv_vec),
+             num.zeros((ndata - sv_vec.size, sv_vec.size))])
+
     logger.info('Optimizing fault discretization based on resolution: ... \n')
 
     datatype = 'geodetic'
-    patches_comp = {}
 
     patch_widths, patch_lengths = config.get_patch_dimensions()
     for component in varnames:
@@ -700,37 +738,40 @@ def optimize_discretization(
                 fault.iter_subfaults(datatype, component)):
             npw = sf.get_n_patches(patch_widths[index] * 2. * km, 'width')
             npl = sf.get_n_patches(patch_lengths[index] * 2. * km, 'length')
-            patches.extent(sf.patches(
-                nl=npl, nw=npw, datatype=datatype, type='beat'))
+            patches = sf.patches(
+                nl=npl, nw=npw, datatype=datatype, type='beat')
+            fault.set_subfault_patches(index, patches, datatype, component)
 
-        patches_comp[component] = patches
-
-    tobedivided = range(len(patches))
-
+    logger.info('Initial number of patches: %i' % fault.npatches)
+    tobedivided = fault.npatches
+    sf_div_idxs = [range(idxs) for idxs in fault.set_subfault_patches]
     while tobedivided:
         for component in varnames:
             gfs_array = []
-            for idx in tobedivided:
-                # pull out patch to be divided
-                patch = patches_comp[component].pop(idx)
-                if patch.length >= patch.width:
-                    div_patches = patch.patches(
-                        nl=2, nw=1, datatype=datatype, type='beat')
-                else:
-                    div_patches = patch.patches(
-                        nl=1, nw=2, datatype=datatype, type='beat')
+            # iterate over subfaults and divide patches
+            for sf_idx, (sf, div_idxs) in enumerate(zip(
+                    fault.iter_subfaults(datatype, component), sf_div_idxs)):
 
-                # insert back divided patches
-                for i, dpatch in enumerate(div_patches):
-                    patches_comp[component].insert(idx + i, dpatch)
+                patches = sf.get_subfault_patches(sf_idx, datatype, component)
+                for idx in div_idxs:
+                    # pull out patch to be divided
+                    patch = patches.pop(idx)
+                    if patch.length >= patch.width:
+                        div_patches = patch.patches(
+                            nl=2, nw=1, datatype=datatype, type='beat')
+                    else:
+                        div_patches = patch.patches(
+                            nl=1, nw=2, datatype=datatype, type='beat')
 
-                # todo resolve subfault index
-            fault.set_subfault_patches(
-                index, patches_comp[component], datatype, component)
+                    # insert back divided patches
+                    for i, dpatch in enumerate(div_patches):
+                        patches.insert(idx + i, dpatch)
 
-            npatches = len(patches_comp[component])
+                # register newly diveded patches with fault
+                fault.set_subfault_patches(
+                    sf_idx, patches, datatype, component)
 
-            # calculate GFs for patches is [npatches, nobservations]
+            # calculate GFs for fault is [npatches, nobservations]
             gfs = geo_construct_gf_linear(
                 engine=engine, outdirectory='', crust_ind=crust_ind,
                 datasets=datasets, targets=targets, fault=fault,
@@ -738,6 +779,21 @@ def optimize_discretization(
             gfs_array.append(gfs.T)
 
         # U data-space, L singular values, V model space
-        U, L, V = num.linalg.svd(num.hstack(gfs_array), full_matrices=True)
+        U, l, V = num.linalg.svd(num.vstack(gfs_array), full_matrices=True)
 
-        config.epsilon
+        # apply singular value damping
+        ldamped_inv = 1. / (L + config.epsilon)
+        Linv = sv_vec2matrix(ldamped_inv, ndata=U.shape[0])
+        L = sv_vec2matrix(l, ndata=U.shape[0])
+
+        # calculate resolution matrix and take trace
+        R = num.diag(num.dot(
+            V.dot(Linv.T).dot(U),
+            U.dot(L.dot(V.T))))
+
+        R_patch_idxs = num.argwhere(R > config.resolution_thresh)
+
+        # todo resolve subfaults
+        widths, lengths = fault.get_all_patch_sizes(datatype)
+        width_patch_idxs = num.argwhere(widths > config.resolution_thresh)
+        length_patch_idxs = num.argwhere(lengths > config.resolution_thresh)
