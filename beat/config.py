@@ -409,7 +409,7 @@ class ResolutionDiscretizationConfig(DiscretizationConfig):
     """
 
     epsilon = Float.T(
-        default=0.2,
+        default=5.e-3,
         help='Damping constant for SVD of Greens Functions. '
              'Reasonable between: [10e-2 to 10e-5]')
     resolution_thresh = Float.T(
@@ -418,7 +418,7 @@ class ResolutionDiscretizationConfig(DiscretizationConfig):
              'are below this threshold. The lower the finer the discretization. '
              'Reasonable between: [0.95, 0.99]')
     depth_penalty = Float.T(
-        default=5,
+        default=4.,
         help='The higher the number the more penalty on the deeper '
              'patches-ergo larger patches.')
     alpha = Float.T(
