@@ -81,7 +81,8 @@ class RectangularSource(gf.RectangularSource):
              num.cos(self.strike * d2r),
              0.])
 
-    def center(self, width):
+    @property
+    def center(self):
         """
         Get 3d fault center coordinates. Depth attribute is top depth!
 
@@ -97,7 +98,7 @@ class RectangularSource(gf.RectangularSource):
         """
 
         return num.array([self.east_shift, self.north_shift, self.depth]) + \
-            0.5 * width * self.dipvector
+            0.5 * self.width * self.dipvector
 
     def center2top_depth(self, center):
         """
@@ -119,15 +120,11 @@ class RectangularSource(gf.RectangularSource):
         return num.array([center[0], center[1], center[2]]) - \
             0.5 * self.width * self.dipvector
 
-    def bottom_depth(self, depth):
+    @property
+    def bottom_center(self):
         """
-        Get bottom depth of the fault [m].
+        Bottom depth of the fault [m].
         (Patches method needs input depth to be top_depth.)
-
-        Parameters
-        ----------
-        depth : scalar, float
-            depth [m] of the center of the fault
 
         Returns
         -------
@@ -135,30 +132,29 @@ class RectangularSource(gf.RectangularSource):
         lower edge of the fault
         """
 
-        return num.array([self.east_shift, self.north_shift, depth]) + \
-            0.5 * self.width * self.dipvector
+        return num.array([self.east_shift, self.north_shift, self.depth]) + \
+            self.width * self.dipvector
 
-    def trace_center(self, depth):
+    @property
+    def bottom_depth(self):
+        return float(self.bottom_center[2])
+
+    def trace_center(self):
         """
         Get trace central coordinates of the fault [m] at the surface of the
         halfspace.
 
-        Parameters
-        ----------
-        depth : scalar, float
-            depth [m] of the center of the fault
-
         Returns
         -------
         :class:`numpy.ndarray` with x, y, z coordinates of the central
         lower edge of the fault
         """
 
-        bd = self.bottom_depth(depth)
-        xtrace = bd[0] - \
-            (bd[2] * num.cos(d2r * self.strike) / num.tan(d2r * self.dip))
-        ytrace = bd[1] + \
-            (bd[2] * num.sin(d2r * self.strike) / num.tan(d2r * self.dip))
+        bc = self.bottom_center
+        xtrace = bc[0] - (
+                bc[2] * num.cos(d2r * self.strike) / num.tan(d2r * self.dip))
+        ytrace = bc[1] + (
+                bc[2] * num.sin(d2r * self.strike) / num.tan(d2r * self.dip))
         return num.array([xtrace, ytrace, 0.])
 
     def patches(self, nl, nw, datatype, type='pyrocko'):
@@ -275,7 +271,7 @@ class RectangularSource(gf.RectangularSource):
         logger.info(
             'Fault extended to length=%f, width=%f!' % (new_length, new_width))
 
-        orig_center = s.center(s.width)
+        orig_center = s.center
 
         s.update(length=new_length, width=new_width)
 
@@ -284,7 +280,7 @@ class RectangularSource(gf.RectangularSource):
         if top_center[2] < 0.:
             logger.info('Fault would intersect surface!'
                         ' Setting top center to 0.!')
-            trace_center = s.trace_center(s.depth)
+            trace_center = s.trace_center()
             s.update(east_shift=float(trace_center[0]),
                      north_shift=float(trace_center[1]),
                      depth=float(trace_center[2]))
