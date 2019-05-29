@@ -1,4 +1,4 @@
-from beat.utility import list2string, positions2idxs
+from beat.utility import list2string, positions2idxs, kmtypes
 from beat.fast_sweeping import fast_sweep
 
 from beat.config import ResolutionDiscretizationConfig
@@ -389,16 +389,31 @@ total number of patches: %i ''' % (
             patch_size_strike=self.ordering.patch_sizes_strike[index],
             patch_size_dip=self.ordering.patch_sizes_dip[index])
 
-    def get_all_patch_sizes(self, datatype='geodetic'):
+    def get_subfault_patch_attributes(
+            self, index, datatype='geodetic', component=None, attributes=['']):
         """
-        Return two vectors of width and length with patch sizes
+        Returns list of arrays of requested attributes.
+        If attributes have several fields they are concatenated to 2d arrays
         """
-        patches = self.get_all_patches(datatype)
+        patches = self.get_subfault_patches(index, datatype, component)
 
-        widths = num.array([patch.width for patch in patches])
-        lengths = num.array([patch.length for patch in patches])
+        ats_wanted = []
+        for attribute in attributes:
+            dummy = [getattr(patch, attribute) for patch in patches]
+            if isinstance(dummy[0], num.ndarray):
+                dummy = num.vstack(dummy)
+            else:
+                dummy = num.array(dummy)
 
-        return widths, lengths
+            if attribute in kmtypes:
+                dummy = dummy / km
+
+            ats_wanted.append(dummy)
+
+        if len(attributes) > 1:
+            return ats_wanted
+        else:
+            return ats_wanted[0]
 
     def fault_locations2idxs(
             self, index, positions_dip, positions_strike, backend='numpy'):
@@ -732,6 +747,16 @@ def optimize_discretization(
 
     datatype = 'geodetic'
 
+    east_shifts = []
+    north_shifts = []
+    for dataset in datasets:
+        ns, es = dataset.update_local_coordinates(event)
+        north_shifts.append(ns)
+        east_shifts.append(es)
+
+    data_coords = num.vstack(
+        num.hstack(east_shifts), num.hstack(north_shifts)).T
+
     patch_widths, patch_lengths = config.get_patch_dimensions()
     for component in varnames:
         for index, sf in enumerate(
@@ -791,9 +816,63 @@ def optimize_discretization(
             V.dot(Linv.T).dot(U),
             U.dot(L.dot(V.T))))
 
-        R_patch_idxs = num.argwhere(R > config.resolution_thresh)
+        R_idxs = num.argwhere(R > config.resolution_thresh).tolist()
 
-        # todo resolve subfaults
-        widths, lengths = fault.get_all_patch_sizes(datatype)
-        width_patch_idxs = num.argwhere(widths > config.resolution_thresh)
-        length_patch_idxs = num.argwhere(lengths > config.resolution_thresh)
+        # analysis for further patch division
+        div_idxs = []
+        tobedivided = 0
+        for i, sf in enumerate(fault.iter_subfaults()):
+            widths, lengths = fault.get_subfault_patch_attributes(
+                i, datatype, attributes=['width', 'length'])
+            width_idxs_max = num.argwhere(
+                widths > config.patch_widths_max[i]).tolist()
+            length_idxs_max = num.argwhere(
+                lengths > config.patch_lengths_max[i]).tolist()
+
+            width_idxs_min = set(num.argwhere(
+                widths < config.patch_widths_min[i]).tolist())
+            length_idxs_min = set(num.argwhere(
+                lengths < config.patch_lengths_min[i]).tolist())
+
+            # patches that fulfill both size thresholds
+            patch_size_ids = width_idxs_min.intersection(length_idxs_min)
+
+            # patches above R but below size thresholds
+            unique_ids = set(
+                R_idxs + width_idxs_max + length_idxs_max).difference(
+                patch_size_ids)
+
+            ncandidates = sum(unique_ids)
+            if ncandidates:
+                # calculate division penalties
+                uids = num.array(list(unique_ids))
+                area_pen = widths[uids] * lengths[uids]
+
+                bdepths = fault.get_subfault_patch_attributes(
+                    i, datatype, attributes=['bottom_depth'])
+                c_one_pen = num.exp(
+                    -config.depth_penalty * bdepths[uids] / sf.bottom_depth)
+
+
+                centers = fault.get_subfault_patch_attributes(
+                    i, datatype, attributes=['center'])[:,:-1]
+                cand_centers = centers[uids, :]
+
+                data_coords_rep = num.tile(data_coords, ncandidates).reshape(
+                    data_coords.shape[0], ncandidates, 2)
+                patch_data_distances = num.sqrt(num.power(
+                    data_coords_rep - cand_centers, 2).sum(axis=2)).min(axis=0)
+                c_two_pen = patch_data_distances.min() / patch_data_distances
+
+                centers_rep = num.tile(centers, ncandidates).reshape(
+                    centers.shape[0], ncandidates, 2)
+                inter_patch_distances = num.sqrt(num.power(
+                    centers_rep - cand_centers, 2).sum(axis=2))
+                c_three_pen = (R * inter_patch_distances).sum(axis=0) / \
+                              inter_patch_distances.sum(axis=0)
+
+                rating = A * c_one_pen * c_two_pen * c_three_pen
+
+            else:
+                pass
+

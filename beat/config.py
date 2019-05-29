@@ -417,11 +417,11 @@ class ResolutionDiscretizationConfig(DiscretizationConfig):
              'are below this threshold. The lower the finer the discretization. '
              'Reasonable between: [0.95, 0.99]')
     depth_penalty = Float.T(
-        default=4.,
+        default=3.5,
         help='The higher the number the more penalty on the deeper '
              'patches-ergo larger patches.')
     alpha = Float.T(
-        default=0.2,
+        default=0.3,
         help='Decimal percentage of largest patches that are subdivided '
              'further. Reasonable: [0.1, 0.3]')
     patch_widths_min = List.T(
