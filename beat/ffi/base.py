@@ -837,7 +837,7 @@ def geo_construct_gf_linear(
 
     nsamples = odws.size
     npatches = fault.npatches
-    print(fault.subfault_npatches)
+
     logger.info('Using %i workers ...' % nworkers)
 
     for var in varnames:
@@ -868,8 +868,9 @@ def geo_construct_gf_linear(
 
             gfs.setup(npatches, nsamples, allocate=allocate)
 
-            logger.info(
-                "Setting up Green's Function Library: %s \n ", gfs.__str__())
+            if outdirectory:
+                logger.info(
+                    "Setting up Green's Function Library: %s \n ", gfs.__str__())
 
             parallel.check_available_memory(gfs.filesize)
 
