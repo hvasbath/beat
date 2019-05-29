@@ -1048,34 +1048,39 @@ def command_build_gfs(args):
                 sources=gf.reference_sources,
                 datatypes=c.problem_config.datatypes)
 
-            logger.info(
-                'Storing discretized fault geometry to: %s' % faultpath)
-            utility.dump_objects(faultpath, [fault])
+            if gf.discretization == 'uniform':
+                logger.info(
+                    'Fault discretization done! Updating problem_config...')
+                logger.info('%s' % fault.__str__())
 
-            logger.info(
-                'Fault discretization done! Updating problem_config...')
-            logger.info('%s' % fault.__str__())
-            c.problem_config.n_sources = fault.nsubfaults
-            c.problem_config.mode_config.npatches = fault.npatches
+                c.problem_config.n_sources = fault.nsubfaults
+                c.problem_config.mode_config.npatches = fault.npatches
 
-            nucleation_strikes = []
-            nucleation_dips = []
-            for i in range(fault.nsubfaults):
-                ext_source = fault.get_subfault(
-                    i, datatype=options.datatypes[0], component='uparr')
+                nucleation_strikes = []
+                nucleation_dips = []
+                for i in range(fault.nsubfaults):
+                    ext_source = fault.get_subfault(
+                        i, datatype=options.datatypes[0], component='uparr')
 
-                nucleation_dips.append(ext_source.width / km)
-                nucleation_strikes.append(ext_source.length / km)
+                    nucleation_dips.append(ext_source.width / km)
+                    nucleation_strikes.append(ext_source.length / km)
 
-            nucl_start = num.zeros(fault.nsubfaults)
-            new_bounds = {
-                'nucleation_strike': (
-                    nucl_start, num.array(nucleation_strikes)),
-                'nucleation_dip': (nucl_start, num.array(nucleation_dips))
-            }
+                nucl_start = num.zeros(fault.nsubfaults)
+                new_bounds = {
+                    'nucleation_strike': (
+                        nucl_start, num.array(nucleation_strikes)),
+                    'nucleation_dip': (nucl_start, num.array(nucleation_dips))
+                }
 
-            c.problem_config.set_vars(new_bounds)
-            bconfig.dump_config(c)
+                c.problem_config.set_vars(new_bounds)
+                bconfig.dump_config(c)
+                logger.info(
+                    'Storing discretized fault geometry to: %s' % faultpath)
+                utility.dump_objects(faultpath, [fault])
+            else:
+                logger.info(
+                    'For resolution based discretization GF calculation'
+                    'has to be started!')
 
         elif os.path.exists(faultpath):
             logger.info("Discretized fault geometry exists! Use --force to"
@@ -1109,7 +1114,7 @@ def command_build_gfs(args):
                             crust_inds=[crust_ind],
                             sample_rate=gf.sample_rate)
 
-                        if fault.is_discretized and fault.needs_optimization:
+                        if not fault.is_discretized and fault.needs_optimization:
                             fault = ffi.optimize_discretization(
                                 config=gf.discretization_config,
                                 fault=fault,
