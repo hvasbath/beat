@@ -3127,7 +3127,7 @@ def draw_moment_rate(problem, po):
             logger.info('Plot exists! Use --force to overwrite!')
 
 
-def source_geometry(fault, ref_sources):
+def source_geometry(fault, ref_sources, datasets=None):
     """
     Plot source geometry in 3d rotatable view
 
@@ -3172,6 +3172,12 @@ def source_geometry(fault, ref_sources):
             ax.text(
                 patch.east_shift, patch.north_shift, patch.depth * -1., str(i),
                 fontsize=10)
+
+    if datasets:
+        for dataset in datasets:
+            ax.scatter(
+                dataset.east_shifts, dataset.north_shifts, dataset.coords5[:, 4],
+                s=10, alpha=0.6, marker='o', color='black')
 
     scale = {'scale': 1. / km}
     scale_axes(ax.xaxis, **scale)

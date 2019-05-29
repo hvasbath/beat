@@ -180,9 +180,9 @@ class RectangularSource(gf.RectangularSource):
         :class:`pyrocko.gf.seismosizer.RectangularSource` depending on
         datatype. Depth is being updated from top_depth to center_depth.
         """
-        if type = 'pyrocko':
+        if type == 'pyrocko':
             source_class = gf.RectangularSource
-        elif type = 'beat':
+        elif type == 'beat':
             source_class = RectangularSource
         else:
             raise ValueError('Supported types are: "beat, pyrocko"')
@@ -195,7 +195,7 @@ class RectangularSource(gf.RectangularSource):
             for i in range(nl):
                 sub_top = self.depth + \
                     self.strikevector * ((i + 0.5 - 0.5 * nl) * length) + \
-                    self.dipvector * ((j + 0.5 - 0.5 * nw) * width)
+                    self.dipvector * (j * width)
 
                 patch = source_class(
                     lat=float(self.lat),
