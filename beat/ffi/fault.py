@@ -819,7 +819,7 @@ def optimize_discretization(
         R_idxs = num.argwhere(R > config.resolution_thresh).tolist()
 
         # analysis for further patch division
-        div_idxs = []
+        sf_div_idxs = []
         tobedivided = 0
         for i, sf in enumerate(fault.iter_subfaults()):
             widths, lengths = fault.get_subfault_patch_attributes(
@@ -872,7 +872,13 @@ def optimize_discretization(
                               inter_patch_distances.sum(axis=0)
 
                 rating = A * c_one_pen * c_two_pen * c_three_pen
+                rating_idxs = num.argsort(rating)
+                div_idxs = uids[rating_idxs[range(
+                    ceil(config.alpha * ncandidates))]].tolist()
+                logger.info(
+                    'Patches: %s of subfault %i / %i are further divided.' % (
+                        list2string(div_idxs), i, fault.nsubfaults))
+                sf_div_idxs.append(div_idxs)
 
-            else:
-                pass
-
+    logger.info('Finished resolution based fault discretization.')
+    return fault
