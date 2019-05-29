@@ -791,7 +791,7 @@ filename: %s''' % (
 def _process_patch_geodetic(
         engine, gfs, targets, patch, patchidx, los_vectors, odws):
 
-    logger.info('Patch Number %i', patchidx)
+    logger.debug('Patch Number %i', patchidx)
     logger.debug('Calculating synthetics ...')
     disp = heart.geo_synthetics(
         engine=engine,
@@ -837,6 +837,7 @@ def geo_construct_gf_linear(
 
     nsamples = odws.size
     npatches = fault.npatches
+    print(fault.subfault_npatches)
     logger.info('Using %i workers ...' % nworkers)
 
     for var in varnames:
@@ -908,7 +909,7 @@ def _process_patch_seismic(
     # ensure stf anchor point at -1
     patch.stf.anchor = -1
     source_patches_durations = []
-    logger.info('Patch Number %i', patchidx)
+    logger.debug('Patch Number %i', patchidx)
 
     for duration in durations:
         pcopy = patch.clone()

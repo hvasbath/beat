@@ -56,14 +56,16 @@ class FaultGeometry(Cloneable):
         be stored
     ordering : :class:`FaultOrdering`
         comprises patch information related to subfaults
+    config : :class: `config.DiscretizationConfig`
     """
 
-    def __init__(self, datatypes, components, ordering):
+    def __init__(self, datatypes, components, ordering, config=None):
         self.datatypes = datatypes
         self.components = components
         self._ext_sources = OrderedDict()
         self._discretized_patches = OrderedDict()
         self.ordering = ordering
+        self.config = config
 
     def __str__(self):
         s = '''
@@ -460,8 +462,12 @@ total number of patches: %i ''' % (
     @property
     def subfault_npatches(self):
         if len(self._discretized_patches) > 0:
+            print(self._discretized_patches.keys())
             npatches = []
-            for patches in self._discretized_patches:
+            for index in range(self.nsubfaults):
+                key = self.get_subfault_key(
+                    index, datatype=None, component=None)
+                patches = self._discretized_patches[key]
                 npatches.append(len(patches))
 
             return npatches
@@ -537,7 +543,7 @@ class FaultOrdering(object):
         tuple (dip, strike)
             number of patches in fault direction
         """
-        self.vmap[index].shp
+        return self.vmap[index].shp
 
 
 class FaultGeometryError(Exception):
@@ -545,7 +551,7 @@ class FaultGeometryError(Exception):
 
 
 def initialise_fault_geometry(
-        sources=None, extension_widths=[0.1], extension_lengths=[0.1],
+        config, sources=None, extension_widths=[0.1], extension_lengths=[0.1],
         patch_widths=[5.], patch_lengths=[5.], datatypes=['geodetic'],
         varnames=['']):
     """
@@ -556,6 +562,7 @@ def initialise_fault_geometry(
 
     Parameters
     ----------
+    config : :class: `config.DiscretizationConfig`
     sources : :class:`sources.RectangularSource`
         Reference plane, which is being extended and
     extension_width : float
@@ -619,7 +626,7 @@ def initialise_fault_geometry(
         npls, npws,
         patch_sizes_strike=patch_lengths, patch_sizes_dip=patch_widths)
 
-    fault = FaultGeometry(datatypes, varnames, ordering)
+    fault = FaultGeometry(datatypes, varnames, ordering, config=config)
 
     for datatype in datatypes:
         logger.info('Discretizing %s source(s)' % datatype)
@@ -682,6 +689,7 @@ def discretize_sources(
     patch_widths, patch_lengths = config.get_patch_dimensions()
 
     fault = initialise_fault_geometry(
+        config=config,
         sources=sources,
         extension_widths=config.extension_widths,
         extension_lengths=config.extension_lengths,
@@ -750,7 +758,7 @@ def optimize_discretization(
     east_shifts = []
     north_shifts = []
     for dataset in datasets:
-        ns, es = dataset.update_local_coordinates(event)
+        ns, es = dataset.update_local_coords(event)
         north_shifts.append(ns)
         east_shifts.append(es)
 
@@ -843,6 +851,7 @@ def optimize_discretization(
                 patch_size_ids)
 
             ncandidates = sum(unique_ids)
+            logger.info('Found %i candidates for division.' % ncandidates)
             if ncandidates:
                 # calculate division penalties
                 uids = num.array(list(unique_ids))

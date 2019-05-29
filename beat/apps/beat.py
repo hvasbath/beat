@@ -191,6 +191,8 @@ def cl_parse(command, args, setup=None, details=None):
 
 def list_callback(option, opt, value, parser):
     out = [ival.lstrip() for ival in value.split(',')]
+    if out == ['']:
+        out = []
     setattr(parser.values, option.dest, out)
 
 
@@ -1125,7 +1127,7 @@ def command_build_gfs(args):
                             sample_rate=gf.sample_rate)
 
                         if fault.is_discretized and fault.needs_optimization:
-                            ffi.optimize_discretization(
+                            fault = ffi.optimize_discretization(
                                 config=gf.discretization_config,
                                 fault=fault,
                                 datasets=datasets,
@@ -1146,18 +1148,18 @@ def command_build_gfs(args):
                             logger.info('%s' % fault.__str__())
                             c.problem_config.mode_config.npatches = fault.npatches
                             bconfig.dump_config(c)
-                        else:
-                            ffi.geo_construct_gf_linear(
-                                engine=engine,
-                                outdirectory=outdir,
-                                event=c.event,
-                                crust_ind=crust_ind,
-                                datasets=datasets,
-                                targets=targets,
-                                nworkers=gf.nworkers,
-                                fault=fault,
-                                varnames=slip_varnames,
-                                force=options.force)
+
+                        ffi.geo_construct_gf_linear(
+                            engine=engine,
+                            outdirectory=outdir,
+                            event=c.event,
+                            crust_ind=crust_ind,
+                            datasets=datasets,
+                            targets=targets,
+                            nworkers=gf.nworkers,
+                            fault=fault,
+                            varnames=slip_varnames,
+                            force=options.force)
 
                 elif datatype == 'seismic':
                     seismic_data_path = pjoin(
@@ -1419,7 +1421,7 @@ def command_check(args):
             type='string',
             action='callback',
             callback=list_callback,
-            help='Indexes to targets to display.')
+            help='Indexes to targets/datasets to display.')
 
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
@@ -1493,12 +1495,22 @@ def command_check(args):
                             snuffle(trs)
     elif options.what == 'geometry':
         from beat.plotting import source_geometry
-        datatype = problem.config.problem_config.datatypes[0]
+        if 'geodetic' in problem.config.problem_config.datatypes:
+            datatype = 'geodetic'
+            datasets = []
+            for i in options.targets:
+                dataset = problem.composites[datatype].datasets[int(i)]
+                dataset.update_local_coords(problem.config.event)
+                datasets.append(dataset)
+        else:
+            datatype = problem.config.problem_config.datatypes[0]
+            datasets = None
+
         if options.mode == ffi_mode_str:
             fault = problem.composites[datatype].load_fault_geometry()
             reference_sources = problem.config[
                 datatype + '_config'].gf_config.reference_sources
-            source_geometry(fault, reference_sources)
+            source_geometry(fault, reference_sources, datasets)
         else:
             logger.warning(
                 'Checking geometry is only for'

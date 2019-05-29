@@ -474,7 +474,7 @@ class LinearGFConfig(GFConfig):
         help='Flag for discretization of finite sources into patches.'
              ' Choices: %s' % utility.list2string(_discretization_choices))
     discretization_config = DiscretizationConfig.T(
-        default=UniformDiscretization.D(),
+        default=UniformDiscretizationConfig.D(),
         help='Discretization configuration that allows customization.'
     )
 
@@ -494,10 +494,10 @@ class LinearGFConfig(GFConfig):
                 kwargs['discretization_config'] = wanted_config()
             else:
                 kwargs['discretization_config'] = discretization_config
-        else:
-            raise ValueError('Discretization has to be specified!')
-
-        kwargs['discretization'] = discr
+        #else:
+        #    raise ValueError('Discretization has to be specified!')
+        if discr:
+            kwargs['discretization'] = discr
 
         Object.__init__(self, **kwargs)
 
