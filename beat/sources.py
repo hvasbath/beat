@@ -193,10 +193,9 @@ class RectangularSource(gf.RectangularSource):
         patches = []
         for j in range(nw):
             for i in range(nl):
-                sub_top = self.depth + \
+                sub_top = self.center2top_depth(self.center) + \
                     self.strikevector * ((i + 0.5 - 0.5 * nl) * length) + \
                     self.dipvector * (j * width)
-                print('inside patches', sub_top)
 
                 patch = source_class(
                     lat=float(self.lat),

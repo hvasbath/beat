@@ -761,6 +761,8 @@ def optimize_discretization(
             [num.diag(sv_vec),
              num.zeros((ndata - sv_vec.size, sv_vec.size))])
 
+    pvn = varnames.pop(1)
+    print('popped', pvn)
     logger.info('Optimizing fault discretization based on resolution: ... \n')
 
     datatype = 'geodetic'
@@ -788,7 +790,7 @@ def optimize_discretization(
     logger.info('Initial number of patches: %i' % fault.npatches)
     tobedivided = fault.npatches
 
-    source_geometry(fault, list(fault.iter_subfaults()))
+    #source_geometry(fault, list(fault.iter_subfaults()))
     sf_div_idxs = [range(idxs - 1, -1, -1) for idxs in fault.subfault_npatches]
     while tobedivided:
         for component in varnames:
@@ -804,7 +806,7 @@ def optimize_discretization(
 
                     # pull out patch to be divided
                     patch = patches.pop(idx)
-                    print('popped', idx, patch)
+                    #print('popped', idx, patch)
                     if patch.length >= patch.width:
                         div_patches = patch.patches(
                             nl=2, nw=1, datatype=datatype, type='beat')
@@ -814,14 +816,14 @@ def optimize_discretization(
 
                     # insert back divided patches
                     for i, dpatch in enumerate(div_patches):
-                        print('split', dpatch)
+                        #print('split', dpatch)
                         patches.insert(idx, dpatch)
 
                 # register newly diveded patches with fault
                 fault.set_subfault_patches(
                     sf_idx, patches, datatype, component, replace=True)
 
-            source_geometry(fault, list(fault.iter_subfaults()))
+            #source_geometry(fault, list(fault.iter_subfaults()))
 
             logger.info("Calculating Green's Functions for %i "
                         "patches." % fault.npatches)
@@ -836,14 +838,15 @@ def optimize_discretization(
         # U data-space, L singular values, V model space
         U, l, V = num.linalg.svd(num.vstack(gfs_array), full_matrices=True)
 
+        print(U, V, l)
         # apply singular value damping
         ldamped_inv = 1. / (l + config.epsilon)
         Linv = sv_vec2matrix(ldamped_inv, ndata=U.shape[0])
         L = sv_vec2matrix(l, ndata=U.shape[0])
-
+        print(Linv, L)
         # calculate resolution matrix and take trace
         R = num.diag(num.dot(
-            V.dot(Linv.T).dot(U),
+            V.dot(Linv.T).dot(U.T),
             U.dot(L.dot(V.T))))
         print(R)
         R_idxs = num.argwhere(R > config.resolution_thresh).ravel().tolist()
@@ -940,5 +943,6 @@ def optimize_discretization(
         else:
             tobedivided = 0
 
+    source_geometry(fault, list(fault.iter_subfaults()))
     logger.info('Finished resolution based fault discretization.')
     return fault
