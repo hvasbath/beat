@@ -786,13 +786,17 @@ def optimize_discretization(
 
     logger.info('Initial number of patches: %i' % fault.npatches)
     tobedivided = fault.npatches
-    sf_div_idxs = [range(idxs) for idxs in fault.subfault_npatches]
+
+    sf_div_idxs = [range(idxs - 1, -1, -1) for idxs in fault.subfault_npatches]
     while tobedivided:
         for component in varnames:
+            logger.info('Component %s' % component)
             gfs_array = []
             # iterate over subfaults and divide patches
             for sf_idx, div_idxs in zip(range(fault.nsubfaults), sf_div_idxs):
-
+                logger.info(
+                    'Subfault %i division indexes %s' % (
+                        sf_idx, list2string(div_idxs)))
                 patches = fault.get_subfault_patches(sf_idx, datatype, component)
                 for idx in div_idxs:
                     # pull out patch to be divided
@@ -818,7 +822,7 @@ def optimize_discretization(
             gfs = geo_construct_gf_linear(
                 engine=engine, outdirectory='', crust_ind=crust_ind,
                 datasets=datasets, targets=targets, fault=fault,
-                varnames=varnames, force=force, event=event, nworkers=nworkers)
+                varnames=[component], force=force, event=event, nworkers=nworkers)
             gfs_array.append(gfs.T)
 
         # U data-space, L singular values, V model space
@@ -872,7 +876,6 @@ def optimize_discretization(
         print(unique_ids, patch_size_ids)
         ncandidates = len(unique_ids)
 
-        # TODO make following for all subfaults at once?!
         logger.info(
             'Found %i candidates for division for '
             'subfault(s) %i' % (ncandidates, fault.nsubfaults))
@@ -908,15 +911,26 @@ def optimize_discretization(
 
             rating = area_pen * c_one_pen * c_two_pen * c_three_pen
             rating_idxs = num.argsort(rating)
-            div_idxs = uids[rating_idxs[range(
-                int(num.ceil(config.alpha * ncandidates)))]].tolist()
+            idxs = uids[rating_idxs[range(
+                int(num.ceil(config.alpha * ncandidates)))]]
             logger.info(
                 'Patches: %s of %i subfault(s) are further divided.' % (
-                    list2string(div_idxs), fault.nsubfaults))
+                    list2string(idxs.tolist()), fault.nsubfaults))
+            tobedivided = len(idxs)
 
-            # TODO resort div_idxs back to subfault system
-            sf_div_idxs.append(div_idxs)
-            tobedivided = len(div_idxs)
+            # re-arrange indexes to subfaults
+            cum_n_patches = num.cumsum([0] + fault.subfault_npatches)
+            for i in range(fault.nsubfaults):
+                start = cum_n_patches[i]
+                end = cum_n_patches[i + 1]
+                print(start, end)
+                div_idxs = idxs[(idxs >= start) & (idxs < end)] - start
+                # append indexes in descending sorted order
+                div_idxs[::-1].sort()
+                sf_div_idxs.append(div_idxs.tolist())
+
+        else:
+            tobedivided = 0
 
     logger.info('Finished resolution based fault discretization.')
     return fault
