@@ -740,6 +740,7 @@ def optimize_discretization(
         Optimal fault resolution in geodetic inversion of coseismic data
     :return:
     """
+    from beat.plotting import source_geometry
 
     def sv_vec2matrix(sv_vec, ndata):
         """
@@ -787,6 +788,7 @@ def optimize_discretization(
     logger.info('Initial number of patches: %i' % fault.npatches)
     tobedivided = fault.npatches
 
+    source_geometry(fault, list(fault.iter_subfaults()))
     sf_div_idxs = [range(idxs - 1, -1, -1) for idxs in fault.subfault_npatches]
     while tobedivided:
         for component in varnames:
@@ -799,8 +801,10 @@ def optimize_discretization(
                         sf_idx, list2string(div_idxs)))
                 patches = fault.get_subfault_patches(sf_idx, datatype, component)
                 for idx in div_idxs:
+
                     # pull out patch to be divided
                     patch = patches.pop(idx)
+                    print('popped', idx, patch)
                     if patch.length >= patch.width:
                         div_patches = patch.patches(
                             nl=2, nw=1, datatype=datatype, type='beat')
@@ -810,11 +814,15 @@ def optimize_discretization(
 
                     # insert back divided patches
                     for i, dpatch in enumerate(div_patches):
-                        patches.insert(idx + i, dpatch)
+                        print('split', dpatch)
+                        patches.insert(idx, dpatch)
 
                 # register newly diveded patches with fault
                 fault.set_subfault_patches(
                     sf_idx, patches, datatype, component, replace=True)
+
+            source_geometry(fault, list(fault.iter_subfaults()))
+
             logger.info("Calculating Green's Functions for %i "
                         "patches." % fault.npatches)
 
