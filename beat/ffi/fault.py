@@ -402,7 +402,6 @@ total number of patches: %i ''' % (
         ----------
         index: int or list of ints
         """
-        print(index, index.__class__)
         if isinstance(index, list):
             patches = []
             for i in index:
@@ -761,8 +760,6 @@ def optimize_discretization(
             [num.diag(sv_vec),
              num.zeros((ndata - sv_vec.size, sv_vec.size))])
 
-    pvn = varnames.pop(1)
-    print('popped', pvn)
     logger.info('Optimizing fault discretization based on resolution: ... \n')
 
     datatype = 'geodetic'
@@ -771,8 +768,8 @@ def optimize_discretization(
     north_shifts = []
     for dataset in datasets:
         ns, es = dataset.update_local_coords(event)
-        north_shifts.append(ns)
-        east_shifts.append(es)
+        north_shifts.append(ns / km)
+        east_shifts.append(es / km)
 
     data_coords = num.vstack(
         [num.hstack(east_shifts), num.hstack(north_shifts)]).T
@@ -781,8 +778,8 @@ def optimize_discretization(
     for component in varnames:
         for index, sf in enumerate(
                 fault.iter_subfaults(datatype, component)):
-            npw = sf.get_n_patches(patch_widths[index] * 2. * km, 'width')
-            npl = sf.get_n_patches(patch_lengths[index] * 2. * km, 'length')
+            npw = sf.get_n_patches(patch_widths[index] * km, 'width')
+            npl = sf.get_n_patches(patch_lengths[index] * km, 'length')
             patches = sf.patches(
                 nl=npl, nw=npw, datatype=datatype, type='beat')
             fault.set_subfault_patches(index, patches, datatype, component)
@@ -790,8 +787,14 @@ def optimize_discretization(
     logger.info('Initial number of patches: %i' % fault.npatches)
     tobedivided = fault.npatches
 
-    #source_geometry(fault, list(fault.iter_subfaults()))
-    sf_div_idxs = [range(idxs - 1, -1, -1) for idxs in fault.subfault_npatches]
+    sf_div_idxs = []
+    for i, sf in enumerate(fault.iter_subfaults()):
+        if sf.width /km <= config.patch_widths_min[i] or \
+                sf.length / km <= config.patch_lengths_min[i]:
+            sf_div_idxs = []
+        else:
+            sf_div_idxs.append(range(fault.subfault_npatches[i] - 1, -1, -1))
+
     while tobedivided:
         for component in varnames:
             logger.info('Component %s' % component)
@@ -806,7 +809,6 @@ def optimize_discretization(
 
                     # pull out patch to be divided
                     patch = patches.pop(idx)
-                    #print('popped', idx, patch)
                     if patch.length >= patch.width:
                         div_patches = patch.patches(
                             nl=2, nw=1, datatype=datatype, type='beat')
@@ -816,7 +818,6 @@ def optimize_discretization(
 
                     # insert back divided patches
                     for i, dpatch in enumerate(div_patches):
-                        #print('split', dpatch)
                         patches.insert(idx + i, dpatch)
 
                 # register newly diveded patches with fault
@@ -839,7 +840,7 @@ def optimize_discretization(
         U, l, V = num.linalg.svd(num.vstack(gfs_array), full_matrices=True)
 
         # apply singular value damping
-        ldamped_inv = 1. / (l + config.epsilon)
+        ldamped_inv = 1. / (l + config.epsilon ** 2)
         Linv = sv_vec2matrix(ldamped_inv, ndata=U.shape[0])
         L = sv_vec2matrix(l, ndata=U.shape[0])
 
@@ -847,7 +848,7 @@ def optimize_discretization(
         R = num.diag(num.dot(
             V.dot(Linv.T).dot(U.T),
             U.dot(L.dot(V.T))))
-        print(R)
+
         R_idxs = num.argwhere(R > config.resolution_thresh).ravel().tolist()
 
         # analysis for further patch division
@@ -878,17 +879,16 @@ def optimize_discretization(
         # patches that fulfill both size thresholds
         patch_size_ids = set(width_idxs_min).intersection(set(length_idxs_min))
 
-        print(R_idxs, width_idxs_max, length_idxs_max)
         # patches above R but below size thresholds
         unique_ids = set(
             R_idxs + width_idxs_max + length_idxs_max).difference(
             patch_size_ids)
-        print(unique_ids, patch_size_ids)
+
         ncandidates = len(unique_ids)
 
         logger.info(
-            'Found %i candidates for division for '
-            'subfault(s) %i' % (ncandidates, fault.nsubfaults))
+            'Found %i candidate(s) for division for '
+            ' %i subfault(s)' % (ncandidates, fault.nsubfaults))
         if ncandidates:
             subfault_idxs = list(range(fault.nsubfaults))
             # calculate division penalties
@@ -897,10 +897,15 @@ def optimize_discretization(
                 subfault_idxs, datatype, attributes=['width', 'length'])
             area_pen = widths[uids] * lengths[uids]
 
-            bdepths = fault.get_subfault_patch_attributes(
-                subfault_idxs, datatype, attributes=['bottom_depth'])
-            c_one_pen = num.exp(
-                -config.depth_penalty * bdepths[uids] / sf.bottom_depth)
+            c1 = []
+            for i, sf in enumerate(fault.iter_subfaults()):
+                bdepths = fault.get_subfault_patch_attributes(
+                    i, datatype, attributes=['bottom_depth'])
+                c1.extend(num.exp(
+                    -config.depth_penalty * bdepths /
+                    sf.bottom_depth * km).tolist())
+
+            c_one_pen = num.array(c1)[uids]
 
             centers = fault.get_subfault_patch_attributes(
                 subfault_idxs, datatype, attributes=['center'])[:,:-1]
@@ -910,18 +915,21 @@ def optimize_discretization(
                 data_coords.shape[0], ncandidates, 2)
             patch_data_distances = num.sqrt(num.power(
                 data_coords_rep - cand_centers, 2).sum(axis=2)).min(axis=0)
+
             c_two_pen = patch_data_distances.min() / patch_data_distances
 
             centers_rep = num.tile(centers, ncandidates).reshape(
                 centers.shape[0], ncandidates, 2)
             inter_patch_distances = num.sqrt(num.power(
                 centers_rep - cand_centers, 2).sum(axis=2))
+
             c_three_pen = (R * inter_patch_distances.T).sum(axis=1) / \
                           inter_patch_distances.sum(axis=0)
 
+            #print(area_pen, c_one_pen, c_two_pen, c_three_pen)
             rating = area_pen * c_one_pen * c_two_pen * c_three_pen
-            print('rating', rating)
-            rating_idxs = num.argsort(rating)
+            rating_idxs = rating.argsort()[::-1]
+
             idxs = uids[rating_idxs[range(
                 int(num.ceil(config.alpha * ncandidates)))]]
             logger.info(
@@ -934,7 +942,6 @@ def optimize_discretization(
             for i in range(fault.nsubfaults):
                 start = cum_n_patches[i]
                 end = cum_n_patches[i + 1]
-                print(start, end)
                 div_idxs = idxs[(idxs >= start) & (idxs < end)] - start
                 # append indexes in descending sorted order
                 div_idxs[::-1].sort()
@@ -945,4 +952,5 @@ def optimize_discretization(
 
     source_geometry(fault, list(fault.iter_subfaults()))
     logger.info('Finished resolution based fault discretization.')
+    logger.info('Quality index for this discretization: %f' % R.mean())
     return fault

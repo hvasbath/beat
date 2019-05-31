@@ -1079,7 +1079,7 @@ def command_build_gfs(args):
                 utility.dump_objects(faultpath, [fault])
             else:
                 logger.info(
-                    'For resolution based discretization GF calculation'
+                    'For resolution based discretization GF calculation '
                     'has to be started!')
 
         elif os.path.exists(faultpath):
