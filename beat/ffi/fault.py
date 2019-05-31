@@ -953,4 +953,4 @@ def optimize_discretization(
     source_geometry(fault, list(fault.iter_subfaults()))
     logger.info('Finished resolution based fault discretization.')
     logger.info('Quality index for this discretization: %f' % R.mean())
-    return fault
+    return fault, R
