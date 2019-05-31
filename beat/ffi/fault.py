@@ -644,7 +644,7 @@ def initialise_fault_geometry(
             param_mod = copy.deepcopy(slip_directions[var])
 
             ext_sources = []
-            for source in sources:
+            for i, source in enumerate(sources):
                 s = copy.deepcopy(source)
                 param_mod['rake'] += s.rake
                 s.update(**param_mod)
@@ -953,4 +953,4 @@ def optimize_discretization(
     source_geometry(fault, list(fault.iter_subfaults()))
     logger.info('Finished resolution based fault discretization.')
     logger.info('Quality index for this discretization: %f' % R.mean())
-    return fault
+    return fault, R

@@ -1115,7 +1115,7 @@ def command_build_gfs(args):
                             sample_rate=gf.sample_rate)
 
                         if not fault.is_discretized and fault.needs_optimization:
-                            fault = ffi.optimize_discretization(
+                            fault, R = ffi.optimize_discretization(
                                 config=gf.discretization_config,
                                 fault=fault,
                                 datasets=datasets,
