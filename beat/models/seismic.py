@@ -435,7 +435,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.config = sc
 
-    def point2sources(self, point, input_depth='top'):
+    def point2sources(self, point):
         """
         Updates the composite source(s) (in place) with the point values.
 
@@ -469,8 +469,7 @@ class SeismicGeometryComposite(SeismicComposite):
         source_points = utility.split_point(tpoint)
 
         for i, source in enumerate(self.sources):
-            utility.update_source(
-                source, input_depth=input_depth, **source_points[i])
+            utility.update_source(source, **source_points[i])
 
     def get_formula(
             self, input_rvs, fixed_rvs, hyperparams, problem_config):
