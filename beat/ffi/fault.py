@@ -569,7 +569,7 @@ def discretize_sources(
             param_mod = copy.deepcopy(slip_directions[var])
 
             ext_sources = []
-            for source in sources:
+            for i, source in enumerate(sources):
                 s = copy.deepcopy(source)
                 param_mod['rake'] += s.rake
                 s.update(**param_mod)
