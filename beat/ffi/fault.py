@@ -817,7 +817,7 @@ def optimize_discretization(
                     # insert back divided patches
                     for i, dpatch in enumerate(div_patches):
                         #print('split', dpatch)
-                        patches.insert(idx, dpatch)
+                        patches.insert(idx + i, dpatch)
 
                 # register newly diveded patches with fault
                 fault.set_subfault_patches(
@@ -838,12 +838,11 @@ def optimize_discretization(
         # U data-space, L singular values, V model space
         U, l, V = num.linalg.svd(num.vstack(gfs_array), full_matrices=True)
 
-        print(U, V, l)
         # apply singular value damping
         ldamped_inv = 1. / (l + config.epsilon)
         Linv = sv_vec2matrix(ldamped_inv, ndata=U.shape[0])
         L = sv_vec2matrix(l, ndata=U.shape[0])
-        print(Linv, L)
+
         # calculate resolution matrix and take trace
         R = num.diag(num.dot(
             V.dot(Linv.T).dot(U.T),
@@ -921,6 +920,7 @@ def optimize_discretization(
                           inter_patch_distances.sum(axis=0)
 
             rating = area_pen * c_one_pen * c_two_pen * c_three_pen
+            print('rating', rating)
             rating_idxs = num.argsort(rating)
             idxs = uids[rating_idxs[range(
                 int(num.ceil(config.alpha * ncandidates)))]]
