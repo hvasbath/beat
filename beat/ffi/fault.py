@@ -484,6 +484,10 @@ total number of patches: %i ''' % (
             return [0. for _ in range(self.nsubfaults)]
 
     @property
+    def cum_subfault_npatches(self):
+        return num.cumsum([0] + self.subfault_npatches)
+
+    @property
     def npatches(self):
         return sum(self.subfault_npatches)
 
@@ -857,24 +861,22 @@ def optimize_discretization(
         width_idxs_min = []
         length_idxs_max = []
         length_idxs_min = []
-        total_patches = 0
         for i, sf in enumerate(fault.iter_subfaults()):
             widths, lengths = fault.get_subfault_patch_attributes(
                 i, datatype, attributes=['width', 'length'])
 
             width_idxs_max += (num.argwhere(
                 widths > config.patch_widths_max[i]).ravel()
-                              + total_patches).tolist()
+                              + fault.cum_subfault_npatches[i]).tolist()
             length_idxs_max += (num.argwhere(
                 lengths > config.patch_lengths_max[i]).ravel()
-                               + total_patches).tolist()
+                               + fault.cum_subfault_npatches[i]).tolist()
             width_idxs_min += (num.argwhere(
                 widths < config.patch_widths_min[i]).ravel()
-                              + total_patches).tolist()
+                              + fault.cum_subfault_npatches[i]).tolist()
             length_idxs_min += (num.argwhere(
                 lengths < config.patch_lengths_min[i]).ravel()
-                                + total_patches).tolist()
-            total_patches += fault.subfault_npatches[i]
+                                + fault.cum_subfault_npatches[i]).tolist()
 
         # patches that fulfill both size thresholds
         patch_size_ids = set(width_idxs_min).intersection(set(length_idxs_min))
@@ -938,10 +940,9 @@ def optimize_discretization(
             tobedivided = len(idxs)
 
             # re-arrange indexes to subfaults
-            cum_n_patches = num.cumsum([0] + fault.subfault_npatches)
             for i in range(fault.nsubfaults):
-                start = cum_n_patches[i]
-                end = cum_n_patches[i + 1]
+                start = fault.cum_subfault_npatches[i]
+                end = fault.cum_subfault_npatches[i + 1]
                 div_idxs = idxs[(idxs >= start) & (idxs < end)] - start
                 # append indexes in descending sorted order
                 div_idxs[::-1].sort()
