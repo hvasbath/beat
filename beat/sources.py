@@ -262,10 +262,10 @@ class RectangularSource(gf.RectangularSource):
             (length + (2. * length * extension_length)) / km) * km
         new_width = num.ceil(
             (width + (2. * width * extension_width)) / km) * km
-        print(patch_length, patch_width, new_length, new_width)
+
         npl = int(num.ceil(new_length / patch_length))
         npw = int(num.ceil(new_width / patch_width))
-        print(npl, npw)
+        
         new_length = float(npl * patch_length)
         new_width = float(npw * patch_width)
         logger.info(
