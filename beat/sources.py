@@ -265,7 +265,7 @@ class RectangularSource(gf.RectangularSource):
 
         npl = int(num.ceil(new_length / patch_length))
         npw = int(num.ceil(new_width / patch_width))
-        
+
         new_length = float(npl * patch_length)
         new_width = float(npw * patch_width)
         logger.info(

@@ -192,12 +192,44 @@ def _patch_locations(n_patch_strike, n_patch_dip):
     return dmat
 
 
-def get_smoothing_operator(
+def distances(points, ref_points):
+    """
+    Calculate distances in Cartesian coordinates between points and reference
+    points in N-D.
+
+    Parameters
+    ----------
+    points: :class:`numpy.Ndarray` (n points x n spatial dimensions)
+    ref_points: :class:`numpy.Ndarray` (m points x n spatial dimensions)
+
+    Returns
+    -------
+    ndarray (n_points x n_ref_points)
+    """
+
+    nref_points = ref_points.shape[0]
+    ndims = points.shape[1]
+    ndims_ref = ref_points.shape[1]
+    if ndims != ndims_ref:
+        raise TypeError(
+            'Coordinates to calculate differences must have the same number '
+            'of dimensions! Given dimensions are {} and {}'.format(
+                ndims, ndims_ref))
+
+    points_rep = num.tile(points, nref_points).reshape(
+        points.shape[0], nref_points, ndims)
+    distances = num.sqrt(num.power(
+        points_rep - ref_points, 2).sum(axis=2))
+    return distances
+
+
+def get_smoothing_operator_uniform(
         n_patch_strike, n_patch_dip, patch_size_strike, patch_size_dip):
     """
-    Get second order Laplacian smoothing operator.
+    Get second order Laplacian smoothing operator between neighboring patches.
 
     This is beeing used to smooth the slip-distribution in the optimization.
+    Is only valid for a single flat fault.
 
     Parameters
     ----------
@@ -242,3 +274,39 @@ def get_smoothing_operator(
             smooth_op[i, i + 1] = delta_l_strike
 
     return smooth_op
+
+
+def get_smoothing_operator_variable(patches_coords, mode='gaussian'):
+    """
+    Get second order Laplacian finite-difference smoothing operator.
+
+    This is beeing used to smooth the slip-distribution in the optimization.
+    Calculates differences between all patches.
+
+    Parameters
+    ----------
+    patches_coords: :class:`numpy.Ndarray` (npatches x 3)
+    mode: string
+        type of distance penalty, can be gaussian or exponential
+
+    Returns
+    -------
+    :class:`numpy.Ndarray` (npatches x npatches)
+    """
+
+    inter_patch_distances = distances(patches_coords, patches_coords)
+    if mode == 'gaussian':
+        return 1 / num.power(inter_patch_distances, 2)
+    elif mode == 'exponential':
+        return 1 / num.exp(inter_patch_distances)
+
+
+def get_smoothing_operator(discretization='uniform', **kwargs):
+    if discretization not in list(discretization_catalog.keys()):
+        raise TypeError(
+            '%s discretization for Laplacian not supported' % discretization)
+
+    if discretization == 'uniform':
+        return get_smoothing_operator_uniform(**kwargs)
+    elif discretization == 'resolution'
+        return get_smoothing_operator_variable(**kwargs)
