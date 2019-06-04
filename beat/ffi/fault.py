@@ -2,7 +2,7 @@ from beat.utility import list2string, positions2idxs, kmtypes
 from beat.fast_sweeping import fast_sweep
 
 from beat.config import ResolutionDiscretizationConfig
-from beat.models.laplacian import get_smoothing_operator
+from beat.models.laplacian import get_smoothing_operator, distances
 from .base import get_backend, geo_construct_gf_linear
 
 from pyrocko.gf.seismosizer import Cloneable
@@ -733,7 +733,6 @@ def discretize_sources(
     return fault
 
 
-
 def optimize_discretization(
         config, fault, datasets, varnames, crust_ind,
         engine, targets, event, force, nworkers):
@@ -910,20 +909,17 @@ def optimize_discretization(
             c_one_pen = num.array(c1)[uids]
 
             centers = fault.get_subfault_patch_attributes(
-                subfault_idxs, datatype, attributes=['center'])[:,:-1]
+                subfault_idxs, datatype, attributes=['center'])[:, :-1]
             cand_centers = centers[uids, :]
 
-            data_coords_rep = num.tile(data_coords, ncandidates).reshape(
-                data_coords.shape[0], ncandidates, 2)
-            patch_data_distances = num.sqrt(num.power(
-                data_coords_rep - cand_centers, 2).sum(axis=2)).min(axis=0)
+            patch_data_distance_mins = distances(
+                points=data_coords, ref_points=cand_centers).min(axis=0)
 
-            c_two_pen = patch_data_distances.min() / patch_data_distances
+            c_two_pen = patch_data_distance_mins.min() / \
+                        patch_data_distance_mins
 
-            centers_rep = num.tile(centers, ncandidates).reshape(
-                centers.shape[0], ncandidates, 2)
-            inter_patch_distances = num.sqrt(num.power(
-                centers_rep - cand_centers, 2).sum(axis=2))
+            inter_patch_distances = distances(
+                points=centers, ref_points=cand_centers)
 
             c_three_pen = (R * inter_patch_distances.T).sum(axis=1) / \
                           inter_patch_distances.sum(axis=0)
