@@ -26,10 +26,11 @@ __all__ = [
 
 class LaplacianDistributerComposite(Composite):
 
-    def __init__(self, project_dir, hypers):
+    def __init__(self, config, project_dir, hypers):
 
         super(LaplacianDistributerComposite, self).__init__()
 
+        self.config = config
         self._mode = 'ffi'
 
         # dummy for hyperparam name
@@ -45,11 +46,11 @@ class LaplacianDistributerComposite(Composite):
 
         # only one subfault so far, smoothing across and fast-sweep
         # not implemented for more yet
-        # TODO scipy.linalg.block_diag of all smoothing operators of subfaults
-        for ns in range(self.fault.nsubfaults):
-            self.smoothing_op = \
-                self.fault.get_subfault_smoothing_operator(0).astype(
-                    tconfig.floatX)
+
+        self.smoothing_op = \
+            self.fault.get_smoothing_operator(
+                config.correlation_function).astype(
+                tconfig.floatX)
 
         self.sdet_shared_smoothing_op = shared(
             log_determinant(
@@ -223,7 +224,7 @@ def distances(points, ref_points):
     return distances
 
 
-def get_smoothing_operator_uniform(
+def get_smoothing_operator_nearest_neighbor(
         n_patch_strike, n_patch_dip, patch_size_strike, patch_size_dip):
     """
     Get second order Laplacian smoothing operator between neighboring patches.
@@ -276,7 +277,8 @@ def get_smoothing_operator_uniform(
     return smooth_op
 
 
-def get_smoothing_operator_variable(patches_coords, mode='gaussian'):
+def get_smoothing_operator_correlated(
+        patches_coords, correlation_function='gaussian'):
     """
     Get second order Laplacian finite-difference smoothing operator.
 
@@ -286,7 +288,7 @@ def get_smoothing_operator_variable(patches_coords, mode='gaussian'):
     Parameters
     ----------
     patches_coords: :class:`numpy.Ndarray` (npatches x 3)
-    mode: string
+    correlation_function: string
         type of distance penalty, can be gaussian or exponential
 
     Returns
@@ -297,20 +299,14 @@ def get_smoothing_operator_variable(patches_coords, mode='gaussian'):
     inter_patch_distances = distances(patches_coords, patches_coords)
     norm_distances = inter_patch_distances.sum(0)
 
-    if mode == 'gaussian':
+    if correlation_function == 'gaussian':
         a = 1 / num.power(inter_patch_distances, 2)
-    elif mode == 'exponential':
+    elif correlation_function == 'exponential':
         a = 1 / num.exp(inter_patch_distances)
+    else:
+        raise ValueError(
+            'Resolution based discretization does not support '
+            '"nearest_neighbor" correlation function!')
+
     num.fill_diagonal(a, -norm_distances)
     return a / inter_patch_distances.mean()
-
-
-def get_smoothing_operator(discretization='uniform', **kwargs):
-    if discretization not in list(discretization_catalog.keys()):
-        raise TypeError(
-            '%s discretization for Laplacian not supported' % discretization)
-
-    if discretization == 'uniform':
-        return get_smoothing_operator_uniform(**kwargs)
-    elif discretization == 'resolution':
-        return get_smoothing_operator_variable(**kwargs)

@@ -711,7 +711,10 @@ class DistributionOptimizer(Problem):
         regularization = config.problem_config.mode_config.regularization
         try:
             composite = distributer_composite_catalog[
-                regularization](config.project_dir, hypers)
+                regularization](
+                config.problem_config.mode_config.regularization_config,
+                config.project_dir,
+                hypers)
 
             composite.set_slip_varnames(self.varnames)
             self.composites[regularization] = composite

@@ -2,7 +2,8 @@ from beat.utility import list2string, positions2idxs, kmtypes
 from beat.fast_sweeping import fast_sweep
 
 from beat.config import ResolutionDiscretizationConfig
-from beat.models.laplacian import get_smoothing_operator, distances
+from beat.models.laplacian import get_smoothing_operator_correlated, \
+    get_smoothing_operator_nearest_neighbor, distances
 from .base import get_backend, geo_construct_gf_linear
 
 from pyrocko.gf.seismosizer import Cloneable
@@ -13,6 +14,8 @@ from logging import getLogger
 from collections import namedtuple, OrderedDict
 
 import numpy as num
+
+from scipy.linalg import block_diag
 
 from theano import shared
 
@@ -119,13 +122,13 @@ total number of patches: %i ''' % (
                 raise FaultGeometryError(
                     'Subfault already specified in geometry!')
 
-    def _assign_datatype(self, datatype):
+    def _assign_datatype(self, datatype=None):
         if datatype is None:
             return self.datatypes[0]
         else:
             return datatype
 
-    def _assign_component(self, component):
+    def _assign_component(self, component=None):
         if component is None:
             return self.components[0]
         else:
@@ -371,7 +374,7 @@ total number of patches: %i ''' % (
             nuc_x=nuc_strike_idx, nuc_y=nuc_dip_idx)
         return start_times
 
-    def get_subfault_smoothing_operator(self, index):
+    def get_smoothing_operator(self, correlation_function='nearest_neighbor'):
         """
         Get second order Laplacian smoothing operator.
 
@@ -385,12 +388,32 @@ total number of patches: %i ''' % (
             (n_patch_strike + n_patch_dip) x (n_patch_strike + n_patch_dip)
         """
         self._check_index(index)
-        npw, npl = self.ordering.get_subfault_discretization(index)
-        return get_smoothing_operator(
-            n_patch_strike=npl,
-            n_patch_dip=npw,
-            patch_size_strike=self.ordering.patch_sizes_strike[index],
-            patch_size_dip=self.ordering.patch_sizes_dip[index])
+
+        if correlation_function == 'nearest_neighbor':
+            if self.config.discretization == 'uniform':
+                Ls = []
+                for ns in range(self.nsubfaults):
+                    npw, npl = self.ordering.get_subfault_discretization(ns)
+
+                    # no smoothing accross sub-faults!
+                    Ls.append(get_smoothing_operator_nearest_neighbor(
+                        n_patch_strike=npl,
+                        n_patch_dip=npw,
+                        patch_size_strike=self.ordering.patch_sizes_strike[ns],
+                        patch_size_dip=self.ordering.patch_sizes_dip[ns]))
+                    return block_diag(Ls)
+            else:
+                raise InvalidDiscretizationError(
+                    'Nearest neighbor correlation Laplacian is only '
+                    'available for "uniform" discretization!')
+        else:
+            datatype = self._assign_datatype()
+            subfault_idxs = list(range(self.nsubfaults))
+            centers = self.get_subfault_patch_attributes(
+                subfault_idxs, datatype, attributes=['center'])[:, :-1]
+
+            return get_smoothing_operator_correlated(
+                centers, correlation_function)
 
     def get_subfault_patch_attributes(
             self, index, datatype='geodetic', component=None, attributes=['']):
