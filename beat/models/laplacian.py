@@ -208,16 +208,16 @@ def distances(points, ref_points):
     """
 
     nref_points = ref_points.shape[0]
-    ndims = points.shape[1]
-    ndims_ref = ref_points.shape[1]
-    if ndims != ndims_ref:
+    ndim = points.ndim
+    ndim_ref = ref_points.ndim
+    if ndim != ndim_ref:
         raise TypeError(
             'Coordinates to calculate differences must have the same number '
             'of dimensions! Given dimensions are {} and {}'.format(
-                ndims, ndims_ref))
+                ndim, ndim_ref))
 
     points_rep = num.tile(points, nref_points).reshape(
-        points.shape[0], nref_points, ndims)
+        points.shape[0], nref_points, ndim)
     distances = num.sqrt(num.power(
         points_rep - ref_points, 2).sum(axis=2))
     return distances
@@ -295,10 +295,14 @@ def get_smoothing_operator_variable(patches_coords, mode='gaussian'):
     """
 
     inter_patch_distances = distances(patches_coords, patches_coords)
+    norm_distances = inter_patch_distances.sum(0)
+
     if mode == 'gaussian':
-        return 1 / num.power(inter_patch_distances, 2)
+        a = 1 / num.power(inter_patch_distances, 2)
     elif mode == 'exponential':
-        return 1 / num.exp(inter_patch_distances)
+        a = 1 / num.exp(inter_patch_distances)
+    num.fill_diagonal(a, -norm_distances)
+    return a / inter_patch_distances.mean()
 
 
 def get_smoothing_operator(discretization='uniform', **kwargs):
@@ -308,5 +312,5 @@ def get_smoothing_operator(discretization='uniform', **kwargs):
 
     if discretization == 'uniform':
         return get_smoothing_operator_uniform(**kwargs)
-    elif discretization == 'resolution'
+    elif discretization == 'resolution':
         return get_smoothing_operator_variable(**kwargs)
