@@ -205,6 +205,7 @@ _interpolation_choices = ['nearest_neighbor', 'multilinear']
 _structure_choices = available_noise_structures()
 _mode_choices = [geometry_mode_str, ffi_mode_str]
 _regularization_choices = ['laplacian', 'none']
+_correlation_function_choices = ['nearest_neighbor', 'gaussian', 'exponential']
 _discretization_choices = ['uniform', 'resolution']
 _initialization_choices = ['random', 'lsq']
 _backend_choices = ['csv', 'bin']
@@ -479,24 +480,11 @@ class LinearGFConfig(GFConfig):
 
     def __init__(self, **kwargs):
 
-        discretization_config = kwargs.pop('discretization_config', None)
-        discr = kwargs.pop('discretization', None)
-
-        if discr and not discretization_config:
-            kwargs['discretization_config'] = discretization_catalog[discr]()
-        elif discr and discretization_config:
-            wanted_config = discretization_catalog[discr]
-            if not isinstance(
-                    discretization_config, wanted_config):
-                logger.info('Fault discretization method changed!'
-                            ' Initializing new config...')
-                kwargs['discretization_config'] = wanted_config()
-            else:
-                kwargs['discretization_config'] = discretization_config
-        #else:
-        #    raise ValueError('Discretization has to be specified!')
-        if discr:
-            kwargs['discretization'] = discr
+        kwargs = _init_kwargs(
+            method_config_name='discretization_config',
+            method_name='discretization',
+            method_catalog=discretization_catalog,
+            kwargs=kwargs)
 
         Object.__init__(self, **kwargs)
 
@@ -731,6 +719,64 @@ class ModeConfig(Object):
     pass
 
 
+class RegularizationConfig(Object):
+    pass
+
+
+class NoneRegularizationConfig(Object):
+    """
+    Dummy class to return None.
+    """
+    def __new__(self):
+        return None
+
+
+class LaplacianRegularizationConfig(RegularizationConfig):
+    """
+    Determines the structure of the Laplacian.
+    """
+    correlation_function = StringChoice.T(
+        default='neighbor',
+        choices=_correlation_function_choices,
+        help='Determines the correlation function for smoothing across '
+             'patches. Choices: %s' % utility.list2string(
+            _correlation_function_choices))
+
+
+regularization_catalog = {
+    'laplacian': LaplacianRegularizationConfig,
+    'none': NoneRegularizationConfig,
+}
+
+
+def _init_kwargs(method_config_name, method_name, method_catalog, kwargs):
+    """
+    Fiddle with input arguments for method_config and initialise sub method
+    config according to requested method name.
+    """
+    method_config = kwargs.pop(method_config_name, None)
+    method = kwargs.pop(method_name, None)
+
+    if method and not method_config:
+        kwargs[method_config_name] = method_catalog[method]()
+    elif method and method_config:
+        wanted_config = method_catalog[method]
+        print(method_config, wanted_config)
+        if not isinstance(
+                wanted_config, method_config.__class__):
+            logger.info('%s method changed!'
+                        ' Initializing new config...' % method_name)
+            kwargs[method_config_name] = wanted_config()
+        else:
+            kwargs[method_config_name] = method_config
+    # else:
+    #    raise ValueError('Discretization has to be specified!')
+    if method:
+        kwargs[method_name] = method
+
+    return kwargs
+
+
 class FFIConfig(ModeConfig):
 
     regularization = StringChoice.T(
@@ -738,17 +784,31 @@ class FFIConfig(ModeConfig):
         choices=_regularization_choices,
         help='Flag for regularization in distributed slip-optimization.'
              ' Choices: %s' % utility.list2string(_regularization_choices))
-    npatches = Int.T(
-        default=None,
+    regularization_config = RegularizationConfig.T(
         optional=True,
-        help='Number of patches on full fault. Should not be edited manually!'
-             ' Please edit indirectly through patch_widths and patch_lengths'
-             ' parameters!')
+        default='none',
+        help='Additional configuration parameters for regularization')
     initialization = StringChoice.T(
         default='random',
         choices=_initialization_choices,
         help='Initialization of chain starting points, default: random.'
              ' Choices: %s' % utility.list2string(_initialization_choices))
+    npatches = Int.T(
+        default = None,
+        optional=True,
+        help = 'Number of patches on full fault. Should not be edited manually!'
+               ' Please edit indirectly through patch_widths and patch_lengths'
+               ' parameters!')
+
+    def __init__(self, **kwargs):
+
+        kwargs = _init_kwargs(
+            method_config_name='regularization_config',
+            method_name='regularization',
+            method_catalog=regularization_catalog,
+            kwargs=kwargs)
+
+        Object.__init__(self, **kwargs)
 
 
 class ProblemConfig(Object):
