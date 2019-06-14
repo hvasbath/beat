@@ -1,7 +1,8 @@
 from beat.utility import list2string, positions2idxs, kmtypes
 from beat.fast_sweeping import fast_sweep
 
-from beat.config import ResolutionDiscretizationConfig
+from beat.config import ResolutionDiscretizationConfig, \
+    UniformDiscretizationConfig
 from beat.models.laplacian import get_smoothing_operator_correlated, \
     get_smoothing_operator_nearest_neighbor, distances
 from .base import get_backend, geo_construct_gf_linear
@@ -387,12 +388,12 @@ total number of patches: %i ''' % (
         :class:`numpy.Ndarray`
             (n_patch_strike + n_patch_dip) x (n_patch_strike + n_patch_dip)
         """
-        self._check_index(index)
 
         if correlation_function == 'nearest_neighbor':
-            if self.config.discretization == 'uniform':
+            if isinstance(self.config, UniformDiscretizationConfig):
                 Ls = []
                 for ns in range(self.nsubfaults):
+                    self._check_index(ns)
                     npw, npl = self.ordering.get_subfault_discretization(ns)
 
                     # no smoothing accross sub-faults!
@@ -405,7 +406,8 @@ total number of patches: %i ''' % (
             else:
                 raise InvalidDiscretizationError(
                     'Nearest neighbor correlation Laplacian is only '
-                    'available for "uniform" discretization!')
+                    'available for "uniform" discretization! Please change'
+                    ' either correlation_function or the discretization.')
         else:
             datatype = self._assign_datatype()
             subfault_idxs = list(range(self.nsubfaults))
@@ -692,9 +694,8 @@ def initialise_fault_geometry(
 
 class InvalidDiscretizationError(Exception):
 
-    context = 'Resolution based discretizeation ' + \
-              ' is available for geodetic data only! \n' + \
-              ' Please assure uniform discretization in the configuration file!'
+    context = 'Resolution based discretizeation' + \
+              ' is available for geodetic data only! \n'
 
     def __init__(self, errmess=''):
         self.errmess = errmess
@@ -721,6 +722,7 @@ def discretize_sources(
     Returns
     -------
     """
+
     patch_widths, patch_lengths = config.get_patch_dimensions()
 
     fault = initialise_fault_geometry(
@@ -947,7 +949,6 @@ def optimize_discretization(
             c_three_pen = (R * inter_patch_distances.T).sum(axis=1) / \
                           inter_patch_distances.sum(axis=0)
 
-            #print(area_pen, c_one_pen, c_two_pen, c_three_pen)
             rating = area_pen * c_one_pen * c_two_pen * c_three_pen
             rating_idxs = rating.argsort()[::-1]
 
@@ -970,7 +971,7 @@ def optimize_discretization(
         else:
             tobedivided = 0
 
-    source_geometry(fault, list(fault.iter_subfaults()))
     logger.info('Finished resolution based fault discretization.')
     logger.info('Quality index for this discretization: %f' % R.mean())
+#    source_geometry(fault, list(fault.iter_subfaults()))
     return fault, R

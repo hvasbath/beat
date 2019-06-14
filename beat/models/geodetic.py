@@ -171,6 +171,24 @@ class GeodeticComposite(Composite):
 
         return names
 
+    def get_hypersize(self, hp_name=''):
+        """
+        Return size of the hyperparameter
+
+        Parameters
+        ----------
+        hp_name: str
+            of hyperparameter name
+
+        Returns
+        -------
+        int
+        """
+        if self.config.dataset_specific_residual_noise_estimation:
+            return len(self.get_all_station_names())
+        else:
+            return 1
+
     def assemble_results(self, point):
         """
         Assemble geodetic data for given point in solution space.

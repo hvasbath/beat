@@ -209,6 +209,7 @@ _correlation_function_choices = ['nearest_neighbor', 'gaussian', 'exponential']
 _discretization_choices = ['uniform', 'resolution']
 _initialization_choices = ['random', 'lsq']
 _backend_choices = ['csv', 'bin']
+_sampler_choices = ['PT', 'SMC', 'Metropolis']
 
 
 class InconsistentParameterNaming(Exception):
@@ -736,11 +737,14 @@ class LaplacianRegularizationConfig(RegularizationConfig):
     Determines the structure of the Laplacian.
     """
     correlation_function = StringChoice.T(
-        default='neighbor',
+        default='nearest_neighbor',
         choices=_correlation_function_choices,
         help='Determines the correlation function for smoothing across '
              'patches. Choices: %s' % utility.list2string(
             _correlation_function_choices))
+
+    def get_hypernames(self):
+        return [hyper_name_laplacian]
 
 
 regularization_catalog = {
@@ -761,16 +765,14 @@ def _init_kwargs(method_config_name, method_name, method_catalog, kwargs):
         kwargs[method_config_name] = method_catalog[method]()
     elif method and method_config:
         wanted_config = method_catalog[method]
-        print(method_config, wanted_config)
         if not isinstance(
-                wanted_config, method_config.__class__):
+                method_config, wanted_config):
             logger.info('%s method changed!'
                         ' Initializing new config...' % method_name)
             kwargs[method_config_name] = wanted_config()
         else:
             kwargs[method_config_name] = method_config
-    # else:
-    #    raise ValueError('Discretization has to be specified!')
+
     if method:
         kwargs[method_name] = method
 
@@ -972,6 +974,52 @@ class ProblemConfig(Object):
                 ' or not resolvable with given datatypes.')
 
         return unique_variables
+
+    def get_random_variables(self):
+        """
+        Evaluate problem setup and return random variables dictionary.
+
+        Returns
+        -------
+        rvs : dict
+            variable random variables
+        fixed_params : dict
+            fixed random parameters
+        """
+        from pymc3 import Uniform
+        logger.debug('Optimization for %i sources', self.n_sources)
+
+        rvs = dict()
+        fixed_params = dict()
+        for param in self.priors.values():
+            if not num.array_equal(param.lower, param.upper):
+
+                shape = get_parameter_shape(param, self)
+
+                kwargs = dict(
+                    name=param.name,
+                    shape=shape,
+                    lower=param.lower,
+                    upper=param.upper,
+                    testval=param.testvalue,
+                    transform=None,
+                    dtype=tconfig.floatX)
+
+                try:
+                    rvs[param.name] = Uniform(**kwargs)
+
+                except TypeError:
+                    kwargs.pop('name')
+                    rvs[param.name] = Uniform.dist(**kwargs)
+
+            else:
+                logger.info(
+                    'not solving for %s, got fixed at %s' % (
+                        param.name,
+                        utility.list2string(param.lower.flatten())))
+                fixed_params[param.name] = param.lower
+
+        return rvs, fixed_params
 
     def get_slip_variables(self):
         """
@@ -1203,15 +1251,24 @@ class SMCConfig(SamplerParameters):
              'stages.')
 
 
+sampler_catalog = {
+    'PT': ParallelTemperingConfig,
+    'SMC': SMCConfig,
+    'Metropolis': MetropolisConfig,
+}
+
+
 class SamplerConfig(Object):
     """
     Config for the sampler specific parameters.
     """
 
-    name = String.T(
+    name = StringChoice.T(
         default='SMC',
-        help='Sampler to use for sampling the solution space.'
-             ' Metropolis/ SMC')
+        choices=_sampler_choices,
+        help='Sampler to use for sampling the solution space. '
+             'Choices: %s' % utility.list2string(_sampler_choices)
+             )
     backend = StringChoice.T(
         default='csv',
         choices=_backend_choices,
@@ -1227,29 +1284,17 @@ class SamplerConfig(Object):
              'buffer is written to disk')
     parameters = SamplerParameters.T(
         default=SMCConfig.D(),
-        optional=True,
         help='Sampler dependend Parameters')
 
-    def set_parameters(self, **kwargs):
+    def __init__(self, **kwargs):
 
-        if self.name is None:
-            logger.info('Sampler not defined, using default sampler: SMC')
-            self.name = 'SMC'
+        kwargs = _init_kwargs(
+            method_config_name='parameters',
+            method_name='name',
+            method_catalog=sampler_catalog,
+            kwargs=kwargs)
 
-        if self.name == 'SMC':
-            self.parameters = SMCConfig(**kwargs)
-
-        elif self.name != 'SMC':
-            kwargs.pop('update_covariances', None)
-
-            if self.name == 'Metropolis':
-                self.parameters = MetropolisConfig(**kwargs)
-
-            elif self.name == 'PT':
-                self.parameters = ParallelTemperingConfig(**kwargs)
-
-            else:
-                raise TypeError('Sampler "%s" is not implemented.' % self.name)
+        Object.__init__(self, **kwargs)
 
 
 class GFLibaryConfig(Object):
@@ -1596,10 +1641,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
     c.problem_config.set_decimation_factor()
 
     c.sampler_config = SamplerConfig(name=sampler)
-    c.sampler_config.set_parameters(update_covariances=False)
-
     c.hyper_sampler_config = SamplerConfig(name=hyper_sampler)
-    c.hyper_sampler_config.set_parameters(update_covariances=None)
 
     c.update_hypers()
     c.problem_config.validate_priors()
