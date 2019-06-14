@@ -207,7 +207,7 @@ class Problem(object):
 
         with Model() as self.model:
 
-            self.rvs, self.fixed_params = self.get_random_variables()
+            self.rvs, self.fixed_params = pc.get_random_variables()
 
             self.init_hyperparams()
 
@@ -314,54 +314,6 @@ class Problem(object):
 
         return point
 
-    def get_random_variables(self):
-        """
-        Evaluate problem setup and return random variables dictionary.
-        Has to be executed in a "with model context"!
-
-        Returns
-        -------
-        rvs : dict
-            variable random variables
-        fixed_params : dict
-            fixed random parameters
-        """
-        pc = self.config.problem_config
-
-        logger.debug('Optimization for %i sources', pc.n_sources)
-
-        rvs = dict()
-        fixed_params = dict()
-        for param in pc.priors.values():
-            if not num.array_equal(param.lower, param.upper):
-
-                shape = bconfig.get_parameter_shape(param, pc)
-
-                kwargs = dict(
-                    name=param.name,
-                    shape=shape,
-                    lower=param.lower,
-                    upper=param.upper,
-                    testval=param.testvalue,
-                    transform=None,
-                    dtype=tconfig.floatX)
-
-                try:
-                    rvs[param.name] = Uniform(**kwargs)
-
-                except TypeError:
-                    kwargs.pop('name')
-                    rvs[param.name] = Uniform.dist(**kwargs)
-
-            else:
-                logger.info(
-                    'not solving for %s, got fixed at %s' % (
-                        param.name,
-                        list2string(param.lower.flatten())))
-                fixed_params[param.name] = param.lower
-
-        return rvs, fixed_params
-
     @property
     def varnames(self):
         """
@@ -372,7 +324,8 @@ class Problem(object):
         list of strings
         """
         if self._varnames is None:
-            self._varnames = list(self.get_random_variables()[0].keys())
+            self._varnames = list(
+                self.config.problem_config.get_random_variables()[0].keys())
         return self._varnames
 
     @property
@@ -405,17 +358,7 @@ class Problem(object):
             for hp_name in hypernames:
                 if hp_name in hyperparameters.keys():
                     hyperpar = hyperparameters.pop(hp_name)
-                    if composite.config:   # only data composites
-                        if composite.config.dataset_specific_residual_noise_estimation:
-                            if datatype == 'seismic':
-                                wmap = composite.hyper2wavemap(hp_name)
-                                ndata = wmap.hypersize
-                            else:
-                                ndata = len(composite.get_all_station_names())
-                        else:
-                            ndata = 1
-                    else:
-                        ndata = 1
+                    ndata = composite.get_hypersize(hyperpar)
                 else:
                     raise InconsistentNumberHyperparametersError(
                         'Datasets and -types require additional '

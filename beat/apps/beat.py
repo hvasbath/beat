@@ -1037,7 +1037,9 @@ def command_build_gfs(args):
         import numpy as num
 
         slip_varnames = c.problem_config.get_slip_variables()
-        varnames = c.problem_config.select_variables()
+        rvs, fixed_rvs = c.problem_config.get_random_variables()
+
+        varnames = list(set(slip_varnames).intersection(set(list(rvs.keys()))))
         outdir = pjoin(c.project_dir, options.mode, bconfig.linear_gf_dir_name)
         util.ensuredir(outdir)
 
@@ -1061,7 +1063,7 @@ def command_build_gfs(args):
             logger.info('Discretizing reference sources ...')
             fault = ffi.discretize_sources(
                 config=gf.discretization_config,
-                varnames=slip_varnames,
+                varnames=varnames,
                 sources=gf.reference_sources,
                 datatypes=c.problem_config.datatypes)
 
@@ -1136,7 +1138,7 @@ def command_build_gfs(args):
                                 config=gf.discretization_config,
                                 fault=fault,
                                 datasets=datasets,
-                                varnames=slip_varnames,
+                                varnames=varnames,
                                 engine=engine,
                                 crust_ind=crust_ind,
                                 targets=targets,
@@ -1163,7 +1165,7 @@ def command_build_gfs(args):
                             targets=targets,
                             nworkers=gf.nworkers,
                             fault=fault,
-                            varnames=slip_varnames,
+                            varnames=varnames,
                             force=options.force)
 
                 elif datatype == 'seismic':

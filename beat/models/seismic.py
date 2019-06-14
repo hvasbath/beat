@@ -106,7 +106,7 @@ class SeismicComposite(Composite):
                     shared(
                         num.array([1.]), name='seis_llk_%i' % t, borrow=True))
 
-    def hyper2wavemap(self, hypername):
+    def _hyper2wavemap(self, hypername):
 
         dummy = '_'.join(hypername.split('_')[1:-1])
         for wmap in self.wavemaps:
@@ -115,6 +115,25 @@ class SeismicComposite(Composite):
 
         raise ValueError(
             'No waveform mapping found for hyperparameter! %s' % hypername)
+
+    def get_hypersize(self, hp_name):
+        """
+        Return size of the hyperparameter
+
+        Parameters
+        ----------
+        hp_name: str
+            of hyperparameter name
+
+        Returns
+        -------
+        int
+        """
+        if self.config.dataset_specific_residual_noise_estimation:
+            wmap = self._hyper2wavemap(hp_name)
+            return wmap.hypersize
+        else:
+            return 1
 
     def __getstate__(self):
         self.engine.close_cashed_stores()

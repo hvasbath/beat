@@ -21,7 +21,8 @@ LOG_2PI = num.log(2. * num.pi)
 
 __all__ = [
     'LaplacianDistributerComposite',
-    'get_smoothing_operator']
+    'get_smoothing_operator_correlated',
+    'get_smoothing_operator_nearest_neighbor']
 
 
 class LaplacianDistributerComposite(Composite):
@@ -46,11 +47,15 @@ class LaplacianDistributerComposite(Composite):
 
         # only one subfault so far, smoothing across and fast-sweep
         # not implemented for more yet
-
         self.smoothing_op = \
             self.fault.get_smoothing_operator(
                 config.correlation_function).astype(
                 tconfig.floatX)
+
+        if(0):
+            from matplotlib import pyplot as plt
+            plt.matshow(self.smoothing_op, vmin=0)
+            plt.show()
 
         self.sdet_shared_smoothing_op = shared(
             log_determinant(
@@ -162,6 +167,9 @@ class LaplacianDistributerComposite(Composite):
     @property
     def n_t(self):
         return len(self.slip_varnames)
+
+    def get_hypersize(self, hp_name):
+        return 1
 
 
 def _patch_locations(n_patch_strike, n_patch_dip):
