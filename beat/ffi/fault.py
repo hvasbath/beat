@@ -330,7 +330,8 @@ total number of patches: %i ''' % (
             :class:`pymc3.backends.base.MultiTrace`
         """
         self._check_index(index)
-        return self.ordering.vmap[index].slc
+        return slice(self.cum_subfault_npatches[index],
+                     self.cum_subfault_npatches[index + 1])
 
     def point2starttimes(self, point, index=0):
         """

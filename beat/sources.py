@@ -118,7 +118,7 @@ class RectangularSource(gf.RectangularSource):
         """
 
         return num.array([center[0], center[1], center[2]]) - \
-            0.5 * self.width * self.dipvector
+            (0.5 * self.width * self.dipvector)
 
     @property
     def bottom_center(self):
@@ -133,11 +133,15 @@ class RectangularSource(gf.RectangularSource):
         """
 
         return num.array([self.east_shift, self.north_shift, self.depth]) + \
-            self.width * self.dipvector
+               (self.width * self.dipvector)
 
     @property
     def bottom_depth(self):
         return float(self.bottom_center[2])
+
+    @property
+    def bottom_left(self):
+        return self.bottom_center - (0.5 * self.strikevector * self.length)
 
     def trace_center(self):
         """
