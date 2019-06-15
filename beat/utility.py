@@ -27,7 +27,8 @@ logger = logging.getLogger('utility')
 DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype, name')
 
 kmtypes = set(['east_shift', 'north_shift', 'length', 'width', 'depth',
-               'distance', 'delta_depth', 'center', 'bottom_depth'])
+               'distance', 'delta_depth',
+               'center', 'bottom_depth', 'bottom_left'])
 
 seconds_str = '00:00:00'
 

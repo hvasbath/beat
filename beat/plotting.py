@@ -2533,8 +2533,10 @@ def fault_slip_distribution(
         slips = num.sqrt((uperp ** 2 + uparr ** 2)).ravel()
 
         if normalisation is None:
-            normalisation = slips.max() / num.abs(
-                ygr[1, 0] - ygr[0, 0]) * (3. / 2.)
+            from beat.models.laplacian import distances
+            centers = num.vstack((xgr, ygr)).T
+            interpatch_dists = distances(centers, centers)
+            normalisation = slips.max() #/ interpatch_dists.min()
 
         slips /= normalisation
 
@@ -2558,26 +2560,34 @@ def fault_slip_distribution(
 
         return quivers, normalisation
 
+    def rotate_coords_plane_normal(coords, sf):
+        coords -= sf.bottom_left / km
+        coords[:, 2] *= - 1.
+        rots = utility.get_rotation_matrix()
+        return coords.dot(rots['z'](mt.d2r * -sf.strike)).dot(
+            rots['y'](mt.d2r * (90. - sf.dip)))
+
     def draw_patches(ax, fault, subfault_idx, patch_values, cmap, alpha):
-        i = subfault_idx
-        height = fault.ordering.patch_sizes_dip[i]
-        width = fault.ordering.patch_sizes_strike[i]
+
+        lls = fault.get_subfault_patch_attributes(
+            subfault_idx, attributes=['bottom_left'])
+        widths, lengths = fault.get_subfault_patch_attributes(
+            subfault_idx, attributes=['width', 'length'])
+        sf = fault.get_subfault(subfault_idx)
+
+        # subtract reference fault lower left and rotate
+        rot_lls = rotate_coords_plane_normal(lls, sf)[:, -2::]
 
         d_patches = []
-        lls = []
-        for patch_dip_ll in range(np_h, 0, -1):
-            for patch_strike_ll in range(np_w):
-                ll = [patch_strike_ll * width, patch_dip_ll * height - height]
-                d_patches.append(
-                    Rectangle(
-                        ll, width=width, height=height, edgecolor='black'))
-                lls.append(ll)
+        for ll, width, length in zip(rot_lls, widths, lengths):
+            d_patches.append(
+                Rectangle(
+                    ll, width=length, height=width, edgecolor='black'))
 
-        llsa = num.vstack(lls)
-        lower = llsa.min(axis=0)
-        upper = llsa.max(axis=0)
-        xlim = [lower[0], upper[0] + width]
-        ylim = [lower[1], upper[1] + height]
+        #upper = rot_lls.max(axis=0)[-2::]
+        lower = rot_lls.min(axis=0)
+        xlim = [lower[0], lower[0] + sf.length / km]
+        ylim = [lower[1], lower[1] + sf.width / km]
 
         ax.set_xlim(*xlim)
         ax.set_ylim(*ylim)
@@ -2628,8 +2638,6 @@ def fault_slip_distribution(
         fig, ax = plt.subplots(
             nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
 
-        np_h, np_w = fault.get_subfault_discretization(ns)
-
         # alphas = alpha * num.ones(np_h * np_w, dtype='int8')
         pa_col = draw_patches(
             ax, fault, subfault_idx=ns, patch_values=reference_slip,
@@ -2639,13 +2647,10 @@ def fault_slip_distribution(
         patch_idxs = fault.get_patch_indexes(ns)
 
         # patch central locations
-        hpd = fault.ordering.patch_sizes_dip[ns] / 2.
-        hps = fault.ordering.patch_sizes_strike[ns] / 2.
+        centers = fault.get_subfault_patch_attributes(ns, attributes=['center'])
+        rot_centers = rotate_coords_plane_normal(centers, ext_source)[:, -2::]
 
-        xvec = num.linspace(hps, ext_source.length / km - hps, np_w)
-        yvec = num.linspace(ext_source.width / km - hpd, hpd, np_h)
-
-        xgr, ygr = num.meshgrid(xvec, yvec)
+        xgr, ygr = rot_centers.T
 
         if 'seismic' in fault.datatypes:
             if mtrace is not None:
