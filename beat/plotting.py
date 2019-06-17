@@ -38,7 +38,7 @@ km = 1000.
 
 __all__ = [
     'PlotOptions', 'correlation_plot', 'correlation_plot_hist',
-    'get_result_point', 'seismic_fits', 'geodetic_fits', 'traceplot',
+    'get_result_point', 'seismic_fits', 'scene_fits', 'traceplot',
     'select_transform', 'histplot_op']
 
 u_nm = '$[Nm]$'
@@ -622,7 +622,150 @@ def set_anchor(sources, anchor):
         source.anchor = anchor
 
 
-def geodetic_fits(problem, stage, plot_options):
+def gnss_fits(problem, stage, plot_options):
+
+    from pyrocko import automap
+    from pyrocko.model import gnss
+    from beat.inputf import load_and_blacklist_gnss
+    from beat.sources import RectangularSource
+
+    if len(automap.gmtpy.detect_gmt_installations()) < 1:
+        raise automap.gmtpy.GmtPyError(
+            'GMT needs to be installed for GNSS plot!')
+
+    gc = problem.config.geodetic_config
+
+    logger.info('Trying to load GNSS data from: {}'.format(gc.datadir))
+    for filename in gc.names:
+        try:
+            campaign = load_and_blacklist_gnss(
+                gc.datadir, filename, gc.blacklist, campaign=True)
+        except UnicodeDecodeError:
+            logger.info('{} is no GNSS data, skipping')
+
+    datatype = 'geodetic'
+    mode = problem.config.problem_config.mode
+    problem.init_hierarchicals()
+
+    figsize = 20.  # size in cm
+
+    po = plot_options
+
+    composite = problem.composites[datatype]
+    try:
+        sources = composite.sources
+        ref_sources = None
+    except AttributeError:
+        logger.info('FFI gnss fit, using reference source ...')
+        ref_sources = composite.config.gf_config.reference_sources
+        set_anchor(ref_sources, anchor='top')
+        fault = composite.load_fault_geometry()
+        sources = fault.get_all_subfaults(
+            datatype=datatype, component=composite.slip_varnames[0])
+        set_anchor(sources, anchor='top')
+
+    if po.reference:
+        if mode != ffi_mode_str:
+            composite.point2sources(po.reference)
+            ref_sources = copy.deepcopy(composite.sources)
+        point = po.reference
+    else:
+        point = get_result_point(stage, problem.config, po.post_llk)
+
+    dataset_index = dict(
+        (data, i) for (i, data) in enumerate(composite.datasets))
+
+    results = composite.assemble_results(point)
+
+    dataset_to_result = {}
+    for dataset, result in zip(composite.datasets, results):
+        if dataset.typ == 'GNSS':
+            dataset_to_result[dataset] = result
+
+    event = problem.config.event
+    locations = campaign.stations + [event]
+
+    lat, lon = otd.geographic_midpoint_locations(locations)
+
+    coords = num.array([loc.effective_latlon for loc in locations])
+    radius = otd.distance_accurate50m_numpy(
+        lat[num.newaxis], lon[num.newaxis],
+        coords[:, 0], coords[:, 1]).max()
+    radius *= 1.1
+
+    if radius < 30. * km:
+        logger.warning(
+            'Radius of GNSS campaign %s too small, defaulting'
+            ' to 30 km' % campaign.name)
+        radius = 30 * km
+
+    model_camp = gnss.GNSSCampaign(
+        stations=copy.deepcopy(campaign.stations),
+        name='model')
+
+    for dataset, result in dataset_to_result.items():
+        for ista, sta in enumerate(model_camp.stations):
+            comp = getattr(sta, dataset.name)
+            comp.shift = result.processed_syn[ista]
+            comp.sigma = 0.
+
+    figs = []
+    for vertical in (False, True):
+        m = automap.Map(
+            width=figsize,
+            height=figsize,
+            lat=lat,
+            lon=lon,
+            radius=radius,
+            show_topo=True,
+            show_grid=True,
+            show_rivers=True,
+            color_wet=(216, 242, 254),
+            color_dry=(238, 236, 230))
+
+        all_stations = campaign.stations + model_camp.stations
+        offset_scale = num.zeros(len(all_stations))
+
+        for ista, sta in enumerate(all_stations):
+            for comp in sta.components.values():
+                offset_scale[ista] += comp.shift
+        offset_scale = num.sqrt(offset_scale ** 2).max()
+
+        m.add_gnss_campaign(
+            campaign,
+            psxy_style={
+                'G': 'black',
+                'W': '0.8p,black',
+            },
+            offset_scale=offset_scale,
+            vertical=vertical)
+
+        m.add_gnss_campaign(
+            model_camp,
+            psxy_style={
+                'G': 'red',
+                'W': '0.8p,red',
+                't': 30,
+            },
+            offset_scale=offset_scale,
+            vertical=vertical,
+            labels=False)
+
+        for source in sources:
+            if isinstance(source, RectangularSource):
+                m.gmt.psxy(
+                    in_rows=source.outline(cs='lonlat'),
+                    L='+p2p,black',
+                    W='1p,black',
+                    G='black',
+                    t=60, *m.jxyr)
+
+        figs.append(m)
+
+    return figs
+
+
+def scene_fits(problem, stage, plot_options):
     """
     Plot geodetic data, synthetics and residuals.
     """
@@ -668,12 +811,13 @@ def geodetic_fits(problem, stage, plot_options):
         (data, i) for (i, data) in enumerate(composite.datasets))
 
     results = composite.assemble_results(point)
-    nrmax = len(results)
 
     dataset_to_result = {}
     for dataset, result in zip(composite.datasets, results):
-        dataset_to_result[dataset] = result
+        if dataset.typ == 'SAR':
+            dataset_to_result[dataset] = result
 
+    nrmax = len(dataset_to_result.keys())
     fullfig, restfig = utility.mod_i(nrmax, ndmax)
     factors = num.ones(fullfig).tolist()
     if restfig:
@@ -1028,10 +1172,13 @@ def geodetic_fits(problem, stage, plot_options):
     return figures
 
 
-def draw_geodetic_fits(problem, plot_options):
+def draw_scene_fits(problem, plot_options):
 
     if 'geodetic' not in list(problem.composites.keys()):
         raise TypeError('No geodetic composite defined in the problem!')
+
+    if 'SAR' not in problem.config.geodetic_config.types:
+        raise TypeError('There is no SAR data in the problem setup!')
 
     po = plot_options
 
@@ -1055,7 +1202,55 @@ def draw_geodetic_fits(problem, plot_options):
             stage.number, llk_str, po.plot_projection))
 
     if not os.path.exists(outpath) or po.force:
-        figs = geodetic_fits(problem, stage, po)
+        figs = scene_fits(problem, stage, po)
+    else:
+        logger.info('scene plots exist. Use force=True for replotting!')
+        return
+
+    if po.outformat == 'display':
+        plt.show()
+    else:
+        logger.info('saving figures to %s' % outpath)
+        if po.outformat == 'pdf':
+            with PdfPages(outpath + '.pdf') as opdf:
+                for fig in figs:
+                    opdf.savefig(fig)
+        else:
+            for i, fig in enumerate(figs):
+                fig.savefig(outpath + '_%i.%s' % (i, po.outformat), dpi=po.dpi)
+
+
+def draw_gnss_fits(problem, plot_options):
+
+    if 'geodetic' not in list(problem.composites.keys()):
+        raise TypeError('No geodetic composite defined in the problem!')
+
+    if 'GNSS' not in problem.config.geodetic_config.types:
+        raise TypeError('There is no SAR data in the problem setup!')
+
+    po = plot_options
+
+    stage = Stage(homepath=problem.outfolder,
+                  backend=problem.config.sampler_config.backend)
+
+    if not po.reference:
+        stage.load_results(
+            varnames=problem.varnames,
+            model=problem.model, stage_number=po.load_stage,
+            load='trace', chains=[-1])
+        llk_str = po.post_llk
+    else:
+        llk_str = 'ref'
+
+    mode = problem.config.problem_config.mode
+
+    outpath = os.path.join(
+        problem.config.project_dir,
+        mode, po.figure_dir, 'gnss_%s_%s_%s' % (
+            stage.number, llk_str, po.plot_projection))
+
+    if not os.path.exists(outpath) or po.force:
+        figs = gnss_fits(problem, stage, po)
     else:
         logger.info('scene plots exist. Use force=True for replotting!')
         return
@@ -3314,7 +3509,8 @@ plots_catalog = {
     'correlation_hist': draw_correlation_hist,
     'stage_posteriors': draw_posteriors,
     'waveform_fits': draw_seismic_fits,
-    'scene_fits': draw_geodetic_fits,
+    'scene_fits': draw_scene_fits,
+    'gnss_fits': draw_gnss_fits,
     'velocity_models': draw_earthmodels,
     'slip_distribution': draw_slip_dist,
     'hudson': draw_hudson,
@@ -3334,7 +3530,8 @@ seismic_plots = [
 
 
 geodetic_plots = [
-    'scene_fits']
+    'scene_fits',
+    'gnss_fits']
 
 
 geometry_plots = [

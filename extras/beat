@@ -19,7 +19,7 @@ _beat_options()
 
     cur=${COMP_WORDS[COMP_CWORD]}
 
-    _avail_plots="velocity_models stage_posteriors correlation_hist slip_distribution moment_rate station_map waveform_fits scene_fits fuzzy_beachball hudson"
+    _avail_plots="velocity_models stage_posteriors correlation_hist slip_distribution moment_rate station_map waveform_fits scene_fits gnss_fits fuzzy_beachball hudson"
     _std="--help -h --loglevel --main_path"
 
     declare -A arg_subsub
