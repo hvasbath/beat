@@ -744,7 +744,7 @@ def gnss_fits(problem, stage, plot_options):
             lat=lat,
             lon=lon,
             radius=radius,
-            show_topo=True,
+            show_topo=False,
             show_grid=True,
             show_rivers=True,
             color_wet=(216, 242, 254),
@@ -1216,6 +1216,7 @@ def draw_scene_fits(problem, plot_options):
     if 'SAR' not in problem.config.geodetic_config.types:
         raise TypeError('There is no SAR data in the problem setup!')
 
+    logger.info('Drawing SAR misfits ...')
     po = plot_options
 
     stage = Stage(homepath=problem.outfolder,
@@ -1264,6 +1265,8 @@ def draw_gnss_fits(problem, plot_options):
     if 'GNSS' not in problem.config.geodetic_config.types:
         raise TypeError('There is no SAR data in the problem setup!')
 
+    logger.info('Drawing GNSS misfits ...')
+
     po = plot_options
 
     stage = Stage(homepath=problem.outfolder,
@@ -1295,13 +1298,9 @@ def draw_gnss_fits(problem, plot_options):
         plt.show()
     else:
         logger.info('saving figures to %s' % outpath)
-        if po.outformat == 'pdf':
-            with PdfPages(outpath + '.pdf') as opdf:
-                for fig in figs:
-                    opdf.savefig(fig)
-        else:
-            for i, fig in enumerate(figs):
-                fig.savefig(outpath + '_%i.%s' % (i, po.outformat), dpi=po.dpi)
+        for component, fig in zip(('horizontal', 'vertical'), figs):
+            fig.save(outpath + '_%s.%s' % (
+                component, po.outformat), resolution=po.dpi)
 
 
 def plot_trace(axes, tr, **kwargs):
