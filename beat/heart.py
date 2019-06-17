@@ -25,8 +25,7 @@ from pyrocko.guts_array import Array
 from pyrocko import crust2x2, gf, cake, orthodrome, trace, util
 from pyrocko.cake import GradientLayer
 from pyrocko.fomosto import qseis, qssp
-
-from pyrocko.model import Station
+from pyrocko.model import gnss
 
 # from pyrocko.fomosto import qseis2d
 
@@ -687,51 +686,6 @@ class GeodeticDataset(gf.meta.MultiLocation):
         return n
 
 
-class GNSSComponent(Object):
-    """
-    Object holding the GNSS data for a single station.
-    """
-    name = String.T(default='E', help='direction of measurement, E/N/U')
-    v = Float.T(default=0.1, help='Average velocity in [m/yr]')
-    sigma = Float.T(default=0.01, help='sigma measurement error (std) [m/yr]')
-    unit = String.T(default='m/yr', help='Unit of velocity v')
-
-
-class GNSSStation(Station):
-    """
-    GNSS station object, holds the displacment components and has all pyrocko
-    station functionality.
-    """
-
-    components = List.T(GNSSComponent.T())
-
-    def set_components(self, components):
-        self.components = []
-        for c in components:
-            self.add_component(c)
-
-    def get_components(self):
-        return list(self.components)
-
-    def get_component_names(self):
-        return set(c.name for c in self.components)
-
-    def remove_component_by_name(self, name):
-        todel = [c for c in self.components if c.name == name]
-        for c in todel:
-            self.components.remove(c)
-
-    def add_component(self, component):
-        self.remove_component_by_name(component.name)
-        self.components.append(component)
-        self.components.sort(key=lambda c: c.name)
-
-    def get_component(self, name):
-        for c in self.components:
-            if c.name == name:
-                return c
-
-
 class GNSSCompoundComponent(GeodeticDataset):
     """
     Collecting many GNSS components and merging them into arrays.
@@ -739,8 +693,9 @@ class GNSSCompoundComponent(GeodeticDataset):
     """
     los_vector = Array.T(shape=(None, 3), dtype=num.float, optional=True)
     displacement = Array.T(shape=(None,), dtype=num.float, optional=True)
-    name = String.T(default='E', help='direction of measurement, E/N/U')
-    station_names = List.T(String.T(optional=True))
+    name = String.T(default='east',
+                    help='direction of measurement, north/east/up')
+    stations = List.T(gnss.GNSSStation.T(optional=True))
     covariance = Covariance.T(
         optional=True,
         help=':py:class:`Covariance` that holds data'
@@ -753,11 +708,11 @@ class GNSSCompoundComponent(GeodeticDataset):
         optional=True)
 
     def update_los_vector(self):
-        if self.name == 'E':
+        if self.name == 'east':
             c = num.array([0, 1, 0])
-        elif self.name == 'N':
+        elif self.name == 'north':
             c = num.array([1, 0, 0])
-        elif self.name == 'U':
+        elif self.name == 'up':
             c = num.array([0, 0, 1])
         else:
             raise ValueError('Component %s not supported' % self.component)
@@ -772,78 +727,38 @@ class GNSSCompoundComponent(GeodeticDataset):
             s += '  number of stations: %i\n' % self.samples
         return s
 
+    @classmethod
+    def from_pyrocko_gnss_campaign(cls, campaign):
 
-class GNSSDataset(object):
-    """
-    Collecting many GNSS stations into one object. Easy managing and assessing
-    single stations and also merging all the stations components into compound
-    components for fast and easy modeling.
-    """
+        compounds = []
+        for comp in ('north', 'east', 'up'):
+            comp_stations = []
+            components = []
+            for st in campaign.stations:
+                try:
+                    components.append(st.components[comp])
+                    comp_stations.append(st)
+                except KeyError:
+                    logger.warn('No data for GNSS station: {}'.format(st.code))
 
-    def __init__(self, name=None, stations=None):
-        self.stations = {}
-        self.name = name
-
-        if stations is not None:
-            for station in stations:
-                self.stations[station.name] = station
-
-    def add_station(self, station, force=False):
-        if not isinstance(station, GNSSStation):
-            raise TypeError(
-                'Input object is not a valid station of'
-                ' class: %s' % GNSSStation)
-
-        if station.name not in self.stations.keys() or force:
-            self.stations[station.name] = station
-        else:
-            raise ValueError(
-                'Station %s already exists in dataset!' % station.name)
-
-    def get_station(self, name):
-        return self.stations[name]
-
-    def remove_stations(self, stations):
-        for st in stations:
-            self.stations.pop(st)
-
-    def get_station_names(self):
-        return list(self.stations.keys())
-
-    def get_component_names(self):
-        return next(iter(self.stations.values())).get_component_names()
-
-    def get_compound(self, name):
-        stations = self.stations.values()
-
-        comps = self.get_component_names()
-
-        if name in comps:
-            stations_comps = [st.get_component(name) for st in stations]
-            lats = num.array([st.lat for st in stations])
-            lons = num.array([st.lon for st in stations])
-
-            vs = num.array([c.v for c in stations_comps])
+            lats, lons = num.array(
+                [loc.effective_latlon for loc in comp_stations]).T
+            vs = num.array([c.shift for c in components])
             variances = num.power(
-                num.array([c.sigma for c in stations_comps]), 2)
-        else:
-            raise ValueError(
-                'Requested component %s does not exist in the dataset' % name)
+                num.array([c.sigma for c in components]), 2)
+            compounds.append(cls(
+                typ='GNSS',
+                stations=comp_stations,
+                displacement=vs,
+                covariance=Covariance(data=num.eye(lats.size) * variances),
+                lats=lats,
+                lons=lons,
+                east_shifts=num.zeros_like(lats),
+                north_shifts=num.zeros_like(lats),
+                name=comp,
+                odw=num.ones_like(lats.size)))
 
-        return GNSSCompoundComponent(
-            typ='GNSS',
-            station_names=self.get_station_names(),
-            displacement=vs,
-            covariance=Covariance(data=num.eye(lats.size) * variances),
-            lats=lats,
-            lons=lons,
-            east_shifts=num.zeros_like(lats),
-            north_shifts=num.zeros_like(lats),
-            name=name,
-            odw=num.ones_like(lats.size))
-
-    def iter_stations(self):
-        return self.stations.items()
+        return compounds
 
 
 class ResultReport(Object):

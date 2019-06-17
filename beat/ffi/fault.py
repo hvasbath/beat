@@ -928,28 +928,33 @@ def optimize_discretization(
             for i, sf in enumerate(fault.iter_subfaults()):
                 bdepths = fault.get_subfault_patch_attributes(
                     i, datatype, attributes=['bottom_depth'])
+                print(bdepths)
                 c1.extend(num.exp(
-                    -config.depth_penalty * bdepths /
-                    sf.bottom_depth * km).tolist())
+                    -config.depth_penalty * bdepths * km /
+                    sf.bottom_depth).tolist())
+                print(sf.bottom_depth)
 
             c_one_pen = num.array(c1)[uids]
+            # print('C1', c_one_pen)
 
             centers = fault.get_subfault_patch_attributes(
                 subfault_idxs, datatype, attributes=['center'])[:, :-1]
             cand_centers = centers[uids, :]
 
-            patch_data_distance_mins = distances(
-                points=data_coords, ref_points=cand_centers).min(axis=0)
+            patch_data_distances = distances(
+                points=data_coords, ref_points=cand_centers)
+            patch_data_distance_mins = patch_data_distances.min(axis=0)
 
             c_two_pen = patch_data_distance_mins.min() / \
                         patch_data_distance_mins
-
+            # print('C2', c_two_pen)
             inter_patch_distances = distances(
                 points=centers, ref_points=cand_centers)
 
             c_three_pen = (R * inter_patch_distances.T).sum(axis=1) / \
                           inter_patch_distances.sum(axis=0)
-
+            # print('C3', c_three_pen)
+            # print('A', area_pen)
             rating = area_pen * c_one_pen * c_two_pen * c_three_pen
             rating_idxs = rating.argsort()[::-1]
 

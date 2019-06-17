@@ -131,41 +131,6 @@ def load_kite_scenes(datadir, names):
     return diffgs
 
 
-def load_ascii_gnss(filedir, filename):
-    """
-    Load ascii file columns containing:
-    station name, Lon, Lat, ve, vn, vu, sigma_ve, sigma_vn, sigma_vu
-    location [decimal deg]
-    measurement unit [mm/yr]
-
-    Returns
-    -------
-    :class:`heart.GNSSDataset`
-    """
-    filepath = os.path.join(filedir, filename)
-    names = num.loadtxt(filepath, usecols=[0], dtype='string')
-    d = num.loadtxt(filepath, usecols=range(1, 9), dtype='float')
-
-    if names.size != d.shape[0]:
-        raise Exception('Number of stations and available data differs!')
-
-    data = heart.GNSSDataset()
-    for i, name in enumerate(names):
-
-        gnss_station = heart.GNSSStation(
-            name=str(name), lon=float(d[i, 0]), lat=float(d[i, 1]))
-        for j, comp in enumerate('ENU'):
-
-            gnss_station.add_component(
-                heart.GNSSComponent(
-                    name=comp,
-                    v=float(d[i, j + 2] / km),
-                    sigma=float(d[i, j + 5] / km)))
-        data.add_station(gnss_station)
-
-    return data
-
-
 def load_ascii_gnss_globk(filedir, filename):
     """
     Load ascii file columns containing:
@@ -175,8 +140,10 @@ def load_ascii_gnss_globk(filedir, filename):
 
     Returns
     -------
-    :class:`heart.GNSSDataset`
+    :class:`pyrocko.model.gnss.GNSSCampaign`
     """
+    from pyrocko.model import gnss
+
     filepath = os.path.join(filedir, filename)
     names = num.loadtxt(filepath, skiprows=3, usecols=[12], dtype='str')
     d = num.loadtxt(filepath, skiprows=3, usecols=range(12), dtype='float')
@@ -186,18 +153,19 @@ def load_ascii_gnss_globk(filedir, filename):
     if names.size != d.shape[0]:
         raise Exception('Number of stations and available data differs!')
 
-    data = heart.GNSSDataset()
+    data = gnss.GNSSCampaign(name=filename)
     for i, name in enumerate(names):
 
-        gnss_station = heart.GNSSStation(
-            name=str(name), lon=float(d[i, 0]), lat=float(d[i, 1]))
+        gnss_station = gnss.GNSSStation(
+            code=str(name.split('_')[0]),
+            lon=float(d[i, 0]),
+            lat=float(d[i, 1]))
         for j, (comp, vel_idx, std_idx) in enumerate(
-                zip('ENU', velocity_idxs, std_idxs)):
+                zip(['east', 'north', 'up'], velocity_idxs, std_idxs)):
 
-            gnss_station.add_component(
-                heart.GNSSComponent(
-                    name=comp,
-                    v=float(d[i, vel_idx] / km),
+            setattr(gnss_station, comp,
+                gnss.GNSSComponent(
+                    shift=float(d[i, vel_idx] / km),
                     sigma=float(d[i, std_idx] / km)))
         data.add_station(gnss_station)
 
@@ -232,20 +200,25 @@ def load_repsonses_from_file(projectpath):
     return responses
 
 
-def load_and_blacklist_gnss(datadir, filename, blacklist):
+def load_and_blacklist_gnss(datadir, filename, blacklist, campaign=False):
     """
     Load ascii GNSS data from GLOBK, apply blacklist and initialise targets.
+
+    Parameters
+    ----------
+    campaign : boolean
+        if True return gnss.GNSSCampaign otherwise
+        list of heart.GNSSCompoundComponent
     """
-    # gnss_ds = load_ascii_gnss()
-    gnss_ds = load_ascii_gnss_globk(datadir, filename)
-    gnss_ds.remove_stations(blacklist)
-    comps = gnss_ds.get_component_names()
+    gnss_campaign = load_ascii_gnss_globk(datadir, filename)
+    for station_code in blacklist:
+        gnss_campaign.remove_station(station_code)
 
-    targets = []
-    for c in comps:
-        targets.append(gnss_ds.get_compound(c))
-
-    return targets
+    if not campaign:
+        return heart.GNSSCompoundComponent.from_pyrocko_gnss_campaign(
+            gnss_campaign)
+    else:
+        return gnss_campaign
 
 
 def load_and_blacklist_stations(datadir, blacklist):
