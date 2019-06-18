@@ -928,11 +928,10 @@ def optimize_discretization(
             for i, sf in enumerate(fault.iter_subfaults()):
                 bdepths = fault.get_subfault_patch_attributes(
                     i, datatype, attributes=['bottom_depth'])
-                print(bdepths)
+
                 c1.extend(num.exp(
                     -config.depth_penalty * bdepths * km /
                     sf.bottom_depth).tolist())
-                print(sf.bottom_depth)
 
             c_one_pen = num.array(c1)[uids]
             # print('C1', c_one_pen)
