@@ -3386,7 +3386,7 @@ def source_geometry(fault, ref_sources, datasets=None):
     ax.set_zlabel('Depth [km]')
     ax.set_ylabel('North_shift [km]')
     ax.set_xlabel('East_shift [km]')
-    ax.set_aspect('equal')
+    # ax.set_aspect('equal')
     plt.show()
 
 
