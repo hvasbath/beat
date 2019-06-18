@@ -756,6 +756,7 @@ def gnss_fits(problem, stage, plot_options):
         for ista, sta in enumerate(all_stations):
             for comp in sta.components.values():
                 offset_scale[ista] += comp.shift
+
         offset_scale = num.sqrt(offset_scale ** 2).max()
 
         m.add_gnss_campaign(

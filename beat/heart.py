@@ -715,7 +715,7 @@ class GNSSCompoundComponent(GeodeticDataset):
         elif self.name == 'up':
             c = num.array([0, 0, 1])
         else:
-            raise ValueError('Component %s not supported' % self.component)
+            raise ValueError('Component %s not supported' % self.name)
 
         self.los_vector = num.tile(c, self.samples).reshape(self.samples, 3)
         return self.los_vector
