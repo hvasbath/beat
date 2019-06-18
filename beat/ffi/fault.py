@@ -890,6 +890,7 @@ def optimize_discretization(
             widths, lengths = fault.get_subfault_patch_attributes(
                 i, datatype, attributes=['width', 'length'])
 
+            # select patches that fulfill size requirements
             width_idxs_max += (num.argwhere(
                 widths > config.patch_widths_max[i]).ravel()
                               + fault.cum_subfault_npatches[i]).tolist()
@@ -897,10 +898,10 @@ def optimize_discretization(
                 lengths > config.patch_lengths_max[i]).ravel()
                                + fault.cum_subfault_npatches[i]).tolist()
             width_idxs_min += (num.argwhere(
-                widths < config.patch_widths_min[i]).ravel()
+                widths <= config.patch_widths_min[i]).ravel()
                               + fault.cum_subfault_npatches[i]).tolist()
             length_idxs_min += (num.argwhere(
-                lengths < config.patch_lengths_min[i]).ravel()
+                lengths <= config.patch_lengths_min[i]).ravel()
                                 + fault.cum_subfault_npatches[i]).tolist()
 
         # patches that fulfill both size thresholds
