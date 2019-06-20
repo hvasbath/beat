@@ -22,7 +22,7 @@ import numpy as num
 import logging
 import copy
 
-from pyrocko import orthodrome
+from pyrocko.orthodrome import latlon_to_ne_numpy, latlon_to_xyz, earthradius
 from pyrocko.gf import RectangularSource as RS
 
 from matplotlib.path import Path
@@ -132,7 +132,7 @@ def block_geometry(lons, lats, sources, reference):
         mask with zeros/ones for stable/moving observation points, respectively
     """
 
-    norths, easts = orthodrome.latlon_to_ne_numpy(
+    norths, easts = latlon_to_ne_numpy(
         reference.lat, reference.lon, lats, lons)
 
     return block_mask(easts, norths, sources, east_ref=0., north_ref=0.)
@@ -314,3 +314,46 @@ def seperate_point(point):
             interseismic_point[var] = tpoint.pop(var)
 
     return tpoint, interseismic_point
+
+
+def velocities_from_pole(lats, lons, plat, plon, omega):
+    """
+    Return horizontal velocities at input locations for rotation around
+    given Euler pole
+
+    Parameters
+    ----------
+    lats: :class:`numpy.NdArray`
+        of geographic latitudes [deg] of points to calculate velocities for
+    lons: :class:`numpy.NdArray`
+        of geographic longitudes [deg] of points to calculate velocities for
+    plat: float
+        Euler pole latitude [deg]
+    plon: float
+        Euler pole longitude [deg]
+    omega: float
+        angle of rotation around Euler pole [deg / million yrs]
+    """
+
+    def cartesian_to_local(lat, lon):
+        rlat = lat * d2r
+        rlon = lon * d2r
+        return num.array([
+            [-num.sin(rlat) * num.cos(rlon), -num.sin(rlat) * num.sin(rlon), num.cos(rlat)],
+            [-num.sin(rlon), num.cos(rlon), num.zeros_like(rlat)],
+            [-num.cos(rlat) * num.cos(rlon), -num.cos(rlat) * num.sin(rlon), -num.sin(rlat)]])
+
+    latlons = num.atleast_2d(num.vstack([lats, lons]).T)
+    platlons = num.hstack([plat, plon])
+    npoints = latlons.shape[0]
+
+    xyz_points = latlon_to_xyz(latlons)
+    xyz_pole = latlon_to_xyz(platlons)
+    xyz_poles = num.tile(xyz_pole, npoints).reshape(npoints, 3)
+
+    omega_rad_yr = omega * 1e-6 * d2r
+    v_vecs = num.cross(xyz_poles, xyz_points)
+    vels_cartesian = earthradius * omega_rad_yr * v_vecs
+
+    T = cartesian_to_local(latlons[:, 0], latlons[:, 1])
+    return num.einsum('ijk->ik', T * vels_cartesian.T).T
