@@ -35,25 +35,6 @@ __all__ = [
     'GeodeticDistributerComposite']
 
 
-def get_ramp_displacement(locx, locy, ramp, offset):
-    """
-    Get synthetic residual plane in azimuth and range direction of the
-    satellite.
-
-    Parameters
-    ----------
-    slocx : shared array-like :class:`numpy.ndarray`
-        local coordinates [km] in east direction
-    slocy : shared array-like :class:`numpy.ndarray`
-        local coordinates [km] in north direction
-    ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
-        vector of 2 variables with ramp parameters in azimuth[0] & range[1]
-    offset : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
-        scalar of offset in [m]
-    """
-    return locy * ramp[0] + locx * ramp[1] + offset
-
-
 class GeodeticComposite(Composite):
     """
     Comprises data structure of the geodetic composite.
