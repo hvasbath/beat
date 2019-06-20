@@ -650,6 +650,18 @@ class GeodeticDataset(gf.meta.MultiLocation):
     utmn = Array.T(shape=(None,), dtype=num.float, optional=True)
     utme = Array.T(shape=(None,), dtype=num.float, optional=True)
 
+
+    def __init__(self, **kwargs):
+        self._slocx = None
+        self._slocy = None
+        Object.__init__(self, **kwargs)
+
+    def get_correction(self, hierarchicals, point=None):
+        """
+        Needs to be specified on inherited dataset classes.
+        """
+        pass
+
     def update_local_coords(self, loc):
         """
         Calculate local coordinates with respect to given Location.
@@ -686,6 +698,74 @@ class GeodeticDataset(gf.meta.MultiLocation):
         return n
 
 
+def velocities_from_pole(lats, lons, plat, plon, omega):
+    """
+    Return horizontal velocities at input locations for rotation around
+    given Euler pole
+
+    Parameters
+    ----------
+    lats: :class:`numpy.NdArray`
+        of geographic latitudes [deg] of points to calculate velocities for
+    lons: :class:`numpy.NdArray`
+        of geographic longitudes [deg] of points to calculate velocities for
+    plat: float
+        Euler pole latitude [deg]
+    plon: float
+        Euler pole longitude [deg]
+    omega: float
+        angle of rotation around Euler pole [deg / million yrs]
+
+    Returns
+    -------
+    :class:`numpy.NdArray` of velocities [m / yrs] npoints x 3 (NEU)
+    """
+
+    def cartesian_to_local(lat, lon):
+        rlat = lat * d2r
+        rlon = lon * d2r
+        return num.array([
+            [-num.sin(rlat) * num.cos(rlon), -num.sin(rlat) * num.sin(rlon),
+             num.cos(rlat)],
+            [-num.sin(rlon), num.cos(rlon), num.zeros_like(rlat)],
+            [-num.cos(rlat) * num.cos(rlon), -num.cos(rlat) * num.sin(rlon),
+             -num.sin(rlat)]])
+
+    latlons = num.atleast_2d(num.vstack([lats, lons]).T)
+    platlons = num.hstack([plat, plon])
+    npoints = latlons.shape[0]
+
+    xyz_points = orthodrome.latlon_to_xyz(latlons)
+    xyz_pole = orthodrome.latlon_to_xyz(platlons)
+    xyz_poles = num.tile(xyz_pole, npoints).reshape(npoints, 3)
+
+    omega_rad_yr = omega * 1e-6 * d2r
+    v_vecs = num.cross(xyz_poles, xyz_points)
+    vels_cartesian = orthodrome.earthradius * omega_rad_yr * v_vecs
+
+    T = cartesian_to_local(latlons[:, 0], latlons[:, 1])
+    return num.einsum('ijk->ik', T * vels_cartesian.T).T
+
+
+def get_ramp_displacement(locx, locy, ramp, offset):
+    """
+    Get synthetic residual plane in azimuth and range direction of the
+    satellite.
+
+    Parameters
+    ----------
+    locx : shared array-like :class:`numpy.ndarray`
+        local coordinates [km] in east direction
+    locy : shared array-like :class:`numpy.ndarray`
+        local coordinates [km] in north direction
+    ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
+        vector of 2 variables with ramp parameters in azimuth[0] & range[1]
+    offset : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
+        scalar of offset in [m]
+    """
+    return self.north_shifts * ramp[0] + self.east_shifts* ramp[1] + offset
+
+
 class GNSSCompoundComponent(GeodeticDataset):
     """
     Collecting many GNSS components and merging them into arrays.
@@ -707,6 +787,10 @@ class GNSSCompoundComponent(GeodeticDataset):
              'dataset for overlaps with other datasets',
         optional=True)
 
+    def __init__(self, **kwargs):
+        self._station2index = None
+        Object.__init__(self, **kwargs)
+
     def update_los_vector(self):
         if self.name == 'east':
             c = num.array([0, 1, 0])
@@ -726,6 +810,47 @@ class GNSSCompoundComponent(GeodeticDataset):
         if self.lats is not None:
             s += '  number of stations: %i\n' % self.samples
         return s
+
+    def station_name_index_mapping(self):
+        if self._station2index is None:
+            self._station2index = dict(
+                (station.station, i) for (i, station) in enumerate(
+                    self.stations))
+        return self._station2index
+
+    def setup_correction(self, event=None, blacklist=[]):
+        logger.debug('Setting up correction for %s' % self.name)
+        self._slocx = shared(self.lon, name='localx_%s' % j, borrow=True)
+        self._slocy = shared(self.lat, name='localy_%s' % j, borrow=True)
+
+        s2idx = self.station_name_index_mapping()
+        self._correction_idxs_blacklist = num.array(
+            [s2idx[code] for code in blacklist])
+
+    def get_correction(self, hierarchicals, point=None):
+        """
+        Get synthetic correction velocity due to Euler pole rotation.
+        """
+        pole_name =
+        rotation_vel_name
+        if not point:
+            locx = self._slocx
+            locy = self._slocy
+            pole = hierarchicals[pole_name]
+            omega = hierarchicals[rotation_vel_name]
+        else:
+            locx = self.lats
+            locy = self.lons
+            try:
+                pole = point[pole_name]
+                omega = point[rotation_vel_name]
+            except KeyError:
+                pole = hierarchicals[pole_name]
+                omega = hierarchicals[rotation_vel_name]
+
+        neu = velocities_from_pole(locx, locy, pole[0], pole[1], omega)
+        neu[self._correction_idxs_blacklist] = 0.
+        return (neu * self.los_vector).sum(axis=1)
 
     @classmethod
     def from_pyrocko_gnss_campaign(cls, campaign):
@@ -887,6 +1012,37 @@ class DiffIFG(IFG):
 
     def offset_name(self):
         return self.name + '_offset'
+
+    def setup_correction(self, event):
+        locy, locx = self.update_local_coords(event)
+        logger.debug('Setting up correction for %s' % self.name)
+        self._slocx = shared(locx.astype(tconfig.floatX) / km,
+            name='localx_%s' % j, borrow=True)
+        self._slocy = shared(locy.astype(tconfig.floatX) / km,
+            name='localy_%s' % j, borrow=True)
+
+    def get_correction(self, hierarchicals, point=None):
+        """
+        Return synthetic correction displacements caused by orbital ramp.
+        """
+        ramp_name = self.ramp_name()
+        offset_name = self.offset_name()
+        if not point:
+            locx = self._slocx[i]
+            locy = self._slocy[i]
+            ramp = hierarchicals[ramp_name]
+            offset = hierarchicals[offset_name]
+        else:
+            locx = self.east_shifts / km
+            locy = self.north_shifts / km
+            try:
+                ramp = point[ramp_name]
+                offset = point[offset_name]
+            except KeyError:
+                ramp = self.hierarchicals[ramp_name]
+                offset = self.hierarchicals[offset_name]
+
+        return get_ramp_displacement(locx, locy, ramp, offset)
 
 
 class GeodeticResult(Object):
