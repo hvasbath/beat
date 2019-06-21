@@ -656,7 +656,7 @@ class SeismicConfig(Object):
 
 class CorrectionConfig(Object):
 
-    enable = Bool.T(
+    enabled = Bool.T(
         default=False
         help='Flag to enable Correction.')
     blacklist = List.T(
@@ -718,7 +718,7 @@ class GeodeticCorrectionsConfig(Object):
 
     @property
     def has_enabled_corrections(self):
-        return any([corr.enable for corr in self.iter_corrections()])
+        return any([corr.enabled for corr in self.iter_corrections()])
 
 
 class GeodeticConfig(Object):
@@ -778,9 +778,9 @@ class GeodeticConfig(Object):
 
         out_names = []
         for corr in self.corrections_config.iter_corrections():
-            if corr.enable:
+            if corr.enabled:
                 for dataset in datasets:
-                    if corr.typ == dataset.typ:
+                    if corr.for_datatyp == dataset.typ:
                         out_names.extend(
                             corr.get_hierarchical_names(dataset.name))
 

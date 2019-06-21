@@ -105,6 +105,13 @@ class GeodeticComposite(Composite):
                 shared(choli, name='geo_weight_%i' % i, borrow=True))
             data.covariance.update_slog_pdet()
 
+        if self.config.corrections_config.has_enabled_corrections:
+            logger.info('Initialising corrections ...')
+            for corr_conf in self.config.corrections_config.iter_corrections():
+                for data in self.datasets:
+                    data.setup_correction(
+                        event=self.event, correction_config=corr_conf)
+
         self.config = gc
 
         if hypers:
@@ -210,8 +217,6 @@ class GeodeticComposite(Composite):
                 'Evaluating config for $s corrections '
                 'for datasets...' % corr.feature)
             for data in self.datasets:
-                data.setup_correction(
-                    event=self.event, correction_config=corr)
                 hierarchical_names = corr.get_hierarchical_names(data.name)
                 for hierarchical_name in hierarchical_names:
                     if not corr.enable and hierarchical_name in hierarchicals:
@@ -262,13 +267,13 @@ class GeodeticComposite(Composite):
         GNSS Euler pole rotations etc...
         """
         for residual, dataset in zip(residuals, self.datasets):
-            correction = dataset.get_correction(
-                self.hierarchicals, point=point)
-
-            if operation == '-':
-                residual -= correction
-            elif operation == '+':
-                residual += correction
+            if dataset.has_correction:
+                correction = dataset.get_correction(
+                    self.hierarchicals, point=point)
+                if operation == '-':
+                    residual -= correction
+                elif operation == '+':
+                    residual += correction
 
         return residuals
 
