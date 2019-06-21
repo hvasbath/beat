@@ -839,15 +839,20 @@ class GNSSCompoundComponent(GeodeticDataset):
                 'Not correcting %s for %s' % (
                     self.name, correction_config.feature))
 
+        self.correction_names = correction_config.get_hierarchical_names(
+            self.name)
         self.has_correction = correction_config.enable
 
     def get_correction(self, hierarchicals, point=None):
         """
         Get synthetic correction velocity due to Euler pole rotation.
         """
-        # TODO resolve name and when to do correction is always called for now
-        pole_name =
-        rotation_vel_name =
+        if not self.has_correction:
+            raise ValueError(
+                'Requested correction, but is not setup or configured! '
+                'For dataset %s' % self.name)
+
+        pole_name, rotation_vel_name = self.correction_names
         if not point:
             locx = self._slocx
             locy = self._slocy
@@ -1039,14 +1044,19 @@ class DiffIFG(IFG):
                     correction_config.feature, self.name))
 
         self.has_correction = correction_config.enable
+        self.correction_names = correction_config.get_hierarchical_names(
+            self.name)
 
     def get_correction(self, hierarchicals, point=None):
         """
         Return synthetic correction displacements caused by orbital ramp.
         """
-        # TODO resolve name and when to do correction is always called for now
-        ramp_name = self.ramp_name
-        offset_name = self.offset_name
+        if not self.has_correction:
+            raise ValueError(
+                'Requested correction, but is not setup or configured! '
+                'For dataset %s' % self.name)
+
+        ramp_name, offset_name = self.correction_names
         if not point:
             locx = self._slocx[i]
             locy = self._slocy[i]
