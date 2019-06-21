@@ -448,7 +448,9 @@ physical_bounds = dict(
     hypers=(-20., 20.),
 
     ramp=(-0.01, 0.01),
-    offset=(-1.0, 1.0))
+    offset=(-1.0, 1.0),
+    pole=(-180., 180.),
+    omega=(-3., 3.))
 
 
 class Parameter(Object):
@@ -646,7 +648,7 @@ class GeodeticDataset(gf.meta.MultiLocation):
         help='Type of geodetic data, e.g. SAR, GNSS, ...')
     name = String.T(
         default='A',
-        help='e.g. GNSS station name or InSAR satellite track ')
+        help='e.g. GNSS campaign name or InSAR satellite track ')
     utmn = Array.T(shape=(None,), dtype=num.float, optional=True)
     utme = Array.T(shape=(None,), dtype=num.float, optional=True)
 
@@ -654,6 +656,7 @@ class GeodeticDataset(gf.meta.MultiLocation):
     def __init__(self, **kwargs):
         self._slocx = None
         self._slocy = None
+        self.has_correction = False
         Object.__init__(self, **kwargs)
 
     def get_correction(self, hierarchicals, point=None):
@@ -773,8 +776,9 @@ class GNSSCompoundComponent(GeodeticDataset):
     """
     los_vector = Array.T(shape=(None, 3), dtype=num.float, optional=True)
     displacement = Array.T(shape=(None,), dtype=num.float, optional=True)
-    name = String.T(default='east',
-                    help='direction of measurement, north/east/up')
+    component = String.T(
+        default='east',
+        help='direction of measurement, north/east/up')
     stations = List.T(gnss.GNSSStation.T(optional=True))
     covariance = Covariance.T(
         optional=True,
@@ -792,21 +796,21 @@ class GNSSCompoundComponent(GeodeticDataset):
         Object.__init__(self, **kwargs)
 
     def update_los_vector(self):
-        if self.name == 'east':
+        if self.component == 'east':
             c = num.array([0, 1, 0])
-        elif self.name == 'north':
+        elif self.component == 'north':
             c = num.array([1, 0, 0])
-        elif self.name == 'up':
+        elif self.component == 'up':
             c = num.array([0, 0, 1])
         else:
-            raise ValueError('Component %s not supported' % self.name)
+            raise ValueError('Component %s not supported' % self.component)
 
         self.los_vector = num.tile(c, self.samples).reshape(self.samples, 3)
         return self.los_vector
 
     def __str__(self):
         s = 'GNSS\n compound: \n'
-        s += '  component: %s\n' % self.name
+        s += '  component: %s\n' % self.component
         if self.lats is not None:
             s += '  number of stations: %i\n' % self.samples
         return s
@@ -818,21 +822,32 @@ class GNSSCompoundComponent(GeodeticDataset):
                     self.stations))
         return self._station2index
 
-    def setup_correction(self, event=None, blacklist=[]):
-        logger.debug('Setting up correction for %s' % self.name)
-        self._slocx = shared(self.lon, name='localx_%s' % j, borrow=True)
-        self._slocy = shared(self.lat, name='localy_%s' % j, borrow=True)
+    def setup_correction(self, event, correction_config):
 
-        s2idx = self.station_name_index_mapping()
-        self._correction_idxs_blacklist = num.array(
-            [s2idx[code] for code in blacklist])
+        if correction_config.for_datatyp == self.typ and \
+                correction_config.enable:
+            logger.info(
+                'Setting up %s correction for %s' % self.name)
+            self._slocx = shared(self.lon, name='localx_%s' % j, borrow=True)
+            self._slocy = shared(self.lat, name='localy_%s' % j, borrow=True)
+
+            s2idx = self.station_name_index_mapping()
+            self._correction_idxs_blacklist = num.array(
+                [s2idx[code] for code in correction_config.blacklist])
+        else:
+            logger.info(
+                'Not correcting %s for %s' % (
+                    self.name, correction_config.feature))
+
+        self.has_correction = correction_config.enable
 
     def get_correction(self, hierarchicals, point=None):
         """
         Get synthetic correction velocity due to Euler pole rotation.
         """
+        # TODO resolve name and when to do correction is always called for now
         pole_name =
-        rotation_vel_name
+        rotation_vel_name =
         if not point:
             locx = self._slocx
             locy = self._slocy
@@ -872,6 +887,7 @@ class GNSSCompoundComponent(GeodeticDataset):
             variances = num.power(
                 num.array([c.sigma for c in components]), 2)
             compounds.append(cls(
+                name=campaign.name,
                 typ='GNSS',
                 stations=comp_stations,
                 displacement=vs,
@@ -880,7 +896,7 @@ class GNSSCompoundComponent(GeodeticDataset):
                 lons=lons,
                 east_shifts=num.zeros_like(lats),
                 north_shifts=num.zeros_like(lats),
-                name=comp,
+                component=comp,
                 odw=num.ones_like(lats.size)))
 
         return compounds
@@ -980,18 +996,18 @@ class DiffIFG(IFG):
         covariance = Covariance(data=scene.covariance.covariance_matrix)
 
         if scene.quadtree.frame.isDegree():
-                lats = num.empty(scene.quadtree.nleaves)
-                lons = num.empty(scene.quadtree.nleaves)
-                lats.fill(scene.quadtree.frame.llLat)
-                lons.fill(scene.quadtree.frame.llLon)
-                lons += scene.quadtree.leaf_focal_points[:, 0]
-                lats += scene.quadtree.leaf_focal_points[:, 1]
+            lats = num.empty(scene.quadtree.nleaves)
+            lons = num.empty(scene.quadtree.nleaves)
+            lats.fill(scene.quadtree.frame.llLat)
+            lons.fill(scene.quadtree.frame.llLon)
+            lons += scene.quadtree.leaf_focal_points[:, 0]
+            lats += scene.quadtree.leaf_focal_points[:, 1]
         elif scene.quadtree.frame.isMeter():
-                loce = scene.quadtree.leaf_eastings
-                locn = scene.quadtree.leaf_northings
-                lats, lons = orthodrome.ne_to_latlon(
-                    lat0=scene.frame.llLat, lon0=scene.frame.llLon,
-                    north_m=locn, east_m=loce)
+            loce = scene.quadtree.leaf_eastings
+            locn = scene.quadtree.leaf_northings
+            lats, lons = orthodrome.ne_to_latlon(
+                lat0=scene.frame.llLat, lon0=scene.frame.llLon,
+                north_m=locn, east_m=loce)
 
         d = dict(
             name=scene.meta.filename,
@@ -1004,29 +1020,33 @@ class DiffIFG(IFG):
             odw=num.ones_like(scene.quadtree.leaf_phis))
         return cls(**d)
 
-    def plane_names(self):
-        return [self.ramp_name()] + [self.offset_name()]
+    def setup_correction(self, event, correction_config):
+        """
+        Setup dataset correction
+        """
+        if correction_config.for_datatyp == self.typ and \
+                correction_config.enable:
+            if self.name not in correction_config.blacklist:
+                logger.info('Setting up %s correction for %s' % (
+                    correction_config.feature, self.name))
+                locy, locx = self.update_local_coords(event)
+                self._slocx = shared(locx.astype(tconfig.floatX) / km,
+                                     name='localx_%s' % j, borrow=True)
+                self._slocy = shared(locy.astype(tconfig.floatX) / km,
+                                     name='localy_%s' % j, borrow=True)
+            else:
+                logger.info('Not correcting for %s for %s' % (
+                    correction_config.feature, self.name))
 
-    def ramp_name(self):
-        return self.name + '_ramp'
-
-    def offset_name(self):
-        return self.name + '_offset'
-
-    def setup_correction(self, event):
-        locy, locx = self.update_local_coords(event)
-        logger.debug('Setting up correction for %s' % self.name)
-        self._slocx = shared(locx.astype(tconfig.floatX) / km,
-            name='localx_%s' % j, borrow=True)
-        self._slocy = shared(locy.astype(tconfig.floatX) / km,
-            name='localy_%s' % j, borrow=True)
+        self.has_correction = correction_config.enable
 
     def get_correction(self, hierarchicals, point=None):
         """
         Return synthetic correction displacements caused by orbital ramp.
         """
-        ramp_name = self.ramp_name()
-        offset_name = self.offset_name()
+        # TODO resolve name and when to do correction is always called for now
+        ramp_name = self.ramp_name
+        offset_name = self.offset_name
         if not point:
             locx = self._slocx[i]
             locy = self._slocy[i]
