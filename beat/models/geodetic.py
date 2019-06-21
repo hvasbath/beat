@@ -105,24 +105,6 @@ class GeodeticComposite(Composite):
                 shared(choli, name='geo_weight_%i' % i, borrow=True))
             data.covariance.update_slog_pdet()
 
-        if gc.fit_plane:
-            logger.info('Fit residual ramp selected!')
-            self._slocx = []
-            self._slocy = []
-            for j, data in enumerate(self.datasets):
-                if isinstance(data, heart.DiffIFG):
-                    locy, locx = data.update_local_coords(self.event)
-                    self._slocx.append(
-                        shared(locx.astype(tconfig.floatX) / km,
-                               name='localx_%s' % j, borrow=True))
-                    self._slocy.append(
-                        shared(locy.astype(tconfig.floatX) / km,
-                               name='localy_%s' % j, borrow=True))
-                else:
-                    logger.debug('Appending placeholder for non-SAR data!')
-                    self._slocx.append(None)
-                    self._slocy.append(None)
-
         self.config = gc
 
         if hypers:
@@ -137,14 +119,14 @@ class GeodeticComposite(Composite):
 
     def get_all_station_names(self):
         """
-        Return unique GPS stations and radar acquisitions.
+        Return unique GNSS stations and radar acquisitions.
         """
         names = []
         for dataset in self.datasets:
             if isinstance(dataset, heart.DiffIFG):
                 names.append(dataset.name)
             elif isinstance(dataset, heart.GNSSCompoundComponent):
-                names.extent(dataset.station_names)
+                names.extent(dataset.component)
             else:
                 TypeError(
                     'Geodetic Dataset of class "%s" not '
@@ -219,92 +201,74 @@ class GeodeticComposite(Composite):
     def init_hierarchicals(self, problem_config):
         """
         Initialize hierarchical parameters.
-        Ramp estimation in azimuth and range direction of a radar scene.
+        Ramp estimation in azimuth and range direction of a radar scene and/or
+        Rotation of GNSS stations around an Euler pole
         """
         hierarchicals = problem_config.hierarchicals
-        if self.config.fit_plane:
-            logger.info('Estimating ramp for each dataset...')
+        for corr in self.config.corrections_config.iter_corrections():
+            logger.info(
+                'Evaluating config for $s corrections '
+                'for datasets...' % corr.feature)
             for data in self.datasets:
-                if isinstance(data, heart.DiffIFG):
-                    for hierarchical_name in data.plane_names():
+                data.setup_correction(
+                    event=self.event, correction_config=corr)
+                hierarchical_names = corr.get_hierarchical_names(data.name)
+                for hierarchical_name in hierarchical_names:
+                    if not corr.enable and hierarchical_name in hierarchicals:
+                        raise ConfigInconsistentError(
+                            '%s disabled, but they are defined'
+                            ' in the problem configuration'
+                            ' (hierarchicals)!' % corr.feature)
 
-                        if not self.config.fit_plane and \
-                                hierarchical_name in hierarchicals:
-                            raise ConfigInconsistentError(
-                                'Plane removal disabled, but they are defined'
-                                ' in the problem configuration'
-                                ' (hierarchicals)!')
+                    if corr.enable and hierarchical_name not in hierarchicals \
+                            and data.name not in corr.blacklist:
+                        raise ConfigInconsistentError(
+                            '%s corrections enabled, but they are'
+                            ' not defined in the problem configuration!'
+                            ' (hierarchicals)' % corr.feature)
 
-                        if self.config.fit_plane and \
-                                hierarchical_name not in hierarchicals:
-                            raise ConfigInconsistentError(
-                                'Plane corrections enabled, but they are'
-                                ' not defined in the problem configuration!'
-                                ' (hierarchicals)')
-
-                        param = hierarchicals[hierarchical_name]
-                        if not num.array_equal(
-                                param.lower, param.upper):
-                            kwargs = dict(
-                                name=param.name,
-                                shape=param.dimension,
-                                lower=param.lower,
-                                upper=param.upper,
-                                testval=param.testvalue,
-                                transform=None,
-                                dtype=tconfig.floatX)
-                            try:
-                                self.hierarchicals[
-                                    hierarchical_name] = Uniform(**kwargs)
-                            except TypeError:
-                                kwargs.pop('name')
-                                self.hierarchicals[hierarchical_name] = \
-                                    Uniform.dist(**kwargs)
-                        else:
-                            logger.info(
-                                'not solving for %s, got fixed at %s' % (
-                                    param.name,
-                                    utility.list2string(
-                                        param.lower.flatten())))
-                            self.hierarchicals[hierarchical_name] = param.lower
-                else:
-                    logger.info('No plane for GNSS data.')
+                    param = hierarchicals[hierarchical_name]
+                    if not num.array_equal(
+                            param.lower, param.upper):
+                        kwargs = dict(
+                            name=param.name,
+                            shape=param.dimension,
+                            lower=param.lower,
+                            upper=param.upper,
+                            testval=param.testvalue,
+                            transform=None,
+                            dtype=tconfig.floatX)
+                        try:
+                            self.hierarchicals[
+                                hierarchical_name] = Uniform(**kwargs)
+                        except TypeError:
+                            kwargs.pop('name')
+                            self.hierarchicals[hierarchical_name] = \
+                                Uniform.dist(**kwargs)
+                    else:
+                        logger.info(
+                            'not solving for %s, got fixed at %s' % (
+                                param.name,
+                                utility.list2string(
+                                    param.lower.flatten())))
+                        self.hierarchicals[hierarchical_name] = param.lower
 
         logger.info(
-            'Initialized %i hierarchical parameters '
-            '(ramps).' % len(self.hierarchicals))
+            'Initialized %i hierarchical parameters.' % len(self.hierarchicals))
 
-    def remove_ramps(self, residuals, point=None, operation='-'):
+    def apply_corrections(self, residuals, point=None, operation='-'):
         """
-        Remove an orbital ramp from the residual displacements
+        Apply all the configured correction terms e.g. SAR orbital ramps,
+        GNSS Euler pole rotations etc...
         """
+        for residual, dataset in zip(residuals, self.datasets):
+            correction = dataset.get_correction(
+                self.hierarchicals, point=point)
 
-        for i, data in enumerate(self.datasets):
-            if isinstance(data, heart.DiffIFG):
-                ramp_name = data.ramp_name()
-                offset_name = data.offset_name()
-                if not point:
-                    locx = self._slocx[i]
-                    locy = self._slocy[i]
-                    ramp = self.hierarchicals[ramp_name]
-                    offset = self.hierarchicals[offset_name]
-                else:
-                    locx = data.east_shifts / km
-                    locy = data.north_shifts / km
-                    try:
-                        ramp = point[ramp_name]
-                        offset = point[offset_name]
-                    except KeyError:
-                        ramp = self.hierarchicals[ramp_name]
-                        offset = self.hierarchicals[offset_name]
-
-                ramp_disp = get_ramp_displacement(
-                    locx, locy, ramp, offset)
-
-                if operation == '-':
-                    residuals[i] -= ramp_disp
-                elif operation == '+':
-                    residuals[i] += ramp_disp
+            if operation == '-':
+                residual -= correction
+            elif operation == '+':
+                residual += correction
 
         return residuals
 
@@ -429,8 +393,8 @@ class GeodeticSourceComposite(GeodeticComposite):
             tt.cast((self.sdata - los_disp) * self.sodws, tconfig.floatX))
 
         self.init_hierarchicals(problem_config)
-        if len(self.hierarchicals) > 0:
-            residuals = self.remove_ramps(residuals)
+        if self.config.corrections_config.has_enabled_corrections:
+            residuals = self.apply_correctionsf(residuals)
 
         logpts = multivariate_normal_chol(
             self.datasets, self.weights, hyperparams, residuals,
@@ -482,8 +446,8 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
             los_d = (disp * data.los_vector).sum(axis=1)
             synths.append(los_d)
 
-        if self.config.fit_plane:
-            synths = self.remove_ramps(synths, point=point, operation='+')
+        if self.config.corrections_config.has_enabled_corrections:
+            synths = self.apply_corrections(synths, point=point, operation='+')
 
         return synths
 
@@ -712,8 +676,8 @@ class GeodeticDistributerComposite(GeodeticComposite):
             tt.cast((self.sdata - mu) * self.sodws, tconfig.floatX))
 
         self.init_hierarchicals(problem_config)
-        if len(self.hierarchicals) > 0:
-            residuals = self.remove_ramps(residuals)
+        if self.config.corrections_config.has_enabled_corrections:
+            residuals = self.apply_corrections(residuals)
 
         logpts = multivariate_normal_chol(
             self.datasets, self.weights, hyperparams, residuals,
@@ -764,8 +728,9 @@ class GeodeticDistributerComposite(GeodeticComposite):
             mu += self.gfs[key].stack_all(slips=point[var])
 
         synths = self.Bij.a2l(mu)
-        if self.config.fit_plane:
-            synths = self.remove_ramps(synths, point=point, operation='+')
+
+        if self.config.corrections_config.has_enabled_corrections:
+            synths = self.apply_corrections(synths, point=point, operation='+')
 
         return synths
 

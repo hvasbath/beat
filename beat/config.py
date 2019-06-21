@@ -176,7 +176,9 @@ default_bounds = dict(
 
     hypers=(-20., 20.),
     ramp=(-0.005, 0.005),
-    offset=(-0.05, 0.05))
+    offset=(-0.05, 0.05),
+    pole=(30., 30.5),
+    omega=(0.5, 0.6))
 
 default_seis_std = 1.e-6
 default_geo_std = 1.e-3
@@ -651,6 +653,73 @@ class SeismicConfig(Object):
             self.waveforms.append(WaveformFitConfig(name=wavename))
 
 
+class CorrectionConfig(Object):
+
+    enable = Bool.T(
+        default=False
+        help='Flag to enable Correction.')
+    blacklist = List.T(
+        String.T(),
+        default=[''],
+        help='Dataset name or GNSS station name to apply no correction.')
+
+    def get_suffixes(self):
+        return self._suffixes
+
+    @property
+    def _suffixes(self):
+        return ['']
+
+    def get_hierarchical_names(self, name):
+        return ['{}_{}'.format(name, suffix) for suffix in self.get_suffixes()
+                if name not in self.blacklist]
+
+
+class EulerPoleConfig(CorrectionConfig):
+
+    @property
+    def _suffixes(self):
+        return ['pole', 'omega']
+
+    @property
+    def feature(self):
+        return 'Euler Pole'
+
+    @property
+    def for_datatyp(self):
+        return 'GNSS'
+
+
+class RampConfig(CorrectionConfig):
+
+    @property
+    def _suffixes(self):
+        return ['ramp', 'offset']
+
+    @property
+    def feature(self):
+        return 'Ramps'
+
+    @property
+    def for_datatyp(self):
+        return 'SAR'
+
+
+class GeodeticCorrectionsConfig(Object):
+    """
+    Config for corrections to geodetic datasets.
+    """
+    euler_pole = EulerPoleConfig.T(default=EulerPoleConfig.D())
+    ramp = RampConfig.T(default=RampConfig.D())
+
+    def iter_corrections(self):
+        return [self.euler_pole, self.ramp]
+
+    @property
+    def has_enabled_corrections(self):
+        return any([corr.enable for corr in self.iter_corrections()])
+
+
 class GeodeticConfig(Object):
     """
     Config for geodetic data optimization related parameters.
@@ -675,10 +744,9 @@ class GeodeticConfig(Object):
         default='multilinear',
         help='GF interpolation scheme during synthetics generation.'
              ' Choices: %s' % utility.list2string(_interpolation_choices))
-    fit_plane = Bool.T(
-        default=False,
-        help='Flag for inverting for additional plane parameters on each'
-             ' SAR datatype')
+    corrections_config = GeodeticCorrectionsConfig.T(
+        default=GeodeticCorrectionsConfig.D(),
+        help='Config for additional corrections to apply to geodetic datasets.')
     dataset_specific_residual_noise_estimation = Bool.T(
         default=False,
         help='If set, for EACH DATASET specific hyperparameter estimation.'
@@ -705,12 +773,17 @@ class GeodeticConfig(Object):
     def get_hypernames(self):
         return ['_'.join(('h', typ)) for typ in self.types]
 
-    def get_hierarchical_names(self):
-        if self.fit_plane:
-            return [name + '_ramp' for name in self.names] + \
-                   [name + '_offset' for name in self.names]
-        else:
-            return []
+    def get_hierarchical_names(self, datasets=None):
+
+        out_names = []
+        for corr in self.corrections_config.iter_corrections():
+            if corr.enable:
+                for dataset in datasets:
+                    if corr.typ == dataset.typ:
+                        out_names.extend(
+                            corr.get_hierarchical_names(dataset.name))
+
+        return out_names
 
 
 class ModeConfig(Object):
@@ -1404,7 +1477,16 @@ class BEATconfig(Object, Cloneable):
 
         hierarnames = []
         if self.geodetic_config is not None:
-            hierarnames.extend(self.geodetic_config.get_hierarchical_names())
+            if self.geodetic_config.corrections_config.has_enabled_corrections:
+                logger.info(
+                    'Loading geodetic data to resolve '
+                    'correction dependencies...')
+                geodetic_data_path = os.path.join(
+                    self.project_dir, geodetic_data_name)
+
+                datasets = utility.load_objects(geodetic_data_path)
+                hierarnames.extend(
+                    self.geodetic_config.get_hierarchical_names(datasets))
 
         if self.seismic_config is not None:
             hierarnames.extend(self.seismic_config.get_hierarchical_names())
@@ -1419,13 +1501,13 @@ class BEATconfig(Object, Cloneable):
                 shp = 1
                 defaultb_name = name
             else:
-                rampparname = name.split('_')[-1]
-                if rampparname == 'ramp':
+                correction_name = name.split('_')[-1]
+                if correction_name in ['ramp', 'pole']:
                     shp = 2
                 else:
                     shp = 1
 
-                defaultb_name = rampparname
+                defaultb_name = correction_name
 
             hierarchicals[name] = Parameter(
                 name=name,
