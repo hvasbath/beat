@@ -656,11 +656,11 @@ class SeismicConfig(Object):
 class CorrectionConfig(Object):
 
     enabled = Bool.T(
-        default=False
+        default=False,
         help='Flag to enable Correction.')
     blacklist = List.T(
         String.T(),
-        default=[''],
+        default=[],
         help='Dataset name or GNSS station name to apply no correction.')
 
     def get_suffixes(self):

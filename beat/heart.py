@@ -657,7 +657,7 @@ class GeodeticDataset(gf.meta.MultiLocation):
         self._slocx = None
         self._slocy = None
         self.has_correction = False
-        Object.__init__(self, **kwargs)
+        super(GeodeticDataset, self).__init__(**kwargs)
 
     def get_correction(self, hierarchicals, point=None):
         """
@@ -766,7 +766,7 @@ def get_ramp_displacement(locx, locy, ramp, offset):
     offset : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
         scalar of offset in [m]
     """
-    return self.north_shifts * ramp[0] + self.east_shifts* ramp[1] + offset
+    return locy * ramp[0] + locx * ramp[1] + offset
 
 
 class GNSSCompoundComponent(GeodeticDataset):
@@ -793,7 +793,7 @@ class GNSSCompoundComponent(GeodeticDataset):
 
     def __init__(self, **kwargs):
         self._station2index = None
-        Object.__init__(self, **kwargs)
+        super(GNSSCompoundComponent, self).__init__(**kwargs)
 
     def update_los_vector(self):
         if self.component == 'east':
@@ -818,30 +818,35 @@ class GNSSCompoundComponent(GeodeticDataset):
     def station_name_index_mapping(self):
         if self._station2index is None:
             self._station2index = dict(
-                (station.station, i) for (i, station) in enumerate(
+                (station.code, i) for (i, station) in enumerate(
                     self.stations))
         return self._station2index
 
     def setup_correction(self, event, correction_config):
 
         if correction_config.for_datatyp == self.typ and \
-                correction_config.enable:
+                correction_config.enabled:
             logger.info(
-                'Setting up %s correction for %s' % self.name)
-            self._slocx = shared(self.lon, name='localx_%s' % j, borrow=True)
-            self._slocy = shared(self.lat, name='localy_%s' % j, borrow=True)
+                'Setting up %s correction for %s %s' % (
+                    correction_config.feature, self.name, self.component))
+            self._slocx = shared(
+                self.lons, name='localx_%s_%s' % (
+                    self.name, self.component), borrow=True)
+            self._slocy = shared(
+                self.lats, name='localy_%s_%s' % (
+                    self.name, self.component), borrow=True)
 
             s2idx = self.station_name_index_mapping()
             self._correction_idxs_blacklist = num.array(
                 [s2idx[code] for code in correction_config.blacklist])
+
+            self.correction_names = correction_config.get_hierarchical_names(
+                self.name)
+            self.has_correction = correction_config.enabled
         else:
             logger.info(
-                'Not correcting %s for %s' % (
-                    self.name, correction_config.feature))
-
-        self.correction_names = correction_config.get_hierarchical_names(
-            self.name)
-        self.has_correction = correction_config.enable
+                'Not correcting %s %s for %s' % (
+                    self.name, self.component, correction_config.feature))
 
     def get_correction(self, hierarchicals, point=None):
         """
@@ -854,6 +859,7 @@ class GNSSCompoundComponent(GeodeticDataset):
 
         pole_name, rotation_vel_name = self.correction_names
         if not point:
+            # TODO insert theano Op
             locx = self._slocx
             locy = self._slocy
             pole = hierarchicals[pole_name]
@@ -869,7 +875,8 @@ class GNSSCompoundComponent(GeodeticDataset):
                 omega = hierarchicals[rotation_vel_name]
 
         neu = velocities_from_pole(locx, locy, pole[0], pole[1], omega)
-        neu[self._correction_idxs_blacklist] = 0.
+        if self._correction_idxs_blacklist:
+            neu[self._correction_idxs_blacklist] = 0.
         return (neu * self.los_vector).sum(axis=1)
 
     @classmethod
@@ -1030,7 +1037,7 @@ class DiffIFG(IFG):
         Setup dataset correction
         """
         if correction_config.for_datatyp == self.typ and \
-                correction_config.enable:
+                correction_config.enabled:
             if self.name not in correction_config.blacklist:
                 logger.info('Setting up %s correction for %s' % (
                     correction_config.feature, self.name))
@@ -1043,7 +1050,7 @@ class DiffIFG(IFG):
                 logger.info('Not correcting for %s for %s' % (
                     correction_config.feature, self.name))
 
-        self.has_correction = correction_config.enable
+        self.has_correction = correction_config.enabled
         self.correction_names = correction_config.get_hierarchical_names(
             self.name)
 

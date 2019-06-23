@@ -705,7 +705,7 @@ def gnss_fits(problem, stage, plot_options):
 
     for dataset, result in dataset_to_result.items():
         for ista, sta in enumerate(model_camp.stations):
-            comp = getattr(sta, dataset.name)
+            comp = getattr(sta, dataset.component)
             comp.shift = result.processed_syn[ista]
             comp.sigma = 0.
 

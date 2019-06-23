@@ -530,3 +530,44 @@ class Sweeper(theano.Op):
 
     def infer_shape(self, node, input_shapes):
         return [(self.n_patch_dip * self.n_patch_strike, )]
+
+
+class EulerPole(theano.Op):
+    """
+    Theano Op for rotation of geodetic observations around Euler Pole.
+
+    Parameters
+    ----------
+    lats : float, vector
+        of Latitudes [deg] of points to be rotated
+    lons : float, vector
+        of Longitudes [deg] of points to be rotated
+    """
+
+    __props__ = ('lats', 'lons')
+
+    def __init__(
+            self, lats, lons):
+
+        self.lats = lats
+        self.lons = lons
+
+    def make_node(self, *inputs):
+        inlist = []
+        for i in inputs:
+            inlist.append(tt.as_tensor_variable(i))
+
+        outv = tt.as_tensor_variable(num.zeros((2)))
+        outlist = [outv.type()]
+        return theano.Apply(self, inlist, outlist)
+
+    def perform(self, node, inputs, output):
+
+        plat, plon, omega = inputs
+        z = output[0]
+
+        z[0] = heart.velocities_from_pole(
+            self.lats, self.lons, plat, plon, omega)
+
+    def infer_shape(self, node, input_shapes):
+        return [(self.lats.size, 3)]
