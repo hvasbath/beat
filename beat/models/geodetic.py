@@ -105,9 +105,9 @@ class GeodeticComposite(Composite):
                 shared(choli, name='geo_weight_%i' % i, borrow=True))
             data.covariance.update_slog_pdet()
 
-        if self.config.corrections_config.has_enabled_corrections:
+        if gc.corrections_config.has_enabled_corrections:
             logger.info('Initialising corrections ...')
-            for corr_conf in self.config.corrections_config.iter_corrections():
+            for corr_conf in gc.corrections_config.iter_corrections():
                 for data in self.datasets:
                     data.setup_correction(
                         event=self.event, correction_config=corr_conf)
@@ -214,49 +214,55 @@ class GeodeticComposite(Composite):
         hierarchicals = problem_config.hierarchicals
         for corr in self.config.corrections_config.iter_corrections():
             logger.info(
-                'Evaluating config for $s corrections '
+                'Evaluating config for %s corrections '
                 'for datasets...' % corr.feature)
-            for data in self.datasets:
-                hierarchical_names = corr.get_hierarchical_names(data.name)
-                for hierarchical_name in hierarchical_names:
-                    if not corr.enable and hierarchical_name in hierarchicals:
-                        raise ConfigInconsistentError(
-                            '%s disabled, but they are defined'
-                            ' in the problem configuration'
-                            ' (hierarchicals)!' % corr.feature)
+            if corr.enabled:
+                for data in self.datasets:
+                    hierarchical_names = corr.get_hierarchical_names(data.name)
+                    for hierarchical_name in hierarchical_names:
+                        if not corr.enabled and hierarchical_name in hierarchicals:
+                            raise ConfigInconsistentError(
+                                '%s disabled, but they are defined'
+                                ' in the problem configuration'
+                                ' (hierarchicals)!' % corr.feature)
 
-                    if corr.enable and hierarchical_name not in hierarchicals \
-                            and data.name not in corr.blacklist:
-                        raise ConfigInconsistentError(
-                            '%s corrections enabled, but they are'
-                            ' not defined in the problem configuration!'
-                            ' (hierarchicals)' % corr.feature)
+                        if corr.enabled and hierarchical_name not in hierarchicals \
+                                and data.name not in corr.blacklist:
+                            raise ConfigInconsistentError(
+                                '%s corrections enabled, but they are'
+                                ' not defined in the problem configuration!'
+                                ' (hierarchicals)' % corr.feature)
 
-                    param = hierarchicals[hierarchical_name]
-                    if not num.array_equal(
-                            param.lower, param.upper):
-                        kwargs = dict(
-                            name=param.name,
-                            shape=param.dimension,
-                            lower=param.lower,
-                            upper=param.upper,
-                            testval=param.testvalue,
-                            transform=None,
-                            dtype=tconfig.floatX)
-                        try:
-                            self.hierarchicals[
-                                hierarchical_name] = Uniform(**kwargs)
-                        except TypeError:
-                            kwargs.pop('name')
-                            self.hierarchicals[hierarchical_name] = \
-                                Uniform.dist(**kwargs)
-                    else:
-                        logger.info(
-                            'not solving for %s, got fixed at %s' % (
-                                param.name,
-                                utility.list2string(
-                                    param.lower.flatten())))
-                        self.hierarchicals[hierarchical_name] = param.lower
+                        param = hierarchicals[hierarchical_name]
+                        if hierarchical_name not in self.hierarchicals:
+                            if not num.array_equal(
+                                    param.lower, param.upper):
+                                kwargs = dict(
+                                    name=param.name,
+                                    shape=param.dimension,
+                                    lower=param.lower,
+                                    upper=param.upper,
+                                    testval=param.testvalue,
+                                    transform=None,
+                                    dtype=tconfig.floatX)
+
+                                try:
+                                    self.hierarchicals[
+                                        hierarchical_name] = Uniform(**kwargs)
+                                except TypeError:
+                                    kwargs.pop('name')
+                                    self.hierarchicals[hierarchical_name] = \
+                                        Uniform.dist(**kwargs)
+                            else:
+                                logger.info(
+                                    'not solving for %s, got fixed at %s' % (
+                                        param.name,
+                                        utility.list2string(
+                                            param.lower.flatten())))
+                                self.hierarchicals[
+                                    hierarchical_name] = param.lower
+            else:
+                logger.info('No %s correction!' % corr.feature)
 
         logger.info(
             'Initialized %i hierarchical parameters.' % len(self.hierarchicals))
@@ -392,6 +398,8 @@ class GeodeticSourceComposite(GeodeticComposite):
             'Geodetic forward model on test model takes: %f' %
             (t1 - t0))
 
+        # TODO corrections here?
+
         los_disp = (disp * self.slos_vectors).sum(axis=1)
 
         residuals = self.Bij.srmap(
@@ -445,6 +453,8 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
             targets=self.targets,
             sources=self.sources,
             **kwargs)
+
+        # TODO corrections here?
 
         synths = []
         for disp, data in zip(displacements, self.datasets):
