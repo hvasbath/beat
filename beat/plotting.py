@@ -682,15 +682,27 @@ def gnss_fits(problem, stage, plot_options):
         if dataset.typ == 'GNSS':
             dataset_to_result[dataset] = result
 
-    event = problem.config.event
-    locations = campaign.stations + [event]
+    if po.plot_projection == 'latlon':
+        event = problem.config.event
+        locations = campaign.stations + [event]
 
-    lat, lon = otd.geographic_midpoint_locations(locations)
+        lat, lon = otd.geographic_midpoint_locations(locations)
 
-    coords = num.array([loc.effective_latlon for loc in locations])
+        coords = num.array([loc.effective_latlon for loc in locations])
+
+    elif po.plot_projection == 'local':
+        lat, lon = otd.geographic_midpoint_locations(sources)
+        coords = num.hstack(
+            [source.outline(cs='latlon').T for source in sources]).T
+
+    else:
+        raise NotImplementedError(
+            '%s projection not implemented!' % po.plot_projection)
+
     radius = otd.distance_accurate50m_numpy(
         lat[num.newaxis], lon[num.newaxis],
         coords[:, 0], coords[:, 1]).max()
+
     radius *= 1.1
 
     if radius < 30. * km:
