@@ -834,6 +834,10 @@ class GNSSCompoundComponent(GeodeticDataset):
             self._correction_idxs_blacklist = num.array(
                 [s2idx[code] for code in correction_config.blacklist])
 
+            logger.info('Stations with idxs %s got blacklisted!'
+                        '' % utility.list2string(
+                self._correction_idxs_blacklist.tolist()))
+
             self.correction_names = correction_config.get_hierarchical_names(
                 self.name)
             self.has_correction = correction_config.enabled
@@ -873,7 +877,7 @@ class GNSSCompoundComponent(GeodeticDataset):
                 omega = hierarchicals[rotation_vel_name]
 
             vels = velocities_from_pole(locx, locy, pole[0], pole[1], omega)
-            if self._correction_idxs_blacklist:
+            if self._correction_idxs_blacklist.size > 0:
                 vels[self._correction_idxs_blacklist] = 0.
             return (vels * self.los_vector).sum(axis=1)
 
