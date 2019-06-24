@@ -413,7 +413,7 @@ total number of patches: %i ''' % (
             datatype = self._assign_datatype()
             subfault_idxs = list(range(self.nsubfaults))
             centers = self.get_subfault_patch_attributes(
-                subfault_idxs, datatype, attributes=['center'])[:, :-1]
+                subfault_idxs, datatype, attributes=['center'])
 
             return get_smoothing_operator_correlated(
                 centers, correlation_function)
@@ -434,9 +434,6 @@ total number of patches: %i ''' % (
                 patches += self.get_subfault_patches(i, datatype, component)
         else:
             patches = self.get_subfault_patches(index, datatype, component)
-
-        for patch in patches:
-            print(patch)
 
         ats_wanted = []
         for attribute in attributes:
@@ -849,8 +846,8 @@ def optimize_discretization(
                             nl=1, nw=2, datatype=datatype, type='beat')
 
                     # insert back divided patches
-                    for i, dpatch in enumerate(div_patches):
-                        patches.insert(idx + i, dpatch)
+                    for dpatch in div_patches:
+                        patches.insert(idx, dpatch)
 
                 # register newly diveded patches with fault
                 fault.set_subfault_patches(
@@ -942,6 +939,7 @@ def optimize_discretization(
 
             centers = fault.get_subfault_patch_attributes(
                 subfault_idxs, datatype, attributes=['center'])[:, :-1]
+
             cand_centers = centers[uids, :]
 
             patch_data_distances = distances(

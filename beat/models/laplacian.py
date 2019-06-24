@@ -51,7 +51,6 @@ class LaplacianDistributerComposite(Composite):
             self.fault.get_smoothing_operator(
                 config.correlation_function).astype(
                 tconfig.floatX)
-        print(self.smoothing_op)
 
         if(0):
             from matplotlib import pyplot as plt
@@ -218,8 +217,8 @@ def distances(points, ref_points):
     """
 
     nref_points = ref_points.shape[0]
-    ndim = points.ndim
-    ndim_ref = ref_points.ndim
+    ndim = points.shape[1]
+    ndim_ref = ref_points.shape[1]
     if ndim != ndim_ref:
         raise TypeError(
             'Coordinates to calculate differences must have the same number '
@@ -307,13 +306,6 @@ def get_smoothing_operator_correlated(
 
     inter_patch_distances = distances(patches_coords, patches_coords)
     norm_distances = inter_patch_distances.sum(0)
-    print('pc', patches_coords)
-    print('ipd', inter_patch_distances)
-
-    if (1):
-        from matplotlib import pyplot as plt
-        plt.matshow(inter_patch_distances)
-        plt.show()
 
     if correlation_function == 'gaussian':
         a = 1 / num.power(inter_patch_distances, 2)
@@ -324,6 +316,5 @@ def get_smoothing_operator_correlated(
             'Resolution based discretization does not support '
             '"nearest_neighbor" correlation function!')
 
-    print('a', a)
     num.fill_diagonal(a, -norm_distances)
     return a / inter_patch_distances.mean()
