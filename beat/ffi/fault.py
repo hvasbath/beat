@@ -435,6 +435,9 @@ total number of patches: %i ''' % (
         else:
             patches = self.get_subfault_patches(index, datatype, component)
 
+        for patch in patches:
+            print(patch)
+
         ats_wanted = []
         for attribute in attributes:
             dummy = [getattr(patch, attribute) for patch in patches]

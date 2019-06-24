@@ -398,8 +398,6 @@ class GeodeticSourceComposite(GeodeticComposite):
             'Geodetic forward model on test model takes: %f' %
             (t1 - t0))
 
-        # TODO corrections here?
-
         los_disp = (disp * self.slos_vectors).sum(axis=1)
 
         residuals = self.Bij.srmap(
@@ -453,8 +451,6 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
             targets=self.targets,
             sources=self.sources,
             **kwargs)
-
-        # TODO corrections here?
 
         synths = []
         for disp, data in zip(displacements, self.datasets):
