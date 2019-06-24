@@ -829,12 +829,6 @@ class GNSSCompoundComponent(GeodeticDataset):
             logger.info(
                 'Setting up %s correction for %s %s' % (
                     correction_config.feature, self.name, self.component))
-            self._slocx = shared(
-                self.lons, name='localx_%s_%s' % (
-                    self.name, self.component), borrow=True)
-            self._slocy = shared(
-                self.lats, name='localy_%s_%s' % (
-                    self.name, self.component), borrow=True)
 
             s2idx = self.station_name_index_mapping()
             self._correction_idxs_blacklist = num.array(
@@ -843,6 +837,10 @@ class GNSSCompoundComponent(GeodeticDataset):
             self.correction_names = correction_config.get_hierarchical_names(
                 self.name)
             self.has_correction = correction_config.enabled
+            self.euler_pole = correction_config.get_theano_op()(
+                self.lats, self.lons, self._correction_idxs_blacklist)
+            self.slos_vector = shared(self.los_vector.astype(tconfig.floatX),
+                name='los_%s_%s' % (self.name, self.component), borrow=True)
         else:
             logger.info(
                 'Not correcting %s %s for %s' % (
@@ -858,13 +856,13 @@ class GNSSCompoundComponent(GeodeticDataset):
                 'For dataset %s' % self.name)
 
         pole_name, rotation_vel_name = self.correction_names
-        if not point:
-            # TODO insert theano Op
-            locx = self._slocx
-            locy = self._slocy
-            pole = hierarchicals[pole_name]
-            omega = hierarchicals[rotation_vel_name]
-        else:
+        if not point:   # theano instance for get_formula
+            inputs = OrderedDict()
+            inputs[pole_name] = hierarchicals[pole_name]
+            inputs[rotation_vel_name] = hierarchicals[rotation_vel_name]
+            vels = self.euler_pole(inputs)
+            return (vels * self.slos_vector).sum(axis=1)
+        else:       # numpy instance else
             locx = self.lats
             locy = self.lons
             try:
@@ -874,10 +872,10 @@ class GNSSCompoundComponent(GeodeticDataset):
                 pole = hierarchicals[pole_name]
                 omega = hierarchicals[rotation_vel_name]
 
-        neu = velocities_from_pole(locx, locy, pole[0], pole[1], omega)
-        if self._correction_idxs_blacklist:
-            neu[self._correction_idxs_blacklist] = 0.
-        return (neu * self.los_vector).sum(axis=1)
+            vels = velocities_from_pole(locx, locy, pole[0], pole[1], omega)
+            if self._correction_idxs_blacklist:
+                vels[self._correction_idxs_blacklist] = 0.
+            return (vels * self.los_vector).sum(axis=1)
 
     @classmethod
     def from_pyrocko_gnss_campaign(cls, campaign):

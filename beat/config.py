@@ -690,6 +690,10 @@ class EulerPoleConfig(CorrectionConfig):
     def for_datatyp(self):
         return 'GNSS'
 
+    def get_theano_op(self):
+        from beat.theanof import EulerPole
+        return EulerPole
+
 
 class RampConfig(CorrectionConfig):
 

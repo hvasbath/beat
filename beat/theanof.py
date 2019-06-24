@@ -8,6 +8,8 @@ Far future:
 """
 import logging
 
+from collections import OrderedDict
+
 from beat import heart, utility, interseismic
 from beat.fast_sweeping import fast_sweep
 
@@ -544,30 +546,49 @@ class EulerPole(theano.Op):
         of Longitudes [deg] of points to be rotated
     """
 
-    __props__ = ('lats', 'lons')
+    __props__ = ('lats', 'lons', 'blacklist')
 
     def __init__(
-            self, lats, lons):
+            self, lats, lons, blacklist):
 
-        self.lats = lats
-        self.lons = lons
+        self.lats = tuple(lats)
+        self.lons = tuple(lons)
+        self.blacklist = tuple(blacklist)
 
-    def make_node(self, *inputs):
+    def make_node(self, inputs):
         inlist = []
-        for i in inputs:
-            inlist.append(tt.as_tensor_variable(i))
 
-        outv = tt.as_tensor_variable(num.zeros((2)))
+        self.fixed_values = OrderedDict()
+        self.varnames = []
+
+        for k, v in inputs.items():
+            varname = k.split('_')[1]
+            if isinstance(v, FreeRV):
+                self.varnames.append(varname)
+                inlist.append(tt.as_tensor_variable(v))
+            else:
+                self.fixed_values[varname] = v
+
+        outv = tt.as_tensor_variable(num.zeros((2, 2)))
         outlist = [outv.type()]
         return theano.Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
 
-        plat, plon, omega = inputs
         z = output[0]
+        point = {vname: i for vname, i in zip(self.varnames, inputs)}
+        point.update(self.fixed_values)
 
-        z[0] = heart.velocities_from_pole(
-            self.lats, self.lons, plat, plon, omega)
+        pole = point['pole']
+        omega = point['omega']
+
+        velocities = heart.velocities_from_pole(
+            num.array(self.lats), num.array(self.lons), pole[0], pole[1], omega)
+
+        if self.blacklist:
+            velocities[num.array(self.blacklist), :] = 0.
+
+        z[0] = velocities
 
     def infer_shape(self, node, input_shapes):
-        return [(self.lats.size, 3)]
+        return [(len(self.lats), 3)]
