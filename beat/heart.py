@@ -1045,9 +1045,9 @@ class DiffIFG(IFG):
                     correction_config.feature, self.name))
                 locy, locx = self.update_local_coords(event)
                 self._slocx = shared(locx.astype(tconfig.floatX) / km,
-                                     name='localx_%s' % j, borrow=True)
+                                     name='localx_%s' % self.name, borrow=True)
                 self._slocy = shared(locy.astype(tconfig.floatX) / km,
-                                     name='localy_%s' % j, borrow=True)
+                                     name='localy_%s' % self.name, borrow=True)
             else:
                 logger.info('Not correcting for %s for %s' % (
                     correction_config.feature, self.name))
@@ -1067,8 +1067,8 @@ class DiffIFG(IFG):
 
         ramp_name, offset_name = self.correction_names
         if not point:
-            locx = self._slocx[i]
-            locy = self._slocy[i]
+            locx = self._slocx
+            locy = self._slocy
             ramp = hierarchicals[ramp_name]
             offset = hierarchicals[offset_name]
         else:
