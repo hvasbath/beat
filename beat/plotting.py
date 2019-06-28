@@ -1549,6 +1549,9 @@ def fuzzy_mt_decomposition(
     """
     Plot fuzzy moment tensor decompositions for list of mt ensembles.
     """
+    from pymc3 import quantiles
+
+    logger.info('Drawing Fuzzy MT Decomposition ...')
 
     # beachball kwargs
     kwargs = {
@@ -1576,13 +1579,15 @@ def fuzzy_mt_decomposition(
             tots.append(tot)
         return isos, dcs, clvds, devs, tots
 
-    nlines_max = len(list_m6s)
+    yscale = 1.3
+    nlines = len(list_m6s)
+    nlines_max = nlines * yscale
 
     if colors is None:
-        colors = nlines_max * [None]
+        colors = nlines * [None]
 
     if labels is None:
-        labels = ['Ensemble'] + ([None] * (nlines_max - 1))
+        labels = ['Ensemble'] + ([None] * (nlines - 1))
 
     lines = []
     for i, (label, m6s, color) in enumerate(zip(labels, list_m6s, colors)):
@@ -1591,6 +1596,9 @@ def fuzzy_mt_decomposition(
 
         lines.append(
             (label, m6s, color))
+
+    moments_full_max = mt.magnitude_to_moment(
+        max( m6s.mean(axis=0)[-1] for (_, m6s, _) in lines))
 
     for xpos, label in [
         (0., 'Full'),
@@ -1610,10 +1618,9 @@ def fuzzy_mt_decomposition(
             fontsize=fontsize)
 
     for i, (label, m6s, color_t) in enumerate(lines):
-        ypos = nlines_max - i - 1.0
+        ypos = nlines_max - (i * yscale) - 1.0
 
         isos, dcs, clvds, devs, tots = get_decomps(m6s)
-
         axes.annotate(
             label,
             xy=(-2., ypos),
@@ -1634,16 +1641,36 @@ def fuzzy_mt_decomposition(
 
             ratios = num.array([comp[1] for comp in decomp])
             ratio = ratios.mean()
+            ratios_diff = ratios.max() - ratios.min()
+
+            ratios_qu = quantiles(ratios * 100.)
             mt_parts = [comp[2] for comp in decomp]
-            #print(ratios, mt_parts)
+            moments_full = num.array([tot[0] for tot in tots])
+            size0 = moments_full.mean() / moments_full_max
 
             if ratio > 1e-4:
                 try:
                     kwargs['position'] = (1. + xpos, ypos)
-                    kwargs['size'] = math.sqrt(ratio)
+                    kwargs['size'] = math.sqrt(ratio) * 0.95 * size0
                     kwargs['color_t'] = color_t
                     beachball.plot_fuzzy_beachball_mpl_pixmap(
                         mt_parts, axes, best_mt=None, **kwargs)
+
+                    if ratios_diff > 0.:
+                        label = '{:03.1f}-{:03.1f}%'.format(ratios_qu[2.5], ratios_qu[97.5])
+                    else:
+                        label = '{:03.1f}%'.format(ratios_qu[2.5])
+
+                    axes.annotate(
+                        label,
+                        xy=(1. + xpos, ypos - 0.65),
+                        xycoords='data',
+                        xytext=(0., 0.),
+                        textcoords='offset points',
+                        ha='center',
+                        va='center',
+                        color='black',
+                        fontsize=fontsize - 2)
 
                 except beachball.BeachballError as e:
                     logger.warn(str(e))
@@ -1692,14 +1719,14 @@ def draw_fuzzy_mt_decomposition(problem, po):
     if po.load_stage is None:
         po.load_stage = -1
 
-    varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
+    varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med', 'magnitude']
     if not po.reference:
         llk_str = po.post_llk
         stage = load_stage(
             problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
         n_mts = len(stage.mtrace)
-        m6s = num.empty((n_mts, 6), dtype='float64')
+        m6s = num.empty((n_mts, len(varnames)), dtype='float64')
         for i, varname in enumerate(varnames):
             m6s[:, i] = stage.mtrace.get_values(
                 varname, combine=True, squeeze=True).ravel()
@@ -1727,7 +1754,6 @@ def draw_fuzzy_mt_decomposition(problem, po):
             po.load_stage, llk_str, po.nensemble, po.outformat))
 
     if not os.path.exists(outpath) or po.force or po.outformat == 'display':
-        logger.info('Drawing Fuzzy MT Decomposition ...')
 
         fig = plt.figure(figsize=(6., 2.))
         fig.subplots_adjust(left=0., right=1., bottom=0., top=1.)
