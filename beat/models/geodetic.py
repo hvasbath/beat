@@ -405,7 +405,7 @@ class GeodeticSourceComposite(GeodeticComposite):
 
         self.init_hierarchicals(problem_config)
         if self.config.corrections_config.has_enabled_corrections:
-            residuals = self.apply_correctionsf(residuals)
+            residuals = self.apply_corrections(residuals)
 
         logpts = multivariate_normal_chol(
             self.datasets, self.weights, hyperparams, residuals,
