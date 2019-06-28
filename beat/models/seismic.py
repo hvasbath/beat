@@ -502,6 +502,8 @@ class SeismicGeometryComposite(SeismicComposite):
             'Seismic optimization on: \n '
             ' %s' % ', '.join(self.input_rvs.keys()))
 
+        self.input_rvs.update(fixed_rvs)
+
         t2 = time()
         wlogpts = []
 
