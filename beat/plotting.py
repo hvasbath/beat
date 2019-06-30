@@ -27,6 +27,7 @@ from pyrocko.guts import (Object, String, Dict, List,
 from pyrocko import util, trace
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.cake_plot import light
+from pyrocko.plot import beachball
 
 import pyrocko.moment_tensor as mt
 from pyrocko.plot import mpl_papersize, mpl_init, mpl_graph_color, mpl_margins
@@ -1457,8 +1458,6 @@ def draw_seismic_fits(problem, po):
 
 def draw_fuzzy_beachball(problem, po):
 
-    from pyrocko.plot import beachball
-
     if problem.config.problem_config.n_sources > 1:
         raise NotImplementedError(
             'Fuzzy beachball is not yet implemented for more than one source!')
@@ -1542,6 +1541,234 @@ def point2array(point, varnames):
         array[i] = point[varname].ravel()
 
     return array
+
+
+def fuzzy_mt_decomposition(
+        axes, list_m6s,
+        labels=None, colors=None, fontsize=12):
+    """
+    Plot fuzzy moment tensor decompositions for list of mt ensembles.
+    """
+    from pymc3 import quantiles
+
+    logger.info('Drawing Fuzzy MT Decomposition ...')
+
+    # beachball kwargs
+    kwargs = {
+        'beachball_type': 'full',
+        'size': 1.,
+        'size_units': 'data',
+        'edgecolor': 'black',
+        'linewidth': 1,
+        'grid_resolution': 200}
+
+    def get_decomps(source_vals):
+
+        isos = []
+        dcs = []
+        clvds = []
+        devs = []
+        tots = []
+        for val in source_vals:
+            m = mt.MomentTensor.from_values(val)
+            iso, dc, clvd, dev, tot = m.standard_decomposition()
+            isos.append(iso)
+            dcs.append(dc)
+            clvds.append(clvd)
+            devs.append(dev)
+            tots.append(tot)
+        return isos, dcs, clvds, devs, tots
+
+    yscale = 1.3
+    nlines = len(list_m6s)
+    nlines_max = nlines * yscale
+
+    if colors is None:
+        colors = nlines * [None]
+
+    if labels is None:
+        labels = ['Ensemble'] + ([None] * (nlines - 1))
+
+    lines = []
+    for i, (label, m6s, color) in enumerate(zip(labels, list_m6s, colors)):
+        if color is None:
+            color = mpl_graph_color(i)
+
+        lines.append(
+            (label, m6s, color))
+
+    moments_full_max = mt.magnitude_to_moment(
+        max( m6s.mean(axis=0)[-1] for (_, m6s, _) in lines))
+
+    for xpos, label in [
+        (0., 'Full'),
+        (2., 'Isotropic'),
+        (4., 'Deviatoric'),
+        (6., 'CLVD'),
+        (8., 'DC')]:
+        axes.annotate(
+            label,
+            xy=(1 + xpos, nlines_max),
+            xycoords='data',
+            xytext=(0., 0.),
+            textcoords='offset points',
+            ha='center',
+            va='center',
+            color='black',
+            fontsize=fontsize)
+
+    for i, (label, m6s, color_t) in enumerate(lines):
+        ypos = nlines_max - (i * yscale) - 1.0
+
+        isos, dcs, clvds, devs, tots = get_decomps(m6s)
+        axes.annotate(
+            label,
+            xy=(-2., ypos),
+            xycoords='data',
+            xytext=(0., 0.),
+            textcoords='offset points',
+            ha='left',
+            va='center',
+            color='black',
+            fontsize=fontsize)
+
+        for xpos, decomp, ops in [
+            (0., tots, '-'),
+            (2., isos, '='),
+            (4., devs, '='),
+            (6., clvds, '+'),
+            (8., dcs, None)]:
+
+            ratios = num.array([comp[1] for comp in decomp])
+            ratio = ratios.mean()
+            ratios_diff = ratios.max() - ratios.min()
+
+            ratios_qu = quantiles(ratios * 100.)
+            mt_parts = [comp[2] for comp in decomp]
+            moments_full = num.array([tot[0] for tot in tots])
+            size0 = moments_full.mean() / moments_full_max
+
+            if ratio > 1e-4:
+                try:
+                    kwargs['position'] = (1. + xpos, ypos)
+                    kwargs['size'] = math.sqrt(ratio) * 0.95 * size0
+                    kwargs['color_t'] = color_t
+                    beachball.plot_fuzzy_beachball_mpl_pixmap(
+                        mt_parts, axes, best_mt=None, **kwargs)
+
+                    if ratios_diff > 0.:
+                        label = '{:03.1f}-{:03.1f}%'.format(ratios_qu[2.5], ratios_qu[97.5])
+                    else:
+                        label = '{:03.1f}%'.format(ratios_qu[2.5])
+
+                    axes.annotate(
+                        label,
+                        xy=(1. + xpos, ypos - 0.65),
+                        xycoords='data',
+                        xytext=(0., 0.),
+                        textcoords='offset points',
+                        ha='center',
+                        va='center',
+                        color='black',
+                        fontsize=fontsize - 2)
+
+                except beachball.BeachballError as e:
+                    logger.warn(str(e))
+
+                    axes.annotate(
+                        'ERROR',
+                        xy=(1. + xpos, ypos),
+                        ha='center',
+                        va='center',
+                        color='red',
+                        fontsize=fontsize)
+
+            else:
+                axes.annotate(
+                    'N/A',
+                    xy=(1. + xpos, ypos),
+                    ha='center',
+                    va='center',
+                    color='black',
+                    fontsize=fontsize)
+
+            if ops is not None:
+                axes.annotate(
+                    ops,
+                    xy=(2. + xpos, ypos),
+                    ha='center',
+                    va='center',
+                    color='black',
+                    fontsize=fontsize)
+
+    axes.axison = False
+    axes.set_xlim(-2.25, 9.75)
+    axes.set_ylim(-0.7, nlines_max + 0.5)
+    axes.set_axis_off()
+
+
+def draw_fuzzy_mt_decomposition(problem, po):
+
+    fontsize = 10
+
+    if problem.config.problem_config.n_sources > 1:
+        raise NotImplementedError(
+            'Fuzzy MT decomposition is not yet'
+            'implemented for more than one source!')
+
+    if po.load_stage is None:
+        po.load_stage = -1
+
+    varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med', 'magnitude']
+    if not po.reference:
+        llk_str = po.post_llk
+        stage = load_stage(
+            problem, stage_number=po.load_stage, load='trace', chains=[-1])
+
+        n_mts = len(stage.mtrace)
+        m6s = num.empty((n_mts, len(varnames)), dtype='float64')
+        for i, varname in enumerate(varnames):
+            m6s[:, i] = stage.mtrace.get_values(
+                varname, combine=True, squeeze=True).ravel()
+
+        csteps = float(n_mts) / po.nensemble
+        idxs = num.floor(
+            num.arange(0, n_mts, csteps)).astype('int32')
+        m6s = m6s[idxs, :]
+
+        point = get_result_point(stage, problem.config, po.post_llk)
+        best_mt = point2array(point, varnames=varnames)
+    else:
+        llk_str = 'ref'
+        m6s = num.empty((1, 6), dtype='float64')
+        for i, varname in enumerate(
+                ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
+            m6s[:, i] = po.reference[varname].ravel()
+
+        best_mt = None
+
+    outpath = os.path.join(
+        problem.outfolder,
+        po.figure_dir,
+        'fuzzy_mt_decomposition_%i_%s_%i.%s' % (
+            po.load_stage, llk_str, po.nensemble, po.outformat))
+
+    if not os.path.exists(outpath) or po.force or po.outformat == 'display':
+
+        fig = plt.figure(figsize=(6., 2.))
+        fig.subplots_adjust(left=0., right=1., bottom=0., top=1.)
+        axes = fig.add_subplot(1, 1, 1)
+
+        fuzzy_mt_decomposition(axes, list_m6s=[m6s], fontsize=fontsize)
+
+        if not po.outformat == 'display':
+            logger.info('saving figure to %s' % outpath)
+            fig.savefig(outpath, dpi=po.dpi)
+        else:
+            plt.show()
+
+    else:
+        logger.info('Plot already exists! Please use --force to overwrite!')
 
 
 def draw_hudson(problem, po):
@@ -3307,6 +3534,7 @@ plots_catalog = {
     'slip_distribution': draw_slip_dist,
     'hudson': draw_hudson,
     'fuzzy_beachball': draw_fuzzy_beachball,
+    'fuzzy_mt_decomp': draw_fuzzy_mt_decomposition,
     'moment_rate': draw_moment_rate,
     'station_map': draw_station_map}
 
