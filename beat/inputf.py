@@ -113,6 +113,7 @@ def load_kite_scenes(datadir, names):
     """
     try:
         from kite import Scene
+        from kite.scene import UserIOWarning
     except ImportError:
         raise ImportError(
             'kite not installed! please checkout www.pyrocko.org!')
@@ -124,7 +125,8 @@ def load_kite_scenes(datadir, names):
             sc = Scene.load(os.path.join(datadir, k))
             diffgs.append(heart.DiffIFG.from_kite_scene(sc))
             tobeloaded_names.discard(k)
-        except ImportError:
+            logger.info('Successfully imported kite scene %s' % k)
+        except(ImportError, UserIOWarning):
             logger.warning('File %s not conform with kite format!' % k)
 
     names = list(tobeloaded_names)
