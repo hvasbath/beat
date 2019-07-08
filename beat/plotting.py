@@ -2,6 +2,7 @@ from pyrocko import cake_plot as cp
 from pyrocko import orthodrome as otd
 
 from pymc3 import plots as pmp
+from pymc3 import quantiles
 
 import math
 import os
@@ -1895,15 +1896,15 @@ def draw_hudson(problem, po):
 
 def histplot_op(
         ax, data, reference=None, alpha=.35, color=None, bins=None,
-        ntickmarks=5, tstd=None, kwargs={}):
+        ntickmarks=5, tstd=None, qlist=[0., 100.], kwargs={}):
     """
     Modified from pymc3. Additional color argument.
     """
     for i in range(data.shape[1]):
         d = data[:, i]
-        mind = d.min()
-        maxd = d.max()
-        # bins, mind, maxd = pmp.artists.fast_kde(data[:,i])
+        quants = quantiles(d, qlist=qlist)
+        mind = quants[qlist[0]]
+        maxd = quants[qlist[-1]]
 
         if reference is not None:
             mind = num.minimum(mind, reference)
@@ -1941,6 +1942,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
               varbins=None, nbins=40, color=None, source_idxs=None,
               alpha=0.35, priors=None, prior_alpha=1, prior_style='--',
               axs=None, posterior=None, fig=None, plot_style='kde',
+              qlist=[0.1, 99.9],
               prior_bounds={}, kwargs={}):
     """
     Plots posterior pdfs as histograms from multiple mtrace objects.
@@ -1987,6 +1989,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         Matplotlib figure. Defaults to None.
     kwargs : dict
         for histplot op
+    qlist : list
+        of quantiles to plot. Default: (all, 0., 100.)
 
     Returns
     -------
@@ -1995,10 +1999,15 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     """
     num.set_printoptions(precision=3)
 
-    def make_bins(data, nbins=40):
+    def make_bins(data, nbins=40, qlist=None):
         d = data.flatten()
-        mind = d.min()
-        maxd = d.max()
+        if qlist is not None:
+            qu = quantiles(d, qlist=qlist)
+            mind = qu[qlist[0]]
+            maxd = qu[qlist[-1]]
+        else:
+            mind = d.min()
+            maxd = d.max()
         return num.linspace(mind, maxd, nbins)
 
     def remove_var(varnames, varname):
@@ -2094,7 +2103,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                 for isource, e in enumerate(selected):
                     e = pmp.utils.make_2d(e)
                     if make_bins_flag:
-                        varbin = make_bins(e, nbins=nbins)
+                        varbin = make_bins(e, nbins=nbins, qlist=qlist)
                         varbins.append(varbin)
                     else:
                         varbin = varbins[i]
@@ -2127,7 +2136,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     elif plot_style == 'hist':
                         histplot_op(
                             axs[rowi, coli], e, reference=reference,
-                            bins=varbin, alpha=alpha, color=pcolor,
+                            bins=varbin, alpha=alpha, color=pcolor, qlist=qlist,
                             kwargs=kwargs)
                     else:
                         raise NotImplementedError(
