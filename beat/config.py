@@ -1203,10 +1203,12 @@ class ProblemConfig(Object):
 
 def get_parameter_shape(param, pc):
     if pc.mode == ffi_mode_str:
-        if param.name not in hypo_vars:
+        if param.name in hypo_vars:
+            shape = param.dimension
+        elif param.name not in hypo_vars and pc.mode_config.npatches:
             shape = pc.mode_config.npatches
         else:
-            shape = param.dimension
+            shape = pc.mode_config.npatches
 
     elif pc.mode == geometry_mode_str:
         shape = param.dimension
