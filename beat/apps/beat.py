@@ -482,18 +482,19 @@ def command_import(args):
         point = plotting.get_result_point(stage, problem.config, 'max')
 
         if 'geodetic' in options.datatypes:
-            if c.geodetic_config.fit_plane:
+            if c.geodetic_config.corrections_config.has_enabled_corrections:
 
-                logger.info('Importing ramp parameters ...')
+                logger.info('Importing correction parameters ...')
                 new_bounds = OrderedDict()
 
                 for var in c.geodetic_config.get_hierarchical_names():
                     if var in point:
+                        logger.info('Importing correction for %s' % var)
                         new_bounds[var] = (point[var], point[var])
                     else:
                         logger.warn(
-                            'Ramps were fixed in previous run!'
-                            ' Importing fixed values!')
+                            'Correction %s was fixed in previous run!'
+                            ' Importing fixed values!' % var)
                         tpoint = c.problem_config.get_test_point()
                         new_bounds[var] = (tpoint[var], tpoint[var])
 
