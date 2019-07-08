@@ -1081,7 +1081,6 @@ class ProblemConfig(Object):
                     testval=param.testvalue,
                     transform=None,
                     dtype=tconfig.floatX)
-
                 try:
                     rvs[param.name] = Uniform(**kwargs)
 
@@ -1208,7 +1207,7 @@ def get_parameter_shape(param, pc):
         elif param.name not in hypo_vars and pc.mode_config.npatches:
             shape = pc.mode_config.npatches
         else:
-            shape = pc.mode_config.npatches
+            shape = param.dimension
 
     elif pc.mode == geometry_mode_str:
         shape = param.dimension
