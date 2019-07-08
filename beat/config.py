@@ -558,7 +558,7 @@ class SeismicNoiseAnalyserConfig(Object):
 
     structure = StringChoice.T(
         choices=_structure_choices,
-        default='identity',
+        default='variance',
         help='Determines data-covariance matrix structure.'
              ' Choices: %s' % utility.list2string(_structure_choices))
     pre_arrival_time = Float.T(
