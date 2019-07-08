@@ -483,12 +483,14 @@ def command_import(args):
         point = plotting.get_result_point(stage, problem.config, 'max')
 
         if 'geodetic' in options.datatypes:
+            gc = problem.composites['geodetic']
             if c.geodetic_config.corrections_config.has_enabled_corrections:
 
                 logger.info('Importing correction parameters ...')
                 new_bounds = OrderedDict()
 
-                for var in c.geodetic_config.get_hierarchical_names():
+                for var in c.geodetic_config.get_hierarchical_names(
+                        datasets=gc.datasets):
                     if var in point:
                         logger.info('Importing correction for %s' % var)
                         new_bounds[var] = (point[var], point[var])
