@@ -419,6 +419,7 @@ def command_import(args):
 
                 gtargets = []
                 for typ in gc.types:
+                    logger.info('Importing data for type %s ...' % typ)
                     if typ == 'SAR':
                         if 'matlab' in options.geodetic_format:
                             gtargets.extend(
@@ -434,9 +435,16 @@ def command_import(args):
                     elif typ == 'GNSS':
                         if 'ascii' in options.geodetic_format:
                             for name in gc.names:
-                                gtargets.extend(
-                                    inputf.load_and_blacklist_gnss(
-                                        gc.datadir, name, gc.blacklist))
+                                try:
+                                    gtargets.extend(
+                                        inputf.load_and_blacklist_gnss(
+                                            gc.datadir, name, gc.blacklist))
+                                    logger.info('Successfully imported GNSS'
+                                                ' data for %s' % name)
+                                except OSError:
+                                    logger.warning(
+                                        'File %s not conform with ascii '
+                                        'format!' % name)
                         else:
                             raise ImportError(
                                 'Format %s not implemented yet for GNSS data.' %
