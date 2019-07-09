@@ -218,7 +218,11 @@ class GeodeticComposite(Composite):
                 'for datasets...' % corr.feature)
             if corr.enabled:
                 for data in self.datasets:
-                    hierarchical_names = corr.get_hierarchical_names(data.name)
+                    if data.typ == corr.for_datatyp:
+                        hierarchical_names = corr.get_hierarchical_names(data.name)
+                    else:
+                        hierarchical_names = []
+                        
                     for hierarchical_name in hierarchical_names:
                         if not corr.enabled and hierarchical_name in hierarchicals:
                             raise ConfigInconsistentError(
