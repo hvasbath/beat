@@ -1078,8 +1078,8 @@ class DiffIFG(IFG):
                 ramp = point[ramp_name]
                 offset = point[offset_name]
             except KeyError:
-                ramp = self.hierarchicals[ramp_name]
-                offset = self.hierarchicals[offset_name]
+                ramp = hierarchicals[ramp_name]
+                offset = hierarchicals[offset_name]
 
         return get_ramp_displacement(locx, locy, ramp, offset)
 
