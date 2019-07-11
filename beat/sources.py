@@ -161,7 +161,7 @@ class RectangularSource(gf.RectangularSource):
                 bc[2] * num.sin(d2r * self.strike) / num.tan(d2r * self.dip))
         return num.array([xtrace, ytrace, 0.])
 
-    def patches(self, nl, nw, datatype, type='pyrocko'):
+    def patches(self, nl, nw, datatype):
         """
         Cut source into n by m sub-faults and return n times m
         :class:`RectangularSource` Objects.
@@ -184,12 +184,6 @@ class RectangularSource(gf.RectangularSource):
         :class:`pyrocko.gf.seismosizer.RectangularSource` depending on
         datatype. Depth is being updated from top_depth to center_depth.
         """
-        if type == 'pyrocko':
-            source_class = gf.RectangularSource
-        elif type == 'beat':
-            source_class = RectangularSource
-        else:
-            raise ValueError('Supported types are: "beat, pyrocko"')
 
         length = self.length / float(nl)
         width = self.width / float(nw)
@@ -201,7 +195,7 @@ class RectangularSource(gf.RectangularSource):
                     self.strikevector * ((i + 0.5 - 0.5 * nl) * length) + \
                     self.dipvector * (j * width)
 
-                patch = source_class(
+                patch = RectangularSource(
                     lat=float(self.lat),
                     lon=float(self.lon),
                     east_shift=float(sub_top[0]),

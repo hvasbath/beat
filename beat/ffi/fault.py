@@ -752,7 +752,7 @@ def discretize_sources(
 
                     npw, npl = fault.ordering.get_subfault_discretization(index)
                     patches = sf.patches(
-                        nl=npl, nw=npw, datatype=datatype, type='pyrocko')
+                        nl=npl, nw=npw, datatype=datatype)
                     fault.set_subfault_patches(
                         index, patches, datatype, component)
 
@@ -810,7 +810,7 @@ def optimize_discretization(
             npw = sf.get_n_patches(patch_widths[index] * km, 'width')
             npl = sf.get_n_patches(patch_lengths[index] * km, 'length')
             patches = sf.patches(
-                nl=npl, nw=npw, datatype=datatype, type='beat')
+                nl=npl, nw=npw, datatype=datatype)
             fault.set_subfault_patches(index, patches, datatype, component)
 
     logger.info('Initial number of patches: %i' % fault.npatches)
@@ -840,10 +840,10 @@ def optimize_discretization(
                     patch = patches.pop(idx)
                     if patch.length >= patch.width:
                         div_patches = patch.patches(
-                            nl=2, nw=1, datatype=datatype, type='beat')
+                            nl=2, nw=1, datatype=datatype)
                     else:
                         div_patches = patch.patches(
-                            nl=1, nw=2, datatype=datatype, type='beat')
+                            nl=1, nw=2, datatype=datatype)
 
                     # insert back divided patches
                     for dpatch in div_patches:

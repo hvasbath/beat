@@ -222,7 +222,7 @@ class GeodeticComposite(Composite):
                         hierarchical_names = corr.get_hierarchical_names(data.name)
                     else:
                         hierarchical_names = []
-                        
+
                     for hierarchical_name in hierarchical_names:
                         if not corr.enabled and hierarchical_name in hierarchicals:
                             raise ConfigInconsistentError(
