@@ -900,6 +900,7 @@ def command_summarize(args):
 
                 if rm_flag:
                     # remove chain
+                    logger.info('Removing sampled traces ...')
                     os.remove(stage.mtrace._straces[chain].filename)
 
             rtrace.record_buffer()
