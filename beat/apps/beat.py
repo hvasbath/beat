@@ -1399,7 +1399,7 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
 def command_check(args):
 
     command_str = 'check'
-    whats = ['stores', 'traces', 'library', 'geometry']
+    whats = ['stores', 'traces', 'library', 'geometry', 'discretization']
 
     def setup(parser):
         parser.add_option(
@@ -1512,7 +1512,8 @@ def command_check(args):
                                 durationidxs=list(range(gfs.ndurations)),
                                 starttimeidxs=list(range(gfs.nstarttimes)))
                             snuffle(trs)
-    elif options.what == 'geometry':
+
+    elif options.what == 'discretization':
         from beat.plotting import source_geometry
         if 'geodetic' in problem.config.problem_config.datatypes:
             datatype = 'geodetic'
@@ -1532,8 +1533,66 @@ def command_check(args):
             source_geometry(fault, reference_sources, datasets)
         else:
             logger.warning(
-                'Checking geometry is only for'
+                'Checking discretization is only for'
                 ' "%s" mode available' % ffi_mode_str)
+
+    elif options.what == 'geometry':
+        if 'geodetic' not in problem.config.problem_config.datatypes:
+            if 'SAR' not in problem.config.geodetic_config.types:
+                raise ValueError(
+                    'Checking geometry is only available for SAR data')
+
+            raise ValueError(
+                'Checking geometry is only available for geodetic data')
+
+        try:
+            from kite.talpa import Talpa
+            from kite import SandboxScene
+            from kite.scene import Scene, UserIOWarning
+        except ImportError:
+            raise ImportError(
+                'Please install the KITE software (www.pyrocko.org)'
+                ' to enable this feature!')
+
+        if len(options.targets) > 1:
+            logger.warning(
+                'Targets can be only of length 1 for geometry checking!'
+                ' Displaying only first target.')
+
+        gc = problem.composites['geodetic']
+        dataset = gc.datasets[int(options.targets[0])]
+        try:
+            homepath = problem.config.geodetic_config.datadir
+            scene_path = os.path.join(homepath, dataset.name)
+            logger.info(
+                'Loading full resolution kite scene: %s' % scene_path)
+            scene = Scene.load(scene_path)
+        except UserIOWarning:
+            raise ImportError(
+                'Full resolution data could not be loaded!')
+
+        from tempfile import mkdtemp
+
+        tempdir = mkdtemp(prefix='beat_geometry_check', dir=None)
+        sandbox = SandboxScene()
+        sandbox.setReferenceScene(scene)
+
+        if options.mode == ffi_mode_str:
+            logger.info('FFI mode: Loading reference sources ...')
+            sources = gc.config.gf_config.reference_sources
+
+        elif options.mode == geometry_mode_str:
+            logger.info('Geometry mode: Loading Test value sources ...')
+            tpoint = problem.config.problem_config.get_test_point()
+            gc.point2sources(tpoint)
+            sources = gc.sources
+
+        for source in sources:
+            sandbox.addSource(source)
+
+        filename = pjoin(tempdir, '%s.yml' % dataset.name)
+        sandbox.save(filename)
+        Talpa(filename)
     else:
         raise ValueError('Subject what: %s is not available!' % options.what)
 
