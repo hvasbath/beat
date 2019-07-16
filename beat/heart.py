@@ -1164,12 +1164,17 @@ def init_seismic_targets(
                         azimuth=cha.azimuth,
                         dip=cha.dip,
                         interpolation=interpolation,
-                        store_id='%s_%s_%.3fHz_%s' % (
+                        store_id=get_store_id(
                             store_prefixes[sta_num],
                             em_name,
                             sample_rate,
                             crust_ind)))
     return targets
+
+
+def get_store_id(prefix, earth_model_name, sample_rate, crust_ind=0):
+    return '%s_%s_%.3fHz_%s' % (
+            prefix, earth_model_name, sample_rate, crust_ind)
 
 
 def init_geodetic_targets(
@@ -1207,8 +1212,7 @@ def init_geodetic_targets(
         lats=d.lats,
         interpolation=interpolation,
         quantity='displacement',
-        store_id='%s_%s_%.3fHz_%s' % (
-            'statics', em_name, sample_rate, crust_ind))
+        store_id=get_store_id('statics', em_name, sample_rate, crust_ind))
         for crust_ind in crust_inds for d in datasets]
 
     return targets

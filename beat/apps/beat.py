@@ -1549,6 +1549,15 @@ def command_check(args):
             from kite.talpa import Talpa
             from kite import SandboxScene
             from kite.scene import Scene, UserIOWarning
+            from kite import sources as ksources
+
+            talpa_source_catalog = {
+                'RectangularSource': ksources.PyrockoRectangularSource,
+                'DCSource': ksources.PyrockoDoubleCouple,
+                'MTSource': ksources.PyrockoMomentTensor,
+                'RingfaultSource': ksources.PyrockoRingfaultSource,
+            }
+
         except ImportError:
             raise ImportError(
                 'Please install the KITE software (www.pyrocko.org)'
@@ -1560,6 +1569,7 @@ def command_check(args):
                 ' Displaying only first target.')
 
         gc = problem.composites['geodetic']
+        gfc = gc.config.gf_config
         dataset = gc.datasets[int(options.targets[0])]
         try:
             homepath = problem.config.geodetic_config.datadir
@@ -1576,6 +1586,13 @@ def command_check(args):
         tempdir = mkdtemp(prefix='beat_geometry_check', dir=None)
         sandbox = SandboxScene()
         sandbox.setReferenceScene(scene)
+        store_dir = pjoin(
+            gfc.store_superdir,
+            heart.get_store_id(
+                'statics',
+                heart.get_earth_model_prefix(gfc.earth_model_name),
+                gfc.sample_rate,
+                gfc.reference_model_idx))
 
         if options.mode == ffi_mode_str:
             logger.info('FFI mode: Loading reference sources ...')
@@ -1587,8 +1604,16 @@ def command_check(args):
             gc.point2sources(tpoint)
             sources = gc.sources
 
+        src_class_name = problem.config.problem_config.source_type
         for source in sources:
-            sandbox.addSource(source)
+            source.regularize()
+            try:
+                sandbox.addSource(
+                    talpa_source_catalog[src_class_name].from_pyrocko_source(
+                        source, store_dir=store_dir))
+            except(AttributeError, KeyError):
+                raise ValueError('%s not supported for display in Talpa!'
+                                 '' % src_class_name)
 
         filename = pjoin(tempdir, '%s.yml' % dataset.name)
         sandbox.save(filename)
