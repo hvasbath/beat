@@ -2743,21 +2743,20 @@ def fault_slip_distribution(
             ax, uperp, uparr, xgr, ygr, rake, color='black',
             draw_legend=False, normalisation=None, zorder=0):
 
-        angles = num.arctan2(uperp, uparr) * \
-            (180. / num.pi) + rake
-
+        # positive uperp is always dip-normal- have to multiply -1
+        angles = num.arctan2(-uperp, uparr) * mt.r2d + rake
         slips = num.sqrt((uperp ** 2 + uparr ** 2)).ravel()
 
         if normalisation is None:
             from beat.models.laplacian import distances
             centers = num.vstack((xgr, ygr)).T
-            interpatch_dists = distances(centers, centers)
+            #interpatch_dists = distances(centers, centers)
             normalisation = slips.max() #/ interpatch_dists.min()
 
         slips /= normalisation
 
-        slipsx = num.cos(angles * num.pi / 180.) * slips
-        slipsy = num.sin(angles * num.pi / 180.) * slips
+        slipsx = num.cos(angles * mt.d2r) * slips
+        slipsy = num.sin(angles * mt.d2r) * slips
 
         # slip arrows of slip on patches
         quivers = ax.quiver(
@@ -2863,7 +2862,7 @@ def fault_slip_distribution(
 
         # alphas = alpha * num.ones(np_h * np_w, dtype='int8')
 
-        ext_source = fault.get_subfault(ns)
+        ext_source = fault.get_subfault(ns, component='uparr')
         patch_idxs = fault.get_patch_indexes(ns)
 
         pa_col = draw_patches(

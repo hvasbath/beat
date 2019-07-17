@@ -671,10 +671,9 @@ def initialise_fault_geometry(
 
         for var in varnames:
             logger.info('%s slip component' % var)
-            param_mod = copy.deepcopy(slip_directions[var])
-
             ext_sources = []
             for i, source in enumerate(sources):
+                param_mod = copy.deepcopy(slip_directions[var])
                 s = copy.deepcopy(source)
                 param_mod['rake'] += s.rake
                 s.update(**param_mod)
