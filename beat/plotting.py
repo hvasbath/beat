@@ -3124,11 +3124,15 @@ def fault_slip_distribution(
         return quivers, normalisation
 
     def rotate_coords_plane_normal(coords, sf):
+
         coords -= sf.bottom_left / km
-        coords[:, 2] *= - 1.
+
         rots = utility.get_rotation_matrix()
-        return coords.dot(rots['z'](mt.d2r * -sf.strike)).dot(
-            rots['y'](mt.d2r * (90. - sf.dip)))
+        rotz = coords.dot(rots['z'](mt.d2r * -sf.strike))
+        roty = rotz.dot(rots['y'](mt.d2r * -sf.dip))
+
+        roty[:, 0] *= - 1.
+        return roty
 
     def draw_patches(ax, fault, subfault_idx, patch_values, cmap, alpha):
 
@@ -3139,7 +3143,7 @@ def fault_slip_distribution(
         sf = fault.get_subfault(subfault_idx)
 
         # subtract reference fault lower left and rotate
-        rot_lls = rotate_coords_plane_normal(lls, sf)[:, -2::]
+        rot_lls = rotate_coords_plane_normal(lls, sf)[:, 1::-1]
 
         d_patches = []
         for ll, width, length in zip(rot_lls, widths, lengths):
@@ -3147,15 +3151,16 @@ def fault_slip_distribution(
                 Rectangle(
                     ll, width=length, height=width, edgecolor='black'))
 
-        #upper = rot_lls.max(axis=0)[-2::]
         lower = rot_lls.min(axis=0)
-        xlim = [lower[0], lower[0] + sf.length / km]
-        ylim = [lower[1], lower[1] + sf.width / km]
+        pad = sf.length / km * 0.05
+
+        xlim = [lower[0] - pad, lower[0] + sf.length / km + pad]
+        ylim = [lower[1]- pad, lower[1] + sf.width / km + pad]
 
         ax.set_xlim(*xlim)
         ax.set_ylim(*ylim)
 
-        scale_y = {'scale': 1, 'offset': -ylim[1]}
+        scale_y = {'scale': 1, 'offset': (-sf.width / km)}
         scale_axes(ax.yaxis, **scale_y)
 
         ax.set_xlabel('strike-direction [km]', fontsize=fontsize)
@@ -3174,10 +3179,12 @@ def fault_slip_distribution(
         ax.add_collection(pa_col)
         return pa_col
 
-    def draw_colorbar(fig, ax, cb_related, labeltext):
+    def draw_colorbar(fig, ax, cb_related, labeltext, ntickmarks=4):
         cbaxes = fig.add_axes([0.88, 0.4, 0.03, 0.3])
         cb = fig.colorbar(cb_related, ax=axs, cax=cbaxes)
         cb.set_label(labeltext, fontsize=fontsize)
+        cb.locator = tick.MaxNLocator(nbins=ntickmarks)
+        cb.update_ticks()
         ax.set_aspect('equal', adjustable='box')
 
     def get_values_from_trace(mtrace, varname, reference):
@@ -3202,19 +3209,19 @@ def fault_slip_distribution(
             nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
 
         # alphas = alpha * num.ones(np_h * np_w, dtype='int8')
-        pa_col = draw_patches(
-            ax, fault, subfault_idx=ns, patch_values=reference_slip,
-            cmap=slip_colormap(100), alpha=0.65)
 
         ext_source = fault.get_subfault(ns)
         patch_idxs = fault.get_patch_indexes(ns)
 
+        pa_col = draw_patches(
+            ax, fault, subfault_idx=ns, patch_values=reference_slip[patch_idxs],
+            cmap=slip_colormap(100), alpha=0.65)
+
         # patch central locations
         centers = fault.get_subfault_patch_attributes(ns, attributes=['center'])
-        rot_centers = rotate_coords_plane_normal(centers, ext_source)[:, -2::]
+        rot_centers = rotate_coords_plane_normal(centers, ext_source)[:, 1::-1]
 
         xgr, ygr = rot_centers.T
-
         if 'seismic' in fault.datatypes:
             if mtrace is not None:
                 from tqdm import tqdm
@@ -3320,6 +3327,7 @@ def fault_slip_distribution(
             normalisation=normalisation, zorder=3)
 
         draw_colorbar(fig, ax, pa_col, labeltext='slip [m]')
+        format_axes(ax, remove=['top', 'right'])
 
         fig.tight_layout()
         figs.append(fig)
