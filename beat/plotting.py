@@ -2754,7 +2754,7 @@ def fault_slip_distribution(
             ax, uperp, uparr, xgr, ygr, rake, color='black',
             draw_legend=False, normalisation=None, zorder=0):
 
-        angles = num.arctan2(uperp, uparr) * \
+        angles = num.arctan2(-uperp, uparr) * \
             (180. / num.pi) + rake
 
         slips = num.sqrt((uperp ** 2 + uparr ** 2)).ravel()
