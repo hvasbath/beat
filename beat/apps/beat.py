@@ -1552,7 +1552,7 @@ def command_check(args):
             from kite import sources as ksources
 
             talpa_source_catalog = {
-                'RectangularSource': ksources.PyrockoRectangularSource,
+                'RectangularSource': ksources.OkadaSource,
                 'DCSource': ksources.PyrockoDoubleCouple,
                 'MTSource': ksources.PyrockoMomentTensor,
                 'RingfaultSource': ksources.PyrockoRingfaultSource,
@@ -1571,12 +1571,14 @@ def command_check(args):
         gc = problem.composites['geodetic']
         gfc = gc.config.gf_config
         dataset = gc.datasets[int(options.targets[0])]
+        logger.info('Initialising Talpa Sandbox ...')
+        sandbox = SandboxScene()
         try:
             homepath = problem.config.geodetic_config.datadir
             scene_path = os.path.join(homepath, dataset.name)
             logger.info(
                 'Loading full resolution kite scene: %s' % scene_path)
-            scene = Scene.load(scene_path)
+            sandbox.loadReferenceScene(scene_path)
         except UserIOWarning:
             raise ImportError(
                 'Full resolution data could not be loaded!')
@@ -1584,8 +1586,7 @@ def command_check(args):
         from tempfile import mkdtemp
 
         tempdir = mkdtemp(prefix='beat_geometry_check', dir=None)
-        sandbox = SandboxScene()
-        sandbox.setReferenceScene(scene)
+
         store_dir = pjoin(
             gfc.store_superdir,
             heart.get_store_id(
@@ -1609,7 +1610,7 @@ def command_check(args):
             source.regularize()
             try:
                 sandbox.addSource(
-                    talpa_source_catalog[src_class_name].from_pyrocko_source(
+                    talpa_source_catalog[src_class_name].fromPyrockoSource(
                         source, store_dir=store_dir))
             except(AttributeError, KeyError):
                 raise ValueError('%s not supported for display in Talpa!'
@@ -1617,6 +1618,7 @@ def command_check(args):
 
         filename = pjoin(tempdir, '%s.yml' % dataset.name)
         sandbox.save(filename)
+        logger.debug('Saving sandbox to %s' % filename)
         Talpa(filename)
     else:
         raise ValueError('Subject what: %s is not available!' % options.what)
