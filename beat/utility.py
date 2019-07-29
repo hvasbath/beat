@@ -246,6 +246,38 @@ class ListToArrayBijection(object):
 
         return a_list
 
+    def a_nd2l(self, array):
+        """
+        Maps value from ndarray space (ndims, data) to List space
+        Inverse operation of fmap. Nd
+
+        Parameters
+        ----------
+        array : :class:`numpy.ndarray`
+
+        Returns
+        -------
+        a_list : list
+            of :class:`numpy.ndarray`
+        """
+
+        a_list = copy.copy(self.list_arrays)
+        nd = array.ndim
+        if nd != 2:
+            raise ValueError(
+                'Input array has wrong dimensions! Needed 2d array! Got %i' % nd)
+
+        for list_ind, slc, shp, dtype, _ in self.ordering.vmap:
+            shpnd = (array.shape[0], ) + shp
+            try:
+                a_list[list_ind] = num.atleast_2d(
+                    array)[:, slc].reshape(shpnd).astype(dtype)
+            except ValueError:  # variable does not exist in array use dummy
+                a_list[list_ind] = num.atleast_2d(
+                    num.ones(shpnd) * self.dummy)
+
+        return a_list
+
     def srmap(self, tarray):
         """
         Maps value from symbolic variable array space to List space
@@ -984,8 +1016,7 @@ def repair_covariance(x, epsilon=num.finfo(num.float64).eps):
 
     eigval, eigvec = num.linalg.eigh(x)
     val = num.maximum(eigval, epsilon)
-    vec = num.matrix(eigvec)
-    return num.array(vec * num.diag(val) * vec.T)
+    return eigvec.dot(num.diag(val)).dot(eigvec.T)
 
 
 def running_window_rms(data, window_size, mode='valid'):

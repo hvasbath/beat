@@ -1088,7 +1088,6 @@ class GFLibaryConfig(Object):
     """
     component = String.T(default='uparr')
     event = model.Event.T(default=model.Event.D())
-    datatype = String.T(default='undefined')
     crust_ind = Int.T(default=0)
     reference_sources = List.T(
         RectangularSource.T(),
@@ -1100,6 +1099,7 @@ class GeodeticGFLibraryConfig(GFLibaryConfig):
     Config for the linear Geodetic GF Library for dumping and loading.
     """
     dimensions = Tuple.T(2, Int.T(), default=(0, 0))
+    datatype = String.T(default='geodetic')
 
 
 class SeismicGFLibraryConfig(GFLibaryConfig):
@@ -1112,6 +1112,7 @@ class SeismicGFLibraryConfig(GFLibaryConfig):
     starttime_min = Float.T(default=0.)
     duration_min = Float.T(default=0.1)
     dimensions = Tuple.T(5, Int.T(), default=(0, 0, 0, 0, 0))
+    datatype = String.T(default='seismic')
 
 
 datatype_catalog = {

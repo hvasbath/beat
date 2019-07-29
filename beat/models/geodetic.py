@@ -107,7 +107,7 @@ class GeodeticComposite(Composite):
         self.sodws = shared(odws, name='odws', borrow=True)
 
         if gc.calc_data_cov:
-            logger.warn('Covariance estimation not implemented (yet)!'
+            logger.warning('Covariance estimation not implemented (yet)!'
                         ' Using imported covariances!')
         else:
             logger.info('No data-covariance estimation! Using imported'
@@ -771,5 +771,60 @@ class GeodeticDistributerComposite(GeodeticComposite):
         return synths
 
     def update_weights(self, point, n_jobs=1, plot=False):
-        logger.warning('Cp updating not implemented yet!')
-        pass
+        """
+        Updates weighting matrixes (in place) with respect to the point in the
+        solution space.
+
+        Parameters
+        ----------
+        point : dict
+            with numpy array-like items and variable name keys
+        """
+        gc = self.config
+
+        crust_inds = range(*gc.gf_config.n_variations)
+        thresh = 5
+        if len(crust_inds) > thresh:
+            logger.info('Updating geodetic velocity model-covariances ...')
+
+            crust_inds = list(range(*self.config.gf_config.n_variations))
+            n_variations = len(crust_inds)
+            if len(self.gfs) != n_variations:
+                logger.info('Loading geodetic linear GF matrixes ...')
+                self.load_gfs(
+                    crust_inds=crust_inds,
+                    make_shared=False)
+
+            crust_displacements = num.zeros(
+                (n_variations, self.Bij.ordering.size))
+            for i, crust_ind in enumerate(crust_inds):
+                mu = num.zeros((self.Bij.ordering.size))
+                for var in self.slip_varnames:
+                    key = self.get_gflibrary_key(
+                        crust_ind=crust_ind,
+                        wavename='static',
+                        component=var)
+                    mu += self.gfs[key].stack_all(slips=point[var])
+
+                crust_displacements[i, :] = mu
+
+            crust_synths = self.Bij.a_nd2l(crust_displacements)
+            if len(crust_synths) != self.n_t:
+                raise ValueError(
+                    'Number of datasets %i and number of synthetics %i '
+                    'inconsistent!' % (self.n_t, len(crust_synths)))
+
+            for i, data in enumerate(self.datasets):
+                logger.debug('Track %s' % data.name)
+                cov_pv = num.cov(crust_synths[i], rowvar=0)
+
+                cov_pv = utility.ensure_cov_psd(cov_pv)
+                data.covariance.pred_v = cov_pv
+                choli = data.covariance.chol_inverse
+
+                self.weights[i].set_value(choli)
+                data.covariance.update_slog_pdet()
+        else:
+            logger.info(
+                'Not updating geodetic velocity model-covariances because '
+                'number of model variations is too low! < %i' % thresh)
