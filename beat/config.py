@@ -1055,6 +1055,10 @@ class SamplerConfig(Object):
         default=5000,
         help='number of samples after which the result '
              'buffer is written to disk')
+    buffer_thinning = Int.T(
+        default=1,
+        help='Factor by which the result trace is thinned before '
+             'writing to disc.')
     parameters = SamplerParameters.T(
         default=SMCConfig.D(),
         optional=True,

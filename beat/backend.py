@@ -110,7 +110,8 @@ class BaseChain(object):
         `model.unobserved_RVs` is used.
     """
 
-    def __init__(self, model=None, vars=None, buffer_size=5000):
+    def __init__(self, model=None, vars=None, buffer_size=5000,
+                 buffer_thinning=1):
 
         self.model = None
         self.vars = None
@@ -118,6 +119,7 @@ class BaseChain(object):
         self.chain = None
 
         self.buffer_size = buffer_size
+        self.buffer_thinning = buffer_thinning
         self.buffer = []
         self.count = 0
 
@@ -173,10 +175,11 @@ class FileChain(BaseChain):
     """
     def __init__(
             self, dir_path='', model=None, vars=None, buffer_size=5000,
-            progressbar=False, k=None):
+            buffer_thinning=1, progressbar=False, k=None):
 
         super(FileChain, self).__init__(
-            model=model, vars=vars, buffer_size=buffer_size)
+            model=model, vars=vars, buffer_size=buffer_size,
+            buffer_thinning=buffer_thinning)
 
         if not os.path.exists(dir_path):
             os.mkdir(dir_path)
@@ -341,6 +344,8 @@ class TextChain(FileChain):
     buffer_size : int
         this is the number of samples after which the buffer is written to disk
         or if the chain end is reached
+    buffer_thinning : int
+        every nth sample of the buffer is written to disk
     progressbar : boolean
         flag if a progressbar is active, if not a logmessage is printed
         everytime the buffer is written to disk
@@ -350,10 +355,11 @@ class TextChain(FileChain):
 
     def __init__(
             self, dir_path, model=None, vars=None,
-            buffer_size=5000, progressbar=False, k=None):
+            buffer_size=5000, buffer_thinning=1, progressbar=False, k=None):
 
         super(TextChain, self).__init__(
-            dir_path, model, vars, buffer_size, progressbar, k)
+            dir_path, model, vars, buffer_size, progressbar, k,
+            buffer_thinning=buffer_thinning)
 
     def setup(self, draws, chain, overwrite=False):
         """
@@ -411,6 +417,7 @@ class TextChain(FileChain):
         try:
             with open(self.filename, mode="a+") as fh:
                 if lpoint is None:
+                    # TODO add buffer selection for writing
                     for lpoint, draw in self.buffer:
                         lpoint2file(fh, lpoint)
 
@@ -513,6 +520,8 @@ class NumpyChain(FileChain):
     buffer_size : int
         this is the number of samples after which the buffer is written to disk
         or if the chain end is reached
+    buffer_thinning : int
+        every nth sample of the buffer is written to disk
     progressbar : boolean
         flag if a progressbar is active, if not a logmessage is printed
         everytime the buffer is written to disk
@@ -527,11 +536,11 @@ class NumpyChain(FileChain):
 
     def __init__(
             self, dir_path, model=None, vars=None, buffer_size=5000,
-            progressbar=False, k=None):
+            progressbar=False, k=None, buffer_thinning=1):
 
         super(NumpyChain, self).__init__(
             dir_path, model, vars, progressbar=progressbar,
-            buffer_size=buffer_size, k=k)
+            buffer_size=buffer_size, buffer_thinning=buffer_thinning, k=k)
 
         self.k = k
 
@@ -648,6 +657,7 @@ class NumpyChain(FileChain):
             with open(self.filename, mode="ab+") as fh:
                 if lpoint is None:
                     for lpoint, draw in self.buffer:
+                        # TODO add buffer selection for writing
                         lpoint2file(fh, self.varnames, data, lpoint)
                 else:
                     lpoint2file(fh, self.varnames, data, lpoint)

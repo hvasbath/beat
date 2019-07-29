@@ -365,7 +365,7 @@ def init_chain_hypers(problem):
 def iter_parallel_chains(
         draws, step, stage_path, progressbar, model, n_jobs,
         chains=None, initializer=None, initargs=(),
-        buffer_size=5000, chunksize=None):
+        buffer_size=5000, buffer_thinning=1, chunksize=None):
     """
     Do Metropolis sampling over all the chains with each chain being
     sampled 'draws' times. Parallel execution according to n_jobs.
@@ -398,6 +398,8 @@ def iter_parallel_chains(
     buffer_size : int
         this is the number of samples after which the buffer is written to disk
         or if the chain end is reached
+    buffer_thinning : int
+        every nth sample of the buffer is written to disk
     chunksize : int
         number of chains to sample within each process
 
@@ -429,6 +431,7 @@ def iter_parallel_chains(
             trace_list.append(
                 backend_catalog[step.backend](
                     dir_path=stage_path, model=model,
+                    buffer_thinning=buffer_thinning,
                     buffer_size=buffer_size, progressbar=progressbar))
 
         max_int = np.iinfo(np.int32).max
