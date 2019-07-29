@@ -1896,7 +1896,7 @@ def draw_hudson(problem, po):
 
 def histplot_op(
         ax, data, reference=None, alpha=.35, color=None, bins=None,
-        ntickmarks=5, tstd=None, qlist=[0., 100.], kwargs={}):
+        ntickmarks=5, tstd=None, qlist=[0.01, 99.99], kwargs={}):
     """
     Modified from pymc3. Additional color argument.
     """
