@@ -422,6 +422,7 @@ def smc_sample(
         step=step,
         stage=stage,
         progressbar=progressbar,
+        buffer_thinning=buffer_thinning,
         update=update,
         model=model,
         rm_flag=rm_flag)

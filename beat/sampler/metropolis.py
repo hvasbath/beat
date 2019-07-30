@@ -414,7 +414,7 @@ def metropolis_sample(
     chains, step, update = init_stage(
         stage_handler=stage_handler,
         step=step,
-        stage=stage - 1,   # needs zero otherwise tries to load stage_0 results
+        stage=0,   # needs zero otherwise tries to load stage_0 results
         progressbar=progressbar,
         update=update,
         model=model,

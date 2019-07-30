@@ -493,7 +493,8 @@ def iter_parallel_chains(
         # return chain indexes that have been corrupted
         mtrace = load_multitrace(dirname=stage_path, varnames=varnames, backend=step.backend)
         corrupted_chains = check_multitrace(
-            mtrace, draws=draws, n_chains=step.n_chains)
+            mtrace, draws=draws, n_chains=step.n_chains,
+            buffer_thinning=buffer_thinning)
 
         n_chains = len(corrupted_chains)
 
@@ -527,7 +528,7 @@ def logp_forw(out_vars, vars, shared):
 
 
 def init_stage(
-        stage_handler, step, stage, model,
+        stage_handler, step, stage, model, buffer_thinning=1,
         progressbar=False, update=None, rm_flag=False):
     """
     Examine starting point of sampling, reload stages and initialise steps.
@@ -549,7 +550,8 @@ def init_stage(
 
         varnames = [var.name for var in model.unobserved_RVs]
         chains = stage_handler.recover_existing_results(
-            stage, draws, step, varnames=varnames)
+            stage, draws, step, buffer_thinning=buffer_thinning,
+            varnames=varnames)
 
     return chains, step, update
 

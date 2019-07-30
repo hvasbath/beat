@@ -47,6 +47,27 @@ from beat.utility import load_objects, dump_objects, \
 logger = logging.getLogger('backend')
 
 
+def thin_buffer(buffer, buffer_thinning, ensure_last=True):
+    """
+    Reduce a list of objects by a given value.
+
+    Parameters
+    ----------
+    buffer : list
+        of objects to be thinned
+    buffer_thinning : int
+        every nth object in list is returned
+    ensure_last : bool
+        enable to ensure that last object in list is returned
+    """
+    if ensure_last:
+        write_buffer = buffer[-1::-buffer_thinning]
+        write_buffer.reverse()
+    else:
+        write_buffer = buffer[::buffer_thinning]
+    return write_buffer
+
+
 class ArrayStepSharedLLK(BlockedStep):
     """
     Modified ArrayStepShared To handle returned larger point including the
@@ -358,8 +379,8 @@ class TextChain(FileChain):
             buffer_size=5000, buffer_thinning=1, progressbar=False, k=None):
 
         super(TextChain, self).__init__(
-            dir_path, model, vars, buffer_size, progressbar, k,
-            buffer_thinning=buffer_thinning)
+            dir_path, model, vars, buffer_size=buffer_size,
+            progressbar=progressbar, k=k, buffer_thinning=buffer_thinning)
 
     def setup(self, draws, chain, overwrite=False):
         """
@@ -418,8 +439,8 @@ class TextChain(FileChain):
             with open(self.filename, mode="a+") as fh:
                 if lpoint is None:
                     # write out thinned buffer starting with last sample
-                    write_buffer = sorted(
-                        self.buffer[-1::-self.buffer_thinning])
+                    write_buffer = thin_buffer(
+                        self.buffer, self.buffer_thinning, ensure_last=True)
                     for lpoint, draw in write_buffer:
                         lpoint2file(fh, lpoint)
 
@@ -658,9 +679,9 @@ class NumpyChain(FileChain):
 
             with open(self.filename, mode="ab+") as fh:
                 if lpoint is None:
-                    write_buffer = sorted(
-                        self.buffer[-1::-self.buffer_thinning])
-                    for lpoint, draw in self.buffer:
+                    write_buffer = thin_buffer(
+                        self.buffer, self.buffer_thinning, ensure_last=True)
+                    for lpoint, draw in write_buffer:
                         lpoint2file(fh, self.varnames, data, lpoint)
                 else:
                     lpoint2file(fh, self.varnames, data, lpoint)
@@ -933,7 +954,8 @@ class SampleStage(object):
             dirname=dirname, chains=chains,
             varnames=varnames, backend=self.backend)
 
-    def recover_existing_results(self, stage, draws, step, varnames=None):
+    def recover_existing_results(
+            self, stage, draws, step, buffer_thinning=1, varnames=None):
         stage_path = self.stage_path(stage)
         if os.path.exists(stage_path):
             # load incomplete stage results
@@ -943,7 +965,8 @@ class SampleStage(object):
                 # continue sampling if traces exist
                 logger.info('Checking for corrupted files ...')
                 return check_multitrace(
-                    mtrace, draws=draws, n_chains=step.n_chains)
+                    mtrace, draws=draws, n_chains=step.n_chains,
+                    buffer_thinning=buffer_thinning)
 
         logger.info('Init new trace!')
         return None
@@ -1013,7 +1036,7 @@ def load_multitrace(dirname, varnames=None, chains=None, backend='csv'):
         raise NotImplementedError('Loading trans-d trace is not implemented!')
 
 
-def check_multitrace(mtrace, draws, n_chains):
+def check_multitrace(mtrace, draws, n_chains, buffer_thinning=1):
     """
     Check multitrace for incomplete sampling and return indexes from chains
     that need to be resampled.
@@ -1032,6 +1055,9 @@ def check_multitrace(mtrace, draws, n_chains):
     list of indexes for chains that need to be resampled
     """
     not_sampled_idx = []
+    # apply buffer thinning
+    draws = int(num.ceil(draws / buffer_thinning))
+
     for chain in range(n_chains):
         if chain in mtrace.chains:
             chain_len = len(mtrace._straces[chain])
