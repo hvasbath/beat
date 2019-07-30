@@ -149,6 +149,7 @@ def sample(step, problem):
             step=step,
             progressbar=sc.progressbar,
             buffer_size=sc.buffer_size,
+            buffer_thinning=sc.buffer_thinning,
             homepath=problem.outfolder,
             start=start,
             burn=pa.burn,
@@ -169,6 +170,7 @@ def sample(step, problem):
             n_jobs=pa.n_jobs,
             stage=pa.stage,
             update=update,
+            buffer_thinning=sc.buffer_thinning,
             homepath=problem.outfolder,
             buffer_size=sc.buffer_size,
             rm_flag=pa.rm_flag)
@@ -187,6 +189,7 @@ def sample(step, problem):
             homepath=problem.outfolder,
             progressbar=sc.progressbar,
             buffer_size=sc.buffer_size,
+            buffer_thinning=sc.buffer_thinning,
             model=problem.model,
             resample=pa.resample,
             rm_flag=pa.rm_flag)
@@ -236,6 +239,7 @@ def estimate_hypers(step, problem):
             initializer=init_chain_hypers,
             initargs=(problem,),
             buffer_size=sc.buffer_size,
+            buffer_thinning=sc.buffer_thinning,
             chunksize=int(pa.n_chains / pa.n_jobs))
 
     for v in problem.hypernames:

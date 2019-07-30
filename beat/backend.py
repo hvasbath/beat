@@ -417,8 +417,10 @@ class TextChain(FileChain):
         try:
             with open(self.filename, mode="a+") as fh:
                 if lpoint is None:
-                    # TODO add buffer selection for writing
-                    for lpoint, draw in self.buffer:
+                    # write out thinned buffer starting with last sample
+                    write_buffer = sorted(
+                        self.buffer[-1::-self.buffer_thinning])
+                    for lpoint, draw in write_buffer:
                         lpoint2file(fh, lpoint)
 
                 else:
@@ -656,8 +658,9 @@ class NumpyChain(FileChain):
 
             with open(self.filename, mode="ab+") as fh:
                 if lpoint is None:
+                    write_buffer = sorted(
+                        self.buffer[-1::-self.buffer_thinning])
                     for lpoint, draw in self.buffer:
-                        # TODO add buffer selection for writing
                         lpoint2file(fh, self.varnames, data, lpoint)
                 else:
                     lpoint2file(fh, self.varnames, data, lpoint)

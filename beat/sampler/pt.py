@@ -460,7 +460,7 @@ class TemperingManager(object):
 def master_process(
         comm, tags, status, model, step, n_samples, swap_interval,
         beta_tune_interval, n_workers_posterior, homepath, progressbar,
-        buffer_size, resample, rm_flag):
+        buffer_size, buffer_thinning, resample, rm_flag):
     """
     Master process, that does the managing.
     Sends tasks to workers.
@@ -511,6 +511,7 @@ def master_process(
         dir_path=stage_handler.stage_path(stage),
         model=model,
         buffer_size=buffer_size,
+        buffer_thinning=buffer_thinning,
         progressbar=progressbar)
     trace.setup(n_samples, 0, overwrite=False)
     # TODO load starting points from existing trace
@@ -723,8 +724,8 @@ def sample_pt_chain(
 def pt_sample(
         step, n_chains, n_samples=100000, start=None, swap_interval=(100, 300),
         beta_tune_interval=10000, n_workers_posterior=1, homepath='',
-        progressbar=True, buffer_size=5000, model=None, rm_flag=False,
-        resample=False, keep_tmp=False):
+        progressbar=True, buffer_size=5000, buffer_thinning=1, model=None,
+        rm_flag=False, resample=False, keep_tmp=False):
     """
     Paralell Tempering algorithm
 
@@ -761,6 +762,9 @@ def pt_sample(
     buffer_size : int
         this is the number of samples after which the buffer is written to disk
         or if the chain end is reached
+    buffer_thinning : int
+        every nth sample of the buffer is written to disk,
+        default: 1 (no thinning)
     model : :class:`pymc3.Model`
         (optional if in `with` context) has to contain deterministic
         variable name defined under step.likelihood_name' that contains the
@@ -787,8 +791,8 @@ def pt_sample(
 
     sampler_args = [
         step, n_samples, swap_interval, beta_tune_interval,
-        n_workers_posterior, homepath, progressbar, buffer_size, resample,
-        rm_flag]
+        n_workers_posterior, homepath, progressbar, buffer_size,
+        buffer_thinning, resample, rm_flag]
 
     project_dir = os.path.dirname(homepath)
     loglevel = getLevelName(logger.getEffectiveLevel()).lower()
