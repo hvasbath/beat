@@ -835,6 +835,9 @@ class SampleStage(object):
     def stage_path(self, stage):
         return os.path.join(self.base_dir, 'stage_{}'.format(stage))
 
+    def trans_stage_path(self, stage):
+        return os.path.join(self.base_dir, 'trans_stage_{}'.format(stage))
+
     def stage_number(self, stage_path):
         """
         Inverse function of SampleStage.path
@@ -955,7 +958,23 @@ class SampleStage(object):
             varnames=varnames, backend=self.backend)
 
     def recover_existing_results(
-            self, stage, draws, step, buffer_thinning=1, varnames=None):
+            self, stage, draws, step,
+            buffer_thinning=1, varnames=None, update=None):
+
+        prev = stage - 1
+        if update is not None:
+            prev_stage_path = self.trans_stage_path(prev)
+        else:
+            prev_stage_path = self.stage_path(prev)
+
+        logger.info('Loading end points of last completed stage: '
+                    '%s' % prev_stage_path)
+        mtrace = load_multitrace(
+            dirname=prev_stage_path, varnames=varnames, backend=self.backend)
+
+        step.population, step.array_population, step.likelihoods = \
+            step.select_end_points(mtrace)
+
         stage_path = self.stage_path(stage)
         if os.path.exists(stage_path):
             # load incomplete stage results

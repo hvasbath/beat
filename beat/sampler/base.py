@@ -541,9 +541,11 @@ def init_stage(
         else:
             sampler_state, updates = stage_handler.load_sampler_params(stage)
             step.apply_sampler_state(sampler_state)
+
             draws = step.n_steps
 
             if update is not None:
+                logger.info('Applying reloaded weight matrixes ...')
                 update.apply(updates)
 
         stage_handler.clean_directory(stage, None, rm_flag)
@@ -551,7 +553,7 @@ def init_stage(
         varnames = [var.name for var in model.unobserved_RVs]
         chains = stage_handler.recover_existing_results(
             stage, draws, step, buffer_thinning=buffer_thinning,
-            varnames=varnames)
+            varnames=varnames, update=update)
 
     return chains, step, update
 
