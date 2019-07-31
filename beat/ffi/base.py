@@ -116,8 +116,8 @@ class GFLibrary(object):
 
     def save_config(self, outdir='', filename=None):
 
-        filename = filename or '%s.yaml' % self.filename
-        outpath = os.path.join(outdir, filename)
+        filename = filename or '%s' % self.filename
+        outpath = os.path.join(outdir, filename + '.yaml')
         logger.debug('Dumping GF config to %s' % outpath)
         header = 'beat.ffi.%s YAML Config' % self.__class__.__name__
         self.config.regularize()
