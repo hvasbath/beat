@@ -961,19 +961,20 @@ class SampleStage(object):
             self, stage, draws, step,
             buffer_thinning=1, varnames=None, update=None):
 
-        prev = stage - 1
-        if update is not None:
-            prev_stage_path = self.trans_stage_path(prev)
-        else:
-            prev_stage_path = self.stage_path(prev)
+        if stage > 0:
+            prev = stage - 1
+            if update is not None:
+                prev_stage_path = self.trans_stage_path(prev)
+            else:
+                prev_stage_path = self.stage_path(prev)
 
-        logger.info('Loading end points of last completed stage: '
-                    '%s' % prev_stage_path)
-        mtrace = load_multitrace(
-            dirname=prev_stage_path, varnames=varnames, backend=self.backend)
+            logger.info('Loading end points of last completed stage: '
+                        '%s' % prev_stage_path)
+            mtrace = load_multitrace(
+                dirname=prev_stage_path, varnames=varnames, backend=self.backend)
 
-        step.population, step.array_population, step.likelihoods = \
-            step.select_end_points(mtrace)
+            step.population, step.array_population, step.likelihoods = \
+                step.select_end_points(mtrace)
 
         stage_path = self.stage_path(stage)
         if os.path.exists(stage_path):
