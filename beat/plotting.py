@@ -27,7 +27,7 @@ from pyrocko.guts import (Object, String, Dict, List,
 from pyrocko import util, trace
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.cake_plot import light
-from pyrocko.plot import beachball, nice_value
+from pyrocko.plot import beachball, nice_value, AutoScaler
 
 import pyrocko.moment_tensor as mt
 from pyrocko.plot import mpl_papersize, mpl_init, mpl_graph_color, mpl_margins
@@ -1957,12 +1957,13 @@ def histplot_op(
 
 def unify_tick_intervals(axs, varnames, ntickmarks_max=5):
     """
-    Take figure axes objects and determine larges unit ranges between common
-    unit classes, called 'types_sets'.
+    Take figure axes objects and determine unit ranges between common
+    unit classes (see utility.grouped_vars). Assures that the number of
+    increments is not larger than ntickmarks_max. Will thus overwrite
 
     Returns
     -------
-    dict : with types_sets keys and max_ranges as values
+    dict : with types_sets keys and (min_range, max_range) as values
     """
     unities = {}
     for setname in utility.unit_sets.keys():
@@ -1971,7 +1972,6 @@ def unify_tick_intervals(axs, varnames, ntickmarks_max=5):
     def extract_type_range(ax, varname, unities):
         for setname, ranges in unities.items():
             varrange = num.diff(ax.get_xlim())
-            print(varname, 'axis range', varrange, ax.get_xlim())
             tset = utility.unit_sets[setname]
             min_range, max_range = ranges
             if varname in tset:
@@ -2004,7 +2004,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
               varbins=None, nbins=40, color=None, source_idxs=None,
               alpha=0.35, priors=None, prior_alpha=1, prior_style='--',
               axs=None, posterior=None, fig=None, plot_style='kde',
-              prior_bounds={}, kwargs={}):
+              prior_bounds={}, unify=True, kwargs={}):
     """
     Plots posterior pdfs as histograms from multiple mtrace objects.
 
@@ -2048,6 +2048,9 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         Matplotlib axes. Defaults to None.
     fig : figure
         Matplotlib figure. Defaults to None.
+    unify : bool
+        If true axis units that belong to one group e.g. [km] will
+        have common axis increments
     kwargs : dict
         for histplot op
 
@@ -2220,7 +2223,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         except KeyError:
                             title = '{} {}'.format(v, plot_units[hypername(v)])
 
-                    axs[rowi, coli].set_xlabel(title, fontsize=fontsize + 2)
+                    axs[rowi, coli].set_xlabel(title, fontsize=fontsize)
                     axs[rowi, coli].grid(grid)
                     axs[rowi, coli].set_yticks([])
                     axs[rowi, coli].set_yticklabels([])
@@ -2244,26 +2247,27 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                             idx = posterior_idxs[posterior]
                             axs[rowi, coli].axvline(
                                 x=e[idx], color=pcolor, lw=1.)
-    from pyrocko.plot import AutoScaler
 
-    unities = unify_tick_intervals(axs, varnames)
-    for ax, v in zip(axs.ravel('F'), varnames):
-        if v in utility.grouped_vars:
-            for setname, varrange in unities.items():
-                if v in utility.unit_sets[setname]:
-                    inc = nice_value(varrange[0] * 2 / 3)
-                    autos = AutoScaler(inc=inc, snap='on')
-                    xlims = ax.get_xlim()
-                    xmin, xmax, xinc = autos.make_scale(xlims)
-                    diff = num.diff(xlims)
-                    if inc > diff:
-                        ax.set_xlim((xmin, xmax))
+    if unify:
+        unities = unify_tick_intervals(axs, varnames)
+        for ax, v in zip(axs.ravel('F'), varnames):
+            if v in utility.grouped_vars:
+                for setname, varrange in unities.items():
+                    if v in utility.unit_sets[setname]:
+                        inc = nice_value(varrange[0] * 2 / 3)
+                        autos = AutoScaler(inc=inc, snap='on')
+                        xlims = ax.get_xlim()
+                        xmin, xmax, xinc = autos.make_scale(
+                            xlims, override_mode='min-max')
+                        diff = num.diff(xlims)
+                        if inc > diff:
+                            ax.set_xlim((xmin, xmax))
 
-                    ticks = num.arange(xmin, xmax, xinc).tolist()
-                    ax.xaxis.set_ticks(ticks)
-        else:
-            xticker = tick.MaxNLocator(nbins=3)
-            ax.get_xaxis().set_major_locator(xticker)
+                        ticks = num.arange(xmin, xmax, xinc).tolist()
+                        ax.xaxis.set_ticks(ticks)
+            else:
+                xticker = tick.MaxNLocator(nbins=3)
+                ax.get_xaxis().set_major_locator(xticker)
 
     if source_idxs:
         axs[0, 0].legend(source_idxs)
