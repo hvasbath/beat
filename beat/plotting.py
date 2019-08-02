@@ -2213,9 +2213,12 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
                             title = '{} {}'.format(v, plot_units[hypername(v)])
                         else:
-                            lower, upper = param.lower, param.upper
+                            lower = num.array2string(
+                                param.lower, separator=',')[1:-1]
+                            upper = num.array2string(
+                                param.upper, separator=',')[1:-1]
 
-                            title = '{} {} priors: {}, {}'.format(
+                            title = '{} {} priors: ({}; {})'.format(
                                 v, plot_units[hypername(v)], lower, upper)
                     except KeyError:
                         try:
