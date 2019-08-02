@@ -27,7 +27,7 @@ from pyrocko.guts import (Object, String, Dict, List,
 from pyrocko import util, trace
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.cake_plot import light
-from pyrocko.plot import beachball
+from pyrocko.plot import beachball, nice_value
 
 import pyrocko.moment_tensor as mt
 from pyrocko.plot import mpl_papersize, mpl_init, mpl_graph_color, mpl_margins
@@ -393,8 +393,9 @@ def correlation_plot_hist(
 
                 histplot_op(
                     axs[l, k], pmp.utils.make_2d(a), alpha=alpha,
-                    color='orange', tstd=0., reference=reference,
-                    ntickmarks=ntickmarks)
+                    color='orange', tstd=0., reference=reference)
+                # TODO intervall formatting
+
                 axs[l, k].get_yaxis().set_visible(False)
                 format_axes(axs[l, k])
                 xticks = axs[l, k].get_xticks()
@@ -1915,7 +1916,7 @@ def draw_hudson(problem, po):
 
 def histplot_op(
         ax, data, reference=None, alpha=.35, color=None, bins=None,
-        ntickmarks=5, tstd=None, kwargs={}):
+        tstd=None, kwargs={}):
     """
     Modified from pymc3. Additional color argument.
     """
@@ -1952,8 +1953,50 @@ def histplot_op(
 
         ax.set_xlim(leftb, rightb)
         xax = ax.get_xaxis()
-        xticker = tick.MaxNLocator(nbins=ntickmarks)
-        xax.set_major_locator(xticker)
+
+
+def unify_tick_intervals(axs, varnames, ntickmarks_max=5):
+    """
+    Take figure axes objects and determine larges unit ranges between common
+    unit classes, called 'types_sets'.
+
+    Returns
+    -------
+    dict : with types_sets keys and max_ranges as values
+    """
+    unities = {}
+    for setname in utility.unit_sets.keys():
+        unities[setname] = [num.inf, 0.]
+
+    def extract_type_range(ax, varname, unities):
+        for setname, ranges in unities.items():
+            varrange = num.diff(ax.get_xlim())
+            print(varname, 'axis range', varrange, ax.get_xlim())
+            tset = utility.unit_sets[setname]
+            min_range, max_range = ranges
+            if varname in tset:
+                new_ranges = copy.deepcopy(ranges)
+                if varrange < min_range:
+                    new_ranges[0] = varrange
+                elif varrange > max_range:
+                    new_ranges[1] = varrange
+
+                unities[setname] = new_ranges
+
+    for ax, varname in zip(axs.ravel('F'), varnames):
+        extract_type_range(ax, varname, unities)
+
+    for setname, ranges in unities.items():
+        min_range, max_range = ranges
+        max_range_frac = max_range / ntickmarks_max
+        if max_range_frac > min_range:
+            logger.debug(
+                'Range difference between min and max for %s is large!'
+                ' Extending min_range to %f' % (
+                setname, max_range_frac))
+            unities[setname] = [max_range_frac, max_range]
+
+    return unities
 
 
 def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
@@ -2013,6 +2056,9 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
     ax : matplotlib axes
     """
+    ntickmarks = 2
+    fontsize = 10
+
     num.set_printoptions(precision=3)
 
     def make_bins(data, nbins=40):
@@ -2050,7 +2096,6 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     n = len(varnames)
     nrow = int(num.ceil(n / 2.))
     ncol = 2
-    fontsize = 10
 
     n_fig = nrow * ncol
     if figsize is None:
@@ -2175,7 +2220,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         except KeyError:
                             title = '{} {}'.format(v, plot_units[hypername(v)])
 
-                    axs[rowi, coli].set_title(title, fontsize=fontsize + 2)
+                    axs[rowi, coli].set_xlabel(title, fontsize=fontsize + 2)
                     axs[rowi, coli].grid(grid)
                     axs[rowi, coli].set_yticks([])
                     axs[rowi, coli].set_yticklabels([])
@@ -2199,9 +2244,29 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                             idx = posterior_idxs[posterior]
                             axs[rowi, coli].axvline(
                                 x=e[idx], color=pcolor, lw=1.)
+    from pyrocko.plot import AutoScaler
+
+    unities = unify_tick_intervals(axs, varnames)
+    for ax, v in zip(axs.ravel('F'), varnames):
+        if v in utility.grouped_vars:
+            for setname, varrange in unities.items():
+                if v in utility.unit_sets[setname]:
+                    inc = nice_value(varrange[0] * 2 / 3)
+                    autos = AutoScaler(inc=inc, snap='on')
+                    xlims = ax.get_xlim()
+                    xmin, xmax, xinc = autos.make_scale(xlims)
+                    diff = num.diff(xlims)
+                    if inc > diff:
+                        ax.set_xlim((xmin, xmax))
+
+                    ticks = num.arange(xmin, xmax, xinc).tolist()
+                    ax.xaxis.set_ticks(ticks)
+        else:
+            xticker = tick.MaxNLocator(nbins=3)
+            ax.get_xaxis().set_major_locator(xticker)
 
     if source_idxs:
-        axs[rowi, coli].legend(source_idxs)
+        axs[0, 0].legend(source_idxs)
 
     fig.tight_layout()
     return fig, axs, varbins
