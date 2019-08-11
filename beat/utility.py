@@ -30,13 +30,15 @@ kmtypes = {'east_shift', 'north_shift', 'length', 'width', 'depth', 'distance',
            'delta_depth'}
 mttypes = {'mnn', 'mee', 'mdd', 'mne', 'mnd', 'med'}
 degtypes = {'strike', 'dip', 'rake'}
+nucleationtypes = {'nucleation_x', 'nucleation_y'}
 
-grouped_vars = set.union(kmtypes, mttypes, degtypes)
+grouped_vars = set.union(kmtypes, mttypes, degtypes, nucleationtypes)
 
 unit_sets = {
     'kmtypes': kmtypes,
     'mttypes': mttypes,
     'degtypes': degtypes,
+    'nucleationtypes': nucleationtypes,
 }
 
 seconds_str = '00:00:00'

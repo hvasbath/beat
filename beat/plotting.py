@@ -308,7 +308,8 @@ def correlation_plot_hist(
         mtrace, varnames=None,
         transform=lambda x: x, figsize=None, hist_color='orange', cmap=None,
         grid=50, chains=None, ntickmarks=2, point=None,
-        point_style='.', point_color='red', point_size='4', alpha=0.35):
+        point_style='.', point_color='red', point_size='4', alpha=0.35,
+        unify=True):
     """
     Plot 2d marginals (with kernel density estimation) showing the correlations
     of the model parameters. In the main diagonal is shown the parameter
@@ -341,13 +342,16 @@ def correlation_plot_hist(
         color according to matplotlib convention
     point_size : str
         marker size according to matplotlib conventions
+    unify: bool
+        If true axis units that belong to one group e.g. [km] will
+        have common axis increments
 
     Returns
     -------
     fig : figure object
     axs : subplot axis handles
     """
-
+    ntickmarks_max = 2
     logger.info('Drawing correlation figure ...')
 
     if varnames is None:
@@ -372,6 +376,7 @@ def correlation_plot_hist(
             mtrace.get_values(
                 var, chains=chains, combine=True, squeeze=True))
 
+    hist_ylims = []
     for k in range(nvar):
         v_namea = varnames[k]
         a = d[v_namea]
@@ -394,12 +399,12 @@ def correlation_plot_hist(
                 histplot_op(
                     axs[l, k], pmp.utils.make_2d(a), alpha=alpha,
                     color='orange', tstd=0., reference=reference)
-                # TODO intervall formatting
 
                 axs[l, k].get_yaxis().set_visible(False)
                 format_axes(axs[l, k])
                 xticks = axs[l, k].get_xticks()
                 xlim = axs[l, k].get_xlim()
+                hist_ylims.append(axs[l, k].get_ylim())
             else:
                 b = d[v_nameb]
 
@@ -438,7 +443,26 @@ def correlation_plot_hist(
 
         axs[l, k].set_xlabel(v_namea + '\n ' + plot_units[hypername(v_namea)])
 
+    if unify:
+        varnames_repeat_x = [
+            var_reap for varname in varnames for var_reap in (varname,) * nvar]
+        varnames_repeat_y = varnames * nvar
+        unitiesx = unify_tick_intervals(
+            axs, varnames_repeat_x, ntickmarks_max=ntickmarks_max, axis='x')
+        unitiesy = unify_tick_intervals(
+            axs, varnames_repeat_y, ntickmarks_max=ntickmarks_max, axis='y')
+        apply_unified_axis(
+            axs, varnames_repeat_x, unitiesx, axis='x', scale_factor=0.75,
+            ntickmarks_max=ntickmarks_max)
+        apply_unified_axis(
+            axs, varnames_repeat_y, unitiesy, axis='y', scale_factor=0.75,
+            ntickmarks_max=ntickmarks_max)
+
     for k in range(nvar):
+        if unify:
+            # reset histogram ylims after unify
+            axs[k, k].set_ylim(hist_ylims[k])
+
         for l in range(k):
             fig.delaxes(axs[l, k])
 
@@ -1955,7 +1979,7 @@ def histplot_op(
         xax = ax.get_xaxis()
 
 
-def unify_tick_intervals(axs, varnames, ntickmarks_max=5):
+def unify_tick_intervals(axs, varnames, ntickmarks_max=5, axis='x'):
     """
     Take figure axes objects and determine unit ranges between common
     unit classes (see utility.grouped_vars). Assures that the number of
@@ -1967,18 +1991,24 @@ def unify_tick_intervals(axs, varnames, ntickmarks_max=5):
     """
     unities = {}
     for setname in utility.unit_sets.keys():
-        unities[setname] = [num.inf, 0.]
+        unities[setname] = [num.inf, -num.inf]
 
     def extract_type_range(ax, varname, unities):
         for setname, ranges in unities.items():
-            varrange = num.diff(ax.get_xlim())
+            if axis == 'x':
+                varrange = num.diff(ax.get_xlim())
+            elif axis == 'y':
+                varrange = num.diff(ax.get_ylim())
+            else:
+                raise ValueError('Only "x" or "y" allowed!')
+
             tset = utility.unit_sets[setname]
             min_range, max_range = ranges
             if varname in tset:
                 new_ranges = copy.deepcopy(ranges)
                 if varrange < min_range:
                     new_ranges[0] = varrange
-                elif varrange > max_range:
+                if varrange > max_range:
                     new_ranges[1] = varrange
 
                 unities[setname] = new_ranges
@@ -1989,6 +2019,7 @@ def unify_tick_intervals(axs, varnames, ntickmarks_max=5):
     for setname, ranges in unities.items():
         min_range, max_range = ranges
         max_range_frac = max_range / ntickmarks_max
+        print(max_range_frac, setname, min_range)
         if max_range_frac > min_range:
             logger.debug(
                 'Range difference between min and max for %s is large!'
@@ -1996,7 +2027,45 @@ def unify_tick_intervals(axs, varnames, ntickmarks_max=5):
                 setname, max_range_frac))
             unities[setname] = [max_range_frac, max_range]
 
+    print(unities)
     return unities
+
+
+def apply_unified_axis(axs, varnames, unities, axis='x', ntickmarks_max=3,
+                       scale_factor=2 / 3):
+    for ax, v in zip(axs.ravel('F'), varnames):
+        if v in utility.grouped_vars:
+            for setname, varrange in unities.items():
+                if v in utility.unit_sets[setname]:
+                    inc = nice_value(varrange[0] * scale_factor)
+                    print(inc, v)
+                    autos = AutoScaler(
+                        inc=inc, snap='on', approx_ticks=ntickmarks_max)
+                    if axis == 'x':
+                        lims = ax.get_xlim()
+                    elif axis == 'y':
+                        lims = ax.get_ylim()
+                    min, max, sinc = autos.make_scale(
+                        lims, override_mode='min-max')
+                    print(v, min, max, sinc, axis)
+                    diff = num.diff(lims)
+                    if inc > diff:
+                        if axis == 'x':
+                            ax.set_xlim((min, max))
+                        elif axis == 'y':
+                            ax.set_ylim((min, max))
+
+                    ticks = num.arange(min, max, inc).tolist()
+                    if axis == 'x':
+                        ax.xaxis.set_ticks(ticks)
+                    elif axis == 'y':
+                        ax.yaxis.set_ticks(ticks)
+        else:
+            ticker = tick.MaxNLocator(nbins=3)
+            if axis == 'x':
+                ax.get_xaxis().set_major_locator(ticker)
+            elif axis == 'y':
+                ax.get_yaxis().set_major_locator(ticker)
 
 
 def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
@@ -2252,25 +2321,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                                 x=e[idx], color=pcolor, lw=1.)
 
     if unify:
-        unities = unify_tick_intervals(axs, varnames)
-        for ax, v in zip(axs.ravel('F'), varnames):
-            if v in utility.grouped_vars:
-                for setname, varrange in unities.items():
-                    if v in utility.unit_sets[setname]:
-                        inc = nice_value(varrange[0] * 2 / 3)
-                        autos = AutoScaler(inc=inc, snap='on')
-                        xlims = ax.get_xlim()
-                        xmin, xmax, xinc = autos.make_scale(
-                            xlims, override_mode='min-max')
-                        diff = num.diff(xlims)
-                        if inc > diff:
-                            ax.set_xlim((xmin, xmax))
-
-                        ticks = num.arange(xmin, xmax, xinc).tolist()
-                        ax.xaxis.set_ticks(ticks)
-            else:
-                xticker = tick.MaxNLocator(nbins=3)
-                ax.get_xaxis().set_major_locator(xticker)
+        unities = unify_tick_intervals(axs, varnames, axis='x')
+        apply_unified_axis(axs, varnames, unities, axis='x')
 
     if source_idxs:
         axs[0, 0].legend(source_idxs)
