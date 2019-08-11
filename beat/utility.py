@@ -1431,3 +1431,11 @@ def time_method(loop=10000):
             # return func(*args, **kwargs)
         return wrap_func
     return timer_decorator
+
+
+def is_odd(value):
+    return (value & 1) == 1
+
+
+def is_even(value):
+    return (value & 1) == 0

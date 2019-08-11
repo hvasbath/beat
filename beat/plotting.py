@@ -309,7 +309,7 @@ def correlation_plot_hist(
         mtrace, varnames=None,
         transform=lambda x: x, figsize=None, hist_color='orange', cmap=None,
         grid=50, chains=None, ntickmarks=2, point=None,
-        point_style='.', point_color='red', point_size='4', alpha=0.35,
+        point_style='.', point_color='red', point_size=4, alpha=0.35,
         unify=True):
     """
     Plot 2d marginals (with kernel density estimation) showing the correlations
@@ -352,8 +352,9 @@ def correlation_plot_hist(
     fig : figure object
     axs : subplot axis handles
     """
-    fontsize=8
+    fontsize = 8
     ntickmarks_max = 2
+    label_pad = 20
     logger.info('Drawing correlation figure ...')
 
     if varnames is None:
@@ -392,7 +393,7 @@ def correlation_plot_hist(
                         reference = point[v_namea]
                         axs[l, k].axvline(
                             x=reference, color=point_color,
-                            lw=float(point_size) / 6.)
+                            lw=point_size / 6.)
                     else:
                         reference = None
                 else:
@@ -439,6 +440,8 @@ def correlation_plot_hist(
                 axs[l, k].set_ylabel(
                     v_nameb + '\n ' + plot_units[hypername(v_nameb)],
                     fontsize=fontsize)
+                if utility.is_odd(l):
+                    axs[l, k].tick_params(axis='y', pad=label_pad)
             else:
                 axs[l, k].get_yaxis().set_ticklabels([])
 
@@ -446,6 +449,8 @@ def correlation_plot_hist(
                 axis='both', direction='in', labelsize=fontsize)
             axs[l, k].tick_params(
                 axis='x', labelrotation=90.)
+            if utility.is_odd(k):
+                axs[l, k].tick_params(axis='x', pad=label_pad)
 
         axs[l, k].set_xlabel(
             v_namea + '\n ' + plot_units[hypername(v_namea)], fontsize=fontsize)
@@ -2026,7 +2031,6 @@ def unify_tick_intervals(axs, varnames, ntickmarks_max=5, axis='x'):
     for setname, ranges in unities.items():
         min_range, max_range = ranges
         max_range_frac = max_range / ntickmarks_max
-        print(max_range_frac, setname, min_range)
         if max_range_frac > min_range:
             logger.debug(
                 'Range difference between min and max for %s is large!'
@@ -2034,7 +2038,6 @@ def unify_tick_intervals(axs, varnames, ntickmarks_max=5, axis='x'):
                 setname, max_range_frac))
             unities[setname] = [max_range_frac, max_range]
 
-    print(unities)
     return unities
 
 
@@ -2045,7 +2048,6 @@ def apply_unified_axis(axs, varnames, unities, axis='x', ntickmarks_max=3,
             for setname, varrange in unities.items():
                 if v in utility.unit_sets[setname]:
                     inc = nice_value(varrange[0] * scale_factor)
-                    print(inc, v)
                     autos = AutoScaler(
                         inc=inc, snap='on', approx_ticks=ntickmarks_max)
                     if axis == 'x':
@@ -2060,10 +2062,9 @@ def apply_unified_axis(axs, varnames, unities, axis='x', ntickmarks_max=3,
                     phys_min, phys_max = physical_bounds[v]
                     if min < phys_min:
                         min = phys_min
-
                     if max > phys_max:
                         max = phys_max
-                    print(v, min, max, sinc, axis)
+
                     if axis == 'x':
                         ax.set_xlim((min, max))
                     elif axis == 'y':
@@ -2572,7 +2573,7 @@ def draw_correlation_hist(problem, plot_options):
             cmap=plt.cm.gist_earth_r,
             chains=chains,
             point=reference,
-            point_size='8',
+            point_size=4,
             point_color='red')
     else:
         logger.info('correlation plot exists. Use force=True for replotting!')
