@@ -11,7 +11,8 @@ import copy
 from beat import utility
 from beat.models import Stage, load_stage
 from beat.sampler.metropolis import get_trace_stats
-from beat.heart import init_seismic_targets, init_geodetic_targets
+from beat.heart import init_seismic_targets, init_geodetic_targets, \
+                       physical_bounds
 from beat.config import ffi_mode_str, geometry_mode_str, dist_vars
 
 from matplotlib import pyplot as plt
@@ -351,6 +352,7 @@ def correlation_plot_hist(
     fig : figure object
     axs : subplot axis handles
     """
+    fontsize=8
     ntickmarks_max = 2
     logger.info('Drawing correlation figure ...')
 
@@ -435,13 +437,18 @@ def correlation_plot_hist(
 
             if k == 0:
                 axs[l, k].set_ylabel(
-                    v_nameb + '\n ' + plot_units[hypername(v_nameb)])
+                    v_nameb + '\n ' + plot_units[hypername(v_nameb)],
+                    fontsize=fontsize)
             else:
                 axs[l, k].get_yaxis().set_ticklabels([])
 
-            axs[l, k].tick_params(direction='in')
+            axs[l, k].tick_params(
+                axis='both', direction='in', labelsize=fontsize)
+            axs[l, k].tick_params(
+                axis='x', labelrotation=90.)
 
-        axs[l, k].set_xlabel(v_namea + '\n ' + plot_units[hypername(v_namea)])
+        axs[l, k].set_xlabel(
+            v_namea + '\n ' + plot_units[hypername(v_namea)], fontsize=fontsize)
 
     if unify:
         varnames_repeat_x = [
@@ -452,10 +459,10 @@ def correlation_plot_hist(
         unitiesy = unify_tick_intervals(
             axs, varnames_repeat_y, ntickmarks_max=ntickmarks_max, axis='y')
         apply_unified_axis(
-            axs, varnames_repeat_x, unitiesx, axis='x', scale_factor=0.75,
+            axs, varnames_repeat_x, unitiesx, axis='x', scale_factor=1.,
             ntickmarks_max=ntickmarks_max)
         apply_unified_axis(
-            axs, varnames_repeat_y, unitiesy, axis='y', scale_factor=0.75,
+            axs, varnames_repeat_y, unitiesy, axis='y', scale_factor=1.,
             ntickmarks_max=ntickmarks_max)
 
     for k in range(nvar):
@@ -2042,20 +2049,27 @@ def apply_unified_axis(axs, varnames, unities, axis='x', ntickmarks_max=3,
                     autos = AutoScaler(
                         inc=inc, snap='on', approx_ticks=ntickmarks_max)
                     if axis == 'x':
-                        lims = ax.get_xlim()
+                        min, max = ax.get_xlim()
                     elif axis == 'y':
-                        lims = ax.get_ylim()
-                    min, max, sinc = autos.make_scale(
-                        lims, override_mode='min-max')
-                    print(v, min, max, sinc, axis)
-                    diff = num.diff(lims)
-                    if inc > diff:
-                        if axis == 'x':
-                            ax.set_xlim((min, max))
-                        elif axis == 'y':
-                            ax.set_ylim((min, max))
+                        min, max = ax.get_ylim()
 
-                    ticks = num.arange(min, max, inc).tolist()
+                    min, max, sinc = autos.make_scale(
+                        (min, max), override_mode='min-max')
+
+                    # check physical bounds if passed truncate
+                    phys_min, phys_max = physical_bounds[v]
+                    if min < phys_min:
+                        min = phys_min
+
+                    if max > phys_max:
+                        max = phys_max
+                    print(v, min, max, sinc, axis)
+                    if axis == 'x':
+                        ax.set_xlim((min, max))
+                    elif axis == 'y':
+                        ax.set_ylim((min, max))
+
+                    ticks = num.arange(min, max + inc, inc).tolist()
                     if axis == 'x':
                         ax.xaxis.set_ticks(ticks)
                     elif axis == 'y':
