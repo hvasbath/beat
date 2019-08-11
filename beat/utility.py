@@ -26,16 +26,20 @@ logger = logging.getLogger('utility')
 
 DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype, name')
 
-kmtypes = {'east_shift', 'north_shift', 'length', 'width', 'depth', 'distance',
+locationtypes = {'east_shift', 'north_shift', 'depth', 'distance',
            'delta_depth'}
+dimensiontypes = {'length', 'width'}
 mttypes = {'mnn', 'mee', 'mdd', 'mne', 'mnd', 'med'}
 degtypes = {'strike', 'dip', 'rake'}
 nucleationtypes = {'nucleation_x', 'nucleation_y'}
 
-grouped_vars = set.union(kmtypes, mttypes, degtypes, nucleationtypes)
+kmtypes = set.union(locationtypes, dimensiontypes)
+grouped_vars = set.union(
+    kmtypes, mttypes, degtypes, nucleationtypes)
 
 unit_sets = {
-    'kmtypes': kmtypes,
+    'locationtypes': locationtypes,
+    'dimensiontypes': dimensiontypes,
     'mttypes': mttypes,
     'degtypes': degtypes,
     'nucleationtypes': nucleationtypes,

@@ -1393,12 +1393,12 @@ def seismic_fits(problem, stage, plot_options):
                 for tmark, text, ha, va in [
                         (tmarks[0],
                          '$\,$ ' + str_duration(tmarks[0] - source.time),
-                         'right',
+                         'left',
                          'bottom'),
                         (tmarks[1],
                          '$\Delta$ ' + str_duration(tmarks[1] - tmarks[0]),
-                         'left',
-                         'top')]:
+                         'right',
+                         'bottom')]:
 
                     axes2.annotate(
                         text,
