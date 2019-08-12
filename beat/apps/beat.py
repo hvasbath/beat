@@ -848,7 +848,7 @@ def command_summarize(args):
 
             if sampler_name == 'SMC':
                 result_check(stage.mtrace, min_length=2)
-                draws = sc_params.n_chains * sc_params.n_steps
+                draws = sc_params.n_chains
                 idxs = [-1]
             elif sampler_name == 'PT':
                 result_check(stage.mtrace, min_length=1)
