@@ -777,6 +777,10 @@ def geodetic_fits(problem, stage, plot_options):
         axes[2].get_xaxis().set_ticklabels([])
         axes[0].set_ylabel(ystr, fontsize=fontsize)
         axes[0].set_xlabel(xstr, fontsize=fontsize)
+        ticker = tick.MaxNLocator(nbins=3)
+
+        axes[0].get_xaxis().set_major_locator(ticker)
+        axes[0].get_yaxis().set_major_locator(ticker)
 
     def draw_coastlines(ax, xlim, ylim, event, scene, po):
         """
@@ -909,159 +913,150 @@ def geodetic_fits(problem, stage, plot_options):
         rx = math.floor(x * 1000.) / 1000.
         return [-rx, rx]
 
-    orbits_to_datasets = utility.gather(
-        composite.datasets,
-        lambda t: t.name,
-        filter=lambda t: t in dataset_to_result)
-
-    ott = orbits_to_datasets.keys()
-
     colims = [num.max([
         num.max(num.abs(r.processed_obs)),
         num.max(num.abs(r.processed_syn))]) for r in results]
     dcolims = [num.max(num.abs(r.processed_res)) for r in results]
 
     import string
-    for idata, o in enumerate(ott):
-        datasets = orbits_to_datasets[o]
+    for idata, dataset in enumerate(composite.datasets):
         subplot_letter = string.ascii_lowercase[idata]
-        for dataset in datasets:
-            try:
-                homepath = problem.config.geodetic_config.datadir
-                scene_path = os.path.join(homepath, dataset.name)
-                logger.info(
-                    'Loading full resolution kite scene: %s' % scene_path)
-                scene = Scene.load(scene_path)
-            except UserIOWarning:
-                logger.warn(
-                    'Full resolution data could not be loaded! Skipping ...')
-                continue
+        try:
+            homepath = problem.config.geodetic_config.datadir
+            scene_path = os.path.join(homepath, dataset.name)
+            logger.info(
+                'Loading full resolution kite scene: %s' % scene_path)
+            scene = Scene.load(scene_path)
+        except UserIOWarning:
+            logger.warn(
+                'Full resolution data could not be loaded! Skipping ...')
+            continue
 
-            if scene.frame.isMeter():
-                offset_n, offset_e = map(float, otd.latlon_to_ne_numpy(
-                    scene.frame.llLat, scene.frame.llLon,
-                    sources[0].lat, sources[0].lon))
+        if scene.frame.isMeter():
+            offset_n, offset_e = map(float, otd.latlon_to_ne_numpy(
+                scene.frame.llLat, scene.frame.llLon,
+                sources[0].lat, sources[0].lon))
 
-            elif scene.frame.isDegree():
-                offset_n = sources[0].lat - scene.frame.llLat
-                offset_e = sources[0].lon - scene.frame.llLon
+        elif scene.frame.isDegree():
+            offset_n = sources[0].lat - scene.frame.llLat
+            offset_e = sources[0].lon - scene.frame.llLon
 
-            im_extent = (scene.frame.E.min() - offset_e,
-                         scene.frame.E.max() - offset_e,
-                         scene.frame.N.min() - offset_n,
-                         scene.frame.N.max() - offset_n)
+        im_extent = (scene.frame.E.min() - offset_e,
+                     scene.frame.E.max() - offset_e,
+                     scene.frame.N.min() - offset_n,
+                     scene.frame.N.max() - offset_n)
 
-            urE, urN, llE, llN = (0., 0., 0., 0.)
+        urE, urN, llE, llN = (0., 0., 0., 0.)
 
-            turE, turN, tllE, tllN = zip(
-                *[(l.gridE.max() - offset_e,
-                   l.gridN.max() - offset_n,
-                   l.gridE.min() - offset_e,
-                   l.gridN.min() - offset_n)
-                  for l in scene.quadtree.leaves])
+        turE, turN, tllE, tllN = zip(
+            *[(l.gridE.max() - offset_e,
+               l.gridN.max() - offset_n,
+               l.gridE.min() - offset_e,
+               l.gridN.min() - offset_n)
+              for l in scene.quadtree.leaves])
 
-            turE, turN = map(max, (turE, turN))
-            tllE, tllN = map(min, (tllE, tllN))
-            urE, urN = map(max, ((turE, urE), (urN, turN)))
-            llE, llN = map(min, ((tllE, llE), (llN, tllN)))
+        turE, turN = map(max, (turE, turN))
+        tllE, tllN = map(min, (tllE, tllN))
+        urE, urN = map(max, ((turE, urE), (urN, turN)))
+        llE, llN = map(min, ((tllE, llE), (llN, tllN)))
 
-            lat, lon = otd.ne_to_latlon(
-                sources[0].lat, sources[0].lon,
-                num.array([llN, urN]), num.array([llE, urE]))
+        lat, lon = otd.ne_to_latlon(
+            sources[0].lat, sources[0].lon,
+            num.array([llN, urN]), num.array([llE, urE]))
 
-            result = dataset_to_result[dataset]
-            tidx = dataset_index[dataset]
+        result = dataset_to_result[dataset]
+        tidx = dataset_index[dataset]
 
-            figidx, rowidx = utility.mod_i(tidx, ndmax)
-            axs = axes[figidx][rowidx, :]
+        figidx, rowidx = utility.mod_i(tidx, ndmax)
+        axs = axes[figidx][rowidx, :]
 
-            imgs = []
-            for ax, data_str in zip(axs, ['obs', 'syn', 'res']):
-                logger.info('Plotting %s' % data_str)
-                datavec = getattr(result, 'processed_%s' % data_str)
+        imgs = []
+        for ax, data_str in zip(axs, ['obs', 'syn', 'res']):
+            logger.info('Plotting %s' % data_str)
+            datavec = getattr(result, 'processed_%s' % data_str)
 
-                if data_str == 'res' and po.plot_projection == 'local':
-                    vmin = -dcolims[tidx]
-                    vmax = dcolims[tidx]
-                else:
-                    vmin = -colims[tidx]
-                    vmax = colims[tidx]
+            if data_str == 'res' and po.plot_projection == 'local':
+                vmin = -dcolims[tidx]
+                vmax = dcolims[tidx]
+            else:
+                vmin = -colims[tidx]
+                vmax = colims[tidx]
 
-                imgs.append(ax.imshow(
-                    mapDisplacementGrid(datavec, scene),
-                    extent=im_extent, cmap=cmap,
-                    vmin=vmin, vmax=vmax,
-                    origin='lower'))
+            imgs.append(ax.imshow(
+                mapDisplacementGrid(datavec, scene),
+                extent=im_extent, cmap=cmap,
+                vmin=vmin, vmax=vmax,
+                origin='lower'))
 
-                ax.set_xlim(llE, urE)
-                ax.set_ylim(llN, urN)
+            ax.set_xlim(llE, urE)
+            ax.set_ylim(llN, urN)
 
-                draw_leaves(ax, scene, offset_e, offset_n)
-                draw_coastlines(
-                    ax, lon, lat, sources[0], scene, po)
+            draw_leaves(ax, scene, offset_e, offset_n)
+            draw_coastlines(
+                ax, lon, lat, sources[0], scene, po)
 
-            fontdict = {
-                'fontsize': fontsize,
-                'fontweight': 'bold',
-                'verticalalignment': 'top'}
+        fontdict = {
+            'fontsize': fontsize,
+            'fontweight': 'bold',
+            'verticalalignment': 'top'}
 
-            axes[figidx][rowidx, 0].text(
-                .025, 1.025, '({}) {}'.format(subplot_letter, o),
-                fontsize=fontsize_title, alpha=1.,
-                va='bottom', transform=axes[figidx][rowidx, 0].transAxes)
-            for i, quantity in enumerate(['data', 'model', 'residual']):
-                axes[figidx][rowidx, i].set_title(quantity, fontdict, y=0.935)
+        axes[figidx][rowidx, 0].text(
+            .025, 1.025, '({}) {}'.format(subplot_letter, dataset.name),
+            fontsize=fontsize_title, alpha=1.,
+            va='bottom', transform=axes[figidx][rowidx, 0].transAxes)
+        for i, quantity in enumerate(['data', 'model', 'residual']):
+            axes[figidx][rowidx, i].set_title(quantity, fontdict, y=0.935)
 
+        draw_sources(
+            axes[figidx][rowidx, 1], sources, scene, po)
+
+        if ref_sources:
+            ref_color = scolor('aluminium4')
+            logger.info('Plotting reference sources')
             draw_sources(
-                axes[figidx][rowidx, 1], sources, scene, po)
+                axes[figidx][rowidx, 1],
+                ref_sources, scene, po, color=ref_color)
 
-            if ref_sources:
-                ref_color = scolor('aluminium4')
-                logger.info('Plotting reference sources')
-                draw_sources(
-                    axes[figidx][rowidx, 1],
-                    ref_sources, scene, po, color=ref_color)
+        f = factors[figidx]
+        if f > 2. / 3:
+            cbb = (0.68 - (0.3075 * rowidx))
+        elif f > 1. / 2:
+            cbb = (0.53 - (0.47 * rowidx))
+        elif f > 1. / 4:
+            cbb = (0.06)
 
-            f = factors[figidx]
-            if f > 2. / 3:
-                cbb = (0.68 - (0.3075 * rowidx))
-            elif f > 1. / 2:
-                cbb = (0.53 - (0.47 * rowidx))
-            elif f > 1. / 4:
-                cbb = (0.06)
+        cbl = 0.46
+        cbw = 0.15
+        cbh = 0.01
 
-            cbl = 0.46
-            cbw = 0.15
-            cbh = 0.01
+        cbaxes = figures[figidx].add_axes([cbl, cbb, cbw, cbh])
 
-            cbaxes = figures[figidx].add_axes([cbl, cbb, cbw, cbh])
+        cblabel = 'LOS displacement [m]'
+        cbs = plt.colorbar(
+            imgs[1],
+            ax=axes[figidx][rowidx, 0],
+            ticks=cbtick(colims[tidx]),
+            cax=cbaxes,
+            orientation='horizontal',
+            cmap=cmap)
+        cbs.set_label(cblabel, fontsize=fontsize)
 
-            cblabel = 'LOS displacement [m]'
-            cbs = plt.colorbar(
-                imgs[1],
-                ax=axes[figidx][rowidx, 0],
-                ticks=cbtick(colims[tidx]),
-                cax=cbaxes,
+        if po.plot_projection == 'local':
+            dcbaxes = figures[figidx].add_axes([cbl + 0.3, cbb, cbw, cbh])
+            cbr = plt.colorbar(
+                imgs[2],
+                ax=axes[figidx][rowidx, 2],
+                ticks=cbtick(dcolims[tidx]),
+                cax=dcbaxes,
                 orientation='horizontal',
                 cmap=cmap)
-            cbs.set_label(cblabel, fontsize=fontsize)
+            cbr.set_label(cblabel, fontsize=fontsize)
 
-            if po.plot_projection == 'local':
-                dcbaxes = figures[figidx].add_axes([cbl + 0.3, cbb, cbw, cbh])
-                cbr = plt.colorbar(
-                    imgs[2],
-                    ax=axes[figidx][rowidx, 2],
-                    ticks=cbtick(dcolims[tidx]),
-                    cax=dcbaxes,
-                    orientation='horizontal',
-                    cmap=cmap)
-                cbr.set_label(cblabel, fontsize=fontsize)
+        axis_config(axes[figidx][rowidx, :], sources[0], scene, po)
+        addArrow(axes[figidx][rowidx, 0], scene)
 
-            axis_config(axes[figidx][rowidx, :], sources[0], scene, po)
-            addArrow(axes[figidx][rowidx, 0], scene)
-
-            del scene
-            gc.collect()
+        del scene
+        gc.collect()
 
     return figures
 
