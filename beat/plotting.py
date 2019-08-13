@@ -1000,12 +1000,16 @@ def geodetic_fits(problem, stage, plot_options):
             'fontweight': 'bold',
             'verticalalignment': 'top'}
 
+        transform = axes[figidx][rowidx, 0].transAxes
         axes[figidx][rowidx, 0].text(
             .025, 1.025, '({}) {}'.format(subplot_letter, dataset.name),
             fontsize=fontsize_title, alpha=1.,
-            va='bottom', transform=axes[figidx][rowidx, 0].transAxes)
+            va='bottom', transform=transform)
         for i, quantity in enumerate(['data', 'model', 'residual']):
-            axes[figidx][rowidx, i].set_title(quantity, fontdict, y=0.935)
+            transform = axes[figidx][rowidx, i].transAxes
+            axes[figidx][rowidx, i].text(
+                0.5, 0.95, quantity, fontdict, transform=transform,
+                horizontalalignment='center')
 
         draw_sources(
             axes[figidx][rowidx, 1], sources, scene, po)
