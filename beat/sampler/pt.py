@@ -20,9 +20,8 @@ from beat.sampler.base import _iter_sample, Proposal, choose_proposal, \
     ChainCounter, multivariate_proposals
 from beat.config import sample_p_outname
 
-from tqdm import tqdm
 from logging import getLogger, getLevelName
-from tqdm import tqdm
+
 from theano import config as tconfig
 
 from collections import OrderedDict

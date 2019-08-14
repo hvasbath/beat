@@ -850,16 +850,20 @@ def command_summarize(args):
                 result_check(stage.mtrace, min_length=2)
                 draws = sc_params.n_chains
                 idxs = [-1]
+                buffer_size = sc.buffer_size
             elif sampler_name == 'PT':
                 result_check(stage.mtrace, min_length=1)
                 draws = sc_params.n_samples
                 idxs = range(draws)
+                buffer_size = 10
             else:
                 raise NotImplementedError(
                     'Summarize function still needs to be implemented '
                     'for %s sampler' % problem.config.sampler_config.name)
 
-            rtrace = backend_catalog[sc.backend](stage_path, model=problem.model)
+            rtrace = backend_catalog[sc.backend](
+                stage_path, model=problem.model, buffer_size=buffer_size,
+                progressbar=False)
             rtrace.setup(
                 draws=draws, chain=-1, overwrite=True)
 
@@ -868,12 +872,11 @@ def command_summarize(args):
             else:
                 source = None
 
+            sc = problem.composites['seismic']
             for chain in stage.mtrace.chains:
                 for idx in idxs:
                     point = stage.mtrace.point(idx=idx, chain=chain)
-
                     if isinstance(source, MTSourceWithMagnitude):
-                        sc = problem.composites['seismic']
                         sc.point2sources(point)
                         ldicts = []
                         for source in sc.sources:
@@ -881,9 +884,12 @@ def command_summarize(args):
 
                         jpoint = utility.join_points(ldicts)
                         point.update(jpoint)
+                        del jpoint, ldicts
 
                     lpoint = problem.model.lijection.d2l(point)
+                    # TODO: in PT with large buffer sizes somehow memory leak
                     rtrace.write(lpoint, draw=chain)
+                    del lpoint, point
 
                 if rm_flag:
                     # remove chain
