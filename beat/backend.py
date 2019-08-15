@@ -40,9 +40,10 @@ from pymc3.step_methods.arraystep import BlockedStep
 from pyrocko import util
 
 from beat.config import sample_p_outname, transd_vars_dist
-from beat.covariance import calc_sample_covariance
+from beat.covariance import calc_sample_covariance, \
+                            get_population_weights_from_buffer
 from beat.utility import load_objects, dump_objects, \
-    ListArrayOrdering, ListToArrayBijection
+    ListArrayOrdering, ListToArrayBijection, get_fit_indexes
 
 logger = logging.getLogger('backend')
 
@@ -332,6 +333,15 @@ class MemoryChain(BaseChain):
             self.buffer.append(lpoint)
         else:
             raise MemoryTraceError('Trace is not setup!')
+
+    def get_map_point(self, lij, bij):
+        """
+        Return point dictionary of MAP of current buffer
+        """
+        population_array, weights = get_population_weights_from_buffer(
+            lpoints=self.buffer, lij=lij, bij=bij)
+        posterior_idxs = get_fit_indexes(weights)
+        return lij.l2d(self.buffer[posterior_idxs['max']])
 
     def get_sample_covariance(self, lij, bij, beta):
         """

@@ -651,7 +651,7 @@ def worker_process(comm, tags, status):
 
 def sample_pt_chain(
         draws, step=None, start=None, trace=None, chain=0, tune=None,
-        progressbar=True, model=None, random_seed=-1):
+        progressbar=True, model=None, random_seed=-1, update=None):
     """
     Sample a single chain of the Parallel Tempering algorithm and return
     the last sample of the chain.
@@ -682,6 +682,9 @@ def sample_pt_chain(
         (optional if in `with` context) has to contain deterministic
         variable name defined under step.likelihood_name' that contains the
         model likelihood
+    update : None or :class:`beat.models.problems.Problem`
+        if not None the covariance marixes are updated every time the buffer
+        chain is full
 
     Returns
     -------
@@ -705,6 +708,11 @@ def sample_pt_chain(
 
     if step.proposal_name in multivariate_proposals:
         if strace.count > strace.buffer_size:
+            if update:
+                logger.info('Updating covariance matrixes of worker')
+                mpoint = strace.get_map_point(step.lij, step.bij)
+                update.update_weights(mpoint)
+
             logger.debug(
                 'Evaluating sampled trace covariance at '
                 'sample %i' % strace.count)

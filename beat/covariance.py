@@ -598,6 +598,22 @@ def non_toeplitz_covariance(data, window_size):
     return toeplitz * stds[:, num.newaxis] * stds[num.newaxis, :]
 
 
+def get_population_weights_from_buffer(lpoints, lij, bij):
+    """
+    Assemble RVs and likelihoods in buffer to arrays
+    """
+    n_points = len(lpoints)
+
+    population_array = num.zeros((n_points, bij.ordering.size))
+    for i, lpoint in enumerate(lpoints):
+        point = lij.l2d(lpoint)
+        population_array[i, :] = bij.map(point)
+
+    like_idx = lij.ordering['like'].list_ind
+    weights = num.array([lpoint[like_idx] for lpoint in lpoints])
+    return population_array, weights
+
+
 def calc_sample_covariance(lpoints, lij, bij, beta):
     """
     Calculate trace covariance matrix based on given trace values.
@@ -616,15 +632,9 @@ def calc_sample_covariance(lpoints, lij, bij, beta):
     cov : :class:`numpy.ndarray`
         weighted covariances (NumPy > 1.10. required)
     """
-    n_points = len(lpoints)
+    population_array, weights = get_population_weights_from_buffer(
+        lpoints, lij, bij)
 
-    population_array = num.zeros((n_points, bij.ordering.size))
-    for i, lpoint in enumerate(lpoints):
-        point = lij.l2d(lpoint)
-        population_array[i, :] = bij.map(point)
-
-    like_idx = lij.ordering['like'].list_ind
-    weights = num.array([lpoint[like_idx] for lpoint in lpoints])
     temp_weights = num.exp(beta * (weights - weights.max())).ravel()
 
     cov = num.cov(
