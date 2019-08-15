@@ -850,10 +850,12 @@ def command_summarize(args):
                 result_check(stage.mtrace, min_length=2)
                 draws = sc_params.n_chains
                 idxs = [-1]
+                chains = stage.mtrace.chains
             elif sampler_name == 'PT':
                 result_check(stage.mtrace, min_length=1)
                 draws = sc_params.n_samples
                 idxs = range(draws)
+                chains = [0]
             else:
                 raise NotImplementedError(
                     'Summarize function still needs to be implemented '
@@ -871,7 +873,7 @@ def command_summarize(args):
                 source = None
 
             sc = problem.composites['seismic']
-            for chain in stage.mtrace.chains:
+            for chain in chains:
                 for idx in idxs:
                     point = stage.mtrace.point(idx=idx, chain=chain)
                     if isinstance(source, MTSourceWithMagnitude):
