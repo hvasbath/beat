@@ -520,8 +520,12 @@ class TextChain(FileChain):
         self._load_df()
         pt = {}
         for varname in self.varnames:
+            # needs deepcopy otherwise reference to df is kept repetead calls
+            # lead to memory leak
             vals = self._df[self.flat_names[varname]].iloc[idx]
-            pt[varname] = vals.values.reshape(self.var_shapes[varname])
+            pt[varname] = copy.deepcopy(
+                vals.values.reshape(self.var_shapes[varname]))
+            del vals
         return pt
 
 

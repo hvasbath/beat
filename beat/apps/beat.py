@@ -850,19 +850,17 @@ def command_summarize(args):
                 result_check(stage.mtrace, min_length=2)
                 draws = sc_params.n_chains
                 idxs = [-1]
-                buffer_size = sc.buffer_size
             elif sampler_name == 'PT':
                 result_check(stage.mtrace, min_length=1)
                 draws = sc_params.n_samples
                 idxs = range(draws)
-                buffer_size = 10
             else:
                 raise NotImplementedError(
                     'Summarize function still needs to be implemented '
                     'for %s sampler' % problem.config.sampler_config.name)
 
             rtrace = backend_catalog[sc.backend](
-                stage_path, model=problem.model, buffer_size=buffer_size,
+                stage_path, model=problem.model, buffer_size=sc.buffer_size,
                 progressbar=False)
             rtrace.setup(
                 draws=draws, chain=-1, overwrite=True)
