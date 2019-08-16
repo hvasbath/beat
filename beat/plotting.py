@@ -461,13 +461,11 @@ def correlation_plot_hist(
         varnames_repeat_y = varnames * nvar
         unitiesx = unify_tick_intervals(
             axs, varnames_repeat_x, ntickmarks_max=ntickmarks_max, axis='x')
-        unitiesy = unify_tick_intervals(
-            axs, varnames_repeat_y, ntickmarks_max=ntickmarks_max, axis='y')
         apply_unified_axis(
             axs, varnames_repeat_x, unitiesx, axis='x', scale_factor=1.,
             ntickmarks_max=ntickmarks_max)
         apply_unified_axis(
-            axs, varnames_repeat_y, unitiesy, axis='y', scale_factor=1.,
+            axs, varnames_repeat_y, unitiesx, axis='y', scale_factor=1.,
             ntickmarks_max=ntickmarks_max)
 
     for k in range(nvar):
@@ -2438,8 +2436,6 @@ def draw_posteriors(problem, plot_options):
             draws = 1
         elif s == -1 and not hypers and sc.name == 'Metropolis':
             draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
-        elif s == -1 and not hypers and sc.name == 'PT':
-            draws = sc.parameters.n_samples
         else:
             draws = None
 
@@ -2537,8 +2533,6 @@ def draw_correlation_hist(problem, plot_options):
 
     if po.load_stage is None and not hypers and sc.name == 'Metropolis':
         draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
-    if po.load_stage == -1 and not hypers and sc.name == 'PT':
-        draws = sc.parameters.n_samples
     else:
         draws = None
 
@@ -3145,8 +3139,6 @@ def draw_slip_dist(problem, po):
     sc = problem.config.sampler_config
     if po.load_stage is None and sc.name == 'Metropolis':
         draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
-    elif po.load_stage == -1 and sc.name == 'PT':
-        draws = sc.parameters.n_samples
     else:
         draws = None
 

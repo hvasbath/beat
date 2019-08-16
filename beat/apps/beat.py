@@ -21,7 +21,7 @@ from beat.backend import backend_catalog, extract_bounds_from_summary
 from beat.sampler import SamplingHistory
 from beat.sources import MTSourceWithMagnitude
 from beat.utility import list2string
-from numpy import savez, atleast_2d
+from numpy import savez, atleast_2d, floor
 
 from pyrocko import model, util
 from pyrocko.trace import snuffle
@@ -853,8 +853,11 @@ def command_summarize(args):
                 chains = stage.mtrace.chains
             elif sampler_name == 'PT':
                 result_check(stage.mtrace, min_length=1)
-                draws = sc_params.n_samples
-                idxs = range(draws)
+                idxs = range(
+                    int(floor(sc_params.n_samples * sc_params.burn)),
+                    sc_params.n_samples,
+                    sc_params.thin)
+                draws = len(idxs)
                 chains = [0]
             else:
                 raise NotImplementedError(
