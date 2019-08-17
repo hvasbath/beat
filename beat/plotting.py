@@ -546,7 +546,8 @@ def get_result_point(stage, config, point_llk='max'):
     -------
     dict
     """
-    if config.sampler_config.name == 'Metropolis':
+    sampler_name = config.sampler_config.name
+    if sampler_name == 'Metropolis':
         if stage.step is None:
             raise AttributeError(
                 'Loading Metropolis results requires'
@@ -556,8 +557,7 @@ def get_result_point(stage, config, point_llk='max'):
         pdict, _ = get_trace_stats(
             stage.mtrace, stage.step, sc.burn, sc.thin)
         point = pdict[point_llk]
-
-    elif config.sampler_config.name == 'SMC':
+    elif sampler_name == 'SMC' or sampler_name == 'PT':
         llk = stage.mtrace.get_values(
             varname='like',
             combine=True)
@@ -565,18 +565,6 @@ def get_result_point(stage, config, point_llk='max'):
         posterior_idxs = utility.get_fit_indexes(llk)
 
         point = stage.mtrace.point(idx=posterior_idxs[point_llk])
-
-    elif config.sampler_config.name == 'PT':
-        params = config.sampler_config.parameters
-        llk = stage.mtrace.get_values(
-            varname='like',
-            burn=int(params.n_samples * params.burn),
-            thin=params.thin)
-
-        posterior_idxs = utility.get_fit_indexes(llk)
-
-        point = stage.mtrace.point(idx=posterior_idxs[point_llk])
-
     else:
         raise NotImplementedError(
             'Sampler "%s" is not supported!' % config.sampler_config.name)
