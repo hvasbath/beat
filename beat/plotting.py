@@ -2321,7 +2321,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                                 x=e[idx], color=pcolor, lw=1.)
 
     if unify:
-        unities = unify_tick_intervals(axs, varnames, axis='x')
+        unities = unify_tick_intervals(
+            axs, varnames, ntickmarks_max=3, axis='x')
         apply_unified_axis(axs, varnames, unities, axis='x')
 
     if source_idxs:
