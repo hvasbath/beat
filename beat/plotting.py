@@ -2152,7 +2152,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     if 'seis_like' in varnames:
         remove_var(varnames, varname='seis_like')
 
-    if posterior:
+    if posterior != 'None':
         llk = trace.get_values(
             'like', combine=combined, chains=chains, squeeze=False)
         llk = num.squeeze(transform(llk[0]))
@@ -2310,7 +2310,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         except KeyError:
                             pass
 
-                    if posterior:
+                    if posterior != 'None':
                         if posterior == 'all':
                             for k, idx in posterior_idxs.items():
                                 axs[rowi, coli].axvline(
@@ -2467,7 +2467,7 @@ def draw_posteriors(problem, plot_options):
                 source_idxs=po.source_idxs,
                 plot_style='hist',
                 lines=po.reference,
-                posterior='max',
+                posterior=po.post_llk,
                 prior_bounds=prior_bounds)
 
             if not po.outformat == 'display':

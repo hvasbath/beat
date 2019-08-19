@@ -1192,10 +1192,10 @@ def command_plot(args):
         parser.add_option(
             '--post_llk',
             dest='post_llk',
-            choices=['max', 'min', 'mean', 'all'],
+            choices=['max', 'min', 'mean', 'all', 'None'],
             default='max',
             help='Plot model with specified likelihood; "max", "min", "mean"'
-                 ' or "all"; Default: "max"')
+                 ' "None" or "all"; Default: "max"')
 
         parser.add_option(
             '--stage_number',
