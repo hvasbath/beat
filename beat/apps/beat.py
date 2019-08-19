@@ -875,6 +875,7 @@ def command_summarize(args):
             else:
                 source = None
 
+            import time
             sc = problem.composites['seismic']
             for chain in chains:
                 for idx in idxs:

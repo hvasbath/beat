@@ -711,7 +711,6 @@ class NumpyChain(FileChain):
 
     def get_values(self, varname, burn=0, thin=1):
         self._load_df()
-
         data = self._df[varname]
         shape = (self._df.shape[0],) + self.var_shapes[varname]
         vals = data.ravel().reshape(shape)
@@ -732,8 +731,11 @@ class NumpyChain(FileChain):
         """
         idx = int(idx)
         self._load_df()
-        pt = {name: num.array(
-            self.get_values(name)[idx]) for name in self.varnames}
+        pt = {}
+        for varname in self.varnames:
+            data = self._df[varname][idx]
+            pt[varname] = data.reshape(self.var_shapes[varname])
+
         return pt
 
 
