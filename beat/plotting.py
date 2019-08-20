@@ -1478,22 +1478,40 @@ def draw_seismic_fits(problem, po):
                 fig.savefig(outpath + '_%i.%s' % (i, po.outformat), dpi=po.dpi)
 
 
-def draw_fuzzy_beachball(problem, po):
+def point2array(point, varnames):
+    """
+    Concatenate values of point according to order of given varnames.
+    """
+    array = num.empty((len(varnames)), dtype='float64')
+    for i, varname in enumerate(varnames):
+        array[i] = point[varname].ravel()
 
-    if problem.config.problem_config.n_sources > 1:
-        raise NotImplementedError(
-            'Fuzzy beachball is not yet implemented for more than one source!')
+    return array
 
-    if po.load_stage is None:
-        po.load_stage = -1
 
-    varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
+def extract_mt_components(problem, po, include_magnitude=False):
+    """
+    Extract Moment Tensor components from problem results for plotting.
+    """
+    source_type = problem.config.problem_config.source_type
+    if source_type == 'MTSource':
+        varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
+    elif source_type == 'DCSource':
+        varnames = ['strike', 'dip', 'rake']
+    else:
+        raise ValueError(
+            'Plot is only supported for point "MTSource" and "DCSource"')
+
+    if include_magnitude:
+        varnames += ['magnitude']
+
     if not po.reference:
         llk_str = po.post_llk
-        stage = load_stage(problem, stage_number=po.load_stage, load='trace', chains=[-1])
+        stage = load_stage(
+            problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
         n_mts = len(stage.mtrace)
-        m6s = num.empty((n_mts, 6), dtype='float64')
+        m6s = num.empty((n_mts, len(varnames)), dtype='float64')
         for i, varname in enumerate(varnames):
             m6s[:, i] = stage.mtrace.get_values(
                 varname, combine=True, squeeze=True).ravel()
@@ -1507,12 +1525,22 @@ def draw_fuzzy_beachball(problem, po):
         best_mt = point2array(point, varnames=varnames)
     else:
         llk_str = 'ref'
-        m6s = num.empty((1, 6), dtype='float64')
-        for i, varname in enumerate(
-                ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
-            m6s[:, i] = po.reference[varname].ravel()
-
+        m6s = [point2array(point=po.reference, varnames=varnames)]
         best_mt = None
+
+    return m6s, best_mt, llk_str
+
+
+def draw_fuzzy_beachball(problem, po):
+
+    if problem.config.problem_config.n_sources > 1:
+        raise NotImplementedError(
+            'Fuzzy beachball is not yet implemented for more than one source!')
+
+    if po.load_stage is None:
+        po.load_stage = -1
+
+    m6s, best_mt, llk_str = extract_mt_components(problem, po)
 
     logger.info('Drawing Fuzzy Beachball ...')
 
@@ -1552,17 +1580,6 @@ def draw_fuzzy_beachball(problem, po):
 
     else:
         logger.info('Plot already exists! Please use --force to overwrite!')
-
-
-def point2array(point, varnames):
-    """
-    Concatenate values of point according to order of given varnames.
-    """
-    array = num.empty((len(varnames)), dtype='float64')
-    for i, varname in enumerate(varnames):
-        array[i] = point[varname].ravel()
-
-    return array
 
 
 def fuzzy_mt_decomposition(
@@ -1741,33 +1758,7 @@ def draw_fuzzy_mt_decomposition(problem, po):
     if po.load_stage is None:
         po.load_stage = -1
 
-    varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med', 'magnitude']
-    if not po.reference:
-        llk_str = po.post_llk
-        stage = load_stage(
-            problem, stage_number=po.load_stage, load='trace', chains=[-1])
-
-        n_mts = len(stage.mtrace)
-        m6s = num.empty((n_mts, len(varnames)), dtype='float64')
-        for i, varname in enumerate(varnames):
-            m6s[:, i] = stage.mtrace.get_values(
-                varname, combine=True, squeeze=True).ravel()
-
-        csteps = float(n_mts) / po.nensemble
-        idxs = num.floor(
-            num.arange(0, n_mts, csteps)).astype('int32')
-        m6s = m6s[idxs, :]
-
-        point = get_result_point(stage, problem.config, po.post_llk)
-        best_mt = point2array(point, varnames=varnames)
-    else:
-        llk_str = 'ref'
-        m6s = num.empty((1, 6), dtype='float64')
-        for i, varname in enumerate(
-                ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
-            m6s[:, i] = po.reference[varname].ravel()
-
-        best_mt = None
+    m6s, _, llk_str = extract_mt_components(problem, po, include_magnitude=True)
 
     outpath = os.path.join(
         problem.outfolder,
@@ -1811,28 +1802,7 @@ def draw_hudson(problem, po):
     if po.load_stage is None:
         po.load_stage = -1
 
-    varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
-    if not po.reference:
-        llk_str = po.post_llk
-        stage = load_stage(problem, stage_number=po.load_stage, load='trace', chains=[-1])
-
-        n_mts = len(stage.mtrace)
-        m6s = num.empty((n_mts, 6), dtype='float64')
-        for i, varname in enumerate(varnames):
-            m6s[:, i] = stage.mtrace.get_values(
-                varname, combine=True, squeeze=True).ravel()
-
-        csteps = float(n_mts) / po.nensemble
-        idxs = num.floor(
-            num.arange(0, n_mts, csteps)).astype('int32')
-        m6s = m6s[idxs, :]
-
-        point = get_result_point(stage, problem.config, po.post_llk)
-        best_mt = point2array(point, varnames=varnames)
-    else:
-        llk_str = 'ref'
-        m6s = [point2array(point=po.reference, varnames=varnames)]
-        best_mt = None
+    m6s, best_mt, llk_str = extract_mt_components(problem, po)
 
     logger.info('Drawing Hudson plot ...')
 
