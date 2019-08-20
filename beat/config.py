@@ -208,6 +208,7 @@ _mode_choices = [geometry_mode_str, ffi_mode_str]
 _regularization_choices = ['laplacian', 'none']
 _initialization_choices = ['random', 'lsq']
 _backend_choices = ['csv', 'bin']
+_datatype_choices = ['geodetic', 'seismic']
 
 
 class InconsistentParameterNaming(Exception):

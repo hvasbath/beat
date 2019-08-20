@@ -120,7 +120,6 @@ supported_geodetic_formats = ['matlab', 'ascii', 'kite']
 supported_geodetic_types = ['SAR', 'GNSS']
 supported_samplers = ['SMC', 'Metropolis', 'PT']
 
-
 def add_common_options(parser):
     parser.add_option(
         '--loglevel',
@@ -594,6 +593,8 @@ def command_clone(args):
 
     command_str = 'clone'
 
+    from beat.config import _datatype_choices as datatype_choices
+
     def setup(parser):
 
         parser.add_option(
@@ -664,25 +665,32 @@ def command_clone(args):
             c.project_dir = cloned_dir
 
             new_datatypes = []
-            for datatype in options.datatypes:
-                if datatype not in c.problem_config.datatypes:
-                    logger.warn('Datatype %s to be cloned is not'
-                                ' in config! Adding to new config!' % datatype)
-                    c[datatype + '_config'] = \
-                        bconfig.datatype_catalog[datatype](mode=options.mode)
-                    re_init = True
+            for datatype in datatype_choices:
+                if datatype in options.datatypes:
+                    if datatype not in c.problem_config.datatypes:
+                        logger.warn('Datatype %s to be cloned is not'
+                                    ' in config! Adding to new config!' % datatype)
+                        c[datatype + '_config'] = \
+                            bconfig.datatype_catalog[datatype](mode=options.mode)
+                        re_init = True
+                    else:
+                        re_init = False
+
+                    new_datatypes.append(datatype)
+
+                    data_path = pjoin(project_dir, datatype + '_data.pkl')
+
+                    if os.path.exists(data_path) and options.copy_data:
+                        logger.info('Cloning %s data.' % datatype)
+                        cloned_data_path = pjoin(
+                            cloned_dir, datatype + '_data.pkl')
+                        shutil.copyfile(data_path, cloned_data_path)
                 else:
-                    re_init = False
-
-                new_datatypes.append(datatype)
-
-                data_path = pjoin(project_dir, datatype + '_data.pkl')
-
-                if os.path.exists(data_path) and options.copy_data:
-                    logger.info('Cloning %s data.' % datatype)
-                    cloned_data_path = pjoin(
-                        cloned_dir, datatype + '_data.pkl')
-                    shutil.copyfile(data_path, cloned_data_path)
+                    if datatype in c.problem_config.datatypes:
+                        logger.warning(
+                            'Removing datatype "%s" '
+                            'from cloned config!' % datatype)
+                        c[datatype + '_config'] = None
 
             c.problem_config.datatypes = new_datatypes
 
