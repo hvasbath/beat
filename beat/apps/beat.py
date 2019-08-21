@@ -883,15 +883,14 @@ def command_summarize(args):
             else:
                 source = None
 
-            import time
-            sc = problem.composites['seismic']
+            seisc = problem.composites['seismic']
             for chain in chains:
                 for idx in idxs:
                     point = stage.mtrace.point(idx=idx, chain=chain)
                     if isinstance(source, MTSourceWithMagnitude):
-                        sc.point2sources(point)
+                        seisc.point2sources(point)
                         ldicts = []
-                        for source in sc.sources:
+                        for source in seisc.sources:
                             ldicts.append(source.scaled_m6_dict)
 
                         jpoint = utility.join_points(ldicts)
