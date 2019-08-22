@@ -5,7 +5,7 @@ The examples are located in the directory::
 
      beat/data/examples
 
- 
+
 In the following tutorials we will use synthetic example data.
 
 .. toctree::
@@ -21,3 +21,4 @@ In the following examples we will use real data of the 2009 L'Aquila earthquake.
    Rectangular
    FFI_static
    FFI_kinematic
+   dc_teleseismic
