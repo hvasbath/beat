@@ -2535,7 +2535,7 @@ def draw_correlation_hist(problem, plot_options):
             cmap=plt.cm.gist_earth_r,
             chains=chains,
             point=reference,
-            point_size=4,
+            point_size=6,
             point_color='red')
     else:
         logger.info('correlation plot exists. Use force=True for replotting!')
