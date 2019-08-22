@@ -352,7 +352,7 @@ def correlation_plot_hist(
     fig : figure object
     axs : subplot axis handles
     """
-    fontsize = 9
+    fontsize = 10
     ntickmarks_max = 2
     label_pad = 25
     logger.info('Drawing correlation figure ...')
@@ -2552,10 +2552,14 @@ def n_model_plot(models, axes=None, draw_bg=True, highlightidx=[]):
     """
     Plot cake layered earth models.
     """
+    fontsize = 10
     if axes is None:
-        mpl_init(fontsize=12)
+        mpl_init(fontsize=fontsize)
         fig, axes = plt.subplots(
-            nrows=1, ncols=1, figsize=mpl_papersize('a5', 'portrait'))
+            nrows=1, ncols=1, figsize=mpl_papersize('a6', 'portrait'))
+        labelpos = mpl_margins(
+            fig, left=6, bottom=4, top=1.5, right=0.5, units=fontsize)
+        labelpos(axes, 2., 1.5)
 
     def plot_profile(mod, axes, vp_c, vs_c, lw=0.5):
         z = mod.profile('z')
@@ -2597,7 +2601,7 @@ def n_model_plot(models, axes=None, draw_bg=True, highlightidx=[]):
     xmin = 0.
     my = (ymax - ymin) * 0.05
     mx = (xmax - xmin) * 0.2
-    axes.set_ylim(ymax + my, ymin - my)
+    axes.set_ylim(ymax, ymin - my)
     axes.set_xlim(xmin, xmax + mx)
     return fig, axes
 
