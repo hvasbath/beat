@@ -352,9 +352,9 @@ def correlation_plot_hist(
     fig : figure object
     axs : subplot axis handles
     """
-    fontsize = 8
+    fontsize = 9
     ntickmarks_max = 2
-    label_pad = 20
+    label_pad = 25
     logger.info('Drawing correlation figure ...')
 
     if varnames is None:
@@ -393,7 +393,7 @@ def correlation_plot_hist(
                         reference = point[v_namea]
                         axs[l, k].axvline(
                             x=reference, color=point_color,
-                            lw=point_size / 6.)
+                            lw=point_size / 4.)
                     else:
                         reference = None
                 else:
@@ -448,7 +448,7 @@ def correlation_plot_hist(
             axs[l, k].tick_params(
                 axis='both', direction='in', labelsize=fontsize)
             axs[l, k].tick_params(
-                axis='x', labelrotation=90.)
+                axis='both', labelrotation=50.)
             if utility.is_odd(k):
                 axs[l, k].tick_params(axis='x', pad=label_pad)
 
