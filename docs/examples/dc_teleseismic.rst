@@ -42,54 +42,55 @@ For that we need to change the name of the Greens function store by::
 The store is approximately 2.6 GB in size.
 
 To enable velocity model uncertainty perturbation each store is named after the earthmodel used, followed by the sampling rate and the reference model index, each separated by a '_'
-
+The format is %station_%earth_model_name_%sampling_%reference_model_idx. %station is defined in the reference_location of the gf_config section of the config_geometry.yaml.
 We now also want to change the tabulated phases in the store.
 
 Open the store config under $GF_path/global_2s_25km/config with any editor.
 Change the name of the store from::
-  from
+
   id: global_2s_25km
-  to
+to::
+
   id: global_2s_25km_ak135_0.500Hz_0
 
- The config shows also the tabulated phases in the store::
+The config shows also the tabulated phases in the store::
 
-tabulated_phases:
-- !pyrocko.gf.meta.TPDef
-  id: begin
-  definition: p,P,p\,P\,Pv_(cmb)p
-- !pyrocko.gf.meta.TPDef
-  id: end
-  definition: '2.5'
-- !pyrocko.gf.meta.TPDef
-  id: P
-  definition: '!P'
-- !pyrocko.gf.meta.TPDef
-  id: S
-  definition: '!S'
-- !pyrocko.gf.meta.TPDef
-  id: p
-  definition: '!p'
-- !pyrocko.gf.meta.TPDef
-  id: s
-  definition: '!s'
+    tabulated_phases:
+    - !pyrocko.gf.meta.TPDef
+      id: begin
+      definition: p,P,p\,P\,Pv_(cmb)p
+    - !pyrocko.gf.meta.TPDef
+      id: end
+      definition: '2.5'
+    - !pyrocko.gf.meta.TPDef
+      id: P
+      definition: '!P'
+    - !pyrocko.gf.meta.TPDef
+      id: S
+      definition: '!S'
+    - !pyrocko.gf.meta.TPDef
+      id: p
+      definition: '!p'
+    - !pyrocko.gf.meta.TPDef
+      id: s
+      definition: '!s'
 
 This phases are specific and for the P-phase for example only the direct P-phase will considered for first arrivals. However, in some cases a non direct P-phase can be the first arrival.
-We want to replace those phases with a custom phase arrival, 'any_P', which will default to any first P-type phase arriving of any kind.
-  replace those with:
+We want to replace those phases with a custom phase arrival, 'any_P', which will default to any first P-type phase arriving of any kind. Replace the phases with::
 
-  tabulated_phases:
-  - !pf.TPDef
-    id: any_P
-    definition: p,P,p\,P\
-  - !pf.TPDef
-    id: slowest
-    definition: '0.8'
+      tabulated_phases:
+      - !pf.TPDef
+        id: any_P
+        definition: p,P,p\,P\
+      - !pf.TPDef
+        id: slowest
+        definition: '0.8'
 
 and than run in $GF_path to tabulate all phase arrivals in the distances of the store for this phases::
+
   fomosto ttt --force
 
-This should only take a minute.  We are now set to use the Greens function store in Beat without heavy Greens function calculation on our desktop!
+This should only take a minute. We are now set to use the Greens function store in Beat without heavy Greens function calculation on our desktop!
 
 Data windowing and optimization setup
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
