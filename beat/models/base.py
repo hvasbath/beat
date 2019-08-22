@@ -4,7 +4,7 @@ import os
 from beat import config as bconfig
 from beat.models import hyper_normal
 from beat import sampler
-from beat.backend import SampleStage
+from beat.backend import SampleStage, thin_buffer
 
 from pymc3 import Deterministic
 from collections import OrderedDict
@@ -242,10 +242,12 @@ def estimate_hypers(step, problem):
             buffer_thinning=sc.buffer_thinning,
             chunksize=int(pa.n_chains / pa.n_jobs))
 
+    thinned_chain_length = len(thin_buffer(
+        list(range(pa.n_steps)), sc.buffer_thinning, ensure_last=True))
     for v in problem.hypernames:
         i = pc.hyperparameters[v]
         d = mtrace.get_values(
-            v, combine=True, burn=int(pa.n_steps * pa.burn),
+            v, combine=True, burn=int(thinned_chain_length * pa.burn),
             thin=pa.thin, squeeze=True)
 
         lower = num.floor(d.min()) - 2.
