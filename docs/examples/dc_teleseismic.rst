@@ -1,4 +1,4 @@
-Example 5: Teleseismic Double Couple
+Example 2: Teleseismic Double Couple
 --------------------------------------
 Clone project
 ^^^^^^^^^^^^^
@@ -15,7 +15,7 @@ This directory is going to be referred to as '$project_directory' in the followi
 We will assume that the reader is familiar with the setup of `Example 1 <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__ beforehand.
 
 
-Download/Calculate Greens Functions
+Download Greens Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 For this example we will need a global Greens function store with a source-receiver setup suitable for teleseismic distances.
 As such a global store can be potentially very memory expensive we will limit the possible source locations to a maximum depth of 25 km and limit the sampling rate to a sensible 0.5 Hz (or 2s) and the spatial sampling to 4 km in depth and distance.
@@ -30,10 +30,66 @@ Please make sure that the store_superdir in the configuration file (config_geome
   store_superdir: $GF_path
 
 Alternatively we can also calculate the Greens function (GF) store ourselves, as done in `Example 1 <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__
-the regional Full Moment Tensor example. The settings in the example configuration file (config_geometry.yaml) do not need to be changed and we could directly execute::
+the regional Full Moment Tensor example.
 
-  beat build_gfs dc_teleseismic --datatypes='seismic'
+How to convert Green's Mill store to beat compatibility
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+We now have to change the downloaded Greens function meta info into beat compatible formalism.
+For that we need to change the name of the Greens function store by::
+  mv $GF_path/global_2s_25km $GF_path/
+
+The store is approximately 2.6 GB in size.
+
+To enable velocity model uncertainty perturbation each store is named after the earthmodel used, followed by the sampling rate and the reference model index, each separated by a '_'
+
+We now also want to change the tabulated phases in the store.
+
+Open the store config under $GF_path/global_2s_25km/config with any editor.
+Change the name of the store from::
+  from
+  id: global_2s_25km
+  to
+  id: global_2s_25km_ak135_0.500Hz_0
+
+ The config shows also the tabulated phases in the store::
+
+tabulated_phases:
+- !pyrocko.gf.meta.TPDef
+  id: begin
+  definition: p,P,p\,P\,Pv_(cmb)p
+- !pyrocko.gf.meta.TPDef
+  id: end
+  definition: '2.5'
+- !pyrocko.gf.meta.TPDef
+  id: P
+  definition: '!P'
+- !pyrocko.gf.meta.TPDef
+  id: S
+  definition: '!S'
+- !pyrocko.gf.meta.TPDef
+  id: p
+  definition: '!p'
+- !pyrocko.gf.meta.TPDef
+  id: s
+  definition: '!s'
+
+This phases are specific and for the P-phase for example only the direct P-phase will considered for first arrivals. However, in some cases a non direct P-phase can be the first arrival.
+We want to replace those phases with a custom phase arrival, 'any_P', which will default to any first P-type phase arriving of any kind.
+  replace those with:
+
+  tabulated_phases:
+  - !pf.TPDef
+    id: any_P
+    definition: p,P,p\,P\
+  - !pf.TPDef
+    id: slowest
+    definition: '0.8'
+
+and than run in $GF_path to tabulate all phase arrivals in the distances of the store for this phases::
+  fomosto ttt --force
+
+This should only take a minute.  We are now set to use the Greens function store in Beat without heavy Greens function calculation on our desktop!
 
 Data windowing and optimization setup
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -43,7 +99,7 @@ The seismic phases filter and taper are defined under 'waveforms' in the $projec
   - !beat.WaveformFitConfig
     include: true
     preprocess_data: true
-    name: P
+    name: any_P
     channels: [Z]
     filterer: !beat.heart.Filter
       lower_corner: 0.01
@@ -162,7 +218,7 @@ It will produce a pdf with several pages output for all the components for each 
 The black waveforms are the unfiltered data. The plot shows the synthetic traces from the 100 best fitting models, in yellow to red colors, with the color indicating the density. The yellowish background indicates the taper.
 The Z-components from our stations should look something like this.
 
-  .. image:: ../_static/example5/dc_teleseismic_waveforms_100_0.png
+  .. image:: ../_static/example2/dc_teleseismic_waveforms_100_0.png
 
 The following command produces a '.png' file with the final posterior distribution. In the $beat_models run::
 
@@ -170,7 +226,7 @@ The following command produces a '.png' file with the final posterior distributi
 
 It may look like this.
 
- .. image:: ../_static/example5/dc_teleseismic_stage_-1_max.png
+ .. image:: ../_static/example2/dc_teleseismic_stage_-1_max.png
 
  The vertical black lines are the true values and the vertical red lines are the maximum likelihood values.
 
@@ -180,7 +236,7 @@ It may look like this.
 
 This will show an image like that.
 
- .. image:: ../_static/example5/dc_teleseismic_corr_hist_max.png
+ .. image:: ../_static/example2/dc_teleseismic_corr_hist_max.png
 
 This shows 2d kernel density estimates (kde) and histograms of the specified model parameters. The darker the 2d kde the higher the probability of the model parameter.
 The red dot and the vertical red lines show the true values of the target source in the kde plots and histograms, respectively.
@@ -191,7 +247,7 @@ To get an image of solution ensemble as a fuzzy beachball run in $beat_models::
 
 This will show an image of the 200 best solutions as beachballs, with the the color intensity indicating the model density.
 
-.. image:: ../_static/example5/dc_teleseismic_fuzzy_beachball.png
+.. image:: ../_static/example2/dc_teleseismic_fuzzy_beachball.png
   :scale: 50 %
 
 

@@ -18,7 +18,7 @@ In the following examples we will use real data of the 2009 L'Aquila earthquake.
 .. toctree::
    :maxdepth: 3
 
+   dc_teleseismic
    Rectangular
    FFI_static
    FFI_kinematic
-   dc_teleseismic

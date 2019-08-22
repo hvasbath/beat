@@ -1,10 +1,10 @@
 
-Example 3: Static finite-fault estimation
+Example 4: Static finite-fault estimation
 -----------------------------------------
 
 In this example we will determine a variable slip distribution for the L'aquila 2009 earthquake by using static InSAR data.
-The data is the exact same from `Example 2 <https://hvasbath.github.io/beat/examples/Rectangular.html#>`__, where the overall geometry of the fault plane was estimated.
-It is a requirement to have Example 2 completed in order to follow the instructions and commands given in this example.
+The data is the exact same from `Example 3 <https://hvasbath.github.io/beat/examples/Rectangular.html#>`__, where the overall geometry of the fault plane was estimated.
+It is a requirement to have Example 3 completed in order to follow the instructions and commands given in this example.
 
 Please make sure that you are one level above the Laquila project folder (created earlier).::
 
@@ -26,7 +26,7 @@ Calculate Greens Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 For the distributed slip optimization a reference fault has to be defined that determines the overall geometry.
 Once this has been done the problem becomes linear as the only unknown parameters are the slips in rake perpendicular and rake parallel direction.
-The fault geometry needs to be defined in the *geodetic.gf_config.reference_sources*.:: 
+The fault geometry needs to be defined in the *geodetic.gf_config.reference_sources*.::
 
   gf_config: !beat.GeodeticLinearGFConfig
     store_superdir: /home/vasyurhm/GF/Laquila
@@ -60,7 +60,7 @@ The fault geometry needs to be defined in the *geodetic.gf_config.reference_sour
     extension_lengths: [0.4]
     sample_rate: 1.1574074074074073e-05
 
-The values shown above are parts of the MAP solution from the optimization from Example 2. The results can been imported through the import command specifiying the --results option. We want to import the results from the *Laquila* project_directory from an optimization in *geometry* mode and we want to update the *geodetic* part of the *config_ffi.yaml*::
+The values shown above are parts of the MAP solution from the optimization from Example 3. The results can been imported through the import command specifiying the --results option. We want to import the results from the *Laquila* project_directory from an optimization in *geometry* mode and we want to update the *geodetic* part of the *config_ffi.yaml*::
 
   beat import Laquila --results=Laquila --mode='geometry' --datatypes=geodetic
 
@@ -81,7 +81,7 @@ We can inspect the geometry of the resulting extended discretized fault wrt. the
 
 This will open an interactive 3d plot of the fault geometry, which looks along the lines of
 
-.. image:: ../_static/example3/Laquila_FaultGeometry.png
+.. image:: ../_static/example4/Laquila_FaultGeometry.png
 
 The grey rectangle shows the geometry of the fault specified under *reference_sources* and the red rectangle(s) show the extended fault with the respective discretization of the sub-patches. The grey and red dots mark the centres of the *reference_fault(s)* and the extended faults, respectively.
 The numbers are the indexes of the repsective sub-patch in the Green's Function matrix we are going to calculate next.
@@ -205,7 +205,7 @@ Once happy with the displayed changes the changes will be applied to the file wi
 
 Sample the solution space
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-Please refer to the 'Sample the solution space section' of `example 2 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#sample-the-solution-space>`__ example for a more detailed description of the sampling and associated parameters.
+Please refer to the 'Sample the solution space section' of `example 3 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#sample-the-solution-space>`__ example for a more detailed description of the sampling and associated parameters.
 
 Firstly, we only optimize for the noise scaling or hyperparameters (HPs) including the laplacian smoothing weight::
 
@@ -230,7 +230,7 @@ Checking the $project_directory/config_ffi.yaml, the hyperparameter bounds show 
 
 Markov Chain initialization
 ===========================
-The *initialization* argument determines at which point in the solution space to initialize the Markov Chains. The default value *random* simply draws a random point in the solution space from the prior distributions for each Markov Chain to be sampled. However, as we are using a laplacian smoothing constraint we can use the non-negative least-squares solution as a starting value for a randomly drawn smoothing weight (from the initial guess on the *h_laplacian* parameter range)[Fukuda2008]_.  
+The *initialization* argument determines at which point in the solution space to initialize the Markov Chains. The default value *random* simply draws a random point in the solution space from the prior distributions for each Markov Chain to be sampled. However, as we are using a laplacian smoothing constraint we can use the non-negative least-squares solution as a starting value for a randomly drawn smoothing weight (from the initial guess on the *h_laplacian* parameter range)[Fukuda2008]_.
 
 The 'n_jobs' number should be set to as many CPUs as the user can spare under the *sampler_config*. The number of sampled MarkovChains and the number of steps for each chain of the SMC sampler should be set to high values as we are optimizing now for ca 250 random variables (if the values from the tutorial haven't been altered by the user); for example to 5000 and 400, respectively.
 
@@ -253,13 +253,13 @@ For the slip-distribution please run::
 
   beat plot Laquila slip_distribution --mode=ffi
 
-.. image:: ../_static/example3/Laquila_static_slip_dist_-1_max.png
+.. image:: ../_static/example4/Laquila_static_slip_dist_-1_max.png
 
 To get histograms for the laplacian smoothing, the noise scalings and the posterior likelihood please run::
 
   beat plot LaquilaJointPonlyUPDATE_wide stage_posteriors --stage_number=-1 --mode=ffi --varnames=h_laplacian,h_SAR,like
 
-.. image:: ../_static/example3/stage_-1_max.png
+.. image:: ../_static/example4/stage_-1_max.png
    :height: 350px
    :width: 350 px
 
@@ -267,7 +267,7 @@ For a comparison between data, synthetic displacements and residuals for the two
 
   beat plot Laquila scene_fits --mode=ffi
 
-.. image:: ../_static/example3/scenes_-1_max_local_0.png
+.. image:: ../_static/example4/scenes_-1_max_local_0.png
 
 The plot should show something like this. Here the residuals are displayed with an individual color scale according to their minimum and maximum values.
 
@@ -276,7 +276,7 @@ For a plot using the global geographic coordinate system where the residuals hav
 
   beat plot Laquila scene_fits --mode=ffi --plot_projection=latlon
 
-.. image:: ../_static/example3/scenes_-1_max_latlon_0.png
+.. image:: ../_static/example4/scenes_-1_max_latlon_0.png
 
 
 References

@@ -1,5 +1,5 @@
 
-Example 2: Rectangular source
+Example 3: Rectangular source
 -----------------------------
 In this example we will explore the parameter space of a Rectangular Source [Okada1985]_ for the L'aquila 2009 earthquake.
 It is up to the user to decide, which data is going to be used in the optimization, teleseismic waveforms and/or geodetic data.
@@ -8,7 +8,7 @@ The geodetic data consists of two static displacements data sets from the 06.04.
 and descending orbits.
 The data has been pre-processed with `kite <https://github.com/pyrocko/kite>`__. For details on the use and data display we refer to the tutorial on the website.
 
-.. image:: ../_static/example2/Laquila_asc.png
+.. image:: ../_static/example3/Laquila_asc.png
 
 The seismic data consists of teleseismic waveforms of 35 stations that have been restituted to displacement, rotated to RTZ and downsampled to 2.5 Hz.
 
@@ -353,20 +353,20 @@ For a comparison between data, synthetic displacements and residuals for the two
   beat plot Laquila scene_fits
 
 The plot should show something like this. Here the residuals are displayed with an individual color scale according to their minimum and maximum values:
- .. image:: ../_static/example2/Laquila_scenes_-1_max_local_0.png
+ .. image:: ../_static/example3/Laquila_scenes_-1_max_local_0.png
 
 For a plot using the global geographic coordinate system where the residuals have the same color bar as data and synthetics please run::
 
   beat plot Laquila scene_fits --plot_projection=latlon
 
-.. image:: ../_static/example2/Laquila_scenes_-1_max_latlon_0.png
+.. image:: ../_static/example3/Laquila_scenes_-1_max_latlon_0.png
 
 To plot waveform fits::
 
   beat plot Laquila waveform_fits
 
 
-.. image:: ../_static/example2/Laquila_waveforms_-1_max_0.png
+.. image:: ../_static/example3/Laquila_waveforms_-1_max_0.png
 
 
 To plot the posterior marginal distributions of the source parameters for only the final stage, please run::
@@ -374,7 +374,7 @@ To plot the posterior marginal distributions of the source parameters for only t
   beat plot Laquila stage_posteriors --stage_number=-1
 
 
-.. image:: ../_static/example2/Laquila_stage_-1_max.png
+.. image:: ../_static/example3/Laquila_stage_-1_max.png
 
 Here h_SAR are the noise scaling parameters for the two InSAR scenes and h_any_P_0_Z is the noise scaling for the P-phases.
 
@@ -384,7 +384,7 @@ For a correlation plot of the parameter marginals please run::
   beat plot LaquilaJointPonlyUPDATE correlation_hist --format=png --varnames=depth,north_shift,dip,east_shift,slip,width,time,nucleation_x,rake,nucleation_y,strike,length
 
 
-.. image:: ../_static/example2/Laquila_corr_hist_-1_max.png
+.. image:: ../_static/example3/Laquila_corr_hist_-1_max.png
 
 Here the "varnames" argument determines the order of the plotted variables and which variable to plot. The kinematic source parameters are only resolved by using seismic data. So for optimization results that include only **geodetic** data, the parameters time, duration, nucleation_x and nucleation_y have to be omitted.
 
