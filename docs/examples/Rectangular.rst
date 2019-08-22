@@ -19,7 +19,7 @@ Clone project
 To copy the example (including the data) to a directory outside of the package source directory, please edit the '&beat_models_path' and depending on which datatypes you want to use in the optimization fill the datatypes argument. For both datatypes (if only selected datatypes are of interest please delete either)::
 
    cd /path/to/beat/data/examples/
-   beat clone Rectangular $beat_models_path/Laquila --datatypes=seismic,geodetic --copy_data
+   beat clone Laquila $beat_models_path/Laquila --datatypes=seismic,geodetic --copy_data
 
 This will create a BEAT project directory named 'Laquila' with a configuration file (config_geometry.yaml) and an example dataset.
  - If your datatypes list included "geodetic" real Envisat InSAR data (geodetic_data.pkl) will be copied.

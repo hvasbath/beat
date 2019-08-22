@@ -2,7 +2,7 @@ Example 2: Teleseismic Double Couple
 --------------------------------------
 Clone project
 ^^^^^^^^^^^^^
-In this example we will use a real teleseismic dataset from the Mw6.3 2009 L'Aquila earthquake and sample the solution space of a Double Couple point source.
+In this example we will use real teleseismic data from the Mw6.3 2009 L'Aquila earthquake and sample the solution space of a Double Couple point source.
 The dataset consists of 35 seismic stations within teleseismic distances (between 4000 and 10000 km) with respect to the origin of the reference event.
 To copy the Example (including the data) to a directory outside of the package source directory, please edit the 'model path' (referred to as $beat_models now on) to your preference path and execute::
 
