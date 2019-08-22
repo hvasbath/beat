@@ -546,28 +546,31 @@ def get_result_point(stage, config, point_llk='max'):
     -------
     dict
     """
-    sampler_name = config.sampler_config.name
-    if sampler_name == 'Metropolis':
-        if stage.step is None:
-            raise AttributeError(
-                'Loading Metropolis results requires'
-                ' sampler parameters to be loaded!')
+    if point_llk != 'None':
+        sampler_name = config.sampler_config.name
+        if sampler_name == 'Metropolis':
+            if stage.step is None:
+                raise AttributeError(
+                    'Loading Metropolis results requires'
+                    ' sampler parameters to be loaded!')
 
-        sc = config.sampler_config.parameters
-        pdict, _ = get_trace_stats(
-            stage.mtrace, stage.step, sc.burn, sc.thin)
-        point = pdict[point_llk]
-    elif sampler_name == 'SMC' or sampler_name == 'PT':
-        llk = stage.mtrace.get_values(
-            varname='like',
-            combine=True)
+            sc = config.sampler_config.parameters
+            pdict, _ = get_trace_stats(
+                stage.mtrace, stage.step, sc.burn, sc.thin)
+            point = pdict[point_llk]
+        elif sampler_name == 'SMC' or sampler_name == 'PT':
+            llk = stage.mtrace.get_values(
+                varname='like',
+                combine=True)
 
-        posterior_idxs = utility.get_fit_indexes(llk)
+            posterior_idxs = utility.get_fit_indexes(llk)
 
-        point = stage.mtrace.point(idx=posterior_idxs[point_llk])
+            point = stage.mtrace.point(idx=posterior_idxs[point_llk])
+        else:
+            raise NotImplementedError(
+                'Sampler "%s" is not supported!' % config.sampler_config.name)
     else:
-        raise NotImplementedError(
-            'Sampler "%s" is not supported!' % config.sampler_config.name)
+        point = None
 
     return point
 
@@ -1137,9 +1140,9 @@ def seismic_fits(problem, stage, plot_options):
     po = plot_options
 
     if not po.reference:
-        point = get_result_point(stage, problem.config, po.post_llk)
+        best_point = get_result_point(stage, problem.config, po.post_llk)
     else:
-        point = po.reference
+        best_point = po.reference
 
     if plot_options.nensemble > 1:
         from tqdm import tqdm
@@ -1156,10 +1159,12 @@ def seismic_fits(problem, stage, plot_options):
             results = composite.assemble_results(point)
             ens_results.append(results)
 
-    # gcms = point['seis_like']
-    # gcm_max = d['like']
+    if best_point:
+        bresults = composite.assemble_results(best_point)
+    else:
+        # get dummy results for data
+        bresults = composite.assemble_results(point)
 
-    bresults = composite.assemble_results(point)
     try:
         composite.point2sources(point, input_depth='center')
         source = composite.sources[0]
@@ -1351,14 +1356,16 @@ def seismic_fits(problem, stage, plot_options):
                 syn_color = scolor('scarletred2')
                 misfit_color = scolor('scarletred2')
 
-                plot_dtrace(
-                    axes2, dtrace, space, 0., 1.,
-                    fc=light(misfit_color, 0.3),
-                    ec=misfit_color, zorder=4)
+                if best_point:
+                    # only draw if highlighted point exists
+                    plot_dtrace(
+                        axes2, dtrace, space, 0., 1.,
+                        fc=light(misfit_color, 0.3),
+                        ec=misfit_color, zorder=4)
 
-                plot_trace(
-                    axes, result.processed_syn,
-                    color=syn_color, lw=0.5, zorder=5)
+                    plot_trace(
+                        axes, result.processed_syn,
+                        color=syn_color, lw=0.5, zorder=5)
 
                 plot_trace(
                     axes, result.processed_obs,
@@ -1482,11 +1489,14 @@ def point2array(point, varnames):
     """
     Concatenate values of point according to order of given varnames.
     """
-    array = num.empty((len(varnames)), dtype='float64')
-    for i, varname in enumerate(varnames):
-        array[i] = point[varname].ravel()
+    if point != None:
+        array = num.empty((len(varnames)), dtype='float64')
+        for i, varname in enumerate(varnames):
+            array[i] = point[varname].ravel()
 
-    return array
+        return array
+    else:
+        return None
 
 
 def extract_mt_components(problem, po, include_magnitude=False):
