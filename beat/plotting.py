@@ -770,6 +770,8 @@ def geodetic_fits(problem, stage, plot_options):
 
         axes[0].get_xaxis().set_major_locator(ticker)
         axes[0].get_yaxis().set_major_locator(ticker)
+        axes[0].tick_params(
+            axis='y', labelrotation=90.)
 
     def draw_coastlines(ax, xlim, ylim, event, scene, po):
         """
