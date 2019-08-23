@@ -1,0 +1,10 @@
+2019-08-22 22:06:32,060 - beat - INFO - Cloning geometry problem config.
+2019-08-22 22:07:02,452 - beat - INFO - Cloning geometry problem config.
+2019-08-22 22:07:02,461 - config - INFO - All hierarchicals ok!
+2019-08-22 22:07:02,461 - config - INFO - All hyperparameters ok!
+2019-08-22 22:07:02,462 - config - INFO - All priors ok!
+2019-08-22 22:07:02,462 - beat - INFO - Cloning seismic data.
+2019-08-22 22:07:02,471 - beat - INFO - Replacing source with "DCSource"
+2019-08-22 22:07:02,472 - config - INFO - Added hyperparameter h_any_P_0_Z to config and model setup!
+2019-08-22 22:07:02,472 - config - INFO - All hyperparameters ok!
+2019-08-22 22:07:02,472 - config - INFO - Number of hyperparameters! 1
