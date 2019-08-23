@@ -428,7 +428,6 @@ class TextChain(FileChain):
         def lpoint2file(filehandle, lpoint):
             columns = itertools.chain.from_iterable(
                 map(str, value.ravel()) for value in lpoint)
-
             filehandle.write(','.join(columns) + '\n')
 
         # Write binary
@@ -671,7 +670,7 @@ class NumpyChain(FileChain):
             for names, array in zip(varnames, lpoint):
                 data[names] = array
 
-            data.tofile(fh)
+            data.tofile(filehandle)
 
         # Write binary
         if lpoint is None and len(self.buffer) == 0:

@@ -410,19 +410,25 @@ class TemperingManager(object):
 
         return package
 
+    def worker_a2l(self, m, source):
+        """
+        Map m from array to list space worker deoendend.
+        """
+        step = self.worker2package(source)['step']
+        return step.lij.a2l(m)
+
     def propose_chain_swap(self, m1, m2, source1, source2):
         """
         Propose a swap between chain samples.
 
         Parameters
         ----------
-
         """
+        llk1 = self.worker_a2l(m1, source1)
+        llk2 = self.worker_a2l(m2, source2)
+
         step1 = self.worker2package(source1)['step']
         step2 = self.worker2package(source2)['step']
-
-        llk1 = step1.lij.a2l(m1)
-        llk2 = step2.lij.a2l(m2)
 
         alpha = (step2.beta - step1.beta) * (
             llk1[step1._llk_index] - llk2[step2._llk_index])
@@ -554,11 +560,10 @@ def master_process(
             if source in manager.get_posterior_workers():
                 count_sample += 1
                 counter(source)
-                trace.write(m, count_sample)
+                trace.write(manager.worker_a2l(m, source), count_sample)
                 steps_until_tune += 1
 
         m1, m2 = manager.propose_chain_swap(m1, m2, source1, source2)
-
         # beta updating
         if steps_until_tune >= beta_tune_interval:
             manager.tune_betas()
@@ -716,7 +721,6 @@ def sample_pt_chain(
                     step.proposal_name, scale=cov)
 
     rsamle = step.lij.l2a(strace.buffer[-1])
-    #print 'chain return', rsamle
     return rsamle
 
 
