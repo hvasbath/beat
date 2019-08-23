@@ -990,8 +990,16 @@ def geodetic_fits(problem, stage, plot_options):
             'verticalalignment': 'top'}
 
         transform = axes[figidx][rowidx, 0].transAxes
+
+        if dataset.name[-5::] == 'dscxn':
+            title = 'descending'
+        elif dataset.name[-5::] == 'ascxn':
+            title = 'ascending'
+        else:
+            title = dataset.name
+
         axes[figidx][rowidx, 0].text(
-            .025, 1.025, '({}) {}'.format(subplot_letter, dataset.name),
+            .025, 1.025, '({}) {}'.format(subplot_letter, title),
             fontsize=fontsize_title, alpha=1.,
             va='bottom', transform=transform)
         for i, quantity in enumerate(['data', 'model', 'residual']):

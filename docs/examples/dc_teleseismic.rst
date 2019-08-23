@@ -16,7 +16,7 @@ We will assume that the reader is familiar with the setup of `Example 1 <https:/
 
 
 Download Greens Functions
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
 For this example we will need a global Greens function store with a source-receiver setup suitable for teleseismic distances.
 As such a global store can be potentially very memory expensive we will limit the possible source locations to a maximum depth of 25 km and limit the sampling rate to a sensible 0.5 Hz (or 2s) and the spatial sampling to 4 km in depth and distance.
 
@@ -25,18 +25,18 @@ We will download the needed Greens function store from the pyrocko project `Gree
   cd $GF_path
   fomosto download kinherd global_2s_25km
 
-Please make sure that the store_superdir in the configuration file (config_geometry.yaml) is set to match your $GF_path.
+Please make sure that the store_superdir attribute under seismic_config.gf_config in the configuration file (config_geometry.yaml) is set to match your $GF_path.::
 
   store_superdir: $GF_path
 
-Alternatively we can also calculate the Greens function (GF) store ourselves, as done in `Example 1 <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__
+Alternatively we could also calculate the Greens function (GF) store ourselves, as done in `Example 1 <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__
 the regional Full Moment Tensor example.
 
-How to convert Green's Mill store to beat compatibility
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
+How to convert Green's Mill store to beat format
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 We now have to change the downloaded Greens function meta info into beat compatible formalism.
 For that we need to change the name of the Greens function store by::
+
   mv $GF_path/global_2s_25km $GF_path/
 
 The store is approximately 2.6 GB in size.
@@ -49,6 +49,7 @@ Open the store config under $GF_path/global_2s_25km/config with any editor.
 Change the name of the store from::
 
   id: global_2s_25km
+
 to::
 
   id: global_2s_25km_ak135_0.500Hz_0
@@ -165,7 +166,7 @@ The configuration of the hyper parameter sampling is determined by the hyper_sam
       thin: 5
       burn: 0.5
 
- To start the sampling please run ::
+To start the sampling please run::
 
     beat sample dc_teleseismic --hypers
 
