@@ -1181,6 +1181,7 @@ def seismic_fits(problem, stage, plot_options):
     except AttributeError:
         logger.info('FFI waveform fit, using reference source ...')
         source = composite.config.gf_config.reference_sources[0]
+        source.time = composite.event.time
 
     logger.info('Plotting waveforms ...')
     target_to_results = {}
