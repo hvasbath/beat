@@ -352,7 +352,7 @@ def correlation_plot_hist(
     fig : figure object
     axs : subplot axis handles
     """
-    fontsize = 10
+    fontsize = 9
     ntickmarks_max = 2
     label_pad = 25
     logger.info('Drawing correlation figure ...')
@@ -1893,7 +1893,7 @@ def draw_hudson(problem, po):
     mt = problem.event.moment_tensor
     u, v = hudson.project(mt)
 
-    if po.reference:
+    if not po.reference:
         try:
             beachball.plot_beachball_mpl(
                 mt, axes,
