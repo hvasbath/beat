@@ -1845,7 +1845,7 @@ def draw_hudson(problem, po):
         mt = mtm.as_mt(m6)
         u, v = hudson.project(mt)
 
-        if random.random() < 0.1:
+        if random.random() < 0.05:
             try:
                 beachball.plot_beachball_mpl(
                     mt, axes,
