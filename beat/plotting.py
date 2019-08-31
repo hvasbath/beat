@@ -2122,6 +2122,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     """
     ntickmarks = 2
     fontsize = 10
+    ntickmarks_max = kwargs.pop('ntickmarks_max', 3)
+    scale_factor = kwargs.pop('scale_factor', 2 / 3)
 
     num.set_printoptions(precision=3)
 
@@ -2314,8 +2316,9 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
     if unify:
         unities = unify_tick_intervals(
-            axs, varnames, ntickmarks_max=3, axis='x')
-        apply_unified_axis(axs, varnames, unities, axis='x')
+            axs, varnames, ntickmarks_max=ntickmarks_max, axis='x')
+        apply_unified_axis(axs, varnames, unities, axis='x',
+                           scale_factor=scale_factor)
 
     if source_idxs:
         axs[0, 0].legend(source_idxs)
