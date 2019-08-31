@@ -47,6 +47,27 @@ from beat.utility import load_objects, dump_objects, \
 logger = logging.getLogger('backend')
 
 
+def thin_buffer(buffer, buffer_thinning, ensure_last=True):
+    """
+    Reduce a list of objects by a given value.
+
+    Parameters
+    ----------
+    buffer : list
+        of objects to be thinned
+    buffer_thinning : int
+        every nth object in list is returned
+    ensure_last : bool
+        enable to ensure that last object in list is returned
+    """
+    if ensure_last:
+        write_buffer = buffer[-1::-buffer_thinning]
+        write_buffer.reverse()
+    else:
+        write_buffer = buffer[::buffer_thinning]
+    return write_buffer
+
+
 class ArrayStepSharedLLK(BlockedStep):
     """
     Modified ArrayStepShared To handle returned larger point including the
@@ -110,7 +131,8 @@ class BaseChain(object):
         `model.unobserved_RVs` is used.
     """
 
-    def __init__(self, model=None, vars=None, buffer_size=5000):
+    def __init__(self, model=None, vars=None, buffer_size=5000,
+                 buffer_thinning=1):
 
         self.model = None
         self.vars = None
@@ -118,6 +140,7 @@ class BaseChain(object):
         self.chain = None
 
         self.buffer_size = buffer_size
+        self.buffer_thinning = buffer_thinning
         self.buffer = []
         self.count = 0
 
@@ -173,10 +196,11 @@ class FileChain(BaseChain):
     """
     def __init__(
             self, dir_path='', model=None, vars=None, buffer_size=5000,
-            progressbar=False, k=None):
+            buffer_thinning=1, progressbar=False, k=None):
 
         super(FileChain, self).__init__(
-            model=model, vars=vars, buffer_size=buffer_size)
+            model=model, vars=vars, buffer_size=buffer_size,
+            buffer_thinning=buffer_thinning)
 
         if not os.path.exists(dir_path):
             os.mkdir(dir_path)
@@ -341,6 +365,8 @@ class TextChain(FileChain):
     buffer_size : int
         this is the number of samples after which the buffer is written to disk
         or if the chain end is reached
+    buffer_thinning : int
+        every nth sample of the buffer is written to disk
     progressbar : boolean
         flag if a progressbar is active, if not a logmessage is printed
         everytime the buffer is written to disk
@@ -350,10 +376,11 @@ class TextChain(FileChain):
 
     def __init__(
             self, dir_path, model=None, vars=None,
-            buffer_size=5000, progressbar=False, k=None):
+            buffer_size=5000, buffer_thinning=1, progressbar=False, k=None):
 
         super(TextChain, self).__init__(
-            dir_path, model, vars, buffer_size, progressbar, k)
+            dir_path, model, vars, buffer_size=buffer_size,
+            progressbar=progressbar, k=k, buffer_thinning=buffer_thinning)
 
     def setup(self, draws, chain, overwrite=False):
         """
@@ -401,7 +428,6 @@ class TextChain(FileChain):
         def lpoint2file(filehandle, lpoint):
             columns = itertools.chain.from_iterable(
                 map(str, value.ravel()) for value in lpoint)
-
             filehandle.write(','.join(columns) + '\n')
 
         # Write binary
@@ -411,7 +437,10 @@ class TextChain(FileChain):
         try:
             with open(self.filename, mode="a+") as fh:
                 if lpoint is None:
-                    for lpoint, draw in self.buffer:
+                    # write out thinned buffer starting with last sample
+                    write_buffer = thin_buffer(
+                        self.buffer, self.buffer_thinning, ensure_last=True)
+                    for lpoint, draw in write_buffer:
                         lpoint2file(fh, lpoint)
 
                 else:
@@ -490,8 +519,12 @@ class TextChain(FileChain):
         self._load_df()
         pt = {}
         for varname in self.varnames:
+            # needs deepcopy otherwise reference to df is kept repetead calls
+            # lead to memory leak
             vals = self._df[self.flat_names[varname]].iloc[idx]
-            pt[varname] = vals.values.reshape(self.var_shapes[varname])
+            pt[varname] = copy.deepcopy(
+                vals.values.reshape(self.var_shapes[varname]))
+            del vals
         return pt
 
 
@@ -513,6 +546,8 @@ class NumpyChain(FileChain):
     buffer_size : int
         this is the number of samples after which the buffer is written to disk
         or if the chain end is reached
+    buffer_thinning : int
+        every nth sample of the buffer is written to disk
     progressbar : boolean
         flag if a progressbar is active, if not a logmessage is printed
         everytime the buffer is written to disk
@@ -527,11 +562,11 @@ class NumpyChain(FileChain):
 
     def __init__(
             self, dir_path, model=None, vars=None, buffer_size=5000,
-            progressbar=False, k=None):
+            progressbar=False, k=None, buffer_thinning=1):
 
         super(NumpyChain, self).__init__(
             dir_path, model, vars, progressbar=progressbar,
-            buffer_size=buffer_size, k=k)
+            buffer_size=buffer_size, buffer_thinning=buffer_thinning, k=k)
 
         self.k = k
 
@@ -635,7 +670,7 @@ class NumpyChain(FileChain):
             for names, array in zip(varnames, lpoint):
                 data[names] = array
 
-            data.tofile(fh)
+            data.tofile(filehandle)
 
         # Write binary
         if lpoint is None and len(self.buffer) == 0:
@@ -647,7 +682,9 @@ class NumpyChain(FileChain):
 
             with open(self.filename, mode="ab+") as fh:
                 if lpoint is None:
-                    for lpoint, draw in self.buffer:
+                    write_buffer = thin_buffer(
+                        self.buffer, self.buffer_thinning, ensure_last=True)
+                    for lpoint, draw in write_buffer:
                         lpoint2file(fh, self.varnames, data, lpoint)
                 else:
                     lpoint2file(fh, self.varnames, data, lpoint)
@@ -673,7 +710,6 @@ class NumpyChain(FileChain):
 
     def get_values(self, varname, burn=0, thin=1):
         self._load_df()
-
         data = self._df[varname]
         shape = (self._df.shape[0],) + self.var_shapes[varname]
         vals = data.ravel().reshape(shape)
@@ -694,8 +730,11 @@ class NumpyChain(FileChain):
         """
         idx = int(idx)
         self._load_df()
-        pt = {name: num.array(
-            self.get_values(name)[idx]) for name in self.varnames}
+        pt = {}
+        for varname in self.varnames:
+            data = self._df[varname][idx]
+            pt[varname] = data.reshape(self.var_shapes[varname])
+
         return pt
 
 
@@ -800,6 +839,9 @@ class SampleStage(object):
 
     def stage_path(self, stage):
         return os.path.join(self.base_dir, 'stage_{}'.format(stage))
+
+    def trans_stage_path(self, stage):
+        return os.path.join(self.base_dir, 'trans_stage_{}'.format(stage))
 
     def stage_number(self, stage_path):
         """
@@ -920,7 +962,25 @@ class SampleStage(object):
             dirname=dirname, chains=chains,
             varnames=varnames, backend=self.backend)
 
-    def recover_existing_results(self, stage, draws, step, varnames=None):
+    def recover_existing_results(
+            self, stage, draws, step,
+            buffer_thinning=1, varnames=None, update=None):
+
+        if stage > 0:
+            prev = stage - 1
+            if update is not None:
+                prev_stage_path = self.trans_stage_path(prev)
+            else:
+                prev_stage_path = self.stage_path(prev)
+
+            logger.info('Loading end points of last completed stage: '
+                        '%s' % prev_stage_path)
+            mtrace = load_multitrace(
+                dirname=prev_stage_path, varnames=varnames, backend=self.backend)
+
+            step.population, step.array_population, step.likelihoods = \
+                step.select_end_points(mtrace)
+
         stage_path = self.stage_path(stage)
         if os.path.exists(stage_path):
             # load incomplete stage results
@@ -930,7 +990,8 @@ class SampleStage(object):
                 # continue sampling if traces exist
                 logger.info('Checking for corrupted files ...')
                 return check_multitrace(
-                    mtrace, draws=draws, n_chains=step.n_chains)
+                    mtrace, draws=draws, n_chains=step.n_chains,
+                    buffer_thinning=buffer_thinning)
 
         logger.info('Init new trace!')
         return None
@@ -1000,7 +1061,7 @@ def load_multitrace(dirname, varnames=None, chains=None, backend='csv'):
         raise NotImplementedError('Loading trans-d trace is not implemented!')
 
 
-def check_multitrace(mtrace, draws, n_chains):
+def check_multitrace(mtrace, draws, n_chains, buffer_thinning=1):
     """
     Check multitrace for incomplete sampling and return indexes from chains
     that need to be resampled.
@@ -1019,6 +1080,9 @@ def check_multitrace(mtrace, draws, n_chains):
     list of indexes for chains that need to be resampled
     """
     not_sampled_idx = []
+    # apply buffer thinning
+    draws = int(num.ceil(draws / buffer_thinning))
+
     for chain in range(n_chains):
         if chain in mtrace.chains:
             chain_len = len(mtrace._straces[chain])

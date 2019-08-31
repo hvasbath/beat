@@ -26,8 +26,24 @@ logger = logging.getLogger('utility')
 
 DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype, name')
 
-kmtypes = set(['east_shift', 'north_shift', 'length', 'width', 'depth',
-               'distance', 'delta_depth'])
+locationtypes = {'east_shift', 'north_shift', 'depth', 'distance',
+           'delta_depth'}
+dimensiontypes = {'length', 'width'}
+mttypes = {'mnn', 'mee', 'mdd', 'mne', 'mnd', 'med'}
+degtypes = {'strike', 'dip', 'rake'}
+nucleationtypes = {'nucleation_x', 'nucleation_y'}
+
+kmtypes = set.union(locationtypes, dimensiontypes)
+grouped_vars = set.union(
+    kmtypes, mttypes, degtypes, nucleationtypes)
+
+unit_sets = {
+    'locationtypes': locationtypes,
+    'dimensiontypes': dimensiontypes,
+    'mttypes': mttypes,
+    'degtypes': degtypes,
+    'nucleationtypes': nucleationtypes,
+}
 
 seconds_str = '00:00:00'
 
@@ -243,6 +259,38 @@ class ListToArrayBijection(object):
             except ValueError:  # variable does not exist in array use dummy
                 a_list[list_ind] = num.atleast_1d(
                     num.ones(shp) * self.dummy).ravel()
+
+        return a_list
+
+    def a_nd2l(self, array):
+        """
+        Maps value from ndarray space (ndims, data) to List space
+        Inverse operation of fmap. Nd
+
+        Parameters
+        ----------
+        array : :class:`numpy.ndarray`
+
+        Returns
+        -------
+        a_list : list
+            of :class:`numpy.ndarray`
+        """
+
+        a_list = copy.copy(self.list_arrays)
+        nd = array.ndim
+        if nd != 2:
+            raise ValueError(
+                'Input array has wrong dimensions! Needed 2d array! Got %i' % nd)
+
+        for list_ind, slc, shp, dtype, _ in self.ordering.vmap:
+            shpnd = (array.shape[0], ) + shp
+            try:
+                a_list[list_ind] = num.atleast_2d(
+                    array)[:, slc].reshape(shpnd).astype(dtype)
+            except ValueError:  # variable does not exist in array use dummy
+                a_list[list_ind] = num.atleast_2d(
+                    num.ones(shpnd) * self.dummy)
 
         return a_list
 
@@ -984,8 +1032,7 @@ def repair_covariance(x, epsilon=num.finfo(num.float64).eps):
 
     eigval, eigvec = num.linalg.eigh(x)
     val = num.maximum(eigval, epsilon)
-    vec = num.matrix(eigvec)
-    return num.array(vec * num.diag(val) * vec.T)
+    return eigvec.dot(num.diag(val)).dot(eigvec.T)
 
 
 def running_window_rms(data, window_size, mode='valid'):
@@ -1388,3 +1435,11 @@ def time_method(loop=10000):
             # return func(*args, **kwargs)
         return wrap_func
     return timer_decorator
+
+
+def is_odd(value):
+    return (value & 1) == 1
+
+
+def is_even(value):
+    return (value & 1) == 0

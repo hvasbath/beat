@@ -20,9 +20,8 @@ from beat.sampler.base import _iter_sample, Proposal, choose_proposal, \
     ChainCounter, multivariate_proposals
 from beat.config import sample_p_outname
 
-from tqdm import tqdm
 from logging import getLogger, getLevelName
-from tqdm import tqdm
+
 from theano import config as tconfig
 
 from collections import OrderedDict
@@ -411,19 +410,25 @@ class TemperingManager(object):
 
         return package
 
+    def worker_a2l(self, m, source):
+        """
+        Map m from array to list space worker deoendend.
+        """
+        step = self.worker2package(source)['step']
+        return step.lij.a2l(m)
+
     def propose_chain_swap(self, m1, m2, source1, source2):
         """
         Propose a swap between chain samples.
 
         Parameters
         ----------
-
         """
+        llk1 = self.worker_a2l(m1, source1)
+        llk2 = self.worker_a2l(m2, source2)
+
         step1 = self.worker2package(source1)['step']
         step2 = self.worker2package(source2)['step']
-
-        llk1 = step1.lij.a2l(m1)
-        llk2 = step2.lij.a2l(m2)
 
         alpha = (step2.beta - step1.beta) * (
             llk1[step1._llk_index] - llk2[step2._llk_index])
@@ -460,7 +465,7 @@ class TemperingManager(object):
 def master_process(
         comm, tags, status, model, step, n_samples, swap_interval,
         beta_tune_interval, n_workers_posterior, homepath, progressbar,
-        buffer_size, resample, rm_flag):
+        buffer_size, buffer_thinning, resample, rm_flag):
     """
     Master process, that does the managing.
     Sends tasks to workers.
@@ -511,6 +516,7 @@ def master_process(
         dir_path=stage_handler.stage_path(stage),
         model=model,
         buffer_size=buffer_size,
+        buffer_thinning=buffer_thinning,
         progressbar=progressbar)
     trace.setup(n_samples, 0, overwrite=False)
     # TODO load starting points from existing trace
@@ -554,11 +560,10 @@ def master_process(
             if source in manager.get_posterior_workers():
                 count_sample += 1
                 counter(source)
-                trace.write(m, count_sample)
+                trace.write(manager.worker_a2l(m, source), count_sample)
                 steps_until_tune += 1
 
         m1, m2 = manager.propose_chain_swap(m1, m2, source1, source2)
-
         # beta updating
         if steps_until_tune >= beta_tune_interval:
             manager.tune_betas()
@@ -716,15 +721,14 @@ def sample_pt_chain(
                     step.proposal_name, scale=cov)
 
     rsamle = step.lij.l2a(strace.buffer[-1])
-    #print 'chain return', rsamle
     return rsamle
 
 
 def pt_sample(
         step, n_chains, n_samples=100000, start=None, swap_interval=(100, 300),
         beta_tune_interval=10000, n_workers_posterior=1, homepath='',
-        progressbar=True, buffer_size=5000, model=None, rm_flag=False,
-        resample=False, keep_tmp=False):
+        progressbar=True, buffer_size=5000, buffer_thinning=1, model=None,
+        rm_flag=False, resample=False, keep_tmp=False):
     """
     Paralell Tempering algorithm
 
@@ -761,6 +765,9 @@ def pt_sample(
     buffer_size : int
         this is the number of samples after which the buffer is written to disk
         or if the chain end is reached
+    buffer_thinning : int
+        every nth sample of the buffer is written to disk,
+        default: 1 (no thinning)
     model : :class:`pymc3.Model`
         (optional if in `with` context) has to contain deterministic
         variable name defined under step.likelihood_name' that contains the
@@ -787,8 +794,8 @@ def pt_sample(
 
     sampler_args = [
         step, n_samples, swap_interval, beta_tune_interval,
-        n_workers_posterior, homepath, progressbar, buffer_size, resample,
-        rm_flag]
+        n_workers_posterior, homepath, progressbar, buffer_size,
+        buffer_thinning, resample, rm_flag]
 
     project_dir = os.path.dirname(homepath)
     loglevel = getLevelName(logger.getEffectiveLevel()).lower()

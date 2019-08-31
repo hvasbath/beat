@@ -208,6 +208,7 @@ _mode_choices = [geometry_mode_str, ffi_mode_str]
 _regularization_choices = ['laplacian', 'none']
 _initialization_choices = ['random', 'lsq']
 _backend_choices = ['csv', 'bin']
+_datatype_choices = ['geodetic', 'seismic']
 
 
 class InconsistentParameterNaming(Exception):
@@ -1055,6 +1056,10 @@ class SamplerConfig(Object):
         default=5000,
         help='number of samples after which the result '
              'buffer is written to disk')
+    buffer_thinning = Int.T(
+        default=1,
+        help='Factor by which the result trace is thinned before '
+             'writing to disc.')
     parameters = SamplerParameters.T(
         default=SMCConfig.D(),
         optional=True,
@@ -1088,7 +1093,6 @@ class GFLibaryConfig(Object):
     """
     component = String.T(default='uparr')
     event = model.Event.T(default=model.Event.D())
-    datatype = String.T(default='undefined')
     crust_ind = Int.T(default=0)
     reference_sources = List.T(
         RectangularSource.T(),
@@ -1100,6 +1104,7 @@ class GeodeticGFLibraryConfig(GFLibaryConfig):
     Config for the linear Geodetic GF Library for dumping and loading.
     """
     dimensions = Tuple.T(2, Int.T(), default=(0, 0))
+    datatype = String.T(default='geodetic')
 
 
 class SeismicGFLibraryConfig(GFLibaryConfig):
@@ -1112,6 +1117,7 @@ class SeismicGFLibraryConfig(GFLibaryConfig):
     starttime_min = Float.T(default=0.)
     duration_min = Float.T(default=0.1)
     dimensions = Tuple.T(5, Int.T(), default=(0, 0, 0, 0, 0))
+    datatype = String.T(default='seismic')
 
 
 datatype_catalog = {

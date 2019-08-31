@@ -21,7 +21,7 @@ from beat.backend import backend_catalog, extract_bounds_from_summary
 from beat.sampler import SamplingHistory
 from beat.sources import MTSourceWithMagnitude
 from beat.utility import list2string
-from numpy import savez, atleast_2d
+from numpy import savez, atleast_2d, floor
 
 from pyrocko import model, util
 from pyrocko.trace import snuffle
@@ -119,7 +119,6 @@ mode_choices = [geometry_mode_str, ffi_mode_str]
 supported_geodetic_formats = ['matlab', 'ascii', 'kite']
 supported_geodetic_types = ['SAR', 'GNSS']
 supported_samplers = ['SMC', 'Metropolis', 'PT']
-
 
 def add_common_options(parser):
     parser.add_option(
@@ -594,6 +593,8 @@ def command_clone(args):
 
     command_str = 'clone'
 
+    from beat.config import _datatype_choices as datatype_choices
+
     def setup(parser):
 
         parser.add_option(
@@ -664,25 +665,32 @@ def command_clone(args):
             c.project_dir = cloned_dir
 
             new_datatypes = []
-            for datatype in options.datatypes:
-                if datatype not in c.problem_config.datatypes:
-                    logger.warn('Datatype %s to be cloned is not'
-                                ' in config! Adding to new config!' % datatype)
-                    c[datatype + '_config'] = \
-                        bconfig.datatype_catalog[datatype](mode=options.mode)
-                    re_init = True
+            for datatype in datatype_choices:
+                if datatype in options.datatypes:
+                    if datatype not in c.problem_config.datatypes:
+                        logger.warn('Datatype %s to be cloned is not'
+                                    ' in config! Adding to new config!' % datatype)
+                        c[datatype + '_config'] = \
+                            bconfig.datatype_catalog[datatype](mode=options.mode)
+                        re_init = True
+                    else:
+                        re_init = False
+
+                    new_datatypes.append(datatype)
+
+                    data_path = pjoin(project_dir, datatype + '_data.pkl')
+
+                    if os.path.exists(data_path) and options.copy_data:
+                        logger.info('Cloning %s data.' % datatype)
+                        cloned_data_path = pjoin(
+                            cloned_dir, datatype + '_data.pkl')
+                        shutil.copyfile(data_path, cloned_data_path)
                 else:
-                    re_init = False
-
-                new_datatypes.append(datatype)
-
-                data_path = pjoin(project_dir, datatype + '_data.pkl')
-
-                if os.path.exists(data_path) and options.copy_data:
-                    logger.info('Cloning %s data.' % datatype)
-                    cloned_data_path = pjoin(
-                        cloned_dir, datatype + '_data.pkl')
-                    shutil.copyfile(data_path, cloned_data_path)
+                    if datatype in c.problem_config.datatypes:
+                        logger.warning(
+                            'Removing datatype "%s" '
+                            'from cloned config!' % datatype)
+                        c[datatype + '_config'] = None
 
             c.problem_config.datatypes = new_datatypes
 
@@ -848,18 +856,25 @@ def command_summarize(args):
 
             if sampler_name == 'SMC':
                 result_check(stage.mtrace, min_length=2)
-                draws = sc_params.n_chains * sc_params.n_steps
+                draws = sc_params.n_chains
                 idxs = [-1]
+                chains = stage.mtrace.chains
             elif sampler_name == 'PT':
                 result_check(stage.mtrace, min_length=1)
-                draws = sc_params.n_samples
-                idxs = range(draws)
+                idxs = range(
+                    int(floor(sc_params.n_samples * sc_params.burn)),
+                    sc_params.n_samples,
+                    sc_params.thin)
+                draws = len(idxs)
+                chains = [0]
             else:
                 raise NotImplementedError(
                     'Summarize function still needs to be implemented '
                     'for %s sampler' % problem.config.sampler_config.name)
 
-            rtrace = backend_catalog[sc.backend](stage_path, model=problem.model)
+            rtrace = backend_catalog[sc.backend](
+                stage_path, model=problem.model, buffer_size=sc.buffer_size,
+                progressbar=False)
             rtrace.setup(
                 draws=draws, chain=-1, overwrite=True)
 
@@ -868,22 +883,24 @@ def command_summarize(args):
             else:
                 source = None
 
-            for chain in stage.mtrace.chains:
+            seisc = problem.composites['seismic']
+            for chain in chains:
                 for idx in idxs:
                     point = stage.mtrace.point(idx=idx, chain=chain)
-
                     if isinstance(source, MTSourceWithMagnitude):
-                        sc = problem.composites['seismic']
-                        sc.point2sources(point)
+                        seisc.point2sources(point)
                         ldicts = []
-                        for source in sc.sources:
+                        for source in seisc.sources:
                             ldicts.append(source.scaled_m6_dict)
 
                         jpoint = utility.join_points(ldicts)
                         point.update(jpoint)
+                        del jpoint, ldicts
 
                     lpoint = problem.model.lijection.d2l(point)
+                    # TODO: in PT with large buffer sizes somehow memory leak
                     rtrace.write(lpoint, draw=chain)
+                    del lpoint, point
 
                 if rm_flag:
                     # remove chain
@@ -1183,10 +1200,10 @@ def command_plot(args):
         parser.add_option(
             '--post_llk',
             dest='post_llk',
-            choices=['max', 'min', 'mean', 'all'],
+            choices=['max', 'min', 'mean', 'all', 'None'],
             default='max',
             help='Plot model with specified likelihood; "max", "min", "mean"'
-                 ' or "all"; Default: "max"')
+                 ' "None" or "all"; Default: "max"')
 
         parser.add_option(
             '--stage_number',

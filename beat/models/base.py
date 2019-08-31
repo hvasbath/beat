@@ -4,7 +4,7 @@ import os
 from beat import config as bconfig
 from beat.models import hyper_normal
 from beat import sampler
-from beat.backend import SampleStage
+from beat.backend import SampleStage, thin_buffer
 
 from pymc3 import Deterministic
 from collections import OrderedDict
@@ -149,6 +149,7 @@ def sample(step, problem):
             step=step,
             progressbar=sc.progressbar,
             buffer_size=sc.buffer_size,
+            buffer_thinning=sc.buffer_thinning,
             homepath=problem.outfolder,
             start=start,
             burn=pa.burn,
@@ -169,6 +170,7 @@ def sample(step, problem):
             n_jobs=pa.n_jobs,
             stage=pa.stage,
             update=update,
+            buffer_thinning=sc.buffer_thinning,
             homepath=problem.outfolder,
             buffer_size=sc.buffer_size,
             rm_flag=pa.rm_flag)
@@ -187,6 +189,7 @@ def sample(step, problem):
             homepath=problem.outfolder,
             progressbar=sc.progressbar,
             buffer_size=sc.buffer_size,
+            buffer_thinning=sc.buffer_thinning,
             model=problem.model,
             resample=pa.resample,
             rm_flag=pa.rm_flag)
@@ -236,12 +239,15 @@ def estimate_hypers(step, problem):
             initializer=init_chain_hypers,
             initargs=(problem,),
             buffer_size=sc.buffer_size,
+            buffer_thinning=sc.buffer_thinning,
             chunksize=int(pa.n_chains / pa.n_jobs))
 
+    thinned_chain_length = len(thin_buffer(
+        list(range(pa.n_steps)), sc.buffer_thinning, ensure_last=True))
     for v in problem.hypernames:
         i = pc.hyperparameters[v]
         d = mtrace.get_values(
-            v, combine=True, burn=int(pa.n_steps * pa.burn),
+            v, combine=True, burn=int(thinned_chain_length * pa.burn),
             thin=pa.thin, squeeze=True)
 
         lower = num.floor(d.min()) - 2.

@@ -316,9 +316,10 @@ class SMC(Metropolis):
 
 
 def smc_sample(
-        n_steps, step=None, start=None, homepath=None, chain=0,
-        stage=0, n_jobs=1, tune=None, progressbar=False, buffer_size=5000,
-        model=None, update=None, random_seed=None, rm_flag=False):
+        n_steps, step=None, start=None, homepath=None,
+        stage=0, n_jobs=1, progressbar=False, buffer_size=5000,
+        buffer_thinning=1, model=None, update=None, random_seed=None,
+        rm_flag=False):
     """
     Sequential Monte Carlo samlping
 
@@ -345,9 +346,6 @@ def smc_sample(
         with length of (n_chains)
         Starting points in parameter space (or partial point)
         Defaults to random draws from variables (defaults to empty dict)
-    chain : int
-        Chain number used to store sample in backend. If `n_jobs` is
-        greater than one, chain numbers will start here.
     stage : int
         Stage where to start or continue the calculation. It is possible to
         continue after completed stages (stage should be the number of the
@@ -357,8 +355,6 @@ def smc_sample(
         internal parallelisation. Sometimes this is more efficient especially
         for simple models.
         step.n_chains / n_jobs has to be an integer number!
-    tune : int
-        Number of iterations to tune, if applicable (defaults to None)
     homepath : string
         Result_folder for storing stages, will be created if not existing.
     progressbar : bool
@@ -366,6 +362,9 @@ def smc_sample(
     buffer_size : int
         this is the number of samples after which the buffer is written to disk
         or if the chain end is reached
+    buffer_thinning : int
+        every nth sample of the buffer is written to disk
+        default: 1 (no thinning)
     model : :class:`pymc3.Model`
         (optional if in `with` context) has to contain deterministic
         variable name defined under step.likelihood_name' that contains the
@@ -423,6 +422,7 @@ def smc_sample(
         step=step,
         stage=stage,
         progressbar=progressbar,
+        buffer_thinning=buffer_thinning,
         update=update,
         model=model,
         rm_flag=rm_flag)
@@ -449,7 +449,8 @@ def smc_sample(
                 'model': model,
                 'n_jobs': n_jobs,
                 'chains': chains,
-                'buffer_size': buffer_size}
+                'buffer_size': buffer_size,
+                'buffer_thinning': buffer_thinning}
 
             mtrace = iter_parallel_chains(**sample_args)
 

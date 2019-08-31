@@ -1,0 +1,226 @@
+--- !beat.BEATconfig
+name: LaquilaJointPonlyUPDATE
+date: '2009-04-06'
+event: !pf.Event
+  lat: 42.29
+  lon: 13.35
+  time: 2009-04-06 01:32:49.190000
+  name: 200904060132A
+  depth: 12000.0
+  magnitude: 6.343080192483292
+  region: CENTRAL ITALY
+  catalog: gCMT
+  moment_tensor: !pf.MomentTensor
+    mnn: 1.43e+18
+    mee: 1.87e+18
+    mdd: -3.3e+18
+    mne: 1.77e+18
+    mnd: -1.43e+18
+    med: 2.6900000000000003e+17
+    strike1: 120.23408298515041
+    dip1: 54.240869089580485
+    rake1: -112.81739742081386
+    strike2: 335.98575923255856
+    dip2: 41.58440373860804
+    rake2: -61.69749587601104
+    moment: 3.6696131948749036e+18
+    magnitude: 6.343080192483292
+  duration: 7.0
+project_dir: /home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE
+problem_config: !beat.ProblemConfig
+  mode: geometry
+  source_type: RectangularSource
+  stf_type: HalfSinusoid
+  decimation_factors:
+    geodetic: 4
+    seismic: 1
+  n_sources: 1
+  datatypes: [geodetic, seismic]
+  hyperparameters:
+    h_SAR: !beat.heart.Parameter
+      name: h_SAR
+      form: Uniform
+      lower: [-1.0]
+      upper: [5.0]
+      testvalue: [2.0]
+    h_any_P_0_Z: !beat.heart.Parameter
+      name: h_any_P_0_Z
+      form: Uniform
+      lower: [0.0]
+      upper: [3.0]
+      testvalue: [0.5]
+  priors:
+    depth: !beat.heart.Parameter
+      name: depth
+      form: Uniform
+      lower: [0.0]
+      upper: [5.0]
+      testvalue: [2.95]
+    dip: !beat.heart.Parameter
+      name: dip
+      form: Uniform
+      lower: [35.0]
+      upper: [65.0]
+      testvalue: [59.46]
+    east_shift: !beat.heart.Parameter
+      name: east_shift
+      form: Uniform
+      lower: [-5.0]
+      upper: [20.0]
+      testvalue: [10.64]
+    length: !beat.heart.Parameter
+      name: length
+      form: Uniform
+      lower: [5.0]
+      upper: [25.0]
+      testvalue: [12.4]
+    north_shift: !beat.heart.Parameter
+      name: north_shift
+      form: Uniform
+      lower: [-15.0]
+      upper: [10.0]
+      testvalue: [5.624]
+    nucleation_x: !beat.heart.Parameter
+      name: nucleation_x
+      form: Uniform
+      lower: [-1.0]
+      upper: [1.0]
+      testvalue: [-0.94]
+    nucleation_y: !beat.heart.Parameter
+      name: nucleation_y
+      form: Uniform
+      lower: [-1.0]
+      upper: [1.0]
+      testvalue: [-0.09508065]
+    rake: !beat.heart.Parameter
+      name: rake
+      form: Uniform
+      lower: [-180.0]
+      upper: [0.0]
+      testvalue: [-125.0]
+    slip: !beat.heart.Parameter
+      name: slip
+      form: Uniform
+      lower: [0.1]
+      upper: [1.0]
+      testvalue: [0.634]
+    strike: !beat.heart.Parameter
+      name: strike
+      form: Uniform
+      lower: [60.0]
+      upper: [180.0]
+      testvalue: [143.0]
+    time: !beat.heart.Parameter
+      name: time
+      form: Uniform
+      lower: [-20.0]
+      upper: [10.0]
+      testvalue: [-10.0]
+    width: !beat.heart.Parameter
+      name: width
+      form: Uniform
+      lower: [5.0]
+      upper: [20.0]
+      testvalue: [10.0]
+geodetic_config: !beat.GeodeticConfig
+  datadir: /home/vasyurhm/BEATS/RectangularStatic/insar
+  names: [Laquila_dscxn, Laquila_ascxn]
+  types: [SAR]
+  calc_data_cov: true
+  interpolation: multilinear
+  fit_plane: true
+  dataset_specific_residual_noise_estimation: true
+  gf_config: !beat.GeodeticGFConfig
+    store_superdir: /home/vasyurhm/GF/Laquila
+    reference_model_idx: 0
+    n_variations: [0, 1]
+    earth_model_name: ak135-f-continental.m
+    nworkers: 4
+    use_crust2: false
+    replace_water: false
+    source_depth_min: 0.0
+    source_depth_max: 35.0
+    source_depth_spacing: 1.0
+    source_distance_radius: 100.0
+    source_distance_spacing: 1.0
+    error_depth: 0.1
+    error_velocities: 0.1
+    depth_limit_variation: 600.0
+    code: psgrn
+    sample_rate: 1.1574074074074073e-05
+    sampling_interval: 1.0
+    medium_depth_spacing: 1.0
+    medium_distance_spacing: 1.0
+seismic_config: !beat.SeismicConfig
+  datadir: /home/vasyurhm/BEATS/LaquilaJoint/seismic_displ
+  noise_estimator: !beat.SeismicNoiseAnalyserConfig
+    structure: non-toeplitz
+    pre_arrival_time: 10.0
+  pre_stack_cut: true
+  station_corrections: false
+  waveforms:
+  - !beat.WaveformFitConfig
+    include: true
+    preprocess_data: true
+    name: any_P
+    channels: [Z]
+    filterer: !beat.heart.Filter
+      lower_corner: 0.001
+      upper_corner: 0.1
+      order: 4
+    distances: [30.0, 90.0]
+    interpolation: multilinear
+    arrival_taper: !beat.heart.ArrivalTaper
+      a: -15.0
+      b: -10.0
+      c: 40.0
+      d: 55.0
+  dataset_specific_residual_noise_estimation: false
+  gf_config: !beat.SeismicGFConfig
+    store_superdir: /home/vasyurhm/BEATS/GF
+    reference_model_idx: 0
+    n_variations: [0, 1]
+    earth_model_name: ak135-f-continental.m
+    nworkers: 4
+    use_crust2: false
+    replace_water: false
+    source_depth_min: 0.0
+    source_depth_max: 30.0
+    source_depth_spacing: 4.0
+    source_distance_radius: 50.0
+    source_distance_spacing: 4.0
+    error_depth: 0.1
+    error_velocities: 0.1
+    depth_limit_variation: 600.0
+    code: qssp
+    sample_rate: 0.5
+    rm_gfs: false
+sampler_config: !beat.SamplerConfig
+  name: SMC
+  progressbar: true
+  buffer_size: 5000
+  parameters: !beat.SMCConfig
+    tune_interval: 10
+    check_bnd: true
+    rm_flag: false
+    n_jobs: 4
+    n_steps: 100
+    n_chains: 1000
+    coef_variation: 1.0
+    stage: 0
+    proposal_dist: MultivariateCauchy
+    update_covariances: true
+hyper_sampler_config: !beat.SamplerConfig
+  name: Metropolis
+  progressbar: true
+  buffer_size: 5000
+  parameters: !beat.MetropolisConfig
+    tune_interval: 50
+    proposal_dist: Normal
+    check_bnd: true
+    rm_flag: false
+    n_jobs: 4
+    n_steps: 25000
+    n_chains: 12
+    thin: 5
+    burn: 0.5

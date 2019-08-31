@@ -11,7 +11,8 @@ import copy
 from beat import utility
 from beat.models import Stage, load_stage
 from beat.sampler.metropolis import get_trace_stats
-from beat.heart import init_seismic_targets, init_geodetic_targets
+from beat.heart import init_seismic_targets, init_geodetic_targets, \
+                       physical_bounds
 from beat.config import ffi_mode_str, geometry_mode_str, dist_vars
 
 from matplotlib import pyplot as plt
@@ -27,7 +28,7 @@ from pyrocko.guts import (Object, String, Dict, List,
 from pyrocko import util, trace
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.cake_plot import light
-from pyrocko.plot import beachball
+from pyrocko.plot import beachball, nice_value, AutoScaler
 
 import pyrocko.moment_tensor as mt
 from pyrocko.plot import mpl_papersize, mpl_init, mpl_graph_color, mpl_margins
@@ -308,7 +309,8 @@ def correlation_plot_hist(
         mtrace, varnames=None,
         transform=lambda x: x, figsize=None, hist_color='orange', cmap=None,
         grid=50, chains=None, ntickmarks=2, point=None,
-        point_style='.', point_color='red', point_size='4', alpha=0.35):
+        point_style='.', point_color='red', point_size=4, alpha=0.35,
+        unify=True):
     """
     Plot 2d marginals (with kernel density estimation) showing the correlations
     of the model parameters. In the main diagonal is shown the parameter
@@ -341,13 +343,18 @@ def correlation_plot_hist(
         color according to matplotlib convention
     point_size : str
         marker size according to matplotlib conventions
+    unify: bool
+        If true axis units that belong to one group e.g. [km] will
+        have common axis increments
 
     Returns
     -------
     fig : figure object
     axs : subplot axis handles
     """
-
+    fontsize = 9
+    ntickmarks_max = 2
+    label_pad = 25
     logger.info('Drawing correlation figure ...')
 
     if varnames is None:
@@ -372,6 +379,7 @@ def correlation_plot_hist(
             mtrace.get_values(
                 var, chains=chains, combine=True, squeeze=True))
 
+    hist_ylims = []
     for k in range(nvar):
         v_namea = varnames[k]
         a = d[v_namea]
@@ -385,7 +393,7 @@ def correlation_plot_hist(
                         reference = point[v_namea]
                         axs[l, k].axvline(
                             x=reference, color=point_color,
-                            lw=float(point_size) / 6.)
+                            lw=point_size / 4.)
                     else:
                         reference = None
                 else:
@@ -393,12 +401,13 @@ def correlation_plot_hist(
 
                 histplot_op(
                     axs[l, k], pmp.utils.make_2d(a), alpha=alpha,
-                    color='orange', tstd=0., reference=reference,
-                    ntickmarks=ntickmarks)
+                    color='orange', tstd=0., reference=reference)
+
                 axs[l, k].get_yaxis().set_visible(False)
                 format_axes(axs[l, k])
                 xticks = axs[l, k].get_xticks()
                 xlim = axs[l, k].get_xlim()
+                hist_ylims.append(axs[l, k].get_ylim())
             else:
                 b = d[v_nameb]
 
@@ -429,15 +438,41 @@ def correlation_plot_hist(
 
             if k == 0:
                 axs[l, k].set_ylabel(
-                    v_nameb + '\n ' + plot_units[hypername(v_nameb)])
+                    v_nameb + '\n ' + plot_units[hypername(v_nameb)],
+                    fontsize=fontsize)
+                if utility.is_odd(l):
+                    axs[l, k].tick_params(axis='y', pad=label_pad)
             else:
                 axs[l, k].get_yaxis().set_ticklabels([])
 
-            axs[l, k].tick_params(direction='in')
+            axs[l, k].tick_params(
+                axis='both', direction='in', labelsize=fontsize)
+            axs[l, k].tick_params(
+                axis='both', labelrotation=50.)
+            if utility.is_odd(k):
+                axs[l, k].tick_params(axis='x', pad=label_pad)
 
-        axs[l, k].set_xlabel(v_namea + '\n ' + plot_units[hypername(v_namea)])
+        axs[l, k].set_xlabel(
+            v_namea + '\n ' + plot_units[hypername(v_namea)], fontsize=fontsize)
+
+    if unify:
+        varnames_repeat_x = [
+            var_reap for varname in varnames for var_reap in (varname,) * nvar]
+        varnames_repeat_y = varnames * nvar
+        unitiesx = unify_tick_intervals(
+            axs, varnames_repeat_x, ntickmarks_max=ntickmarks_max, axis='x')
+        apply_unified_axis(
+            axs, varnames_repeat_x, unitiesx, axis='x', scale_factor=1.,
+            ntickmarks_max=ntickmarks_max)
+        apply_unified_axis(
+            axs, varnames_repeat_y, unitiesx, axis='y', scale_factor=1.,
+            ntickmarks_max=ntickmarks_max)
 
     for k in range(nvar):
+        if unify:
+            # reset histogram ylims after unify
+            axs[k, k].set_ylim(hist_ylims[k])
+
         for l in range(k):
             fig.delaxes(axs[l, k])
 
@@ -511,40 +546,31 @@ def get_result_point(stage, config, point_llk='max'):
     -------
     dict
     """
-    if config.sampler_config.name == 'Metropolis':
-        if stage.step is None:
-            raise AttributeError(
-                'Loading Metropolis results requires'
-                ' sampler parameters to be loaded!')
+    if point_llk != 'None':
+        sampler_name = config.sampler_config.name
+        if sampler_name == 'Metropolis':
+            if stage.step is None:
+                raise AttributeError(
+                    'Loading Metropolis results requires'
+                    ' sampler parameters to be loaded!')
 
-        sc = config.sampler_config.parameters
-        pdict, _ = get_trace_stats(
-            stage.mtrace, stage.step, sc.burn, sc.thin)
-        point = pdict[point_llk]
+            sc = config.sampler_config.parameters
+            pdict, _ = get_trace_stats(
+                stage.mtrace, stage.step, sc.burn, sc.thin)
+            point = pdict[point_llk]
+        elif sampler_name == 'SMC' or sampler_name == 'PT':
+            llk = stage.mtrace.get_values(
+                varname='like',
+                combine=True)
 
-    elif config.sampler_config.name == 'SMC':
-        llk = stage.mtrace.get_values(
-            varname='like',
-            combine=True)
+            posterior_idxs = utility.get_fit_indexes(llk)
 
-        posterior_idxs = utility.get_fit_indexes(llk)
-
-        point = stage.mtrace.point(idx=posterior_idxs[point_llk])
-
-    elif config.sampler_config.name == 'PT':
-        params = config.sampler_config.parameters
-        llk = stage.mtrace.get_values(
-            varname='like',
-            burn=int(params.n_samples * params.burn),
-            thin=params.thin)
-
-        posterior_idxs = utility.get_fit_indexes(llk)
-
-        point = stage.mtrace.point(idx=posterior_idxs[point_llk])
-
+            point = stage.mtrace.point(idx=posterior_idxs[point_llk])
+        else:
+            raise NotImplementedError(
+                'Sampler "%s" is not supported!' % config.sampler_config.name)
     else:
-        raise NotImplementedError(
-            'Sampler "%s" is not supported!' % config.sampler_config.name)
+        point = None
 
     return point
 
@@ -740,6 +766,12 @@ def geodetic_fits(problem, stage, plot_options):
         axes[2].get_xaxis().set_ticklabels([])
         axes[0].set_ylabel(ystr, fontsize=fontsize)
         axes[0].set_xlabel(xstr, fontsize=fontsize)
+        ticker = tick.MaxNLocator(nbins=3)
+
+        axes[0].get_xaxis().set_major_locator(ticker)
+        axes[0].get_yaxis().set_major_locator(ticker)
+        axes[0].tick_params(
+            axis='y', labelrotation=90.)
 
     def draw_coastlines(ax, xlim, ylim, event, scene, po):
         """
@@ -872,159 +904,162 @@ def geodetic_fits(problem, stage, plot_options):
         rx = math.floor(x * 1000.) / 1000.
         return [-rx, rx]
 
-    orbits_to_datasets = utility.gather(
-        composite.datasets,
-        lambda t: t.name,
-        filter=lambda t: t in dataset_to_result)
-
-    ott = orbits_to_datasets.keys()
-
     colims = [num.max([
         num.max(num.abs(r.processed_obs)),
         num.max(num.abs(r.processed_syn))]) for r in results]
     dcolims = [num.max(num.abs(r.processed_res)) for r in results]
 
     import string
-    for idata, o in enumerate(ott):
-        datasets = orbits_to_datasets[o]
+    for idata, dataset in enumerate(composite.datasets):
         subplot_letter = string.ascii_lowercase[idata]
-        for dataset in datasets:
-            try:
-                homepath = problem.config.geodetic_config.datadir
-                scene_path = os.path.join(homepath, dataset.name)
-                logger.info(
-                    'Loading full resolution kite scene: %s' % scene_path)
-                scene = Scene.load(scene_path)
-            except UserIOWarning:
-                logger.warn(
-                    'Full resolution data could not be loaded! Skipping ...')
-                continue
+        try:
+            homepath = problem.config.geodetic_config.datadir
+            scene_path = os.path.join(homepath, dataset.name)
+            logger.info(
+                'Loading full resolution kite scene: %s' % scene_path)
+            scene = Scene.load(scene_path)
+        except UserIOWarning:
+            logger.warn(
+                'Full resolution data could not be loaded! Skipping ...')
+            continue
 
-            if scene.frame.isMeter():
-                offset_n, offset_e = map(float, otd.latlon_to_ne_numpy(
-                    scene.frame.llLat, scene.frame.llLon,
-                    sources[0].lat, sources[0].lon))
+        if scene.frame.isMeter():
+            offset_n, offset_e = map(float, otd.latlon_to_ne_numpy(
+                scene.frame.llLat, scene.frame.llLon,
+                sources[0].lat, sources[0].lon))
 
-            elif scene.frame.isDegree():
-                offset_n = sources[0].lat - scene.frame.llLat
-                offset_e = sources[0].lon - scene.frame.llLon
+        elif scene.frame.isDegree():
+            offset_n = sources[0].lat - scene.frame.llLat
+            offset_e = sources[0].lon - scene.frame.llLon
 
-            im_extent = (scene.frame.E.min() - offset_e,
-                         scene.frame.E.max() - offset_e,
-                         scene.frame.N.min() - offset_n,
-                         scene.frame.N.max() - offset_n)
+        im_extent = (scene.frame.E.min() - offset_e,
+                     scene.frame.E.max() - offset_e,
+                     scene.frame.N.min() - offset_n,
+                     scene.frame.N.max() - offset_n)
 
-            urE, urN, llE, llN = (0., 0., 0., 0.)
+        urE, urN, llE, llN = (0., 0., 0., 0.)
 
-            turE, turN, tllE, tllN = zip(
-                *[(l.gridE.max() - offset_e,
-                   l.gridN.max() - offset_n,
-                   l.gridE.min() - offset_e,
-                   l.gridN.min() - offset_n)
-                  for l in scene.quadtree.leaves])
+        turE, turN, tllE, tllN = zip(
+            *[(l.gridE.max() - offset_e,
+               l.gridN.max() - offset_n,
+               l.gridE.min() - offset_e,
+               l.gridN.min() - offset_n)
+              for l in scene.quadtree.leaves])
 
-            turE, turN = map(max, (turE, turN))
-            tllE, tllN = map(min, (tllE, tllN))
-            urE, urN = map(max, ((turE, urE), (urN, turN)))
-            llE, llN = map(min, ((tllE, llE), (llN, tllN)))
+        turE, turN = map(max, (turE, turN))
+        tllE, tllN = map(min, (tllE, tllN))
+        urE, urN = map(max, ((turE, urE), (urN, turN)))
+        llE, llN = map(min, ((tllE, llE), (llN, tllN)))
 
-            lat, lon = otd.ne_to_latlon(
-                sources[0].lat, sources[0].lon,
-                num.array([llN, urN]), num.array([llE, urE]))
+        lat, lon = otd.ne_to_latlon(
+            sources[0].lat, sources[0].lon,
+            num.array([llN, urN]), num.array([llE, urE]))
 
-            result = dataset_to_result[dataset]
-            tidx = dataset_index[dataset]
+        result = dataset_to_result[dataset]
+        tidx = dataset_index[dataset]
 
-            figidx, rowidx = utility.mod_i(tidx, ndmax)
-            axs = axes[figidx][rowidx, :]
+        figidx, rowidx = utility.mod_i(tidx, ndmax)
+        axs = axes[figidx][rowidx, :]
 
-            imgs = []
-            for ax, data_str in zip(axs, ['obs', 'syn', 'res']):
-                logger.info('Plotting %s' % data_str)
-                datavec = getattr(result, 'processed_%s' % data_str)
+        imgs = []
+        for ax, data_str in zip(axs, ['obs', 'syn', 'res']):
+            logger.info('Plotting %s' % data_str)
+            datavec = getattr(result, 'processed_%s' % data_str)
 
-                if data_str == 'res' and po.plot_projection == 'local':
-                    vmin = -dcolims[tidx]
-                    vmax = dcolims[tidx]
-                else:
-                    vmin = -colims[tidx]
-                    vmax = colims[tidx]
+            if data_str == 'res' and po.plot_projection == 'local':
+                vmin = -dcolims[tidx]
+                vmax = dcolims[tidx]
+            else:
+                vmin = -colims[tidx]
+                vmax = colims[tidx]
 
-                imgs.append(ax.imshow(
-                    mapDisplacementGrid(datavec, scene),
-                    extent=im_extent, cmap=cmap,
-                    vmin=vmin, vmax=vmax,
-                    origin='lower'))
+            imgs.append(ax.imshow(
+                mapDisplacementGrid(datavec, scene),
+                extent=im_extent, cmap=cmap,
+                vmin=vmin, vmax=vmax,
+                origin='lower'))
 
-                ax.set_xlim(llE, urE)
-                ax.set_ylim(llN, urN)
+            ax.set_xlim(llE, urE)
+            ax.set_ylim(llN, urN)
 
-                draw_leaves(ax, scene, offset_e, offset_n)
-                draw_coastlines(
-                    ax, lon, lat, sources[0], scene, po)
+            draw_leaves(ax, scene, offset_e, offset_n)
+            draw_coastlines(
+                ax, lon, lat, sources[0], scene, po)
 
-            fontdict = {
-                'fontsize': fontsize,
-                'fontweight': 'bold',
-                'verticalalignment': 'top'}
+        fontdict = {
+            'fontsize': fontsize,
+            'fontweight': 'bold',
+            'verticalalignment': 'top'}
 
-            axes[figidx][rowidx, 0].text(
-                .025, 1.025, '({}) {}'.format(subplot_letter, o),
-                fontsize=fontsize_title, alpha=1.,
-                va='bottom', transform=axes[figidx][rowidx, 0].transAxes)
-            for i, quantity in enumerate(['data', 'model', 'residual']):
-                axes[figidx][rowidx, i].set_title(quantity, fontdict, y=0.935)
+        transform = axes[figidx][rowidx, 0].transAxes
 
+        if dataset.name[-5::] == 'dscxn':
+            title = 'descending'
+        elif dataset.name[-5::] == 'ascxn':
+            title = 'ascending'
+        else:
+            title = dataset.name
+
+        axes[figidx][rowidx, 0].text(
+            .025, 1.025, '({}) {}'.format(subplot_letter, title),
+            fontsize=fontsize_title, alpha=1.,
+            va='bottom', transform=transform)
+        for i, quantity in enumerate(['data', 'model', 'residual']):
+            transform = axes[figidx][rowidx, i].transAxes
+            axes[figidx][rowidx, i].text(
+                0.5, 0.95, quantity, fontdict, transform=transform,
+                horizontalalignment='center')
+
+        draw_sources(
+            axes[figidx][rowidx, 1], sources, scene, po)
+
+        if ref_sources:
+            ref_color = scolor('aluminium4')
+            logger.info('Plotting reference sources')
             draw_sources(
-                axes[figidx][rowidx, 1], sources, scene, po)
+                axes[figidx][rowidx, 1],
+                ref_sources, scene, po, color=ref_color)
 
-            if ref_sources:
-                ref_color = scolor('aluminium4')
-                logger.info('Plotting reference sources')
-                draw_sources(
-                    axes[figidx][rowidx, 1],
-                    ref_sources, scene, po, color=ref_color)
+        f = factors[figidx]
+        if f > 2. / 3:
+            cbb = (0.68 - (0.3075 * rowidx))
+        elif f > 1. / 2:
+            cbb = (0.53 - (0.47 * rowidx))
+        elif f > 1. / 4:
+            cbb = (0.06)
 
-            f = factors[figidx]
-            if f > 2. / 3:
-                cbb = (0.68 - (0.3075 * rowidx))
-            elif f > 1. / 2:
-                cbb = (0.53 - (0.47 * rowidx))
-            elif f > 1. / 4:
-                cbb = (0.06)
+        cbl = 0.46
+        cbw = 0.15
+        cbh = 0.01
 
-            cbl = 0.46
-            cbw = 0.15
-            cbh = 0.01
+        cbaxes = figures[figidx].add_axes([cbl, cbb, cbw, cbh])
 
-            cbaxes = figures[figidx].add_axes([cbl, cbb, cbw, cbh])
+        cblabel = 'LOS displacement [m]'
+        cbs = plt.colorbar(
+            imgs[1],
+            ax=axes[figidx][rowidx, 0],
+            ticks=cbtick(colims[tidx]),
+            cax=cbaxes,
+            orientation='horizontal',
+            cmap=cmap)
+        cbs.set_label(cblabel, fontsize=fontsize)
 
-            cblabel = 'LOS displacement [m]'
-            cbs = plt.colorbar(
-                imgs[1],
-                ax=axes[figidx][rowidx, 0],
-                ticks=cbtick(colims[tidx]),
-                cax=cbaxes,
+        if po.plot_projection == 'local':
+            dcbaxes = figures[figidx].add_axes([cbl + 0.3, cbb, cbw, cbh])
+            cbr = plt.colorbar(
+                imgs[2],
+                ax=axes[figidx][rowidx, 2],
+                ticks=cbtick(dcolims[tidx]),
+                cax=dcbaxes,
                 orientation='horizontal',
                 cmap=cmap)
-            cbs.set_label(cblabel, fontsize=fontsize)
+            cbr.set_label(cblabel, fontsize=fontsize)
 
-            if po.plot_projection == 'local':
-                dcbaxes = figures[figidx].add_axes([cbl + 0.3, cbb, cbw, cbh])
-                cbr = plt.colorbar(
-                    imgs[2],
-                    ax=axes[figidx][rowidx, 2],
-                    ticks=cbtick(dcolims[tidx]),
-                    cax=dcbaxes,
-                    orientation='horizontal',
-                    cmap=cmap)
-                cbr.set_label(cblabel, fontsize=fontsize)
+        axis_config(axes[figidx][rowidx, :], sources[0], scene, po)
+        addArrow(axes[figidx][rowidx, 0], scene)
 
-            axis_config(axes[figidx][rowidx, :], sources[0], scene, po)
-            addArrow(axes[figidx][rowidx, 0], scene)
-
-            del scene
-            gc.collect()
+        del scene
+        gc.collect()
 
     return figures
 
@@ -1115,9 +1150,9 @@ def seismic_fits(problem, stage, plot_options):
     po = plot_options
 
     if not po.reference:
-        point = get_result_point(stage, problem.config, po.post_llk)
+        best_point = get_result_point(stage, problem.config, po.post_llk)
     else:
-        point = po.reference
+        best_point = po.reference
 
     if plot_options.nensemble > 1:
         from tqdm import tqdm
@@ -1134,16 +1169,20 @@ def seismic_fits(problem, stage, plot_options):
             results = composite.assemble_results(point)
             ens_results.append(results)
 
-    # gcms = point['seis_like']
-    # gcm_max = d['like']
+    if best_point:
+        bresults = composite.assemble_results(best_point)
+    else:
+        # get dummy results for data
+        bresults = composite.assemble_results(point)
+        best_point = point
 
-    bresults = composite.assemble_results(point)
     try:
-        composite.point2sources(point, input_depth='center')
+        composite.point2sources(best_point, input_depth='center')
         source = composite.sources[0]
     except AttributeError:
         logger.info('FFI waveform fit, using reference source ...')
         source = composite.config.gf_config.reference_sources[0]
+        source.time = composite.event.time
 
     logger.info('Plotting waveforms ...')
     target_to_results = {}
@@ -1329,14 +1368,16 @@ def seismic_fits(problem, stage, plot_options):
                 syn_color = scolor('scarletred2')
                 misfit_color = scolor('scarletred2')
 
-                plot_dtrace(
-                    axes2, dtrace, space, 0., 1.,
-                    fc=light(misfit_color, 0.3),
-                    ec=misfit_color, zorder=4)
+                if best_point:
+                    # only draw if highlighted point exists
+                    plot_dtrace(
+                        axes2, dtrace, space, 0., 1.,
+                        fc=light(misfit_color, 0.3),
+                        ec=misfit_color, zorder=4)
 
-                plot_trace(
-                    axes, result.processed_syn,
-                    color=syn_color, lw=0.5, zorder=5)
+                    plot_trace(
+                        axes, result.processed_syn,
+                        color=syn_color, lw=0.5, zorder=5)
 
                 plot_trace(
                     axes, result.processed_obs,
@@ -1356,12 +1397,12 @@ def seismic_fits(problem, stage, plot_options):
                 for tmark, text, ha, va in [
                         (tmarks[0],
                          '$\,$ ' + str_duration(tmarks[0] - source.time),
-                         'right',
+                         'left',
                          'bottom'),
                         (tmarks[1],
                          '$\Delta$ ' + str_duration(tmarks[1] - tmarks[0]),
-                         'left',
-                         'top')]:
+                         'right',
+                         'bottom')]:
 
                     axes2.annotate(
                         text,
@@ -1456,22 +1497,43 @@ def draw_seismic_fits(problem, po):
                 fig.savefig(outpath + '_%i.%s' % (i, po.outformat), dpi=po.dpi)
 
 
-def draw_fuzzy_beachball(problem, po):
+def point2array(point, varnames):
+    """
+    Concatenate values of point according to order of given varnames.
+    """
+    if point != None:
+        array = num.empty((len(varnames)), dtype='float64')
+        for i, varname in enumerate(varnames):
+            array[i] = point[varname].ravel()
 
-    if problem.config.problem_config.n_sources > 1:
-        raise NotImplementedError(
-            'Fuzzy beachball is not yet implemented for more than one source!')
+        return array
+    else:
+        return None
 
-    if po.load_stage is None:
-        po.load_stage = -1
 
-    varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
+def extract_mt_components(problem, po, include_magnitude=False):
+    """
+    Extract Moment Tensor components from problem results for plotting.
+    """
+    source_type = problem.config.problem_config.source_type
+    if source_type == 'MTSource':
+        varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
+    elif source_type == 'DCSource':
+        varnames = ['strike', 'dip', 'rake']
+    else:
+        raise ValueError(
+            'Plot is only supported for point "MTSource" and "DCSource"')
+
+    if include_magnitude:
+        varnames += ['magnitude']
+
     if not po.reference:
         llk_str = po.post_llk
-        stage = load_stage(problem, stage_number=po.load_stage, load='trace', chains=[-1])
+        stage = load_stage(
+            problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
         n_mts = len(stage.mtrace)
-        m6s = num.empty((n_mts, 6), dtype='float64')
+        m6s = num.empty((n_mts, len(varnames)), dtype='float64')
         for i, varname in enumerate(varnames):
             m6s[:, i] = stage.mtrace.get_values(
                 varname, combine=True, squeeze=True).ravel()
@@ -1485,12 +1547,22 @@ def draw_fuzzy_beachball(problem, po):
         best_mt = point2array(point, varnames=varnames)
     else:
         llk_str = 'ref'
-        m6s = num.empty((1, 6), dtype='float64')
-        for i, varname in enumerate(
-                ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
-            m6s[:, i] = po.reference[varname].ravel()
-
+        m6s = [point2array(point=po.reference, varnames=varnames)]
         best_mt = None
+
+    return m6s, best_mt, llk_str
+
+
+def draw_fuzzy_beachball(problem, po):
+
+    if problem.config.problem_config.n_sources > 1:
+        raise NotImplementedError(
+            'Fuzzy beachball is not yet implemented for more than one source!')
+
+    if po.load_stage is None:
+        po.load_stage = -1
+
+    m6s, best_mt, llk_str = extract_mt_components(problem, po)
 
     logger.info('Drawing Fuzzy Beachball ...')
 
@@ -1530,17 +1602,6 @@ def draw_fuzzy_beachball(problem, po):
 
     else:
         logger.info('Plot already exists! Please use --force to overwrite!')
-
-
-def point2array(point, varnames):
-    """
-    Concatenate values of point according to order of given varnames.
-    """
-    array = num.empty((len(varnames)), dtype='float64')
-    for i, varname in enumerate(varnames):
-        array[i] = point[varname].ravel()
-
-    return array
 
 
 def fuzzy_mt_decomposition(
@@ -1719,33 +1780,7 @@ def draw_fuzzy_mt_decomposition(problem, po):
     if po.load_stage is None:
         po.load_stage = -1
 
-    varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med', 'magnitude']
-    if not po.reference:
-        llk_str = po.post_llk
-        stage = load_stage(
-            problem, stage_number=po.load_stage, load='trace', chains=[-1])
-
-        n_mts = len(stage.mtrace)
-        m6s = num.empty((n_mts, len(varnames)), dtype='float64')
-        for i, varname in enumerate(varnames):
-            m6s[:, i] = stage.mtrace.get_values(
-                varname, combine=True, squeeze=True).ravel()
-
-        csteps = float(n_mts) / po.nensemble
-        idxs = num.floor(
-            num.arange(0, n_mts, csteps)).astype('int32')
-        m6s = m6s[idxs, :]
-
-        point = get_result_point(stage, problem.config, po.post_llk)
-        best_mt = point2array(point, varnames=varnames)
-    else:
-        llk_str = 'ref'
-        m6s = num.empty((1, 6), dtype='float64')
-        for i, varname in enumerate(
-                ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']):
-            m6s[:, i] = po.reference[varname].ravel()
-
-        best_mt = None
+    m6s, _, llk_str = extract_mt_components(problem, po, include_magnitude=True)
 
     outpath = os.path.join(
         problem.outfolder,
@@ -1789,28 +1824,7 @@ def draw_hudson(problem, po):
     if po.load_stage is None:
         po.load_stage = -1
 
-    varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
-    if not po.reference:
-        llk_str = po.post_llk
-        stage = load_stage(problem, stage_number=po.load_stage, load='trace', chains=[-1])
-
-        n_mts = len(stage.mtrace)
-        m6s = num.empty((n_mts, 6), dtype='float64')
-        for i, varname in enumerate(varnames):
-            m6s[:, i] = stage.mtrace.get_values(
-                varname, combine=True, squeeze=True).ravel()
-
-        csteps = float(n_mts) / po.nensemble
-        idxs = num.floor(
-            num.arange(0, n_mts, csteps)).astype('int32')
-        m6s = m6s[idxs, :]
-
-        point = get_result_point(stage, problem.config, po.post_llk)
-        best_mt = point2array(point, varnames=varnames)
-    else:
-        llk_str = 'ref'
-        m6s = [point2array(point=po.reference, varnames=varnames)]
-        best_mt = None
+    m6s, best_mt, llk_str = extract_mt_components(problem, po)
 
     logger.info('Drawing Hudson plot ...')
 
@@ -1832,7 +1846,7 @@ def draw_hudson(problem, po):
         mt = mtm.as_mt(m6)
         u, v = hudson.project(mt)
 
-        if random.random() < 0.1:
+        if random.random() < 0.05:
             try:
                 beachball.plot_beachball_mpl(
                     mt, axes,
@@ -1880,7 +1894,7 @@ def draw_hudson(problem, po):
     mt = problem.event.moment_tensor
     u, v = hudson.project(mt)
 
-    if po.reference:
+    if not po.reference:
         try:
             beachball.plot_beachball_mpl(
                 mt, axes,
@@ -1915,7 +1929,7 @@ def draw_hudson(problem, po):
 
 def histplot_op(
         ax, data, reference=None, alpha=.35, color=None, bins=None,
-        ntickmarks=5, tstd=None, kwargs={}):
+        tstd=None, kwargs={}):
     """
     Modified from pymc3. Additional color argument.
     """
@@ -1952,8 +1966,98 @@ def histplot_op(
 
         ax.set_xlim(leftb, rightb)
         xax = ax.get_xaxis()
-        xticker = tick.MaxNLocator(nbins=ntickmarks)
-        xax.set_major_locator(xticker)
+
+
+def unify_tick_intervals(axs, varnames, ntickmarks_max=5, axis='x'):
+    """
+    Take figure axes objects and determine unit ranges between common
+    unit classes (see utility.grouped_vars). Assures that the number of
+    increments is not larger than ntickmarks_max. Will thus overwrite
+
+    Returns
+    -------
+    dict : with types_sets keys and (min_range, max_range) as values
+    """
+    unities = {}
+    for setname in utility.unit_sets.keys():
+        unities[setname] = [num.inf, -num.inf]
+
+    def extract_type_range(ax, varname, unities):
+        for setname, ranges in unities.items():
+            if axis == 'x':
+                varrange = num.diff(ax.get_xlim())
+            elif axis == 'y':
+                varrange = num.diff(ax.get_ylim())
+            else:
+                raise ValueError('Only "x" or "y" allowed!')
+
+            tset = utility.unit_sets[setname]
+            min_range, max_range = ranges
+            if varname in tset:
+                new_ranges = copy.deepcopy(ranges)
+                if varrange < min_range:
+                    new_ranges[0] = varrange
+                if varrange > max_range:
+                    new_ranges[1] = varrange
+
+                unities[setname] = new_ranges
+
+    for ax, varname in zip(axs.ravel('F'), varnames):
+        extract_type_range(ax, varname, unities)
+
+    for setname, ranges in unities.items():
+        min_range, max_range = ranges
+        max_range_frac = max_range / ntickmarks_max
+        if max_range_frac > min_range:
+            logger.debug(
+                'Range difference between min and max for %s is large!'
+                ' Extending min_range to %f' % (
+                setname, max_range_frac))
+            unities[setname] = [max_range_frac, max_range]
+
+    return unities
+
+
+def apply_unified_axis(axs, varnames, unities, axis='x', ntickmarks_max=3,
+                       scale_factor=2 / 3):
+    for ax, v in zip(axs.ravel('F'), varnames):
+        if v in utility.grouped_vars:
+            for setname, varrange in unities.items():
+                if v in utility.unit_sets[setname]:
+                    inc = nice_value(varrange[0] * scale_factor)
+                    autos = AutoScaler(
+                        inc=inc, snap='on', approx_ticks=ntickmarks_max)
+                    if axis == 'x':
+                        min, max = ax.get_xlim()
+                    elif axis == 'y':
+                        min, max = ax.get_ylim()
+
+                    min, max, sinc = autos.make_scale(
+                        (min, max), override_mode='min-max')
+
+                    # check physical bounds if passed truncate
+                    phys_min, phys_max = physical_bounds[v]
+                    if min < phys_min:
+                        min = phys_min
+                    if max > phys_max:
+                        max = phys_max
+
+                    if axis == 'x':
+                        ax.set_xlim((min, max))
+                    elif axis == 'y':
+                        ax.set_ylim((min, max))
+
+                    ticks = num.arange(min, max + inc, inc).tolist()
+                    if axis == 'x':
+                        ax.xaxis.set_ticks(ticks)
+                    elif axis == 'y':
+                        ax.yaxis.set_ticks(ticks)
+        else:
+            ticker = tick.MaxNLocator(nbins=3)
+            if axis == 'x':
+                ax.get_xaxis().set_major_locator(ticker)
+            elif axis == 'y':
+                ax.get_yaxis().set_major_locator(ticker)
 
 
 def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
@@ -1961,7 +2065,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
               varbins=None, nbins=40, color=None, source_idxs=None,
               alpha=0.35, priors=None, prior_alpha=1, prior_style='--',
               axs=None, posterior=None, fig=None, plot_style='kde',
-              prior_bounds={}, kwargs={}):
+              prior_bounds={}, unify=True, kwargs={}):
     """
     Plots posterior pdfs as histograms from multiple mtrace objects.
 
@@ -2005,6 +2109,9 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         Matplotlib axes. Defaults to None.
     fig : figure
         Matplotlib figure. Defaults to None.
+    unify : bool
+        If true axis units that belong to one group e.g. [km] will
+        have common axis increments
     kwargs : dict
         for histplot op
 
@@ -2013,6 +2120,11 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
     ax : matplotlib axes
     """
+    ntickmarks = 2
+    fontsize = 10
+    ntickmarks_max = kwargs.pop('ntickmarks_max', 3)
+    scale_factor = kwargs.pop('scale_factor', 2 / 3)
+
     num.set_printoptions(precision=3)
 
     def make_bins(data, nbins=40):
@@ -2034,7 +2146,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     if 'seis_like' in varnames:
         remove_var(varnames, varname='seis_like')
 
-    if posterior:
+    if posterior != 'None':
         llk = trace.get_values(
             'like', combine=combined, chains=chains, squeeze=False)
         llk = num.squeeze(transform(llk[0]))
@@ -2050,7 +2162,6 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     n = len(varnames)
     nrow = int(num.ceil(n / 2.))
     ncol = 2
-    fontsize = 10
 
     n_fig = nrow * ncol
     if figsize is None:
@@ -2165,9 +2276,12 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
                             title = '{} {}'.format(v, plot_units[hypername(v)])
                         else:
-                            lower, upper = param.lower, param.upper
+                            lower = num.array2string(
+                                param.lower, separator=',')[1:-1]
+                            upper = num.array2string(
+                                param.upper, separator=',')[1:-1]
 
-                            title = '{} {} priors: {}, {}'.format(
+                            title = '{} {} priors: ({}; {})'.format(
                                 v, plot_units[hypername(v)], lower, upper)
                     except KeyError:
                         try:
@@ -2175,7 +2289,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         except KeyError:
                             title = '{} {}'.format(v, plot_units[hypername(v)])
 
-                    axs[rowi, coli].set_title(title, fontsize=fontsize + 2)
+                    axs[rowi, coli].set_xlabel(title, fontsize=fontsize)
                     axs[rowi, coli].grid(grid)
                     axs[rowi, coli].set_yticks([])
                     axs[rowi, coli].set_yticklabels([])
@@ -2190,7 +2304,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                         except KeyError:
                             pass
 
-                    if posterior:
+                    if posterior != 'None':
                         if posterior == 'all':
                             for k, idx in posterior_idxs.items():
                                 axs[rowi, coli].axvline(
@@ -2200,8 +2314,14 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                             axs[rowi, coli].axvline(
                                 x=e[idx], color=pcolor, lw=1.)
 
+    if unify:
+        unities = unify_tick_intervals(
+            axs, varnames, ntickmarks_max=ntickmarks_max, axis='x')
+        apply_unified_axis(axs, varnames, unities, axis='x',
+                           scale_factor=scale_factor)
+
     if source_idxs:
-        axs[rowi, coli].legend(source_idxs)
+        axs[0, 0].legend(source_idxs)
 
     fig.tight_layout()
     return fig, axs, varbins
@@ -2300,8 +2420,6 @@ def draw_posteriors(problem, plot_options):
             draws = 1
         elif s == -1 and not hypers and sc.name == 'Metropolis':
             draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
-        elif s == -1 and not hypers and sc.name == 'PT':
-            draws = sc.parameters.n_samples
         else:
             draws = None
 
@@ -2345,7 +2463,7 @@ def draw_posteriors(problem, plot_options):
                 source_idxs=po.source_idxs,
                 plot_style='hist',
                 lines=po.reference,
-                posterior='max',
+                posterior=po.post_llk,
                 prior_bounds=prior_bounds)
 
             if not po.outformat == 'display':
@@ -2399,8 +2517,6 @@ def draw_correlation_hist(problem, plot_options):
 
     if po.load_stage is None and not hypers and sc.name == 'Metropolis':
         draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
-    if po.load_stage == -1 and not hypers and sc.name == 'PT':
-        draws = sc.parameters.n_samples
     else:
         draws = None
 
@@ -2434,7 +2550,7 @@ def draw_correlation_hist(problem, plot_options):
             cmap=plt.cm.gist_earth_r,
             chains=chains,
             point=reference,
-            point_size='8',
+            point_size=6,
             point_color='red')
     else:
         logger.info('correlation plot exists. Use force=True for replotting!')
@@ -2451,10 +2567,14 @@ def n_model_plot(models, axes=None, draw_bg=True, highlightidx=[]):
     """
     Plot cake layered earth models.
     """
+    fontsize = 10
     if axes is None:
-        mpl_init(fontsize=12)
+        mpl_init(fontsize=fontsize)
         fig, axes = plt.subplots(
-            nrows=1, ncols=1, figsize=mpl_papersize('a5', 'portrait'))
+            nrows=1, ncols=1, figsize=mpl_papersize('a6', 'portrait'))
+        labelpos = mpl_margins(
+            fig, left=6, bottom=4, top=1.5, right=0.5, units=fontsize)
+        labelpos(axes, 2., 1.5)
 
     def plot_profile(mod, axes, vp_c, vs_c, lw=0.5):
         z = mod.profile('z')
@@ -2496,7 +2616,7 @@ def n_model_plot(models, axes=None, draw_bg=True, highlightidx=[]):
     xmin = 0.
     my = (ymax - ymin) * 0.05
     mx = (xmax - xmin) * 0.2
-    axes.set_ylim(ymax + my, ymin - my)
+    axes.set_ylim(ymax, ymin - my)
     axes.set_xlim(xmin, xmax + mx)
     return fig, axes
 
@@ -3007,8 +3127,6 @@ def draw_slip_dist(problem, po):
     sc = problem.config.sampler_config
     if po.load_stage is None and sc.name == 'Metropolis':
         draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
-    elif po.load_stage == -1 and sc.name == 'PT':
-        draws = sc.parameters.n_samples
     else:
         draws = None
 
