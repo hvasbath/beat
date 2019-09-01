@@ -358,7 +358,7 @@ class Problem(object):
             for hp_name in hypernames:
                 if hp_name in hyperparameters.keys():
                     hyperpar = hyperparameters.pop(hp_name)
-                    ndata = composite.get_hypersize(hyperpar)
+                    ndata = composite.get_hypersize(hp_name)
                 else:
                     raise InconsistentNumberHyperparametersError(
                         'Datasets and -types require additional '
