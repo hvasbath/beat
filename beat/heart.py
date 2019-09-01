@@ -2832,8 +2832,8 @@ def seis_synthetics(
 
 
 def seis_derivative(
-        engine, sources, targets, arrival_taper, wavename, filterer, h,
-        parameter, stencil_order=3):
+        engine, sources, targets, arrival_taper, arrival_times,
+        wavename, filterer, h, parameter, stencil_order=3):
     """
     Calculate the model prediction Covariance Sensitivity Kernel.
     Numerical derivation with respect to the input source parameter
@@ -2847,6 +2847,9 @@ def seis_derivative(
     targets : list
         containing :class:`pyrocko.gf.seismosizer.Target` Objects
     arrival_taper : :class:`ArrivalTaper`
+    arrival_times : list or:class:`numpy.ndarray`
+        containing the start times [s] since 1st.January 1970 to start
+        tapering
     wavename : string
         of the tabulated phase that determines the phase arrival
     filterer : :class:`Filterer`
@@ -2893,19 +2896,21 @@ def seis_derivative(
             arrival_taper=arrival_taper,
             wavename=wavename,
             filterer=filterer,
+            arrival_times=arrival_times,
+            pre_stack_cut=True,
             outmode='array',
-            pre_stack_cut=True)
+            chop_bounds=['b', 'c'])
 
     return tmp * stencil.coefficients / stencil.denominator
 
 
 def seis_jacobian(
-        engine, sources, targets, arrival_taper, wavename,
+        engine, sources, targets, arrival_taper, arrival_times, wavename,
         filterer, nderivatives=30):
     """
     Calculate the Jacobian with respect to an input source parameter
 
-    Involves numerical calculation of the derivatives. The stable icrement h
+    Involves numerical calculation of the derivatives. The stable increment h
     is automatically determined.
 
     Parameters
@@ -2917,6 +2922,9 @@ def seis_jacobian(
     targets : list
         containing :class:`pyrocko.gf.seismosizer.Target` Objects
     arrival_taper : :class:`ArrivalTaper`
+    arrival_times : list or:class:`numpy.ndarray`
+        containing the start times [s] since 1st.January 1970 to start
+        tapering
     wavename : string
         of the tabulated phase that determines the phase arrival
     filterer : :class:`Filterer`
@@ -2930,10 +2938,10 @@ def seis_jacobian(
     -------
     :class:`num.array` ntargets x nsamples with the first derivative
     """
-
-    seis_derivative(
-        engine, sources, targets, arrival_taper, wavename, filterer, h,
-        parameter, stencil_order=3)
+    for h in hs:
+        jacob = seis_derivative(
+            engine, sources, targets, arrival_taper, arrival_times, wavename,
+            filterer, h, parameter, stencil_order=3)
 
     return jacob
 

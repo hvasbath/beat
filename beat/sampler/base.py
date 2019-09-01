@@ -257,16 +257,16 @@ proposal_distributions = {
     'Laplace': LaplaceProposal,
     'MultivariateNormal': MultivariateNormalProposal,
     'MultivariateCauchy': MultivariateCauchyProposal,
-    'MultivariateRotationNormalProposal': MultivariateRotationNormalProposal,
-    'MultivariateRotationCauchyProposal': MultivariateRotationCauchyProposal,
+    'MultivariateRotationNormal': MultivariateRotationNormalProposal,
+    'MultivariateRotationCauchy': MultivariateRotationCauchyProposal,
     'DiscreteBoundedUniform': DiscreteBoundedUniformProposal}
 
 
 multivariate_proposals = [
     'MultivariateCauchy',
     'MultivariateNormal',
-    'MultivariateRotationNormalProposal',
-    'MultivariateRotationCauchyProposal']
+    'MultivariateRotationNormal',
+    'MultivariateRotationCauchy']
 
 
 def available_proposals():
@@ -289,7 +289,6 @@ def choose_proposal(proposal_name, **kwargs):
     -------
     class:`pymc3.Proposal` Object
     """
-    print proposal_name
     return proposal_distributions[proposal_name](**kwargs)
 
 

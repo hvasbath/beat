@@ -89,20 +89,11 @@ class TestUtility(unittest.TestCase):
     def test_stencil(self):
         for order in [3, 5]:
             so = utility.StencilOperator(order=order, h=0.001)
-            print so
-            print len(so)
-            print so.hsteps
-            print so.coefficients
-            print so.denominator
-
-    def test_stencil(self):
-        for order in [3, 5]:
-            so = utility.StencilOperator(order=order, h=0.001)
-            print so
-            print len(so)
-            print so.hsteps
-            print so.coefficients
-            print so.denominator
+            print(so)
+            print(len(so)
+            print(so.hsteps)
+            print(so.coefficients)
+            print(so.denominator)
 
 
 if __name__ == '__main__':

@@ -34,7 +34,7 @@ class TestProposals(unittest.TestCase):
         for proposal in available_proposals():
             if proposal in multivariate_proposals:
                 scale = num.eye(2) * 0.5
-                print proposal
+                print(proposal)
             else:
                 scale = 1
 
@@ -66,17 +66,6 @@ class TestProposals(unittest.TestCase):
         ax.set_xlim([-10., 10.])
         plt.show()
 
-    def muhtest_rotation(self):
-
-        t0 = time()
-        num.random.seed(10)
-        print self.mvrotcauchy(2)
-        t1 = time()
-
-        num.random.seed(10)
-        print self.mvcauchycov(2)
-        t2 = time()
-
     def test_cauchy(self):
 
         nsamples = 100000
@@ -106,14 +95,14 @@ class TestProposals(unittest.TestCase):
 
         t0 = time()
         num.random.seed(10)
-        print self.mvrotcauchy(2)
+        print(self.mvrotcauchy(2))
         t1 = time()
 
         num.random.seed(10)
-        print self.mvcauchycov(2)
+        print(self.mvcauchycov(2))
         t2 = time()
 
-        print t2-t1, t1-t0
+        print(t2-t1, t1-t0)
 
 if __name__ == '__main__':
 
