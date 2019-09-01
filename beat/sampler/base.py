@@ -4,13 +4,15 @@ import os
 import shutil
 
 from beat import parallel
+
 from beat.backend import check_multitrace, load_multitrace, backend_catalog
-from beat.utility import list2string
+from beat.utility import list2string, ensure_cov_psd
 
 from numpy.random import seed, randint
 from numpy.random import normal, standard_cauchy, standard_exponential, \
     poisson
 import numpy as np
+from scipy import linalg
 
 from theano import function
 
@@ -158,9 +160,21 @@ class PoissonProposal(Proposal):
 
 
 class MultivariateNormalProposal(Proposal):
+    def __init__(self, scale):
+        n, m = scale.shape
+        if n != m:
+            raise ValueError("Covariance matrix is not symmetric.")
+        self.n = n
+        s = ensure_cov_psd(scale)
+        self.chol = linalg.cholesky(s, lower=True)
+
     def __call__(self, num_draws=None):
-        return np.random.multivariate_normal(
-            mean=np.zeros(self.scale.shape[0]), cov=self.scale, size=num_draws)
+        if num_draws is not None:
+            b = np.random.randn(self.n, num_draws)
+            return np.dot(self.chol, b).T
+        else:
+            b = np.random.randn(self.n)
+            return np.dot(self.chol, b)
 
 
 class MultivariateStudentTProposal(Proposal):
@@ -176,9 +190,64 @@ class MultivariateCauchyProposal(Proposal):
     of freedom equal to one.
     """
     def __call__(self, num_draws=None):
+        if not num_draws:
+            num_draws = 1
+
         return multivariate_t_rvs(
             mean=np.zeros(self.scale.shape[0]),
             cov=self.scale, df=1, size=num_draws)
+
+
+class RotationProposal(Proposal):
+    """
+    Proposal for proposing samples in the direction of the principal
+    components.
+
+    Parameters
+    ----------
+    cov: :class:`num.NdArray`
+        of sample covariance matrix
+    """
+    def __init__(self, scale):
+
+        cov = ensure_cov_psd(scale)
+        self.n = cov.shape[0]
+        vec, pc, _ = np.linalg.svd(cov)
+        self.pcsd = 0.5 * (1. / np.sqrt(np.abs(pc)))
+        self.u = vec
+        self.proposal = None
+
+    def __call__(self, num_draws=None):
+
+        if self.proposal is None:
+            raise NotImplementedError(
+                'Please use RotationProposal through its inheriting classes!')
+        else:
+            step = self.proposal(num_draws)
+            delta = 1.1 * self.pcsd * step
+            return self.u.dot(delta.T).T
+
+
+class MultivariateRotationCauchyProposal(RotationProposal):
+    """
+    Proposes steps in the direction of principal component of the given
+    sample covariance using a Cauchy distribution.
+    """
+    def __init__(self, scale):
+
+        super(MultivariateRotationCauchyProposal, self).__init__(scale)
+        self.proposal = CauchyProposal(np.ones((self.n)))
+
+
+class MultivariateRotationNormalProposal(RotationProposal):
+    """
+    Proposes steps in the direction of principal component of the given
+    sample covariance using a Normal distribution.
+    """
+    def __init__(self, scale):
+
+        super(MultivariateRotationNormalProposal, self).__init__(scale)
+        self.proposal = NormalProposal(np.ones((self.n)))
 
 
 proposal_distributions = {
@@ -188,10 +257,16 @@ proposal_distributions = {
     'Laplace': LaplaceProposal,
     'MultivariateNormal': MultivariateNormalProposal,
     'MultivariateCauchy': MultivariateCauchyProposal,
+    'MultivariateRotationNormal': MultivariateRotationNormalProposal,
+    'MultivariateRotationCauchy': MultivariateRotationCauchyProposal,
     'DiscreteBoundedUniform': DiscreteBoundedUniformProposal}
 
 
-multivariate_proposals = ['MultivariateCauchy', 'MultivariateNormal']
+multivariate_proposals = [
+    'MultivariateCauchy',
+    'MultivariateNormal',
+    'MultivariateRotationNormal',
+    'MultivariateRotationCauchy']
 
 
 def available_proposals():
