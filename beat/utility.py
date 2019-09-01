@@ -32,8 +32,9 @@ dimensiontypes = {'length', 'width'}
 mttypes = {'mnn', 'mee', 'mdd', 'mne', 'mnd', 'med'}
 degtypes = {'strike', 'dip', 'rake'}
 nucleationtypes = {'nucleation_x', 'nucleation_y'}
+patch_anchor_points = {'center', 'bottom_depth', 'bottom_left'}
 
-kmtypes = set.union(locationtypes, dimensiontypes)
+kmtypes = set.union(locationtypes, dimensiontypes, patch_anchor_points)
 grouped_vars = set.union(
     kmtypes, mttypes, degtypes, nucleationtypes)
 

@@ -2273,8 +2273,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
               varbins=None, nbins=40, color=None, source_idxs=None,
               alpha=0.35, priors=None, prior_alpha=1, prior_style='--',
               axs=None, posterior=None, fig=None, plot_style='kde',
-              qlist=[0.1, 99.9],
-              prior_bounds={}, unify=True, kwargs={}):
+              prior_bounds={}, unify=True, qlist=[0.1, 99.9], kwargs={}):
     """
     Plots posterior pdfs as histograms from multiple mtrace objects.
 
