@@ -77,6 +77,42 @@ class TestProposals(unittest.TestCase):
         print self.mvcauchycov(2)
         t2 = time()
 
+    def test_cauchy(self):
+
+        nsamples = 100000
+        discard = 1000
+
+        ndist = self.normal(nsamples)
+
+        cdist = self.cauchy(nsamples)
+        cdist.sort(0)
+        cdist = cdist[discard:-discard:1]
+
+        mvcdist = self.mvcauchy(nsamples)
+        mvcdist.sort(0)
+        mvcdist = mvcdist[discard:-discard:1]
+
+        if self.plot:
+            ax = plt.axes()
+            for d, color in zip(
+                    [ndist, cdist, mvcdist], ['black', 'blue', 'red']):
+
+                ax = kdeplot(d, ax=ax, color=color)
+
+        ax.set_xlim([-10., 10.])
+        plt.show()
+
+    def muhtest_rotation(self):
+
+        t0 = time()
+        num.random.seed(10)
+        print self.mvrotcauchy(2)
+        t1 = time()
+
+        num.random.seed(10)
+        print self.mvcauchycov(2)
+        t2 = time()
+
         print t2-t1, t1-t0
 
 if __name__ == '__main__':

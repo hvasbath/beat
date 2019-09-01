@@ -19,11 +19,9 @@ from timeit import Timer
 import numpy as num
 from pyrocko import util, orthodrome, catalog
 from pyrocko.cake import m2d, LayeredModel, read_nd_model_str
-<<<<<<< HEAD:beat/utility.py
-=======
+
 from pyrocko.guts import Int, Float, Object
 
->>>>>>> :heart add seismic derivative calculation for any source parameter:src/utility.py
 from pyrocko.gf.seismosizer import RectangularSource
 from theano import config as tconfig
 
