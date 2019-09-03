@@ -373,7 +373,7 @@ def smc_sample(
         Problem object that contains all the observed data and (if applicable)
         covariances to be updated each transition step.
     rm_flag : bool
-        If True existing stage result folders are beingsmc_sample deleted prior to
+        If True existing stage result folders are being deleted prior to
         sampling.
 
     References
