@@ -4,7 +4,8 @@ import os
 import shutil
 
 from beat import parallel
-from beat.backend import check_multitrace, load_multitrace, backend_catalog
+from beat.backend import check_multitrace, load_multitrace, backend_catalog, \
+                         MemoryChain
 from beat.utility import list2string
 
 from numpy.random import seed, randint
@@ -297,7 +298,8 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
 
 
 def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
-                 model=None, random_seed=-1):
+                 model=None, random_seed=-1, overwrite=True,
+                 update_proposal=False):
     """
     Modified from :func:`pymc3.sampling._iter_sample`
 
@@ -327,7 +329,7 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
 
     step.chain_index = chain
 
-    trace.setup(draws, chain, overwrite=True)
+    trace.setup(draws, chain, overwrite=overwrite)
     for i in range(draws):
         if i == tune:
             step = stop_tuning(step)
@@ -335,7 +337,32 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
         logger.debug('Step: Chain_%i step_%i' % (chain, i))
         point, out_list = step.step(point)
 
-        trace.write(out_list, i)
+        try:
+            trace.buffer_write(out_list, step.cumulative_samples)
+        except BufferError:     # buffer full
+            last_sample = deepcopy(trace.buffer[-1])
+            if update_proposal:     # only valid for PT for now
+                if step.proposal_name in multivariate_proposals:
+
+                    cov = trace.get_sample_covariance(step)
+                    if cov is not None:
+                        if not isinstance(trace, MemoryChain):
+                            filename = '%s/proposal_cov_chain_%i_%i.%s' % (
+                                trace.dir_path, trace.chain, trace.cov_counter,
+                                'png')
+                            from matplotlib import pyplot as plt
+                            fig, axs = plt.subplots(1, 1)
+                            im = axs.imshow(cov, aspect='auto')
+                            plt.colorbar(im)
+                            fig.savefig(filename, dpi=150)
+                            plt.close(fig)
+
+                        step.proposal_dist = choose_proposal(
+                            step.proposal_name, scale=cov)
+
+            trace.record_buffer()
+            # put last sample back
+            trace.buffer_write(*last_sample)
         yield trace
 
 

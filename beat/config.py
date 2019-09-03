@@ -980,6 +980,12 @@ class ParallelTemperingConfig(SamplerParameters):
         default=0.5,
         help='Burn-in parameter between 0. and 1. to discard fraction of'
              ' samples from the beginning of the chain.')
+    record_worker_chains = Bool.T(
+        default=False,
+        help='If True worker chain samples are written to disc using the' 
+             ' specified backend trace objects (during sampler initialization).'
+             ' Very useful for debugging purposes. MUST be False for runs on'
+             ' distributed computing systems!')
 
 
 class MetropolisConfig(SamplerParameters):

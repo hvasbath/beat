@@ -357,7 +357,7 @@ class TemperingManager(object):
         """
         return self.get_workers_ge_beta(1., idxs=idxs)
 
-    def get_package(self, source, resample=False):
+    def get_package(self, source, trace=None, resample=False, burnin=1000):
         """
         Register worker to the manager and get assigned the
         annealing parameter and the work package.
@@ -368,9 +368,14 @@ class TemperingManager(object):
         ----------
         source : int
             MPI source id from a worker message
+        trace : :class:beat.backend.BaseTrace
+            Trace object keeping the samples of the Markov Chain
         resample : bool
             If True all the Markov Chains are starting sampling in the
             testvalue
+        burnin : int
+            Number of samples the worker is taking before updating the proposal
+            covariance matrix based on the trace samples
 
         Returns
         -------
@@ -382,12 +387,13 @@ class TemperingManager(object):
         if source not in self._worker_package_mapping.keys():
 
             step = deepcopy(self.step)
-            chain = source - 1
-            step.beta = self.betas[chain]
+            chain = source
+            step.beta = self.betas[chain - 1]   # subtract master
             step.stage = 1
+            step.burnin = burnin
             package = deepcopy(self._default_package_kwargs)
             package['chain'] = chain
-            package['trace'] = MemoryChain(buffer_size=self.buffer_size)
+            package['trace'] = trace
 
             if resample:
                 logger.info('Resampling chain %i at the testvalue' % chain)
@@ -397,6 +403,8 @@ class TemperingManager(object):
             else:
                 start = step.population[chain]
 
+            max_int = num.iinfo(num.int32).max
+            package['random_seed'] = num.random.randint(max_int)
             package['step'] = step
             package['start'] = start
 
@@ -465,7 +473,7 @@ class TemperingManager(object):
 def master_process(
         comm, tags, status, model, step, n_samples, swap_interval,
         beta_tune_interval, n_workers_posterior, homepath, progressbar,
-        buffer_size, buffer_thinning, resample, rm_flag):
+        buffer_size, buffer_thinning, resample, rm_flag, record_worker_chains):
     """
     Master process, that does the managing.
     Sends tasks to workers.
@@ -493,6 +501,7 @@ def master_process(
     stage = -1
     active_workers = 0
     steps_until_tune = 0
+    burnin = int(n_samples * 0.1)
 
     # start sampling of chains with given seed
     logger.info('Master starting with %d workers' % n_workers)
@@ -510,15 +519,17 @@ def master_process(
     stage_handler = SampleStage(homepath, backend=step.backend)
     stage_handler.clean_directory(stage, chains=None, rm_flag=rm_flag)
 
+    logger.info('Sampling for %i samples in master chain.' % n_samples)
+    logger.info('Burn-in for %i samples.' % burnin)
     logger.info('Initializing result trace...')
     logger.info('Writing samples to file every %i samples.' % buffer_size)
-    trace = backend_catalog[step.backend](
+    master_trace = backend_catalog[step.backend](
         dir_path=stage_handler.stage_path(stage),
         model=model,
         buffer_size=buffer_size,
         buffer_thinning=buffer_thinning,
         progressbar=progressbar)
-    trace.setup(n_samples, 0, overwrite=False)
+    master_trace.setup(n_samples, 0, overwrite=rm_flag)
     # TODO load starting points from existing trace
 
     logger.info('Sending work packages to workers...')
@@ -526,7 +537,21 @@ def master_process(
     for beta in manager.betas:
         comm.recv(source=MPI.ANY_SOURCE, tag=tags.READY, status=status)
         source = status.Get_source()
-        package = manager.get_package(source, resample=resample)
+
+        if record_worker_chains:
+            worker_trace = backend_catalog[step.backend](
+                dir_path=stage_handler.stage_path(stage),
+                model=model,
+                buffer_size=buffer_size,
+                buffer_thinning=buffer_thinning,
+                progressbar=progressbar)
+        else:
+            worker_trace = MemoryChain(buffer_size=buffer_size)
+
+        worker_trace.setup(n_samples, source, overwrite=rm_flag)
+
+        package = manager.get_package(
+            source, trace=worker_trace, resample=resample, burnin=burnin)
         comm.send(package, dest=source, tag=tags.INIT)
         logger.debug('Sent work package to worker %i' % source)
         active_workers += 1
@@ -560,7 +585,8 @@ def master_process(
             if source in manager.get_posterior_workers():
                 count_sample += 1
                 counter(source)
-                trace.write(manager.worker_a2l(m, source), count_sample)
+                #print(manager.worker_a2l(m, source))
+                master_trace.write(manager.worker_a2l(m, source), count_sample)
                 steps_until_tune += 1
 
         m1, m2 = manager.propose_chain_swap(m1, m2, source1, source2)
@@ -582,7 +608,7 @@ def master_process(
             comm.Send(m2, dest=source2, tag=tags.SAMPLE)
         else:
             logger.info('Requested number of samples reached!')
-            trace.record_buffer()
+            master_trace.record_buffer()
             manager.dump_history(
                 save_dir=stage_handler.stage_path(stage))
             break
@@ -636,9 +662,11 @@ def worker_process(comm, tags, status):
 
         tag = status.Get_tag()
         if tag == tags.SAMPLE:
-            start = step.lij.l2d(step.lij.a2l(data))
+            lpoint = step.lij.a2l(data)
+            start = step.lij.l2d(lpoint)
             kwargs['start'] = start
-
+            # overwrite previous point in case got swapped
+            kwargs['step'].chain_previous_lpoint = lpoint
             result = sample_pt_chain(**kwargs)
 
             logger.debug('Worker %i attempting to send ...' % comm.rank)
@@ -697,9 +725,16 @@ def sample_pt_chain(
     else:
         n_steps = draws
 
+    if step.cumulative_samples > step.burnin:
+        update_proposal = True
+    else:
+        update_proposal = False
+
     step.n_steps = n_steps
-    sampling = _iter_sample(n_steps, step, start, trace, chain,
-                            tune, model, random_seed)
+
+    sampling = _iter_sample(
+        n_steps, step, start, trace, chain, tune, model, random_seed,
+        overwrite=False, update_proposal=update_proposal)
 
     try:
         for strace in sampling:
@@ -708,27 +743,20 @@ def sample_pt_chain(
     except KeyboardInterrupt:
         raise
 
-    if step.proposal_name in multivariate_proposals:
-        if strace.count > strace.buffer_size:
-            logger.debug(
-                'Evaluating sampled trace covariance at '
-                'sample %i' % strace.count)
-            cov = strace.get_sample_covariance(
-                lij=step.lij, bij=step.bij, beta=step.beta)
+    if strace.buffer:
+        rsample = step.lij.l2a(strace.buffer[-1][0])
+    else:
+        BufferError('No samples in buffer to return to master!')
 
-            if cov is not None:
-                step.proposal_dist = choose_proposal(
-                    step.proposal_name, scale=cov)
-
-    rsamle = step.lij.l2a(strace.buffer[-1])
-    return rsamle
+    return rsample
 
 
 def pt_sample(
         step, n_chains, n_samples=100000, start=None, swap_interval=(100, 300),
         beta_tune_interval=10000, n_workers_posterior=1, homepath='',
         progressbar=True, buffer_size=5000, buffer_thinning=1, model=None,
-        rm_flag=False, resample=False, keep_tmp=False):
+        rm_flag=False, resample=False, keep_tmp=False,
+        record_worker_chains=False):
     """
     Paralell Tempering algorithm
 
@@ -780,6 +808,11 @@ def pt_sample(
     keep_tmp : bool
         If True the execution directory (under '/tmp/') is not being deleted
         after process finishes
+    record_worker_chains : bool
+        If True worker chain samples are written to disc using the specified
+        backend trace objects (during sampler initialization).
+        Very useful for debugging purposes. MUST be False for runs on
+        distributed computing systems!
     """
     if n_chains < 2:
         raise ValueError(
@@ -795,7 +828,7 @@ def pt_sample(
     sampler_args = [
         step, n_samples, swap_interval, beta_tune_interval,
         n_workers_posterior, homepath, progressbar, buffer_size,
-        buffer_thinning, resample, rm_flag]
+        buffer_thinning, resample, rm_flag, record_worker_chains]
 
     project_dir = os.path.dirname(homepath)
     loglevel = getLevelName(logger.getEffectiveLevel()).lower()
@@ -805,7 +838,7 @@ def pt_sample(
         model=model,
         sampler_args=sampler_args,
         keep_tmp=keep_tmp,
-        n_jobs=n_chains + 1,    # add master process
+        n_jobs=n_chains,
         loglevel=loglevel,
         project_dir=project_dir)
 

@@ -143,6 +143,7 @@ class BaseChain(object):
         self.buffer_thinning = buffer_thinning
         self.buffer = []
         self.count = 0
+        self.cov_counter = 0
 
         if model is not None:
             self.model = modelcontext(model)
@@ -183,9 +184,40 @@ class BaseChain(object):
     def __setstate__(self, state):
         self.__dict__.update(state)
 
+    def buffer_write(self, lpoint, draw):
+        """
+        Write sampling results into buffer.
+        If buffer is full trow an error.
+        """
+        self.count += 1
+        self.buffer.append((lpoint, draw))
+        if self.count == self.buffer_size:
+            raise BufferError(
+                'Buffer is full! Needs recording!!')
+
     def empty_buffer(self):
         self.buffer = []
         self.count = 0
+
+    def get_sample_covariance(self, step):
+        """
+        Return sample Covariance matrix from buffer.
+        """
+        sample_difference = self.count - self.buffer_size
+        if sample_difference < 0:
+            raise ValueError('Covariance has been updated already!')
+        elif sample_difference > 0:
+            raise BufferError(
+                'Buffer is not full and sample covariance may be biased')
+        else:
+            logger.info(
+                'Evaluating sampled trace covariance of worker %i at '
+                'sample %i' % (self.chain, step.cumulative_samples))
+
+            cov = calc_sample_covariance(
+                self.buffer, lij=step.lij, bij=step.bij, beta=step.beta)
+            self.cov_counter += 1
+        return cov
 
 
 class FileChain(BaseChain):
@@ -280,10 +312,10 @@ class FileChain(BaseChain):
     def write(self, lpoint, draw):
         """
         Write sampling results into buffer.
-        If buffer is full write it out to file.
+        If buffer is full write samples to file.
         """
-        self.buffer.append((lpoint, draw))
         self.count += 1
+        self.buffer.append((lpoint, draw))
         if self.count == self.buffer_size:
             self.record_buffer()
 
@@ -292,10 +324,6 @@ class FileChain(BaseChain):
         Clear the data loaded from file.
         """
         self._df = None
-
-
-class MemoryTraceError(Exception):
-    pass
 
 
 class MemoryChain(BaseChain):
@@ -323,28 +351,9 @@ class MemoryChain(BaseChain):
         if overwrite:
             self.buffer = []
 
-    def write(self, lpoint, draw):
-        """
-        Write sampling results into buffer.
-        """
-        if self.buffer is not None:
-            self.count += 1
-            self.buffer.append(lpoint)
-        else:
-            raise MemoryTraceError('Trace is not setup!')
-
-    def get_sample_covariance(self, lij, bij, beta):
-        """
-        Return sample Covariance matrix from buffer.
-        """
-        self.count -= self.buffer_size
-        if self.count < 0:
-            raise ValueError('Covariance has been updated already!')
-
-        cov = calc_sample_covariance(self.buffer, lij=lij, bij=bij, beta=beta)
-        # reset buffer, keep last sample
-        self.buffer = [self.buffer[-1]]
-        return cov
+    def record_buffer(self):
+        logger.debug('Emptying buffer of trace %i' % self.chain)
+        self.empty_buffer()
 
 
 class TextChain(FileChain):
@@ -402,17 +411,14 @@ class TextChain(FileChain):
 
         cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
 
-        if os.path.exists(self.filename):
-            if overwrite:
-                self.count = 0
-                os.remove(self.filename)
-            else:
-                logger.debug('Found existing trace, appending!')
-                return
+        if os.path.exists(self.filename) and not overwrite:
+            logger.debug('Found existing trace, appending!')
+        else:
+            self.count = 0
 
-        # writing header
-        with open(self.filename, 'w') as fh:
-            fh.write(','.join(cnames) + '\n')
+            # writing header
+            with open(self.filename, 'w') as fh:
+                fh.write(','.join(cnames) + '\n')
 
     def _write_data_to_file(self, lpoint=None):
         """

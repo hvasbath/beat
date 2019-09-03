@@ -11,6 +11,8 @@ from beat import heart
 from beat.utility import ensure_cov_psd, running_window_rms, list2string
 from theano import config as tconfig
 
+from pymc3 import Point
+
 
 logger = logging.getLogger('covariance')
 
@@ -598,7 +600,20 @@ def non_toeplitz_covariance(data, window_size):
     return toeplitz * stds[:, num.newaxis] * stds[num.newaxis, :]
 
 
-def calc_sample_covariance(lpoints, lij, bij, beta):
+def init_proposal_covariance(bij, vars, model, pop_size=1000):
+    """
+    Create initial proposal covariance matrix based on random samples
+    from the solution space.
+    """
+    population_array = num.zeros((pop_size, bij.ordering.size))
+    for i in range(pop_size):
+        point = Point({v.name: v.random() for v in vars}, model=model)
+        population_array[i, :] = bij.map(point)
+
+    return num.diag(population_array.var(0))
+
+
+def calc_sample_covariance(buffer, lij, bij, beta):
     """
     Calculate trace covariance matrix based on given trace values.
 
@@ -616,20 +631,21 @@ def calc_sample_covariance(lpoints, lij, bij, beta):
     cov : :class:`numpy.ndarray`
         weighted covariances (NumPy > 1.10. required)
     """
-    n_points = len(lpoints)
+    n_points = len(buffer)
 
     population_array = num.zeros((n_points, bij.ordering.size))
-    for i, lpoint in enumerate(lpoints):
+    for i, (lpoint, _) in enumerate(buffer):
         point = lij.l2d(lpoint)
         population_array[i, :] = bij.map(point)
 
     like_idx = lij.ordering['like'].list_ind
-    weights = num.array([lpoint[like_idx] for lpoint in lpoints])
-    temp_weights = num.exp(beta * (weights - weights.max())).ravel()
+    weights = num.array([lpoint[like_idx] for lpoint, _ in buffer])
+    temp_weights = num.exp((weights - weights.max())).ravel()
+    norm_weights = temp_weights / num.sum(temp_weights)
 
     cov = num.cov(
         population_array,
-        aweights=temp_weights,
+        aweights=norm_weights,
         bias=False,
         rowvar=0)
 

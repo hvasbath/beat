@@ -17,13 +17,16 @@ from theano import config as tconfig
 
 from pymc3.vartypes import discrete_types
 from pymc3.model import modelcontext, Point
-from pymc3.step_methods.metropolis import tune, metrop_select
+from pymc3.step_methods.metropolis import metrop_select
+from pymc3.step_methods.metropolis import tune as step_tune
+
 from pymc3.theanof import make_shared_replacements, inputvars
 from pymc3.backends import text
 
 from pyrocko import util
 
 from beat import backend, utility
+from beat.covariance import init_proposal_covariance
 from .base import iter_parallel_chains, choose_proposal, logp_forw, \
     init_stage, update_last_samples, multivariate_proposals
 
@@ -97,26 +100,13 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
         self.scaling = utility.scalar2floatX(num.atleast_1d(scale))
 
-        if covariance is None and proposal_name in multivariate_proposals:
-            self.covariance = num.eye(sum(v.dsize for v in vars))
-            scale = self.covariance
-        elif covariance is None:
-            scale = num.ones(sum(v.dsize for v in vars))
-        else:
-            scale = covariance
-
         self.tune = tune
         self.check_bound = check_bound
         self.tune_interval = tune_interval
         self.steps_until_tune = tune_interval
 
-        self.proposal_name = proposal_name
-        self.proposal_dist = choose_proposal(
-            self.proposal_name, scale=scale)
-
-        self.proposal_samples_array = self.proposal_dist(n_chains)
-
         self.stage_sample = 0
+        self.cumulative_samples = 0
         self.accepted = 0
 
         self.beta = 1.
@@ -150,6 +140,24 @@ class Metropolis(backend.ArrayStepSharedLLK):
         self.check_bnd = logp_forw([model.varlogpt], vars, shared)
 
         super(Metropolis, self).__init__(vars, out_vars, shared)
+
+        # init proposal
+        if covariance is None and proposal_name in multivariate_proposals:
+            t0 = time()
+            self.covariance = init_proposal_covariance(
+                bij=self.bij, vars=vars, model=model, pop_size=1000)
+            t1 = time()
+            logger.info('Time for proposal covariance init: %f' % (t1 - t0))
+            scale = self.covariance
+        elif covariance is None:
+            scale = num.ones(sum(v.dsize for v in vars))
+        else:
+            scale = covariance
+
+        self.proposal_name = proposal_name
+        self.proposal_dist = choose_proposal(
+            self.proposal_name, scale=scale)
+        self.proposal_samples_array = self.proposal_dist(n_chains)
 
         self.chain_previous_lpoint = [[]] * self.n_chains
         self._tps = None
@@ -228,7 +236,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
                     self.chain_index, self.stage_sample))
 
                 self.scaling = utility.scalar2floatX(
-                    tune(
+                    step_tune(
                         self.scaling,
                         self.accepted / float(self.tune_interval)))
 
@@ -278,10 +286,10 @@ class Metropolis(backend.ArrayStepSharedLLK):
                     logger.debug('Select llk: Chain_%i step_%i' % (
                         self.chain_index, self.stage_sample))
 
+                    tempered_llk_ratio = self.beta * (
+                            lp[self._llk_index] - l0[self._llk_index])
                     q_new, accepted = metrop_select(
-                        self.beta * (
-                            lp[self._llk_index] - l0[self._llk_index]),
-                        q, q0)
+                        tempered_llk_ratio, q, q0)
 
                     if accepted:
                         logger.debug('Accepted: Chain_%i step_%i' % (
@@ -325,6 +333,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
                     self.chain_index, self.stage_sample))
             self.steps_until_tune -= 1
             self.stage_sample += 1
+            self.cumulative_samples += 1
 
             # reset sample counter
             if self.stage_sample == self.n_steps:

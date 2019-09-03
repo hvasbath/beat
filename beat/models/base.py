@@ -180,7 +180,7 @@ def sample(step, problem):
 
         sampler.pt_sample(
             step=step,
-            n_chains=pa.n_chains,
+            n_chains=pa.n_chains + 1,  # add master
             n_samples=pa.n_samples,
             start=start,
             swap_interval=pa.swap_interval,
@@ -192,7 +192,8 @@ def sample(step, problem):
             buffer_thinning=sc.buffer_thinning,
             model=problem.model,
             resample=pa.resample,
-            rm_flag=pa.rm_flag)
+            rm_flag=pa.rm_flag,
+            record_worker_chains=pa.record_worker_chains)
 
     else:
         logger.error('Sampler "%s" not implemented.' % sc.name)
