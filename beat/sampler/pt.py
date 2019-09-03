@@ -666,7 +666,7 @@ def worker_process(comm, tags, status):
             start = step.lij.l2d(lpoint)
             kwargs['start'] = start
             # overwrite previous point in case got swapped
-            kwargs['step'].chain_previous_lpoint = lpoint
+            kwargs['step'].chain_previous_lpoint[comm.rank] = lpoint
             result = sample_pt_chain(**kwargs)
 
             logger.debug('Worker %i attempting to send ...' % comm.rank)
