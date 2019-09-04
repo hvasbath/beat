@@ -155,17 +155,15 @@ class BaseChain(object):
             self.vars = vars
 
         if self.vars is not None:
-            self.varnames = [var.name for var in vars]
-
             # Get variable shapes. Most backends will need this
             # information.
-            self.var_shapes_list = [var.tag.test_value.shape for var in vars]
-            self.var_dtypes_list = [var.tag.test_value.dtype for var in vars]
-
-            self.var_shapes = OrderedDict(
-                zip(self.varnames, self.var_shapes_list))
-            self.var_dtypes = OrderedDict(
-                zip(self.varnames, self.var_dtypes_list))
+            self.var_shapes = OrderedDict()
+            self.var_dtypes = OrderedDict()
+            self.varnames = []
+            for var in self.vars:
+                self.var_shapes[var.name] = var.tag.test_value.shape
+                self.var_dtypes[var.name] = var.tag.test_value.dtype
+                self.varnames.append(var.name)
         else:
             logger.debug('No model or variables given!')
 
@@ -242,16 +240,14 @@ class FileChain(BaseChain):
         self.flat_names = OrderedDict()
         if self.var_shapes is not None:
             if k is not None:
-                self.flat_names = OrderedDict()
                 for var, shape in self.var_shapes.items():
                     if var in transd_vars_dist:
                         shape = (k,)
 
                     self.flat_names[var] = ttab.create_flat_names(var, shape)
-
             else:
-                for v, shape in self.var_shapes.items():
-                    self.flat_names[v] = ttab.create_flat_names(v, shape)
+                for var, shape in self.var_shapes.items():
+                    self.flat_names[var] = ttab.create_flat_names(var, shape)
 
         self.k = k
 
@@ -616,7 +612,7 @@ class NumpyChain(FileChain):
             self.dir_path, 'chain-{}.bin'.format(chain))
         self.__data_structure = self.construct_data_structure()
         if os.path.exists(self.filename) and not overwrite:
-            logger.info('Found existing trace, appending!')
+            logger.debug('Found existing trace, appending!')
         else:
             data_type = OrderedDict()
             with open(self.filename, 'wb') as fh:
