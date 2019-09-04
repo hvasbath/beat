@@ -208,7 +208,7 @@ class TemperingManager(object):
             t_scale, num.arange(1, self.n_workers_tempered + 1))
         betas_temp = (1. / temperature).tolist()
         betas = betas_post + betas_temp
-        logger.info('Updated betas: %s', list2string(betas))
+        logger.info('Updating betas ...')
 
         if len(self._worker_package_mapping) > 0:
             # updating worker packages
@@ -667,7 +667,7 @@ def worker_process(comm, tags, status):
             logger.debug('Worker %i sent message successfully ...' % comm.rank)
 
         elif tag == tags.BETA:
-            logger.info(
+            logger.debug(
                 'Worker %i received beta: %f' % (comm.rank, data[0]))
             kwargs['step'].beta = data[0]
 
