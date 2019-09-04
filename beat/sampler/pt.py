@@ -143,7 +143,7 @@ class TemperingManager(object):
 
         self.current_scale = 1.2
 
-        # make sampling history reloadable
+        # TODO: make sampling history reloadable
         self.history = SamplingHistory()
         self._worker_update_check = num.zeros(self.n_workers, dtype='bool')
 
@@ -176,11 +176,11 @@ class TemperingManager(object):
         -------
         boolean, True if beta is updated
         """
-        source -= 1     # subtract master
+        worker_idx = self.worker2index(source)
         if not check:
-            return self._worker_update_check[source]
+            return self._worker_update_check[worker_idx]
         else:
-            self._worker_update_check[source] = check
+            self._worker_update_check[worker_idx] = check
 
     def update_betas(self, t_scale=None):
         """
@@ -213,9 +213,12 @@ class TemperingManager(object):
         if len(self._worker_package_mapping) > 0:
             # updating worker packages
             self._betas = None
-            for beta, package in zip(
-                    betas, self._worker_package_mapping.values()):
-                package['step'].beta = beta
+            for source, package in self._worker_package_mapping.items():
+                new_beta = betas[self.worker2index(source)]
+                old_beta = package['step'].beta
+                logger.info('Updating beta of worker %i from %f to %f' % (
+                    source, old_beta, new_beta))
+                package['step'].beta = new_beta
 
             # reset worker process check
             self._worker_update_check = num.zeros(self.n_workers, dtype='bool')
@@ -229,9 +232,10 @@ class TemperingManager(object):
         The lower the more likely a step is accepted.
         """
         if self._betas is None:
-            self._betas = [
+            self._betas = sorted([
                 package['step'].beta
-                for package in self._worker_package_mapping.values()]
+                for package in self._worker_package_mapping.values()],
+                reverse=True)
 
         return self._betas
 
@@ -267,13 +271,12 @@ class TemperingManager(object):
         If idxs is True return indexes to sample and acceptance arrays
         """
 
-        workers = [
+        workers = sorted([
             source for source, package in self._worker_package_mapping.items()
-            if package['step'].beta >= beta]
+            if package['step'].beta >= beta], reverse=True)
 
         if idxs:
-            w2i = self.worker_index_mapping()
-            return [w2i[w] for w in workers]
+            return [self.worker2index(w) for w in workers]
 
         else:
             return workers
@@ -317,7 +320,7 @@ class TemperingManager(object):
             return n_samples
 
     def get_beta(self, source):
-        return num.atleast_1d(self.betas[source - 1])
+        return num.atleast_1d(self.betas[self.worker2index(source)])
 
     def tune_betas(self):
         """
@@ -343,12 +346,6 @@ class TemperingManager(object):
         # record scaling history
         self.record_tuning_history(acceptance)
         self.update_betas(t_scale)
-
-    def get_workers(self, idxs=False):
-        """
-        If idxs is True return indexes to sample and acceptance arrays
-        """
-        return self.get_workers_ge_beta(0., idxs=idxs)
 
     def get_posterior_workers(self, idxs=False):
         """
@@ -387,21 +384,20 @@ class TemperingManager(object):
         if source not in self._worker_package_mapping.keys():
 
             step = deepcopy(self.step)
-            chain = source
-            step.beta = self.betas[chain - 1]   # subtract master
+            step.beta = self.betas[self.worker2index(source)]   # subtract master
             step.stage = 1
             step.burnin = burnin
             package = deepcopy(self._default_package_kwargs)
-            package['chain'] = chain
+            package['chain'] = source
             package['trace'] = trace
 
             if resample:
-                logger.info('Resampling chain %i at the testvalue' % chain)
+                logger.info('Resampling chain %i at the testvalue' % source)
                 start = step.population[0]
-                step.chain_previous_lpoint[chain] = \
+                step.chain_previous_lpoint[source] = \
                     step.chain_previous_lpoint[0]
             else:
-                start = step.population[chain]
+                start = step.population[source]
 
             max_int = num.iinfo(num.int32).max
             package['random_seed'] = num.random.randint(max_int)
@@ -455,16 +451,13 @@ class TemperingManager(object):
             return m1, m2
 
     def register_swap(self, source1, source2, accepted):
-        w2i = self.worker_index_mapping()
-        self.acceptance_matrix[w2i[source1], w2i[source2]] += accepted
-        self.sample_count[w2i[source1], w2i[source2]] += 1
+        w1i = self.worker2index(source1)
+        w2i = self.worker2index(source2)
+        self.acceptance_matrix[w1i, w2i] += accepted
+        self.sample_count[w1i, w2i] += 1
 
-    def worker_index_mapping(self):
-        if self._worker2index is None:
-            self._worker2index = dict(
-                (worker, i) for (i, worker) in enumerate(
-                    self.get_workers()))
-        return self._worker2index
+    def worker2index(self, source):
+        return source - 1
 
     def worker2package(self, source):
         return self._worker_package_mapping[source]
@@ -640,7 +633,7 @@ def worker_process(comm, tags, status):
         "Entering worker process with rank %d on %s." % (comm.rank, name))
     comm.send(None, dest=0, tag=tags.READY)
 
-    logger.debug('Worker %i recieving work package ...' % comm.rank)
+    logger.debug('Worker %i receiving work package ...' % comm.rank)
     kwargs = comm.recv(source=0, tag=tags.INIT, status=status)
     logger.debug('Worker %i received package!' % comm.rank)
 
@@ -674,7 +667,8 @@ def worker_process(comm, tags, status):
             logger.debug('Worker %i sent message successfully ...' % comm.rank)
 
         elif tag == tags.BETA:
-            logger.debug('Updating beta to: %f on worker %i' % (data[0], comm.rank))
+            logger.info(
+                'Worker %i received beta: %f' % (comm.rank, data[0]))
             kwargs['step'].beta = data[0]
 
         elif tag == tags.EXIT:

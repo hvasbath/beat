@@ -1013,7 +1013,7 @@ def istransd(varnames):
         return False, None
 
 
-def load_multitrace(dirname, varnames=None, chains=None, backend='csv'):
+def load_multitrace(dirname, varnames=[], chains=None, backend='csv'):
     """
     Load TextChain database.
 
