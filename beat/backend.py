@@ -606,7 +606,7 @@ class NumpyChain(FileChain):
 
         logger.debug('SetupTrace: Chain_%i step_%i' % (chain, draws))
         self.chain = chain
-        self.count = 0
+
         self.draws = draws
         self.filename = os.path.join(
             self.dir_path, 'chain-{}.bin'.format(chain))
@@ -614,6 +614,7 @@ class NumpyChain(FileChain):
         if os.path.exists(self.filename) and not overwrite:
             logger.debug('Found existing trace, appending!')
         else:
+            self.count = 0
             data_type = OrderedDict()
             with open(self.filename, 'wb') as fh:
                 for k, v in self.var_dtypes.items():
