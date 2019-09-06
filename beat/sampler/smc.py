@@ -23,7 +23,7 @@ __all__ = [
 
 logger = logging.getLogger('smc')
 
-sample_factor_final_stage = 50
+sample_factor_final_stage = 1
 
 
 class SMC(Metropolis):
