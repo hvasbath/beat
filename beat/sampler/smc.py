@@ -23,6 +23,8 @@ __all__ = [
 
 logger = logging.getLogger('smc')
 
+sample_factor_final_stage = 50
+
 
 class SMC(Metropolis):
     """
@@ -492,7 +494,8 @@ def smc_sample(
                 del(mtrace)
 
         # Metropolis sampling final stage
-        logger.info('Sample final stage')
+        draws = n_steps * sample_factor_final_stage
+        logger.info('Sample final stage with n_steps %i ' % draws)
         step.stage = -1
 
         temp = np.exp((1 - step.old_beta) *
@@ -505,6 +508,7 @@ def smc_sample(
         step.resampling_indexes = step.resample()
         step.chain_previous_lpoint = step.get_chain_previous_lpoint(mtrace)
 
+        sample_args['draws'] = draws
         sample_args['step'] = step
         sample_args['stage_path'] = stage_handler.stage_path(step.stage)
         sample_args['chains'] = chains

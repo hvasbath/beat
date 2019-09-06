@@ -17,8 +17,9 @@ from beat import heart, utility, inputf, plotting, config as bconfig
 from beat.info import version
 from beat.config import ffi_mode_str, geometry_mode_str
 from beat.models import load_model, Stage, estimate_hypers, sample
-from beat.backend import backend_catalog, extract_bounds_from_summary
-from beat.sampler import SamplingHistory
+from beat.backend import backend_catalog, extract_bounds_from_summary, \
+                         thin_buffer
+from beat.sampler import SamplingHistory, sample_factor_final_stage
 from beat.sources import MTSourceWithMagnitude
 from beat.utility import list2string
 from numpy import savez, atleast_2d, floor
@@ -857,7 +858,16 @@ def command_summarize(args):
             if sampler_name == 'SMC':
                 result_check(stage.mtrace, min_length=2)
                 draws = sc_params.n_chains
-                idxs = [-1]
+                if stage_number == -1:
+                    # final stage factor
+                    n_steps = sc_params.n_steps * sample_factor_final_stage
+                else:
+                    n_steps = sc_params.n_steps
+
+                idxs = range(len(thin_buffer(
+                    range(n_steps),
+                    sc.buffer_thinning,
+                    ensure_last=True)))
                 chains = stage.mtrace.chains
             elif sampler_name == 'PT':
                 result_check(stage.mtrace, min_length=1)

@@ -552,9 +552,8 @@ def master_process(
     count_sample = 0
     counter = ChainCounter(
         n=n_samples, n_jobs=1, perc_disp=0.01, subject='samples')
-
-    logger.info('Posterior workers %s', list2string(
-        manager.get_posterior_workers()))
+    posterior_workers = manager.get_posterior_workers()
+    logger.info('Posterior workers %s', list2string(posterior_workers))
     logger.info(
         'Tuning worker betas every %i samples. \n' % beta_tune_interval)
     logger.info('Sampling ...')
@@ -575,7 +574,7 @@ def master_process(
 
         # write results to trace if workers sample from posterior
         for source, m in zip([source1, source2], [m1, m2]):
-            if source in manager.get_posterior_workers():
+            if source in posterior_workers:
                 count_sample += 1
                 counter(source)
                 #print(manager.worker_a2l(m, source))
