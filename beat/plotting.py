@@ -2,6 +2,7 @@ from pyrocko import cake_plot as cp
 from pyrocko import orthodrome as otd
 
 from pymc3 import plots as pmp
+from pymc3 import quantiles
 
 import math
 import os
@@ -40,7 +41,7 @@ km = 1000.
 
 __all__ = [
     'PlotOptions', 'correlation_plot', 'correlation_plot_hist',
-    'get_result_point', 'seismic_fits', 'geodetic_fits', 'traceplot',
+    'get_result_point', 'seismic_fits', 'scene_fits', 'traceplot',
     'select_transform', 'histplot_op']
 
 u_nm = '$[Nm]$'
@@ -649,7 +650,163 @@ def set_anchor(sources, anchor):
         source.anchor = anchor
 
 
-def geodetic_fits(problem, stage, plot_options):
+def gnss_fits(problem, stage, plot_options):
+
+    from pyrocko import automap
+    from pyrocko.model import gnss
+    from beat.inputf import load_and_blacklist_gnss
+    from beat.sources import RectangularSource
+
+    if len(automap.gmtpy.detect_gmt_installations()) < 1:
+        raise automap.gmtpy.GmtPyError(
+            'GMT needs to be installed for GNSS plot!')
+
+    gc = problem.config.geodetic_config
+
+    logger.info('Trying to load GNSS data from: {}'.format(gc.datadir))
+    for filename in gc.names:
+        try:
+            campaign = load_and_blacklist_gnss(
+                gc.datadir, filename, gc.blacklist, campaign=True)
+        except UnicodeDecodeError:
+            logger.info('{} is no GNSS data, skipping')
+
+    datatype = 'geodetic'
+    mode = problem.config.problem_config.mode
+    problem.init_hierarchicals()
+
+    figsize = 20.  # size in cm
+
+    po = plot_options
+
+    composite = problem.composites[datatype]
+    try:
+        sources = composite.sources
+        ref_sources = None
+    except AttributeError:
+        logger.info('FFI gnss fit, using reference source ...')
+        ref_sources = composite.config.gf_config.reference_sources
+        set_anchor(ref_sources, anchor='top')
+        fault = composite.load_fault_geometry()
+        sources = fault.get_all_subfaults(
+            datatype=datatype, component=composite.slip_varnames[0])
+        set_anchor(sources, anchor='top')
+
+    if po.reference:
+        if mode != ffi_mode_str:
+            composite.point2sources(po.reference)
+            ref_sources = copy.deepcopy(composite.sources)
+        point = po.reference
+    else:
+        point = get_result_point(stage, problem.config, po.post_llk)
+
+    dataset_index = dict(
+        (data, i) for (i, data) in enumerate(composite.datasets))
+
+    results = composite.assemble_results(point)
+
+    dataset_to_result = {}
+    for dataset, result in zip(composite.datasets, results):
+        if dataset.typ == 'GNSS':
+            dataset_to_result[dataset] = result
+
+    if po.plot_projection == 'latlon':
+        event = problem.config.event
+        locations = campaign.stations + [event]
+
+        lat, lon = otd.geographic_midpoint_locations(locations)
+
+        coords = num.array([loc.effective_latlon for loc in locations])
+
+    elif po.plot_projection == 'local':
+        lat, lon = otd.geographic_midpoint_locations(sources)
+        coords = num.hstack(
+            [source.outline(cs='latlon').T for source in sources]).T
+
+    else:
+        raise NotImplementedError(
+            '%s projection not implemented!' % po.plot_projection)
+
+    radius = otd.distance_accurate50m_numpy(
+        lat[num.newaxis], lon[num.newaxis],
+        coords[:, 0], coords[:, 1]).max()
+
+    radius *= 1.1
+
+    if radius < 30. * km:
+        logger.warning(
+            'Radius of GNSS campaign %s too small, defaulting'
+            ' to 30 km' % campaign.name)
+        radius = 30 * km
+
+    model_camp = gnss.GNSSCampaign(
+        stations=copy.deepcopy(campaign.stations),
+        name='model')
+
+    for dataset, result in dataset_to_result.items():
+        for ista, sta in enumerate(model_camp.stations):
+            comp = getattr(sta, dataset.component)
+            comp.shift = result.processed_syn[ista]
+            comp.sigma = 0.
+
+    figs = []
+    for vertical in (False, True):
+        m = automap.Map(
+            width=figsize,
+            height=figsize,
+            lat=lat,
+            lon=lon,
+            radius=radius,
+            show_topo=False,
+            show_grid=True,
+            show_rivers=True,
+            color_wet=(216, 242, 254),
+            color_dry=(238, 236, 230))
+
+        all_stations = campaign.stations + model_camp.stations
+        offset_scale = num.zeros(len(all_stations))
+
+        for ista, sta in enumerate(all_stations):
+            for comp in sta.components.values():
+                offset_scale[ista] += comp.shift
+
+        offset_scale = num.sqrt(offset_scale ** 2).max()
+
+        m.add_gnss_campaign(
+            campaign,
+            psxy_style={
+                'G': 'black',
+                'W': '0.8p,black',
+            },
+            offset_scale=offset_scale,
+            vertical=vertical)
+
+        m.add_gnss_campaign(
+            model_camp,
+            psxy_style={
+                'G': 'red',
+                'W': '0.8p,red',
+                't': 30,
+            },
+            offset_scale=offset_scale,
+            vertical=vertical,
+            labels=False)
+
+        for source in sources:
+            if isinstance(source, RectangularSource):
+                m.gmt.psxy(
+                    in_rows=source.outline(cs='lonlat'),
+                    L='+p2p,black',
+                    W='1p,black',
+                    G='black',
+                    t=60, *m.jxyr)
+
+        figs.append(m)
+
+    return figs
+
+
+def scene_fits(problem, stage, plot_options):
     """
     Plot geodetic data, synthetics and residuals.
     """
@@ -695,12 +852,13 @@ def geodetic_fits(problem, stage, plot_options):
         (data, i) for (i, data) in enumerate(composite.datasets))
 
     results = composite.assemble_results(point)
-    nrmax = len(results)
 
     dataset_to_result = {}
     for dataset, result in zip(composite.datasets, results):
-        dataset_to_result[dataset] = result
+        if dataset.typ == 'SAR':
+            dataset_to_result[dataset] = result
 
+    nrmax = len(dataset_to_result.keys())
     fullfig, restfig = utility.mod_i(nrmax, ndmax)
     factors = num.ones(fullfig).tolist()
     if restfig:
@@ -1064,11 +1222,15 @@ def geodetic_fits(problem, stage, plot_options):
     return figures
 
 
-def draw_geodetic_fits(problem, plot_options):
+def draw_scene_fits(problem, plot_options):
 
     if 'geodetic' not in list(problem.composites.keys()):
         raise TypeError('No geodetic composite defined in the problem!')
 
+    if 'SAR' not in problem.config.geodetic_config.types:
+        raise TypeError('There is no SAR data in the problem setup!')
+
+    logger.info('Drawing SAR misfits ...')
     po = plot_options
 
     stage = Stage(homepath=problem.outfolder,
@@ -1091,7 +1253,7 @@ def draw_geodetic_fits(problem, plot_options):
             stage.number, llk_str, po.plot_projection))
 
     if not os.path.exists(outpath) or po.force:
-        figs = geodetic_fits(problem, stage, po)
+        figs = scene_fits(problem, stage, po)
     else:
         logger.info('scene plots exist. Use force=True for replotting!')
         return
@@ -1107,6 +1269,52 @@ def draw_geodetic_fits(problem, plot_options):
         else:
             for i, fig in enumerate(figs):
                 fig.savefig(outpath + '_%i.%s' % (i, po.outformat), dpi=po.dpi)
+
+
+def draw_gnss_fits(problem, plot_options):
+
+    if 'geodetic' not in list(problem.composites.keys()):
+        raise TypeError('No geodetic composite defined in the problem!')
+
+    if 'GNSS' not in problem.config.geodetic_config.types:
+        raise TypeError('There is no SAR data in the problem setup!')
+
+    logger.info('Drawing GNSS misfits ...')
+
+    po = plot_options
+
+    stage = Stage(homepath=problem.outfolder,
+                  backend=problem.config.sampler_config.backend)
+
+    if not po.reference:
+        stage.load_results(
+            varnames=problem.varnames,
+            model=problem.model, stage_number=po.load_stage,
+            load='trace', chains=[-1])
+        llk_str = po.post_llk
+    else:
+        llk_str = 'ref'
+
+    mode = problem.config.problem_config.mode
+
+    outpath = os.path.join(
+        problem.config.project_dir,
+        mode, po.figure_dir, 'gnss_%s_%s_%s' % (
+            stage.number, llk_str, po.plot_projection))
+
+    if not os.path.exists(outpath) or po.force:
+        figs = gnss_fits(problem, stage, po)
+    else:
+        logger.info('scene plots exist. Use force=True for replotting!')
+        return
+
+    if po.outformat == 'display':
+        plt.show()
+    else:
+        logger.info('saving figures to %s' % outpath)
+        for component, fig in zip(('horizontal', 'vertical'), figs):
+            fig.save(outpath + '_%s.%s' % (
+                component, po.outformat), resolution=po.dpi)
 
 
 def plot_trace(axes, tr, **kwargs):
@@ -1929,15 +2137,15 @@ def draw_hudson(problem, po):
 
 def histplot_op(
         ax, data, reference=None, alpha=.35, color=None, bins=None,
-        tstd=None, kwargs={}):
+        ntickmarks=5, tstd=None, qlist=[0.01, 99.99], kwargs={}):
     """
     Modified from pymc3. Additional color argument.
     """
     for i in range(data.shape[1]):
         d = data[:, i]
-        mind = d.min()
-        maxd = d.max()
-        # bins, mind, maxd = pmp.artists.fast_kde(data[:,i])
+        quants = quantiles(d, qlist=qlist)
+        mind = quants[qlist[0]]
+        maxd = quants[qlist[-1]]
 
         if reference is not None:
             mind = num.minimum(mind, reference)
@@ -2065,7 +2273,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
               varbins=None, nbins=40, color=None, source_idxs=None,
               alpha=0.35, priors=None, prior_alpha=1, prior_style='--',
               axs=None, posterior=None, fig=None, plot_style='kde',
-              prior_bounds={}, unify=True, kwargs={}):
+              prior_bounds={}, unify=True, qlist=[0.1, 99.9], kwargs={}):
     """
     Plots posterior pdfs as histograms from multiple mtrace objects.
 
@@ -2114,6 +2322,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
         have common axis increments
     kwargs : dict
         for histplot op
+    qlist : list
+        of quantiles to plot. Default: (all, 0., 100.)
 
     Returns
     -------
@@ -2127,10 +2337,15 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
     num.set_printoptions(precision=3)
 
-    def make_bins(data, nbins=40):
+    def make_bins(data, nbins=40, qlist=None):
         d = data.flatten()
-        mind = d.min()
-        maxd = d.max()
+        if qlist is not None:
+            qu = quantiles(d, qlist=qlist)
+            mind = qu[qlist[0]]
+            maxd = qu[qlist[-1]]
+        else:
+            mind = d.min()
+            maxd = d.max()
         return num.linspace(mind, maxd, nbins)
 
     def remove_var(varnames, varname):
@@ -2225,7 +2440,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                 for isource, e in enumerate(selected):
                     e = pmp.utils.make_2d(e)
                     if make_bins_flag:
-                        varbin = make_bins(e, nbins=nbins)
+                        varbin = make_bins(e, nbins=nbins, qlist=qlist)
                         varbins.append(varbin)
                     else:
                         varbin = varbins[i]
@@ -2258,7 +2473,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     elif plot_style == 'hist':
                         histplot_op(
                             axs[rowi, coli], e, reference=reference,
-                            bins=varbin, alpha=alpha, color=pcolor,
+                            bins=varbin, alpha=alpha, color=pcolor, qlist=qlist,
                             kwargs=kwargs)
                     else:
                         raise NotImplementedError(
@@ -2874,19 +3089,20 @@ def fault_slip_distribution(
             ax, uperp, uparr, xgr, ygr, rake, color='black',
             draw_legend=False, normalisation=None, zorder=0):
 
-        angles = num.arctan2(-uperp, uparr) * \
-            (180. / num.pi) + rake
-
+        # positive uperp is always dip-normal- have to multiply -1
+        angles = num.arctan2(-uperp, uparr) * mt.r2d + rake
         slips = num.sqrt((uperp ** 2 + uparr ** 2)).ravel()
 
         if normalisation is None:
-            normalisation = slips.max() / num.abs(
-                ygr[1, 0] - ygr[0, 0]) * (3. / 2.)
+            from beat.models.laplacian import distances
+            centers = num.vstack((xgr, ygr)).T
+            #interpatch_dists = distances(centers, centers)
+            normalisation = slips.max() #/ interpatch_dists.min()
 
         slips /= normalisation
 
-        slipsx = num.cos(angles * num.pi / 180.) * slips
-        slipsy = num.sin(angles * num.pi / 180.) * slips
+        slipsx = num.cos(angles * mt.d2r) * slips
+        slipsy = num.sin(angles * mt.d2r) * slips
 
         # slip arrows of slip on patches
         quivers = ax.quiver(
@@ -2905,31 +3121,44 @@ def fault_slip_distribution(
 
         return quivers, normalisation
 
+    def rotate_coords_plane_normal(coords, sf):
+
+        coords -= sf.bottom_left / km
+
+        rots = utility.get_rotation_matrix()
+        rotz = coords.dot(rots['z'](mt.d2r * -sf.strike))
+        roty = rotz.dot(rots['y'](mt.d2r * -sf.dip))
+
+        roty[:, 0] *= - 1.
+        return roty
+
     def draw_patches(ax, fault, subfault_idx, patch_values, cmap, alpha):
-        i = subfault_idx
-        height = fault.ordering.patch_sizes_dip[i]
-        width = fault.ordering.patch_sizes_strike[i]
+
+        lls = fault.get_subfault_patch_attributes(
+            subfault_idx, attributes=['bottom_left'])
+        widths, lengths = fault.get_subfault_patch_attributes(
+            subfault_idx, attributes=['width', 'length'])
+        sf = fault.get_subfault(subfault_idx)
+
+        # subtract reference fault lower left and rotate
+        rot_lls = rotate_coords_plane_normal(lls, sf)[:, 1::-1]
 
         d_patches = []
-        lls = []
-        for patch_dip_ll in range(np_h, 0, -1):
-            for patch_strike_ll in range(np_w):
-                ll = [patch_strike_ll * width, patch_dip_ll * height - height]
-                d_patches.append(
-                    Rectangle(
-                        ll, width=width, height=height, edgecolor='black'))
-                lls.append(ll)
+        for ll, width, length in zip(rot_lls, widths, lengths):
+            d_patches.append(
+                Rectangle(
+                    ll, width=length, height=width, edgecolor='black'))
 
-        llsa = num.vstack(lls)
-        lower = llsa.min(axis=0)
-        upper = llsa.max(axis=0)
-        xlim = [lower[0], upper[0] + width]
-        ylim = [lower[1], upper[1] + height]
+        lower = rot_lls.min(axis=0)
+        pad = sf.length / km * 0.05
+
+        xlim = [lower[0] - pad, lower[0] + sf.length / km + pad]
+        ylim = [lower[1]- pad, lower[1] + sf.width / km + pad]
 
         ax.set_xlim(*xlim)
         ax.set_ylim(*ylim)
 
-        scale_y = {'scale': 1, 'offset': -ylim[1]}
+        scale_y = {'scale': 1, 'offset': (-sf.width / km)}
         scale_axes(ax.yaxis, **scale_y)
 
         ax.set_xlabel('strike-direction [km]', fontsize=fontsize)
@@ -2948,10 +3177,12 @@ def fault_slip_distribution(
         ax.add_collection(pa_col)
         return pa_col
 
-    def draw_colorbar(fig, ax, cb_related, labeltext):
+    def draw_colorbar(fig, ax, cb_related, labeltext, ntickmarks=4):
         cbaxes = fig.add_axes([0.88, 0.4, 0.03, 0.3])
         cb = fig.colorbar(cb_related, ax=axs, cax=cbaxes)
         cb.set_label(labeltext, fontsize=fontsize)
+        cb.locator = tick.MaxNLocator(nbins=ntickmarks)
+        cb.update_ticks()
         ax.set_aspect('equal', adjustable='box')
 
     def get_values_from_trace(mtrace, varname, reference):
@@ -2975,25 +3206,20 @@ def fault_slip_distribution(
         fig, ax = plt.subplots(
             nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
 
-        np_h, np_w = fault.get_subfault_discretization(ns)
-
         # alphas = alpha * num.ones(np_h * np_w, dtype='int8')
-        pa_col = draw_patches(
-            ax, fault, subfault_idx=ns, patch_values=reference_slip,
-            cmap=slip_colormap(100), alpha=0.65)
 
-        ext_source = fault.get_subfault(ns)
+        ext_source = fault.get_subfault(ns, component='uparr')
         patch_idxs = fault.get_patch_indexes(ns)
 
+        pa_col = draw_patches(
+            ax, fault, subfault_idx=ns, patch_values=reference_slip[patch_idxs],
+            cmap=slip_colormap(100), alpha=0.65)
+
         # patch central locations
-        hpd = fault.ordering.patch_sizes_dip[ns] / 2.
-        hps = fault.ordering.patch_sizes_strike[ns] / 2.
+        centers = fault.get_subfault_patch_attributes(ns, attributes=['center'])
+        rot_centers = rotate_coords_plane_normal(centers, ext_source)[:, 1::-1]
 
-        xvec = num.linspace(hps, ext_source.length / km - hps, np_w)
-        yvec = num.linspace(ext_source.width / km - hpd, hpd, np_h)
-
-        xgr, ygr = num.meshgrid(xvec, yvec)
-
+        xgr, ygr = rot_centers.T
         if 'seismic' in fault.datatypes:
             if mtrace is not None:
                 from tqdm import tqdm
@@ -3099,6 +3325,7 @@ def fault_slip_distribution(
             normalisation=normalisation, zorder=3)
 
         draw_colorbar(fig, ax, pa_col, labeltext='slip [m]')
+        format_axes(ax, remove=['top', 'right'])
 
         fig.tight_layout()
         figs.append(fig)
@@ -3472,7 +3699,7 @@ def draw_moment_rate(problem, po):
             logger.info('Plot exists! Use --force to overwrite!')
 
 
-def source_geometry(fault, ref_sources):
+def source_geometry(fault, ref_sources, datasets=None):
     """
     Plot source geometry in 3d rotatable view
 
@@ -3518,6 +3745,12 @@ def source_geometry(fault, ref_sources):
                 patch.east_shift, patch.north_shift, patch.depth * -1., str(i),
                 fontsize=10)
 
+    if datasets:
+        for dataset in datasets:
+            ax.scatter(
+                dataset.east_shifts, dataset.north_shifts, dataset.coords5[:, 4],
+                s=10, alpha=0.6, marker='o', color='black')
+
     scale = {'scale': 1. / km}
     scale_axes(ax.xaxis, **scale)
     scale_axes(ax.yaxis, **scale)
@@ -3525,6 +3758,7 @@ def source_geometry(fault, ref_sources):
     ax.set_zlabel('Depth [km]')
     ax.set_ylabel('North_shift [km]')
     ax.set_xlabel('East_shift [km]')
+    # ax.set_aspect('equal')
     plt.show()
 
 
@@ -3647,7 +3881,8 @@ plots_catalog = {
     'correlation_hist': draw_correlation_hist,
     'stage_posteriors': draw_posteriors,
     'waveform_fits': draw_seismic_fits,
-    'scene_fits': draw_geodetic_fits,
+    'scene_fits': draw_scene_fits,
+    'gnss_fits': draw_gnss_fits,
     'velocity_models': draw_earthmodels,
     'slip_distribution': draw_slip_dist,
     'hudson': draw_hudson,
@@ -3668,7 +3903,8 @@ seismic_plots = [
 
 
 geodetic_plots = [
-    'scene_fits']
+    'scene_fits',
+    'gnss_fits']
 
 
 geometry_plots = [

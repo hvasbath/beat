@@ -194,6 +194,8 @@ def cl_parse(command, args, setup=None, details=None):
 
 def list_callback(option, opt, value, parser):
     out = [ival.lstrip() for ival in value.split(',')]
+    if out == ['']:
+        out = []
     setattr(parser.values, option.dest, out)
 
 
@@ -420,6 +422,7 @@ def command_import(args):
 
                 gtargets = []
                 for typ in gc.types:
+                    logger.info('Importing data for type %s ...' % typ)
                     if typ == 'SAR':
                         if 'matlab' in options.geodetic_format:
                             gtargets.extend(
@@ -435,9 +438,16 @@ def command_import(args):
                     elif typ == 'GNSS':
                         if 'ascii' in options.geodetic_format:
                             for name in gc.names:
-                                gtargets.extend(
-                                    inputf.load_and_blacklist_gnss(
-                                        gc.datadir, name, gc.blacklist))
+                                try:
+                                    gtargets.extend(
+                                        inputf.load_and_blacklist_gnss(
+                                            gc.datadir, name, gc.blacklist))
+                                    logger.info('Successfully imported GNSS'
+                                                ' data for %s' % name)
+                                except OSError:
+                                    logger.warning(
+                                        'File %s not conform with ascii '
+                                        'format!' % name)
                         else:
                             raise ImportError(
                                 'Format %s not implemented yet for GNSS data.' %
@@ -475,18 +485,21 @@ def command_import(args):
         point = plotting.get_result_point(stage, problem.config, 'max')
 
         if 'geodetic' in options.datatypes:
-            if c.geodetic_config.fit_plane:
+            gc = problem.composites['geodetic']
+            if c.geodetic_config.corrections_config.has_enabled_corrections:
 
-                logger.info('Importing ramp parameters ...')
+                logger.info('Importing correction parameters ...')
                 new_bounds = OrderedDict()
 
-                for var in c.geodetic_config.get_hierarchical_names():
+                for var in c.geodetic_config.get_hierarchical_names(
+                        datasets=gc.datasets):
                     if var in point:
+                        logger.info('Importing correction for %s' % var)
                         new_bounds[var] = (point[var], point[var])
                     else:
                         logger.warn(
-                            'Ramps were fixed in previous run!'
-                            ' Importing fixed values!')
+                            'Correction %s was fixed in previous run!'
+                            ' Importing fixed values!' % var)
                         tpoint = c.problem_config.get_test_point()
                         new_bounds[var] = (tpoint[var], tpoint[var])
 
@@ -916,6 +929,7 @@ def command_summarize(args):
 
                 if rm_flag:
                     # remove chain
+                    logger.info('Removing sampled traces ...')
                     os.remove(stage.mtrace._straces[chain].filename)
 
             rtrace.record_buffer()
@@ -1047,7 +1061,9 @@ def command_build_gfs(args):
         import numpy as num
 
         slip_varnames = c.problem_config.get_slip_variables()
-        varnames = c.problem_config.select_variables()
+        rvs, fixed_rvs = c.problem_config.get_random_variables()
+
+        varnames = list(set(slip_varnames).intersection(set(list(rvs.keys()))))
         outdir = pjoin(c.project_dir, options.mode, bconfig.linear_gf_dir_name)
         util.ensuredir(outdir)
 
@@ -1060,47 +1076,54 @@ def command_build_gfs(args):
                     raise AttributeError(
                         'Datatype "%s" not existing in config!' % datatype)
 
-                for source in gf.reference_sources:
-                    source.update(lat=c.event.lat, lon=c.event.lon)
+            if len(c.problem_config.datatypes) > 1:
+                logger.warning(
+                    'Found two datatypes! Please be aware that the reference'
+                    ' fault geometries have to be consistent!')
 
-                logger.info('Discretizing reference sources ...')
-                fault = ffi.discretize_sources(
-                    varnames=slip_varnames,
-                    sources=gf.reference_sources,
-                    extension_widths=gf.extension_widths,
-                    extension_lengths=gf.extension_lengths,
-                    patch_widths=gf.patch_widths,
-                    patch_lengths=gf.patch_lengths,
-                    datatypes=options.datatypes)
+            for source in gf.reference_sources:
+                source.update(lat=c.event.lat, lon=c.event.lon)
 
-            logger.info(
-                'Storing discretized fault geometry to: %s' % faultpath)
-            utility.dump_objects(faultpath, [fault])
+            logger.info('Discretizing reference sources ...')
+            fault = ffi.discretize_sources(
+                config=gf.discretization_config,
+                varnames=varnames,
+                sources=gf.reference_sources,
+                datatypes=c.problem_config.datatypes)
 
-            logger.info(
-                'Fault discretization done! Updating problem_config...')
-            logger.info('%s' % fault.__str__())
-            c.problem_config.n_sources = fault.nsubfaults
-            c.problem_config.mode_config.npatches = fault.npatches
+            if gf.discretization == 'uniform':
+                logger.info(
+                    'Fault discretization done! Updating problem_config...')
+                logger.info('%s' % fault.__str__())
 
-            nucleation_strikes = []
-            nucleation_dips = []
-            for i in range(fault.nsubfaults):
-                ext_source = fault.get_subfault(
-                    i, datatype=options.datatypes[0], component='uparr')
+                c.problem_config.n_sources = fault.nsubfaults
+                c.problem_config.mode_config.npatches = fault.npatches
 
-                nucleation_dips.append(ext_source.width / km)
-                nucleation_strikes.append(ext_source.length / km)
+                nucleation_strikes = []
+                nucleation_dips = []
+                for i in range(fault.nsubfaults):
+                    ext_source = fault.get_subfault(
+                        i, datatype=options.datatypes[0], component='uparr')
 
-            nucl_start = num.zeros(fault.nsubfaults)
-            new_bounds = {
-                'nucleation_strike': (
-                    nucl_start, num.array(nucleation_strikes)),
-                'nucleation_dip': (nucl_start, num.array(nucleation_dips))
-            }
+                    nucleation_dips.append(ext_source.width / km)
+                    nucleation_strikes.append(ext_source.length / km)
 
-            c.problem_config.set_vars(new_bounds)
-            bconfig.dump_config(c)
+                nucl_start = num.zeros(fault.nsubfaults)
+                new_bounds = {
+                    'nucleation_strike': (
+                        nucl_start, num.array(nucleation_strikes)),
+                    'nucleation_dip': (nucl_start, num.array(nucleation_dips))
+                }
+
+                c.problem_config.set_vars(new_bounds)
+                bconfig.dump_config(c)
+                logger.info(
+                    'Storing discretized fault geometry to: %s' % faultpath)
+                utility.dump_objects(faultpath, [fault])
+            else:
+                logger.info(
+                    'For resolution based discretization GF calculation '
+                    'has to be started!')
 
         elif os.path.exists(faultpath):
             logger.info("Discretized fault geometry exists! Use --force to"
@@ -1134,6 +1157,29 @@ def command_build_gfs(args):
                             crust_inds=[crust_ind],
                             sample_rate=gf.sample_rate)
 
+                        if not fault.is_discretized and fault.needs_optimization:
+                            fault, R = ffi.optimize_discretization(
+                                config=gf.discretization_config,
+                                fault=fault,
+                                datasets=datasets,
+                                varnames=varnames,
+                                engine=engine,
+                                crust_ind=crust_ind,
+                                targets=targets,
+                                event=c.event,
+                                force=options.force,
+                                nworkers=gf.nworkers)
+                            logger.info(
+                                'Storing optimized discretized fault'
+                                ' geometry to: %s' % faultpath)
+                            utility.dump_objects(faultpath, [fault])
+                            logger.info(
+                                'Fault discretization optimization done!'
+                                'Updating problem_config...')
+                            logger.info('%s' % fault.__str__())
+                            c.problem_config.mode_config.npatches = fault.npatches
+                            bconfig.dump_config(c)
+
                         ffi.geo_construct_gf_linear(
                             engine=engine,
                             outdirectory=outdir,
@@ -1143,7 +1189,7 @@ def command_build_gfs(args):
                             targets=targets,
                             nworkers=gf.nworkers,
                             fault=fault,
-                            varnames=slip_varnames,
+                            varnames=varnames,
                             force=options.force)
 
                 elif datatype == 'seismic':
@@ -1365,7 +1411,7 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
 def command_check(args):
 
     command_str = 'check'
-    whats = ['stores', 'traces', 'library', 'geometry']
+    whats = ['stores', 'traces', 'library', 'geometry', 'discretization']
 
     def setup(parser):
         parser.add_option(
@@ -1406,7 +1452,7 @@ def command_check(args):
             type='string',
             action='callback',
             callback=list_callback,
-            help='Indexes to targets to display.')
+            help='Indexes to targets/datasets to display.')
 
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
@@ -1478,18 +1524,114 @@ def command_check(args):
                                 durationidxs=list(range(gfs.ndurations)),
                                 starttimeidxs=list(range(gfs.nstarttimes)))
                             snuffle(trs)
-    elif options.what == 'geometry':
+
+    elif options.what == 'discretization':
         from beat.plotting import source_geometry
-        datatype = problem.config.problem_config.datatypes[0]
+        if 'geodetic' in problem.config.problem_config.datatypes:
+            datatype = 'geodetic'
+            datasets = []
+            for i in options.targets:
+                dataset = problem.composites[datatype].datasets[int(i)]
+                dataset.update_local_coords(problem.config.event)
+                datasets.append(dataset)
+        else:
+            datatype = problem.config.problem_config.datatypes[0]
+            datasets = None
+
         if options.mode == ffi_mode_str:
             fault = problem.composites[datatype].load_fault_geometry()
             reference_sources = problem.config[
                 datatype + '_config'].gf_config.reference_sources
-            source_geometry(fault, reference_sources)
+            source_geometry(fault, reference_sources, datasets)
         else:
             logger.warning(
-                'Checking geometry is only for'
+                'Checking discretization is only for'
                 ' "%s" mode available' % ffi_mode_str)
+
+    elif options.what == 'geometry':
+        if 'geodetic' not in problem.config.problem_config.datatypes:
+            if 'SAR' not in problem.config.geodetic_config.types:
+                raise ValueError(
+                    'Checking geometry is only available for SAR data')
+
+            raise ValueError(
+                'Checking geometry is only available for geodetic data')
+
+        try:
+            from kite.talpa import Talpa
+            from kite import SandboxScene
+            from kite.scene import Scene, UserIOWarning
+            from kite import sources as ksources
+
+            talpa_source_catalog = {
+                'RectangularSource': ksources.OkadaSource,
+                'DCSource': ksources.PyrockoDoubleCouple,
+                'MTSource': ksources.PyrockoMomentTensor,
+                'RingfaultSource': ksources.PyrockoRingfaultSource,
+            }
+
+        except ImportError:
+            raise ImportError(
+                'Please install the KITE software (www.pyrocko.org)'
+                ' to enable this feature!')
+
+        if len(options.targets) > 1:
+            logger.warning(
+                'Targets can be only of length 1 for geometry checking!'
+                ' Displaying only first target.')
+
+        gc = problem.composites['geodetic']
+        gfc = gc.config.gf_config
+        dataset = gc.datasets[int(options.targets[0])]
+        logger.info('Initialising Talpa Sandbox ...')
+        sandbox = SandboxScene()
+        try:
+            homepath = problem.config.geodetic_config.datadir
+            scene_path = os.path.join(homepath, dataset.name)
+            logger.info(
+                'Loading full resolution kite scene: %s' % scene_path)
+            sandbox.loadReferenceScene(scene_path)
+        except UserIOWarning:
+            raise ImportError(
+                'Full resolution data could not be loaded!')
+
+        from tempfile import mkdtemp
+
+        tempdir = mkdtemp(prefix='beat_geometry_check', dir=None)
+
+        store_dir = pjoin(
+            gfc.store_superdir,
+            heart.get_store_id(
+                'statics',
+                heart.get_earth_model_prefix(gfc.earth_model_name),
+                gfc.sample_rate,
+                gfc.reference_model_idx))
+
+        if options.mode == ffi_mode_str:
+            logger.info('FFI mode: Loading reference sources ...')
+            sources = gc.config.gf_config.reference_sources
+
+        elif options.mode == geometry_mode_str:
+            logger.info('Geometry mode: Loading Test value sources ...')
+            tpoint = problem.config.problem_config.get_test_point()
+            gc.point2sources(tpoint)
+            sources = gc.sources
+
+        src_class_name = problem.config.problem_config.source_type
+        for source in sources:
+            source.regularize()
+            try:
+                sandbox.addSource(
+                    talpa_source_catalog[src_class_name].fromPyrockoSource(
+                        source, store_dir=store_dir))
+            except(AttributeError, KeyError):
+                raise ValueError('%s not supported for display in Talpa!'
+                                 '' % src_class_name)
+
+        filename = pjoin(tempdir, '%s.yml' % dataset.name)
+        sandbox.save(filename)
+        logger.debug('Saving sandbox to %s' % filename)
+        Talpa(filename)
     else:
         raise ValueError('Subject what: %s is not available!' % options.what)
 

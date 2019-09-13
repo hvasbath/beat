@@ -9,7 +9,6 @@ import difflib
 from pyrocko import guts_agnostic as aguts
 from logging import getLogger
 from pyrocko import guts
-from beat import config
 
 
 logger = getLogger('upgrade')
@@ -96,6 +95,24 @@ def upgrade_config_file(fn, diff=True, update=[]):
             set_attribute('resample', False, False)),
         ('beat.FFOConfig',
         rename_class('beat.FFIConfig')),
+        ('beat.GeodeticLinearGFConfig',
+         drop_attribute('extension_widths')),
+        ('beat.GeodeticLinearGFConfig',
+         drop_attribute('extension_lengths')),
+        ('beat.GeodeticLinearGFConfig',
+         drop_attribute('patch_widths')),
+        ('beat.GeodeticLinearGFConfig',
+         drop_attribute('patch_lengths')),
+        ('beat.SeismicLinearGFConfig',
+         drop_attribute('extension_widths')),
+        ('beat.SeismicLinearGFConfig',
+         drop_attribute('extension_lengths')),
+        ('beat.SeismicLinearGFConfig',
+         drop_attribute('patch_widths')),
+        ('beat.SeismicLinearGFConfig',
+         drop_attribute('patch_lengths')),
+        ('beat.GeodeticConfig',
+         drop_attribute('fit_plane')),
     ]
 
     def apply_rules(path, obj):

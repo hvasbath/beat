@@ -791,7 +791,7 @@ filename: %s''' % (
 def _process_patch_geodetic(
         engine, gfs, targets, patch, patchidx, los_vectors, odws):
 
-    logger.info('Patch Number %i', patchidx)
+    logger.debug('Patch Number %i', patchidx)
     logger.debug('Calculating synthetics ...')
     disp = heart.geo_synthetics(
         engine=engine,
@@ -837,6 +837,7 @@ def geo_construct_gf_linear(
 
     nsamples = odws.size
     npatches = fault.npatches
+
     logger.info('Using %i workers ...' % nworkers)
 
     for var in varnames:
@@ -867,8 +868,9 @@ def geo_construct_gf_linear(
 
             gfs.setup(npatches, nsamples, allocate=allocate)
 
-            logger.info(
-                "Setting up Green's Function Library: %s \n ", gfs.__str__())
+            if outdirectory:
+                logger.info(
+                    "Setting up Green's Function Library: %s \n ", gfs.__str__())
 
             parallel.check_available_memory(gfs.filesize)
 
@@ -891,9 +893,11 @@ def geo_construct_gf_linear(
             gfs._gfmatrix = num.frombuffer(
                 shared_gflibrary).reshape(gfs.dimensions)
 
-            logger.info('Storing geodetic linear GF Library ...')
-
-            gfs.save(outdir=outdirectory)
+            if outdirectory:
+                logger.info('Storing geodetic linear GF Library ...')
+                gfs.save(outdir=outdirectory)
+            else:
+                return gfs._gfmatrix
 
 
 def _process_patch_seismic(
@@ -906,7 +910,7 @@ def _process_patch_seismic(
     # ensure stf anchor point at -1
     patch.stf.anchor = -1
     source_patches_durations = []
-    logger.info('Patch Number %i', patchidx)
+    logger.debug('Patch Number %i', patchidx)
 
     for duration in durations:
         pcopy = patch.clone()

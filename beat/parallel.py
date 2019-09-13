@@ -229,7 +229,7 @@ def paripool(
             initializer=initializer,
             initargs=initargs)
 
-        logger.info('Worker timeout after %i second(s)' % timeout)
+        logger.debug('Worker timeout after %i second(s)' % timeout)
 
         workers = [
             WatchedWorker(
@@ -243,7 +243,7 @@ def paripool(
         if pool_timeout < 100:
             pool_timeout = 100
 
-        logger.info('Overseer timeout after %i second(s)' % pool_timeout)
+        logger.debug('Overseer timeout after %i second(s)' % pool_timeout)
         logger.info('Chunksize: %i' % chunksize)
 
         try:

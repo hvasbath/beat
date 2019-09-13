@@ -1,11 +1,12 @@
 import numpy as num
+from numpy.testing import assert_allclose
 
 from beat import interseismic, pscmp
 from beat.heart import ReferenceLocation
 
-from tempfile import mkdtemp
+import logging
 import os
-import shutil
+
 import unittest
 
 from pyrocko import util
@@ -13,6 +14,8 @@ from pyrocko import plot, orthodrome
 
 
 km = 1000.
+
+logger = logging.getLogger('test_interseismic')
 
 
 class TestInterseismic(unittest.TestCase):
@@ -75,7 +78,7 @@ class TestInterseismic(unittest.TestCase):
 
         return sources
 
-    def test_backslip_params(self):
+    def old_test_backslip_params(self):
         azimuth = (90., 0.)
         strike = (0., 0.)
         dip = (90., 90.)
@@ -98,7 +101,7 @@ class TestInterseismic(unittest.TestCase):
             num.testing.assert_allclose(
                 d['rake'], test_rake[i], rtol=0., atol=1e-6)
 
-    def test_block_geometry(self):
+    def old_test_block_geometry(self):
 
         if self.reference is None:
             self._get_synthetic_data()
@@ -107,7 +110,7 @@ class TestInterseismic(unittest.TestCase):
             lons=self.lons, lats=self.lats,
             sources=self._get_sources(), reference=self.reference)
 
-    def test_block_synthetics(self):
+    def old_test_block_synthetics(self):
 
         if self.reference is None:
             self._get_synthetic_data()
@@ -135,7 +138,7 @@ class TestInterseismic(unittest.TestCase):
             azimuth=self.azimuth,
             locking_depth=self.locking_depth)
 
-    def test_plot_synthetics(self):
+    def _old_test_plot_synthetics(self):
         from matplotlib import pyplot as plt
 
         fig, ax = plt.subplots(
@@ -163,6 +166,31 @@ class TestInterseismic(unittest.TestCase):
             cbs.set_label(cblabel, fontsize=fontsize)
 
         plt.show()
+
+    def test_plate_rotation(self):
+        v1_ref = num.array(
+            [-40.33431624537931, 27.59254158624030, 0.]) / km
+        v2_ref = num.array(
+            [35.47707891158412, -27.93047805570016, 0.]) / km
+        v1 = interseismic.velocities_from_pole(
+            37., -123., 48.7, -78.2, 0.78).ravel()
+        from time import time
+        t2 = time()
+        v2 = interseismic.velocities_from_pole(
+            34.75, -116.5, 48.7, -78.2, -0.78).ravel()
+        t3 = time()
+        assert_allclose(v1, v1_ref, atol=1e-3, rtol=0.)
+        assert_allclose(v2, v2_ref, atol=1e-3, rtol=0.)
+
+        logger.info('One point %f' % (t3-t2))
+        t0 = time()
+        v3 = interseismic.velocities_from_pole(
+            [37., 37.1], [-123., -125.5], 48.7, -78.2, 0.78)
+        t1 = time()
+
+        logger.info('Two points %f' % (t1 - t0))
+        assert v3.shape == (2, 3)
+        assert_allclose(v3[0, :], v1_ref, atol=1e-3, rtol=0.)
 
 
 if __name__ == '__main__':

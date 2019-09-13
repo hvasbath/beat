@@ -39,8 +39,7 @@ ffi_mode_str = 'ffi'
 geometry_mode_str = 'geometry'
 
 
-block_vars = [
-    'bl_azimuth', 'bl_amplitude']
+block_vars = ['bl_azimuth', 'bl_amplitude']
 seis_vars = ['time', 'duration']
 
 source_names = '''
@@ -67,16 +66,16 @@ source_classes = [
     gf.RingfaultSource]
 
 stf_names = '''
-Boxcar
-Triangular
-HalfSinusoid
-'''.split()
+    Boxcar
+    Triangular
+    HalfSinusoid
+    '''.split()
 
 source_catalog = {name: source_class for name, source_class in zip(
-    source_names, source_classes)}
+source_names, source_classes)}
 
 stf_catalog = {name: stf_class for name, stf_class in zip(
-    stf_names, stf_classes[1:4])}
+stf_names, stf_classes[1:4])}
 
 interseismic_vars = [
     'east_shift', 'north_shift', 'strike', 'dip', 'length',
@@ -90,7 +89,7 @@ voronoi_locations = ['voronoi_strike', 'voronoi_dip']
 
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars + hypo_vars
 transd_vars_dist = partial_kinematic_vars + static_dist_vars + \
-    voronoi_locations
+voronoi_locations
 dist_vars = static_dist_vars + partial_kinematic_vars
 
 interseismic_catalog = {
@@ -177,7 +176,9 @@ default_bounds = dict(
 
     hypers=(-20., 20.),
     ramp=(-0.005, 0.005),
-    offset=(-0.05, 0.05))
+    offset=(-0.05, 0.05),
+    pole=(30., 30.5),
+    omega=(0.5, 0.6))
 
 default_seis_std = 1.e-6
 default_geo_std = 1.e-3
@@ -206,9 +207,12 @@ _interpolation_choices = ['nearest_neighbor', 'multilinear']
 _structure_choices = available_noise_structures()
 _mode_choices = [geometry_mode_str, ffi_mode_str]
 _regularization_choices = ['laplacian', 'none']
+_correlation_function_choices = ['nearest_neighbor', 'gaussian', 'exponential']
+_discretization_choices = ['uniform', 'resolution']
 _initialization_choices = ['random', 'lsq']
 _backend_choices = ['csv', 'bin']
 _datatype_choices = ['geodetic', 'seismic']
+_sampler_choices = ['PT', 'SMC', 'Metropolis']
 
 
 class InconsistentParameterNaming(Exception):
@@ -360,25 +364,10 @@ class GeodeticGFConfig(NonlinearGFConfig):
         help='Distance spacing [km] for GF medium grid.')
 
 
-class LinearGFConfig(GFConfig):
+class DiscretizationConfig(Object):
     """
-    Config for linear GreensFunction calculation parameters.
+    Config to determine the discretization of the finite fault(s)
     """
-    reference_sources = List.T(
-        RectangularSource.T(),
-        help='Geometry of the reference source(s) to fix')
-    patch_widths = List.T(
-        Float.T(),
-        default=[5.],
-        help='List of Patch width [km] to divide reference sources. Each value'
-             ' is applied following the list-order to the respective reference'
-             ' source')
-    patch_lengths = List.T(
-        Float.T(),
-        default=[5.],
-        help='Patch length [km] to divide reference sources Each value'
-             ' is applied following the list-order to the respective reference'
-             ' source')
     extension_widths = List.T(
         Float.T(),
         default=[0.1],
@@ -395,9 +384,113 @@ class LinearGFConfig(GFConfig):
              ' strike-direction. 0.1 means extension of the fault by 10% in'
              ' each direction, i.e. 20% in total. Each value is applied '
              ' following the list-order to the respective reference source.')
+
+
+class UniformDiscretizationConfig(DiscretizationConfig):
+
+    patch_widths = List.T(
+        Float.T(),
+        default=[5.],
+        help='List of Patch width [km] to divide reference sources. Each value'
+             ' is applied following the list-order to the respective reference'
+             ' source')
+    patch_lengths = List.T(
+        Float.T(),
+        default=[5.],
+        help='Patch length [km] to divide reference sources Each value'
+             ' is applied following the list-order to the respective reference'
+             ' source')
+
+    def get_patch_dimensions(self):
+        return self.patch_widths, self.patch_lengths
+
+
+class ResolutionDiscretizationConfig(DiscretizationConfig):
+    """
+    Parameters that control the source discretization optimization following
+    Atzori & Antonioli 2011:
+        Optimal fault resolution in geodetic inversion of coseismic data
+    """
+
+    epsilon = Float.T(
+        default=5.e-3,
+        help='Damping constant for SVD of Greens Functions. '
+             'Reasonable between: [10e-2 to 10e-5]')
+    resolution_thresh = Float.T(
+        default=0.95,
+        help='Resolution threshold discretization continues until all patches '
+             'are below this threshold. The lower the finer the discretization. '
+             'Reasonable between: [0.95, 0.99]')
+    depth_penalty = Float.T(
+        default=3.5,
+        help='The higher the number the more penalty on the deeper '
+             'patches-ergo larger patches.')
+    alpha = Float.T(
+        default=0.3,
+        help='Decimal percentage of largest patches that are subdivided '
+             'further. Reasonable: [0.1, 0.3]')
+    patch_widths_min = List.T(
+        Float.T(),
+        default=[1.],
+        help='Patch width [km] for min final discretization of patches.')
+    patch_widths_max = List.T(
+        Float.T(),
+        default=[5.],
+        help='Patch width [km] for max initial discretization of patches.')
+    patch_lengths_min = List.T(
+        Float.T(),
+        default=[1.],
+        help='Patch length [km] for min final discretization of'
+             ' patches.')
+    patch_lengths_max= List.T(
+        Float.T(),
+        default=[5.],
+        help='Patch length [km] for max initial discretization of'
+             ' patches.')
+
+    def get_patch_dimensions(self):
+        """
+        Returns
+        -------
+        List of patch_widths, List of patch_lengths
+        """
+        return self.patch_widths_max, self.patch_lengths_max
+
+
+discretization_catalog = {
+    'uniform': UniformDiscretizationConfig,
+    'resolution': ResolutionDiscretizationConfig}
+
+
+class LinearGFConfig(GFConfig):
+    """
+    Config for linear GreensFunction calculation parameters.
+    """
+    reference_sources = List.T(
+        RectangularSource.T(),
+        help='Geometry of the reference source(s) to fix')
     sample_rate = Float.T(
         default=2.,
         help='Sample rate for the Greens Functions.')
+    discretization = StringChoice.T(
+        default='uniform',
+        choices=_discretization_choices,
+        help='Flag for discretization of finite sources into patches.'
+             ' Choices: %s' % utility.list2string(_discretization_choices))
+    discretization_config = DiscretizationConfig.T(
+        default=UniformDiscretizationConfig.D(),
+        help='Discretization configuration that allows customization.'
+    )
+
+    def __init__(self, **kwargs):
+
+        kwargs = _init_kwargs(
+            method_config_name='discretization_config',
+            method_name='discretization',
+            method_catalog=discretization_catalog,
+            kwargs=kwargs)
+
+        Object.__init__(self, **kwargs)
 
 
 class SeismicLinearGFConfig(LinearGFConfig):
@@ -419,6 +512,14 @@ class SeismicLinearGFConfig(LinearGFConfig):
         help="Calculate Green's Functions for varying rupture onset times."
              "These are determined by the (rupture) velocity prior bounds "
              "and the hypocenter location.")
+
+    def __init__(self, **kwargs):
+
+        Object.__init__(self, **kwargs)
+
+        if self.discretization == 'resolution':
+            raise ValueError('Resolution based discretization only available '
+                             'for geodetic data!')
 
 
 class GeodeticLinearGFConfig(LinearGFConfig):
@@ -448,7 +549,7 @@ class WaveformFitConfig(Object):
         choices=_interpolation_choices,
         default='multilinear',
         help='GF interpolation sceme. Choices: %s' %
-        utility.list2string(_interpolation_choices))
+             utility.list2string(_interpolation_choices))
     arrival_taper = trace.Taper.T(
         default=ArrivalTaper.D(),
         help='Taper a,b/c,d time [s] before/after wave arrival')
@@ -553,6 +654,77 @@ class SeismicConfig(Object):
             self.waveforms.append(WaveformFitConfig(name=wavename))
 
 
+class CorrectionConfig(Object):
+
+    enabled = Bool.T(
+        default=False,
+        help='Flag to enable Correction.')
+    blacklist = List.T(
+        String.T(),
+        default=[],
+        help='Dataset name or GNSS station name to apply no correction.')
+
+    def get_suffixes(self):
+        return self._suffixes
+
+    @property
+    def _suffixes(self):
+        return ['']
+
+    def get_hierarchical_names(self, name):
+        return ['{}_{}'.format(name, suffix) for suffix in self.get_suffixes()
+                if name not in self.blacklist]
+
+
+class EulerPoleConfig(CorrectionConfig):
+
+    @property
+    def _suffixes(self):
+        return ['pole', 'omega']
+
+    @property
+    def feature(self):
+        return 'Euler Pole'
+
+    @property
+    def for_datatyp(self):
+        return 'GNSS'
+
+    def get_theano_op(self):
+        from beat.theanof import EulerPole
+        return EulerPole
+
+
+class RampConfig(CorrectionConfig):
+
+    @property
+    def _suffixes(self):
+        return ['ramp', 'offset']
+
+    @property
+    def feature(self):
+        return 'Ramps'
+
+    @property
+    def for_datatyp(self):
+        return 'SAR'
+
+
+class GeodeticCorrectionsConfig(Object):
+    """
+    Config for corrections to geodetic datasets.
+    """
+    euler_pole = EulerPoleConfig.T(default=EulerPoleConfig.D())
+    ramp = RampConfig.T(default=RampConfig.D())
+
+    def iter_corrections(self):
+        return [self.euler_pole, self.ramp]
+
+    @property
+    def has_enabled_corrections(self):
+        return any([corr.enabled for corr in self.iter_corrections()])
+
+
 class GeodeticConfig(Object):
     """
     Config for geodetic data optimization related parameters.
@@ -577,10 +749,9 @@ class GeodeticConfig(Object):
         default='multilinear',
         help='GF interpolation scheme during synthetics generation.'
              ' Choices: %s' % utility.list2string(_interpolation_choices))
-    fit_plane = Bool.T(
-        default=False,
-        help='Flag for inverting for additional plane parameters on each'
-             ' SAR datatype')
+    corrections_config = GeodeticCorrectionsConfig.T(
+        default=GeodeticCorrectionsConfig.D(),
+        help='Config for additional corrections to apply to geodetic datasets.')
     dataset_specific_residual_noise_estimation = Bool.T(
         default=False,
         help='If set, for EACH DATASET specific hyperparameter estimation.'
@@ -607,12 +778,17 @@ class GeodeticConfig(Object):
     def get_hypernames(self):
         return ['_'.join(('h', typ)) for typ in self.types]
 
-    def get_hierarchical_names(self):
-        if self.fit_plane:
-            return [name + '_ramp' for name in self.names] + \
-                [name + '_offset' for name in self.names]
-        else:
-            return []
+    def get_hierarchical_names(self, datasets=None):
+
+        out_names = []
+        for corr in self.corrections_config.iter_corrections():
+            if corr.enabled:
+                for dataset in datasets:
+                    if corr.for_datatyp == dataset.typ:
+                        out_names.extend(
+                            corr.get_hierarchical_names(dataset.name))
+
+        return out_names
 
 
 class ModeConfig(Object):
@@ -622,6 +798,65 @@ class ModeConfig(Object):
     pass
 
 
+class RegularizationConfig(Object):
+    pass
+
+
+class NoneRegularizationConfig(Object):
+    """
+    Dummy class to return None.
+    """
+    def __new__(self):
+        return None
+
+
+class LaplacianRegularizationConfig(RegularizationConfig):
+    """
+    Determines the structure of the Laplacian.
+    """
+    correlation_function = StringChoice.T(
+        default='nearest_neighbor',
+        choices=_correlation_function_choices,
+        help='Determines the correlation function for smoothing across '
+             'patches. Choices: %s' % utility.list2string(
+            _correlation_function_choices))
+
+    def get_hypernames(self):
+        return [hyper_name_laplacian]
+
+
+regularization_catalog = {
+    'laplacian': LaplacianRegularizationConfig,
+    'none': NoneRegularizationConfig,
+}
+
+
+def _init_kwargs(method_config_name, method_name, method_catalog, kwargs):
+    """
+    Fiddle with input arguments for method_config and initialise sub method
+    config according to requested method name.
+    """
+    method_config = kwargs.pop(method_config_name, None)
+    method = kwargs.pop(method_name, None)
+
+    if method and not method_config:
+        kwargs[method_config_name] = method_catalog[method]()
+    elif method and method_config:
+        wanted_config = method_catalog[method]
+        if not isinstance(
+                method_config, wanted_config):
+            logger.info('%s method changed!'
+                        ' Initializing new config...' % method_name)
+            kwargs[method_config_name] = wanted_config()
+        else:
+            kwargs[method_config_name] = method_config
+
+    if method:
+        kwargs[method_name] = method
+
+    return kwargs
+
+
 class FFIConfig(ModeConfig):
 
     regularization = StringChoice.T(
@@ -629,17 +864,31 @@ class FFIConfig(ModeConfig):
         choices=_regularization_choices,
         help='Flag for regularization in distributed slip-optimization.'
              ' Choices: %s' % utility.list2string(_regularization_choices))
-    npatches = Int.T(
-        default=None,
+    regularization_config = RegularizationConfig.T(
         optional=True,
-        help='Number of patches on full fault. Should not be edited manually!'
-             ' Please edit indirectly through patch_widths and patch_lengths'
-             ' parameters!')
+        default='none',
+        help='Additional configuration parameters for regularization')
     initialization = StringChoice.T(
         default='random',
         choices=_initialization_choices,
         help='Initialization of chain starting points, default: random.'
              ' Choices: %s' % utility.list2string(_initialization_choices))
+    npatches = Int.T(
+        default = None,
+        optional=True,
+        help = 'Number of patches on full fault. Should not be edited manually!'
+               ' Please edit indirectly through patch_widths and patch_lengths'
+               ' parameters!')
+
+    def __init__(self, **kwargs):
+
+        kwargs = _init_kwargs(
+            method_config_name='regularization_config',
+            method_name='regularization',
+            method_catalog=regularization_catalog,
+            kwargs=kwargs)
+
+        Object.__init__(self, **kwargs)
 
 
 class ProblemConfig(Object):
@@ -650,7 +899,7 @@ class ProblemConfig(Object):
         choices=_mode_choices,
         default=geometry_mode_str,
         help='Problem to solve. Choices: %s' %
-        utility.list2string(_mode_choices))
+             utility.list2string(_mode_choices))
     mode_config = ModeConfig.T(
         optional=True,
         help='Global optimization mode specific parameters.')
@@ -804,6 +1053,51 @@ class ProblemConfig(Object):
 
         return unique_variables
 
+    def get_random_variables(self):
+        """
+        Evaluate problem setup and return random variables dictionary.
+
+        Returns
+        -------
+        rvs : dict
+            variable random variables
+        fixed_params : dict
+            fixed random parameters
+        """
+        from pymc3 import Uniform
+        logger.debug('Optimization for %i sources', self.n_sources)
+
+        rvs = dict()
+        fixed_params = dict()
+        for param in self.priors.values():
+            if not num.array_equal(param.lower, param.upper):
+
+                shape = get_parameter_shape(param, self)
+
+                kwargs = dict(
+                    name=param.name,
+                    shape=shape,
+                    lower=param.lower,
+                    upper=param.upper,
+                    testval=param.testvalue,
+                    transform=None,
+                    dtype=tconfig.floatX)
+                try:
+                    rvs[param.name] = Uniform(**kwargs)
+
+                except TypeError:
+                    kwargs.pop('name')
+                    rvs[param.name] = Uniform.dist(**kwargs)
+
+            else:
+                logger.info(
+                    'not solving for %s, got fixed at %s' % (
+                        param.name,
+                        utility.list2string(param.lower.flatten())))
+                fixed_params[param.name] = param.lower
+
+        return rvs, fixed_params
+
     def get_slip_variables(self):
         """
         Return a list of slip variable names defined in the ProblemConfig.
@@ -909,7 +1203,9 @@ class ProblemConfig(Object):
 
 def get_parameter_shape(param, pc):
     if pc.mode == ffi_mode_str:
-        if param.name not in hypo_vars:
+        if param.name in hypo_vars:
+            shape = param.dimension
+        elif param.name not in hypo_vars and pc.mode_config.npatches:
             shape = pc.mode_config.npatches
         else:
             shape = param.dimension
@@ -1040,15 +1336,24 @@ class SMCConfig(SamplerParameters):
              'stages.')
 
 
+sampler_catalog = {
+    'PT': ParallelTemperingConfig,
+    'SMC': SMCConfig,
+    'Metropolis': MetropolisConfig,
+}
+
+
 class SamplerConfig(Object):
     """
     Config for the sampler specific parameters.
     """
 
-    name = String.T(
+    name = StringChoice.T(
         default='SMC',
-        help='Sampler to use for sampling the solution space.'
-             ' Metropolis/ SMC')
+        choices=_sampler_choices,
+        help='Sampler to use for sampling the solution space. '
+             'Choices: %s' % utility.list2string(_sampler_choices)
+             )
     backend = StringChoice.T(
         default='csv',
         choices=_backend_choices,
@@ -1068,29 +1373,17 @@ class SamplerConfig(Object):
              'writing to disc.')
     parameters = SamplerParameters.T(
         default=SMCConfig.D(),
-        optional=True,
         help='Sampler dependend Parameters')
 
-    def set_parameters(self, **kwargs):
+    def __init__(self, **kwargs):
 
-        if self.name is None:
-            logger.info('Sampler not defined, using default sampler: SMC')
-            self.name = 'SMC'
+        kwargs = _init_kwargs(
+            method_config_name='parameters',
+            method_name='name',
+            method_catalog=sampler_catalog,
+            kwargs=kwargs)
 
-        if self.name == 'SMC':
-            self.parameters = SMCConfig(**kwargs)
-
-        elif self.name != 'SMC':
-            kwargs.pop('update_covariances', None)
-
-            if self.name == 'Metropolis':
-                self.parameters = MetropolisConfig(**kwargs)
-
-            elif self.name == 'PT':
-                self.parameters = ParallelTemperingConfig(**kwargs)
-
-            else:
-                raise TypeError('Sampler "%s" is not implemented.' % self.name)
+        Object.__init__(self, **kwargs)
 
 
 class GFLibaryConfig(Object):
@@ -1179,11 +1472,11 @@ class BEATconfig(Object, Cloneable):
             hypers[name] = Parameter(
                 name=name,
                 lower=num.ones(1, dtype=tconfig.floatX) *
-                default_bounds[defaultb_name][0],
+                      default_bounds[defaultb_name][0],
                 upper=num.ones(1, dtype=tconfig.floatX) *
-                default_bounds[defaultb_name][1],
+                      default_bounds[defaultb_name][1],
                 testvalue=num.ones(1, dtype=tconfig.floatX) *
-                num.mean(default_bounds[defaultb_name]))
+                          num.mean(default_bounds[defaultb_name]))
 
         self.problem_config.hyperparameters = hypers
         self.problem_config.validate_hypers()
@@ -1201,7 +1494,16 @@ class BEATconfig(Object, Cloneable):
 
         hierarnames = []
         if self.geodetic_config is not None:
-            hierarnames.extend(self.geodetic_config.get_hierarchical_names())
+            if self.geodetic_config.corrections_config.has_enabled_corrections:
+                logger.info(
+                    'Loading geodetic data to resolve '
+                    'correction dependencies...')
+                geodetic_data_path = os.path.join(
+                    self.project_dir, geodetic_data_name)
+
+                datasets = utility.load_objects(geodetic_data_path)
+                hierarnames.extend(
+                    self.geodetic_config.get_hierarchical_names(datasets))
 
         if self.seismic_config is not None:
             hierarnames.extend(self.seismic_config.get_hierarchical_names())
@@ -1216,22 +1518,22 @@ class BEATconfig(Object, Cloneable):
                 shp = 1
                 defaultb_name = name
             else:
-                rampparname = name.split('_')[-1]
-                if rampparname == 'ramp':
+                correction_name = name.split('_')[-1]
+                if correction_name in ['ramp', 'pole']:
                     shp = 2
                 else:
                     shp = 1
 
-                defaultb_name = rampparname
+                defaultb_name = correction_name
 
             hierarchicals[name] = Parameter(
                 name=name,
                 lower=num.ones(shp, dtype=tconfig.floatX) *
-                default_bounds[defaultb_name][0],
+                      default_bounds[defaultb_name][0],
                 upper=num.ones(shp, dtype=tconfig.floatX) *
-                default_bounds[defaultb_name][1],
+                      default_bounds[defaultb_name][1],
                 testvalue=num.ones(shp, dtype=tconfig.floatX) *
-                num.mean(default_bounds[defaultb_name]))
+                          num.mean(default_bounds[defaultb_name]))
 
         self.problem_config.hierarchicals = hierarchicals
         self.problem_config.validate_hierarchicals()
@@ -1247,7 +1549,7 @@ def init_reference_sources(
         # rf = source_catalog[source_type](stf=stf_catalog[stf_type]())
         # maybe future if several meshtypes
         rf = RectangularSource(stf=stf_catalog[stf_type](anchor=-1))
-        utility.update_source(rf, input_depth='center', **source_points[i])
+        utility.update_source(rf, **source_points[i])
         rf.nucleation_x = None
         rf.nucleation_y = None
         if ref_time is not None:
@@ -1438,10 +1740,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
     c.problem_config.set_decimation_factor()
 
     c.sampler_config = SamplerConfig(name=sampler)
-    c.sampler_config.set_parameters(update_covariances=False)
-
     c.hyper_sampler_config = SamplerConfig(name=hyper_sampler)
-    c.hyper_sampler_config.set_parameters(update_covariances=None)
 
     c.update_hypers()
     c.problem_config.validate_priors()

@@ -21,15 +21,17 @@ LOG_2PI = num.log(2. * num.pi)
 
 __all__ = [
     'LaplacianDistributerComposite',
-    'get_smoothing_operator']
+    'get_smoothing_operator_correlated',
+    'get_smoothing_operator_nearest_neighbor']
 
 
 class LaplacianDistributerComposite(Composite):
 
-    def __init__(self, project_dir, hypers):
+    def __init__(self, config, project_dir, hypers):
 
         super(LaplacianDistributerComposite, self).__init__()
 
+        self.config = config
         self._mode = 'ffi'
 
         # dummy for hyperparam name
@@ -45,10 +47,15 @@ class LaplacianDistributerComposite(Composite):
 
         # only one subfault so far, smoothing across and fast-sweep
         # not implemented for more yet
-        # TODO scipy.linalg.block_diag of all smoothing operators of subfaults
         self.smoothing_op = \
-            self.fault.get_subfault_smoothing_operator(0).astype(
+            self.fault.get_smoothing_operator(
+                config.correlation_function).astype(
                 tconfig.floatX)
+
+        if(0):
+            from matplotlib import pyplot as plt
+            plt.matshow(self.smoothing_op, vmin=0)
+            plt.show()
 
         self.sdet_shared_smoothing_op = shared(
             log_determinant(
@@ -161,6 +168,9 @@ class LaplacianDistributerComposite(Composite):
     def n_t(self):
         return len(self.slip_varnames)
 
+    def get_hypersize(self, hp_name):
+        return 1
+
 
 def _patch_locations(n_patch_strike, n_patch_dip):
     """
@@ -191,12 +201,44 @@ def _patch_locations(n_patch_strike, n_patch_dip):
     return dmat
 
 
-def get_smoothing_operator(
+def distances(points, ref_points):
+    """
+    Calculate distances in Cartesian coordinates between points and reference
+    points in N-D.
+
+    Parameters
+    ----------
+    points: :class:`numpy.Ndarray` (n points x n spatial dimensions)
+    ref_points: :class:`numpy.Ndarray` (m points x n spatial dimensions)
+
+    Returns
+    -------
+    ndarray (n_points x n_ref_points)
+    """
+
+    nref_points = ref_points.shape[0]
+    ndim = points.shape[1]
+    ndim_ref = ref_points.shape[1]
+    if ndim != ndim_ref:
+        raise TypeError(
+            'Coordinates to calculate differences must have the same number '
+            'of dimensions! Given dimensions are {} and {}'.format(
+                ndim, ndim_ref))
+
+    points_rep = num.tile(points, nref_points).reshape(
+        points.shape[0], nref_points, ndim)
+    distances = num.sqrt(num.power(
+        points_rep - ref_points, 2).sum(axis=2))
+    return distances
+
+
+def get_smoothing_operator_nearest_neighbor(
         n_patch_strike, n_patch_dip, patch_size_strike, patch_size_dip):
     """
-    Get second order Laplacian smoothing operator.
+    Get second order Laplacian smoothing operator between neighboring patches.
 
     This is beeing used to smooth the slip-distribution in the optimization.
+    Is only valid for a single flat fault.
 
     Parameters
     ----------
@@ -241,3 +283,38 @@ def get_smoothing_operator(
             smooth_op[i, i + 1] = delta_l_strike
 
     return smooth_op
+
+
+def get_smoothing_operator_correlated(
+        patches_coords, correlation_function='gaussian'):
+    """
+    Get second order Laplacian finite-difference smoothing operator.
+
+    This is beeing used to smooth the slip-distribution in the optimization.
+    Calculates differences between all patches.
+
+    Parameters
+    ----------
+    patches_coords: :class:`numpy.Ndarray` (npatches x 3)
+    correlation_function: string
+        type of distance penalty, can be gaussian or exponential
+
+    Returns
+    -------
+    :class:`numpy.Ndarray` (npatches x npatches)
+    """
+
+    inter_patch_distances = distances(patches_coords, patches_coords)
+    norm_distances = inter_patch_distances.sum(0)
+
+    if correlation_function == 'gaussian':
+        a = 1 / num.power(inter_patch_distances, 2)
+    elif correlation_function == 'exponential':
+        a = 1 / num.exp(inter_patch_distances)
+    else:
+        raise ValueError(
+            'Resolution based discretization does not support '
+            '"nearest_neighbor" correlation function!')
+
+    num.fill_diagonal(a, -norm_distances)
+    return a / inter_patch_distances.mean()

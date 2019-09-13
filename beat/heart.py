@@ -25,8 +25,7 @@ from pyrocko.guts_array import Array
 from pyrocko import crust2x2, gf, cake, orthodrome, trace, util
 from pyrocko.cake import GradientLayer
 from pyrocko.fomosto import qseis, qssp
-
-from pyrocko.model import Station
+from pyrocko.model import gnss
 
 # from pyrocko.fomosto import qseis2d
 
@@ -449,7 +448,9 @@ physical_bounds = dict(
     hypers=(-20., 20.),
 
     ramp=(-0.01, 0.01),
-    offset=(-1.0, 1.0))
+    offset=(-1.0, 1.0),
+    pole=(-180., 180.),
+    omega=(-3., 3.))
 
 
 class Parameter(Object):
@@ -647,9 +648,22 @@ class GeodeticDataset(gf.meta.MultiLocation):
         help='Type of geodetic data, e.g. SAR, GNSS, ...')
     name = String.T(
         default='A',
-        help='e.g. GNSS station name or InSAR satellite track ')
+        help='e.g. GNSS campaign name or InSAR satellite track ')
     utmn = Array.T(shape=(None,), dtype=num.float, optional=True)
     utme = Array.T(shape=(None,), dtype=num.float, optional=True)
+
+
+    def __init__(self, **kwargs):
+        self._slocx = None
+        self._slocy = None
+        self.has_correction = False
+        super(GeodeticDataset, self).__init__(**kwargs)
+
+    def get_correction(self, hierarchicals, point=None):
+        """
+        Needs to be specified on inherited dataset classes.
+        """
+        pass
 
     def update_local_coords(self, loc):
         """
@@ -687,49 +701,72 @@ class GeodeticDataset(gf.meta.MultiLocation):
         return n
 
 
-class GNSSComponent(Object):
+def velocities_from_pole(lats, lons, plat, plon, omega):
     """
-    Object holding the GNSS data for a single station.
+    Return horizontal velocities at input locations for rotation around
+    given Euler pole
+
+    Parameters
+    ----------
+    lats: :class:`numpy.NdArray`
+        of geographic latitudes [deg] of points to calculate velocities for
+    lons: :class:`numpy.NdArray`
+        of geographic longitudes [deg] of points to calculate velocities for
+    plat: float
+        Euler pole latitude [deg]
+    plon: float
+        Euler pole longitude [deg]
+    omega: float
+        angle of rotation around Euler pole [deg / million yrs]
+
+    Returns
+    -------
+    :class:`numpy.NdArray` of velocities [m / yrs] npoints x 3 (NEU)
     """
-    name = String.T(default='E', help='direction of measurement, E/N/U')
-    v = Float.T(default=0.1, help='Average velocity in [m/yr]')
-    sigma = Float.T(default=0.01, help='sigma measurement error (std) [m/yr]')
-    unit = String.T(default='m/yr', help='Unit of velocity v')
+
+    def cartesian_to_local(lat, lon):
+        rlat = lat * d2r
+        rlon = lon * d2r
+        return num.array([
+            [-num.sin(rlat) * num.cos(rlon), -num.sin(rlat) * num.sin(rlon),
+             num.cos(rlat)],
+            [-num.sin(rlon), num.cos(rlon), num.zeros_like(rlat)],
+            [-num.cos(rlat) * num.cos(rlon), -num.cos(rlat) * num.sin(rlon),
+             -num.sin(rlat)]])
+
+    latlons = num.atleast_2d(num.vstack([lats, lons]).T)
+    platlons = num.hstack([plat, plon])
+    npoints = latlons.shape[0]
+
+    xyz_points = orthodrome.latlon_to_xyz(latlons)
+    xyz_pole = orthodrome.latlon_to_xyz(platlons)
+    xyz_poles = num.tile(xyz_pole, npoints).reshape(npoints, 3)
+
+    omega_rad_yr = omega * 1e-6 * d2r
+    v_vecs = num.cross(xyz_poles, xyz_points)
+    vels_cartesian = orthodrome.earthradius * omega_rad_yr * v_vecs
+
+    T = cartesian_to_local(latlons[:, 0], latlons[:, 1])
+    return num.einsum('ijk->ik', T * vels_cartesian.T).T
 
 
-class GNSSStation(Station):
+def get_ramp_displacement(locx, locy, ramp, offset):
     """
-    GNSS station object, holds the displacment components and has all pyrocko
-    station functionality.
+    Get synthetic residual plane in azimuth and range direction of the
+    satellite.
+
+    Parameters
+    ----------
+    locx : shared array-like :class:`numpy.ndarray`
+        local coordinates [km] in east direction
+    locy : shared array-like :class:`numpy.ndarray`
+        local coordinates [km] in north direction
+    ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
+        vector of 2 variables with ramp parameters in azimuth[0] & range[1]
+    offset : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
+        scalar of offset in [m]
     """
-
-    components = List.T(GNSSComponent.T())
-
-    def set_components(self, components):
-        self.components = []
-        for c in components:
-            self.add_component(c)
-
-    def get_components(self):
-        return list(self.components)
-
-    def get_component_names(self):
-        return set(c.name for c in self.components)
-
-    def remove_component_by_name(self, name):
-        todel = [c for c in self.components if c.name == name]
-        for c in todel:
-            self.components.remove(c)
-
-    def add_component(self, component):
-        self.remove_component_by_name(component.name)
-        self.components.append(component)
-        self.components.sort(key=lambda c: c.name)
-
-    def get_component(self, name):
-        for c in self.components:
-            if c.name == name:
-                return c
+    return locy * ramp[0] + locx * ramp[1] + offset
 
 
 class GNSSCompoundComponent(GeodeticDataset):
@@ -739,8 +776,10 @@ class GNSSCompoundComponent(GeodeticDataset):
     """
     los_vector = Array.T(shape=(None, 3), dtype=num.float, optional=True)
     displacement = Array.T(shape=(None,), dtype=num.float, optional=True)
-    name = String.T(default='E', help='direction of measurement, E/N/U')
-    station_names = List.T(String.T(optional=True))
+    component = String.T(
+        default='east',
+        help='direction of measurement, north/east/up')
+    stations = List.T(gnss.GNSSStation.T(optional=True))
     covariance = Covariance.T(
         optional=True,
         help=':py:class:`Covariance` that holds data'
@@ -752,12 +791,16 @@ class GNSSCompoundComponent(GeodeticDataset):
              'dataset for overlaps with other datasets',
         optional=True)
 
+    def __init__(self, **kwargs):
+        self._station2index = None
+        super(GNSSCompoundComponent, self).__init__(**kwargs)
+
     def update_los_vector(self):
-        if self.name == 'E':
+        if self.component == 'east':
             c = num.array([0, 1, 0])
-        elif self.name == 'N':
+        elif self.component == 'north':
             c = num.array([1, 0, 0])
-        elif self.name == 'U':
+        elif self.component == 'up':
             c = num.array([0, 0, 1])
         else:
             raise ValueError('Component %s not supported' % self.component)
@@ -767,83 +810,110 @@ class GNSSCompoundComponent(GeodeticDataset):
 
     def __str__(self):
         s = 'GNSS\n compound: \n'
-        s += '  component: %s\n' % self.name
+        s += '  component: %s\n' % self.component
         if self.lats is not None:
             s += '  number of stations: %i\n' % self.samples
         return s
 
+    def station_name_index_mapping(self):
+        if self._station2index is None:
+            self._station2index = dict(
+                (station.code, i) for (i, station) in enumerate(
+                    self.stations))
+        return self._station2index
 
-class GNSSDataset(object):
-    """
-    Collecting many GNSS stations into one object. Easy managing and assessing
-    single stations and also merging all the stations components into compound
-    components for fast and easy modeling.
-    """
+    def setup_correction(self, event, correction_config):
 
-    def __init__(self, name=None, stations=None):
-        self.stations = {}
-        self.name = name
+        if correction_config.for_datatyp == self.typ and \
+                correction_config.enabled:
+            logger.info(
+                'Setting up %s correction for %s %s' % (
+                    correction_config.feature, self.name, self.component))
 
-        if stations is not None:
-            for station in stations:
-                self.stations[station.name] = station
+            s2idx = self.station_name_index_mapping()
+            self._correction_idxs_blacklist = num.array(
+                [s2idx[code] for code in correction_config.blacklist])
 
-    def add_station(self, station, force=False):
-        if not isinstance(station, GNSSStation):
-            raise TypeError(
-                'Input object is not a valid station of'
-                ' class: %s' % GNSSStation)
+            logger.info('Stations with idxs %s got blacklisted!'
+                        '' % utility.list2string(
+                self._correction_idxs_blacklist.tolist()))
 
-        if station.name not in self.stations.keys() or force:
-            self.stations[station.name] = station
+            self.correction_names = correction_config.get_hierarchical_names(
+                self.name)
+            self.has_correction = correction_config.enabled
+            self.euler_pole = correction_config.get_theano_op()(
+                self.lats, self.lons, self._correction_idxs_blacklist)
+            self.slos_vector = shared(self.los_vector.astype(tconfig.floatX),
+                name='los_%s_%s' % (self.name, self.component), borrow=True)
         else:
+            logger.info(
+                'Not correcting %s %s for %s' % (
+                    self.name, self.component, correction_config.feature))
+
+    def get_correction(self, hierarchicals, point=None):
+        """
+        Get synthetic correction velocity due to Euler pole rotation.
+        """
+        if not self.has_correction:
             raise ValueError(
-                'Station %s already exists in dataset!' % station.name)
+                'Requested correction, but is not setup or configured! '
+                'For dataset %s' % self.name)
 
-    def get_station(self, name):
-        return self.stations[name]
+        pole_name, rotation_vel_name = self.correction_names
+        if not point:   # theano instance for get_formula
+            inputs = OrderedDict()
+            inputs[pole_name] = hierarchicals[pole_name]
+            inputs[rotation_vel_name] = hierarchicals[rotation_vel_name]
+            vels = self.euler_pole(inputs)
+            return (vels * self.slos_vector).sum(axis=1)
+        else:       # numpy instance else
+            locx = self.lats
+            locy = self.lons
+            try:
+                pole = point[pole_name]
+                omega = point[rotation_vel_name]
+            except KeyError:
+                pole = hierarchicals[pole_name]
+                omega = hierarchicals[rotation_vel_name]
 
-    def remove_stations(self, stations):
-        for st in stations:
-            self.stations.pop(st)
+            vels = velocities_from_pole(locx, locy, pole[0], pole[1], omega)
+            if self._correction_idxs_blacklist.size > 0:
+                vels[self._correction_idxs_blacklist] = 0.
+            return (vels * self.los_vector).sum(axis=1)
 
-    def get_station_names(self):
-        return list(self.stations.keys())
+    @classmethod
+    def from_pyrocko_gnss_campaign(cls, campaign):
 
-    def get_component_names(self):
-        return next(iter(self.stations.values())).get_component_names()
+        compounds = []
+        for comp in ('north', 'east', 'up'):
+            comp_stations = []
+            components = []
+            for st in campaign.stations:
+                try:
+                    components.append(st.components[comp])
+                    comp_stations.append(st)
+                except KeyError:
+                    logger.warn('No data for GNSS station: {}'.format(st.code))
 
-    def get_compound(self, name):
-        stations = self.stations.values()
-
-        comps = self.get_component_names()
-
-        if name in comps:
-            stations_comps = [st.get_component(name) for st in stations]
-            lats = num.array([st.lat for st in stations])
-            lons = num.array([st.lon for st in stations])
-
-            vs = num.array([c.v for c in stations_comps])
+            lats, lons = num.array(
+                [loc.effective_latlon for loc in comp_stations]).T
+            vs = num.array([c.shift for c in components])
             variances = num.power(
-                num.array([c.sigma for c in stations_comps]), 2)
-        else:
-            raise ValueError(
-                'Requested component %s does not exist in the dataset' % name)
+                num.array([c.sigma for c in components]), 2)
+            compounds.append(cls(
+                name=campaign.name,
+                typ='GNSS',
+                stations=comp_stations,
+                displacement=vs,
+                covariance=Covariance(data=num.eye(lats.size) * variances),
+                lats=lats,
+                lons=lons,
+                east_shifts=num.zeros_like(lats),
+                north_shifts=num.zeros_like(lats),
+                component=comp,
+                odw=num.ones_like(lats.size)))
 
-        return GNSSCompoundComponent(
-            typ='GNSS',
-            station_names=self.get_station_names(),
-            displacement=vs,
-            covariance=Covariance(data=num.eye(lats.size) * variances),
-            lats=lats,
-            lons=lons,
-            east_shifts=num.zeros_like(lats),
-            north_shifts=num.zeros_like(lats),
-            name=name,
-            odw=num.ones_like(lats.size))
-
-    def iter_stations(self):
-        return self.stations.items()
+        return compounds
 
 
 class ResultReport(Object):
@@ -940,18 +1010,18 @@ class DiffIFG(IFG):
         covariance = Covariance(data=scene.covariance.covariance_matrix)
 
         if scene.quadtree.frame.isDegree():
-                lats = num.empty(scene.quadtree.nleaves)
-                lons = num.empty(scene.quadtree.nleaves)
-                lats.fill(scene.quadtree.frame.llLat)
-                lons.fill(scene.quadtree.frame.llLon)
-                lons += scene.quadtree.leaf_focal_points[:, 0]
-                lats += scene.quadtree.leaf_focal_points[:, 1]
+            lats = num.empty(scene.quadtree.nleaves)
+            lons = num.empty(scene.quadtree.nleaves)
+            lats.fill(scene.quadtree.frame.llLat)
+            lons.fill(scene.quadtree.frame.llLon)
+            lons += scene.quadtree.leaf_focal_points[:, 0]
+            lats += scene.quadtree.leaf_focal_points[:, 1]
         elif scene.quadtree.frame.isMeter():
-                loce = scene.quadtree.leaf_eastings
-                locn = scene.quadtree.leaf_northings
-                lats, lons = orthodrome.ne_to_latlon(
-                    lat0=scene.frame.llLat, lon0=scene.frame.llLon,
-                    north_m=locn, east_m=loce)
+            loce = scene.quadtree.leaf_eastings
+            locn = scene.quadtree.leaf_northings
+            lats, lons = orthodrome.ne_to_latlon(
+                lat0=scene.frame.llLat, lon0=scene.frame.llLon,
+                north_m=locn, east_m=loce)
 
         d = dict(
             name=scene.meta.filename,
@@ -964,14 +1034,54 @@ class DiffIFG(IFG):
             odw=num.ones_like(scene.quadtree.leaf_phis))
         return cls(**d)
 
-    def plane_names(self):
-        return [self.ramp_name()] + [self.offset_name()]
+    def setup_correction(self, event, correction_config):
+        """
+        Setup dataset correction
+        """
+        if correction_config.for_datatyp == self.typ and \
+                correction_config.enabled:
+            if self.name not in correction_config.blacklist:
+                logger.info('Setting up %s correction for %s' % (
+                    correction_config.feature, self.name))
+                locy, locx = self.update_local_coords(event)
+                self._slocx = shared(locx.astype(tconfig.floatX) / km,
+                                     name='localx_%s' % self.name, borrow=True)
+                self._slocy = shared(locy.astype(tconfig.floatX) / km,
+                                     name='localy_%s' % self.name, borrow=True)
+            else:
+                logger.info('Not correcting for %s for %s' % (
+                    correction_config.feature, self.name))
 
-    def ramp_name(self):
-        return self.name + '_ramp'
+        self.has_correction = correction_config.enabled
+        self.correction_names = correction_config.get_hierarchical_names(
+            self.name)
 
-    def offset_name(self):
-        return self.name + '_offset'
+    def get_correction(self, hierarchicals, point=None):
+        """
+        Return synthetic correction displacements caused by orbital ramp.
+        """
+        if not self.has_correction:
+            raise ValueError(
+                'Requested correction, but is not setup or configured! '
+                'For dataset %s' % self.name)
+
+        ramp_name, offset_name = self.correction_names
+        if not point:
+            locx = self._slocx
+            locy = self._slocy
+            ramp = hierarchicals[ramp_name]
+            offset = hierarchicals[offset_name]
+        else:
+            locx = self.east_shifts / km
+            locy = self.north_shifts / km
+            try:
+                ramp = point[ramp_name]
+                offset = point[offset_name]
+            except KeyError:
+                ramp = hierarchicals[ramp_name]
+                offset = hierarchicals[offset_name]
+
+        return get_ramp_displacement(locx, locy, ramp, offset)
 
 
 class GeodeticResult(Object):
@@ -1054,12 +1164,17 @@ def init_seismic_targets(
                         azimuth=cha.azimuth,
                         dip=cha.dip,
                         interpolation=interpolation,
-                        store_id='%s_%s_%.3fHz_%s' % (
+                        store_id=get_store_id(
                             store_prefixes[sta_num],
                             em_name,
                             sample_rate,
                             crust_ind)))
     return targets
+
+
+def get_store_id(prefix, earth_model_name, sample_rate, crust_ind=0):
+    return '%s_%s_%.3fHz_%s' % (
+            prefix, earth_model_name, sample_rate, crust_ind)
 
 
 def init_geodetic_targets(
@@ -1097,8 +1212,7 @@ def init_geodetic_targets(
         lats=d.lats,
         interpolation=interpolation,
         quantity='displacement',
-        store_id='%s_%s_%.3fHz_%s' % (
-            'statics', em_name, sample_rate, crust_ind))
+        store_id=get_store_id('statics', em_name, sample_rate, crust_ind))
         for crust_ind in crust_inds for d in datasets]
 
     return targets

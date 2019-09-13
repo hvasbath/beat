@@ -22,7 +22,7 @@ import numpy as num
 import logging
 import copy
 
-from pyrocko import orthodrome
+from pyrocko.orthodrome import latlon_to_ne_numpy, latlon_to_xyz, earthradius
 from pyrocko.gf import RectangularSource as RS
 
 from matplotlib.path import Path
@@ -132,7 +132,7 @@ def block_geometry(lons, lats, sources, reference):
         mask with zeros/ones for stable/moving observation points, respectively
     """
 
-    norths, easts = orthodrome.latlon_to_ne_numpy(
+    norths, easts = latlon_to_ne_numpy(
         reference.lat, reference.lon, lats, lons)
 
     return block_mask(easts, norths, sources, east_ref=0., north_ref=0.)
