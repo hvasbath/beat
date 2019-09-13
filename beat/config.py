@@ -866,7 +866,7 @@ class FFIConfig(ModeConfig):
              ' Choices: %s' % utility.list2string(_regularization_choices))
     regularization_config = RegularizationConfig.T(
         optional=True,
-        default='none',
+        default=None,
         help='Additional configuration parameters for regularization')
     initialization = StringChoice.T(
         default='random',
@@ -874,7 +874,7 @@ class FFIConfig(ModeConfig):
         help='Initialization of chain starting points, default: random.'
              ' Choices: %s' % utility.list2string(_initialization_choices))
     npatches = Int.T(
-        default = None,
+        default=None,
         optional=True,
         help = 'Number of patches on full fault. Should not be edited manually!'
                ' Please edit indirectly through patch_widths and patch_lengths'
