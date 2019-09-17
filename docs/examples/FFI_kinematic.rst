@@ -5,7 +5,7 @@ Example 5: Kinematic finite-fault estimation
 It is a requirement to have Example 3 and 4 completed in order to follow the instructions and commands given in this Example.
 The data is the exact same from `Example 2 <https://hvasbath.github.io/beat/examples/Rectangular.html#>`__, where the overall geometry of the fault plane was estimated.
 In `Example 4 <https://hvasbath.github.io/beat/examples/FFI_static.html#>`__ we solved for variable slip on the optimum fault geometry from Example 3 by using static InSAR data.
-We will use the posterior marginals from Example 4 and use them as priors in this Example. Here we will determine a kinematic variable slip distribution including rupture propagation for the L'aquila 2009 earthquake by using static InSAR data **jointly** with teleseismic displacement waveforms.
+We will use the posterior marginals from Example 4 and use them as priors in this Example. Here we will determine a kinematic variable slip distribution including rupture propagation for the L'Aquila 2009 earthquake by using static InSAR data **jointly** with teleseismic displacement waveforms.
 
 Please make sure that you are one level above the Laquila project folder (created earlier).::
 
@@ -87,7 +87,7 @@ Calculate Green's Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Elementary GFs
 ==============
-Now the Green's Functions store(s) have to be calculated again for the "geometry" problem with higher resolutions. Please remember `Example 3 <https://hvasbath.github.io/beat/examples/Rectangular.html#calculate-greens-functions>`__. There the optimization was run using Green's Functions depth and distance sampling of 4km with 0.5Hz sampling. This may be accurate enough for the *geometry* type of optimization, however, for a finite fault optimization the aim is to resolve details of the rupture propagation and the slip distribution. So the setup parameters of the "geometry" Green's Functions would need to be changed to higher resolution. In this case we want to use wavelengths of up to 0.5Hz ergo a depth and distance sampling of 1 km and 2Hz sample rate may be precise enough. Of course, these parameters depend on the problem setup and have to be adjusted individually for each problem! So please open the *Laquila/config_geometry.yaml* and edit the parameters accordingly.
+Now the Green's Functions store(s) have to be calculated again for the **geometry** problem with higher resolutions. Please remember `Example 3 <https://hvasbath.github.io/beat/examples/Rectangular.html#calculate-greens-functions>`__. There the optimization was run using Green's Functions depth and distance sampling of 4km with 0.5Hz sampling. This may be accurate enough for the *geometry* type of optimization, however, for a finite fault optimization the aim is to resolve details of the rupture propagation and the slip distribution. So the setup parameters of the **geometry** Green's Functions would need to be changed to higher resolution. In this case we want to use wavelengths of up to 0.5Hz ergo a depth and distance sampling of 1 km and 2Hz sample rate may be precise enough. Of course, these parameters depend on the problem setup and have to be adjusted individually for each problem! So please open the *Laquila/config_geometry.yaml* and edit the parameters accordingly.
 Running this calculation will take a long time depending on the number of CPUs at hand. (With 25 CPUs the calculation took approximately 15Hrs)::
 
   beat build_gfs Laquila --datatypes='seismic' --execute
@@ -185,7 +185,7 @@ Please set the lower and upper bounds of the durations to 0. and 4. seconds, res
 
 Also we need to specify the bounds on the rupture velocities. The shear-wave velocity from the velocity model is a good proxy for that. So please set the lower and upper bounds on the velocities to 2.2 and 4.5 [km/s], respectively. These velocities are sampled for each patch individually and indirectly determine the rupture onset time of each patch depending on the hypocentral location (*nucleation_dip* and *nucleation_strike*). To assure causal rupture propagation starting from the hypocentre the Eikonal equation is solved each forward calculation, which then determines the rupture onset time on each patch [Minson2013]_.
 
-So far we defined everything with respect to the hypocentre, but we have to keep in mind that its location and the hypocentral time are unknowns as well. The time-shift with respect to the *event.time* has been determined in Example 3 before roughly assuming constant rupture velocity and uniform slip on the RectangularSource. Likely, the refined hypocentral time in this optimization will be converging to a similar time estimate as previously determined. This previously determined timing information has been imported as well in the "import results" - step. However, these bounds should be relaxed again as we are using different frequency content in the data and we allow for a much complexer optimization setup. Please set the lower and upper bounds for the *time* to -13. and 0., respectively.
+So far we defined everything with respect to the hypocentre, but we have to keep in mind that its location and the hypocentral time are unknowns as well. The time-shift with respect to the *event.time* has been determined in Example 3 before roughly assuming constant rupture velocity and uniform slip on the RectangularSource. Likely, the refined hypocentral time in this optimization will be converging to a similar time estimate as previously determined. This previously determined timing information has been imported as well in the 'import results' - step. However, these bounds should be relaxed again as we are using different frequency content in the data and we allow for a much complexer optimization setup. Please set the lower and upper bounds for the *time* to -13. and 0., respectively.
 
 
 Finally, we are left with specifying the *duration_sampling* and *starttime_sampling* under the *seismic_config.gf_config*. These determine the steps taken between the upper and lower bounds for the *durations* and the discrete starttime-shifts.
@@ -206,7 +206,7 @@ Like for the geodetic GFs this will create three files for each GF *library* in 
  - *seismic_uparr_static_0.yaml* a yaml file with the meta information
  - *seismic_uparr_any_P_0.times.npy* a numpy array containing the start-times of each trace
 
-For visual inspection of the resulting seismic traces in the "snuffler" waveform browser::
+For visual inspection of the resulting seismic traces in the **snuffler** waveform browser::
 
     beat check Laquila_kinematic --what='library' --datatypes='seismic' --mode='ffi'
 
@@ -253,7 +253,7 @@ Markov Chain initialization
 The *initialization* argument determines at which point in the solution space to initialize the Markov Chains. In Example 4 we set this argument to *lsq*.
 Here we are going to use *random* again, please set it now! We initially narrowed down the slip-parameters by importing the results from Example 4. Thus, we already have a pretty good estimate on how the slip-distribution should look like, explaining the geodetic data reasonably well.
 
-The 'n_jobs' number should be set to as many CPUs as the user can spare under the *sampler_config*. The number of sampled MarkovChains and the number of steps for each chain of the SMC sampler should be set to high values as we are optimizing now for ca 500 random variables (if the values from the tutorial haven't been altered by the user); for example to 8000 and 400, respectively.
+The *n_jobs* number should be set to as many CPUs as the user can spare under the *sampler_config*. The number of sampled MarkovChains and the number of steps for each chain of the SMC sampler should be set to high values as we are optimizing now for ca 500 random variables (if the values from the tutorial haven't been altered by the user); for example to 8000 and 400, respectively.
 
 .. warning:: With these sampler parameters a huge amount of samples are going to be stored to disk! Please see `Example 3 <https://hvasbath.github.io/beat/examples/Rectangular.html#summarize-and-plotting>`__ for an instruction on how to keep only the important samples to reduce the disk usage.
 
@@ -302,12 +302,13 @@ For the waveformfits::
 
   beat plot Laquila_kinematic waveform_fits --mode=ffi
 
-.. image:: ../_static/example5/waveforms_-1_max_0.png
+.. image:: ../_static/example5/waveforms_-1_max_100.png
 
 For the fuzzy moment rate function::
 
   beat plot Laquila_kinematic moment_rate --mode=ffi
 
 .. image:: ../_static/example5/moment_rate_-1_0_max.png
+  :scale: 40 %
 
 Here the MAP moment rate function is displayed by the black solid line.

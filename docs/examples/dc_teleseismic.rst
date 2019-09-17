@@ -2,25 +2,29 @@ Example 2: Teleseismic Double Couple
 --------------------------------------
 Clone project
 ^^^^^^^^^^^^^
-In this example we will use real teleseismic data from the Mw6.3 2009 L'Aquila earthquake and sample the solution space of a Double Couple point source.
-The dataset consists of 35 seismic stations within teleseismic distances (between 4000 and 10000 km) with respect to the origin of the reference event.
-To copy the Example (including the data) to a directory outside of the package source directory, please edit the 'model path' (referred to as $beat_models now on) to your preference path and execute::
+In this example we will use real teleseismic data from the Mw6.3 2009 L'Aquila earthquake and sample the solution space of a
+double-couple moment tensor. The dataset consists of 35 seismic stations within teleseismic distances
+(between 4000 and 10000 km) with respect to the origin of the reference event.
+To copy the example (including the data) to a directory outside of the package source directory,
+please edit the 'model path' (referred to as $beat_models now on) to your preference path and execute::
 
     cd /path/to/beat/data/examples/
-    beat clone dc_teleseismic /'model path'/dc_teleseismic --copy_data --datatypes=seismic --source_type=DCSource
+    beat clone dc_teleseismic /'model path'/Laquila_dc --copy_data --datatypes=seismic --source_type=DCSource --sampler=PT
 
-This will create a BEAT project directory named 'dc_teleseismic' with a configuration file (config_geometry.yaml) and real example data (seismic_data.pkl).
-This directory is going to be referred to as '$project_directory' in the following.
+This will create a BEAT project directory named 'Laquila_dc' with a configuration file (config_geometry.yaml) and
+real example data (seismic_data.pkl). This directory is going to be referred to as '$project_directory' in the following.
 
-We will assume that the reader is familiar with the setup of `Example 1 <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__ beforehand.
+We assume that the reader is familiar with the setup of `Example 1 <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__ beforehand.
 
 
 Download Greens Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-For this example we will need a global Greens function store with a source-receiver setup suitable for teleseismic distances.
-As such a global store can be potentially very memory expensive we will limit the possible source locations to a maximum depth of 25 km and limit the sampling rate to a sensible 0.5 Hz (or 2s) and the spatial sampling to 4 km in depth and distance.
+For this example, we will need a global Greens function store with a source-receiver setup suitable for teleseismic distances.
+As such a global store can be potentially very hard-disc space expensive we will limit the possible source locations to a maximum depth of 25 km and
+we limit the sampling rate to a sensible 0.5 Hz (or 2s) and the spatial sampling to 4 km in depth and distance.
 
-We will download the needed Greens function store from the pyrocko project `Greens Mill repository <https://greens-mill.pyrocko.org/>`__ with the following commands::
+We will download the Greens function store (approximately 2.6 GB in size) from the pyrocko
+project `Greens Mill repository <https://greens-mill.pyrocko.org/>`__ with the following commands::
 
   cd $GF_path
   fomosto download kinherd global_2s_25km
@@ -29,23 +33,23 @@ Please make sure that the store_superdir attribute under seismic_config.gf_confi
 
   store_superdir: $GF_path
 
-Alternatively we could also calculate the Greens function (GF) store ourselves, as done in `Example 1 <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__
-the regional Full Moment Tensor example.
+Alternatively, we could also calculate the Greens function (GF) store ourselves, as done in `Example 1 <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__
+the regional Full Moment Tensor example. Please note that creating such a store is computationally expensive.
 
 How to convert Green's Mill store to beat format
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 We now have to change the downloaded Greens function meta info into beat compatible formalism.
 For that we need to change the name of the Greens function store by::
 
-  mv $GF_path/global_2s_25km $GF_path/
+  mv $GF_path/global_2s_25km $GF_path/global_2s_25km_ak135_0.500Hz_0
 
-The store is approximately 2.6 GB in size.
-
-To enable velocity model uncertainty perturbation each store is named after the earthmodel used, followed by the sampling rate and the reference model index, each separated by a '_'
-The format is %station_%earth_model_name_%sampling_%reference_model_idx. %station is defined in the reference_location of the gf_config section of the config_geometry.yaml.
+To enable velocity model uncertainty perturbation each store is named after the earthmodel used,
+followed by the sampling rate and the reference model index, each separated by a '_'
+The format is %station_%earth_model_name_%sampling_%reference_model_idx.
+%station is defined in the reference_location of the gf_config section of the config_geometry.yaml.
 We now also want to change the tabulated phases in the store.
 
-Open the store config under $GF_path/global_2s_25km/config with any editor.
+Open the store config under $GF_path/global_2s_25km_ak135_0.500Hz_0/config with any editor.
 Change the name of the store from::
 
   id: global_2s_25km
@@ -54,7 +58,7 @@ to::
 
   id: global_2s_25km_ak135_0.500Hz_0
 
-The config shows also the tabulated phases in the store::
+The config shows the tabulated phases in the store::
 
     tabulated_phases:
     - !pyrocko.gf.meta.TPDef
@@ -76,8 +80,10 @@ The config shows also the tabulated phases in the store::
       id: s
       definition: '!s'
 
-This phases are specific and for the P-phase for example only the direct P-phase will considered for first arrivals. However, in some cases a non direct P-phase can be the first arrival.
-We want to replace those phases with a custom phase arrival, 'any_P', which will default to any first P-type phase arriving of any kind. Replace the phases with::
+These phases are specific and for the P-phase for example only the direct P-phase will be considered for first arrivals.
+However, in some cases a non direct P-phase can be the first arrival.
+We want to replace those phases a custom phase arrival, 'any_P', which will default to any first P-type phase
+arriving of any kind. Replace the phases with::
 
       tabulated_phases:
       - !pf.TPDef
@@ -87,16 +93,18 @@ We want to replace those phases with a custom phase arrival, 'any_P', which will
         id: slowest
         definition: '0.8'
 
-and than run in $GF_path to tabulate all phase arrivals in the distances of the store for this phases::
+With the following command we calculate and tabulate all phase arrival times in the distances of the GF store for
+these phases::
 
-  fomosto ttt --force
+  fomosto ttt global_2s_25km_ak135_0.500Hz_0 --force
 
-This should only take a minute. We are now set to use the Greens function store in Beat without heavy Greens function calculation on our desktop!
+This should only take a minute. We are now set to use the Greens function store in BEAT
+without heavy Greens function calculation on our desktop!
 
 Data windowing and optimization setup
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The seismic phases filter and taper are defined under 'waveforms' in the $project_directory/config_geometry.yaml and will be in this example only the P phase ::
+The seismic phases (in this example only the P phase), their bandpass-filter and taper are defined under 'waveforms' in the $project_directory/config_geometry.yaml::
 
   - !beat.WaveformFitConfig
     include: true
@@ -121,21 +129,10 @@ Please note that the downloaded (or calculated) Greens function store has a Nyqu
 
 For P-waves one would like to use the Z (vertical) component.
 
-Seismic noise estimation
-^^^^^^^^^^^^^^^^^^^^^^^^
-As we deal with real data we have a poor knowledge of the noise in the data, the model parameter estimates may be poor and the true parameters are not covered by the distributions. We will estimate the noise using the seismic noise analyzer. Under the seismic_config you find the configuration for the noise analyzer, which looks like that::
-
-  noise_estimator: !beat.SeismicNoiseAnalyserConfig
-    structure: variance
-    pre_arrival_time: 10.0
-
-The "structure" argument refers to the structure of the covariance matrix that is estimated on the data, prior to the synthetic P-wave arrival. The argument "pre_arrival_time" refers to the time before the P-wave arrival. 3.0 means that the noise is estimated on each data trace up to 10. seconds before the synthetic P-wave arrival.
-Other options are to "import" to use the covariance matrixes that have been imported with the data
-Also the option "non-toeplitz" to estimate non-stationary, correlated noise on the residuals following [Dettmer2007]_.
-
 Sample the solution space
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-As a first step we fix the source parameters to some random value and only optimize for the noise scaling or hyperparameters (HPs) of each individual trace. Bear in mind that the HPs are raised exponentially, so the values for the bounds should not be to broad. To also allow for downscaling the lower bound of the HPs has to be negative.
+As a first step we fix the source parameters to some random value and only optimize for the noise scaling or hyperparameters (HPs)
+of each individual trace. Bear in mind that the HPs are raised exponentially, so the values for the bounds should not be to broad. To also allow for downscaling the lower bound of the HPs has to be negative.
 Checking the $project_directory/config_geometry.yaml, the HPs parameter bounds show something like::
 
      hyperparameters:
@@ -172,29 +169,6 @@ To start the sampling please run::
 
 Now that we have determined the noise scalings we want to sample the full problem. The sampler to be used can be configured under 'sampler_config'.::
 
-  sampler_config: !beat.SamplerConfig
-    name: SMC
-    backend: bin
-    progressbar: true
-    buffer_size: 5000
-    buffer_thinning: 50
-    parameters: !beat.SMCConfig
-      tune_interval: 10
-      check_bnd: true
-      rm_flag: false
-      n_jobs: 4
-      n_steps: 200
-      n_chains: 1000
-      coef_variation: 1.0
-      stage: 0
-      proposal_dist: MultivariateCauchy
-      update_covariances: false
-
-Here we use 4 cpus (n_jobs) - you can change this according to your systems specifications.
-Finally, we sample the solution space with::
-
-TODO:
-
     sampler_config: !beat.SamplerConfig
       name: PT
       progressbar: true
@@ -204,7 +178,7 @@ TODO:
         proposal_dist: MultivariateNormal
         check_bnd: true
         rm_flag: false
-        n_samples: 50000
+        n_samples: 100000
         n_chains: 8
         swap_interval: [10, 30]
         beta_tune_interval: 1000
@@ -213,27 +187,33 @@ TODO:
         thin: 1
         burn: 0.6
 
-Here we use a Parallel Tempering algorithm (please see the paper and references therein for details). The sampler should stop after the chains that sample from the posterior have collected 50k samples ('n_samples').
-The total number of MCs used for sampling and the ones that sample from the posterior, can be adjusted with the parameters 'n_chains' and 'n_chains_posterior', respectively.
-We propose to swap chain states randomly every 10 to 30 samples ('swap_interval') between random chains. We also adaptively tune the tempering parameters of each chain based on the swap acceptance every 'beta_tune_interval'.
+Here we use a Parallel Tempering algorithm (please see the paper and references therein for details).
+The sampler should stop after the chains that sample from the posterior have collected 100k samples (*n_samples*).
+The total number of MCs used for sampling and the ones that sample from the posterior,
+can be adjusted with the parameters *n_chains* and *n_chains_posterior*, respectively.
+We propose to swap chain states randomly every 10 to 30 samples (*swap_interval*) between random chains.
+We also adaptively tune the tempering parameters of each chain based on the swap acceptance every *beta_tune_interval*.
+The *buffer_size* determines the number of samples from each Markov Chain that are used to estimate the sampled
+trace parameter covariances. These are then used to update the proposal distribution. This should not be set too low to avoid
+a biased estimate of parameter covariances.
 
+Depending on your hardware you can use the config above (please update your config!) for a Laptop with 4 CPUs. For a desktop computer with 12 CPUs you could
+set the *n_chains* and *n_chains_posterior* parameters for example to 16 and 10, respectively. The sampling will run few hours!
+We run the sampling with::
 
-
-
-    beat sample dc_teleseismic
+    beat sample Laquila_dc
 
 
 Summarize the results
 ^^^^^^^^^^^^^^^^^^^^^
 The sampled chain results of the PT sampler are stored in separate files and have to be summarized.
 
-To summarize all the stages of the sampler please run the summarize command.::
+To summarize the stage of the sampler please run the summarize command.::
 
-    beat summarize dc_teleseismic
+    beat summarize Laquila_dc
 
-
-If the final stage is included in the stages to be summarized also a summary file with the posterior quantiles will be created.
-If you check the summary.txt file (path then also printed to the screen)::
+This will also create a summary file with the posterior quantiles.
+You can check the summary.txt file for example with (path then also printed to the screen)::
 
     vi $project_directory/geometry/summary.txt
 
@@ -241,17 +221,18 @@ Plotting
 ^^^^^^^^
 To see the waveform fit of the posterior maximum likelihood solution run in the $beat_models folder::
 
-    beat plot dc_teleseismic waveform_fits --nensemble=100
+    beat plot Laquila_dc waveform_fits --nensemble=100
 
-It will produce a pdf with several pages output for all the components for each station that have been used in the optimization.
-The black waveforms are the unfiltered data. The plot shows the synthetic traces from the 100 best fitting models, in yellow to red colors, with the color indicating the density. The yellowish background indicates the taper.
+This will produce a pdf with several pages output for all the components for each station that have been used in the optimization.
+The black waveforms are the unfiltered data. The plot shows the synthetic traces from 100 solutions from the PPD, in brown to red colors, with the color indicating the density.
+The white background indicates the taper.
 The Z-components from our stations should look something like this.
 
   .. image:: ../_static/example2/dc_teleseismic_waveforms_100_0.png
 
 The following command produces a '.png' file with the final posterior distribution. In the $beat_models run::
 
-    beat plot dc_teleseismic stage_posteriors --reference --stage_number=-1 --format='png'
+    beat plot Laquila_dc stage_posteriors --reference --stage_number=-1 --format='png' --varnames=east_shift,north_shift,depth,time,strike,dip,rake,magnitude
 
 It may look like this.
 
@@ -261,7 +242,7 @@ It may look like this.
 
  To get an image of parameter correlations (including the true reference value in red) run in $beat_models::
 
-    beat plot dc_teleseismic correlation_hist --reference --stage_number=-1 --format='png'
+    beat plot Laquila_dc correlation_hist --reference --stage_number=-1 --format='png'
 
 This will show an image like that.
 
@@ -277,9 +258,13 @@ To get an image of solution ensemble as a fuzzy beachball run in $beat_models::
 This will show an image of the 200 best solutions as beachballs, with the the color intensity indicating the model density.
 
 .. image:: ../_static/example2/dc_teleseismic_fuzzy_beachball.png
-  :scale: 50 %
+  :scale: 20 %
 
+Clone setup into new project
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Now this run could be repeated by using a different sampling algorithm. To keep all your configurations
+and to only replace the *sampler_config* please run::
 
-References
-^^^^^^^^^^
-.. [Dettmer2007] Dettmer, Jan and Dosso, Stan E. and Holland, Charles W., Uncertainty estimation in seismo-acoustic reflection travel time inversion, The Journal of the Acoustical Society of America, DOI:10.1121/1.2736514
+  beat clone Laquila_dc Laquila_dc_smc --copy_data --datatypes=seismic --sampler=SMC
+
+This will create a new project directory *Laquila_dc_smc* where the sampling could be repeated using the SMC algorithm instead of PT.
