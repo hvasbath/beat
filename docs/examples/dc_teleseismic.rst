@@ -186,12 +186,39 @@ Now that we have determined the noise scalings we want to sample the full proble
       n_steps: 200
       n_chains: 1000
       coef_variation: 1.0
-      stage: 19
+      stage: 0
       proposal_dist: MultivariateCauchy
       update_covariances: false
 
 Here we use 4 cpus (n_jobs) - you can change this according to your systems specifications.
 Finally, we sample the solution space with::
+
+TODO:
+
+    sampler_config: !beat.SamplerConfig
+      name: PT
+      progressbar: true
+      buffer_size: 1000
+      parameters: !beat.ParallelTemperingConfig
+        tune_interval: 10
+        proposal_dist: MultivariateNormal
+        check_bnd: true
+        rm_flag: false
+        n_samples: 50000
+        n_chains: 8
+        swap_interval: [10, 30]
+        beta_tune_interval: 1000
+        n_chains_posterior: 3
+        resample: false
+        thin: 1
+        burn: 0.6
+
+Here we use a Parallel Tempering algorithm (please see the paper and references therein for details). The sampler should stop after the chains that sample from the posterior have collected 50k samples ('n_samples').
+The total number of MCs used for sampling and the ones that sample from the posterior, can be adjusted with the parameters 'n_chains' and 'n_chains_posterior', respectively.
+We propose to swap chain states randomly every 10 to 30 samples ('swap_interval') between random chains. We also adaptively tune the tempering parameters of each chain based on the swap acceptance every 'beta_tune_interval'.
+
+
+
 
     beat sample dc_teleseismic
 

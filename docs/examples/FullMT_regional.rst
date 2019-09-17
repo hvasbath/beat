@@ -276,30 +276,30 @@ the HPs parameter bounds show something like::
         upper: [2.0]
         testvalue: [-0.5]
 
-Now that we have determined the noise scalings we want to sample the full problem. The sampler to be used can be configured under 'sampler_config'.::
+
+Now that we have an initial guess on the hyperparameters we can run the optimization using the default sampling algorithm, a Sequential Monte Carlo sampler.
+The sampler can effectively exploit the parallel architecture of nowadays computers. The 'n_jobs' number should be set to as many CPUs as possible in the configuration file.::
 
     sampler_config: !beat.SamplerConfig
-      name: PT
+      name: SMC
       progressbar: true
-      buffer_size: 1000
-      parameters: !beat.ParallelTemperingConfig
+      buffer_size: 5000
+      buffer_thinning: 10
+      parameters: !beat.SMCConfig
+        n_chains: 500
+        n_steps: 100
+        n_jobs: 4
         tune_interval: 10
+        coef_variation: 1.0
+        stage: 0
         proposal_dist: MultivariateNormal
         check_bnd: true
-        rm_flag: false
-        n_samples: 50000
-        n_chains: 8
-        swap_interval: [10, 30]
-        beta_tune_interval: 1000
-        n_chains_posterior: 3
-        resample: false
-        thin: 1
-        burn: 0.6
+        update_covariances: false
+        rm_flag: true
 
-Here we use a Parallel Tempering algorithm (please see the paper and references therein for details). The sampler should stop after the chains that sample from the posterior have collected 50k samples ('n_samples').
-The total number of MCs used for sampling and the ones that sample from the posterior, can be adjusted with the parameters 'n_chains' and 'n_chains_posterior', respectively.
-We propose to swap chain states randomly every 10 to 30 samples ('swap_interval') between random chains. We also adaptively tune the tempering parameters of each chain based on the swap acceptance every 'beta_tune_interval'.
+.. note:: 'n_chains' divided by 'n_jobs' MUST yield a whole number! An error is going to be thrown if this is not the case!
 
+Here we use 4 cpus (n_jobs) - you can change this according to your systems specifications.
 Finally, we sample the solution space with::
 
     beat sample FullMT
@@ -373,7 +373,7 @@ It may look like this.
 
 This will show an image like that.
 
- .. image:: ../_static/example1/FullMT_corr_hist_max.png
+ .. image:: ../_static/example1/FullMT_corr_hist_ref_variance.png
 
 This shows 2d kernel density estimates (kde) and histograms of the specified model parameters. The darker the 2d kde the higher the probability of the model parameter.
 The red dot and the vertical red lines show the true values of the target source in the kde plots and histograms, respectively.
@@ -384,18 +384,78 @@ If it is not specified all sampled parameters are taken into account.
 
 Seismic noise estimation
 ^^^^^^^^^^^^^^^^^^^^^^^^
-If we have poor knowledge of the noise in the data, the model parameter estimates may be poor and the true parameters are not covered by the distributions (as was the case above). In the previous run we used a data covariance matrix of the form of an identity matrix with only the noise variance in the diagonal. Under the seismic_config you find the configuration for the noise analyser, which looks like that::
+If we have poor knowledge of the noise in the data, the model parameter estimates may be poor and the true parameters
+are not covered by the distributions (as was the case above). In the previous run we used a data covariance matrix of the
+form of an identity matrix with only the noise variance in the diagonal. Under the seismic_config you find the configuration
+for the noise analyser, which looks like that::
 
   noise_estimator: !beat.SeismicNoiseAnalyserConfig
     structure: variance
     pre_arrival_time: 3.0
 
-The "structure" argument refers to the structure of the covariance matrix that is estimated on the data, prior to the synthetic P-wave arrival. The argument "pre_arrival_time" refers to the time before the P-wave arrival. 3.0 means that the noise is estimated on each data trace up to 3. seconds before the synthetic P-wave arrival.
-Obviously, in the previos run the white-noise assumption was not working well. So we may set the structure to "exponential" to also estimate noise covariances depending on the shortest wavelength in the data, following [Duputel2012]_.
+The "structure" argument refers to the structure of the covariance matrix that is estimated on the data, prior to the
+synthetic P-wave arrival. The argument "pre_arrival_time" refers to the time before the P-wave arrival.
+3.0 means that the noise is estimated on each data trace up to 3. seconds before the synthetic P-wave arrival.
+Obviously, in the previous run the white-noise assumption was not working well.
+So we may set the structure to "exponential" to also estimate noise covariances depending on the shortest
+wavelength in the data, following [Duputel2012]_.
 
-Other options are to "import" to use the covariance matrixes that have been imported with the data
-Also the option "non-toeplitz" to estimate non-stationary, correlated noise on the residuals following [Dettmer2007]_
-in this case the values from the priors and hypers "testvalues" are used as reference to calculate the residuals.
+Other options are to "import" to use the covariance matrices that have been imported with the data
+Also the option "non-toeplitz" to estimate non-stationary, correlated noise on the residuals following [Dettmer2007]_.
+
+
+Clone project
+^^^^^^^^^^^^^
+Now we want to repeat the sampling with the noise structure set to "non-toeplitz", but we want to keep the previous results
+as well as the configuration files unchanged for keeping track of our work. So we can use again the clone function to clone
+the current setup into a new directory.::
+
+  beat clone FullMT FullMT_nont --copy_data --datatypes=seismic
+
+Now we can change the noise_estimator to use "non-toeplitz" structured covariance matrices in the new project directory "FullMT_nont"
+keeping all the other configurations identical.::
+
+  noise_estimator: !beat.SeismicNoiseAnalyserConfig
+    structure: non-toeplitz
+    pre_arrival_time: 3.0
+
+In this case the values from the priors and hypers "testvalues" are used as reference to calculate the initial residuals,
+which are being used to estimate the covariance matrices. This may produce heavily biased results in case these values
+are far off the true source parameters. Therefore, we have to update the non-Toeplitz covariance estimates in the course of the samping!
+We can do this by setting the "update_covariances" parameter in the SMC parameters to true.::
+
+    sampler_config: !beat.SamplerConfig
+      name: SMC
+      progressbar: true
+      buffer_size: 5000
+      buffer_thinning: 10
+      parameters: !beat.SMCConfig
+        n_chains: 500
+        n_steps: 100
+        n_jobs: 4
+        tune_interval: 10
+        coef_variation: 1.0
+        stage: 0
+        proposal_dist: MultivariateNormal
+        check_bnd: true
+        update_covariances: true    % <-- HERE! ;)
+        rm_flag: true
+
+
+Please go ahead and repeat the run with the steps from above using this configuration!
+
+Plotting the parameter correlations again with::
+
+    beat plot FullMT_nont correlation_hist --reference --stage_number=-1 --format='png' --varnames='mee, med, mdd, mnn, mnd, mne, north_shift, east_shift, magnitude'
+
+This will show an image like that.
+
+ .. image:: ../_static/example1/FullMT_corr_hist_ref_variance.png
+
+Now we are doing much better regarding the moment tensor components. However, the magnitude is still overestimated,
+but there is not much we can do about that so far with such a data.
+
+Please also go ahead and check out the other plots like the "hudson" or "fuzzy_beachball".
 
 
 References
