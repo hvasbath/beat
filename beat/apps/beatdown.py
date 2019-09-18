@@ -314,6 +314,14 @@ def main():
              '(default: 5)')
 
     parser.add_option(
+        '--zero-padding',
+        dest='zero_pad',
+        action='store_true',
+        default=False,
+        help='Extend traces by zero-padding if clean restitution requires'
+             'longer windows')
+
+    parser.add_option(
         '--credentials',
         dest='user_credentials',
         action='append',
@@ -926,6 +934,9 @@ def main():
     if options.local_data:
         have_data_site['local'] = set()
         plocal = pile.make_pile(options.local_data, fileformat='detect')
+        logger.info('Importing local data from %s between %s (%f) and %s (%f)' % (
+            options.local_data, util.time_to_str(tmin), tmin,
+            util.time_to_str(tmax), tmax))
         for traces in plocal.chopper_grouped(
                 gather=lambda tr: tr.nslc_id,
                 tmin=tmin,
@@ -1019,6 +1030,7 @@ def main():
                 try:
                     if site not in sxs:
                         continue
+                    logger.debug('Getting response for %s' % tr.__str__())
                     response = sxs[site].get_pyrocko_response(
                         tr.nslc_id,
                         timespan=(tr.tmin, tr.tmax),
@@ -1038,6 +1050,12 @@ def main():
             else:
                 failure = ''
                 try:
+                    if tr.tmin > tmin and options.zero_pad:
+                        logger.warning(
+                            'Trace too short for clean restitution in '
+                            'desired frequency band -> zero-padding!')
+                        tr.extend(tr.tmin - tfade, tr.tmax + tfade, 'repeat')
+
                     rest_tr = tr.transfer(tfade, ftap, response, invert=True)
                     rest_traces_a.append(rest_tr)
 
