@@ -340,8 +340,8 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
         try:
             trace.buffer_write(out_list, step.cumulative_samples)
         except BufferError:     # buffer full
-            last_sample = deepcopy(trace.buffer[-1])
             if update_proposal:     # only valid for PT for now
+                last_sample = deepcopy(trace.buffer[-1])
                 if step.proposal_name in multivariate_proposals:
 
                     cov = trace.get_sample_covariance(step)
@@ -360,9 +360,11 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
                         step.proposal_dist = choose_proposal(
                             step.proposal_name, scale=cov)
 
-            trace.record_buffer()
-            # put last sample back
-            trace.buffer_write(*last_sample)
+                trace.record_buffer()
+                # put last sample back
+                trace.buffer_write(*last_sample)
+            else:
+                trace.record_buffer()
         yield trace
 
 
@@ -518,7 +520,8 @@ def iter_parallel_chains(
             pass
 
         # return chain indexes that have been corrupted
-        mtrace = load_multitrace(dirname=stage_path, varnames=varnames, backend=step.backend)
+        mtrace = load_multitrace(
+            dirname=stage_path, varnames=varnames, backend=step.backend)
         corrupted_chains = check_multitrace(
             mtrace, draws=draws, n_chains=step.n_chains,
             buffer_thinning=buffer_thinning)

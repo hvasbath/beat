@@ -908,14 +908,18 @@ def command_summarize(args):
             else:
                 source = None
 
-            seisc = problem.composites['seismic']
+            if 'seismic' in problem.config.problem_config.datatypes:
+                composite = problem.composites['seismic']
+            else:
+                composite = problem.composites['geodetic']
+
             for chain in chains:
                 for idx in idxs:
                     point = stage.mtrace.point(idx=idx, chain=chain)
                     if isinstance(source, MTSourceWithMagnitude):
-                        seisc.point2sources(point)
+                        composite.point2sources(point)
                         ldicts = []
-                        for source in seisc.sources:
+                        for source in composite.sources:
                             ldicts.append(source.scaled_m6_dict)
 
                         jpoint = utility.join_points(ldicts)

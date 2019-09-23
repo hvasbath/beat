@@ -361,9 +361,9 @@ For a plot using the global geographic coordinate system where the residuals hav
 
 .. image:: ../_static/example3/Laquila_scenes_-1_max_latlon_0.png
 
-To plot waveform fits::
+To plot waveform fits with an ensemble of 100 draws from the PPD::
 
-  beat plot Laquila waveform_fits
+  beat plot Laquila waveform_fits --nensemble=100
 
 
 .. image:: ../_static/example3/Laquila_waveforms_-1_max_0.png
@@ -381,12 +381,12 @@ Here h_SAR are the noise scaling parameters for the two InSAR scenes and h_any_P
 
 For a correlation plot of the parameter marginals please run::
 
-  beat plot LaquilaJointPonlyUPDATE correlation_hist --format=png --varnames=depth,north_shift,dip,east_shift,slip,width,time,nucleation_x,rake,nucleation_y,strike,length
+  beat plot LaquilaJointPonlyUPDATE correlation_hist --format=png --varnames=east_shift,north_shift,depth,length,width,strike,dip,rake,slip
 
 
 .. image:: ../_static/example3/Laquila_corr_hist_-1_max.png
 
-Here the "varnames" argument determines the order of the plotted variables and which variable to plot. The kinematic source parameters are only resolved by using seismic data. So for optimization results that include only **geodetic** data, the parameters time, duration, nucleation_x and nucleation_y have to be omitted.
+The "varnames" argument determines the order of the plotted variables and which variable to plot. The kinematic source parameters are only resolved by using seismic data. So for optimization results that include only **geodetic** data, the parameters time, duration, nucleation_x and nucleation_y have to be omitted.
 
 These plots are stored under your Laquila folder under geometry/figures.
 
