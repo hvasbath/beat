@@ -212,6 +212,9 @@ def estimate_hypers(step, problem):
     sc = problem.config.hyper_sampler_config
     pa = sc.parameters
 
+    if not (pa.n_chains / pa.n_jobs).is_integer():
+        raise ValueError('n_chains / n_jobs has to be a whole number!')
+
     name = problem.outfolder
     ensuredir(name)
 
