@@ -31,8 +31,6 @@ If your work results in an publication where you used BEAT we kindly ask you to 
 
  > Vasyura-Bathke, Hannes; Dettmer, Jan; Steinberg, Andreas; Heimann, Sebastian; Isken, Marius; Zielke, Olaf; Mai, Paul Martin; Sudhaus, Henriette; Jónsson, Sigurjón (2019): BEAT - Bayesian Earthquake Analysis Tool. V. 1.0. GFZ Data Services. http://doi.org/10.5880/fidgeo.2019.024
 
-[![DOI](https://img.shields.io/badge/DOI-10.5880%2Ffidgeo.2019.024-blue)] (http://pmd.gfz-potsdam.de/panmetaworks/review/fa98c2af48960efa5c4dd9265591eccc8dce92bfb41ad3a0ffcf39aa0b847b3a)
-
 
 Tutorials
 =========
