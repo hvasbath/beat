@@ -727,7 +727,7 @@ def sample_pt_chain(
 
     sampling = _iter_sample(
         n_steps, step, start, trace, chain, tune, model, random_seed,
-        overwrite=False, update_proposal=update_proposal)
+        overwrite=False, update_proposal=update_proposal, keep_last=True)
 
     try:
         for strace in sampling:

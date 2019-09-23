@@ -299,7 +299,7 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
 
 def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
                  model=None, random_seed=-1, overwrite=True,
-                 update_proposal=False):
+                 update_proposal=False, keep_last=False):
     """
     Modified from :func:`pymc3.sampling._iter_sample`
 
@@ -340,10 +340,9 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
         try:
             trace.buffer_write(out_list, step.cumulative_samples)
         except BufferError:     # buffer full
+            last_sample = deepcopy(trace.buffer[-1])
             if update_proposal:     # only valid for PT for now
-                last_sample = deepcopy(trace.buffer[-1])
                 if step.proposal_name in multivariate_proposals:
-
                     cov = trace.get_sample_covariance(step)
                     if cov is not None:
                         if not isinstance(trace, MemoryChain):
@@ -360,11 +359,11 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
                         step.proposal_dist = choose_proposal(
                             step.proposal_name, scale=cov)
 
-                trace.record_buffer()
+            trace.record_buffer()
+            if keep_last:
                 # put last sample back
                 trace.buffer_write(*last_sample)
-            else:
-                trace.record_buffer()
+
         yield trace
 
 
