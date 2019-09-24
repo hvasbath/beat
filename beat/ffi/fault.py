@@ -748,7 +748,6 @@ def discretize_sources(
             for datatype in datatypes:
                 for index, sf in enumerate(
                         fault.iter_subfaults(datatype, component)):
-
                     npw, npl = fault.ordering.get_subfault_discretization(index)
                     patches = sf.patches(
                         nl=npl, nw=npw, datatype=datatype)

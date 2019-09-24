@@ -1008,7 +1008,6 @@ def command_build_gfs(args):
         args, options, nargs_dict[command_str])
 
     c = bconfig.load_config(project_dir, options.mode)
-
     if options.mode in [geometry_mode_str, 'interseismic']:
         for datatype in options.datatypes:
             if datatype == 'geodetic':
@@ -1086,7 +1085,11 @@ def command_build_gfs(args):
                     ' fault geometries have to be consistent!')
 
             for source in gf.reference_sources:
-                source.update(lat=c.event.lat, lon=c.event.lon)
+                if source.lat == 0 and source.lon == 0:
+                    logger.info(
+                        'Reference source is configured without Latitude '
+                        'and Longitude! Updating with event information! ...')
+                    source.update(lat=c.event.lat, lon=c.event.lon)
 
             logger.info('Discretizing reference sources ...')
             fault = ffi.discretize_sources(

@@ -3714,9 +3714,12 @@ def source_geometry(fault, ref_sources, datasets=None):
     from beat.utility import RS_center
     alpha = 0.7
 
-    def plot_subfault(ax, source, color):
+    def plot_subfault(ax, source, color, refloc):
         source.anchor = 'top'
+        shift_ne = otd.latlon_to_ne(
+            refloc.lat, refloc.lon, source.lat, source.lon)
         coords = source.outline()
+        coords[:, 0:2] += shift_ne
         ax.plot(
             coords[:, 1], coords[:, 0], coords[:, 2] * -1.,
             color=color, linewidth=2, alpha=alpha)
@@ -3724,25 +3727,31 @@ def source_geometry(fault, ref_sources, datasets=None):
             coords[0:2, 1], coords[0:2, 0], coords[0:2, 2] * -1.,
             '-k', linewidth=2, alpha=alpha)
         center = RS_center(source)
+        center[0:2] += shift_ne
         ax.scatter(
-            center[0], center[1], center[2] * -1,
+            center[1], center[0], center[2] * -1,
             marker='o', s=20, color=color, alpha=alpha)
 
     fig = plt.figure(figsize=mpl_papersize('a4', 'landscape'))
     ax = fig.add_subplot(111, projection='3d')
     extfs = fault.get_all_subfaults()
+    refloc = ref_sources[0]
     for idx, (refs, exts) in enumerate(zip(ref_sources, extfs)):
 
-        plot_subfault(ax, exts, color=mpl_graph_color(idx))
-        plot_subfault(ax, refs, color=scolor('aluminium4'))
+        plot_subfault(ax, exts, color=mpl_graph_color(idx), refloc=refloc)
+        plot_subfault(ax, refs, color=scolor('aluminium4'), refloc=refloc)
 
         for i, patch in enumerate(fault.get_subfault_patches(idx)):
             coords = patch.outline()
+            shift_ne = otd.latlon_to_ne(
+                refloc.lat, refloc.lon, patch.lat, patch.lon)
+            coords[:, 0:2] += shift_ne
             ax.plot(
                 coords[:, 1], coords[:, 0], coords[:, 2] * -1.,
                 color=mpl_graph_color(idx), linewidth=0.5, alpha=alpha)
             ax.text(
-                patch.east_shift, patch.north_shift, patch.depth * -1., str(i),
+                patch.east_shift + shift_ne[1],
+                patch.north_shift + shift_ne[0], patch.depth * -1., str(i),
                 fontsize=10)
 
     if datasets:
