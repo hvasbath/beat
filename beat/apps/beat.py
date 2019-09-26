@@ -1549,7 +1549,9 @@ def command_check(args):
             fault = problem.composites[datatype].load_fault_geometry()
             reference_sources = problem.config[
                 datatype + '_config'].gf_config.reference_sources
-            source_geometry(fault, reference_sources, datasets)
+            source_geometry(
+                fault, reference_sources,
+                event=problem.config.event, datasets=datasets)
         else:
             logger.warning(
                 'Checking discretization is only for'

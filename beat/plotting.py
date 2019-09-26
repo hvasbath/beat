@@ -3699,7 +3699,7 @@ def draw_moment_rate(problem, po):
             logger.info('Plot exists! Use --force to overwrite!')
 
 
-def source_geometry(fault, ref_sources, datasets=None):
+def source_geometry(fault, ref_sources, event, datasets=None):
     """
     Plot source geometry in 3d rotatable view
 
@@ -3735,16 +3735,15 @@ def source_geometry(fault, ref_sources, datasets=None):
     fig = plt.figure(figsize=mpl_papersize('a4', 'landscape'))
     ax = fig.add_subplot(111, projection='3d')
     extfs = fault.get_all_subfaults()
-    refloc = ref_sources[0]
     for idx, (refs, exts) in enumerate(zip(ref_sources, extfs)):
 
-        plot_subfault(ax, exts, color=mpl_graph_color(idx), refloc=refloc)
-        plot_subfault(ax, refs, color=scolor('aluminium4'), refloc=refloc)
+        plot_subfault(ax, exts, color=mpl_graph_color(idx), refloc=event)
+        plot_subfault(ax, refs, color=scolor('aluminium4'), refloc=event)
 
         for i, patch in enumerate(fault.get_subfault_patches(idx)):
             coords = patch.outline()
             shift_ne = otd.latlon_to_ne(
-                refloc.lat, refloc.lon, patch.lat, patch.lon)
+                event.lat, event.lon, patch.lat, patch.lon)
             coords[:, 0:2] += shift_ne
             ax.plot(
                 coords[:, 1], coords[:, 0], coords[:, 2] * -1.,
