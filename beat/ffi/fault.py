@@ -1,11 +1,11 @@
-from beat.utility import list2string, positions2idxs, kmtypes
+from beat.utility import list2string, positions2idxs, kmtypes, argsorted
 from beat.fast_sweeping import fast_sweep
 
 from beat.config import ResolutionDiscretizationConfig, \
     UniformDiscretizationConfig
 from beat.models.laplacian import get_smoothing_operator_correlated, \
     get_smoothing_operator_nearest_neighbor, distances
-from .base import get_backend, geo_construct_gf_linear
+from .base import get_backend, geo_construct_gf_linear_patches
 
 from pyrocko.gf.seismosizer import Cloneable
 from pyrocko.guts import Float, Object, List
@@ -802,6 +802,7 @@ def optimize_discretization(
         [num.hstack(east_shifts), num.hstack(north_shifts)]).T
 
     patch_widths, patch_lengths = config.get_patch_dimensions()
+    gfs_comp = []
     for component in varnames:
         for index, sf in enumerate(
                 fault.iter_subfaults(datatype, component)):
@@ -810,6 +811,11 @@ def optimize_discretization(
             patches = sf.patches(
                 nl=npl, nw=npw, datatype=datatype)
             fault.set_subfault_patches(index, patches, datatype, component)
+
+            gfs = geo_construct_gf_linear_patches(
+                engine=engine, datasets=datasets, targets=targets,
+                patches=patches, nworkers=nworkers)
+            gfs_comp.append(gfs)
 
     logger.info('Initial number of patches: %i' % fault.npatches)
     tobedivided = fault.npatches
@@ -823,17 +829,20 @@ def optimize_discretization(
             sf_div_idxs.append(range(fault.subfault_npatches[i] - 1, -1, -1))
 
     while tobedivided:
-        for component in varnames:
+        gfs_array = []
+        for gfs_i, component in enumerate(varnames):
             logger.info('Component %s' % component)
-            gfs_array = []
+
             # iterate over subfaults and divide patches
+            all_divided_patches = []
+            all_divided_patch_idxs = []
             for sf_idx, div_idxs in zip(range(fault.nsubfaults), sf_div_idxs):
                 logger.info(
                     'Subfault %i division indexes %s' % (
                         sf_idx, list2string(div_idxs)))
                 patches = fault.get_subfault_patches(sf_idx, datatype, component)
+                start = fault.cum_subfault_npatches[sf_idx]
                 for idx in div_idxs:
-
                     # pull out patch to be divided
                     patch = patches.pop(idx)
                     if patch.length >= patch.width:
@@ -844,24 +853,39 @@ def optimize_discretization(
                             nl=1, nw=2, datatype=datatype)
 
                     # insert back divided patches
+                    # TODO: check insert idx evtl. + 1?
                     for dpatch in div_patches:
                         patches.insert(idx, dpatch)
+                        all_divided_patch_idxs.append(start + idx)
 
                 # register newly diveded patches with fault
                 fault.set_subfault_patches(
                     sf_idx, patches, datatype, component, replace=True)
 
-            #source_geometry(fault, list(fault.iter_subfaults()))
+                # add to all patches that need recalculation
+                all_divided_patches.extend(div_patches)
+
+                #source_geometry(fault, list(fault.iter_subfaults()))
 
             logger.info("Calculating Green's Functions for %i "
                         "patches." % fault.npatches)
 
             # calculate GFs for fault is [npatches, nobservations]
-            gfs = geo_construct_gf_linear(
-                engine=engine, outdirectory='', crust_ind=crust_ind,
-                datasets=datasets, targets=targets, fault=fault,
-                varnames=[component], force=force, event=event, nworkers=nworkers)
-            gfs_array.append(gfs.T)
+            gfs = geo_construct_gf_linear_patches(
+                engine=engine, datasets=datasets, targets=targets,
+                patches=all_divided_patches, nworkers=nworkers)
+
+            # insert gfs into existing component gfs
+            # needs reverse order otherwise idxs would be wrong
+            rev_div_patch_idxs = sorted(all_divided_patch_idxs, reverse=True)
+            rev_gf_idxs = argsorted(all_divided_patch_idxs, reverse=True)
+            for rev_gf_idx, rev_div_p_idx in zip(
+                    rev_gf_idxs, rev_div_patch_idxs):
+
+                gfs_comp[gfs_i] = num.insert(
+                    gfs_comp[gfs_i], rev_div_p_idx, gfs[rev_gf_idx, :], axis=1)
+
+                gfs_array.append(gfs_comp[gfs_i].T)
 
         # U data-space, L singular values, V model space
         U, l, V = num.linalg.svd(num.vstack(gfs_array), full_matrices=True)

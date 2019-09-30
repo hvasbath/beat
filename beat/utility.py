@@ -55,6 +55,12 @@ d2r = num.pi / 180.
 km = 1000.
 
 
+def argsorted(seq, reverse=False):
+    #http://stackoverflow.com/questions/3382352/equivalent-of-numpy-argsort-in-basic-python/3382369#3382369
+    #by unutbu
+    return sorted(range(len(seq)), key=seq.__getitem__, reverse=reverse)
+
+
 class Counter(object):
     """
     Counts calls of types with string_ids. Repeated calls with the same

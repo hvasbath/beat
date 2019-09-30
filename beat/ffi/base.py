@@ -47,10 +47,9 @@ __all__ = [
     'get_gf_prefix',
     'GFLibrary',
     'GeodeticGFLibrary',
-    'GeodeticGFLibraryConfig',
     'geo_construct_gf_linear',
+    'geo_construct_gf_linear_patches',
     'SeismicGFLibrary',
-    'SeismicGFLibraryConfig',
     'seis_construct_gf_linear',
     'backends']
 
@@ -801,7 +800,12 @@ def _process_patch_geodetic(
 
     logger.debug('Applying LOS vector ...')
     los_disp = (disp * los_vectors).sum(axis=1) * odws
-    gfs.put(entries=los_disp, patchidx=patchidx)
+    if isinstance(gfs, GeodeticGFLibrary):
+        gfs.put(entries=los_disp, patchidx=patchidx)
+    elif isinstance(gfs, RawArray):
+        npatches = len(RawArray) / disp.size
+        matrix = num.frombuffer(gfs).reshape((npatches, disp.size))
+        matrix[patchidx, :] = los_disp
 
 
 def geo_construct_gf_linear(
@@ -809,7 +813,7 @@ def geo_construct_gf_linear(
         targets=None, fault=None, varnames=[''], force=False,
         event=None, nworkers=1):
     """
-    Create geodetic Greens Function matrix for defined source geometry.
+    Create geodetic Greens Function Library for defined source geometry.
 
     Parameters
     ----------
@@ -898,6 +902,53 @@ def geo_construct_gf_linear(
                 gfs.save(outdir=outdirectory)
             else:
                 return gfs._gfmatrix
+
+
+def geo_construct_gf_linear_patches(
+        engine, datasets=None, targets=None, patches=None, nworkers=1):
+    """
+    Create geodetic Greens Function matrix for given patches.
+
+    Parameters
+    ----------
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+        main path to directory containing the different Greensfunction stores
+    datasets : list
+        of :class:`heart.GeodeticDataset` for which the GFs are calculated
+    targets : list
+        of :class:`heart.GeodeticDataset`
+    patches : :class:`FaultGeometry`
+        fault object that may comprise of several sub-faults. thus forming a
+        complex fault-geometry
+    nworkers : int
+        number of CPUs to use for processing
+    """
+
+    _, los_vectors, odws, _ = heart.concatenate_datasets(datasets)
+
+    nsamples = odws.size
+    npatches = len(patches)
+
+    logger.info('Using %i workers ...' % nworkers)
+
+    shared_gflibrary = RawArray('d', npatches * nsamples)
+
+    work = [
+        (engine, shared_gflibrary, targets, patch, patchidx, los_vectors, odws)
+            for patchidx, patch in enumerate(patches)]
+
+    p = parallel.paripool(
+        _process_patch_geodetic, work,
+        initializer=_init_shared,
+        initargs=(shared_gflibrary, None), nprocs=nworkers)
+
+    for res in p:
+        pass
+
+    # collect and store away
+    gfmatrix = num.frombuffer(
+        shared_gflibrary).reshape((npatches, nsamples))
+    return gfmatrix
 
 
 def _process_patch_seismic(
