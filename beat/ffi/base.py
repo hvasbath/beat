@@ -802,10 +802,13 @@ def _process_patch_geodetic(
     los_disp = (disp * los_vectors).sum(axis=1) * odws
     if isinstance(gfs, GeodeticGFLibrary):
         gfs.put(entries=los_disp, patchidx=patchidx)
-    elif isinstance(gfs, RawArray):
-        npatches = len(RawArray) / disp.size
-        matrix = num.frombuffer(gfs).reshape((npatches, disp.size))
+    elif gfs is None and hasattr(parallel, 'gfmatrix'):
+        npatches = len(parallel.gfmatrix) // los_disp.size
+        matrix = num.frombuffer(parallel.gfmatrix).reshape(
+            (npatches, los_disp.size))
         matrix[patchidx, :] = los_disp
+    else:
+        raise ValueError('GF Library not allocated!')
 
 
 def geo_construct_gf_linear(
@@ -934,7 +937,7 @@ def geo_construct_gf_linear_patches(
     shared_gflibrary = RawArray('d', npatches * nsamples)
 
     work = [
-        (engine, shared_gflibrary, targets, patch, patchidx, los_vectors, odws)
+        (engine, None, targets, patch, patchidx, los_vectors, odws)
             for patchidx, patch in enumerate(patches)]
 
     p = parallel.paripool(

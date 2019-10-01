@@ -70,12 +70,12 @@ class Counter(object):
     def __init__(self):
         self.d = dict()
 
-    def __call__(self, string):
+    def __call__(self, string, multiplier=1):
 
         if string not in self.d:
             self.d[string] = 0
         else:
-            self.d[string] += 1
+            self.d[string] += 1 * multiplier
         return self.d[string]
 
     def reset(self):

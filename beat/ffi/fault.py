@@ -1,4 +1,4 @@
-from beat.utility import list2string, positions2idxs, kmtypes, argsorted
+from beat.utility import list2string, positions2idxs, kmtypes, argsorted, Counter
 from beat.fast_sweeping import fast_sweep
 
 from beat.config import ResolutionDiscretizationConfig, \
@@ -28,6 +28,7 @@ __all__ = [
     'FaultGeometry',
     'FaultOrdering',
     'discretize_sources',
+    'get_division_mapping',
     'optimize_discretization']
 
 
@@ -502,12 +503,16 @@ total number of patches: %i ''' % (
             for index in range(self.nsubfaults):
                 key = self.get_subfault_key(
                     index, datatype=None, component=None)
-                patches = self._discretized_patches[key]
-                npatches.append(len(patches))
+                try:
+                    patches = self._discretized_patches[key]
+                    npatches.append(len(patches))
+                except KeyError:
+                    logger.debug('Sub-fault %i not discretized yet' % index)
+                    npatches.append(0)
 
             return npatches
         else:
-            return [0. for _ in range(self.nsubfaults)]
+            return [0 for _ in range(self.nsubfaults)]
 
     @property
     def cum_subfault_npatches(self):
@@ -757,6 +762,37 @@ def discretize_sources(
     return fault
 
 
+def get_division_mapping(patch_idxs, div_idxs):
+    """
+    Returns index mappings for fault patches to be divided from old to
+    new division
+
+    Parameters
+    ----------
+    patch_idxs : list
+        of indexes of patches of old generation
+    div_idxs : list
+        of indexes of patches of old generation to be divided for new generation
+
+    Returns
+    -------
+    2 dicts, old2new, div2new
+    """
+    count = Counter()
+
+    old2new = OrderedDict()
+    div2new = OrderedDict()
+    for patch_idx in patch_idxs:
+        if patch_idx in div_idxs:
+            div2new[count('new')] = count('tot')
+            div2new[count('new')] = count('tot')
+            count('old')  # count old once for patch removal
+        else:
+            old2new[count('old')] = count('tot')
+
+    return old2new, div2new
+
+
 def optimize_discretization(
         config, fault, datasets, varnames, crust_ind,
         engine, targets, event, force, nworkers):
@@ -811,23 +847,31 @@ def optimize_discretization(
             patches = sf.patches(
                 nl=npl, nw=npw, datatype=datatype)
             fault.set_subfault_patches(index, patches, datatype, component)
+            print('SubFault npatches', fault.subfault_npatches, 'SF', index)
 
-            gfs = geo_construct_gf_linear_patches(
-                engine=engine, datasets=datasets, targets=targets,
-                patches=patches, nworkers=nworkers)
-            gfs_comp.append(gfs)
+        logger.info("Calculating Green's Functions for %i "
+                    "initial patches for %s slip-component." % (
+            fault.npatches, component))
 
-    logger.info('Initial number of patches: %i' % fault.npatches)
+        gfs = geo_construct_gf_linear_patches(
+            engine=engine, datasets=datasets, targets=targets,
+            patches=fault.get_all_patches('geodetic', component=component),
+            nworkers=nworkers)
+        gfs_comp.append(gfs)
+
     tobedivided = fault.npatches
 
     sf_div_idxs = []
+    print('SubFault npatches before division', fault.subfault_npatches)
     for i, sf in enumerate(fault.iter_subfaults()):
         if sf.width /km <= config.patch_widths_min[i] or \
                 sf.length / km <= config.patch_lengths_min[i]:
-            sf_div_idxs = []
+            sf_div_idxs.append([])
         else:
+            print('SubFault npatches', fault.subfault_npatches)
             sf_div_idxs.append(range(fault.subfault_npatches[i] - 1, -1, -1))
 
+    print('sf_div_idxs', sf_div_idxs)
     while tobedivided:
         gfs_array = []
         for gfs_i, component in enumerate(varnames):
@@ -844,6 +888,7 @@ def optimize_discretization(
                 start = fault.cum_subfault_npatches[sf_idx]
                 for idx in div_idxs:
                     # pull out patch to be divided
+                    print('SF', sf_idx, 'npatches', len(patches), 'patch idx', idx)
                     patch = patches.pop(idx)
                     if patch.length >= patch.width:
                         div_patches = patch.patches(
@@ -851,6 +896,9 @@ def optimize_discretization(
                     else:
                         div_patches = patch.patches(
                             nl=1, nw=2, datatype=datatype)
+
+                    # add to all patches that need recalculation
+                    all_divided_patches.extend(div_patches)
 
                     # insert back divided patches
                     # TODO: check insert idx evtl. + 1?
@@ -862,13 +910,10 @@ def optimize_discretization(
                 fault.set_subfault_patches(
                     sf_idx, patches, datatype, component, replace=True)
 
-                # add to all patches that need recalculation
-                all_divided_patches.extend(div_patches)
-
                 #source_geometry(fault, list(fault.iter_subfaults()))
 
-            logger.info("Calculating Green's Functions for %i "
-                        "patches." % fault.npatches)
+            logger.info("Calculating Green's Functions for %i divided "
+                        "patches." % len(all_divided_patches))
 
             # calculate GFs for fault is [npatches, nobservations]
             gfs = geo_construct_gf_linear_patches(
@@ -877,15 +922,18 @@ def optimize_discretization(
 
             # insert gfs into existing component gfs
             # needs reverse order otherwise idxs would be wrong
+            print('all_div_p_idxs', all_divided_patch_idxs)
             rev_div_patch_idxs = sorted(all_divided_patch_idxs, reverse=True)
             rev_gf_idxs = argsorted(all_divided_patch_idxs, reverse=True)
+            print('Sorted GF idxs', rev_gf_idxs, 'Patch index', rev_div_patch_idxs)
             for rev_gf_idx, rev_div_p_idx in zip(
                     rev_gf_idxs, rev_div_patch_idxs):
 
+                print('GFS_comp', gfs_comp[gfs_i].shape, 'GFS shape', gfs.shape)
                 gfs_comp[gfs_i] = num.insert(
-                    gfs_comp[gfs_i], rev_div_p_idx, gfs[rev_gf_idx, :], axis=1)
+                    gfs_comp[gfs_i], rev_div_p_idx, gfs[rev_gf_idx, :], axis=0)
 
-                gfs_array.append(gfs_comp[gfs_i].T)
+            gfs_array.append(gfs_comp[gfs_i].T)
 
         # U data-space, L singular values, V model space
         U, l, V = num.linalg.svd(num.vstack(gfs_array), full_matrices=True)

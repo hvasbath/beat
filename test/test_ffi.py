@@ -59,26 +59,27 @@ class FFITest(unittest.TestCase):
         wavemap = WaveformMapping(
             name='any_P', stations=stations, targets=targets)
 
-        self.gfs = ffi.SeismicGFLibrary(
-            wavemap=wavemap, component='uperp',
-            duration_sampling=duration_sampling,
-            starttime_sampling=starttime_sampling,
-            starttime_min=self.starttime_min,
-            duration_min=self.duration_min)
-        self.gfs.setup(
-            ntargets, npatches, self.ndurations, nstarttimes,
-            nsamples, allocate=True)
+        # TODO needs updating
+        #self.gfs = ffi.SeismicGFLibrary(
+        #    wavemap=wavemap, component='uperp',
+        #    duration_sampling=duration_sampling,
+        #    starttime_sampling=starttime_sampling,
+        #    starttime_min=self.starttime_min,
+        #    duration_min=self.duration_min)
+        #self.gfs.setup(
+        #    ntargets, npatches, self.ndurations, nstarttimes,
+        #    nsamples, allocate=True)
 
         tracedata = num.tile(
             num.arange(nsamples), nstarttimes).reshape((nstarttimes, nsamples))
 
-        for i, target in enumerate(targets):
-            for patchidx in range(npatches):
-                for duration in durations:
-                    tmin = self.times[i]
-                    self.gfs.put(
-                        tracedata * i, tmin, target, patchidx, duration,
-                        starttimes)
+        #for i, target in enumerate(targets):
+        #    for patchidx in range(npatches):
+        #        for duration in durations:
+        #            tmin = self.times[i]
+        #            self.gfs.put(
+        #                tracedata * i, tmin, target, patchidx, duration,
+        #                starttimes)
 
     def test_gf_setup(self):
         print(self.gfs)
@@ -177,6 +178,13 @@ class FFITest(unittest.TestCase):
             patchidxs=[0],
             durationidxs=list(range(self.ndurations)),
             starttimeidxs=[0], plot=True)
+
+    def test_division_mapping(self):
+        from beat.ffi.fault import get_division_mapping
+
+        old2new, div2new = get_division_mapping(range(5), [0, 2, 4])
+        assert old2new[1] == 2
+        assert old2new[3] == 5
 
 
 if __name__ == '__main__':
