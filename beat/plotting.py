@@ -368,9 +368,7 @@ def correlation_plot_hist(
         else:
             figsize = mpl_papersize('a4', 'landscape')
 
-    fig, axs = plt.subplots(
-        nrows=nvar, ncols=nvar, figsize=figsize,
-        subplot_kw={'adjustable': 'box-forced'})
+    fig, axs = plt.subplots(nrows=nvar, ncols=nvar, figsize=figsize)
 
     d = dict()
 
