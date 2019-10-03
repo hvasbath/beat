@@ -762,7 +762,7 @@ def discretize_sources(
     return fault
 
 
-def get_division_mapping(patch_idxs, div_idxs):
+def get_division_mapping(patch_idxs, div_idxs, subfault_npatches):
     """
     Returns index mappings for fault patches to be divided from old to
     new division
@@ -773,24 +773,44 @@ def get_division_mapping(patch_idxs, div_idxs):
         of indexes of patches of old generation
     div_idxs : list
         of indexes of patches of old generation to be divided for new generation
+    subfault_npatches : array_like
+        of number of patches per subfault, length determines number of subfaults
 
     Returns
     -------
-    2 dicts, old2new, div2new
+    old2new : dict
+        mapping of old (undivided) patch indexes to new patch indexes
+    div2new : dict
+        mapping of divided patch indexes to new patch indexes
+    new_subfault_npatches : array_like
+        with number of patches in each subfault after division
     """
     count = Counter()
 
     old2new = OrderedDict()
     div2new = OrderedDict()
+    new_subfault_npatches = num.zeros_like(subfault_npatches)
+    count('sf_idx')
+    count('npatches_old')
+    count('npatches_new')
     for patch_idx in patch_idxs:
+
         if patch_idx in div_idxs:
             div2new[count('new')] = count('tot')
             div2new[count('new')] = count('tot')
             count('old')  # count old once for patch removal
+            count('npatches_new', 2)
         else:
             old2new[count('old')] = count('tot')
+            count('npatches_new')
 
-    return old2new, div2new
+        if count('npatches_old') == subfault_npatches[count['sf_idx']]:
+            new_subfault_npatches[count['sf_idx']] = count['npatches_new']
+            count('sf_idx')
+            count.reset('npatches_old')
+            count.reset('npatches_new')
+
+    return old2new, div2new, new_subfault_npatches
 
 
 def optimize_discretization(
@@ -869,7 +889,9 @@ def optimize_discretization(
             sf_div_idxs.append([])
         else:
             print('SubFault npatches', fault.subfault_npatches)
-            sf_div_idxs.append(range(fault.subfault_npatches[i] - 1, -1, -1))
+            sf_div_idxs.extend(
+                range(fault.subfault_npatches[i]) +
+                fault.cum_subfault_npatches[i])
 
     print('sf_div_idxs', sf_div_idxs)
     while tobedivided:
@@ -880,6 +902,11 @@ def optimize_discretization(
             # iterate over subfaults and divide patches
             all_divided_patches = []
             all_divided_patch_idxs = []
+            old2new, div2new, new_subfault_npatches = get_division_mapping(
+                patch_idxs=range(fault.npatches),
+                div_idxs=sf_div_idxs,
+                subfault_npatches=fault.subfault_npatches)
+            
             for sf_idx, div_idxs in zip(range(fault.nsubfaults), sf_div_idxs):
                 logger.info(
                     'Subfault %i division indexes %s' % (
@@ -952,26 +979,23 @@ def optimize_discretization(
 
         # analysis for further patch division
         sf_div_idxs = []
-        width_idxs_max = []
-        width_idxs_min = []
-        length_idxs_max = []
-        length_idxs_min = []
-        for i, sf in enumerate(fault.iter_subfaults()):
-            widths, lengths = fault.get_subfault_patch_attributes(
-                i, datatype, attributes=['width', 'length'])
+        subfault_idxs = list(range(fault.nsubfaults))
 
-            # select patches that fulfill size requirements
-            width_idxs_max += (num.argwhere(
-                widths > config.patch_widths_max[i]).ravel()
+        # select patches that fulfill size requirements
+        widths, lengths = fault.get_subfault_patch_attributes(
+            subfault_idxs, datatype, attributes=['width', 'length'])
+
+        width_idxs_max = (num.argwhere(
+            widths > config.patch_widths_max[i]).ravel()
                               + fault.cum_subfault_npatches[i]).tolist()
-            length_idxs_max += (num.argwhere(
-                lengths > config.patch_lengths_max[i]).ravel()
+        length_idxs_max = (num.argwhere(
+            lengths > config.patch_lengths_max[i]).ravel()
                                + fault.cum_subfault_npatches[i]).tolist()
-            width_idxs_min += (num.argwhere(
-                widths <= config.patch_widths_min[i]).ravel()
+        width_idxs_min = (num.argwhere(
+            widths <= config.patch_widths_min[i]).ravel()
                               + fault.cum_subfault_npatches[i]).tolist()
-            length_idxs_min += (num.argwhere(
-                lengths <= config.patch_lengths_min[i]).ravel()
+        length_idxs_min = (num.argwhere(
+            lengths <= config.patch_lengths_min[i]).ravel()
                                 + fault.cum_subfault_npatches[i]).tolist()
 
         # patches that fulfill both size thresholds
@@ -988,11 +1012,9 @@ def optimize_discretization(
             'Found %i candidate(s) for division for '
             ' %i subfault(s)' % (ncandidates, fault.nsubfaults))
         if ncandidates:
-            subfault_idxs = list(range(fault.nsubfaults))
+
             # calculate division penalties
             uids = num.array(list(unique_ids))
-            widths, lengths = fault.get_subfault_patch_attributes(
-                subfault_idxs, datatype, attributes=['width', 'length'])
             area_pen = widths[uids] * lengths[uids]
 
             c1 = []

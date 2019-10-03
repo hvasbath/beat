@@ -78,8 +78,20 @@ class Counter(object):
             self.d[string] += 1 * multiplier
         return self.d[string]
 
-    def reset(self):
-        self.d = dict()
+    def __getitem__(self, key):
+        try:
+            return self.d[key]
+        except ValueError:
+            raise KeyError(
+                'type "%s" is not listed in the counter!'
+                ' Counted types are: %s' % (
+                    key, list2string(list(self.d.keys()))))
+
+    def reset(self, string=None):
+        if string is None:
+            self.d = dict()
+        else:
+            self.d[string] = 0
 
 
 class ListArrayOrdering(object):

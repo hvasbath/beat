@@ -182,9 +182,15 @@ class FFITest(unittest.TestCase):
     def test_division_mapping(self):
         from beat.ffi.fault import get_division_mapping
 
-        old2new, div2new = get_division_mapping(range(5), [0, 2, 4])
+        old2new, div2new, subfault_npatches = get_division_mapping(range(5), [0, 2, 4], [2, 3])
+        npatches_new = len(old2new) + len(div2new)
+
         assert old2new[1] == 2
         assert old2new[3] == 5
+        assert npatches_new == subfault_npatches.sum()
+        assert subfault_npatches[0] == 3
+        assert subfault_npatches[1] == 5
+        print(subfault_npatches)
 
 
 if __name__ == '__main__':
