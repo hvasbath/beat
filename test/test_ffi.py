@@ -190,7 +190,7 @@ class FFITest(unittest.TestCase):
         assert npatches_new == subfault_npatches.sum()
         assert subfault_npatches[0] == 3
         assert subfault_npatches[1] == 5
-        print(subfault_npatches)
+        print(subfault_npatches, old2new, div2new)
 
 
 if __name__ == '__main__':
