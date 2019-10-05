@@ -932,7 +932,7 @@ def geo_construct_gf_linear_patches(
     nsamples = odws.size
     npatches = len(patches)
 
-    logger.info('Using %i workers ...' % nworkers)
+    logger.debug('Using %i workers ...' % nworkers)
 
     shared_gflibrary = RawArray('d', npatches * nsamples)
 

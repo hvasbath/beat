@@ -1140,13 +1140,14 @@ def command_build_gfs(args):
 
         if options.execute:
             logger.info("Calculating linear Green's Functions")
+            logger.info("------------------------------------\n")
 
             for datatype in options.datatypes:
                 logger.info('for %s data ...' % datatype)
 
                 if datatype == 'geodetic':
                     gf = c.geodetic_config.gf_config
-
+                    logger.info('using %i workers ...' % gf.nworkers)
                     geodetic_data_path = pjoin(
                         c.project_dir, bconfig.geodetic_data_name)
 
@@ -1181,7 +1182,7 @@ def command_build_gfs(args):
                                 ' geometry to: %s' % faultpath)
                             utility.dump_objects(faultpath, [fault])
                             logger.info(
-                                'Fault discretization optimization done!'
+                                'Fault discretization optimization done! '
                                 'Updating problem_config...')
                             logger.info('%s' % fault.__str__())
                             c.problem_config.mode_config.npatches = fault.npatches
@@ -1205,6 +1206,7 @@ def command_build_gfs(args):
                     sc = c.seismic_config
                     gf = sc.gf_config
                     pc = c.problem_config
+                    logger.info('using %i workers ...' % gf.nworkers)
 
                     engine = LocalEngine(store_superdirs=[gf.store_superdir])
 
