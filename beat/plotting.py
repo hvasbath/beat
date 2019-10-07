@@ -1383,7 +1383,7 @@ def seismic_fits(problem, stage, plot_options):
         best_point = point
 
     try:
-        composite.point2sources(best_point, input_depth='center')
+        composite.point2sources(best_point)
         source = composite.sources[0]
     except AttributeError:
         logger.info('FFI waveform fit, using reference source ...')

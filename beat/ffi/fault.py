@@ -9,7 +9,7 @@ from beat.models.laplacian import get_smoothing_operator_correlated, \
 from .base import get_backend, geo_construct_gf_linear_patches
 
 from pyrocko.gf.seismosizer import Cloneable
-from pyrocko.guts import Float, Object, List
+from pyrocko.orthodrome import latlon_to_ne_numpy
 
 import copy
 from logging import getLogger
@@ -1020,6 +1020,7 @@ def optimize_discretization(
             uids = num.array(list(unique_ids))
             area_pen = widths[uids] * lengths[uids]
 
+            # depth penalty
             c1 = []
             for i, sf in enumerate(fault.iter_subfaults()):
                 bdepths = fault.get_subfault_patch_attributes(
@@ -1030,10 +1031,17 @@ def optimize_discretization(
                     sf.bottom_depth).tolist())
 
             c_one_pen = num.array(c1)[uids]
-            # print('C1', c_one_pen)
-
+            print('C1', c_one_pen)
+            # distance penalties
             centers = fault.get_subfault_patch_attributes(
                 subfault_idxs, datatype, attributes=['center'])[:, :-1]
+            lats, lons = fault.get_subfault_patch_attributes(
+                subfault_idxs, datatype, attributes=['lat', 'lon'])
+
+            north_shifts_wrt_event, east_shifts_wrt_event = latlon_to_ne_numpy(
+                event.lat, event.lon, lats, lons)
+            centers += num.vstack(
+                [east_shifts_wrt_event, north_shifts_wrt_event]).T / km
 
             cand_centers = centers[uids, :]
 
@@ -1043,14 +1051,14 @@ def optimize_discretization(
 
             c_two_pen = patch_data_distance_mins.min() / \
                         patch_data_distance_mins
-            # print('C2', c_two_pen)
+            print('C2', c_two_pen)
             inter_patch_distances = distances(
                 points=centers, ref_points=cand_centers)
 
             c_three_pen = (R * inter_patch_distances.T).sum(axis=1) / \
                           inter_patch_distances.sum(axis=0)
-            # print('C3', c_three_pen)
-            # print('A', area_pen)
+            print('C3', c_three_pen)
+            print('A', area_pen)
             rating = area_pen * c_one_pen * c_two_pen * c_three_pen
             rating_idxs = rating.argsort()[::-1]
 
