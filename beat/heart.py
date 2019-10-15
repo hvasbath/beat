@@ -449,7 +449,8 @@ physical_bounds = dict(
 
     ramp=(-0.01, 0.01),
     offset=(-1.0, 1.0),
-    pole=(-180., 180.),
+    pole_lat=(-90., 90.),
+    pole_lon=(-180., 180.),
     omega=(-3., 3.))
 
 
@@ -750,7 +751,7 @@ def velocities_from_pole(lats, lons, plat, plon, omega):
     return num.einsum('ijk->ik', T * vels_cartesian.T).T
 
 
-def get_ramp_displacement(locx, locy, ramp, offset):
+def get_ramp_displacement(locx, locy, azimuth_ramp, range_ramp, offset):
     """
     Get synthetic residual plane in azimuth and range direction of the
     satellite.
@@ -761,12 +762,14 @@ def get_ramp_displacement(locx, locy, ramp, offset):
         local coordinates [km] in east direction
     locy : shared array-like :class:`numpy.ndarray`
         local coordinates [km] in north direction
-    ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
-        vector of 2 variables with ramp parameters in azimuth[0] & range[1]
+    azimuth_ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
+        vector with ramp parameter in azimuth
+    range_ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
+        vector with ramp parameter in range
     offset : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
         scalar of offset in [m]
     """
-    return locy * ramp[0] + locx * ramp[1] + offset
+    return locy * azimuth_ramp + locx * range_ramp + offset
 
 
 class GNSSCompoundComponent(GeodeticDataset):
@@ -859,24 +862,28 @@ class GNSSCompoundComponent(GeodeticDataset):
                 'Requested correction, but is not setup or configured! '
                 'For dataset %s' % self.name)
 
-        pole_name, rotation_vel_name = self.correction_names
+        pole_lat_name, pole_lon_name, rotation_vel_name = self.correction_names
         if not point:   # theano instance for get_formula
             inputs = OrderedDict()
-            inputs[pole_name] = hierarchicals[pole_name]
-            inputs[rotation_vel_name] = hierarchicals[rotation_vel_name]
+            for corr_name in self.correction_names:
+                inputs[corr_name] = hierarchicals[corr_name]
+
             vels = self.euler_pole(inputs)
             return (vels * self.slos_vector).sum(axis=1)
         else:       # numpy instance else
             locx = self.lats
             locy = self.lons
+
             try:
-                pole = point[pole_name]
+                pole_lat = point[pole_lat_name]
+                pole_lon = point[pole_lon_name]
                 omega = point[rotation_vel_name]
             except KeyError:
-                pole = hierarchicals[pole_name]
+                pole_lat = hierarchicals[pole_lat_name]
+                pole_lon = hierarchicals[pole_lon_name]
                 omega = hierarchicals[rotation_vel_name]
 
-            vels = velocities_from_pole(locx, locy, pole[0], pole[1], omega)
+            vels = velocities_from_pole(locx, locy, pole_lat, pole_lon, omega)
             if self._correction_idxs_blacklist.size > 0:
                 vels[self._correction_idxs_blacklist] = 0.
             return (vels * self.los_vector).sum(axis=1)
@@ -893,7 +900,8 @@ class GNSSCompoundComponent(GeodeticDataset):
                     components.append(st.components[comp])
                     comp_stations.append(st)
                 except KeyError:
-                    logger.warn('No data for GNSS station: {}'.format(st.code))
+                    logger.warngin(
+                        'No data for GNSS station: {}'.format(st.code))
 
             lats, lons = num.array(
                 [loc.effective_latlon for loc in comp_stations]).T
@@ -1065,23 +1073,28 @@ class DiffIFG(IFG):
                 'Requested correction, but is not setup or configured! '
                 'For dataset %s' % self.name)
 
-        ramp_name, offset_name = self.correction_names
+        azimuth_ramp_name, range_ramp_name, offset_name = self.correction_names
         if not point:
             locx = self._slocx
             locy = self._slocy
-            ramp = hierarchicals[ramp_name]
+            azimuth_ramp = hierarchicals[azimuth_ramp_name]
+            range_ramp = hierarchicals[range_ramp_name]
             offset = hierarchicals[offset_name]
         else:
             locx = self.east_shifts / km
             locy = self.north_shifts / km
             try:
-                ramp = point[ramp_name]
+                azimuth_ramp = point[azimuth_ramp_name]
+                range_ramp = point[range_ramp_name]
                 offset = point[offset_name]
             except KeyError:
-                ramp = hierarchicals[ramp_name]
+                azimuth_ramp = hierarchicals[azimuth_ramp_name]
+                range_ramp = hierarchicals[range_ramp_name]
                 offset = hierarchicals[offset_name]
 
-        return get_ramp_displacement(locx, locy, ramp, offset)
+        return get_ramp_displacement(
+            locx=locx, locy=locy,
+            azimuth_ramp=azimuth_ramp, range_ramp=range_ramp, offset=offset)
 
 
 class GeodeticResult(Object):

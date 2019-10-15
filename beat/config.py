@@ -177,7 +177,8 @@ default_bounds = dict(
     hypers=(-20., 20.),
     ramp=(-0.005, 0.005),
     offset=(-0.05, 0.05),
-    pole=(30., 30.5),
+    pole_lat=(30., 30.5),
+    pole_lon=(30., 30.5),
     omega=(0.5, 0.6))
 
 default_seis_std = 1.e-6
@@ -680,7 +681,7 @@ class EulerPoleConfig(CorrectionConfig):
 
     @property
     def _suffixes(self):
-        return ['pole', 'omega']
+        return ['pole_lat', 'pole_lon', 'omega']
 
     @property
     def feature(self):
@@ -699,7 +700,7 @@ class RampConfig(CorrectionConfig):
 
     @property
     def _suffixes(self):
-        return ['ramp', 'offset']
+        return ['azimuth_ramp', 'range_ramp', 'offset']
 
     @property
     def feature(self):
@@ -1509,21 +1510,16 @@ class BEATconfig(Object, Cloneable):
             hierarnames.extend(self.seismic_config.get_hierarchical_names())
 
         hierarchicals = OrderedDict()
+        shp = 1
         for name in hierarnames:
             logger.info(
                 'Added hierarchical parameter %s to config and '
                 'model setup!' % name)
 
             if name == 'time_shift':
-                shp = 1
                 defaultb_name = name
             else:
                 correction_name = name.split('_')[-1]
-                if correction_name in ['ramp', 'pole']:
-                    shp = 2
-                else:
-                    shp = 1
-
                 defaultb_name = correction_name
 
             hierarchicals[name] = Parameter(

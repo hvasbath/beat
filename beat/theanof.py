@@ -579,11 +579,13 @@ class EulerPole(theano.Op):
         point = {vname: i for vname, i in zip(self.varnames, inputs)}
         point.update(self.fixed_values)
 
-        pole = point['pole']
+        pole_lat = point['pole_lat']
+        pole_lon = point['pole_lon']
         omega = point['omega']
 
         velocities = heart.velocities_from_pole(
-            num.array(self.lats), num.array(self.lons), pole[0], pole[1], omega)
+            num.array(self.lats), num.array(self.lons),
+            pole_lat, pole_lon, omega)
 
         if self.blacklist:
             velocities[num.array(self.blacklist), :] = 0.
