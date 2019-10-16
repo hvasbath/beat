@@ -119,9 +119,11 @@ plot_projections = ['latlon', 'local']
 
 
 def hypername(varname):
-    if varname[0:2] == 'h_':
+    if varname in list(plot_units.keys()):
+        return varname
+    else:
         return 'h_'
-    return varname
+
 
 
 class PlotOptions(Object):
@@ -2620,7 +2622,8 @@ def draw_posteriors(problem, plot_options):
         varnames = problem.hypernames + ['like']
     else:
         sc = problem.config.sampler_config
-        varnames = problem.varnames + problem.hypernames + ['like']
+        varnames = problem.varnames + problem.hypernames + \
+                   problem.hierarchicalnames + ['like']
 
     if len(po.varnames) > 0:
         varnames = po.varnames
@@ -2665,6 +2668,7 @@ def draw_posteriors(problem, plot_options):
 
             prior_bounds = {}
             prior_bounds.update(**pc.hyperparameters)
+            prior_bounds.update(**pc.hierarchicals)
             prior_bounds.update(**pc.priors)
 
             fig, _, _ = traceplot(

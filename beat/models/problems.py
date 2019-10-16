@@ -74,6 +74,7 @@ class Problem(object):
     """
     _varnames = None
     _hypernames = None
+    _hierarchicalnames = None
 
     def __init__(self, config, hypers=False):
 
@@ -340,6 +341,20 @@ class Problem(object):
         if self._hypernames is None:
             self.init_hyperparams()
         return self._hypernames
+
+    @property
+    def hierarchicalnames(self):
+        """
+        Sampled random variable names.
+
+        Returns
+        -------
+        list of strings
+        """
+        if self._hierarchicalnames is None:
+            self.init_hierarchicals()
+            self._hierarchicalnames = list(self.hierarchicals.keys())
+        return self._hierarchicalnames
 
     def init_hyperparams(self):
         """

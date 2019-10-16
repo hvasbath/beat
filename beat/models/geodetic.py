@@ -276,14 +276,16 @@ class GeodeticComposite(Composite):
         Apply all the configured correction terms e.g. SAR orbital ramps,
         GNSS Euler pole rotations etc...
         """
-        for residual, dataset in zip(residuals, self.datasets):
+        for i, dataset in enumerate(self.datasets):
             if dataset.has_correction:
                 correction = dataset.get_correction(
                     self.hierarchicals, point=point)
+                # correction = Print('corr')(correction)
+
                 if operation == '-':
-                    residual -= correction
+                    residuals[i] -= correction   # needs explicit assignment!
                 elif operation == '+':
-                    residual += correction
+                    residuals[i] += correction
 
         return residuals
 
@@ -409,6 +411,7 @@ class GeodeticSourceComposite(GeodeticComposite):
 
         self.init_hierarchicals(problem_config)
         if self.config.corrections_config.has_enabled_corrections:
+            logger.info('Applying corrections! ...')
             residuals = self.apply_corrections(residuals)
 
         logpts = multivariate_normal_chol(

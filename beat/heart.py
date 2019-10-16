@@ -1092,9 +1092,10 @@ class DiffIFG(IFG):
                 range_ramp = hierarchicals[range_ramp_name]
                 offset = hierarchicals[offset_name]
 
-        return get_ramp_displacement(
+        ramp = get_ramp_displacement(
             locx=locx, locy=locy,
             azimuth_ramp=azimuth_ramp, range_ramp=range_ramp, offset=offset)
+        return ramp
 
 
 class GeodeticResult(Object):
