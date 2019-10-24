@@ -1531,8 +1531,15 @@ def command_export(args):
             dest='post_llk',
             choices=['max', 'min', 'mean', 'all'],
             default='max',
-            help='Plot model with specified likelihood; "max", "min", "mean"'
+            help='Export model with specified likelihood; "max", "min", "mean"'
                  ' or "all"; Default: "max"')
+
+        parser.add_option(
+            '--reference',
+            dest='reference',
+            action='store_true',
+            help='Export data for test point instead of result point '
+                 '(post_llk)')
 
         parser.add_option(
             '--fix_output',
@@ -1570,8 +1577,13 @@ def command_export(args):
     results_trace = pjoin(stage.handler.stage_path(-1), trace_name)
     shutil.copy(results_trace, pjoin(results_path, trace_name))
 
-    point = plotting.get_result_point(
-        stage, problem.config, point_llk=options.post_llk)
+    if options.reference:
+        point = problem.config.problem_config.get_test_point()
+        options.post_llk = 'ref'
+    else:
+        point = plotting.get_result_point(
+            stage, problem.config, point_llk=options.post_llk)
+
     rpoint = heart.ResultPoint(point=point, post_llk=options.post_llk)
     dump(rpoint,
          filename=pjoin(
