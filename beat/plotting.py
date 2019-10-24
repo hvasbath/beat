@@ -1751,6 +1751,18 @@ def fuzzy_mt_decomposition(
                     color='black',
                     fontsize=fontsize)
 
+                label = '{:03.1f}%'.format(0.)
+                axes.annotate(
+                    label,
+                    xy=(1. + xpos, ypos - 0.65),
+                    xycoords='data',
+                    xytext=(0., 0.),
+                    textcoords='offset points',
+                    ha='center',
+                    va='center',
+                    color='black',
+                    fontsize=fontsize - 2)
+
             if ops is not None:
                 axes.annotate(
                     ops,
