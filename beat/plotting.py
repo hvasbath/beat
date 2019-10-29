@@ -2694,7 +2694,7 @@ def draw_posteriors(problem, plot_options):
                 'plot for stage %s exists. Use force=True for'
                 ' replotting!' % s)
 
-    if format == 'display':
+    if po.outformat == 'display':
         plt.show()
 
 
