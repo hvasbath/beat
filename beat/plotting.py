@@ -3783,7 +3783,8 @@ def source_geometry(fault, ref_sources, event, datasets=None):
                 color=mpl_graph_color(idx), linewidth=0.5, alpha=alpha)
             ax.text(
                 patch.east_shift + shift_ne[1],
-                patch.north_shift + shift_ne[0], patch.depth * -1., str(i),
+                patch.north_shift + shift_ne[0], patch.center[2] * -1.,
+                str(i + fault.cum_subfault_npatches[idx]),
                 fontsize=10)
 
     if datasets:

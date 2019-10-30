@@ -896,6 +896,9 @@ def optimize_discretization(
         logger.info('Discretizing %ith generation \n' % generation)
         gfs_array = []
         subfault_npatches = copy.deepcopy(fault.subfault_npatches)
+        # source_geometry(
+        #     fault, list(fault.iter_subfaults()),
+        #    event=event, datasets=datasets)
         for gfs_i, component in enumerate(varnames):
             logger.info('Component %s' % component)
 
@@ -957,7 +960,6 @@ def optimize_discretization(
         assert_array_equal(
             num.array(fault.subfault_npatches), new_subfault_npatches)
 
-        # source_geometry(fault, list(fault.iter_subfaults()))
         # U data-space, L singular values, V model space
         U, l, V = num.linalg.svd(num.vstack(gfs_array), full_matrices=True)
 
@@ -971,8 +973,9 @@ def optimize_discretization(
             V.dot(Linv.T).dot(U.T),
             U.dot(L.dot(V.T))))
 
+        # print('R', R)
         R_idxs = num.argwhere(R > config.resolution_thresh).ravel().tolist()
-
+        # print('R > thresh', R_idxs)
         # analysis for further patch division
         sf_div_idxs = []
 
@@ -1018,7 +1021,7 @@ def optimize_discretization(
 
             # calculate division penalties
             uids = num.array(list(unique_ids))
-            area_pen = widths[uids] * lengths[uids]
+            area_pen = widths * lengths
 
             # depth penalty
             c1 = []
@@ -1030,8 +1033,8 @@ def optimize_discretization(
                     -config.depth_penalty * bdepths * km /
                     sf.bottom_depth).tolist())
 
-            c_one_pen = num.array(c1)[uids]
-            print('C1', c_one_pen)
+            c_one_pen = num.array(c1)
+            # print('C1', c_one_pen)
             # distance penalties
             centers = fault.get_subfault_patch_attributes(
                 subfault_idxs, datatype, attributes=['center'])[:, :-1]
@@ -1043,7 +1046,7 @@ def optimize_discretization(
             centers += num.vstack(
                 [east_shifts_wrt_event, north_shifts_wrt_event]).T / km
 
-            cand_centers = centers[uids, :]
+            cand_centers = centers
 
             patch_data_distances = distances(
                 points=data_coords, ref_points=cand_centers)
@@ -1051,19 +1054,24 @@ def optimize_discretization(
 
             c_two_pen = patch_data_distance_mins.min() / \
                         patch_data_distance_mins
-            print('C2', c_two_pen)
+            # print('C2', c_two_pen)
             inter_patch_distances = distances(
                 points=centers, ref_points=cand_centers)
 
+            # print('interpatch distances', inter_patch_distances)
+            # print('interpatch distances, R shapes', inter_patch_distances.shape, R.shape)
             c_three_pen = (R * inter_patch_distances.T).sum(axis=1) / \
                           inter_patch_distances.sum(axis=0)
-            print('C3', c_three_pen)
-            print('A', area_pen)
+            # print('C3', c_three_pen)
+            # print('A', area_pen)
             rating = area_pen * c_one_pen * c_two_pen * c_three_pen
-            rating_idxs = rating.argsort()[::-1]
-
-            idxs = uids[rating_idxs[range(
-                int(num.ceil(config.alpha * ncandidates)))]]
+            # print('rating', rating)
+            rating_idxs = num.array(rating.argsort()[::-1])
+            # print('rating argsorted', rating_idxs)
+            # print('uids', uids)
+            rated_sel = num.array([ridx for ridx in rating_idxs if ridx in uids])
+            # print('R select rated', rated_sel)
+            idxs = rated_sel[range(int(num.ceil(config.alpha * ncandidates)))]
             logger.info(
                 'Patches: %s of %i subfault(s) are further divided.' % (
                     list2string(idxs.tolist()), fault.nsubfaults))
