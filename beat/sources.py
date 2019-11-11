@@ -256,16 +256,22 @@ class RectangularSource(gf.RectangularSource):
         length = self.length
         width = self.width
 
-        new_length = num.ceil(
-            (length + (2. * length * extension_length)) / km) * km
-        new_width = num.ceil(
-            (width + (2. * width * extension_width)) / km) * km
+        if extension_length:
+            new_length = num.ceil(
+                (length + (2. * length * extension_length)) / km) * km
+            npl = int(num.ceil(new_length / patch_length))
+            new_length = float(npl * patch_length)
+        else:
+            new_length = length
 
-        npl = int(num.ceil(new_length / patch_length))
-        npw = int(num.ceil(new_width / patch_width))
+        if extension_width:
+            new_width = num.ceil(
+                (width + (2. * width * extension_width)) / km) * km
+            npw = int(num.ceil(new_width / patch_width))
+            new_width = float(npw * patch_width)
+        else:
+            new_width = width
 
-        new_length = float(npl * patch_length)
-        new_width = float(npw * patch_width)
         logger.info(
             'Fault extended to length=%f, width=%f!' % (new_length, new_width))
 
