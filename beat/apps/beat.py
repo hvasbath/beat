@@ -365,7 +365,6 @@ def command_import(args):
     project_dir = get_project_directory(
         args, options, nargs_dict[command_str])
 
-
     if not options.results:
         c = bconfig.load_config(project_dir, options.mode)
 
@@ -472,17 +471,44 @@ def command_import(args):
             ' %s' % (options.mode, options.results))
         c = bconfig.load_config(project_dir, 'ffi')
 
-        problem = load_model(
-            options.results, options.mode, hypers=False)
-        source_params = list(problem.config.problem_config.priors.keys())
+        _, ending = os.path.splitext(options.results)
 
-        stage = Stage(homepath=problem.outfolder, backend=problem.config.sampler_config.backend)
-        stage.load_results(
-            varnames=problem.varnames,
-            model=problem.model, stage_number=-1,
-            load='trace', chains=[-1])
+        if not ending:
+            # load results from geometry optimization
+            problem = load_model(
+                options.results, options.mode, hypers=False)
+            source_params = list(problem.config.problem_config.priors.keys())
 
-        point = plotting.get_result_point(stage, problem.config, 'max')
+            stage = Stage(
+                homepath=problem.outfolder,
+                backend=problem.config.sampler_config.backend)
+            stage.load_results(
+                varnames=problem.varnames,
+                model=problem.model, stage_number=-1,
+                load='trace', chains=[-1])
+
+            point = plotting.get_result_point(stage, problem.config, 'max')
+        else:
+            # load kite model
+            from kite import sandbox_scene
+            kite_model = load(filename=options.results)
+            n_sources = len(kite_model.sources)
+
+            reference_sources = bconfig.init_reference_sources(
+                kite_model.sources, n_sources, c.problem_config.source_type,
+                c.problem_config.stf_type, ref_time=c.event.time)
+
+            if 'geodetic' in options.datatypes:
+                c.geodetic_config.gf_config.reference_sources = \
+                    reference_sources
+            if 'seismic' in options.datatypes:
+                c.seismic_config.gf_config.reference_sources = \
+                    reference_sources
+
+            bconfig.dump_config(c)
+            logger.info(
+                'Successfully imported kite model to ffi source geometry!')
+            sys.exit(1)
 
         if 'geodetic' in options.datatypes:
             gc = problem.composites['geodetic']
@@ -497,7 +523,7 @@ def command_import(args):
                         logger.info('Importing correction for %s' % var)
                         new_bounds[var] = (point[var], point[var])
                     else:
-                        logger.warn(
+                        logger.warning(
                             'Correction %s was fixed in previous run!'
                             ' Importing fixed values!' % var)
                         tpoint = c.problem_config.get_test_point()
@@ -1596,15 +1622,25 @@ def command_check(args):
         dataset = gc.datasets[int(options.targets[0])]
         logger.info('Initialising Talpa Sandbox ...')
         sandbox = SandboxScene()
-        try:
-            homepath = problem.config.geodetic_config.datadir
-            scene_path = os.path.join(homepath, dataset.name)
+        if isinstance(dataset, heart.DiffIFG):
+            try:
+                homepath = problem.config.geodetic_config.datadir
+                scene_path = os.path.join(homepath, dataset.name)
+                logger.info(
+                    'Loading full resolution kite scene: %s' % scene_path)
+                sandbox.loadReferenceScene(scene_path)
+            except UserIOWarning:
+                raise ImportError(
+                    'Full resolution data could not be loaded!')
+        elif isinstance(dataset, heart.GNSSCompoundComponent):
             logger.info(
-                'Loading full resolution kite scene: %s' % scene_path)
-            sandbox.loadReferenceScene(scene_path)
-        except UserIOWarning:
-            raise ImportError(
-                'Full resolution data could not be loaded!')
+                'Found GNSS Compound %s, importing to kite...' % dataset.name)
+            scene = dataset.to_kite_scene()
+            #scene.spool()
+            sandbox.setReferenceScene(scene)
+        else:
+            raise TypeError(
+                'Dataset type %s is not supported!' % dataset.__class__)
 
         from tempfile import mkdtemp
 

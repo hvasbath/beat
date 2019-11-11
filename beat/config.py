@@ -1540,12 +1540,30 @@ class BEATconfig(Object, Cloneable):
 
 def init_reference_sources(
         source_points, n_sources, source_type, stf_type, ref_time=None):
+    """
+    Initialise sources of specified geometry
+
+    Parameters
+    ----------
+    source_points : list
+        of dicts or kite sources
+    """
+    isdict = isinstance(source_points[0], Dict)
+
     reference_sources = []
     for i in range(n_sources):
         # rf = source_catalog[source_type](stf=stf_catalog[stf_type]())
         # maybe future if several meshtypes
-        rf = RectangularSource(stf=stf_catalog[stf_type](anchor=-1))
-        utility.update_source(rf, **source_points[i])
+        stf = stf_catalog[stf_type](anchor=-1)
+        if isdict:
+            rf = RectangularSource(stf=stf)
+            utility.update_source(rf, **source_points[i])
+        else:
+            kwargs = {}
+            kwargs['stf'] = stf
+            rf = RectangularSource.from_kite_source(
+                source_points[i], kwargs=kwargs)
+
         rf.nucleation_x = None
         rf.nucleation_y = None
         if ref_time is not None:

@@ -289,6 +289,30 @@ class RectangularSource(gf.RectangularSource):
 
         return s
 
+    @classmethod
+    def from_kite_source(cls, source, kwargs):
+
+        d = dict(
+            lat=source.lat,
+            lon=source.lon,
+            north_shift=source.northing,
+            east_shift=source.easting,
+            depth=source.depth,
+            width=source.width,
+            length=source.length,
+            strike=source.strike,
+            dip=source.dip,
+            rake=source.rake,
+            slip=source.slip,
+            anchor='top',
+            **kwargs)
+
+
+        if hasattr(source, 'decimation_factor'):
+            d['decimation_factor'] = source.decimation_factor
+
+        return cls(**d)
+
 
 class MTQTSource(gf.SourceWithMagnitude):
     """

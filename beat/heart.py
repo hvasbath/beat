@@ -818,6 +818,44 @@ class GNSSCompoundComponent(GeodeticDataset):
             s += '  number of stations: %i\n' % self.samples
         return s
 
+    def to_kite_scene(self, bins=(600, 600)):
+        from kite.scene import Scene, SceneConfig
+        from scipy.stats import binned_statistic_2d
+
+        bin_disp, bin_lat, bin_lon, _ = binned_statistic_2d(
+            self.lats, self.lons, self.displacement,
+            statistic='mean', bins=bins)
+
+        logger.debug('Setting up the Kite Scene')
+        config = SceneConfig()
+        config.frame.llLat = bin_lat.min()
+        config.frame.llLon = bin_lon.min()
+        config.frame.dE = bin_lon[1] - bin_lon[0]
+        config.frame.dN = bin_lat[1] - bin_lat[0]
+        config.frame.spacing = 'degree'
+
+        config.meta.scene_title = '%s %s' % (self.name, self.component)
+        config.meta.scene_id = self.name
+        los_vec = self.los_vector[0]
+        theta_rad = num.arccos(los_vec[2])
+        theta_bin = num.full_like(bin_disp, theta_rad * 180 / num.pi)
+        theta_bin[num.isnan(bin_disp)] = num.nan
+        if theta_rad == 0:
+            phi_rad = 0.
+        else:
+            phi_rad = num.arcsin(los_vec[1] / num.sin(theta_rad))
+
+        phi_bin = num.full_like(bin_disp, phi_rad * 180 / num.pi)
+        phi_bin[num.isnan(theta_bin)] = num.nan
+
+        scene = Scene(
+            theta=theta_bin,
+            phi=phi_bin,
+            displacement=bin_disp,
+            config=config)
+
+        return scene
+
     def station_name_index_mapping(self):
         if self._station2index is None:
             self._station2index = dict(

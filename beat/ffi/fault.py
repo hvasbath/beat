@@ -946,6 +946,7 @@ def optimize_discretization(
                     new_patches[new_idx] = tpatches[patch_idx]
                     new_gfs[new_idx] = tgfs[patch_idx]
 
+            print(new_gfs.sum(1))
             gfs_array.append(new_gfs.T)
 
             # register new generation of patches with fault
@@ -973,7 +974,7 @@ def optimize_discretization(
             V.dot(Linv.T).dot(U.T),
             U.dot(L.dot(V.T))))
 
-        # print('R', R)
+        print('R', R)
         R_idxs = num.argwhere(R > config.resolution_thresh).ravel().tolist()
         # print('R > thresh', R_idxs)
         # analysis for further patch division
@@ -1027,14 +1028,14 @@ def optimize_discretization(
             c1 = []
             for i, sf in enumerate(fault.iter_subfaults()):
                 bdepths = fault.get_subfault_patch_attributes(
-                    i, datatype, attributes=['bottom_depth'])
+                    i, datatype, attributes=['depth'])
 
                 c1.extend(num.exp(
                     -config.depth_penalty * bdepths * km /
                     sf.bottom_depth).tolist())
 
             c_one_pen = num.array(c1)
-            # print('C1', c_one_pen)
+            print('C1', c_one_pen)
             # distance penalties
             centers = fault.get_subfault_patch_attributes(
                 subfault_idxs, datatype, attributes=['center'])[:, :-1]
@@ -1054,7 +1055,7 @@ def optimize_discretization(
 
             c_two_pen = patch_data_distance_mins.min() / \
                         patch_data_distance_mins
-            # print('C2', c_two_pen)
+            print('C2', c_two_pen)
             inter_patch_distances = distances(
                 points=centers, ref_points=cand_centers)
 
@@ -1062,15 +1063,15 @@ def optimize_discretization(
             # print('interpatch distances, R shapes', inter_patch_distances.shape, R.shape)
             c_three_pen = (R * inter_patch_distances.T).sum(axis=1) / \
                           inter_patch_distances.sum(axis=0)
-            # print('C3', c_three_pen)
-            # print('A', area_pen)
+            print('C3', c_three_pen)
+            print('A', area_pen)
             rating = area_pen * c_one_pen * c_two_pen * c_three_pen
             # print('rating', rating)
             rating_idxs = num.array(rating.argsort()[::-1])
-            # print('rating argsorted', rating_idxs)
-            # print('uids', uids)
+            print('rating argsorted', rating_idxs)
+            print('uids', uids)
             rated_sel = num.array([ridx for ridx in rating_idxs if ridx in uids])
-            # print('R select rated', rated_sel)
+            print('R select rated', rated_sel)
             idxs = rated_sel[range(int(num.ceil(config.alpha * ncandidates)))]
             logger.info(
                 'Patches: %s of %i subfault(s) are further divided.' % (
