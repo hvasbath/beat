@@ -226,7 +226,8 @@ class RectangularSource(gf.RectangularSource):
         if dimension not in ['length', 'width']:
             raise ValueError('Invalid dimension!')
 
-        return int(num.ceil(self[dimension] / patch_size))
+        n_p = num.round(self[dimension] / patch_size, decimals=4)
+        return int(num.ceil(n_p))
 
     def extent_source(
             self, extension_width, extension_length,

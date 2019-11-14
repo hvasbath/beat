@@ -663,8 +663,18 @@ def initialise_fault_geometry(
 
         npls.append(
             ext_source.get_n_patches(patch_length_m, 'length'))
+
+        if extension_lengths[i] == 0.:
+            patch_length = ext_source.length / npls[i] / km
+            patch_widths[i] = patch_length
+            patch_lengths[i] = patch_length
+            logger.warning(
+                'Subfault %i length was fixed! Assuring square patches, '
+                'widths are changed from %f to %f!' % (
+                    i, patch_width_m / km, patch_length))
+
         npws.append(
-            ext_source.get_n_patches(patch_width_m, 'width'))
+            ext_source.get_n_patches(patch_widths[i] * km, 'width'))
 
     ordering = FaultOrdering(
         npls, npws,
@@ -710,7 +720,8 @@ class InvalidDiscretizationError(Exception):
 
 
 def discretize_sources(
-        config, sources=None, datatypes=['geodetic'], varnames=['']):
+        config, sources=None, datatypes=['geodetic'], varnames=[''],
+        tolerance=0.5):
     """
     Create Fault Geometry and do uniform discretization
 
@@ -723,6 +734,8 @@ def discretize_sources(
         of strings with datatypes
     varnames : list
         of str with variable names that are being optimized for
+    tolerance : float
+        in [m] max difference between allowed patch length and width
 
     Returns
     -------
@@ -758,6 +771,22 @@ def discretize_sources(
                         nl=npl, nw=npw, datatype=datatype)
                     fault.set_subfault_patches(
                         index, patches, datatype, component)
+
+                    patch = patches[0]
+                    if patch.length - patch.width > tolerance and \
+                            config.extension_lengths[index] == 0.:
+                        logger.warning(
+                            'Patch width %f and patch length %f are not equal '
+                            'for subfault %i because extension in length was '
+                            'fixed. Please ensure square patches if you want'
+                            'to do full kinematic FFI! Static only is fine!'
+                            'patch_length = fault_length / n_patches' % (
+                                patch.width, patch.length, index))
+                    else:
+                        logger.info(
+                            'Subfault %i, patch lengths %f [m] and'
+                            'patch widths %f [m].' % (
+                                index, patch.length, patch.width))
 
     return fault
 
