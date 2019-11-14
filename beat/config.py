@@ -1548,7 +1548,7 @@ def init_reference_sources(
     source_points : list
         of dicts or kite sources
     """
-    isdict = isinstance(source_points[0], Dict)
+    isdict = isinstance(source_points[0], dict)
 
     reference_sources = []
     for i in range(n_sources):

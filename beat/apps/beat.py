@@ -476,7 +476,7 @@ def command_import(args):
         if not ending:
             # load results from geometry optimization
             problem = load_model(
-                options.results, options.mode, hypers=False)
+                options.results, options.mode, hypers=False, build=False)
             source_params = list(problem.config.problem_config.priors.keys())
 
             stage = Stage(
