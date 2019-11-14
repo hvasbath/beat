@@ -1539,7 +1539,7 @@ class BEATconfig(Object, Cloneable):
 
 
 def init_reference_sources(
-        source_points, n_sources, source_type, stf_type, ref_time=None):
+        source_points, n_sources, source_type, stf_type, event=None):
     """
     Initialise sources of specified geometry
 
@@ -1566,9 +1566,14 @@ def init_reference_sources(
 
         rf.nucleation_x = None
         rf.nucleation_y = None
-        if ref_time is not None:
-            rf.update(time=ref_time)
-        reference_sources.append(rf)
+        if event is not None:
+            rf.update(time=event.time)
+            if rf.lat == 0 and rf.lon == 0:
+                logger.info(
+                    'Reference source is configured without Latitude '
+                    'and Longitude! Updating with event information! ...')
+                rf.update(lat=event.lat, lon=event.lon)
+            reference_sources.append(rf)
 
     return reference_sources
 
@@ -1700,7 +1705,7 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
 
         reference_sources = init_reference_sources(
             source_points, n_sources, gmc.problem_config.source_type,
-            gmc.problem_config.stf_type, ref_time=gmc.event.time)
+            gmc.problem_config.stf_type, event=gmc.event)
 
         c.date = gmc.date
         c.event = gmc.event

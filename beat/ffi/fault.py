@@ -896,9 +896,9 @@ def optimize_discretization(
         logger.info('Discretizing %ith generation \n' % generation)
         gfs_array = []
         subfault_npatches = copy.deepcopy(fault.subfault_npatches)
-        # source_geometry(
-        #     fault, list(fault.iter_subfaults()),
-        #    event=event, datasets=datasets)
+        source_geometry(
+            fault, list(fault.iter_subfaults()),
+            event=event, datasets=datasets)
         for gfs_i, component in enumerate(varnames):
             logger.info('Component %s' % component)
 
@@ -907,7 +907,7 @@ def optimize_discretization(
                 patch_idxs=range(sum(subfault_npatches)),
                 div_idxs=sf_div_idxs,
                 subfault_npatches=subfault_npatches)
-
+            print(old2new, div2new, new_subfault_npatches)
             old_patches = fault.get_all_patches(
                 datatype=datatype, component=component)
             all_divided_patches = []
@@ -933,7 +933,7 @@ def optimize_discretization(
                 engine=engine, datasets=datasets, targets=targets,
                 patches=all_divided_patches, nworkers=nworkers)
             old_gfs = gfs_comp[gfs_i]
-
+            print('Old gfs shape', old_gfs.shape)
             # assemble new generation of discretization
             new_npatches_total = new_subfault_npatches.sum()
             new_gfs = num.zeros((new_npatches_total, gfs.shape[1]))
@@ -946,6 +946,7 @@ def optimize_discretization(
                     new_patches[new_idx] = tpatches[patch_idx]
                     new_gfs[new_idx] = tgfs[patch_idx]
 
+            print('new gfs shape', new_gfs.shape)
             print(new_gfs.sum(1))
             gfs_array.append(new_gfs.T)
 
@@ -961,6 +962,7 @@ def optimize_discretization(
         assert_array_equal(
             num.array(fault.subfault_npatches), new_subfault_npatches)
 
+        #
         # U data-space, L singular values, V model space
         U, l, V = num.linalg.svd(num.vstack(gfs_array), full_matrices=True)
 
@@ -976,7 +978,7 @@ def optimize_discretization(
 
         print('R', R)
         R_idxs = num.argwhere(R > config.resolution_thresh).ravel().tolist()
-        # print('R > thresh', R_idxs)
+        print('R > thresh', R_idxs, R[R_idxs])
         # analysis for further patch division
         sf_div_idxs = []
 
@@ -1066,7 +1068,7 @@ def optimize_discretization(
             print('C3', c_three_pen)
             print('A', area_pen)
             rating = area_pen * c_one_pen * c_two_pen * c_three_pen
-            # print('rating', rating)
+            print('rating', rating)
             rating_idxs = num.array(rating.argsort()[::-1])
             print('rating argsorted', rating_idxs)
             print('uids', uids)
