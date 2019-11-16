@@ -448,8 +448,9 @@ def correlation_plot_hist(
 
             axs[l, k].tick_params(
                 axis='both', direction='in', labelsize=fontsize)
-            axs[l, k].tick_params(
-                axis='both', labelrotation=50.)
+            axs[l, k].set_xticklabels(axs[l, k].get_xticklabels(), rotation=50)
+            axs[l, k].set_yticklabels(axs[l, k].get_yticklabels(), rotation=50)
+
             if utility.is_odd(k):
                 axs[l, k].tick_params(axis='x', pad=label_pad)
 
@@ -928,8 +929,7 @@ def scene_fits(problem, stage, plot_options):
 
         axes[0].get_xaxis().set_major_locator(ticker)
         axes[0].get_yaxis().set_major_locator(ticker)
-        axes[0].tick_params(
-            axis='y', labelrotation=90.)
+        axes[0].set_yticklabels(axes[0].get_yticklabels(), rotation=90)
 
     def draw_coastlines(ax, xlim, ylim, event, scene, po):
         """
