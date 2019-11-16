@@ -49,6 +49,7 @@ class SeismicComposite(Composite):
     _datasets = None
     _weights = None
     _targets = None
+    _hierarchicalnames = None
 
     def __init__(self, sc, event, project_dir, hypers=False):
 
@@ -174,6 +175,7 @@ class SeismicComposite(Composite):
         """
         Initialise random variables for temporal station corrections.
         """
+        self._hierarchicalnames = []
         if not self.config.station_corrections and \
                 self.correction_name in problem_config.hierarchicals:
                 raise ConfigInconsistentError(
@@ -207,6 +209,7 @@ class SeismicComposite(Composite):
 
                 try:
                     station_corrs_rv = Uniform(**kwargs)
+                    self._hierarchicalnames.append(wmap.time_shifts_id)
 
                 except TypeError:
                     kwargs.pop('name')

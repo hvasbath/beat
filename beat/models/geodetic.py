@@ -51,6 +51,7 @@ class GeodeticComposite(Composite):
     hypers : boolean
         if true initialise object for hyper parameter optimization
     """
+    _hierarchicalnames = None
 
     def __init__(self, gc, project_dir, event, hypers=False):
 
@@ -212,6 +213,7 @@ class GeodeticComposite(Composite):
         Rotation of GNSS stations around an Euler pole
         """
         hierarchicals = problem_config.hierarchicals
+        self._hierarchicalnames = []
         for corr in self.config.corrections_config.iter_corrections():
             logger.info(
                 'Evaluating config for %s corrections '
@@ -253,6 +255,8 @@ class GeodeticComposite(Composite):
                                 try:
                                     self.hierarchicals[
                                         hierarchical_name] = Uniform(**kwargs)
+                                    self._hierarchicalnames.append(
+                                        hierarchical_name)
                                 except TypeError:
                                     kwargs.pop('name')
                                     self.hierarchicals[hierarchical_name] = \

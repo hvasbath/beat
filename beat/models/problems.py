@@ -353,7 +353,6 @@ class Problem(object):
         """
         if self._hierarchicalnames is None:
             self.init_hierarchicals()
-            self._hierarchicalnames = list(self.hierarchicals.keys())
         return self._hierarchicalnames
 
     def init_hyperparams(self):
@@ -499,9 +498,11 @@ class Problem(object):
         """
         Initialise hierarchical random variables of all composites.
         """
+        self._hierarchicalnames = []
         for composite in self.composites.values():
             try:
                 composite.init_hierarchicals(self.config.problem_config)
+                self._hierarchicalnames.extend(composite._hierarchicalnames)
             except AttributeError:
                 pass
 
