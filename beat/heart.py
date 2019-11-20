@@ -1689,7 +1689,7 @@ def choose_backend(
 
     if code == 'qseis':
         version = '2006a'
-        if 'slowest' in waveforms or distances.min() < 1000 * km:
+        if 'slowest' in waveforms or distances.min() < 10:
             logger.info(
                 'Receiver and source'
                 ' site structures have to be identical as distance'
