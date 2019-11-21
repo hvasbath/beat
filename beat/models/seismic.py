@@ -758,32 +758,34 @@ class SeismicDistributerComposite(SeismicComposite):
             project_dir, self._mode, bconfig.linear_gf_dir_name)
 
         self.config = sc
-        sgfc = sc.gf_config
+        dgc = sc.gf_config.discretization_config
 
-        for pw, pl in zip(sgfc.patch_widths, sgfc.patch_lengths):
+        for pw, pl in zip(dgc.patch_widths, dgc.patch_lengths):
             if pw != pl:
                 raise ValueError(
                     'So far only square patches supported in kinematic'
                     ' model! - fast_sweeping issues')
 
-        if len(sgfc.reference_sources) > 1:
-            raise ValueError(
-                'So far only one reference plane supported! - '
-                'fast_sweeping issues')
+        if len(sc.gf_config.reference_sources) > 1:
+            raise logger.warning(
+                'So far only rupture propagation on each subfault individually')
 
         self.fault = self.load_fault_geometry()
-        # TODO: n_subfaultssupport
-        n_p_dip, n_p_strike = self.fault.get_subfault_discretization(0)
 
         logger.info('Fault(s) discretized to %s [km]'
                     ' patches.' % utility.list2string(sgfc.patch_lengths))
 
         if not hypers:
-            self.sweeper = theanof.Sweeper(
-                sgfc.patch_lengths[0],
-                n_p_dip,
-                n_p_strike,
-                self.sweep_implementation)
+            # TODO: n_subfaultssupport
+            self.sweepers = []
+            for idx in range(self.fault.nsubfaults):
+                n_p_dip, n_p_strike = self.fault.get_subfault_discretization(idx)
+
+                self.sweepers.append(theanof.Sweeper(
+                    dgc.patch_lengths[idx],
+                    n_p_dip,
+                    n_p_strike,
+                    self.sweep_implementation))
 
             for wmap in self.wavemaps:
 
@@ -889,21 +891,28 @@ class SeismicDistributerComposite(SeismicComposite):
         t2 = time()
         # convert velocities to rupture onset
         logger.debug('Fast sweeping ...')
-        # TODO make nsubfaults ready
-        nuc_dip_idx, nuc_strike_idx = self.fault.fault_locations2idxs(
-            index=0,
-            positions_dip=nuc_dip,
-            positions_strike=nuc_strike,
-            backend='theano')
+        # TODO make nsubfaults ready - should work
+        starttimes0 = tt.zeros((self.fault.npatches), dtype=tconfig.floatX)
+        for index in range(self.fault.nsubfaults):
+            nuc_dip_idx, nuc_strike_idx = self.fault.fault_locations2idxs(
+                index=0,
+                positions_dip=nuc_dip[index],
+                positions_strike=nuc_strike[index],
+                backend='theano')
 
-        starttimes0 = self.sweeper(
-            (1. / input_rvs['velocities']), nuc_dip_idx, nuc_strike_idx)
+            sf_patch_indexs = self.fault.cum_subfault_npatches[index:index + 1]
+            starttimes_tmp = self.sweeper(
+                (1. / input_rvs['velocities'][
+                      sf_patch_indexs:sf_patch_indexs + 1]),
+                nuc_dip_idx, nuc_strike_idx)
 
-        starttimes0 += input_rvs['time']
+            starttimes_tmp += input_rvs['time'][index]
+            starttimes0 = tt.set_subtensor(
+                starttimes0[sf_patch_indexs:sf_patch_indexs + 1],
+                starttimes_tmp)
+
         wlogpts = []
         for wmap in self.wavemaps:
-            # TODO: for subfault in range(self.fault.nsubfaults):
-
             # station corrections
             if len(self.hierarchicals) > 0:
                 raise NotImplementedError(

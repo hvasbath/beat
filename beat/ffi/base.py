@@ -1054,19 +1054,24 @@ def seis_construct_gf_linear(
     """
 
     # get starttimes for hypocenter at corner of fault
-    # TODO: make nsubfaults compatible
-
-    npw, npl = fault.get_subfault_discretization(0)
-    start_times = fault.get_subfault_starttimes(
-        index=0, rupture_velocities=velocities_prior.lower.repeat(npw * npl),
-        nuc_dip_idx=0, nuc_strike_idx=0)
+    # TODO: make nsubfaults compatible - should work
+    st_mins = []
+    st_maxs = []
+    for idx, sf in enumerate(fault.iter_subfaults()):
+        npw, npl = fault.get_subfault_discretization(idx)
+        start_times = fault.get_subfault_starttimes(
+            index=idx,
+            rupture_velocities=velocities_prior.lower.repeat(npw * npl),
+            nuc_dip_idx=0, nuc_strike_idx=0)
+        st_mins.append(start_times.min())
+        st_maxs.append(start_times.max())
 
     starttimeidxs = num.arange(
         int(num.floor(
-            start_times.min() + nucleation_time_prior.lower.min()) /
+            min(st_mins) + nucleation_time_prior.lower.min()) /
             starttime_sampling),
         int(num.ceil(
-            start_times.max() + nucleation_time_prior.upper.max()) /
+            max(st_maxs) + nucleation_time_prior.upper.max()) /
             starttime_sampling) + 1)
     starttimes = starttimeidxs * starttime_sampling
 
