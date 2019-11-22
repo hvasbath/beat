@@ -641,6 +641,13 @@ class SeismicConfig(Object):
 
         return hids
 
+    def get_station_blacklist(self):
+        blacklist = []
+        for wc in self.waveforms:
+            blacklist.extend(wc.blacklist)
+
+        return list(set(blacklist))
+
     def get_hierarchical_names(self):
         if self.station_corrections:
             return ['time_shift']

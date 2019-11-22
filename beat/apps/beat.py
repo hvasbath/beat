@@ -1059,6 +1059,16 @@ def command_build_gfs(args):
                         c.project_dir, bconfig.seismic_data_name)
 
                     stations, _ = utility.load_objects(seismic_data_path)
+                    logger.info(
+                        'Found stations %s' % list2string(
+                            [station.station for station in stations]))
+
+                    blacklist = sc.get_station_blacklist()
+                    stations = utility.apply_station_blacklist(
+                        stations, blacklist=blacklist)
+                    logger.info(
+                        'Blacklisted stations: %s' % list2string(blacklist))
+
                 else:
                     logger.info(
                         "Creating one global Green's Function store, which is "
