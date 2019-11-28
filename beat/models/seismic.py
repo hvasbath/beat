@@ -773,13 +773,14 @@ class SeismicDistributerComposite(SeismicComposite):
         self.fault = self.load_fault_geometry()
 
         logger.info('Fault(s) discretized to %s [km]'
-                    ' patches.' % utility.list2string(sgfc.patch_lengths))
+                    ' patches.' % utility.list2string(dgc.patch_lengths))
 
         if not hypers:
             # TODO: n_subfaultssupport
             self.sweepers = []
             for idx in range(self.fault.nsubfaults):
-                n_p_dip, n_p_strike = self.fault.get_subfault_discretization(idx)
+                n_p_dip, n_p_strike = \
+                    self.fault.ordering.get_subfault_discretization(idx)
 
                 self.sweepers.append(theanof.Sweeper(
                     dgc.patch_lengths[idx],

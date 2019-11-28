@@ -22,7 +22,7 @@ nuc_strike = 2.
 time_shift = -10.   # from previous inversion
 
 # general
-project_dir = '/home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE_wide_kin'
+project_dir = '/home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE_wide_kin3'
 store_superdirs = ['/home/vasyurhm/GF/Laquila']
 white_noise_perc_max = 0.025   # White noise to disturb the synthetic data, in percent to the maximum amplitude [Hallo et al. 2016 use 0.01]
 
@@ -43,7 +43,7 @@ sc = problem.composites['seismic']
 fault = sc.load_fault_geometry()
 
 # get number of patches in dip and strike direction
-npdip, npstrike = fault.get_subfault_discretization(0)
+npdip, npstrike = fault.ordering.get_subfault_discretization(0)
 
 # do fast sweeping to get rupture onset times for patches with respect to hypocenter
 velocities = num.ones((npdip, npstrike)) * 3.5

@@ -398,14 +398,14 @@ total number of patches: %i ''' % (
                 for ns in range(self.nsubfaults):
                     self._check_index(ns)
                     npw, npl = self.ordering.get_subfault_discretization(ns)
-
                     # no smoothing accross sub-faults!
-                    Ls.append(get_smoothing_operator_nearest_neighbor(
+                    L = get_smoothing_operator_nearest_neighbor(
                         n_patch_strike=npl,
                         n_patch_dip=npw,
                         patch_size_strike=self.ordering.patch_sizes_strike[ns],
-                        patch_size_dip=self.ordering.patch_sizes_dip[ns]))
-                    return block_diag(Ls)
+                        patch_size_dip=self.ordering.patch_sizes_dip[ns])
+                    Ls.append(L)
+                return block_diag(*Ls)
             else:
                 raise InvalidDiscretizationError(
                     'Nearest neighbor correlation Laplacian is only '
