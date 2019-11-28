@@ -964,7 +964,7 @@ def _process_patch_seismic(
     # ensure stf anchor point at -1
     patch.stf.anchor = -1
     source_patches_durations = []
-    logger.debug('Patch Number %i', patchidx)
+    logger.info('Patch Number %i', patchidx)
 
     for duration in durations:
         pcopy = patch.clone()
@@ -1058,7 +1058,7 @@ def seis_construct_gf_linear(
     st_mins = []
     st_maxs = []
     for idx, sf in enumerate(fault.iter_subfaults()):
-        npw, npl = fault.get_subfault_discretization(idx)
+        npw, npl = fault.ordering.get_subfault_discretization(idx)
         start_times = fault.get_subfault_starttimes(
             index=idx,
             rupture_velocities=velocities_prior.lower.repeat(npw * npl),
