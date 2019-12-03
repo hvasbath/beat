@@ -5,6 +5,7 @@ from pyrocko import moment_tensor as mt
 from pyrocko import trace
 from beat.sources import RectangularSource
 from beat import ffi, models
+from beat.utility import get_random_uniform
 
 import numpy as num
 from beat import inputf, utility, heart, config
@@ -61,6 +62,8 @@ for i in range(fault.nsubfaults):
 
     print(starttimes)
 starttimes = num.hstack(sts)
+print('sts, shape', starttimes.shape)
+
 velocities = num.hstack(vels)
 
 # defining distributed slip values for slip parallel and perpendicular directions
@@ -75,7 +78,7 @@ uperp[13:27] = 1.0
 durations = num.ones(fault.npatches) * 0.5
 
 slips = {
-    components[0]: uparr.ravel(),
+    components[0]: num.atleast_2d(uparr.ravel()),
 #    components[1]: uperp.ravel(),
     'durations': durations.ravel(),
     'velocities': velocities.ravel()
@@ -88,7 +91,7 @@ for comp in components:
     patches = fault.get_all_patches(datatype='seismic', component=comp)
 
     for patch, starttime, duration, slip in zip(
-            patches, starttimes, durations.ravel(), slips[comp]):
+            patches, starttimes, durations.ravel(), slips[comp][0]):
         #stf = gf.HalfSinusoidSTF(anchor=-1., duration=float(duration))
         patch.stf.duration = float(duration)
         #stime = num.round(starttime / starttime_sampling) * starttime_sampling
@@ -98,47 +101,80 @@ for comp in components:
 # synthetics generation
 engine = gf.LocalEngine(store_superdirs=store_superdirs)
 
-targets = sc.wavemaps[0].targets
-filterer = sc.wavemaps[0].config.filterer
+sel_targets = 35
+targets = sc.wavemaps[0].targets[0:sel_targets]
 ntargets = len(targets)
+filterer = sc.wavemaps[0].config.filterer
 
 gfs = ffi.load_gf_library(
     directory=project_dir + '/ffi/linear_gfs/',
     filename='seismic_uparr_any_P_0')
 ats = gfs.reference_times - arrival_taper.b
 
-traces, tmins = heart.seis_synthetics(
-    engine, patches, targets, arrival_times=ats,
-    wavename='any_P', arrival_taper=arrival_taper,
-    filterer=filterer, outmode='stacked_traces')
+# add time-shifts
+time_shifts = get_random_uniform(-2., 3., dimension=ntargets)
+print('Time shifts', time_shifts)
+arrival_times = ats + time_shifts
 
 targetidxs = num.lib.index_tricks.s_[:]
 
 if False:
+    print('using station corrections!')
     # for station corrections maybe in the future?
-    station_corrections = num.zeros(len(traces))
+    station_corrections = time_shifts
+    print('orig startimes', starttimes)
     starttimes = (num.tile(starttimes, ntargets) + num.repeat(
         station_corrections, fault.npatches)).reshape(
             ntargets, fault.npatches)
+
+    print('shifted starttimes', starttimes, starttimes.shape, starttimes.size)
     targetidxs = num.atleast_2d(num.arange(ntargets)).T
+    #targetidxs = num.lib.index_tricks.s_[:]
+
 
 gfs.set_stack_mode('numpy')
-synthetics_nn = gfs.stack_all(
-    targetidxs=targetidxs,
-    starttimes=starttimes,
-    durations=durations.ravel(),
-    slips=slips[components[0]],
-    interpolation='nearest_neighbor')
+if True:
+    synthetics_nn = gfs.stack_all(
+        targetidxs=targetidxs,
+        starttimes=starttimes,
+        durations=durations.ravel(),
+        slips=slips[components[0]],
+        interpolation='nearest_neighbor')
 
-synthetics_ml = gfs.stack_all(
-    targetidxs=targetidxs,
-    starttimes=starttimes,
-    durations=durations.ravel(),
-    slips=slips[components[0]],
-    interpolation='multilinear')
+    synth_traces_nn = []
+    for i, target in enumerate(targets):
+        tr = trace.Trace(
+            ydata=synthetics_nn[i, :],
+            tmin=gfs.reference_times[i] - time_shifts[i],
+            deltat=gfs.deltat)
+        #print('trace tmin synthst', tr.tmin)
+        tr.set_codes(*target.codes)
+        tr.set_location('nn')
+        synth_traces_nn.append(tr)
+
+    synthetics_ml = gfs.stack_all(
+        targetidxs=targetidxs,
+        starttimes=starttimes,
+        durations=durations.ravel(),
+        slips=slips[components[0]],
+        interpolation='multilinear')
+
+    synth_traces_ml = []
+    for i, target in enumerate(targets):
+        tr = trace.Trace(
+            ydata=synthetics_ml[i, :],
+            tmin=gfs.reference_times[i] - time_shifts[i],
+            deltat=gfs.deltat)
+        #print 'trace tmin synthst', tr.tmin
+        tr.set_codes(*target.codes)
+        tr.set_location('ml')
+        synth_traces_ml.append(tr)
+    print('synthetics_ml', synthetics_ml.shape)
+    print('synthetics_nn', synthetics_nn.shape)
 
 gfs.init_optimization()
 
+print('nearest')
 synthetics_nn_t = gfs.stack_all(
     targetidxs=targetidxs,
     starttimes=starttimes,
@@ -146,6 +182,7 @@ synthetics_nn_t = gfs.stack_all(
     slips=slips[components[0]],
     interpolation='nearest_neighbor').eval()
 
+print('ml')
 synthetics_ml_t = gfs.stack_all(
     targetidxs=targetidxs,
     starttimes=starttimes,
@@ -153,34 +190,13 @@ synthetics_ml_t = gfs.stack_all(
     slips=slips[components[0]],
     interpolation='multilinear').eval()
 
-
-synth_traces_nn = []
-for i, target in enumerate(targets):
-    tr = trace.Trace(
-        ydata=synthetics_nn[i, :],
-        tmin=gfs.reference_times[i],
-        deltat=gfs.deltat)
-    #print('trace tmin synthst', tr.tmin)
-    tr.set_codes(*target.codes)
-    tr.set_location('nn')
-    synth_traces_nn.append(tr)
-
-synth_traces_ml = []
-for i, target in enumerate(targets):
-    tr = trace.Trace(
-        ydata=synthetics_ml[i, :],
-        tmin=gfs.reference_times[i],
-        deltat=gfs.deltat)
-    #print 'trace tmin synthst', tr.tmin
-    tr.set_codes(*target.codes)
-    tr.set_location('ml')
-    synth_traces_ml.append(tr)
-
+print('synthetics_ml_t',synthetics_ml_t.shape)
+print('synthetics_nn_t',synthetics_nn_t.shape)
 synth_traces_nn_t = []
 for i, target in enumerate(targets):
     tr = trace.Trace(
         ydata=synthetics_nn_t[i, :],
-        tmin=gfs.reference_times[i],
+        tmin=gfs.reference_times[i] - time_shifts[i],
         deltat=gfs.deltat)
     #print('trace tmin synthst', tr.tmin)
     tr.set_codes(*target.codes)
@@ -191,17 +207,27 @@ synth_traces_ml_t = []
 for i, target in enumerate(targets):
     tr = trace.Trace(
         ydata=synthetics_ml_t[i, :],
-        tmin=gfs.reference_times[i],
+        tmin=gfs.reference_times[i] - time_shifts[i],
         deltat=gfs.deltat)
     #print 'trace tmin synthst', tr.tmin
     tr.set_codes(*target.codes)
     tr.set_location('ml_t')
     synth_traces_ml_t.append(tr)
 
+if True:
+    traces, tmins = heart.seis_synthetics(
+        engine, patches, targets,
+        arrival_times=arrival_times,
+        wavename='any_P',
+        arrival_taper=arrival_taper,
+        filterer=filterer,
+        outmode='stacked_traces')
+
 # display to check
 trace.snuffle(
-    traces + synth_traces_nn + synth_traces_ml +  synth_traces_nn_t + synth_traces_ml_t,
+    traces +  synth_traces_nn_t + synth_traces_ml_t+ synth_traces_nn + synth_traces_ml,
     stations=sc.wavemaps[0].stations, events=[event])
+
 
 traces1, tmins = heart.seis_synthetics(
     engine, [patches[0]], targets, arrival_times=ats,
@@ -231,9 +257,9 @@ for i in range(1):
         tr.set_location('ml%i' % i)
         synth_traces_ml1.append(tr)
 
-trace.snuffle(
-    traces1 + synth_traces_ml1,
-    stations=sc.wavemaps[0].stations, events=[event])
+#trace.snuffle(
+#    traces1 + synth_traces_ml1,
+#    stations=sc.wavemaps[0].stations, events=[event])
 
 # convert pyrocko traces to beat traces
 beat_traces = []

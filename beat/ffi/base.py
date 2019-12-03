@@ -531,6 +531,8 @@ filename: %s''' % (
             ceil_starttimes = backend.ceil(
                 dstarttimes).astype('int16')
             factors = ceil_starttimes - dstarttimes
+            print('dstarttimes', dstarttimes)
+            print('ceilstarttimes', ceil_starttimes)
             return ceil_starttimes, factors
         else:
             raise NotImplementedError(
@@ -637,26 +639,36 @@ filename: %s''' % (
             durations, interpolation=interpolation)
         starttimeidxs, st_factors = self.starttimes2idxs(
             starttimes, interpolation=interpolation)
+        print('sttidx', starttimeidxs.shape)
 
         if interpolation == 'nearest_neighbor':
 
-            nslips = 1
             cd = self._stack_switch[self._mode][
                 targetidxs, patchidxs,
                 durationidxs, starttimeidxs, :]
+            print('nn', cd.shape)
 
             cd = cd.reshape(
-                (self.ntargets, npatches, self.nsamples))
+                (self.ntargets, npatches, self.nsamples)).T
 
-            cslips = slips
+            backend = get_backend(self._mode)
+            cslips = backend.tile(
+                slips, self.ntargets).reshape((self.ntargets, npatches))
+            #u2d = num.tile(
+            #    cslips, self.nsamples).reshape(
+            #    (self.nsamples, npatches * nslips * ntargets)).T
 
         elif interpolation == 'multilinear':
 
-            nslips = 4
+            print('st_fact', st_factors.shape, st_factors)
             d_st_ceil_rt_ceil = self._stack_switch[self._mode][
                 targetidxs, patchidxs,
-                durationidxs, starttimeidxs, :].reshape(
+                durationidxs, starttimeidxs, :]
+            print('d_st_ceil_rt_ceil shapes', d_st_ceil_rt_ceil.shape, d_st_ceil_rt_ceil.size)
+            d_st_ceil_rt_ceil = d_st_ceil_rt_ceil.reshape(
                 (self.ntargets, npatches, self.nsamples))
+            print('d_st_ceil_rt_ceil reshapes', d_st_ceil_rt_ceil.shape,
+                  d_st_ceil_rt_ceil.size)
             d_st_floor_rt_ceil = self._stack_switch[self._mode][
                 targetidxs, patchidxs,
                 durationidxs, starttimeidxs - 1, :].reshape(
@@ -674,28 +686,29 @@ filename: %s''' % (
             s_st_floor_rt_ceil = st_factors * (1. - rt_factors) * slips
             s_st_ceil_rt_floor = (1 - st_factors) * rt_factors * slips
             s_st_floor_rt_floor = st_factors * rt_factors * slips
+            print('s_st_floor_rt_floor', s_st_floor_rt_floor)
 
             backend = get_backend(self._mode)
             cd = backend.concatenate(
                 [d_st_ceil_rt_ceil, d_st_floor_rt_ceil,
-                 d_st_ceil_rt_floor, d_st_floor_rt_floor], axis=1)
+                 d_st_ceil_rt_floor, d_st_floor_rt_floor], axis=1).T  # T
             cslips = backend.concatenate(
                 [s_st_ceil_rt_ceil, s_st_floor_rt_ceil,
-                 s_st_ceil_rt_floor, s_st_floor_rt_floor])
+                 s_st_ceil_rt_floor, s_st_floor_rt_floor], axis=1)   #
+            print('cslips', cslips.shape)
         else:
             raise NotImplementedError(
                 'Interpolation scheme %s not implemented!' % interpolation)
 
         if self._mode == 'theano':
             return tt.batched_dot(
-                cd.dimshuffle((1, 0, 2)), cslips).sum(axis=0)
+                cd.dimshuffle((2, 0, 1)), cslips) # .sum(axis=0)   # .dimshuffle((1, 0, 2))
 
         elif self._mode == 'numpy':
-            ntargets = 1
-            u2d = num.tile(
-                cslips, self.nsamples).reshape(
-                    (self.nsamples, npatches * nslips * ntargets))
-            return num.einsum('ijk->ik', cd * u2d.T)
+
+            print('numpy', npatches)
+            print('Cd', cd.shape)
+            return num.einsum('ijk->ik', cd * cslips.T).T
 
     def get_traces(
             self, targetidxs=[0], patchidxs=[0], durationidxs=[0],
@@ -965,6 +978,7 @@ def _process_patch_seismic(
     patch.stf.anchor = -1
     source_patches_durations = []
     logger.info('Patch Number %i', patchidx)
+    print(patch)
 
     for duration in durations:
         pcopy = patch.clone()

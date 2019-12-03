@@ -767,7 +767,7 @@ class SeismicDistributerComposite(SeismicComposite):
                     ' model! - fast_sweeping issues')
 
         if len(sc.gf_config.reference_sources) > 1:
-            raise logger.warning(
+            logger.warning(
                 'So far only rupture propagation on each subfault individually')
 
         self.fault = self.load_fault_geometry()
