@@ -43,7 +43,6 @@ arrival_taper = heart.ArrivalTaper(
 sc = problem.composites['seismic']
 fault = sc.load_fault_geometry()
 
-# get number of patches in dip and strike direction
 sts = []
 vels = []
 for i in range(fault.nsubfaults):
@@ -116,8 +115,8 @@ time_shifts = get_random_uniform(-2., 3., dimension=ntargets)
 print('Time shifts', time_shifts)
 arrival_times = ats + time_shifts
 
-targetidxs = num.lib.index_tricks.s_[:]
-
+#targetidxs = num.lib.index_tricks.s_[:]
+targetidxs = num.atleast_2d(num.arange(ntargets)).T
 if False:
     print('using station corrections!')
     # for station corrections maybe in the future?
@@ -131,6 +130,19 @@ if False:
     targetidxs = num.atleast_2d(num.arange(ntargets)).T
     #targetidxs = num.lib.index_tricks.s_[:]
 
+def to_pyrocko_traces(gfs, synthetics, targets, location=''):
+    synth_traces = []
+    for i, target in enumerate(targets):
+        tr = trace.Trace(
+            ydata=synthetics[i, :],
+            tmin=gfs.reference_times[i] - time_shifts[i],
+            deltat=gfs.deltat)
+        #print('trace tmin synthst', tr.tmin)
+        tr.set_codes(*target.codes)
+        tr.set_location(location)
+        synth_traces.append(tr)
+
+    return synth_traces
 
 gfs.set_stack_mode('numpy')
 if True:
@@ -141,16 +153,8 @@ if True:
         slips=slips[components[0]],
         interpolation='nearest_neighbor')
 
-    synth_traces_nn = []
-    for i, target in enumerate(targets):
-        tr = trace.Trace(
-            ydata=synthetics_nn[i, :],
-            tmin=gfs.reference_times[i] - time_shifts[i],
-            deltat=gfs.deltat)
-        #print('trace tmin synthst', tr.tmin)
-        tr.set_codes(*target.codes)
-        tr.set_location('nn')
-        synth_traces_nn.append(tr)
+    synth_traces_nn = to_pyrocko_traces(
+        gfs, synthetics_nn, targets, location='nn')
 
     synthetics_ml = gfs.stack_all(
         targetidxs=targetidxs,
@@ -159,16 +163,8 @@ if True:
         slips=slips[components[0]],
         interpolation='multilinear')
 
-    synth_traces_ml = []
-    for i, target in enumerate(targets):
-        tr = trace.Trace(
-            ydata=synthetics_ml[i, :],
-            tmin=gfs.reference_times[i] - time_shifts[i],
-            deltat=gfs.deltat)
-        #print 'trace tmin synthst', tr.tmin
-        tr.set_codes(*target.codes)
-        tr.set_location('ml')
-        synth_traces_ml.append(tr)
+    synth_traces_ml = to_pyrocko_traces(
+        gfs, synthetics_ml, targets, location='ml')
     print('synthetics_ml', synthetics_ml.shape)
     print('synthetics_nn', synthetics_nn.shape)
 
@@ -192,27 +188,12 @@ synthetics_ml_t = gfs.stack_all(
 
 print('synthetics_ml_t',synthetics_ml_t.shape)
 print('synthetics_nn_t',synthetics_nn_t.shape)
-synth_traces_nn_t = []
-for i, target in enumerate(targets):
-    tr = trace.Trace(
-        ydata=synthetics_nn_t[i, :],
-        tmin=gfs.reference_times[i] - time_shifts[i],
-        deltat=gfs.deltat)
-    #print('trace tmin synthst', tr.tmin)
-    tr.set_codes(*target.codes)
-    tr.set_location('nn_t')
-    synth_traces_nn_t.append(tr)
 
-synth_traces_ml_t = []
-for i, target in enumerate(targets):
-    tr = trace.Trace(
-        ydata=synthetics_ml_t[i, :],
-        tmin=gfs.reference_times[i] - time_shifts[i],
-        deltat=gfs.deltat)
-    #print 'trace tmin synthst', tr.tmin
-    tr.set_codes(*target.codes)
-    tr.set_location('ml_t')
-    synth_traces_ml_t.append(tr)
+synth_traces_nn_t = to_pyrocko_traces(
+        gfs, synthetics_nn_t, targets, location='nn_t')
+synth_traces_ml_t = to_pyrocko_traces(
+        gfs, synthetics_ml_t, targets, location='ml_t')
+
 
 if True:
     traces, tmins = heart.seis_synthetics(

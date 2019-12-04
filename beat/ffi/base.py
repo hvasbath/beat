@@ -634,6 +634,12 @@ filename: %s''' % (
             npatches = len(patchidxs)
 
         self._check_mode_init(self._mode)
+        backend = get_backend(self._mode)
+
+        if starttimes.size == npatches:
+            starttimes = backend.tile(
+                starttimes, self.ntargets).reshape((self.ntargets, npatches))
+            print('sts tiling', starttimes.shape)
 
         durationidxs, rt_factors = self.durations2idxs(
             durations, interpolation=interpolation)
@@ -651,21 +657,15 @@ filename: %s''' % (
             cd = cd.reshape(
                 (self.ntargets, npatches, self.nsamples)).T
 
-            backend = get_backend(self._mode)
             cslips = backend.tile(
                 slips, self.ntargets).reshape((self.ntargets, npatches))
-            #u2d = num.tile(
-            #    cslips, self.nsamples).reshape(
-            #    (self.nsamples, npatches * nslips * ntargets)).T
 
         elif interpolation == 'multilinear':
 
             print('st_fact', st_factors.shape, st_factors)
             d_st_ceil_rt_ceil = self._stack_switch[self._mode][
                 targetidxs, patchidxs,
-                durationidxs, starttimeidxs, :]
-            print('d_st_ceil_rt_ceil shapes', d_st_ceil_rt_ceil.shape, d_st_ceil_rt_ceil.size)
-            d_st_ceil_rt_ceil = d_st_ceil_rt_ceil.reshape(
+                durationidxs, starttimeidxs, :].reshape(
                 (self.ntargets, npatches, self.nsamples))
             print('d_st_ceil_rt_ceil reshapes', d_st_ceil_rt_ceil.shape,
                   d_st_ceil_rt_ceil.size)
@@ -687,8 +687,10 @@ filename: %s''' % (
             s_st_ceil_rt_floor = (1 - st_factors) * rt_factors * slips
             s_st_floor_rt_floor = st_factors * rt_factors * slips
             print('s_st_floor_rt_floor', s_st_floor_rt_floor)
+            print('s_st_ceil_rt_floor', s_st_ceil_rt_floor)
+            print('s_st_floor_rt_ceil', s_st_floor_rt_ceil)
+            print('s_st_ceil_rt_ceil', s_st_ceil_rt_ceil)
 
-            backend = get_backend(self._mode)
             cd = backend.concatenate(
                 [d_st_ceil_rt_ceil, d_st_floor_rt_ceil,
                  d_st_ceil_rt_floor, d_st_floor_rt_floor], axis=1).T  # T
@@ -701,6 +703,7 @@ filename: %s''' % (
                 'Interpolation scheme %s not implemented!' % interpolation)
 
         if self._mode == 'theano':
+            print('swapcheck', cslips.size, slips.size)
             return tt.batched_dot(
                 cd.dimshuffle((2, 0, 1)), cslips) # .sum(axis=0)   # .dimshuffle((1, 0, 2))
 
