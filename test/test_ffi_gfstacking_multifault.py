@@ -108,38 +108,51 @@ filterer = sc.wavemaps[0].config.filterer
 gfs = ffi.load_gf_library(
     directory=project_dir + '/ffi/linear_gfs/',
     filename='seismic_uparr_any_P_0')
-ats = gfs.reference_times - arrival_taper.b
+arrival_times = gfs.reference_times - arrival_taper.b
 
 # add time-shifts
-time_shifts = get_random_uniform(-2., 3., dimension=ntargets)
-print('Time shifts', time_shifts)
-arrival_times = ats + time_shifts
+
+time_shifts = num.zeros((ntargets))
 
 #targetidxs = num.lib.index_tricks.s_[:]
-targetidxs = num.atleast_2d(num.arange(ntargets)).T
-if False:
+targetidxs = num.atleast_2d(num.arange(ntargets)).T # transpose important for fancy indexing!
+
+
+## Introduce time sifts or not
+if True:
+    time_shifts = get_random_uniform(-2., 3., dimension=ntargets)
+    print('Time shifts', time_shifts)
+
     print('using station corrections!')
-    # for station corrections maybe in the future?
+    # station corrections act here in the opposite way as in the seis_synthetics!
+    # there: waveforms are cut out earlier with negative time shift
+    # here: waveforms are shifted earlier and cut out the same- results in oposite direction
+    # --> subtract correction to get same behaviour as for reference!
     station_corrections = time_shifts
     print('orig startimes', starttimes)
-    starttimes = (num.tile(starttimes, ntargets) + num.repeat(
+    starttimes = (num.tile(starttimes, ntargets) - num.repeat(
         station_corrections, fault.npatches)).reshape(
             ntargets, fault.npatches)
 
+    arrival_times += time_shifts
     print('shifted starttimes', starttimes, starttimes.shape, starttimes.size)
-    targetidxs = num.atleast_2d(num.arange(ntargets)).T
+    tshift_str = 'yesref'
+    #targetidxs = num.atleast_2d(num.arange(ntargets))
     #targetidxs = num.lib.index_tricks.s_[:]
+else:
+    tshift_str = 'noref'
 
 def to_pyrocko_traces(gfs, synthetics, targets, location=''):
     synth_traces = []
     for i, target in enumerate(targets):
         tr = trace.Trace(
             ydata=synthetics[i, :],
-            tmin=gfs.reference_times[i] - time_shifts[i],
+            tmin=gfs.reference_times[i], # - time_shifts[i],
             deltat=gfs.deltat)
         #print('trace tmin synthst', tr.tmin)
         tr.set_codes(*target.codes)
         tr.set_location(location)
+        print(target.codes, time_shifts[i])
         synth_traces.append(tr)
 
     return synth_traces
@@ -204,60 +217,47 @@ if True:
         filterer=filterer,
         outmode='stacked_traces')
 
+all_traces = traces +  synth_traces_nn_t + synth_traces_ml_t+ synth_traces_nn + synth_traces_ml
+
 # display to check
 trace.snuffle(
-    traces +  synth_traces_nn_t + synth_traces_ml_t+ synth_traces_nn + synth_traces_ml,
+    all_traces,
     stations=sc.wavemaps[0].stations, events=[event])
 
+if True:
+    from pyrocko.io import save
+    save(all_traces, 'traces_%s.yaff' % tshift_str, format='yaff')
 
-traces1, tmins = heart.seis_synthetics(
-    engine, [patches[0]], targets, arrival_times=ats,
-    wavename='any_P', arrival_taper=arrival_taper,
-    filterer=filterer, outmode='stacked_traces')
 
-gfs.set_stack_mode('numpy')
+if False:
+    traces1, tmins = heart.seis_synthetics(
+        engine, [patches[0]], targets, arrival_times=ats,
+        wavename='any_P', arrival_taper=arrival_taper,
+        filterer=filterer, outmode='stacked_traces')
 
-synth_traces_ml1 = []
-for i in range(1):
-    synthetics_ml1 = gfs.stack_all(
-        targetidxs=targetidxs,
-        patchidxs=[i],
-        starttimes=starttimes[0],
-        durations=durations.ravel()[0],
-        slips=num.atleast_1d(slips[components[0]][0]),
-        interpolation='multilinear')
+    gfs.set_stack_mode('numpy')
 
-    for i, target in enumerate(targets):
-        tr = trace.Trace(
-            ydata=synthetics_ml1[i, :],
-            tmin=gfs.reference_times[i],
-            deltat=gfs.deltat)
-        print('trace tmin synthst', tr.tmin)
-        #print(target.codes)
-        tr.set_codes(*target.codes)
-        tr.set_location('ml%i' % i)
-        synth_traces_ml1.append(tr)
+    synth_traces_ml1 = []
+    for i in range(1):
+        synthetics_ml1 = gfs.stack_all(
+            targetidxs=targetidxs,
+            patchidxs=[i],
+            starttimes=starttimes[0],
+            durations=durations.ravel()[0],
+            slips=num.atleast_1d(slips[components[0]][0]),
+            interpolation='multilinear')
+
+        for i, target in enumerate(targets):
+            tr = trace.Trace(
+                ydata=synthetics_ml1[i, :],
+                tmin=gfs.reference_times[i],
+                deltat=gfs.deltat)
+            print('trace tmin synthst', tr.tmin)
+            #print(target.codes)
+            tr.set_codes(*target.codes)
+            tr.set_location('ml%i' % i)
+            synth_traces_ml1.append(tr)
 
 #trace.snuffle(
 #    traces1 + synth_traces_ml1,
 #    stations=sc.wavemaps[0].stations, events=[event])
-
-# convert pyrocko traces to beat traces
-beat_traces = []
-for tr in traces:
-    #print tr
-    btrc = heart.SeismicDataset.from_pyrocko_trace(tr)
-    seis_err_std = num.abs(btrc.ydata).max() * white_noise_perc_max
-    noise = num.random.normal(0, seis_err_std, btrc.ydata.shape[0])
-    btrc.ydata += noise
-    btrc.set_location('0')
-    beat_traces.append(btrc)
-
-# display to check noisy traces
-#trace.snuffle(beat_traces, stations=stations, events=[event])
-
-# save data to project folder
-seismic_outpath = os.path.join(project_dir, 'seismic_data.pkl')
-#util.ensuredir(project_dir)
-#print 'saving synthetic data to: ', seismic_outpath
-#utility.dump_objects(seismic_outpath, outlist=[stations, beat_traces])
