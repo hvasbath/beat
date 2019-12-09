@@ -337,19 +337,22 @@ total number of patches: %i ''' % (
 
     def point2starttimes(self, point, index=0):
         """
-        Calculate starttimes for point in solution space.
+        Calculate starttimes for point in solution space for given subfault.
         """
 
-        nuc_dip = point['nucleation_dip']
-        nuc_strike = point['nucleation_strike']
-        velocities = point['velocities']
-        # TODO make index dependent   !!!!
+        nuc_dip = point['nucleation_dip'][index]
+        nuc_strike = point['nucleation_strike'][index]
+        time = point['time'][index]
+
+        sf_patch_indexs = self.cum_subfault_npatches[index:index + 1]
+        velocitieqqs = point['velocities'][sf_patch_indexs:sf_patch_indexs + 1]
+
         nuc_dip_idx, nuc_strike_idx = self.fault_locations2idxs(
             index, positions_dip=nuc_dip,
             positions_strike=nuc_strike, backend='numpy')
 
         return self.get_subfault_starttimes(
-            index, velocities, nuc_dip_idx, nuc_strike_idx)
+            index, velocities, nuc_dip_idx, nuc_strike_idx) + time
 
     def get_subfault_starttimes(
             self, index, rupture_velocities, nuc_dip_idx, nuc_strike_idx):
@@ -462,6 +465,8 @@ total number of patches: %i ''' % (
 
         Parameters
         ----------
+        index : int
+            to subfault
         positions_dip : :class:`numpy.NdArray` float
             of positions in dip direction of the fault [km]
         positions_strike : :class:`numpy.NdArray` float
@@ -469,7 +474,6 @@ total number of patches: %i ''' % (
         backend : str
             which implementation backend to use [numpy/theano]
         """
-        # TODO needs subfault index
         backend = get_backend(backend)
         dipidx = positions2idxs(
             positions=positions_dip,

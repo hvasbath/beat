@@ -3082,9 +3082,6 @@ def fault_slip_distribution(
     Parameters
     ----------
     fault : :class:`ffi.fault.FaultGeometry`
-
-    TODO: 0,0 is now ll of fault at depth, need to turn around axis that
-        origin is top-left
     """
 
     def draw_quivers(
@@ -3247,6 +3244,8 @@ def fault_slip_distribution(
                     sts = fault.get_subfault_starttimes(
                         0, velocities[i, :], nuc_dip_idx, nuc_strike_idx)
 
+                    point2starttimes(self, point, index=0)
+
                     contours = dummy_ax.contour(xgr, ygr, sts)
                     rupture_fronts.append(contours.allsegs)
 
@@ -3273,13 +3272,13 @@ def fault_slip_distribution(
             figs.append(fig2)
             axs.append(ax2)
 
-            ref_starttimes = fault.point2starttimes(reference)
+            ref_starttimes = fault.point2starttimes(reference, index=ns)
             contours = ax.contour(
                 xgr, ygr, ref_starttimes,
                 colors='black', linewidths=0.5, alpha=0.9)
             ax.plot(
-                reference['nucleation_strike'],
-                reference['nucleation_dip'],
+                reference['nucleation_strike'][ns],
+                reference['nucleation_dip'][ns],
                 marker='*', color='k', markersize=12)
             plt.clabel(contours, inline=True, fontsize=10)
 
@@ -3637,7 +3636,8 @@ def draw_moment_rate(problem, po):
     sc = problem.composites['seismic']
     fault = sc.load_fault_geometry()
 
-    stage = load_stage(problem, stage_number=po.load_stage, load='trace', chains=[-1])
+    stage = load_stage(
+        problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
     if not po.reference:
         reference = get_result_point(stage, problem.config, po.post_llk)
@@ -3651,9 +3651,6 @@ def draw_moment_rate(problem, po):
     logger.info(
         'Drawing ensemble of %i moment rate functions ...' % po.nensemble)
     target = sc.wavemaps[0].targets[0]
-    ref_mrf_rates, ref_mrf_times = fault.get_subfault_moment_rate_function(
-        index=0, point=reference, target=target,
-        store=sc.engine.get_store(target.store_id))
 
     mpl_init(fontsize=fontsize)
     for ns in range(fault.nsubfaults):
@@ -3661,6 +3658,10 @@ def draw_moment_rate(problem, po):
             problem.outfolder, po.figure_dir,
             'moment_rate_%i_%i_%s_%i.%s' % (
                 stage.number, ns, llk_str, po.nensemble, po.outformat))
+
+        ref_mrf_rates, ref_mrf_times = fault.get_subfault_moment_rate_function(
+            index=ns, point=reference, target=target,
+            store=sc.engine.get_store(target.store_id))
 
         if not os.path.exists(outpath) or po.force:
             fig, ax = plt.subplots(

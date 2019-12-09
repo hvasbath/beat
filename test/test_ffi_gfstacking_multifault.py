@@ -54,6 +54,8 @@ for i in range(fault.nsubfaults):
     nuc_dip_idx, nuc_strike_idx = fault.fault_locations2idxs(
         i, nuc_dip, nuc_strike, backend='numpy')
 
+    print(i, nuc_dip_idx, nuc_strike_idx)
+
     starttimes = fault.get_subfault_starttimes(
         i, velocities, nuc_dip_idx, nuc_strike_idx).ravel() + time_shift[i]
     sts.append(starttimes)
@@ -224,7 +226,7 @@ trace.snuffle(
     all_traces,
     stations=sc.wavemaps[0].stations, events=[event])
 
-if True:
+if False:
     from pyrocko.io import save
     save(all_traces, 'traces_%s.yaff' % tshift_str, format='yaff')
 

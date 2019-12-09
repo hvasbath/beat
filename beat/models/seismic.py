@@ -776,7 +776,6 @@ class SeismicDistributerComposite(SeismicComposite):
                     ' patches.' % utility.list2string(dgc.patch_lengths))
 
         if not hypers:
-            # TODO: n_subfaultssupport
             self.sweepers = []
             for idx in range(self.fault.nsubfaults):
                 n_p_dip, n_p_strike = \
@@ -789,7 +788,6 @@ class SeismicDistributerComposite(SeismicComposite):
                     self.sweep_implementation))
 
             for wmap in self.wavemaps:
-
                 logger.info(
                     'Preparing data of "%s" for optimization' % wmap.name)
                 wmap.prepare_data(
@@ -892,11 +890,10 @@ class SeismicDistributerComposite(SeismicComposite):
         t2 = time()
         # convert velocities to rupture onset
         logger.debug('Fast sweeping ...')
-        # TODO make nsubfaults ready - should work
         starttimes0 = tt.zeros((self.fault.npatches), dtype=tconfig.floatX)
         for index in range(self.fault.nsubfaults):
             nuc_dip_idx, nuc_strike_idx = self.fault.fault_locations2idxs(
-                index=0,
+                index=index,
                 positions_dip=nuc_dip[index],
                 positions_strike=nuc_strike[index],
                 backend='theano')
@@ -916,21 +913,18 @@ class SeismicDistributerComposite(SeismicComposite):
         for wmap in self.wavemaps:
             # station corrections
             if len(self.hierarchicals) > 0:
-                raise NotImplementedError(
-                    'Station corrections not fully implemented! for FFO!')
+                logger.info('Applying station corrections ...')
                 starttimes = (
-                    tt.tile(starttimes0, wmap.n_t) +
+                    tt.tile(starttimes0, wmap.n_t) -
                     tt.repeat(self.hierarchicals[wmap.time_shifts_id][
                         wmap.station_correction_idxs],
                         self.fault.npatches)).reshape(
                             wmap.n_t, self.fault.npatches)
-
-                targetidxs = shared(
-                    num.atleast_2d(num.arange(wmap.n_t)).T, borrow=True)
             else:
                 starttimes = starttimes0
-                targetidxs = num.lib.index_tricks.s_[:]
 
+            targetidxs = shared(
+                num.atleast_2d(num.arange(wmap.n_t)).T, borrow=True)
             logger.debug('Stacking %s phase ...' % wmap.config.name)
             synthetics = tt.zeros(
                 (wmap.n_t, wmap.config.arrival_taper.nsamples(
@@ -1006,38 +1000,37 @@ class SeismicDistributerComposite(SeismicComposite):
             if hyper in tpoint:
                 tpoint.pop(hyper)
 
-        # TODO make nsubfaults ready
-        starttimes0 = self.fault.point2starttimes(tpoint, index=0).ravel()
-        starttimes0 += point['time']
+        starttimes0 = num.zeros((self.fault.npatches), dtype=tconfig.floatX)
+        for index in range(self.fault.nsubfaults):
+            starttimes_tmp = self.fault.point2starttimes(
+                tpoint, index=index).ravel()
 
-        # station corrections
-        if len(self.hierarchicals) > 0:
-            raise NotImplementedError(
-                'Station corrections not fully implemented! for FFO!')
-            # starttimes = (
-            #    num.tile(starttimes0, wmap.n_t) +
-            #    num.repeat(self.hierarchicals[wmap.time_shifts_id][
-            #        wmap.station_correction_idxs],
-            #        self.fault.npatches)).reshape(
-            #            wmap.n_t, self.fault.npatches)
-            #
-            # targetidxs = num.atleast_2d(num.arange(wmap.n_t)).T
-        else:
-            starttimes = starttimes0
-            targetidxs = num.lib.index_tricks.s_[:]
+            sf_patch_indexs = self.fault.cum_subfault_npatches[index:index + 1]
+            starttimes0[sf_patch_indexs:sf_patch_indexs + 1] = starttimes_tmp
 
-        # obsolete from variable obs data, patchidx = self.fault.patchmap(
-        #    index=0, dipidx=nuc_dip_idx, strikeidx=nuc_strike_idx)
         synth_traces = []
         obs_traces = []
         for wmap in self.wavemaps:
+            # station corrections
+            if len(self.hierarchicals) > 0:
+                logger.info('Applying station corrections ...')
+                starttimes = (
+                    num.tile(starttimes0, wmap.n_t) +
+                    num.repeat(self.hierarchicals[wmap.time_shifts_id][
+                        wmap.station_correction_idxs],
+                        self.fault.npatches)).reshape(
+                            wmap.n_t, self.fault.npatches)
+            else:
+                starttimes = starttimes0
+
+            # TODO check targetidxs if station blacklisted!?
+            targetidxs = num.atleast_2d(num.arange(wmap.n_t)).T
             synthetics = num.zeros(
                 (wmap.n_t, wmap.config.arrival_taper.nsamples(
                     self.config.gf_config.sample_rate)))
             for var in self.slip_varnames:
                 key = self.get_gflibrary_key(
                     crust_ind=ref_idx, wavename=wmap.name, component=var)
-
                 try:
                     gflibrary = self.gfs[key]
                 except KeyError:
