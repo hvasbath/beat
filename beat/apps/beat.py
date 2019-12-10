@@ -1745,7 +1745,7 @@ def command_export(args):
         args, options, nargs_dict[command_str])
 
     logger.info('Loading problem ...')
-    problem = load_model(project_dir, options.mode)
+    problem = load_model(project_dir, options.mode, hypers=False, build=False)
 
     sc = problem.config.sampler_config
 
@@ -1772,6 +1772,24 @@ def command_export(args):
          filename=pjoin(
              results_path, 'solution_{}.yaml'.format(options.post_llk)))
 
+    if options.mode == ffi_mode_str:
+        seismic = 'seismic'
+        if seismic in problem.config.problem_config.datatypes:
+            logger.info('Exporting finite rupture evolution to %s' % results_path)
+            comp = problem.composites[seismic]
+            target = comp.targets[0]
+            fault = comp.load_fault_geometry()
+            for index in range(fault.nsubfaults):
+                ffi_rupture_table_path = pjoin(
+                    results_path,
+                    'rupture_evolution_{}_{}.yaml'.format(options.post_llk, index))
+                rupture_evolution = fault.get_subfault_rupture_table(
+                    index=index, point=point, target=target,
+                    store=comp.engine.get_store(target.store_id))
+                dump(rupture_evolution, filename=ffi_rupture_table_path)
+        else:
+            logger.info('Rupture evolution only available for kinematic data.')
+
     for datatype, composite in problem.composites.items():
         logger.info(
             'Exporting "%s" synthetics for "%s" likelihood parameters:' % (
@@ -1780,11 +1798,10 @@ def command_export(args):
             logger.info('%s: %s' % (
                 varname, list2string(value.ravel().tolist())))
 
-        results = composite.assemble_results(point, chop_bounds=['b', 'c'])
+        # TODO make fit for geodetics (does not accept chop_bounds!)
         if datatype == 'seismic':
             from pyrocko import io
-
-
+            results = composite.assemble_results(point, chop_bounds=['b', 'c'])
             for traces, attribute in heart.results_for_export(
                     results, datatype=datatype):
 
@@ -1839,6 +1856,7 @@ def command_export(args):
                     savez(outname, **dcovs)
 
         elif datatype == 'geodetic':
+            results = composite.assemble_results(point)
             for ifgs, attribute in heart.results_for_export(
                     results, datatype=datatype):
                 pass

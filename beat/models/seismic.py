@@ -898,15 +898,15 @@ class SeismicDistributerComposite(SeismicComposite):
                 positions_strike=nuc_strike[index],
                 backend='theano')
 
-            sf_patch_indexs = self.fault.cum_subfault_npatches[index:index + 1]
+            sf_patch_indexs = self.fault.cum_subfault_npatches[index:index + 2]
             starttimes_tmp = self.sweeper(
-                (1. / input_rvs['velocities'][
-                      sf_patch_indexs:sf_patch_indexs + 1]),
+                (1. / self.fault.vector2subfault(
+                    index, input_rvs['velocities'])),
                 nuc_dip_idx, nuc_strike_idx)
 
             starttimes_tmp += input_rvs['time'][index]
             starttimes0 = tt.set_subtensor(
-                starttimes0[sf_patch_indexs:sf_patch_indexs + 1],
+                starttimes0[sf_patch_indexs[0]:sf_patch_indexs[1]],
                 starttimes_tmp)
 
         wlogpts = []
@@ -1005,8 +1005,8 @@ class SeismicDistributerComposite(SeismicComposite):
             starttimes_tmp = self.fault.point2starttimes(
                 tpoint, index=index).ravel()
 
-            sf_patch_indexs = self.fault.cum_subfault_npatches[index:index + 1]
-            starttimes0[sf_patch_indexs:sf_patch_indexs + 1] = starttimes_tmp
+            sf_patch_indexs = self.fault.cum_subfault_npatches[index:index + 2]
+            starttimes0[sf_patch_indexs[0]:sf_patch_indexs[1]] = starttimes_tmp
 
         synth_traces = []
         obs_traces = []

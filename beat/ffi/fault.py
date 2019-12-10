@@ -290,12 +290,16 @@ total number of patches: %i ''' % (
     def get_subfault_moment_rate_function(self, index, point, target, store):
 
         deltat = store.config.deltat
-        slips = num.sqrt(point['uparr'] ** 2 + point['uperp'] ** 2)
+        uparr = self.vector2subfault(index, point['uparr'])
+        uperp = self.vector2subfault(index, point['uperp'])
+        slips = num.sqrt(uparr ** 2 + uperp ** 2)
 
         starttimes = self.point2starttimes(point, index=index).ravel()
         tmax = (num.ceil(
             (starttimes.max() + point['durations'].max()) / deltat) + 1) * \
             deltat
+
+        durations = self.vector2subfault(index, point['durations'])
 
         mrf_times = num.arange(0., tmax, deltat)
         mrf_rates = num.zeros_like(mrf_times)
@@ -305,7 +309,7 @@ total number of patches: %i ''' % (
             store=store, target=target, datatype='seismic')
 
         patch_times, patch_amplitudes = self.get_subfault_patch_stfs(
-            index=index, durations=point['durations'], starttimes=starttimes,
+            index=index, durations=durations, starttimes=starttimes,
             store=store, target=target, datatype='seismic')
 
         for m, pt, pa in zip(moments, patch_times, patch_amplitudes):
@@ -314,6 +318,41 @@ total number of patches: %i ''' % (
             mrf_rates[slc] += tmoments
 
         return mrf_rates, mrf_times
+
+    def get_subfault_rupture_table(self, index, point, target, store):
+
+        deltat = store.config.deltat
+        uparr = self.vector2subfault(index, point['uparr'])
+        uperp = self.vector2subfault(index, point['uperp'])
+        slips = num.sqrt(uparr ** 2 + uperp ** 2)
+
+        starttimes = self.point2starttimes(point, index=index).ravel()
+        starttimes -= starttimes.min()
+        tmax = (num.ceil(
+            (starttimes.max() + point['durations'].max()) / deltat) + 1) * \
+               deltat
+
+        durations = self.vector2subfault(index, point['durations'])
+
+        srf_times = num.arange(0., tmax, deltat)
+        srf_slips = num.zeros((slips.size, srf_times.size))
+
+        patch_times, patch_amplitudes = self.get_subfault_patch_stfs(
+            index=index, durations=durations, starttimes=starttimes,
+            store=store, target=target, datatype='seismic')
+
+        for i, (slip, pt, pa) in enumerate(
+                zip(slips, patch_times, patch_amplitudes)):
+            tslips = pa * slip
+            slc = slice(int(pt.min() / deltat), int(pt.max() / deltat + 1))
+            srf_slips[i, slc] += tslips
+
+        from pyrocko import table
+        rate_function = table.Table()
+        sub_headers = tuple([str(time) for time in srf_times])
+
+        rate_function.add_col(('moment_rate', '', sub_headers), srf_slips)
+        return rate_function
 
     def get_patch_indexes(self, index):
         """
@@ -335,6 +374,10 @@ total number of patches: %i ''' % (
         return slice(self.cum_subfault_npatches[index],
                      self.cum_subfault_npatches[index + 1])
 
+    def vector2subfault(self, index, vector):
+        sf_patch_indexs = self.cum_subfault_npatches[index:index + 2]
+        return vector[sf_patch_indexs[0]:sf_patch_indexs[1] + 1]
+
     def point2starttimes(self, point, index=0):
         """
         Calculate starttimes for point in solution space for given subfault.
@@ -344,8 +387,7 @@ total number of patches: %i ''' % (
         nuc_strike = point['nucleation_strike'][index]
         time = point['time'][index]
 
-        sf_patch_indexs = self.cum_subfault_npatches[index:index + 1]
-        velocitieqqs = point['velocities'][sf_patch_indexs:sf_patch_indexs + 1]
+        velocities = self.vector2subfault(index, point['velocities'])
 
         nuc_dip_idx, nuc_strike_idx = self.fault_locations2idxs(
             index, positions_dip=nuc_dip,
