@@ -329,6 +329,15 @@ total number of patches: %i ''' % (
 
     def get_rupture_geometry(self, point, target, store):
 
+        def duplicate_property(array):
+            ndims = len(array.shape)
+            if ndims == 1:
+                return num.hstack((array, array))
+            elif ndims == 2:
+                return num.vstack((array, array))
+            else:
+                raise TypeError('Only 1-2d data supported!')
+
         deltat = store.config.deltat
         uparr = point['uparr']
         uperp = point['uperp']
@@ -363,8 +372,6 @@ total number of patches: %i ''' % (
             slc = slice(int(pt.min() / deltat), int(pt.max() / deltat + 1))
             srf_slips[i, slc] += tslips
 
-
-
         ncorners = 4
         verts = []
         for i, patch in enumerate(self.get_all_patches('seismic')):
@@ -373,19 +380,22 @@ total number of patches: %i ''' % (
             patchverts = num.hstack((latlon, xyz))
             verts.append(patchverts[:-1, :])  #  last vertex double
 
+        vertices = num.vstack(verts)
+
         faces1 = num.arange(ncorners * self.npatches, dtype='int64').reshape(
             self.npatches, ncorners)
         faces2 = num.fliplr(faces1)
         faces = num.vstack((faces1, faces2))
-        srf_slips = num.vstack((srf_slips, srf_slips))
 
-        vertices = num.vstack(verts)
+        srf_slips = duplicate_property(srf_slips)
+        slips = duplicate_property(slips)
 
         from pyrocko.model import Geometry
         geom = Geometry(times=srf_times)
         geom.setup(vertices, faces)
         sub_headers = tuple([str(i) for i in num.arange(srf_times.size)])
         geom.add_property((('slip', 'float64', sub_headers)), srf_slips)
+        geom.add_property((('cum_slip', 'float64')), slips)
         return geom
 
     def get_patch_indexes(self, index):
