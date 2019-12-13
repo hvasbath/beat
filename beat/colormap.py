@@ -3,9 +3,9 @@ Module for customized colormaps.
 """
 
 from matplotlib.colors import LinearSegmentedColormap
+from numpy import array
 
-
-def slip_colormap(nbins=64):
+def slip_colormap(nbins=64, return_numpy=False):
     """
     Colormap optimized for distributed Easrthquake-slip models.
     white-blue-green-yellow-orange-red
@@ -87,4 +87,7 @@ def slip_colormap(nbins=64):
         (0.611111111111111, 0, 0),
         (0.555555555555555, 0, 0),
         (0.500000000000000, 0, 0)]
-    return LinearSegmentedColormap.from_list(name, colors, N=nbins)
+    if return_numpy:
+        return array(colors)
+    else:
+        return LinearSegmentedColormap.from_list(name, colors, N=nbins)

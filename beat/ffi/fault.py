@@ -262,6 +262,8 @@ total number of patches: %i ''' % (
 
         Parameters
         ----------
+        index : list or int
+            of subfault(s) to request
         durations : list or array-like
             of slips on each fault patch
         store : string
@@ -275,15 +277,21 @@ total number of patches: %i ''' % (
         patch_times = []
         patch_amplitudes = []
 
-        for i, rs in enumerate(
-                self.get_subfault_patches(index=index, datatype=datatype)):
+        if isinstance(index, list):
+            pass
+        else:
+            index = [index]
 
-            rs.stf.duration = durations[i]
-            times, amplitudes = rs.stf.discretize_t(
-                store.config.deltat, starttimes[i])
+        for idx in index:
+            for i, rs in enumerate(
+                    self.get_subfault_patches(index=idx, datatype=datatype)):
 
-            patch_times.append(times)
-            patch_amplitudes.append(amplitudes)
+                rs.stf.duration = durations[i]
+                times, amplitudes = rs.stf.discretize_t(
+                    store.config.deltat, starttimes[i])
+
+                patch_times.append(times)
+                patch_amplitudes.append(amplitudes)
 
         return patch_times, patch_amplitudes
 
@@ -319,27 +327,35 @@ total number of patches: %i ''' % (
 
         return mrf_rates, mrf_times
 
-    def get_subfault_rupture_table(self, index, point, target, store):
+    def get_rupture_geometry(self, point, target, store):
 
         deltat = store.config.deltat
-        uparr = self.vector2subfault(index, point['uparr'])
-        uperp = self.vector2subfault(index, point['uperp'])
+        uparr = point['uparr']
+        uperp = point['uperp']
+        durations = point['durations']
+
         slips = num.sqrt(uparr ** 2 + uperp ** 2)
 
-        starttimes = self.point2starttimes(point, index=index).ravel()
+        sts = []
+        indexs = list(range(self.nsubfaults))
+        for index in indexs:
+            sts.append(self.point2starttimes(point, index=index).ravel())
+
+        starttimes = num.hstack(sts)
+
         starttimes -= starttimes.min()
         tmax = (num.ceil(
-            (starttimes.max() + point['durations'].max()) / deltat) + 1) * \
+            (starttimes.max() + durations.max()) / deltat) + 1) * \
                deltat
-
-        durations = self.vector2subfault(index, point['durations'])
 
         srf_times = num.arange(0., tmax, deltat)
         srf_slips = num.zeros((slips.size, srf_times.size))
 
         patch_times, patch_amplitudes = self.get_subfault_patch_stfs(
-            index=index, durations=durations, starttimes=starttimes,
+            index=indexs, durations=durations, starttimes=starttimes,
             store=store, target=target, datatype='seismic')
+
+        assert slips.size == len(patch_times)
 
         for i, (slip, pt, pa) in enumerate(
                 zip(slips, patch_times, patch_amplitudes)):
@@ -347,12 +363,30 @@ total number of patches: %i ''' % (
             slc = slice(int(pt.min() / deltat), int(pt.max() / deltat + 1))
             srf_slips[i, slc] += tslips
 
-        from pyrocko import table
-        rate_function = table.Table()
-        sub_headers = tuple([str(time) for time in srf_times])
 
-        rate_function.add_col(('moment_rate', '', sub_headers), srf_slips)
-        return rate_function
+
+        ncorners = 4
+        verts = []
+        for i, patch in enumerate(self.get_all_patches('seismic')):
+            xyz = patch.outline()
+            latlon = patch.outline('latlon')
+            patchverts = num.hstack((latlon, xyz))
+            verts.append(patchverts[:-1, :])  #  last vertex double
+
+        faces1 = num.arange(ncorners * self.npatches, dtype='int64').reshape(
+            self.npatches, ncorners)
+        faces2 = num.fliplr(faces1)
+        faces = num.vstack((faces1, faces2))
+        srf_slips = num.vstack((srf_slips, srf_slips))
+
+        vertices = num.vstack(verts)
+
+        from pyrocko.model import Geometry
+        geom = Geometry(times=srf_times)
+        geom.setup(vertices, faces)
+        sub_headers = tuple([str(i) for i in num.arange(srf_times.size)])
+        geom.add_property((('slip', 'float64', sub_headers)), srf_slips)
+        return geom
 
     def get_patch_indexes(self, index):
         """

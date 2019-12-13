@@ -1775,18 +1775,18 @@ def command_export(args):
     if options.mode == ffi_mode_str:
         seismic = 'seismic'
         if seismic in problem.config.problem_config.datatypes:
-            logger.info('Exporting finite rupture evolution to %s' % results_path)
             comp = problem.composites[seismic]
             target = comp.targets[0]
             fault = comp.load_fault_geometry()
-            for index in range(fault.nsubfaults):
-                ffi_rupture_table_path = pjoin(
-                    results_path,
-                    'rupture_evolution_{}_{}.yaml'.format(options.post_llk, index))
-                rupture_evolution = fault.get_subfault_rupture_table(
-                    index=index, point=point, target=target,
-                    store=comp.engine.get_store(target.store_id))
-                dump(rupture_evolution, filename=ffi_rupture_table_path)
+            ffi_rupture_table_path = pjoin(
+                results_path,
+                'rupture_evolution_{}.yaml'.format(options.post_llk))
+            logger.info('Exporting finite rupture evolution'
+                        ' to %s' % ffi_rupture_table_path)
+            geom = fault.get_rupture_geometry(
+                point=point, target=target,
+                store=comp.engine.get_store(target.store_id))
+            dump(geom, filename=ffi_rupture_table_path)
         else:
             logger.info('Rupture evolution only available for kinematic data.')
 
