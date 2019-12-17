@@ -327,7 +327,7 @@ total number of patches: %i ''' % (
 
         return mrf_rates, mrf_times
 
-    def get_rupture_geometry(self, point, target, store):
+    def get_rupture_geometry(self, point, target, store, event=None):
 
         def duplicate_property(array):
             ndims = len(array.shape)
@@ -337,6 +337,19 @@ total number of patches: %i ''' % (
                 return num.vstack((array, array))
             else:
                 raise TypeError('Only 1-2d data supported!')
+
+        def patches2vertices(patches):
+            verts = []
+            for patch in patches:
+                patch.anchor = 'top'
+                xyz = patch.outline()
+                print(xyz)
+                latlon = patch.outline('latlon')
+                patchverts = num.hstack((latlon, xyz))
+                verts.append(patchverts[:-1, :])  # last vertex double
+
+            return num.vstack(verts)
+
 
         deltat = store.config.deltat
         uparr = point['uparr']
@@ -351,7 +364,7 @@ total number of patches: %i ''' % (
             sts.append(self.point2starttimes(point, index=index).ravel())
 
         starttimes = num.hstack(sts)
-
+        # TODO make again relative to event time
         starttimes -= starttimes.min()
         tmax = (num.ceil(
             (starttimes.max() + durations.max()) / deltat) + 1) * \
@@ -373,14 +386,12 @@ total number of patches: %i ''' % (
             srf_slips[i, slc] += tslips
 
         ncorners = 4
-        verts = []
-        for i, patch in enumerate(self.get_all_patches('seismic')):
-            xyz = patch.outline()
-            latlon = patch.outline('latlon')
-            patchverts = num.hstack((latlon, xyz))
-            verts.append(patchverts[:-1, :])  #  last vertex double
 
-        vertices = num.vstack(verts)
+        vertices = patches2vertices(self.get_all_patches('seismic'))
+        outlines = []
+        for sf in self.iter_subfaults():
+            print(sf, sf.anchor)
+            outlines.append(patches2vertices([sf]))
 
         faces1 = num.arange(ncorners * self.npatches, dtype='int64').reshape(
             self.npatches, ncorners)
@@ -391,8 +402,8 @@ total number of patches: %i ''' % (
         slips = duplicate_property(slips)
 
         from pyrocko.model import Geometry
-        geom = Geometry(times=srf_times)
-        geom.setup(vertices, faces)
+        geom = Geometry(times=srf_times, event=event)
+        geom.setup(vertices, faces, outlines=outlines)
         sub_headers = tuple([str(i) for i in num.arange(srf_times.size)])
         geom.add_property((('slip', 'float64', sub_headers)), srf_slips)
         geom.add_property((('cum_slip', 'float64')), slips)

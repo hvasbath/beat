@@ -1785,7 +1785,8 @@ def command_export(args):
                         ' to %s' % ffi_rupture_table_path)
             geom = fault.get_rupture_geometry(
                 point=point, target=target,
-                store=comp.engine.get_store(target.store_id))
+                store=comp.engine.get_store(target.store_id),
+                event=problem.event)
             dump(geom, filename=ffi_rupture_table_path)
         else:
             logger.info('Rupture evolution only available for kinematic data.')

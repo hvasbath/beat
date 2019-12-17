@@ -1563,7 +1563,7 @@ def init_reference_sources(
         # maybe future if several meshtypes
         stf = stf_catalog[stf_type](anchor=-1)
         if isdict:
-            rf = RectangularSource(stf=stf)
+            rf = RectangularSource(stf=stf, anchor='top')
             utility.update_source(rf, **source_points[i])
         else:
             kwargs = {}
