@@ -535,8 +535,14 @@ class Parameter(Object):
         if dimension is None:
             dimension = self.dimension
 
-        return (self.upper - self.lower) * num.random.rand(
-            dimension) + self.lower
+        try:
+            return (self.upper - self.lower) * num.random.rand(
+                dimension) + self.lower
+        except ValueError:
+            raise ValueError(
+                'Either use number of patches input vector size for variable {}'
+                ' or only [1]]! Now the size is {}!'.format(
+                    self.name, self.lower.size))
 
     @property
     def dimension(self):
