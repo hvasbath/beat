@@ -33,6 +33,7 @@ class LaplacianDistributerComposite(Composite):
 
         self.config = config
         self._mode = 'ffi'
+        self.name = 'laplacian'
 
         # dummy for hyperparam name
         self.hyperparams[bconfig.hyper_name_laplacian] = None

@@ -431,7 +431,7 @@ total number of patches: %i ''' % (
 
     def vector2subfault(self, index, vector):
         sf_patch_indexs = self.cum_subfault_npatches[index:index + 2]
-        return vector[sf_patch_indexs[0]:sf_patch_indexs[1] + 1]
+        return vector[sf_patch_indexs[0]:sf_patch_indexs[1]]
 
     def point2starttimes(self, point, index=0):
         """

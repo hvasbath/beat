@@ -899,7 +899,7 @@ class SeismicDistributerComposite(SeismicComposite):
                 backend='theano')
 
             sf_patch_indexs = self.fault.cum_subfault_npatches[index:index + 2]
-            starttimes_tmp = self.sweeper(
+            starttimes_tmp = self.sweepers[index](
                 (1. / self.fault.vector2subfault(
                     index, input_rvs['velocities'])),
                 nuc_dip_idx, nuc_strike_idx)
@@ -919,7 +919,7 @@ class SeismicDistributerComposite(SeismicComposite):
                     tt.repeat(self.hierarchicals[wmap.time_shifts_id][
                         wmap.station_correction_idxs],
                         self.fault.npatches)).reshape(
-                            wmap.n_t, self.fault.npatches)
+                            (wmap.n_t, self.fault.npatches))
             else:
                 starttimes = starttimes0
 
@@ -1013,10 +1013,10 @@ class SeismicDistributerComposite(SeismicComposite):
         for wmap in self.wavemaps:
             # station corrections
             if len(self.hierarchicals) > 0:
-                logger.info('Applying station corrections ...')
+                logger.info('Applying station corrections for wmap {}'.format(wmap.name))
                 starttimes = (
                     num.tile(starttimes0, wmap.n_t) +
-                    num.repeat(self.hierarchicals[wmap.time_shifts_id][
+                    num.repeat(point[wmap.time_shifts_id][
                         wmap.station_correction_idxs],
                         self.fault.npatches)).reshape(
                             wmap.n_t, self.fault.npatches)
@@ -1037,15 +1037,18 @@ class SeismicDistributerComposite(SeismicComposite):
                     raise KeyError(
                         'GF library %s not loaded! Loaded GFs:'
                         ' %s' % (key, utility.list2string(self.gfs.keys())))
-
+                from time import time
                 gflibrary.set_stack_mode('numpy')
-
+                print('before stacking')
+                t0=time()
                 synthetics += gflibrary.stack_all(
                     targetidxs=targetidxs,
                     starttimes=starttimes,
                     durations=tpoint['durations'],
                     slips=tpoint[var],
                     interpolation=wmap.config.interpolation)
+                t1=time()
+                print('{} seconds to stack {}'.format((t1 - t0), wmap.name))
 
             wmap_synthetics = []
             for i, target in enumerate(wmap.targets):

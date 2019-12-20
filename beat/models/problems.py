@@ -435,7 +435,8 @@ class Problem(object):
         Update composites in problem object with given composites.
         """
         for composite in problem.composites.values():
-            self.composites[composite.name].apply(composite)
+            if hasattr(composite.weights):
+                self.composites[composite.name].apply(composite)
 
     def point2sources(self, point):
         """

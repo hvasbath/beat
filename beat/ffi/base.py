@@ -1059,7 +1059,7 @@ def seis_construct_gf_linear(
         npw, npl = fault.ordering.get_subfault_discretization(idx)
         start_times = fault.get_subfault_starttimes(
             index=idx,
-            rupture_velocities=velocities_prior.lower[idx].repeat(npw * npl),
+            rupture_velocities=velocities_prior.lower.repeat(npw * npl),
             nuc_dip_idx=0, nuc_strike_idx=0)
         st_mins.append(start_times.min())
         st_maxs.append(start_times.max())
