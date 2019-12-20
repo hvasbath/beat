@@ -473,8 +473,8 @@ def smc_sample(
             if step.beta > 1.:
                 logger.info('Beta > 1.: %f' % step.beta)
                 step.beta = 1.
-                outparam_list = [step.get_sampler_state(), update.get_weights()]
-                stage_handler.dump_atmip_params(step.stage, outparam_list)
+                save_sampler_state(step, update, stage_handler)
+
                 if stage == -1:
                     chains = []
                 else:
@@ -487,9 +487,7 @@ def smc_sample(
                 step.chain_previous_lpoint = \
                     step.get_chain_previous_lpoint(mtrace)
 
-                logger.info('Saving sampler state ...')
-                outparam_list = [step.get_sampler_state(), update]
-                stage_handler.dump_atmip_params(step.stage, outparam_list)
+                save_sampler_state(step, update, stage_handler)
 
                 step.stage += 1
                 del(mtrace)
@@ -515,9 +513,14 @@ def smc_sample(
         sample_args['chains'] = chains
         iter_parallel_chains(**sample_args)
 
-        outparam_list = [step.get_sampler_state(), update]
-        stage_handler.dump_atmip_params(step.stage, outparam_list)
+        save_sampler_state(step, update, stage_handler)
         logger.info('Finished sampling!')
+
+
+def save_sampler_state(step, update, stage_handler):
+    logger.info('Saving sampler state ...')
+    outparam_list = [step.get_sampler_state(), update.get_weights()]
+    stage_handler.dump_atmip_params(step.stage, outparam_list)
 
 
 def tune(acc_rate):
