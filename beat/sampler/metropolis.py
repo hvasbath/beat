@@ -129,6 +129,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
         # create initial population
         self.population = []
         self.array_population = num.zeros(n_chains)
+        logger.info('Creating initial population for {} chains ...'.format(self.n_chains))
         for i in range(self.n_chains):
             self.population.append(
                 Point({v.name: v.random() for v in vars}, model=model))
