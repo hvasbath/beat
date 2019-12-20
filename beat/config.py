@@ -1010,6 +1010,8 @@ class ProblemConfig(Object):
                     'Prior for variable %s does not exist!'
                     ' Bounds not updated!' % variable)
 
+        setattr(self, attribute, upd_dict)
+
     def select_variables(self):
         """
         Return model variables depending on problem config.

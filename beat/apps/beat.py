@@ -470,7 +470,7 @@ def command_import(args):
             'Attempting to load results with mode %s from directory:'
             ' %s' % (options.mode, options.results))
         c = bconfig.load_config(project_dir, 'ffi')
-
+        
         _, ending = os.path.splitext(options.results)
 
         if not ending:
@@ -526,7 +526,7 @@ def command_import(args):
                         logger.warning(
                             'Correction %s was fixed in previous run!'
                             ' Importing fixed values!' % var)
-                        tpoint = c.problem_config.get_test_point()
+                        tpoint = problem.config.problem_config.get_test_point()
                         new_bounds[var] = (tpoint[var], tpoint[var])
 
                 c.problem_config.set_vars(
