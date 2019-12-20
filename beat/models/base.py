@@ -78,18 +78,18 @@ class Composite(object):
         llk = Deterministic(self._like_name, logpts)
         return llk.sum()
 
-    def apply(self, composite):
+    def apply(self, weights):
         """
         Update composite weight matrixes (in place) with weights in given
         composite.
 
         Parameters
         ----------
-        composite : :class:`Composite`
+        list : of Theano shared variables
             containing weight matrixes to use for updates
         """
 
-        for i, weight in enumerate(composite.weights):
+        for i, weight in enumerate(weights):
             A = weight.get_value(borrow=True)
             self.weights[i].set_value(A)
 

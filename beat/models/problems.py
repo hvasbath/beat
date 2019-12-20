@@ -430,13 +430,13 @@ class Problem(object):
         for composite in self.composites.values():
             composite.update_llks(point)
 
-    def apply(self, problem):
+    def apply(self, weights_dict):
         """
         Update composites in problem object with given composites.
         """
-        for composite in problem.composites.values():
-            if hasattr(composite.weights):
-                self.composites[composite.name].apply(composite)
+        for comp_name, weights in weights_dict.items():
+            if comp_name in self.composites:
+                self.composites[comp_name].apply(weights)
 
     def point2sources(self, point):
         """
@@ -470,6 +470,17 @@ class Problem(object):
         for composite in self.composites.values():
             if hasattr(composite, 'update_weights'):
                 composite.update_weights(point, n_jobs=n_jobs)
+
+    def get_weights(self):
+        """
+        Assemble weights of problem composites in dict for saving.
+        """
+        outd = {}
+        for dataset in self.config.problem_config.datasets:
+            if dataset in self.composites.keys():
+                outd[dataset] = self.composites[dataset].weights
+
+        return outd
 
     def get_synthetics(self, point, **kwargs):
         """

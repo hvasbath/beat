@@ -473,7 +473,7 @@ def smc_sample(
             if step.beta > 1.:
                 logger.info('Beta > 1.: %f' % step.beta)
                 step.beta = 1.
-                outparam_list = [step.get_sampler_state(), update]
+                outparam_list = [step.get_sampler_state(), update.get_weights()]
                 stage_handler.dump_atmip_params(step.stage, outparam_list)
                 if stage == -1:
                     chains = []
