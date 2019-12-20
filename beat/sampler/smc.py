@@ -487,6 +487,7 @@ def smc_sample(
                 step.chain_previous_lpoint = \
                     step.get_chain_previous_lpoint(mtrace)
 
+                logger.info('Saving sampler state ...')
                 outparam_list = [step.get_sampler_state(), update]
                 stage_handler.dump_atmip_params(step.stage, outparam_list)
 
