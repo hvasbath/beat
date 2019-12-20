@@ -476,9 +476,9 @@ class Problem(object):
         Assemble weights of problem composites in dict for saving.
         """
         outd = {}
-        for dataset in self.config.problem_config.datasets:
-            if dataset in self.composites.keys():
-                outd[dataset] = self.composites[dataset].weights
+        for datatype in self.config.problem_config.datatypes:
+            if datatype in self.composites.keys():
+                outd[datatype] = self.composites[datatype].weights
 
         return outd
 
