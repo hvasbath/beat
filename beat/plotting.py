@@ -3228,8 +3228,7 @@ def fault_slip_distribution(
                     'nucleation_strike', combine=True, squeeze=True))
                 velocities = transform(mtrace.get_values(
                     'velocities', combine=True, squeeze=True))
-
-                nchains = nuc_dip.size
+                nchains = len(mtrace)
                 csteps = 6
                 rupture_fronts = []
                 dummy_fig, dummy_ax = plt.subplots(
@@ -3241,11 +3240,14 @@ def fault_slip_distribution(
                 for i in tqdm(idxs):
                     nuc_dip_idx, nuc_strike_idx = fault.fault_locations2idxs(
                         ns, nuc_dip[i], nuc_strike[i], backend='numpy')
-                    velocities = fault.vector2subfault(
+                    print(nuc_dip_idx, nuc_strike_idx, nuc_strike[i], nuc_dip[i])
+                    veloc_ns = fault.vector2subfault(
                         index=ns, vector=velocities[i, :])
                     sts = fault.get_subfault_starttimes(
-                        ns, velocities, nuc_dip_idx, nuc_strike_idx)
-
+                        ns, veloc_ns, nuc_dip_idx[ns], nuc_strike_idx[ns])
+                    
+                    xgr = xgr.reshape(sts.shape)
+                    ygr = ygr.reshape(sts.shape)
                     contours = dummy_ax.contour(xgr, ygr, sts)
                     rupture_fronts.append(contours.allsegs)
 
@@ -3262,8 +3264,7 @@ def fault_slip_distribution(
             fig2, ax2 = plt.subplots(
                 nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
 
-            reference_durations = fault.vector2subfault(
-                ns, reference['durations'])
+            reference_durations = reference['durations'][patch_idxs]
 
             pa_col2 = draw_patches(
                 ax2, fault, subfault_idx=ns, patch_values=reference_durations,
@@ -3291,18 +3292,16 @@ def fault_slip_distribution(
             uperp = get_values_from_trace(
                 mtrace, 'uperp', reference)[:, patch_idxs]
 
-            uparrmean = fault.point2starttimes(ns, uparr.mean(axis=0))
-            uperpmean = fault.point2starttimes(ns, uperp.mean(axis=0))
+            uparrmean = uparr.mean(axis=0)
+            uperpmean = uperp.mean(axis=0)
 
             quivers, normalisation = draw_quivers(
                 ax, uperpmean, uparrmean, xgr, ygr,
                 ext_source.rake, color='grey',
                 draw_legend=False)
 
-            uparrstd = fault.point2starttimes(
-                ns, uparr.std(axis=0)) / normalisation
-            uperpstd = fault.point2starttimes(
-                ns, uperp.std(axis=0)) / normalisation
+            uparrstd = uparr.std(axis=0) / normalisation
+            uperpstd = uperp.std(axis=0) / normalisation
 
             slipvecrotmat = mt.euler_to_matrix(
                 0.0, 0.0, ext_source.rake * mt.d2r)
@@ -3322,8 +3321,8 @@ def fault_slip_distribution(
         else:
             normalisation = None
 
-        uperp = fault.point2starttimes(ns, reference['uperp'][patch_idxs])
-        uparr = fault.point2starttimes(ns, reference['uparr'][patch_idxs])
+        uperp = reference['uperp'][patch_idxs]
+        uparr = reference['uparr'][patch_idxs]
 
         logger.info('Drawing slip vectors ...')
         draw_quivers(
