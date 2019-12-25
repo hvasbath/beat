@@ -1063,10 +1063,13 @@ def seis_construct_gf_linear(
             rupture_velocities=velocities_prior.lower.repeat(npw * npl),
             nuc_dip_idx=0, nuc_strike_idx=0)
         if time_shift is not None:
-            start_times += time_shift.lower.min()
+            shift_times_min = time_shift.lower.min()
+            shift_times_max = time_shift.upper.max()
+        else:
+            shift_times_min = shift_times_max = 0.
 
-        st_mins.append(start_times.min())
-        st_maxs.append(start_times.max())
+        st_mins.append(start_times.min() + shift_times_min)
+        st_maxs.append(start_times.max() + shift_times_max)
 
     starttimeidxs = num.arange(
         int(num.floor(
