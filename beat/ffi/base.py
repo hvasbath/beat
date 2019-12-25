@@ -1014,7 +1014,7 @@ def _process_patch_seismic(
 def seis_construct_gf_linear(
         engine, fault,
         durations_prior, velocities_prior, nucleation_time_prior,
-        varnames, wavemap, event, nworkers=1,
+        varnames, wavemap, event, nworkers=1, time_shift=None,
         starttime_sampling=1., duration_sampling=1.,
         sample_rate=1., outdirectory='./', force=False):
     """
@@ -1045,6 +1045,7 @@ def seis_construct_gf_linear(
     sample_rate : float
         sample rate of synthetic traces to produce,
         related to non-linear GF store
+    time_shift : hierarchical parameter or None
     outpath : str
         directory for storage
     force : boolean
@@ -1061,6 +1062,9 @@ def seis_construct_gf_linear(
             index=idx,
             rupture_velocities=velocities_prior.lower.repeat(npw * npl),
             nuc_dip_idx=0, nuc_strike_idx=0)
+        if time_shift is not None:
+            start_times += time_shift.lower.min()
+
         st_mins.append(start_times.min())
         st_maxs.append(start_times.max())
 

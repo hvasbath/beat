@@ -1244,6 +1244,11 @@ def command_build_gfs(args):
                     pc = c.problem_config
                     logger.info('using %i workers ...' % gf.nworkers)
 
+                    if 'time_shift' in pc.hierarchicals:
+                        time_shift = pc.hierarchicals['time_shift']
+                    else:
+                        time_shift = None
+
                     engine = LocalEngine(store_superdirs=[gf.store_superdir])
 
                     for crust_ind in range(*gf.n_variations):
@@ -1268,6 +1273,7 @@ def command_build_gfs(args):
                                 varnames=slip_varnames,
                                 wavemap=wmap,
                                 event=c.event,
+                                time_shift=time_shift,
                                 nworkers=gf.nworkers,
                                 starttime_sampling=gf.starttime_sampling,
                                 duration_sampling=gf.duration_sampling,
