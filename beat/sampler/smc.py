@@ -519,7 +519,12 @@ def smc_sample(
 
 def save_sampler_state(step, update, stage_handler):
     logger.info('Saving sampler state ...')
-    outparam_list = [step.get_sampler_state(), update.get_weights()]
+    if update is not None:
+        weights = update.get_weights()
+    else:
+        weights = None
+
+    outparam_list = [step.get_sampler_state(), weights]
     stage_handler.dump_atmip_params(step.stage, outparam_list)
 
 
