@@ -177,8 +177,8 @@ default_bounds = dict(
     hypers=(-20., 20.),
     ramp=(-0.005, 0.005),
     offset=(-0.05, 0.05),
-    pole_lat=(30., 30.5),
-    pole_lon=(30., 30.5),
+    lat=(30., 30.5),
+    lon=(30., 30.5),
     omega=(0.5, 0.6))
 
 default_seis_std = 1.e-6

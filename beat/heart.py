@@ -449,8 +449,8 @@ physical_bounds = dict(
 
     ramp=(-0.01, 0.01),
     offset=(-1.0, 1.0),
-    pole_lat=(-90., 90.),
-    pole_lon=(-180., 180.),
+    lat=(-90., 90.),
+    lon=(-180., 180.),
     omega=(-3., 3.))
 
 

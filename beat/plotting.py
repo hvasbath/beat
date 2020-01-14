@@ -48,6 +48,7 @@ u_nm = '$[Nm]$'
 u_km = '$[km]$'
 u_km_s = '$[km/s]$'
 u_deg = '$[^{\circ}]$'
+u_deg_myr = '$[^{\circ} / myr]$'
 u_m = '$[m]$'
 u_v = '$[m^3]$'
 u_s = '$[s]$'
@@ -98,6 +99,10 @@ plot_units = {
     'mnd': u_nm,
     'med': u_nm,
     'magnitude': u_hyp,
+
+    'pole_lat': u_deg,
+    'pole_lon': u_deg,
+    'omega': u_deg_myr,
 
     'u': u_rad,
     'v': u_rad,

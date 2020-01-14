@@ -1026,9 +1026,9 @@ def optimize_discretization(
         logger.info('Discretizing %ith generation \n' % generation)
         gfs_array = []
         subfault_npatches = copy.deepcopy(fault.subfault_npatches)
-        source_geometry(
-            fault, list(fault.iter_subfaults()),
-            event=event, datasets=datasets)
+        # source_geometry(
+        #    fault, list(fault.iter_subfaults()),
+        #    event=event, datasets=datasets)
         for gfs_i, component in enumerate(varnames):
             logger.info('Component %s' % component)
 
@@ -1199,6 +1199,9 @@ def optimize_discretization(
             print('A', area_pen)
             rating = area_pen * c_one_pen * c_two_pen * c_three_pen
             print('rating', rating)
+            rating.sort()
+            rating_sort = num.array(rating[::-1])
+            print('rating sort', rating_sort)
             rating_idxs = num.array(rating.argsort()[::-1])
             print('rating argsorted', rating_idxs)
             print('uids', uids)
