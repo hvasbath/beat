@@ -3712,7 +3712,8 @@ def draw_moment_rate(problem, po):
             logger.info('Plot exists! Use --force to overwrite!')
 
 
-def source_geometry(fault, ref_sources, event, datasets=None):
+def source_geometry(fault, ref_sources, event, datasets=None, values=None,
+                    cmap=None, title=None, show=True):
     """
     Plot source geometry in 3d rotatable view
 
@@ -3725,6 +3726,7 @@ def source_geometry(fault, ref_sources, event, datasets=None):
 
     from mpl_toolkits.mplot3d import Axes3D
     from beat.utility import RS_center
+    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
     alpha = 0.7
 
     def plot_subfault(ax, source, color, refloc):
@@ -3779,27 +3781,46 @@ def source_geometry(fault, ref_sources, event, datasets=None):
     fig = plt.figure(figsize=mpl_papersize('a4', 'landscape'))
     ax = fig.add_subplot(111, projection='3d')
     extfs = fault.get_all_subfaults()
+
+    arr_coords = []
     for idx, (refs, exts) in enumerate(zip(ref_sources, extfs)):
 
         plot_subfault(ax, exts, color=mpl_graph_color(idx), refloc=event)
         plot_subfault(ax, refs, color=scolor('aluminium4'), refloc=event)
-
         for i, patch in enumerate(fault.get_subfault_patches(idx)):
             coords = patch.outline()
             shift_ne = otd.latlon_to_ne(
                 event.lat, event.lon, patch.lat, patch.lon)
             coords[:, 0:2] += shift_ne
+            coords[:, 2] *= -1.
+            coords[:, [0, 1]] = coords[:, [1, 0]]  # swap columns to [E, N, Z] (X, Y, Z)
+            arr_coords.append(coords)
             ax.plot(
-                coords[:, 1], coords[:, 0], coords[:, 2] * -1.,
+                coords[:, 0], coords[:, 1], coords[:, 2], zorder=2,
                 color=mpl_graph_color(idx), linewidth=0.5, alpha=alpha)
             ax.text(
                 patch.east_shift + shift_ne[1],
                 patch.north_shift + shift_ne[0], patch.center[2] * -1.,
-                str(i + fault.cum_subfault_npatches[idx]),
+                str(i + fault.cum_subfault_npatches[idx]), zorder=3,
                 fontsize=10)
+
+    if values is not None:
+
+        if cmap is None:
+            cmap = plt.cm.get_cmap('jet')
+
+        poly_patches = Poly3DCollection(
+            verts=arr_coords, zorder=1, cmap=cmap)
+        poly_patches.set_array(values)
+        poly_patches.set_clim(values.min(), values.max())
+        poly_patches.set_alpha(0.6)
+        poly_patches.set_edgecolor('k')
+        ax.add_collection(poly_patches)
+        plt.colorbar(poly_patches)
 
     if datasets:
         for dataset in datasets:
+            #print(dataset.east_shifts, dataset.north_shifts)
             ax.scatter(
                 dataset.east_shifts, dataset.north_shifts, dataset.coords5[:, 4],
                 s=10, alpha=0.6, marker='o', color='black')
@@ -3813,7 +3834,11 @@ def source_geometry(fault, ref_sources, event, datasets=None):
     ax.set_xlabel('East_shift [km]')
     ax.set_aspect('equal')
     set_axes_equal(ax, axes='xy')
-    plt.show()
+    if title is not None:
+        ax.set_title(title)
+
+    if show:
+        plt.show()
 
 
 def draw_station_map(problem, po):

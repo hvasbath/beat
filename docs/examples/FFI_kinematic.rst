@@ -208,7 +208,7 @@ Like for the geodetic GFs this will create three files for each GF *library* in 
 
 For visual inspection of the resulting seismic traces in the **snuffler** waveform browser::
 
-    beat check Laquila_kinematic --what='library' --datatypes='seismic' --mode='ffi'
+  beat check Laquila_kinematic --what='library' --datatypes='seismic' --mode='ffi'
 
 This will load the seismic traces for the first station (target), for all patches, durations and starttimes.
 
@@ -223,7 +223,7 @@ Please refer to the 'Sample the solution space section' of `Example 3 <https://h
 
 Firstly, we only optimize for the noise scaling or hyperparameters (HPs) including the laplacian smoothing weight::
 
-   beat sample Laquila_kinematic --hypers --mode=ffi
+  beat sample Laquila_kinematic --hypers --mode=ffi
 
 Checking the $project_directory/config_ffi.yaml, the hyperparameter bounds show something like::
 
@@ -312,3 +312,21 @@ For the fuzzy moment rate function::
   :scale: 40 %
 
 Here the MAP moment rate function is displayed by the black solid line.
+
+
+Animation
+^^^^^^^^^
+In the development version of beat the command::
+
+  beat export Laquila_kinematic --mode=ffi
+
+Will also export a file: "rupture_evolution_max.yaml" to $project_directory/ffi/results
+This can be loaded into the GeometryElement of the Sparrow, which is also under development but a first introduction is given `here <https://pyrocko.org/news/2020-01-16.html>`__.
+
+An animation of the MAP result of the rupture within the Sparrow then looks like this. Each second in the video after the rupture starts, is also a second in the rupture propagation.:
+
+.. raw:: html
+
+    <video controls style="width: 100%;">Your browser does not support the &lt;video&gt; tag.
+    <source src="http://data.pyrocko.org/media/Laquila_rupture_zoom.mp4" />
+    </video>

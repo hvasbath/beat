@@ -1,5 +1,5 @@
 from beat.utility import list2string, positions2idxs, kmtypes, split_off_list, \
-                         Counter
+                         Counter, mod_i
 from beat.fast_sweeping import fast_sweep
 
 from beat.config import ResolutionDiscretizationConfig, \
@@ -20,6 +20,7 @@ import numpy as num
 from scipy.linalg import block_diag
 
 from theano import shared
+from matplotlib import pyplot as plt
 
 
 logger = getLogger('ffi.fault')
@@ -765,7 +766,7 @@ def initialise_fault_geometry(
         npls.append(
             ext_source.get_n_patches(patch_length_m, 'length'))
 
-        if extension_lengths[i] == 0.:
+        if extension_lengths[i] == 0. and 'seismic' in datatypes:
             patch_length = ext_source.length / npls[i] / km
             patch_widths[i] = patch_length
             patch_lengths[i] = patch_length
@@ -945,12 +946,15 @@ def get_division_mapping(patch_idxs, div_idxs, subfault_npatches):
 
 def optimize_discretization(
         config, fault, datasets, varnames, crust_ind,
-        engine, targets, event, force, nworkers, plot=False):
+        engine, targets, event, force, nworkers, plot=False, debug=False):
     """
     Resolution based discretization of the fault surfaces based on:
     Atzori & Antonioli 2011:
         Optimal fault resolution in geodetic inversion of coseismic data
-    :return:
+
+    Parameters
+    ----------
+    config : :class: `config.DiscretizationConfig`
     """
     from beat.plotting import source_geometry
     from numpy.testing import assert_array_equal
@@ -978,23 +982,27 @@ def optimize_discretization(
 
     datatype = 'geodetic'
 
-    east_shifts = []
-    north_shifts = []
+    data_east_shifts = []
+    data_north_shifts = []
     for dataset in datasets:
+        print('DSES', dataset.east_shifts)
         ns, es = dataset.update_local_coords(event)
-        north_shifts.append(ns / km)
-        east_shifts.append(es / km)
+        print('NS,ES', ns.shape, es.shape)
+        data_north_shifts.append(ns / km)
+        data_east_shifts.append(es / km)
 
     data_coords = num.vstack(
-        [num.hstack(east_shifts), num.hstack(north_shifts)]).T
+        [num.hstack(data_east_shifts), num.hstack(data_north_shifts)]).T
+    print('data coords shape', data_coords.shape)
+    #print(data_coords)
 
     patch_widths, patch_lengths = config.get_patch_dimensions()
     gfs_comp = []
     for component in varnames:
         for index, sf in enumerate(
                 fault.iter_subfaults(datatype, component)):
-            npw = sf.get_n_patches(patch_widths[index] * km, 'width')
-            npl = sf.get_n_patches(patch_lengths[index] * km, 'length')
+            npw = sf.get_n_patches(2 * patch_widths[index] * km, 'width')
+            npl = sf.get_n_patches(2 * patch_lengths[index] * km, 'length')
             patches = sf.patches(
                 nl=npl, nw=npw, datatype=datatype)
             fault.set_subfault_patches(index, patches, datatype, component)
@@ -1022,13 +1030,16 @@ def optimize_discretization(
                 fault.cum_subfault_npatches[i]).tolist())
 
     generation = 0
+    R = None
     while tobedivided:
         logger.info('Discretizing %ith generation \n' % generation)
         gfs_array = []
         subfault_npatches = copy.deepcopy(fault.subfault_npatches)
-        # source_geometry(
-        #    fault, list(fault.iter_subfaults()),
-        #    event=event, datasets=datasets)
+        if debug:
+            source_geometry(
+                fault, list(fault.iter_subfaults()),
+                event=event, datasets=datasets, values=R, title='Resolution')
+
         for gfs_i, component in enumerate(varnames):
             logger.info('Component %s' % component)
 
@@ -1063,18 +1074,33 @@ def optimize_discretization(
                 engine=engine, datasets=datasets, targets=targets,
                 patches=all_divided_patches, nworkers=nworkers)
             old_gfs = gfs_comp[gfs_i]
-            print('Old gfs shape', old_gfs.shape)
+            print('Old gfs shape', old_gfs.shape, 'new_gfs_shape', gfs.shape)
             # assemble new generation of discretization
             new_npatches_total = new_subfault_npatches.sum()
             new_gfs = num.zeros((new_npatches_total, gfs.shape[1]))
+            print('joined gfs shape', new_gfs.shape)
             new_patches = [None] * new_npatches_total
             logger.info('Next generation npatches %i' % new_npatches_total)
             for idx_mapping, tpatches, tgfs in [
                 (old2new, old_patches, old_gfs),
                 (div2new, all_divided_patches, gfs)]:
+                print('gfs', tgfs[:, 0:5])
                 for patch_idx, new_idx in idx_mapping.items():
+                    print('old, new idx', patch_idx, new_idx)
+                    print(tpatches[patch_idx])
                     new_patches[new_idx] = tpatches[patch_idx]
                     new_gfs[new_idx] = tgfs[patch_idx]
+
+            if debug:
+                logger.debug('Cross checking gfs ...')
+                check_gfs = geo_construct_gf_linear_patches(
+                    engine=engine, datasets=datasets, targets=targets,
+                    patches=new_patches, nworkers=nworkers)
+
+                assert (new_gfs - check_gfs).sum() == 0
+
+            print('joined_gfs', new_gfs[:, 0:5])
+            print(tpatches)
 
             print('new gfs shape', new_gfs.shape)
             print(new_gfs.sum(1))
@@ -1092,9 +1118,22 @@ def optimize_discretization(
         assert_array_equal(
             num.array(fault.subfault_npatches), new_subfault_npatches)
 
-        #
+        print(gfs_array)
         # U data-space, L singular values, V model space
         U, l, V = num.linalg.svd(num.vstack(gfs_array), full_matrices=True)
+
+        if debug:
+            fig, axs = plt.subplots(2, 3)
+            for i, gfidx in enumerate(num.linspace(0,fault.npatches,6,dtype='int', endpoint=False)):
+
+                print(i, gfidx, i.__class__, gfidx.__class__)
+                ridx, cidx = mod_i(i, 3)
+                if ridx < 2:
+                    ax = axs[ridx, cidx]
+                    im = ax.scatter(
+                        datasets[0].lons, datasets[0].lats, 10, num.vstack(gfs_array)[:, gfidx],
+                        edgecolors='none', cmap=plt.cm.get_cmap('jet'))
+                    ax.set_title('Patch idx %i' % gfidx)
 
         # apply singular value damping
         ldamped_inv = 1. / (l + config.epsilon ** 2)
@@ -1104,9 +1143,10 @@ def optimize_discretization(
         # calculate resolution matrix and take trace
         R = num.diag(num.dot(
             V.dot(Linv.T).dot(U.T),
-            U.dot(L.dot(V.T))))
+            U.dot(L).dot(V.T)))
 
         print('R', R)
+
         R_idxs = num.argwhere(R > config.resolution_thresh).ravel().tolist()
         print('R > thresh', R_idxs, R[R_idxs])
         # analysis for further patch division
@@ -1134,8 +1174,8 @@ def optimize_discretization(
                 lengths <= config.patch_lengths_min[i]).ravel()
                                 + fault.cum_subfault_npatches[i]).tolist()
 
-        # patches that fulfill both size thresholds
-        patch_size_ids = set(width_idxs_min).intersection(set(length_idxs_min))
+        # patches that fulfill either size thresholds
+        patch_size_ids = set(width_idxs_min + length_idxs_min)
 
         # patches above R but below size thresholds
         unique_ids = set(
@@ -1160,7 +1200,7 @@ def optimize_discretization(
             c1 = []
             for i, sf in enumerate(fault.iter_subfaults()):
                 bdepths = fault.get_subfault_patch_attributes(
-                    i, datatype, attributes=['depth'])
+                    i, datatype, attributes=['center'])[:, -1]
 
                 c1.extend(num.exp(
                     -config.depth_penalty * bdepths * km /
@@ -1169,45 +1209,54 @@ def optimize_discretization(
             c_one_pen = num.array(c1)
             print('C1', c_one_pen)
             # distance penalties
-            centers = fault.get_subfault_patch_attributes(
-                subfault_idxs, datatype, attributes=['center'])[:, :-1]
+            east_shifts, north_shifts = fault.get_subfault_patch_attributes(
+                subfault_idxs, datatype,
+                attributes=['east_shift', 'north_shift'])
             lats, lons = fault.get_subfault_patch_attributes(
                 subfault_idxs, datatype, attributes=['lat', 'lon'])
 
             north_shifts_wrt_event, east_shifts_wrt_event = latlon_to_ne_numpy(
                 event.lat, event.lon, lats, lons)
-            centers += num.vstack(
-                [east_shifts_wrt_event, north_shifts_wrt_event]).T / km
+            centers = num.vstack(
+                [east_shifts + east_shifts_wrt_event / km,
+                 north_shifts + north_shifts_wrt_event / km]).T
+            print('ctrs', centers)
 
             cand_centers = centers
 
             patch_data_distances = distances(
                 points=data_coords, ref_points=cand_centers)
             patch_data_distance_mins = patch_data_distances.min(axis=0)
-
+            print('PDdists', patch_data_distance_mins)
             c_two_pen = patch_data_distance_mins.min() / \
                         patch_data_distance_mins
             print('C2', c_two_pen)
+
             inter_patch_distances = distances(
                 points=centers, ref_points=cand_centers)
 
-            # print('interpatch distances', inter_patch_distances)
-            # print('interpatch distances, R shapes', inter_patch_distances.shape, R.shape)
-            c_three_pen = (R * inter_patch_distances.T).sum(axis=1) / \
-                          inter_patch_distances.sum(axis=0)
+            ## check penalty C3 current values are counterintuitive
+            #print('interpatch distances', inter_patch_distances)
+            #print('interpatch distances, R shapes', inter_patch_distances.shape, R.shape)
+            res_w = (R * inter_patch_distances)
+            #print('resbased interpatches', res_w)
+            print('R0, R1', res_w.sum(axis=0), res_w.sum(axis=1))
+            c_three_pen = res_w.sum(axis=0) / inter_patch_distances.sum(0)
+
             print('C3', c_three_pen)
             print('A', area_pen)
             rating = area_pen * c_one_pen * c_two_pen * c_three_pen
             print('rating', rating)
-            rating.sort()
-            rating_sort = num.array(rating[::-1])
-            print('rating sort', rating_sort)
+            #rating.sort()
+            #rating_sort = num.array(rating[::-1])
+            #print('rating sort', rating_sort)
             rating_idxs = num.array(rating.argsort()[::-1])
             print('rating argsorted', rating_idxs)
             print('uids', uids)
             rated_sel = num.array([ridx for ridx in rating_idxs if ridx in uids])
+            n_sel = len(rated_sel)
             print('R select rated', rated_sel)
-            idxs = rated_sel[range(int(num.ceil(config.alpha * ncandidates)))]
+            idxs = rated_sel[range(int(num.ceil(config.alpha * n_sel)))]
             logger.info(
                 'Patches: %s of %i subfault(s) are further divided.' % (
                     list2string(idxs.tolist()), fault.nsubfaults))
@@ -1215,6 +1264,9 @@ def optimize_discretization(
             sf_div_idxs = copy.deepcopy(idxs)
             sf_div_idxs.sort()
             generation += 1
+            #source_geometry(
+            #    fault, list(fault.iter_subfaults()), show=False,
+            #    event=event, datasets=datasets, values=c_three_pen, title='Rating')
         else:
             tobedivided = 0
 
@@ -1222,5 +1274,18 @@ def optimize_discretization(
     logger.info('Quality index for this discretization: %f' % R.mean())
 
     if plot:
-        source_geometry(fault, list(fault.iter_subfaults()), event=event)
+        plt.figure()
+        ax = plt.axes()
+        im = ax.scatter(
+            data_coords[:, 0], data_coords[:, 1], 10,
+            patch_data_distances.min(1),
+            edgecolors='none', cmap=plt.cm.get_cmap('jet'))
+        plt.colorbar(im)
+        im = ax.plot(
+            cand_centers[:, 0], cand_centers[:, 1], '-r')
+        plt.title('Data loc and fault loc [m]')
+
+        source_geometry(
+            fault, list(fault.iter_subfaults()), event=event,
+            values=R, title='Resoulution', datasets=datasets)
     return fault, R

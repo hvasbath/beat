@@ -684,7 +684,7 @@ class GeodeticDataset(gf.meta.MultiLocation):
         -------
         :class:`numpy.ndarray` (n_points, 3)
         """
-
+        print(loc)
         self.north_shifts, self.east_shifts = orthodrome.latlon_to_ne_numpy(
             loc.lat, loc.lon, self.lats, self.lons)
 
@@ -1009,7 +1009,7 @@ class IFG(GeodeticDataset):
     def wavelength(self):
         return lambda_sensors[self.satellite]
 
-    def update_los_vector(self):
+    def update_los_vector(self, force=False):
         """
         Calculate LOS vector for given attributes incidence and heading angles.
 
@@ -1017,17 +1017,19 @@ class IFG(GeodeticDataset):
         -------
         :class:`numpy.ndarray` (n_points, 3)
         """
+        if self.los_vector is None or force:
+            if self.incidence is None and self.heading is None:
+                raise AttributeError('Incidence and Heading need to be provided!')
 
-        if self.incidence.all() and self.heading.all() is None:
-            raise AttributeError('Incidence and Heading need to be provided!')
-
-        Su = num.cos(num.deg2rad(self.incidence))
-        Sn = - num.sin(num.deg2rad(self.incidence)) * \
-            num.cos(num.deg2rad(self.heading - 270))
-        Se = - num.sin(num.deg2rad(self.incidence)) * \
-            num.sin(num.deg2rad(self.heading - 270))
-        self.los_vector = num.array([Sn, Se, Su], dtype=num.float).T
-        return self.los_vector
+            Su = num.cos(num.deg2rad(self.incidence))
+            Sn = - num.sin(num.deg2rad(self.incidence)) * \
+                num.cos(num.deg2rad(self.heading - 270))
+            Se = - num.sin(num.deg2rad(self.incidence)) * \
+                num.sin(num.deg2rad(self.heading - 270))
+            self.los_vector = num.array([Sn, Se, Su], dtype=num.float).T
+            return self.los_vector
+        else:
+            return self.los_vector
 
 
 class DiffIFG(IFG):
