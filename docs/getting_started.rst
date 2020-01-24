@@ -66,8 +66,9 @@ For example to optimize for a Full Moment Tensor for the Landers EQ by using sei
 
 This will create project directory called LandersEQ in the current directory.
 Within the directoy you will see that there have been two files created:
- - BEAT_log.txt
- - geometry_config.yaml
+
+- BEAT_log.txt
+- geometry_config.yaml
 
 The first file is a logging file where all the executed comments and outputs are written to. In case something goes wrong this log file helps to find the error.
 For now it contains::
@@ -448,7 +449,7 @@ before the actual update what is going to change. These changes can be displayed
 
 An update screen that appears may look like this.
 
-  .. image:: _static/beat_update_cut.png
+.. image:: _static/beat_update_cut.png
 
 Where omitting the "--diff" option will update the configuration file right away.
 
@@ -493,6 +494,10 @@ In lines 160-165 we find the reference location::
       station: Store_Name
 
 The distance between these two locations determines the center point of the grid of Greens Functions that we want to calculate.
+The following image (contributed by So-Young Baag) sketches the geometry of an example setup.
+
+.. image:: _static/custom_gf_store_setup.png
+
 For our example we set the reference location close to Vancouver, Canada as we want to study the Cascadia subduction zone.
 We ignore the 'elevation' and 'depth' attributes but we set the 'station' attribute, which determines the prefix of the name of the
 Greens Function store. ::

@@ -316,12 +316,11 @@ Here the MAP moment rate function is displayed by the black solid line.
 
 Animation
 ^^^^^^^^^
-In the development version of beat the command::
+In the development version of beat the following command Will also export a file: "rupture_evolution_max.yaml" to $project_directory/ffi/results. ::
 
   beat export Laquila_kinematic --mode=ffi
 
-Will also export a file: "rupture_evolution_max.yaml" to $project_directory/ffi/results
-This can be loaded into the GeometryElement of the Sparrow, which is also under development but a first introduction is given `here <https://pyrocko.org/news/2020-01-16.html>`__.
+This file can be loaded into the GeometryElement of the Sparrow, which is also under development but a first introduction is given `here <https://pyrocko.org/news/2020-01-16.html>`__.
 
 An animation of the MAP result of the rupture within the Sparrow then looks like this. Each second in the video after the rupture starts, is also a second in the rupture propagation.:
 
