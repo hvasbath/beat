@@ -88,7 +88,7 @@ if real:
     epsilon = 0.05  # Damping constant for SVD: sabrnas 0.005 (without squaring -here squaring)
     R_thresh = 0.95  # Resolution threshhold (patches above R_thresh will be further subdivided)
     d_par = 5  # Depth penalty, a higher number penalized deeper patches more
-    alphaprcnt = 0.2
+    alphaprcnt = 0.1
 
     config = ResolutionDiscretizationConfig(
         epsilon=epsilon,
@@ -111,10 +111,10 @@ else:
     data_yloc = Y.ravel()
     los = num.ones((data_xloc.size, 3)) * num.array([ -0.1009988, -0.52730111, 0.84365442])
 
-    epsilon = 0.07  # Damping constant for SVD: sabrnas 0.005 (without squaring -here squaring)
+    epsilon = 0.02  # Damping constant for SVD: sabrnas 0.005 (without squaring -here squaring)
     R_thresh = 0.95  # Resolution threshhold (patches above R_thresh will be further subdivided)
     d_par = 5  # Depth penalty, a higher number penalized deeper patches more
-    alphaprcnt = 0.15
+    alphaprcnt = 0.05
 
     config = ResolutionDiscretizationConfig(
         epsilon=epsilon,
