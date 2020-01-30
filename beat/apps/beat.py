@@ -1212,7 +1212,8 @@ def command_build_gfs(args):
                                 targets=targets,
                                 event=c.event,
                                 force=options.force,
-                                nworkers=gf.nworkers)
+                                nworkers=gf.nworkers,
+                                plot=True)
                             logger.info(
                                 'Storing optimized discretized fault'
                                 ' geometry to: %s' % faultpath)

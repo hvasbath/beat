@@ -344,7 +344,6 @@ total number of patches: %i ''' % (
             for patch in patches:
                 patch.anchor = 'top'
                 xyz = patch.outline()
-                print(xyz)
                 latlon = patch.outline('latlon')
                 patchverts = num.hstack((latlon, xyz))
                 verts.append(patchverts[:-1, :])  # last vertex double
@@ -391,7 +390,6 @@ total number of patches: %i ''' % (
         vertices = patches2vertices(self.get_all_patches('seismic'))
         outlines = []
         for sf in self.iter_subfaults():
-            print(sf, sf.anchor)
             outlines.append(patches2vertices([sf]))
 
         faces1 = num.arange(ncorners * self.npatches, dtype='int64').reshape(
@@ -1087,9 +1085,6 @@ def optimize_discretization(
                     new_patches[new_idx] = tpatches[patch_idx]
                     new_gfs[new_idx] = tgfs[patch_idx]
 
-            # update fixed indexes
-            fixed_idxs = set([old2new[idx] for idx in fixed_idxs])
-
             if debug:
                 logger.debug('Cross checking gfs ...')
                 check_gfs = geo_construct_gf_linear_patches(
@@ -1109,6 +1104,9 @@ def optimize_discretization(
             # new generation of GFs
             gfs_comp[gfs_i] = new_gfs
 
+        # update fixed indexes
+        fixed_idxs = set([old2new[idx] for idx in fixed_idxs])
+
         assert_array_equal(
             num.array(fault.subfault_npatches), new_subfault_npatches)
 
@@ -1117,14 +1115,15 @@ def optimize_discretization(
 
         if debug:
             fig, axs = plt.subplots(2, 3)
-            for i, gfidx in enumerate(num.linspace(0,fault.npatches,6,dtype='int', endpoint=False)):
-
-                print(i, gfidx, i.__class__, gfidx.__class__)
+            for i, gfidx in enumerate(
+                    num.linspace(
+                        0, fault.npatches, 6, dtype='int', endpoint=False)):
                 ridx, cidx = mod_i(i, 3)
                 if ridx < 2:
                     ax = axs[ridx, cidx]
                     im = ax.scatter(
-                        datasets[0].lons, datasets[0].lats, 10, num.vstack(gfs_array)[:, gfidx],
+                        datasets[0].lons, datasets[0].lats,
+                        10, num.vstack(gfs_array)[:, gfidx],
                         edgecolors='none', cmap=plt.cm.get_cmap('jet'))
                     ax.set_title('Patch idx %i' % gfidx)
 
@@ -1270,8 +1269,7 @@ def optimize_discretization(
     logger.info('Quality index for this discretization: %f' % R.mean())
 
     if plot:
-
         source_geometry(
             fault, list(fault.iter_subfaults()), event=event,
-            values=R, title='Resoulution', datasets=datasets)
+            values=R, title='Resolution', datasets=datasets)
     return fault, R
