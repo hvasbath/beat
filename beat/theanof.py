@@ -562,7 +562,7 @@ class EulerPole(theano.Op):
         self.varnames = []
 
         for k, v in inputs.items():
-            varname = k.split('_')[1]
+            varname = k.split('_')[-1]   # split of dataset naming
             if isinstance(v, FreeRV):
                 self.varnames.append(varname)
                 inlist.append(tt.as_tensor_variable(v))
@@ -579,8 +579,8 @@ class EulerPole(theano.Op):
         point = {vname: i for vname, i in zip(self.varnames, inputs)}
         point.update(self.fixed_values)
 
-        pole_lat = point['pole_lat']
-        pole_lon = point['pole_lon']
+        pole_lat = point['lat']    # pole parameters
+        pole_lon = point['lon']
         omega = point['omega']
 
         velocities = heart.velocities_from_pole(
