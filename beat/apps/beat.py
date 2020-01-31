@@ -1753,6 +1753,7 @@ def command_export(args):
 
     logger.info('Loading problem ...')
     problem = load_model(project_dir, options.mode, hypers=False, build=False)
+    problem.init_hierarchicals()
 
     sc = problem.config.sampler_config
 
@@ -1780,23 +1781,33 @@ def command_export(args):
              results_path, 'solution_{}.yaml'.format(options.post_llk)))
 
     if options.mode == ffi_mode_str:
-        seismic = 'seismic'
-        if seismic in problem.config.problem_config.datatypes:
-            comp = problem.composites[seismic]
-            target = comp.targets[0]
-            fault = comp.load_fault_geometry()
-            ffi_rupture_table_path = pjoin(
-                results_path,
-                'rupture_evolution_{}.yaml'.format(options.post_llk))
-            logger.info('Exporting finite rupture evolution'
-                        ' to %s' % ffi_rupture_table_path)
-            geom = fault.get_rupture_geometry(
-                point=point, target=target,
-                store=comp.engine.get_store(target.store_id),
-                event=problem.event)
-            dump(geom, filename=ffi_rupture_table_path)
+        if 'seismic' in problem.config.problem_config.datatypes:
+            datatype = 'seismic'
+        elif 'geodetic' in problem.config.problem_config.datatypes:
+            datatype = 'geodetic'
         else:
-            logger.info('Rupture evolution only available for kinematic data.')
+            logger.info(
+                'Rupture geometry only available for static / kinematic data.')
+
+        comp = problem.composites[datatype]
+        engine = LocalEngine(
+            store_superdirs=[comp.config.gf_config.store_superdir])
+
+        target = comp.targets[0]
+        fault = comp.load_fault_geometry()
+
+        ffi_rupture_table_path = pjoin(
+            results_path,
+            'rupture_evolution_{}.yaml'.format(options.post_llk))
+        logger.info('Exporting finite rupture evolution'
+                    ' to %s' % ffi_rupture_table_path)
+        geom = fault.get_rupture_geometry(
+            point=point, target=target,
+            store=engine.get_store(target.store_id),
+            event=problem.event, datatype=datatype)
+
+        if geom is not None:
+            dump(geom, filename=ffi_rupture_table_path)
 
     for datatype, composite in problem.composites.items():
         logger.info(
@@ -1832,7 +1843,6 @@ def command_export(args):
                             'last 4 characters!)')
 
             # export stdz residuals
-
 
             if hasattr(sc.parameters, 'update_covariances'):
                 if sc.parameters.update_covariances:

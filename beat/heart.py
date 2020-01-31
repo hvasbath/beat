@@ -923,6 +923,11 @@ class GNSSCompoundComponent(GeodeticDataset):
                 pole_lon = point[pole_lon_name]
                 omega = point[rotation_vel_name]
             except KeyError:
+                if len(hierarchicals) == 0:
+                    raise ValueError(
+                        'No hierarchical parameters initialized,'
+                        'but requested! Please check init!')
+
                 pole_lat = hierarchicals[pole_lat_name]
                 pole_lon = hierarchicals[pole_lon_name]
                 omega = hierarchicals[rotation_vel_name]

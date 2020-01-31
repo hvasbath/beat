@@ -328,7 +328,8 @@ total number of patches: %i ''' % (
 
         return mrf_rates, mrf_times
 
-    def get_rupture_geometry(self, point, target, store, event=None):
+    def get_rupture_geometry(
+            self, point, target, store=None, event=None, datatype='geodetic'):
 
         def duplicate_property(array):
             ndims = len(array.shape)
@@ -344,51 +345,63 @@ total number of patches: %i ''' % (
             for patch in patches:
                 patch.anchor = 'top'
                 xyz = patch.outline()
-                latlon = patch.outline('latlon')
+                latlon = num.ones((5, 2)) * num.array([patch.lat, patch.lon])
                 patchverts = num.hstack((latlon, xyz))
                 verts.append(patchverts[:-1, :])  # last vertex double
 
             return num.vstack(verts)
 
-
-        deltat = store.config.deltat
         uparr = point['uparr']
         uperp = point['uperp']
-        durations = point['durations']
-
         slips = num.sqrt(uparr ** 2 + uperp ** 2)
 
-        sts = []
-        indexs = list(range(self.nsubfaults))
-        for index in indexs:
-            sts.append(self.point2starttimes(point, index=index).ravel())
+        if datatype == 'seismic':
+            durations = point['durations']
+            deltat = store.config.deltat
 
-        starttimes = num.hstack(sts)
-        # TODO make again relative to event time
-        starttimes -= starttimes.min()
-        tmax = (num.ceil(
-            (starttimes.max() + durations.max()) / deltat) + 1) * \
-               deltat
+            sts = []
+            indexs = list(range(self.nsubfaults))
+            for index in indexs:
+                sts.append(self.point2starttimes(point, index=index).ravel())
 
-        srf_times = num.arange(0., tmax, deltat)
-        srf_slips = num.zeros((slips.size, srf_times.size))
+            starttimes = num.hstack(sts)
+            # TODO make again relative to event time
+            starttimes -= starttimes.min()
+            tmax = (num.ceil(
+                (starttimes.max() + durations.max()) / deltat) + 1) * \
+                   deltat
 
-        patch_times, patch_amplitudes = self.get_subfault_patch_stfs(
-            index=indexs, durations=durations, starttimes=starttimes,
-            store=store, target=target, datatype='seismic')
+            srf_times = num.arange(0., tmax, deltat)
+            srf_slips = num.zeros((slips.size, srf_times.size))
 
-        assert slips.size == len(patch_times)
+            patch_times, patch_amplitudes = self.get_subfault_patch_stfs(
+                index=indexs, durations=durations, starttimes=starttimes,
+                store=store, target=target, datatype=datatype)
 
-        for i, (slip, pt, pa) in enumerate(
-                zip(slips, patch_times, patch_amplitudes)):
-            tslips = pa * slip
-            slc = slice(int(pt.min() / deltat), int(pt.max() / deltat + 1))
-            srf_slips[i, slc] += tslips
+            assert slips.size == len(patch_times)
+
+            for i, (slip, pt, pa) in enumerate(
+                    zip(slips, patch_times, patch_amplitudes)):
+                tslips = pa * slip
+                slc = slice(int(pt.min() / deltat), int(pt.max() / deltat + 1))
+                srf_slips[i, slc] += tslips
+
+            sub_headers = tuple([str(i) for i in num.arange(srf_times.size)])
+
+        elif datatype == 'geodetic':
+            srf_slips = slips.ravel()
+            srf_times = num.zeros(1)
+            sub_headers = []
+        else:
+            logger.wanring(
+                'Datatype %s is not supported for rupture geometry!' % datatype)
+            return None
 
         ncorners = 4
 
-        vertices = patches2vertices(self.get_all_patches('seismic'))
+        vertices = patches2vertices(self.get_all_patches(datatype))
         outlines = []
+
         for sf in self.iter_subfaults():
             outlines.append(patches2vertices([sf]))
 
@@ -398,14 +411,11 @@ total number of patches: %i ''' % (
         faces = num.vstack((faces1, faces2))
 
         srf_slips = duplicate_property(srf_slips)
-        slips = duplicate_property(slips)
 
         from pyrocko.model import Geometry
         geom = Geometry(times=srf_times, event=event)
         geom.setup(vertices, faces, outlines=outlines)
-        sub_headers = tuple([str(i) for i in num.arange(srf_times.size)])
         geom.add_property((('slip', 'float64', sub_headers)), srf_slips)
-        geom.add_property((('cum_slip', 'float64')), slips)
         return geom
 
     def get_patch_indexes(self, index):
