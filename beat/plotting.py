@@ -3832,7 +3832,6 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
     ax.set_zlabel('Depth [km]')
     ax.set_ylabel('North_shift [km]')
     ax.set_xlabel('East_shift [km]')
-    ax.set_aspect('equal')
     set_axes_equal(ax, axes='xy')
     if title is not None:
         ax.set_title(title)

@@ -393,15 +393,15 @@ total number of patches: %i ''' % (
             srf_times = num.zeros(1)
             sub_headers = []
         else:
-            logger.wanring(
+            logger.warning(
                 'Datatype %s is not supported for rupture geometry!' % datatype)
             return None
 
         ncorners = 4
 
         vertices = patches2vertices(self.get_all_patches(datatype))
-        outlines = []
 
+        outlines = []
         for sf in self.iter_subfaults():
             outlines.append(patches2vertices([sf]))
 
