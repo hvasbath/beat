@@ -120,7 +120,7 @@ plot_units = {
     'like': u_hyp}
 
 
-plot_projections = ['latlon', 'local']
+plot_projections = ['latlon', 'local', 'individual']
 
 
 def hypername(varname):
@@ -1383,7 +1383,8 @@ def seismic_fits(problem, stage, plot_options):
             ens_results.append(results)
 
     if best_point:
-        bresults = composite.assemble_results(best_point)
+        bresults = composite.assemble_results(
+            best_point, outmode = 'tapered_data')   # for source individual contributions
     else:
         # get dummy results for data
         bresults = composite.assemble_results(point)
@@ -1406,7 +1407,7 @@ def seismic_fits(problem, stage, plot_options):
         target_synths = []
         i = target_index[target]
         target_results.append(bresults[i])
-        target_synths.append(bresults[i].processed_syn)
+        target_synths.append(bresults[i].processed_syn)  # TODO
 
         dtraces.append(bresults[i].processed_res)
         if plot_options.nensemble > 1:
@@ -1591,6 +1592,12 @@ def seismic_fits(problem, stage, plot_options):
                     plot_trace(
                         axes, result.processed_syn,
                         color=syn_color, lw=0.5, zorder=5)
+
+                    if po.plot_projection == 'individual':
+                        for i, tr in enumerate(result.source_contributions):
+                            plot_trace(
+                                axes, tr.ydata,
+                                color=mpl_graph_color(i), lw=0.5, zorder=5)
 
                 plot_trace(
                     axes, result.processed_obs,

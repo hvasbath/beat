@@ -326,7 +326,7 @@ class SeismicComposite(Composite):
         # syn_filt_traces, obs_filt_traces = self.get_synthetics(
         #    point, outmode=outmode, taper_tolerance_factor=0.,
         #    chop_bounds=chop_bounds, order='wmap')
-        syn_filt_traces, obs_filt_traces = syn_proc_traces, obs_proc_traces
+        # syn_filt_traces, obs_filt_traces = syn_proc_traces, obs_proc_traces
         #from pyrocko import trace
         #trace.snuffle(syn_proc_traces + obs_proc_traces)
 
@@ -338,27 +338,13 @@ class SeismicComposite(Composite):
             wmap_results = []
             for j, obs_tr in enumerate(obs_proc_traces[i]):
 
-                dtrace_proc = obs_tr.copy()
-
-                dtrace_proc.set_ydata(
-                    (obs_tr.get_ydata() - syn_proc_traces[i][j].get_ydata()))
-
-                dtrace_filt = obs_filt_traces[i][j].copy()
-                dtrace_filt.set_ydata(
-                    (obs_filt_traces[i][j].get_ydata() -
-                        syn_filt_traces[i][j].get_ydata()))
-
                 taper = at.get_pyrocko_taper(
                     float(obs_tr.tmin - at.a))
 
                 wmap_results.append(heart.SeismicResult(
                     point=point,
                     processed_obs=obs_tr,
-                    processed_syn=syn_proc_traces[i][j],
-                    processed_res=dtrace_proc,
-                    filtered_obs=obs_filt_traces[i][j],
-                    filtered_syn=syn_filt_traces[i][j],
-                    filtered_res=dtrace_filt,
+                    source_contributions=syn_proc_traces[i][j],
                     taper=taper))
 
             if order == 'list':
@@ -418,7 +404,7 @@ class SeismicComposite(Composite):
 
             choli = num.linalg.inv(
                 data_trc.covariance.chol * num.exp(hp) / 2.)
-            stdz_res[data_trc.nslc_id] = choli.dot(result.filtered_res.get_ydata())
+            stdz_res[data_trc.nslc_id] = choli.dot(result.processed_res.get_ydata())
 
         return stdz_res
 

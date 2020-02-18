@@ -347,14 +347,30 @@ class SeismicResult(Object):
     """
     point = ResultPoint.T(default=ResultPoint.D())
     processed_obs = Trace.T(optional=True)
-    filtered_obs = Trace.T(optional=True)
-    processed_syn = Trace.T(optional=True)
-    filtered_syn = Trace.T(optional=True)
-    processed_res = Trace.T(optional=True)
-    filtered_res = Trace.T(optional=True)
+#    processed_syn = Trace.T(optional=True)
+#    processed_res = Trace.T(optional=True)
     arrival_taper = trace.Taper.T(optional=True)
     llk = Float.T(default=0., optional=True)
     taper = trace.Taper.T(optional=True)
+    source_contributions = List.T(
+        Trace.T(),
+        help='synthetics of source individual contributions.')
+
+    @property
+    def processed_syn(self):
+        if self.source_contributions is not None:
+            tr0 = copy.deepcopy(self.source_contributions[0])
+            tr0.ydata = num.zeros_like(tr0.ydata)
+            for tr in self.source_contributions:
+                tr0.ydata += tr.ydata
+
+        return tr0
+
+    @property
+    def processed_res(self):
+        tr = self.processed_obs.copy()
+        tr.set_data(tr.get_ydata() - self.processed_syn.ydata)
+        return tr
 
 
 def results_for_export(results, datatype=None, attributes=None):
@@ -363,9 +379,7 @@ def results_for_export(results, datatype=None, attributes=None):
         if datatype is None:
             raise ValueError(
                 'Either datatype or attributes need to be defined!')
-        elif datatype == 'seismic':
-            attributes = ['filtered_obs', 'filtered_syn', 'filtered_res']
-        elif datatype == 'geodetic':
+        elif datatype == 'geodetic' or datatype == 'seismic':
             attributes = ['processed_obs', 'processed_syn', 'processed_res']
         else:
             raise NotImplementedError(
@@ -2884,7 +2898,7 @@ def seis_synthetics(
          with data each row-one target
     :class:`numpy.ndarray` of tmins for traces
     """
-    stackmodes = ['array', 'data', 'stacked_traces']
+    stackmodes = ['array', 'data', 'stacked_traces', 'tapered_data']
 
     if outmode not in stackmodes:
         raise StackingError(
@@ -3001,6 +3015,13 @@ def seis_synthetics(
 
     elif outmode == 'data':
         return synt_trcs, tmins
+
+    elif outmode == 'tapered_data':
+        outlist = [[] for i in range(nt)]
+        for i, tr in enumerate(synt_trcs):
+            outlist[taper_index[i]].append(tr)
+
+        return outlist, tmins
 
     elif outmode == 'array':
         logger.debug('Returning...')
