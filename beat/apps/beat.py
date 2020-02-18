@@ -1770,8 +1770,9 @@ def command_export(args):
     logger.info('Saving results to %s' % results_path)
     util.ensuredir(results_path)
 
-    results_trace = pjoin(stage.handler.stage_path(-1), trace_name)
-    shutil.copy(results_trace, pjoin(results_path, trace_name))
+    if options.stage_number == -1:
+        results_trace = pjoin(stage.handler.stage_path(-1), trace_name)
+        shutil.copy(results_trace, pjoin(results_path, trace_name))
 
     point = plotting.get_result_point(
         stage, problem.config, point_llk=options.post_llk)
@@ -1845,6 +1846,7 @@ def command_export(args):
             # export stdz residuals
 
             if hasattr(sc.parameters, 'update_covariances'):
+                composite.analyse_noise(point)
                 if sc.parameters.update_covariances:
                     logger.info('Saving velocity model covariance matrixes...')
                     composite.update_weights(point)

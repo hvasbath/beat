@@ -341,10 +341,15 @@ class SeismicComposite(Composite):
                 taper = at.get_pyrocko_taper(
                     float(obs_tr.tmin - at.a))
 
+                if outmode != 'tapered_data':
+                    source_contributions = [syn_proc_traces[i][j]]
+                else:
+                    source_contributions = syn_proc_traces[i][j]
+
                 wmap_results.append(heart.SeismicResult(
                     point=point,
                     processed_obs=obs_tr,
-                    source_contributions=syn_proc_traces[i][j],
+                    source_contributions=source_contributions,
                     taper=taper))
 
             if order == 'list':

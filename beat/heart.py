@@ -3140,7 +3140,7 @@ def taper_filter_traces(
     ctpp = cut_traces.append
     for i, tr in enumerate(traces):
         cut_trace = tr.copy()
-        cut_trace.set_location('filt')
+        cut_trace.set_location('f')
 
         if arrival_taper:
             taper = arrival_taper.get_pyrocko_taper(float(arrival_times[i]))
