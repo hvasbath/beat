@@ -622,13 +622,19 @@ class SeismicGeometryComposite(SeismicComposite):
                 outmode=outmode,
                 chop_bounds=chop_bounds,
                 nprocs=nprocs,
+                # plot=True,
                 **kwargs)
 
             if self.config.station_corrections:
                 # set tmin to data tmin
                 for tr, dtr in zip(synthetics, wmap._prepared_data):
-                    tr.tmin = dtr.tmin
-                    tr.tmax = dtr.tmax
+                    if isinstance(tr, list):
+                        for t in tr:
+                            t.tmin = dtr.tmin
+                            t.tmax = dtr.tmax
+                    else:
+                        tr.tmin = dtr.tmin
+                        tr.tmax = dtr.tmax
 
             if order == 'list':
                 synths.extend(synthetics)

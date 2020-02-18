@@ -1589,15 +1589,16 @@ def seismic_fits(problem, stage, plot_options):
                         fc=light(misfit_color, 0.3),
                         ec=misfit_color, zorder=4)
 
-                    plot_trace(
-                        axes, result.processed_syn,
-                        color=syn_color, lw=0.5, zorder=5)
-
                     if po.plot_projection == 'individual':
                         for i, tr in enumerate(result.source_contributions):
                             plot_trace(
-                                axes, tr.ydata,
+                                axes, tr,
                                 color=mpl_graph_color(i), lw=0.5, zorder=5)
+                    else:
+                        plot_trace(
+                            axes, result.processed_syn,
+                            color=syn_color, lw=0.5, zorder=5)
+
 
                 plot_trace(
                     axes, result.processed_obs,

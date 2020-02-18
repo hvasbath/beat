@@ -1358,7 +1358,7 @@ def command_plot(args):
         parser.add_option(
             '--plot_projection',
             dest='plot_projection',
-            choices=['latlon', 'local'],
+            choices=['latlon', 'local', 'individual'],
             default='local',
             help='Output projection of the plot; "latlon" or "local"'
                  'Default: "local"')

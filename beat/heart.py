@@ -369,7 +369,7 @@ class SeismicResult(Object):
     @property
     def processed_res(self):
         tr = self.processed_obs.copy()
-        tr.set_data(tr.get_ydata() - self.processed_syn.ydata)
+        tr.set_ydata(tr.get_ydata() - self.processed_syn.ydata)
         return tr
 
 
@@ -698,7 +698,6 @@ class GeodeticDataset(gf.meta.MultiLocation):
         -------
         :class:`numpy.ndarray` (n_points, 3)
         """
-        print(loc)
         self.north_shifts, self.east_shifts = orthodrome.latlon_to_ne_numpy(
             loc.lat, loc.lon, self.lats, self.lons)
 
@@ -3172,7 +3171,7 @@ def taper_filter_traces(
                 [cut_traces[i].ydata for i in range(len(traces))])
         else:
             raise IOError('Cannot return array without tapering!')
-    if outmode == 'stacked_traces' or outmode == 'data':
+    else:
         return cut_traces
 
 
