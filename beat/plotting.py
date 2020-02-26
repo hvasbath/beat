@@ -3848,7 +3848,169 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
         plt.show()
 
 
-def draw_station_map(problem, po):
+def draw_station_map_gmt(problem, po):
+
+    from pyrocko import gmtpy
+
+    installations = gmtpy.detect_gmt_installations()
+
+    if po.outformat == 'svg':
+        raise NotImplementedError('SVG format is not supported for this plot!')
+
+    ts = 'time_shift'
+    if ts in po.varnames:
+        logger.info('Plotting time-shifts on station locations')
+        stage = load_stage(
+            problem, stage_number=po.load_stage, load='trace', chains=[-1])
+
+        point = get_result_point(stage, problem.config, po.post_llk)
+        value_string = 'timeshifts'
+    else:
+        point = None
+        value_string = 'location'
+
+    font_size = 12
+    font = '1'
+    bin_width = 15  # major grid and tick increment in [deg]
+    h = 20  # outsize in cm
+    w = h - 5
+
+    if gmtpy.is_gmt5(version='newest'):
+        gmtconfig = {
+                'MAP_GRID_PEN_PRIMARY': '0.1p',
+                'MAP_GRID_PEN_SECONDARY': '0.1p',
+                'MAP_FRAME_TYPE': 'fancy',
+                'FONT_ANNOT_PRIMARY': '14p,Helvetica,black',
+                'FONT_ANNOT_SECONDARY': '14p,Helvetica,black',
+                'FONT_LABEL': '14p,Helvetica,black',
+                'FORMAT_GEO_MAP': 'D',
+                'PS_MEDIA': 'Custom_%ix%i' % (h * gmtpy.cm, h * gmtpy.cm),
+        }
+    else:
+        gmtconfig = {
+                'MAP_FRAME_TYPE': 'fancy',
+                'GRID_PEN_PRIMARY': '0.01p',
+                'ANNOT_FONT_PRIMARY': '1',
+                'ANNOT_FONT_SIZE_PRIMARY': '12p',
+                'PLOT_DEGREE_FORMAT': 'D',
+                'GRID_PEN_SECONDARY': '0.01p',
+                'FONT_LABEL': '14p,Helvetica,black',
+                'PS_MEDIA': 'Custom_%ix%i' % (h * gmtpy.cm, h * gmtpy.cm),
+        }
+
+    logger.info('Drawing Station Map ...')
+    sc = problem.composites['seismic']
+    event = problem.config.event
+
+    for wmap in sc.wavemaps:
+        outpath = os.path.join(
+            problem.outfolder, po.figure_dir, 'station_map_%s_%i_%s.%s' % (
+                wmap.name, wmap.mapnumber, value_string, po.outformat))
+
+        dist = max(wmap.config.distances) + 5 # add interval to have bound
+
+        if not os.path.exists(outpath) or po.force:
+
+            st_lons = [station.lon for station in wmap.stations]
+            st_lats = [station.lat for station in wmap.stations]
+
+            J_basemap = 'E0/-90/%s/%i' % (dist, w)
+            J_location = 'E%s/%s/%s/%i' % (event.lon, event.lat, dist, w)
+            R_location = '0/360/-90/0'
+
+            gmt = gmtpy.GMT(config=gmtconfig)
+            gmt.psbasemap(
+                R=R_location,
+                J='S0/-90/90/%i' % w,
+                B='xa%sf%s' % (bin_width*2, bin_width))
+            gmt.pscoast(
+                R='g',
+                J='E%s/%s/%s/%i' % (event.lon, event.lat, dist, w),
+                D='c',
+                G='darkgrey')
+            gmt.psbasemap(
+                R='g',
+                J=J_basemap,
+                B='xg%s' % bin_width)
+            gmt.psbasemap(
+                R='g',
+                J=J_basemap,
+                B='yg%s' % (2 * bin_width))
+
+            if point:
+                # Draw MAP time-shifts at station locations as colored triangles
+                try:
+                    time_shifts = point[wmap.time_shifts_id][
+                        wmap.station_correction_idxs]
+                except KeyError:
+                    raise ValueError(
+                        'Sampling results do not contain time-shifts for wmap'
+                        ' %s!' % wmap.time_shifts_id)
+
+                cptfilepath = '/tmp/tempfile.cpt'
+                miny = time_shifts.min()
+                maxy = time_shifts.max()
+                bound = max(num.abs(miny), maxy)
+
+                gmt.makecpt(
+                    C='polar',
+                    T='%g/%g' % (-bound, bound),
+                    Q=True,
+                    out_filename=cptfilepath, suppress_defaults=True)
+
+                gmt.psxy(
+                    in_columns=(st_lons, st_lats, time_shifts.tolist()),
+                    R=R_location,
+                    C=cptfilepath,
+                    S='t14p',
+                    J=J_location)
+
+                # add a colorbar
+                gmt.psscale(
+                    B='xa%s +l time shifts [s]' % num.floor(bound),
+                    D='x1.5c/0c+w6c/0.5c+jMC+h',
+                    C=cptfilepath)
+
+            else:
+                gmt.psxy(
+                    R=R_location,
+                    J=J_location,
+                    in_columns=(st_lons, st_lats),
+                    G='red',
+                    S='t14p')
+
+            rows = []
+            alignment = 'TC'
+            for st in wmap.stations:
+                if gmt.is_gmt5():
+                    row = (
+                        st.lon, st.lat,
+                        '%i,%s,%s' % (font_size, font, 'black'),
+                        alignment,
+                        st.station)
+                    farg = ['-F+f+j']
+                else:
+                    row = (
+                        st.lon, st.lat,
+                        font_size, 0, font, alignment,
+                        st.station)
+                    farg = []
+
+                rows.append(row)
+
+            gmt.pstext(
+                in_rows=rows,
+                R=R_location,
+                J=J_location,
+                N=True, *farg)
+
+            gmt.save(outpath, resolution=po.dpi, size=w)
+            logger.info('saving figure to %s' % outpath)
+        else:
+            logger.info('Plot exists! Use --force to overwrite!')
+
+
+def draw_station_map_cartopy(problem, po):
     import matplotlib.ticker as mticker
 
     logger.info('Drawing Station Map ...')
@@ -3975,7 +4137,7 @@ plots_catalog = {
     'fuzzy_beachball': draw_fuzzy_beachball,
     'fuzzy_mt_decomp': draw_fuzzy_mt_decomposition,
     'moment_rate': draw_moment_rate,
-    'station_map': draw_station_map}
+    'station_map': draw_station_map_gmt}
 
 
 common_plots = [
