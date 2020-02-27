@@ -4,6 +4,8 @@
 Short Installation instructions
 *******************************
 
+BEAT can be installed on any Unix based system with python>=3.5 that supports its prerequisites.
+
 First install pyrocko following this webpage:
 
  - `pyrocko <http://pyrocko.org/>`__

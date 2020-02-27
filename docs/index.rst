@@ -36,6 +36,7 @@ Contents:
    :maxdepth: 3
 
    short_installation
+   anaconda_installation
    installation
    updating
    getting_started
