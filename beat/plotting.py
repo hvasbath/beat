@@ -3864,10 +3864,10 @@ def draw_station_map_gmt(problem, po):
             problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
         point = get_result_point(stage, problem.config, po.post_llk)
-        value_string = 'timeshifts'
+        value_string = '%i' % po.load_stage
     else:
         point = None
-        value_string = 'location'
+        value_string = '0'
 
     font_size = 12
     font = '1'
