@@ -31,7 +31,13 @@ from collections import OrderedDict
 import numpy as num
 import pandas as pd
 from pandas.errors import EmptyDataError
-from pandas.io.common import CParserError
+
+# pandas version control
+try:
+    from pandas.io.common import CParserError
+except ImportError:
+    from pandas.io.parser import CParserError
+
 from pymc3.backends import base, ndarray
 from pymc3.backends import tracetab as ttab
 from pymc3.blocking import DictToArrayBijection, ArrayOrdering
@@ -461,7 +467,7 @@ class TextChain(FileChain):
                     self.filename)
                 os.remove(self.filename)
                 self.corrupted_flag = True
-            except pd.io.common.CParserError:
+            except CParserError:
                 logger.warning(
                     'Trace %s has wrong size!' % self.filename)
                 self.corrupted_flag = True
