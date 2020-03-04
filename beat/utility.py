@@ -401,7 +401,6 @@ def weed_input_rvs(input_rvs, mode, datatype):
 def apply_station_blacklist(stations, blacklist):
     """
     Weed stations listed in the blacklist.
-    Modifies input list!
 
     Parameters
     ----------
@@ -415,22 +414,11 @@ def apply_station_blacklist(stations, blacklist):
     stations : list of :class:`pyrocko.model.Station`
     """
 
-    station_names = [station.station for station in stations]
-
-    indexes = []
-    for burian in blacklist:
-        try:
-            indexes.append(station_names.index(burian))
-        except ValueError:
-            logger.info('Station %s in blacklist is not in stations.' % burian)
-
-    if len(indexes) > 0:
-        indexes.sort(reverse=True)
-
-        for ind in indexes:
-            stations.pop(ind)
-
-    return stations
+    outstations = []
+    for st in stations:
+        if st.station not in blacklist:
+            outstations.append(st)
+    return outstations
 
 
 def weed_data_traces(data_traces, stations):

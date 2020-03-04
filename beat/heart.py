@@ -1392,7 +1392,7 @@ def vary_model(
                                           layer.mbot.vp_vs_ratio())
                         repeat = 0
                         cost += count
-                elif layer.mtop.vp + deltavp < last_l.mbot.vp:
+                elif layer.mtop.vp + deltavp / 10 < last_l.mbot.vp:
                     count += 1
                 else:
                     layer.mtop.vp += deltavp
@@ -2301,6 +2301,7 @@ class WaveformMapping(object):
         Weed stations and related objects based on distances and blacklist.
         Works only a single time after init!
         """
+
         self.stations = utility.apply_station_blacklist(
             self.stations, blacklist)
 
@@ -2742,6 +2743,13 @@ def init_wavemap(
         datahandler._deltat)
 
     wmap.station_weeding(event, wc.distances, blacklist=wc.blacklist)
+
+    for st in wmap.stations:
+        print('dist', st.station)
+
+    for ds in wmap.datasets:
+        print(ds)
+
     wmap.update_interpolation(wc.interpolation)
     wmap._update_trace_wavenames('_'.join([wc.name, str(wmap.mapnumber)]))
 

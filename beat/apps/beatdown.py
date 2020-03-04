@@ -119,11 +119,14 @@ def get_events_by_name_or_date(event_names_or_dates, catalog=geofon):
                 events.sort(key=lambda ev: abs(ev.time - t))
                 event = events[0]
             except IndexError:
-                logger.info('Nothing found in geofon! Trying gCMT!')
-                events = get_events(
-                    time_range=(t - 60., t + 60.), catalog=gcmt)
-                events.sort(key=lambda ev: abs(ev.time - t))
-                event = events[0]
+                for catalog in [gcmt, usgs]:
+                    logger.info('Nothing found in geofon! Trying others!')
+                    events = get_events(
+                        time_range=(t - 60., t + 60.), catalog=catalog)
+                    events.sort(key=lambda ev: abs(ev.time - t))
+                    if events:
+                        event = events[0]
+
             events_out.append(event)
 
     return events_out

@@ -2851,12 +2851,12 @@ def n_model_plot(models, axes=None, draw_bg=True, highlightidx=[]):
     return fig, axes
 
 
-def load_earthmodels(store_superdir, targets, depth_max='cmb'):
+def load_earthmodels(store_superdir, store_ids, depth_max='cmb'):
 
     ems = []
     emr = []
-    for t in targets:
-        path = os.path.join(store_superdir, t.store_id, 'config')
+    for store_id in store_ids:
+        path = os.path.join(store_superdir, store_id, 'config')
         config = load(filename=path)
         em = config.earthmodel_1d.extract(depth_max=depth_max)
         ems.append(em)
@@ -2898,9 +2898,10 @@ def draw_earthmodels(problem, plot_options):
                         sample_rate=sc.gf_config.sample_rate,
                         crust_inds=list(range(*sc.gf_config.n_variations)),
                         interpolation='multilinear')
+                    store_ids = [t.store_id for t in targets]
 
                     models = load_earthmodels(
-                        composite.engine.store_superdirs[0], targets,
+                        composite.engine.store_superdirs[0], store_ids,
                         depth_max=sc.gf_config.depth_limit_variation * km)
 
                     for i, mods in enumerate(models):
