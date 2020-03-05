@@ -664,9 +664,13 @@ class SeismicGeometryComposite(SeismicComposite):
         point : dict
             with numpy array-like items and variable name keys
         """
+        if not self.weights:
+            self.init_weights()
+
         sc = self.config
 
         self.point2sources(point)
+
 
         # update data covariances in case model dependend non-toeplitz
         if self.config.noise_estimator.structure == 'non-toeplitz':
