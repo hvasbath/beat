@@ -23,6 +23,15 @@ BEAT is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY
 You should have received a copy of the GNU General Public License along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
+Citation
+========
+If your work results in an publication where you used BEAT we kindly ask you to consider citing the BEAT software package and the related article.:
+
+ > Vasyura-Bathke, Hannes; Dettmer, Jan; Steinberg, Andreas; Heimann, Sebastian; Isken, Marius; Zielke, Olaf; Mai, Paul Martin; Sudhaus, Henriette; Jónsson, Sigurjón: The Bayesian Earthquake Analysis Tool. Seismological Research Letters. https://doi.org/10.1785/0220190075
+
+ > Vasyura-Bathke, Hannes; Dettmer, Jan; Steinberg, Andreas; Heimann, Sebastian; Isken, Marius; Zielke, Olaf; Mai, Paul Martin; Sudhaus, Henriette; Jónsson, Sigurjón (2019): BEAT - Bayesian Earthquake Analysis Tool. V. 1.0. GFZ Data Services. http://doi.org/10.5880/fidgeo.2019.024
+
+
 Tutorials
 =========
 Step by step points on how to use the tool for several scenarios can be found here:
