@@ -2744,12 +2744,6 @@ def init_wavemap(
 
     wmap.station_weeding(event, wc.distances, blacklist=wc.blacklist)
 
-    for st in wmap.stations:
-        print('dist', st.station)
-
-    for ds in wmap.datasets:
-        print(ds)
-
     wmap.update_interpolation(wc.interpolation)
     wmap._update_trace_wavenames('_'.join([wc.name, str(wmap.mapnumber)]))
 
