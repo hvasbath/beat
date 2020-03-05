@@ -36,7 +36,7 @@ from pandas.errors import EmptyDataError
 try:
     from pandas.io.common import CParserError
 except ImportError:
-    from pandas.io.parser import CParserError
+    from pandas.errors import ParserError as CParserError
 
 from pymc3.backends import base, ndarray
 from pymc3.backends import tracetab as ttab
