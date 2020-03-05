@@ -281,7 +281,8 @@ class SeismicComposite(Composite):
         if self._weights is None:
             ws = []
             for wmap in self.wavemaps:
-                ws.extend(wmap.weights)
+                if wmap.weights:
+                    ws.extend(wmap.weights)
 
             self._weights = ws
         return self._weights
