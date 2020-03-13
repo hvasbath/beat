@@ -3926,13 +3926,16 @@ def draw_station_map_gmt(problem, po):
         cptfilepath = '/tmp/tempfile.cpt'
         miny = time_shifts.min()
         maxy = time_shifts.max()
-        bound = max(num.abs(miny), maxy)
+        bound = num.ceil(max(num.abs(miny), maxy))
 
         gmt.makecpt(
             C='polar',
             T='%g/%g' % (-bound, bound),
             Q=True,
             out_filename=cptfilepath, suppress_defaults=True)
+
+        for i, station in enumerate(wmap.stations):
+            logger.debug('%s, %f' % (station.station, time_shifts[i]))
 
         gmt.psxy(
             in_columns=(st_lons, st_lats, time_shifts.tolist()),
@@ -4023,13 +4026,13 @@ def draw_station_map_gmt(problem, po):
                             st.lon, st.lat,
                             '%i,%s,%s' % (font_size, font, 'black'),
                             alignment,
-                            st.station)
+                            '{}.{}'.format(st.network, st.station))
                         farg = ['-F+f+j']
                     else:
                         row = (
                             st.lon, st.lat,
                             font_size, 0, font, alignment,
-                            st.station)
+                            '{}.{}'.format(st.network, st.station))
                         farg = []
 
                     rows.append(row)
@@ -4055,6 +4058,7 @@ def draw_station_map_gmt(problem, po):
                     height=h,
                     show_grid=True,
                     show_topo=True,
+                    show_scale=True,
                     color_dry=(143, 188, 143),  # grey
                     illuminate=True,
                     illuminate_factor_ocean=0.15,
