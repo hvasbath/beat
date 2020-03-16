@@ -1879,8 +1879,7 @@ def fuzzy_mt_decomposition(
         lines.append(
             (label, m6s, color))
 
-    moments_full_max = mt.magnitude_to_moment(
-        max( m6s.mean(axis=0)[-1] for (_, m6s, _) in lines))
+    magnitude_full_max = max( m6s.mean(axis=0)[-1] for (_, m6s, _) in lines)
 
     for xpos, label in [
         (0., 'Full'),
@@ -1901,6 +1900,8 @@ def fuzzy_mt_decomposition(
 
     for i, (label, m6s, color_t) in enumerate(lines):
         ypos = nlines_max - (i * yscale) - 1.0
+        mean_magnitude = m6s.mean(0)[-1]
+        size0 = mean_magnitude / magnitude_full_max
 
         isos, dcs, clvds, devs, tots = get_decomps(m6s)
         axes.annotate(
@@ -1927,13 +1928,12 @@ def fuzzy_mt_decomposition(
 
             ratios_qu = quantiles(ratios * 100.)
             mt_parts = [comp[2] for comp in decomp]
-            moments_full = num.array([tot[0] for tot in tots])
-            size0 = moments_full.mean() / moments_full_max
 
             if ratio > 1e-4:
                 try:
+                    size = math.sqrt(ratio) * 0.95 * size0
                     kwargs['position'] = (1. + xpos, ypos)
-                    kwargs['size'] = math.sqrt(ratio) * 0.95 * size0
+                    kwargs['size'] = size
                     kwargs['color_t'] = color_t
                     beachball.plot_fuzzy_beachball_mpl_pixmap(
                         mt_parts, axes, best_mt=None, **kwargs)
