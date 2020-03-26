@@ -1463,7 +1463,6 @@ def seismic_fits(problem, stage, plot_options):
         fys = num.repeat(ys, nx)
 
         data = []
-
         for target in targets:
             azi = source.azibazi_to(target)[0]
             dist = source.distance_to(target)

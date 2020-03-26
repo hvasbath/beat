@@ -828,6 +828,10 @@ class GNSSCompoundComponent(GeodeticDataset):
             raise ValueError('Component %s not supported' % self.component)
 
         self.los_vector = num.tile(c, self.samples).reshape(self.samples, 3)
+        if num.isnan(self.los_vector).any():
+            raise ValueError(
+                'There are Nan values in LOS vector for dataset: %s! '
+                'Please check source of imported data!' % self.name)
         return self.los_vector
 
     def __str__(self):
@@ -1045,6 +1049,10 @@ class IFG(GeodeticDataset):
             Se = - num.sin(num.deg2rad(self.incidence)) * \
                 num.sin(num.deg2rad(self.heading - 270))
             self.los_vector = num.array([Sn, Se, Su], dtype=num.float).T
+            if num.isnan(self.los_vector).any():
+                raise ValueError(
+                    'There are Nan values in LOS vector for dataset: %s! '
+                    'Please check source of imported data!' % self.name)
             return self.los_vector
         else:
             return self.los_vector

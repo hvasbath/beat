@@ -1604,10 +1604,6 @@ def command_check(args):
 
     elif options.what == 'geometry':
         if 'geodetic' not in problem.config.problem_config.datatypes:
-            if 'SAR' not in problem.config.geodetic_config.types:
-                raise ValueError(
-                    'Checking geometry is only available for SAR data')
-
             raise ValueError(
                 'Checking geometry is only available for geodetic data')
 
