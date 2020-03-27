@@ -674,8 +674,8 @@ def gnss_fits(problem, stage, plot_options):
         try:
             campaign = load_and_blacklist_gnss(
                 gc.datadir, filename, gc.blacklist, campaign=True)
-        except UnicodeDecodeError:
-            logger.info('{} is no GNSS data, skipping')
+        except(UnicodeDecodeError, OSError):
+            logger.info('{} is no GNSS data, skipping'.format(filename))
 
     datatype = 'geodetic'
     mode = problem.config.problem_config.mode
@@ -833,7 +833,7 @@ def scene_fits(problem, stage, plot_options):
     po = plot_options
 
     composite = problem.composites[datatype]
-
+    event = composite.event
     try:
         sources = composite.sources
         ref_sources = None
@@ -854,15 +854,15 @@ def scene_fits(problem, stage, plot_options):
     else:
         point = get_result_point(stage, problem.config, po.post_llk)
 
-    dataset_index = dict(
-        (data, i) for (i, data) in enumerate(composite.datasets))
-
-    results = composite.assemble_results(point)
-
+    results_tmp = composite.assemble_results(point)
     dataset_to_result = {}
-    for dataset, result in zip(composite.datasets, results):
+    for dataset, result in zip(composite.datasets, results_tmp):
         if dataset.typ == 'SAR':
             dataset_to_result[dataset] = result
+
+    results = dataset_to_result.values()
+    dataset_index = dict(
+        (data, i) for (i, data) in enumerate(dataset_to_result.keys()))
 
     nrmax = len(dataset_to_result.keys())
     fullfig, restfig = utility.mod_i(nrmax, ndmax)
@@ -887,13 +887,14 @@ def scene_fits(problem, stage, plot_options):
             wspace=0.,
             hspace=0.1)
         figures.append(fig)
-        axes.append(ax)
+        ax_a = num.atleast_2d(ax)
+        axes.append(ax_a)
 
     nfigs = len(figures)
 
     def axis_config(axes, source, scene, po):
 
-        for ax in axes:
+        for i, ax in enumerate(axes):
             if po.plot_projection == 'latlon':
                 ystr = 'Latitude [deg]'
                 xstr = 'Longitude [deg]'
@@ -920,21 +921,22 @@ def scene_fits(problem, stage, plot_options):
                 raise TypeError(
                     'Plot projection %s not available' % po.plot_projection)
 
+            ticker = tick.MaxNLocator(nbins=3)
+            ax.get_xaxis().set_major_locator(ticker)
+            ax.get_yaxis().set_major_locator(ticker)
+
+            if i == 0:
+                ax.set_ylabel(ystr, fontsize=fontsize)
+                ax.set_xlabel(xstr, fontsize=fontsize)
+                ax.set_yticklabels(ax.get_yticklabels(), rotation=90)
+
             scale_axes(ax.get_xaxis(), **scale_x)
             scale_axes(ax.get_yaxis(), **scale_y)
             ax.set_aspect('equal')
 
-        axes[1].get_yaxis().set_ticklabels([])
-        axes[2].get_yaxis().set_ticklabels([])
-        axes[1].get_xaxis().set_ticklabels([])
-        axes[2].get_xaxis().set_ticklabels([])
-        axes[0].set_ylabel(ystr, fontsize=fontsize)
-        axes[0].set_xlabel(xstr, fontsize=fontsize)
-        ticker = tick.MaxNLocator(nbins=3)
-
-        axes[0].get_xaxis().set_major_locator(ticker)
-        axes[0].get_yaxis().set_major_locator(ticker)
-        axes[0].set_yticklabels(axes[0].get_yticklabels(), rotation=90)
+            if i > 0:
+                ax.set_yticklabels([])
+                ax.set_xticklabels([])
 
     def draw_coastlines(ax, xlim, ylim, event, scene, po):
         """
@@ -1019,7 +1021,7 @@ def scene_fits(problem, stage, plot_options):
                    scene.quadtree.leaf_coordinates[:, 1] - offset_n,
                    s=.25, c='black', alpha=.1)
 
-    def draw_sources(ax, sources, scene, po, **kwargs):
+    def draw_sources(ax, sources, scene, po, event, **kwargs):
         bgcolor = kwargs.pop('color', None)
 
         for i, source in enumerate(sources):
@@ -1028,8 +1030,8 @@ def scene_fits(problem, stage, plot_options):
                 fn, fe = source.outline(cs='xy').T
             elif scene.frame.isDegree():
                 fn, fe = source.outline(cs='latlon').T
-                fn -= source.lat
-                fe -= source.lon
+                fn -= event.lat
+                fe -= event.lon
 
             if not bgcolor:
                 color = mpl_graph_color(i)
@@ -1073,7 +1075,7 @@ def scene_fits(problem, stage, plot_options):
     dcolims = [num.max(num.abs(r.processed_res)) for r in results]
 
     import string
-    for idata, dataset in enumerate(composite.datasets):
+    for idata, (dataset, result) in enumerate(dataset_to_result.items()):
         subplot_letter = string.ascii_lowercase[idata]
         try:
             homepath = problem.config.geodetic_config.datadir
@@ -1089,11 +1091,11 @@ def scene_fits(problem, stage, plot_options):
         if scene.frame.isMeter():
             offset_n, offset_e = map(float, otd.latlon_to_ne_numpy(
                 scene.frame.llLat, scene.frame.llLon,
-                sources[0].lat, sources[0].lon))
+                event.lat, event.lon))
 
         elif scene.frame.isDegree():
-            offset_n = sources[0].lat - scene.frame.llLat
-            offset_e = sources[0].lon - scene.frame.llLon
+            offset_n = event.lat - scene.frame.llLat
+            offset_e = event.lon - scene.frame.llLon
 
         im_extent = (scene.frame.E.min() - offset_e,
                      scene.frame.E.max() - offset_e,
@@ -1118,7 +1120,7 @@ def scene_fits(problem, stage, plot_options):
             sources[0].lat, sources[0].lon,
             num.array([llN, urN]), num.array([llE, urE]))
 
-        result = dataset_to_result[dataset]
+        #result = dataset_to_result[dataset]
         tidx = dataset_index[dataset]
 
         figidx, rowidx = utility.mod_i(tidx, ndmax)
@@ -1147,7 +1149,7 @@ def scene_fits(problem, stage, plot_options):
 
             draw_leaves(ax, scene, offset_e, offset_n)
             draw_coastlines(
-                ax, lon, lat, sources[0], scene, po)
+                ax, lon, lat, event, scene, po)
 
         fontdict = {
             'fontsize': fontsize,
@@ -1174,14 +1176,14 @@ def scene_fits(problem, stage, plot_options):
                 horizontalalignment='center')
 
         draw_sources(
-            axes[figidx][rowidx, 1], sources, scene, po)
+            axes[figidx][rowidx, 1], sources, scene, po, event=event)
 
         if ref_sources:
             ref_color = scolor('aluminium4')
             logger.info('Plotting reference sources')
             draw_sources(
                 axes[figidx][rowidx, 1],
-                ref_sources, scene, po, color=ref_color)
+                ref_sources, scene, po, event=event, color=ref_color)
 
         f = factors[figidx]
         if f > 2. / 3:
@@ -1218,7 +1220,7 @@ def scene_fits(problem, stage, plot_options):
                 cmap=cmap)
             cbr.set_label(cblabel, fontsize=fontsize)
 
-        axis_config(axes[figidx][rowidx, :], sources[0], scene, po)
+        axis_config(axes[figidx][rowidx, :], event, scene, po)
         addArrow(axes[figidx][rowidx, 0], scene)
 
         del scene
