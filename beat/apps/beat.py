@@ -1603,6 +1603,7 @@ def command_check(args):
                 ' "%s" mode available' % ffi_mode_str)
 
     elif options.what == 'geometry':
+        from pyrocko import orthodrome as otd
         if 'geodetic' not in problem.config.problem_config.datatypes:
             raise ValueError(
                 'Checking geometry is only available for geodetic data')
@@ -1676,6 +1677,16 @@ def command_check(args):
             tpoint = problem.config.problem_config.get_test_point()
             gc.point2sources(tpoint)
             sources = gc.sources
+
+        logger.info('Transforming sources to local cartesian system.')
+        for source in sources:
+            n, e = otd.latlon_to_ne_numpy(
+                lat0=gc.event.lat, lon0=gc.event.lon,
+                lat=source.lat, lon=source.lon)
+            n += source.north_shift
+            e += source.east_shift
+            source.update(lat=gc.event.lat, lon=gc.event.lon,
+                          north_shift=n, east_shift=e)
 
         src_class_name = problem.config.problem_config.source_type
         for source in sources:

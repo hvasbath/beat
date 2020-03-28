@@ -721,7 +721,7 @@ class GeodeticDataset(gf.meta.MultiLocation):
         return n
 
 
-def velocities_from_pole(lats, lons, plat, plon, omega):
+def velocities_from_pole(lats, lons, plat, plon, omega, earth_shape='ellipsoid'):
     """
     Return horizontal velocities at input locations for rotation around
     given Euler pole
@@ -743,6 +743,7 @@ def velocities_from_pole(lats, lons, plat, plon, omega):
     -------
     :class:`numpy.NdArray` of velocities [m / yrs] npoints x 3 (NEU)
     """
+    r_earth = orthodrome.earthradius
 
     def cartesian_to_local(lat, lon):
         rlat = lat * d2r
@@ -754,19 +755,26 @@ def velocities_from_pole(lats, lons, plat, plon, omega):
             [-num.cos(rlat) * num.cos(rlon), -num.cos(rlat) * num.sin(rlon),
              -num.sin(rlat)]])
 
-    latlons = num.atleast_2d(num.vstack([lats, lons]).T)
-    platlons = num.hstack([plat, plon])
-    npoints = latlons.shape[0]
+    npoints = lats.size
+    if earth_shape == 'sphere':
+        latlons = num.atleast_2d(num.vstack([lats, lons]).T)
+        platlons = num.hstack([plat, plon])
+        xyz_points = orthodrome.latlon_to_xyz(latlons)
+        xyz_pole = orthodrome.latlon_to_xyz(platlons)
 
-    xyz_points = orthodrome.latlon_to_xyz(latlons)
-    xyz_pole = orthodrome.latlon_to_xyz(platlons)
+    elif earth_shape == 'ellipsoid':
+        xyz = orthodrome.geodetic_to_ecef(lats, lons, num.zeros_like(lats))
+        xyz_points = num.atleast_2d(num.vstack(xyz).T) / r_earth
+        xyz_pole = num.hstack(
+            orthodrome.geodetic_to_ecef(plat, plon, 0.)) / r_earth
+
+    omega_rad_yr = omega * 1e-6 * d2r * r_earth
     xyz_poles = num.tile(xyz_pole, npoints).reshape(npoints, 3)
 
-    omega_rad_yr = omega * 1e-6 * d2r
     v_vecs = num.cross(xyz_poles, xyz_points)
-    vels_cartesian = orthodrome.earthradius * omega_rad_yr * v_vecs
+    vels_cartesian = omega_rad_yr * v_vecs
 
-    T = cartesian_to_local(latlons[:, 0], latlons[:, 1])
+    T = cartesian_to_local(lats, lons)
     return num.einsum('ijk->ik', T * vels_cartesian.T).T
 
 
