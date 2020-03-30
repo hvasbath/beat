@@ -21,19 +21,19 @@ _beat_options()
 
     _avail_plots="velocity_models stage_posteriors correlation_hist slip_distribution moment_rate station_map waveform_fits scene_fits gnss_fits fuzzy_beachball fuzzy_mt_decomp hudson"
 
-    _std="--help -h --loglevel --main_path"
+    _std="--mode --help -h --loglevel --main_path"
 
     declare -A arg_subsub
-    arg_subsub["init"]="--min_mag --datatypes --mode --source_type --n_sources --sampler --hyper_sampler --use_custom --individual_gfs $_std"
-    arg_subsub["build_gfs"]="--mode --datatypes --force --execute $_std"
-    arg_subsub["import"]="--results --datatypes --geodetic_format --seismic_format --mode --force $_std"
+    arg_subsub["init"]="--min_mag --datatypes --source_type --n_sources --sampler --hyper_sampler --use_custom --individual_gfs $_std"
+    arg_subsub["build_gfs"]="--datatypes --force --execute $_std"
+    arg_subsub["import"]="--results --datatypes --geodetic_format --seismic_format --force $_std"
     arg_subsub["update"]="--parameters --diff $_std"
-    arg_subsub["sample"]="--mode --hypers $_std"
-    arg_subsub["summarize"]="--mode --stage_number --force $_std"
-    arg_subsub["export"]="--mode --stage_number --fix_output --force $_std"
-    arg_subsub["clone"]="--datatypes --mode --source_type --sampler --copy_data $_std"
-    arg_subsub["plot"]="--mode --post_llk --stage_number --varnames --format --dpi --force --nensemble --reference --source_idxs --hypers --build --plot_projection $_std"
-    arg_subsub["check"]="--datatypes --mode --what --targets $_std"
+    arg_subsub["sample"]="--hypers $_std"
+    arg_subsub["summarize"]="--stage_number --force $_std"
+    arg_subsub["export"]="--stage_number --fix_output --force $_std"
+    arg_subsub["clone"]="--datatypes --source_type --sampler --copy_data $_std"
+    arg_subsub["plot"]="--post_llk --stage_number --varnames --format --dpi --force --nensemble --reference --source_idxs --hypers --build --plot_projection $_std"
+    arg_subsub["check"]="--datatypes --what --targets $_std"
 
 
     if [ $COMP_CWORD = 1 ]; then
