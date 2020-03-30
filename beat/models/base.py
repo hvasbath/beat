@@ -99,6 +99,11 @@ class Composite(object):
         else:
             return list(self.hyperparams.keys())
 
+    def export(self, point, results_path, stage_number,
+               fix_output=False, force=False, update=False):
+        logger.warning('Export method needs to be implemented to subclasses!')
+        pass
+
 
 def sample(step, problem):
     """
