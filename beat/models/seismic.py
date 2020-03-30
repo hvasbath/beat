@@ -219,6 +219,64 @@ class SeismicComposite(Composite):
         else:
             nhierarchs = 0
 
+    def export(self, point, results_path, stage_number,
+               fix_output=False, force=False, update=False):
+        """
+        Save results for given point to result path.
+        """
+
+        def save_covs(wmap, cov_mat='pred_v'):
+            """
+            Save covariance matrixes of given attribute
+            """
+            covs = {
+                utility.list2string(dataset.nslc_id):
+                    getattr(dataset.covariance, cov_mat)
+                for dataset in wmap.datasets}
+
+            outname = os.path.join(
+                results_path, '%s_C_%s_%s' % (
+                    'seismic', cov_mat, wmap._mapid))
+            logger.info('"%s" to: %s' % (wmap._mapid, outname))
+            num.savez(outname, **covs)
+
+        from pyrocko import io
+
+        # synthetics and data
+        results = self.assemble_results(point, chop_bounds=['b', 'c'])
+        for traces, attribute in heart.results_for_export(
+                results=results, datatype='seismic'):
+
+            filename = '%s_%i.mseed' % (attribute, stage_number)
+            outpath = os.path.join(results_path, filename)
+            try:
+                io.save(traces, outpath, overwrite=force)
+            except io.mseed.CodeTooLong:
+                if fix_output:
+                    for tr in traces:
+                        tr.set_station(tr.station[-5::])
+                        tr.set_location(
+                            str(self.config.gf_config.reference_model_idx))
+
+                    io.save(traces, outpath, overwrite=force)
+                else:
+                    raise ValueError(
+                        'Some station codes are too long! '
+                        '(the --fix_output option will truncate to '
+                        'last 5 characters!)')
+
+        # export stdz residuals
+        self.analyse_noise(point)
+        if update:
+            logger.info('Saving velocity model covariance matrixes...')
+            self.update_weights(point)
+            for wmap in self.wavemaps:
+                save_covs(wmap, 'pred_v')
+
+        logger.info('Saving data covariance matrixes...')
+        for wmap in self.wavemaps:
+            save_covs(wmap, 'data')
+
     def init_weights(self):
         """
         Initialise shared weights in wavemaps.

@@ -160,7 +160,7 @@ class GeodeticComposite(Composite):
         else:
             return 1
 
-    def assemble_results(self, point):
+    def assemble_results(self, point, **kwargs):
         """
         Assemble geodetic data for given point in solution space.
 
@@ -189,6 +189,11 @@ class GeodeticComposite(Composite):
                 processed_res=res))
 
         return results
+
+    def export(self, point, results_path, stage_number,
+               fix_output=False, force=False, update=False):
+        logger.warning('Exporting geodetic data not supported yet!')
+        pass
 
     def get_standardized_residuals(self, point):
         """

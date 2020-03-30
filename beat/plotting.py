@@ -719,10 +719,11 @@ def gnss_fits(problem, stage, plot_options):
     if po.plot_projection == 'latlon':
         event = problem.config.event
         locations = campaign.stations + [event]
-
-        lat, lon = otd.geographic_midpoint_locations(locations)
+        #print(locations)
+        #lat, lon = otd.geographic_midpoint_locations(locations)
 
         coords = num.array([loc.effective_latlon for loc in locations])
+        lat, lon = num.mean(num.vstack([coords.min(0), coords.max(0)]), axis=0)
 
     elif po.plot_projection == 'local':
         lat, lon = otd.geographic_midpoint_locations(sources)
@@ -737,7 +738,7 @@ def gnss_fits(problem, stage, plot_options):
         lat[num.newaxis], lon[num.newaxis],
         coords[:, 0], coords[:, 1]).max()
 
-    radius *= 1.1
+    radius *= 1.2
 
     if radius < 30. * km:
         logger.warning(
@@ -785,7 +786,8 @@ def gnss_fits(problem, stage, plot_options):
                 'W': '0.8p,black',
             },
             offset_scale=offset_scale,
-            vertical=vertical)
+            vertical=vertical,
+            labels=True)
 
         m.add_gnss_campaign(
             model_camp,

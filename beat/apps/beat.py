@@ -24,7 +24,7 @@ from beat.sampler.smc import sample_factor_final_stage
 
 from beat.sources import MTSourceWithMagnitude
 from beat.utility import list2string
-from numpy import savez, atleast_2d, floor
+from numpy import atleast_2d, floor
 
 from pyrocko import model, util
 from pyrocko.trace import snuffle
@@ -1837,73 +1837,9 @@ def command_export(args):
             logger.info('%s: %s' % (
                 varname, list2string(value.ravel().tolist())))
 
-        # TODO make fit for geodetics (does not accept chop_bounds!)
-        if datatype == 'seismic':
-            from pyrocko import io
-            results = composite.assemble_results(point, chop_bounds=['b', 'c'])
-            for traces, attribute in heart.results_for_export(
-                    results, datatype=datatype):
-
-                filename = '%s_%i.mseed' % (attribute, options.stage_number)
-                outpath = pjoin(results_path, filename)
-                try:
-                    io.save(traces, outpath, overwrite=options.force)
-                except io.mseed.CodeTooLong:
-                    if options.fix_output:
-                        for tr in traces:
-                            tr.set_station(tr.station[-4::])
-                            tr.set_location(
-                                str(problem.config.seismic_config.gf_config.reference_model_idx))
-
-                        io.save(traces, outpath, overwrite=options.force)
-                    else:
-                        raise ValueError(
-                            'Some station codes are too long! '
-                            '(the --fix_output option will truncate to '
-                            'last 4 characters!)')
-
-            # export stdz residuals
-
-            if hasattr(sc.parameters, 'update_covariances'):
-                composite.analyse_noise(point)
-                if sc.parameters.update_covariances:
-                    logger.info('Saving velocity model covariance matrixes...')
-                    composite.update_weights(point)
-                    for wmap in composite.wavemaps:
-                        pcovs = {
-                            list2string(dataset.nslc_id):
-                                dataset.covariance.pred_v
-                            for dataset in wmap.datasets}
-
-                        outname = pjoin(
-                            results_path, '%s_C_vm_%s' % (
-                                datatype, wmap._mapid))
-                        logger.info('"%s" to: %s' % (wmap._mapid, outname))
-                        savez(outname, **pcovs)
-
-                logger.info('Saving data covariance matrixes...')
-                for wmap in composite.wavemaps:
-                    dcovs = {
-                        list2string(dataset.nslc_id):
-                            dataset.covariance.data
-                        for dataset in wmap.datasets}
-
-                    outname = pjoin(
-                        results_path, '%s_C_d_%s' % (
-                            datatype, wmap._mapid))
-                    logger.info('"%s" to: %s' % (wmap._mapid, outname))
-                    savez(outname, **dcovs)
-
-        elif datatype == 'geodetic':
-            results = composite.assemble_results(point)
-            for ifgs, attribute in heart.results_for_export(
-                    results, datatype=datatype):
-                pass
-
-            raise NotImplementedError(
-                'Geodetic export not yet implemented!')
-        else:
-            raise NotImplementedError('Datatype %s not supported!' % datatype)
+        composite.export(
+            point, results_path, stage_number=options.stage_number,
+            fix_output=options.fix_output, force=options.force)
 
         stdzd_res_path = pjoin(
             results_path, '{}_stdzd_residuals.pkl'.format(datatype))
