@@ -1099,7 +1099,7 @@ class SeismicDistributerComposite(SeismicComposite):
                         ' %s' % (key, utility.list2string(self.gfs.keys())))
                 from time import time
                 gflibrary.set_stack_mode('numpy')
-                print('before stacking')
+
                 t0=time()
                 synthetics += gflibrary.stack_all(
                     targetidxs=targetidxs,
@@ -1108,7 +1108,8 @@ class SeismicDistributerComposite(SeismicComposite):
                     slips=tpoint[var],
                     interpolation=wmap.config.interpolation)
                 t1=time()
-                print('{} seconds to stack {}'.format((t1 - t0), wmap.name))
+                logger.debug(
+                    '{} seconds to stack {}'.format((t1 - t0), wmap.name))
 
             wmap_synthetics = []
             for i, target in enumerate(wmap.targets):
