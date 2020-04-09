@@ -1388,7 +1388,7 @@ def seismic_fits(problem, stage, plot_options):
 
     if best_point:
         bresults = composite.assemble_results(
-            best_point, outmode = 'tapered_data')   # for source individual contributions
+            best_point, outmode='tapered_data')   # for source individual contributions
     else:
         # get dummy results for data
         bresults = composite.assemble_results(point)

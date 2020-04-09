@@ -2894,7 +2894,8 @@ def seis_synthetics(
         --> currently no effect !!!
     outmode : string
         output format of synthetics can be 'array', 'stacked_traces',
-        'data' returns traces unstacked including post-processing
+        'data' returns traces unstacked including post-processing,
+        'tapered_data' returns unstacked but tapered traces
     pre_stack_cut : boolean
         flag to decide wheather prior to stacking the GreensFunction traces
         should be cutted according to the phase arival time and the defined

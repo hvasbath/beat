@@ -1120,6 +1120,11 @@ class SeismicDistributerComposite(SeismicComposite):
                     deltat=gflibrary.deltat)
 
                 tr.set_codes(*target.codes)
+
+                if outmode = 'tapered_data':
+                    # TODO subfault individual synthetics (use patchidxs arg)
+                    tr = [tr]
+
                 wmap_synthetics.append(tr)
 
             wmap.prepare_data(
