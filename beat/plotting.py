@@ -3077,12 +3077,10 @@ def fuzzy_rupture_fronts(
     ymin = ygrid.min()
     ymax = ygrid.max()
     extent = (xmin, xmax, ymin, ymax)
-
     grid = num.zeros(
         (int((num.abs(ymax) - num.abs(ymin)) * res_km),
          int((num.abs(xmax) - num.abs(xmin)) * res_km)),
         dtype='float64')
-
     for rupture_front in rupture_fronts:
         for level in rupture_front:
             for line in level:
@@ -3269,7 +3267,6 @@ def fault_slip_distribution(
                 for i in tqdm(idxs):
                     nuc_dip_idx, nuc_strike_idx = fault.fault_locations2idxs(
                         ns, nuc_dip[i], nuc_strike[i], backend='numpy')
-                    print(nuc_dip_idx, nuc_strike_idx, nuc_strike[i], nuc_dip[i])
                     veloc_ns = fault.vector2subfault(
                         index=ns, vector=velocities[i, :])
                     sts = fault.get_subfault_starttimes(
@@ -3309,7 +3306,7 @@ def fault_slip_distribution(
                 colors='black', linewidths=0.5, alpha=0.9)
             ax.plot(
                 reference['nucleation_strike'][ns],
-                reference['nucleation_dip'][ns],
+                ext_source.width / km - reference['nucleation_dip'][ns],
                 marker='*', color='k', markersize=12)
             plt.clabel(contours, inline=True, fontsize=10)
 
@@ -3428,7 +3425,7 @@ def draw_slip_dist(problem, po):
                 fig.savefig(outpath + '_%i.%s' % (i, po.outformat), dpi=po.dpi)
 
 
-def _weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=num.inf):
+def _weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=num.inf, cmin=0, cmax=num.inf):
     """
     Draw weighted lines into array
     Modiefied from:
@@ -3465,13 +3462,15 @@ def _weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=num.inf):
     # If either of these cases are violated, do some switches.
     if abs(c1 - c0) < abs(r1 - r0):
         # Switch x and y, and switch again when returning.
-        xx, yy, val = _weighted_line(c0, r0, c1, r1, w=w, rmin=rmin, rmax=rmax)
+        xx, yy, val = _weighted_line(
+            c0, r0, c1, r1, w=w, rmin=cmin, rmax=cmax, cmin=rmin, cmax=rmax)
         return (yy, xx, val)
 
     # At this point we know that the distance in columns (x) is greater
     # than that in rows (y). Possibly one more switch if c0 > c1.
     if c0 > c1:
-        return _weighted_line(r1, c1, r0, c0, w=w, rmin=rmin, rmax=rmax)
+        return _weighted_line(
+            r1, c1, r0, c0, w=w, rmin=rmin, rmax=rmax, cmin=cmin, cmax=cmax)
 
     # The following is now always < 1 in abs
     slope = (r1 - r0) / (c1 - c0)
@@ -3498,8 +3497,9 @@ def _weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=num.inf):
 
     # Exclude useless parts and those outside of the interval
     # to avoid parts outside of the picture
-    mask = num.logical_and.reduce((yy >= rmin, yy < rmax, vals > 0))
-
+    mask_y = num.logical_and.reduce((yy >= rmin, yy < rmax, vals > 0))
+    mask_x = num.logical_and.reduce((xx >= cmin, xx < cmax, vals > 0))
+    mask = num.logical_and.reduce((mask_y > 0, mask_x > 0))
     return (yy[mask].astype(int), xx[mask].astype(int), vals[mask])
 
 
@@ -3586,7 +3586,6 @@ def draw_line_on_array(
 
     check_line_in_grid(xidxs, 'x', nmax=xnstep - 1, extent=extent)
     check_line_in_grid(yidxs, 'y', nmax=ynstep - 1, extent=extent)
-
     new_grid = num.zeros_like(grid)
     for i in range(1, nxs):
         c0 = xidxs[i - 1]
@@ -3595,7 +3594,7 @@ def draw_line_on_array(
         r1 = yidxs[i]
         try:
             rr, cc, w = _weighted_line(
-                r0=r0, c0=c0, r1=r1, c1=c1, w=linewidth, rmax=ynstep - 1)
+                r0=r0, c0=c0, r1=r1, c1=c1, w=linewidth, rmax=ynstep - 1, cmax=xnstep - 1)
             new_grid[rr, cc] = w.astype(grid.dtype)
         except ValueError:
             # line start and end fall in the same grid point cant be drawn
