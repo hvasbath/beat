@@ -1121,7 +1121,7 @@ class SeismicDistributerComposite(SeismicComposite):
 
                 tr.set_codes(*target.codes)
 
-                if outmode = 'tapered_data':
+                if outmode == 'tapered_data':
                     # TODO subfault individual synthetics (use patchidxs arg)
                     tr = [tr]
 
