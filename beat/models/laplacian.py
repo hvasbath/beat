@@ -55,7 +55,9 @@ class LaplacianDistributerComposite(Composite):
 
         if(0):
             from matplotlib import pyplot as plt
-            plt.matshow(self.smoothing_op, vmin=0)
+            print(self.smoothing_op)
+            im = plt.matshow(self.smoothing_op, vmin=0)
+            plt.colorbar(im)
             plt.show()
 
         self.sdet_shared_smoothing_op = shared(
