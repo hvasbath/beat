@@ -328,6 +328,36 @@ total number of patches: %i ''' % (
 
         return mrf_rates, mrf_times
 
+    def get_moment_rate_function(self, index, point, target, store):
+
+        if isinstance(index, list):
+            pass
+        else:
+            index = [index]
+
+        sf_rates = []
+        sf_times = []
+        for idx in index:
+            rates, times = self.get_subfault_moment_rate_function(
+                index=idx, point=point, target=target, store=store)
+            sf_rates.append(rates)
+            sf_times.append(times)
+
+        # add subfault MRFs to total function
+        min_times = min(map(num.min, sf_times))
+        max_times = max(map(num.max, sf_times))
+
+        deltat = store.config.deltat
+        mrf_times = num.arange(min_times, max_times, deltat)
+        mrf_rates = num.zeros_like(mrf_times)
+
+        for sf_rate, sf_time in zip(sf_rates, sf_times):
+            slc = slice(int((sf_time.min() - min_times) / deltat),
+                        int((sf_time.max() - min_times) / deltat + 1))
+            mrf_rates[slc] += sf_rate
+
+        return mrf_rates, mrf_times
+
     def get_rupture_geometry(
             self, point, target, store=None, event=None, datatype='geodetic'):
 
