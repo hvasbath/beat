@@ -3627,8 +3627,10 @@ def fuzzy_moment_rate(
 
     max_rates = max(map(num.max, moment_rates))
     max_times = max(map(num.max, times))
+    min_rates = min(map(num.min, moment_rates))
+    min_times = min(map(num.min, times))
 
-    extent = (0., max_times, 0., max_rates)
+    extent = (min_times, max_times, min_rates, max_rates)
     grid = num.zeros(grid_size, dtype='float64')
 
     for mr, time in zip(moment_rates, times):
@@ -3685,8 +3687,14 @@ def draw_moment_rate(problem, po):
         'Drawing ensemble of %i moment rate functions ...' % po.nensemble)
     target = sc.wavemaps[0].targets[0]
 
+    logger.info('Drawing subfault individual rates ...')
+    total_rates = []
+    total_times = []
+    ref_rates = []
+    ref_times = []
     mpl_init(fontsize=fontsize)
     for ns in range(fault.nsubfaults):
+        logger.info('Subfault %i / %i' % (ns + 1, fault.nsubfaults))
         outpath = os.path.join(
             problem.outfolder, po.figure_dir,
             'moment_rate_%i_%i_%s_%i.%s' % (
@@ -3695,6 +3703,8 @@ def draw_moment_rate(problem, po):
         ref_mrf_rates, ref_mrf_times = fault.get_subfault_moment_rate_function(
             index=ns, point=reference, target=target,
             store=sc.engine.get_store(target.store_id))
+        ref_rates.append(ref_mrf_rates)
+        ref_times.append(ref_mrf_times)
 
         if not os.path.exists(outpath) or po.force:
             fig, ax = plt.subplots(
@@ -3718,6 +3728,8 @@ def draw_moment_rate(problem, po):
                     mrfs_rate.append(mrf_rate)
                     mrfs_time.append(mrf_time)
 
+                total_rates.extend(mrfs_rate)
+                total_times.extend(mrfs_time)
                 fuzzy_moment_rate(ax, mrfs_rate, mrfs_time)
 
             ax.plot(
@@ -3733,6 +3745,36 @@ def draw_moment_rate(problem, po):
 
         else:
             logger.info('Plot exists! Use --force to overwrite!')
+
+    logger.info('Drawing total moment rate function ...')
+    outpath = os.path.join(
+        problem.outfolder, po.figure_dir,
+        'moment_rate_%i_total_%s_%i.%s' % (
+            stage.number, llk_str, po.nensemble, po.outformat))
+
+    if not os.path.exists(outpath) or po.force:
+        fig, ax = plt.subplots(
+            nrows=1, ncols=1, figsize=mpl_papersize('a7', 'landscape'))
+        labelpos = mpl_margins(
+            fig, left=5, bottom=4, top=1.5, right=0.5, units=fontsize)
+        labelpos(ax, 2., 1.5)
+        print('tr', total_rates)
+        print('tt', total_times)
+        fuzzy_moment_rate(ax, total_rates, total_times)
+        format_axes(ax, remove=['top', 'right'])
+        for ref_rate, ref_time in zip(ref_rates, ref_times):
+            ax.plot(
+                ref_time, ref_rate,
+                '-k', alpha=0.8, linewidth=1.)
+
+        if po.outformat == 'display':
+            plt.show()
+        else:
+            logger.info('saving figure to %s' % outpath)
+            fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
+
+    else:
+        logger.info('Plot exists! Use --force to overwrite!')
 
 
 def source_geometry(fault, ref_sources, event, datasets=None, values=None,

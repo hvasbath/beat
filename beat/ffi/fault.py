@@ -302,15 +302,14 @@ total number of patches: %i ''' % (
         uparr = self.vector2subfault(index, point['uparr'])
         uperp = self.vector2subfault(index, point['uperp'])
         slips = num.sqrt(uparr ** 2 + uperp ** 2)
-
         starttimes = self.point2starttimes(point, index=index).ravel()
+        tmin = num.floor((starttimes.min() / deltat)) * deltat 
         tmax = (num.ceil(
             (starttimes.max() + point['durations'].max()) / deltat) + 1) * \
             deltat
-
         durations = self.vector2subfault(index, point['durations'])
 
-        mrf_times = num.arange(0., tmax, deltat)
+        mrf_times = num.arange(tmin, tmax, deltat)
         mrf_rates = num.zeros_like(mrf_times)
 
         moments = self.get_subfault_patch_moments(
@@ -323,7 +322,8 @@ total number of patches: %i ''' % (
 
         for m, pt, pa in zip(moments, patch_times, patch_amplitudes):
             tmoments = pa * m
-            slc = slice(int(pt.min() / deltat), int(pt.max() / deltat + 1))
+            slc = slice(int((pt.min() - tmin) / deltat),
+                        int((pt.max() - tmin) / deltat + 1))
             mrf_rates[slc] += tmoments
 
         return mrf_rates, mrf_times
