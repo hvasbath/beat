@@ -348,9 +348,8 @@ total number of patches: %i ''' % (
         max_times = max(map(num.max, sf_times))
 
         deltat = store.config.deltat
-        mrf_times = num.arange(min_times, max_times, deltat)
+        mrf_times = num.arange(min_times, max_times + deltat, deltat)
         mrf_rates = num.zeros_like(mrf_times)
-
         for sf_rate, sf_time in zip(sf_rates, sf_times):
             slc = slice(int((sf_time.min() - min_times) / deltat),
                         int((sf_time.max() - min_times) / deltat + 1))
