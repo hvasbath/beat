@@ -675,16 +675,46 @@ class GeodeticDataset(gf.meta.MultiLocation):
 
 
     def __init__(self, **kwargs):
-        self._slocx = None
-        self._slocy = None
         self.has_correction = False
+        self.corrections = None
         super(GeodeticDataset, self).__init__(**kwargs)
 
-    def get_correction(self, hierarchicals, point=None):
+    def get_corrections(self, hierarchicals, point=None):
         """
         Needs to be specified on inherited dataset classes.
         """
-        pass
+        raise NotImplementedError('Needs implementation in subclass')
+
+    def setup_corrections(self, event, correction_configs):
+        """
+        Initialise geodetic dataset corrections such as Ramps or Euler Poles.
+        """
+        self.corrections = []
+        self.update_local_coords(event)
+        for i, corr_conf in enumerate(correction_configs):
+            corr = corr_conf.init_correction()
+            if self.name in corr.dataset_names and corr_conf.enabled:
+                logger.info(
+                    'Setting up %s correction for %s %s' % (
+                        corr_conf.feature, self.name))
+                locx_name, locy_name = corr.get_required_coordinate_names()
+                locx = getattr(locx_name, self)
+                locy = getattr(locy_name, self)
+
+                blacklist_idxs = self.get_blacklist(corr_conf)
+
+                correction_names = corr_conf.get_hierarchical_names(
+                    name=self.name, number=i)
+                corr.setup_correction(
+                    lats=locy, lons=locx, los_vector=self.los_vector,
+                    backlist=blacklist_idxs,
+                    correction_names=correction_names)
+                self.corrections.append(corr)
+                self.has_correction = True
+            else:
+                logger.info(
+                    'Not correcting %s %s for %s' % (
+                        self.name, corr_conf.feature))
 
     def update_local_coords(self, loc):
         """
@@ -719,84 +749,6 @@ class GeodeticDataset(gf.meta.MultiLocation):
         else:
             raise ValueError('No coordinates defined!')
         return n
-
-
-def velocities_from_pole(lats, lons, plat, plon, omega, earth_shape='ellipsoid'):
-    """
-    Return horizontal velocities at input locations for rotation around
-    given Euler pole
-
-    Parameters
-    ----------
-    lats: :class:`numpy.NdArray`
-        of geographic latitudes [deg] of points to calculate velocities for
-    lons: :class:`numpy.NdArray`
-        of geographic longitudes [deg] of points to calculate velocities for
-    plat: float
-        Euler pole latitude [deg]
-    plon: float
-        Euler pole longitude [deg]
-    omega: float
-        angle of rotation around Euler pole [deg / million yrs]
-
-    Returns
-    -------
-    :class:`numpy.NdArray` of velocities [m / yrs] npoints x 3 (NEU)
-    """
-    r_earth = orthodrome.earthradius
-
-    def cartesian_to_local(lat, lon):
-        rlat = lat * d2r
-        rlon = lon * d2r
-        return num.array([
-            [-num.sin(rlat) * num.cos(rlon), -num.sin(rlat) * num.sin(rlon),
-             num.cos(rlat)],
-            [-num.sin(rlon), num.cos(rlon), num.zeros_like(rlat)],
-            [-num.cos(rlat) * num.cos(rlon), -num.cos(rlat) * num.sin(rlon),
-             -num.sin(rlat)]])
-
-    npoints = lats.size
-    if earth_shape == 'sphere':
-        latlons = num.atleast_2d(num.vstack([lats, lons]).T)
-        platlons = num.hstack([plat, plon])
-        xyz_points = orthodrome.latlon_to_xyz(latlons)
-        xyz_pole = orthodrome.latlon_to_xyz(platlons)
-
-    elif earth_shape == 'ellipsoid':
-        xyz = orthodrome.geodetic_to_ecef(lats, lons, num.zeros_like(lats))
-        xyz_points = num.atleast_2d(num.vstack(xyz).T) / r_earth
-        xyz_pole = num.hstack(
-            orthodrome.geodetic_to_ecef(plat, plon, 0.)) / r_earth
-
-    omega_rad_yr = omega * 1e-6 * d2r * r_earth
-    xyz_poles = num.tile(xyz_pole, npoints).reshape(npoints, 3)
-
-    v_vecs = num.cross(xyz_poles, xyz_points)
-    vels_cartesian = omega_rad_yr * v_vecs
-
-    T = cartesian_to_local(lats, lons)
-    return num.einsum('ijk->ik', T * vels_cartesian.T).T
-
-
-def get_ramp_displacement(locx, locy, azimuth_ramp, range_ramp, offset):
-    """
-    Get synthetic residual plane in azimuth and range direction of the
-    satellite.
-
-    Parameters
-    ----------
-    locx : shared array-like :class:`numpy.ndarray`
-        local coordinates [km] in east direction
-    locy : shared array-like :class:`numpy.ndarray`
-        local coordinates [km] in north direction
-    azimuth_ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
-        vector with ramp parameter in azimuth
-    range_ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
-        vector with ramp parameter in range
-    offset : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
-        scalar of offset in [m]
-    """
-    return locy * azimuth_ramp + locx * range_ramp + offset
 
 
 class GNSSCompoundComponent(GeodeticDataset):
@@ -887,80 +839,22 @@ class GNSSCompoundComponent(GeodeticDataset):
 
         return scene
 
+    def get_blacklist(self, corr_config):
+        s2idx = self.station_name_index_mapping()
+        station_blacklist_idxs = [
+            s2idx[code] for code in corr_config.station_blacklist]
+
+        logger.info(
+            'Stations with idxs %s got blacklisted!' %
+            utility.list2string(station_blacklist_idxs))
+        return station_blacklist_idxs
+
     def station_name_index_mapping(self):
         if self._station2index is None:
             self._station2index = dict(
                 (station.code, i) for (i, station) in enumerate(
                     self.stations))
         return self._station2index
-
-    def setup_correction(self, event, correction_config):
-
-        if correction_config.for_datatyp == self.typ and \
-                correction_config.enabled:
-            logger.info(
-                'Setting up %s correction for %s %s' % (
-                    correction_config.feature, self.name, self.component))
-
-            s2idx = self.station_name_index_mapping()
-            self._correction_idxs_blacklist = num.array(
-                [s2idx[code] for code in correction_config.blacklist])
-
-            logger.info('Stations with idxs %s got blacklisted!'
-                        '' % utility.list2string(
-                self._correction_idxs_blacklist.tolist()))
-
-            self.correction_names = correction_config.get_hierarchical_names(
-                self.name)
-            self.has_correction = correction_config.enabled
-            self.euler_pole = correction_config.get_theano_op()(
-                self.lats, self.lons, self._correction_idxs_blacklist)
-            self.slos_vector = shared(self.los_vector.astype(tconfig.floatX),
-                name='los_%s_%s' % (self.name, self.component), borrow=True)
-        else:
-            logger.info(
-                'Not correcting %s %s for %s' % (
-                    self.name, self.component, correction_config.feature))
-
-    def get_correction(self, hierarchicals, point=None):
-        """
-        Get synthetic correction velocity due to Euler pole rotation.
-        """
-        if not self.has_correction:
-            raise ValueError(
-                'Requested correction, but is not setup or configured! '
-                'For dataset %s' % self.name)
-
-        pole_lat_name, pole_lon_name, rotation_vel_name = self.correction_names
-        if not point:   # theano instance for get_formula
-            inputs = OrderedDict()
-            for corr_name in self.correction_names:
-                inputs[corr_name] = hierarchicals[corr_name]
-
-            vels = self.euler_pole(inputs)
-            return (vels * self.slos_vector).sum(axis=1)
-        else:       # numpy instance else
-            locx = self.lats
-            locy = self.lons
-
-            try:
-                pole_lat = point[pole_lat_name]
-                pole_lon = point[pole_lon_name]
-                omega = point[rotation_vel_name]
-            except KeyError:
-                if len(hierarchicals) == 0:
-                    raise ValueError(
-                        'No hierarchical parameters initialized,'
-                        'but requested! Please check init!')
-
-                pole_lat = hierarchicals[pole_lat_name]
-                pole_lon = hierarchicals[pole_lon_name]
-                omega = hierarchicals[rotation_vel_name]
-
-            vels = velocities_from_pole(locx, locy, pole_lat, pole_lon, omega)
-            if self._correction_idxs_blacklist.size > 0:
-                vels[self._correction_idxs_blacklist] = 0.
-            return (vels * self.los_vector).sum(axis=1)
 
     @classmethod
     def from_pyrocko_gnss_campaign(cls, campaign):
@@ -1122,60 +1016,15 @@ class DiffIFG(IFG):
             odw=num.ones_like(scene.quadtree.leaf_phis))
         return cls(**d)
 
-    def setup_correction(self, event, correction_config):
+    def get_blacklist(self, corr_conf):
         """
-        Setup dataset correction
+        Extracts mask from kite scene and returns blacklist indexes-
+        maybe during import?!!!
         """
-        if correction_config.for_datatyp == self.typ and \
-                correction_config.enabled:
-            if self.name not in correction_config.blacklist:
-                logger.info('Setting up %s correction for %s' % (
-                    correction_config.feature, self.name))
-                locy, locx = self.update_local_coords(event)
-                self._slocx = shared(locx.astype(tconfig.floatX) / km,
-                                     name='localx_%s' % self.name, borrow=True)
-                self._slocy = shared(locy.astype(tconfig.floatX) / km,
-                                     name='localy_%s' % self.name, borrow=True)
-            else:
-                logger.info('Not correcting for %s for %s' % (
-                    correction_config.feature, self.name))
-
-        self.has_correction = correction_config.enabled
-        self.correction_names = correction_config.get_hierarchical_names(
-            self.name)
-
-    def get_correction(self, hierarchicals, point=None):
-        """
-        Return synthetic correction displacements caused by orbital ramp.
-        """
-        if not self.has_correction:
-            raise ValueError(
-                'Requested correction, but is not setup or configured! '
-                'For dataset %s' % self.name)
-
-        azimuth_ramp_name, range_ramp_name, offset_name = self.correction_names
-        if not point:
-            locx = self._slocx
-            locy = self._slocy
-            azimuth_ramp = hierarchicals[azimuth_ramp_name]
-            range_ramp = hierarchicals[range_ramp_name]
-            offset = hierarchicals[offset_name]
+        if corr_conf.feature == 'Euler Pole':
+            return #masked indexes
         else:
-            locx = self.east_shifts / km
-            locy = self.north_shifts / km
-            try:
-                azimuth_ramp = point[azimuth_ramp_name]
-                range_ramp = point[range_ramp_name]
-                offset = point[offset_name]
-            except KeyError:
-                azimuth_ramp = hierarchicals[azimuth_ramp_name]
-                range_ramp = hierarchicals[range_ramp_name]
-                offset = hierarchicals[offset_name]
-
-        ramp = get_ramp_displacement(
-            locx=locx, locy=locy,
-            azimuth_ramp=azimuth_ramp, range_ramp=range_ramp, offset=offset)
-        return ramp
+            return None
 
 
 class GeodeticResult(Object):

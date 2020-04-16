@@ -98,7 +98,7 @@ class GeodeticComposite(Composite):
         self.weights = []
         for i, data in enumerate(self.datasets):
             if int(data.covariance.data.sum()) == data.ncoords:
-                logger.warn('Data covariance is identity matrix!'
+                logger.warning('Data covariance is identity matrix!'
                             ' Please double check!!!')
 
             choli = data.covariance.chol_inverse
@@ -107,11 +107,11 @@ class GeodeticComposite(Composite):
             data.covariance.update_slog_pdet()
 
         if gc.corrections_config.has_enabled_corrections:
+            correction_configs = gc.corrections_config.iter_corrections()
             logger.info('Initialising corrections ...')
-            for corr_conf in gc.corrections_config.iter_corrections():
-                for data in self.datasets:
-                    data.setup_correction(
-                        event=self.event, correction_config=corr_conf)
+            for data in self.datasets:
+                data.setup_corrections(
+                    event=self.event, correction_configs=correction_configs)
 
         self.config = gc
 
@@ -219,14 +219,16 @@ class GeodeticComposite(Composite):
         """
         hierarchicals = problem_config.hierarchicals
         self._hierarchicalnames = []
-        for corr in self.config.corrections_config.iter_corrections():
+        for i, corr in enumerate(
+                self.config.corrections_config.iter_corrections()):
             logger.info(
                 'Evaluating config for %s corrections '
                 'for datasets...' % corr.feature)
             if corr.enabled:
                 for data in self.datasets:
-                    if data.typ == corr.for_datatyp:
-                        hierarchical_names = corr.get_hierarchical_names(data.name)
+                    if data in corr.dataset_names
+                        hierarchical_names = corr.get_hierarchical_names(
+                            name=data.name, number=i)
                     else:
                         hierarchical_names = []
 
@@ -287,14 +289,15 @@ class GeodeticComposite(Composite):
         """
         for i, dataset in enumerate(self.datasets):
             if dataset.has_correction:
-                correction = dataset.get_correction(
-                    self.hierarchicals, point=point)
-                # correction = Print('corr')(correction)
+                for corr in dataset.corrections:
+                    correction = corr.get_displacements(
+                        self.hierarchicals, point=point)
+                    # correction = Print('corr')(correction)
 
-                if operation == '-':
-                    residuals[i] -= correction   # needs explicit assignment!
-                elif operation == '+':
-                    residuals[i] += correction
+                    if operation == '-':
+                        residuals[i] -= correction   # needs explicit assignment!
+                    elif operation == '+':
+                        residuals[i] += correction
 
         return residuals
 
@@ -421,7 +424,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         self.init_hierarchicals(problem_config)
         if self.config.corrections_config.has_enabled_corrections:
             logger.info('Applying corrections! ...')
-            residuals = self.apply_corrections(residuals)
+            residuals = self.apply_corrections(residuals, operation='-')
 
         logpts = multivariate_normal_chol(
             self.datasets, self.weights, hyperparams, residuals,

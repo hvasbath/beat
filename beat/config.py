@@ -664,13 +664,17 @@ class SeismicConfig(Object):
 
 class CorrectionConfig(Object):
 
+    dataset_names = List.T(
+        String.T(),
+        default=[],
+        help='Datasets to include in the correction.')
+    station_blacklist = List.T(
+        String.T(),
+        default=[],
+        help='GNSS station names to apply no correction.')
     enabled = Bool.T(
         default=False,
         help='Flag to enable Correction.')
-    blacklist = List.T(
-        String.T(),
-        default=[],
-        help='Dataset name or GNSS station name to apply no correction.')
 
     def get_suffixes(self):
         return self._suffixes
@@ -679,9 +683,8 @@ class CorrectionConfig(Object):
     def _suffixes(self):
         return ['']
 
-    def get_hierarchical_names(self, name):
-        return ['{}_{}'.format(name, suffix) for suffix in self.get_suffixes()
-                if name not in self.blacklist]
+    def get_hierarchical_names(self):
+        raise NotImplementedError('Needs to be implemented in the subclass!')
 
 
 class EulerPoleConfig(CorrectionConfig):
@@ -694,13 +697,13 @@ class EulerPoleConfig(CorrectionConfig):
     def feature(self):
         return 'Euler Pole'
 
-    @property
-    def for_datatyp(self):
-        return 'GNSS'
+    def get_hierarchical_names(self, name=None, number=0):
+        return [
+            '{}_{}'.format(suffix, number) for suffix in self.get_suffixes()]
 
-    def get_theano_op(self):
-        from beat.theanof import EulerPole
-        return EulerPole
+    def init_correction(self):
+        from beat.models.corrections import EulerPoleCorrection
+        return EulerPoleCorrection(self)
 
 
 class RampConfig(CorrectionConfig):
@@ -713,9 +716,13 @@ class RampConfig(CorrectionConfig):
     def feature(self):
         return 'Ramps'
 
-    @property
-    def for_datatyp(self):
-        return 'SAR'
+    def get_hierarchical_names(self, name, number=0):
+        return ['{}_{}'.format(name, suffix) for suffix in self.get_suffixes()
+                if name in self.dataset_names]
+
+    def init_correction(self):
+        from beat.models.corrections import RampCorrection
+        return RampCorrection(self)
 
 
 class GeodeticCorrectionsConfig(Object):
