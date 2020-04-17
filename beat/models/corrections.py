@@ -4,6 +4,7 @@ from theano import shared
 from theano import config as tconfig
 
 from beat.theanof import EulerPole
+from beat.heart import velocities_from_pole
 
 from collections import OrderedDict
 import logging
@@ -95,7 +96,7 @@ class EulerPoleCorrection(Correction):
         self.lats = lats
         self.lons = lons
         self.correction_names = correction_names
-        self.blacklist = num.array(blacklist)
+        self.blacklist = blacklist
 
         self.euler_pole = EulerPole(
             self.lats, self.lons, blacklist)
@@ -141,81 +142,3 @@ class EulerPoleCorrection(Correction):
             if self.blacklist.size > 0:
                 vels[self.blacklist] = 0.
             return (vels * self.los_vector).sum(axis=1)
-
-
-def velocities_from_pole(lats, lons, plat, plon, omega, earth_shape='ellipsoid'):
-    """
-    Return horizontal velocities at input locations for rotation around
-    given Euler pole
-
-    Parameters
-    ----------
-    lats: :class:`numpy.NdArray`
-        of geographic latitudes [deg] of points to calculate velocities for
-    lons: :class:`numpy.NdArray`
-        of geographic longitudes [deg] of points to calculate velocities for
-    plat: float
-        Euler pole latitude [deg]
-    plon: float
-        Euler pole longitude [deg]
-    omega: float
-        angle of rotation around Euler pole [deg / million yrs]
-
-    Returns
-    -------
-    :class:`numpy.NdArray` of velocities [m / yrs] npoints x 3 (NEU)
-    """
-    r_earth = orthodrome.earthradius
-
-    def cartesian_to_local(lat, lon):
-        rlat = lat * d2r
-        rlon = lon * d2r
-        return num.array([
-            [-num.sin(rlat) * num.cos(rlon), -num.sin(rlat) * num.sin(rlon),
-             num.cos(rlat)],
-            [-num.sin(rlon), num.cos(rlon), num.zeros_like(rlat)],
-            [-num.cos(rlat) * num.cos(rlon), -num.cos(rlat) * num.sin(rlon),
-             -num.sin(rlat)]])
-
-    npoints = lats.size
-    if earth_shape == 'sphere':
-        latlons = num.atleast_2d(num.vstack([lats, lons]).T)
-        platlons = num.hstack([plat, plon])
-        xyz_points = orthodrome.latlon_to_xyz(latlons)
-        xyz_pole = orthodrome.latlon_to_xyz(platlons)
-
-    elif earth_shape == 'ellipsoid':
-        xyz = orthodrome.geodetic_to_ecef(lats, lons, num.zeros_like(lats))
-        xyz_points = num.atleast_2d(num.vstack(xyz).T) / r_earth
-        xyz_pole = num.hstack(
-            orthodrome.geodetic_to_ecef(plat, plon, 0.)) / r_earth
-
-    omega_rad_yr = omega * 1e-6 * d2r * r_earth
-    xyz_poles = num.tile(xyz_pole, npoints).reshape(npoints, 3)
-
-    v_vecs = num.cross(xyz_poles, xyz_points)
-    vels_cartesian = omega_rad_yr * v_vecs
-
-    T = cartesian_to_local(lats, lons)
-    return num.einsum('ijk->ik', T * vels_cartesian.T).T
-
-
-def get_ramp_displacement(locx, locy, azimuth_ramp, range_ramp, offset):
-    """
-    Get synthetic residual plane in azimuth and range direction of the
-    satellite.
-
-    Parameters
-    ----------
-    locx : shared array-like :class:`numpy.ndarray`
-        local coordinates [km] in east direction
-    locy : shared array-like :class:`numpy.ndarray`
-        local coordinates [km] in north direction
-    azimuth_ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
-        vector with ramp parameter in azimuth
-    range_ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
-        vector with ramp parameter in range
-    offset : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
-        scalar of offset in [m]
-    """
-    return locy * azimuth_ramp + locx * range_ramp + offset

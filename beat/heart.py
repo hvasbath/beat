@@ -691,29 +691,30 @@ class GeodeticDataset(gf.meta.MultiLocation):
         """
         self.corrections = []
         self.update_local_coords(event)
-        for i, corr_conf in enumerate(correction_configs):
+        for corr_conf in correction_configs:
             corr = corr_conf.init_correction()
-            if self.name in corr.dataset_names and corr_conf.enabled:
+            if self.name in corr_conf.dataset_names and corr_conf.enabled:
                 logger.info(
-                    'Setting up %s correction for %s %s' % (
+                    'Setting up %s correction for %s' % (
                         corr_conf.feature, self.name))
                 locx_name, locy_name = corr.get_required_coordinate_names()
-                locx = getattr(locx_name, self)
-                locy = getattr(locy_name, self)
+                print(locx_name, locy_name)
+                locx = getattr(self, locx_name)
+                locy = getattr(self, locy_name)
 
-                blacklist_idxs = self.get_blacklist(corr_conf)
+                blacklist = self.get_blacklist(corr_conf)
 
                 correction_names = corr_conf.get_hierarchical_names(
-                    name=self.name, number=i)
+                    name=self.name)
                 corr.setup_correction(
                     lats=locy, lons=locx, los_vector=self.los_vector,
-                    backlist=blacklist_idxs,
+                    blacklist=blacklist,
                     correction_names=correction_names)
                 self.corrections.append(corr)
                 self.has_correction = True
             else:
                 logger.info(
-                    'Not correcting %s %s for %s' % (
+                    'Not correcting %s for %s' % (
                         self.name, corr_conf.feature))
 
     def update_local_coords(self, loc):
@@ -841,12 +842,12 @@ class GNSSCompoundComponent(GeodeticDataset):
 
     def get_blacklist(self, corr_config):
         s2idx = self.station_name_index_mapping()
-        station_blacklist_idxs = [
-            s2idx[code] for code in corr_config.station_blacklist]
+        station_blacklist_idxs = num.array([
+            s2idx[code] for code in corr_config.station_blacklist])
 
         logger.info(
             'Stations with idxs %s got blacklisted!' %
-            utility.list2string(station_blacklist_idxs))
+            utility.list2string(station_blacklist_idxs.tolist()))
         return station_blacklist_idxs
 
     def station_name_index_mapping(self):
@@ -981,14 +982,20 @@ class DiffIFG(IFG):
         help='Overlapping data weights, additional weight factor to the'
              'dataset for overlaps with other datasets',
         optional=True)
+    mask = Array.T(
+        shape=(None,),
+        dtype=num.bool,
+        help='Mask values for Euler pole region determination. '
+             'Click polygon mask in kite!',
+        optional=True)
 
     @classmethod
     def from_kite_scene(cls, scene, **kwargs):
+        name = os.path.basename(scene.meta.filename)
         logger.info(
             'Attempting to access the full covariance matrix of the kite'
             ' scene %s. If this is not precalculated it will be calculated '
-            'now, which may take a significant amount of time...' %
-            scene.meta.filename)
+            'now, which may take a significant amount of time...' %name)
         covariance = Covariance(data=scene.covariance.covariance_matrix)
 
         if scene.quadtree.frame.isDegree():
@@ -996,8 +1003,8 @@ class DiffIFG(IFG):
             lons = num.empty(scene.quadtree.nleaves)
             lats.fill(scene.quadtree.frame.llLat)
             lons.fill(scene.quadtree.frame.llLon)
-            lons += scene.quadtree.leaf_focal_points[:, 0]
-            lats += scene.quadtree.leaf_focal_points[:, 1]
+            lons += scene.quadtree.leaf_eastings
+            lats += scene.quadtree.leaf_northings
         elif scene.quadtree.frame.isMeter():
             loce = scene.quadtree.leaf_eastings
             locn = scene.quadtree.leaf_northings
@@ -1005,15 +1012,39 @@ class DiffIFG(IFG):
                 lat0=scene.frame.llLat, lon0=scene.frame.llLon,
                 north_m=locn, east_m=loce)
 
+        if hasattr(scene, 'polygon_mask'):
+            polygons = scene.polygon_mask.polygons
+        else:
+            polygons = None
+
+        mask = num.full(lats.size, False)
+        if polygons:
+            logger.info('Found polygon mask in %s! Importing for Euler Pole'
+                        ' correction ...' % name)
+            from matplotlib.path import Path
+
+            leaf_idxs_rows = scene.quadtree.leaf_northings / scene.frame.dN
+            leaf_idxs_cols = scene.quadtree.leaf_eastings / scene.frame.dE
+
+            points = num.vstack([leaf_idxs_cols, leaf_idxs_rows]).T
+            for vertices in polygons.values():    #vertexes [cols, rows]
+                p = Path(vertices)
+                mask |= p.contains_points(points)
+
+        else:
+            logger.info('No polygon mask in %s!' % name)
+
+
         d = dict(
-            name=scene.meta.filename,
+            name=name,
             displacement=scene.quadtree.leaf_means,
             lons=lons,
             lats=lats,
             covariance=covariance,
             incidence=90 - num.rad2deg(scene.quadtree.leaf_thetas),
             heading=-num.rad2deg(scene.quadtree.leaf_phis) + 180,
-            odw=num.ones_like(scene.quadtree.leaf_phis))
+            odw=num.ones_like(scene.quadtree.leaf_phis),
+            mask=mask)
         return cls(**d)
 
     def get_blacklist(self, corr_conf):
@@ -1022,7 +1053,8 @@ class DiffIFG(IFG):
         maybe during import?!!!
         """
         if corr_conf.feature == 'Euler Pole':
-            return #masked indexes
+            logger.info('Masking data for Euler Pole estimation!')
+            return self.mask
         else:
             return None
 
@@ -3041,6 +3073,84 @@ def taper_filter_traces(
             raise IOError('Cannot return array without tapering!')
     else:
         return cut_traces
+
+
+def velocities_from_pole(lats, lons, plat, plon, omega, earth_shape='ellipsoid'):
+    """
+    Return horizontal velocities at input locations for rotation around
+    given Euler pole
+
+    Parameters
+    ----------
+    lats: :class:`numpy.NdArray`
+        of geographic latitudes [deg] of points to calculate velocities for
+    lons: :class:`numpy.NdArray`
+        of geographic longitudes [deg] of points to calculate velocities for
+    plat: float
+        Euler pole latitude [deg]
+    plon: float
+        Euler pole longitude [deg]
+    omega: float
+        angle of rotation around Euler pole [deg / million yrs]
+
+    Returns
+    -------
+    :class:`numpy.NdArray` of velocities [m / yrs] npoints x 3 (NEU)
+    """
+    r_earth = orthodrome.earthradius
+
+    def cartesian_to_local(lat, lon):
+        rlat = lat * d2r
+        rlon = lon * d2r
+        return num.array([
+            [-num.sin(rlat) * num.cos(rlon), -num.sin(rlat) * num.sin(rlon),
+             num.cos(rlat)],
+            [-num.sin(rlon), num.cos(rlon), num.zeros_like(rlat)],
+            [-num.cos(rlat) * num.cos(rlon), -num.cos(rlat) * num.sin(rlon),
+             -num.sin(rlat)]])
+
+    npoints = lats.size
+    if earth_shape == 'sphere':
+        latlons = num.atleast_2d(num.vstack([lats, lons]).T)
+        platlons = num.hstack([plat, plon])
+        xyz_points = orthodrome.latlon_to_xyz(latlons)
+        xyz_pole = orthodrome.latlon_to_xyz(platlons)
+
+    elif earth_shape == 'ellipsoid':
+        xyz = orthodrome.geodetic_to_ecef(lats, lons, num.zeros_like(lats))
+        xyz_points = num.atleast_2d(num.vstack(xyz).T) / r_earth
+        xyz_pole = num.hstack(
+            orthodrome.geodetic_to_ecef(plat, plon, 0.)) / r_earth
+
+    omega_rad_yr = omega * 1e-6 * d2r * r_earth
+    xyz_poles = num.tile(xyz_pole, npoints).reshape(npoints, 3)
+
+    v_vecs = num.cross(xyz_poles, xyz_points)
+    vels_cartesian = omega_rad_yr * v_vecs
+
+    T = cartesian_to_local(lats, lons)
+    return num.einsum('ijk->ik', T * vels_cartesian.T).T
+
+
+def get_ramp_displacement(locx, locy, azimuth_ramp, range_ramp, offset):
+    """
+    Get synthetic residual plane in azimuth and range direction of the
+    satellite.
+
+    Parameters
+    ----------
+    locx : shared array-like :class:`numpy.ndarray`
+        local coordinates [km] in east direction
+    locy : shared array-like :class:`numpy.ndarray`
+        local coordinates [km] in north direction
+    azimuth_ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
+        vector with ramp parameter in azimuth
+    range_ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
+        vector with ramp parameter in range
+    offset : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
+        scalar of offset in [m]
+    """
+    return locy * azimuth_ramp + locx * range_ramp + offset
 
 
 def check_problem_stores(problem, datatypes):

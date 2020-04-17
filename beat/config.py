@@ -686,6 +686,14 @@ class CorrectionConfig(Object):
     def get_hierarchical_names(self):
         raise NotImplementedError('Needs to be implemented in the subclass!')
 
+    def check_consistency(self):
+        if len(self.dataset_names) == 0 and self.enabled:
+            raise AttributeError(
+                '%s correction is enabled, but '
+                'dataset_names are empty! Either the correction needs to be '
+                'disabled or the field "dataset_names" needs to be '
+                'filled!' % self.feature)
+
 
 class EulerPoleConfig(CorrectionConfig):
 
@@ -697,12 +705,14 @@ class EulerPoleConfig(CorrectionConfig):
     def feature(self):
         return 'Euler Pole'
 
-    def get_hierarchical_names(self, name=None, number=0):
+    def get_hierarchical_names(self, name=None):
+        # TODO include number for multiple Euler Poles?
         return [
-            '{}_{}'.format(suffix, number) for suffix in self.get_suffixes()]
+            '{}'.format(suffix) for suffix in self.get_suffixes()]
 
     def init_correction(self):
         from beat.models.corrections import EulerPoleCorrection
+        self.check_consistency()
         return EulerPoleCorrection(self)
 
 
@@ -716,12 +726,13 @@ class RampConfig(CorrectionConfig):
     def feature(self):
         return 'Ramps'
 
-    def get_hierarchical_names(self, name, number=0):
+    def get_hierarchical_names(self, name):
         return ['{}_{}'.format(name, suffix) for suffix in self.get_suffixes()
                 if name in self.dataset_names]
 
     def init_correction(self):
         from beat.models.corrections import RampCorrection
+        self.check_consistency()
         return RampCorrection(self)
 
 
@@ -796,14 +807,16 @@ class GeodeticConfig(Object):
     def get_hierarchical_names(self, datasets=None):
 
         out_names = []
-        for corr in self.corrections_config.iter_corrections():
-            if corr.enabled:
+        for corr_conf in self.corrections_config.iter_corrections():
+            if corr_conf.enabled:
                 for dataset in datasets:
-                    if corr.for_datatyp == dataset.typ:
-                        out_names.extend(
-                            corr.get_hierarchical_names(dataset.name))
+                    if dataset.name in corr_conf.dataset_names:
+                        hiernames = corr_conf.get_hierarchical_names(
+                            name=dataset.name)
 
-        return out_names
+                        out_names.extend(hiernames)
+
+        return list(set(out_names))
 
 
 class ModeConfig(Object):

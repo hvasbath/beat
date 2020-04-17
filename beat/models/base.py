@@ -38,6 +38,13 @@ class ConfigInconsistentError(Exception):
         return self.errmess + self.default
 
 
+class FaultGeometryNotFoundError(Exception):
+
+    def __str__(self):
+        return 'Fault geometry does not exist please run' \
+               ' "beat build_gfs ..." first!'
+
+
 class Composite(object):
     """
     Class that comprises the rules to formulate the problem. Has to be

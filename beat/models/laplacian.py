@@ -1,4 +1,4 @@
-from beat.models.base import Composite
+from beat.models.base import Composite, FaultGeometryNotFoundError
 from beat import config as bconfig
 from beat.utility import load_objects
 from beat.heart import log_determinant
@@ -83,8 +83,11 @@ class LaplacianDistributerComposite(Composite):
         -------
         :class:`ffi.fault.FaultGeometry`
         """
-        return load_objects(
-            os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
+        try:
+            return load_objects(
+                os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
+        except Exception:
+            raise FaultGeometryNotFoundError()
 
     def _eval_prior(self, hyperparam, exponent):
         """

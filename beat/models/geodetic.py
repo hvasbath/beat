@@ -16,7 +16,8 @@ from beat import theanof, utility
 from beat.ffi import load_gf_library, get_gf_prefix
 from beat import config as bconfig
 from beat import heart, covariance as cov
-from beat.models.base import ConfigInconsistentError, Composite
+from beat.models.base import \
+    ConfigInconsistentError, Composite, FaultGeometryNotFoundError
 from beat.models.distributions import multivariate_normal_chol
 from beat.interseismic import geo_backslip_synthetics, seperate_point
 
@@ -219,32 +220,31 @@ class GeodeticComposite(Composite):
         """
         hierarchicals = problem_config.hierarchicals
         self._hierarchicalnames = []
-        for i, corr in enumerate(
-                self.config.corrections_config.iter_corrections()):
+        for corr in self.config.corrections_config.iter_corrections():
             logger.info(
                 'Evaluating config for %s corrections '
                 'for datasets...' % corr.feature)
             if corr.enabled:
                 for data in self.datasets:
-                    if data in corr.dataset_names
+                    if data.name in corr.dataset_names:
                         hierarchical_names = corr.get_hierarchical_names(
-                            name=data.name, number=i)
+                            name=data.name)
                     else:
                         hierarchical_names = []
 
                     for hierarchical_name in hierarchical_names:
                         if not corr.enabled and hierarchical_name in hierarchicals:
                             raise ConfigInconsistentError(
-                                '%s disabled, but they are defined'
+                                '%s %s disabled, but they are defined'
                                 ' in the problem configuration'
-                                ' (hierarchicals)!' % corr.feature)
+                                ' (hierarchicals)!' % (corr.feature, data.name))
 
                         if corr.enabled and hierarchical_name not in hierarchicals \
-                                and data.name not in corr.blacklist:
+                                and data.name in corr.dataset_names:
                             raise ConfigInconsistentError(
-                                '%s corrections enabled, but they are'
+                                '%s %s corrections enabled, but they are'
                                 ' not defined in the problem configuration!'
-                                ' (hierarchicals)' % corr.feature)
+                                ' (hierarchicals)' % (corr.feature, data.name))
 
                         param = hierarchicals[hierarchical_name]
                         if hierarchical_name not in self.hierarchicals:
@@ -663,8 +663,11 @@ class GeodeticDistributerComposite(GeodeticComposite):
         -------
         :class:`heart.FaultGeometry`
         """
-        return utility.load_objects(
-            os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
+        try:
+            return utility.load_objects(
+                os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
+        except Exception:
+            raise FaultGeometryNotFoundError()
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
         """
