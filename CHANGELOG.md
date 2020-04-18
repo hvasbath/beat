@@ -28,8 +28,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 **Hierarchicals**
 - generalized hierarchical corrections to support various types:
   + geodetic:
-    * orbital ramp (InSAR)
-    * Euler pole rotation (GNSS)
+    * orbital ramp
+    * Euler pole rotation
 
 **Plotting**
 - slip_distribution allows for variable patch-size
@@ -39,7 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - FFI exports geometry object for fast and easy interactive inspection in pyrocko.sparrow
 
 ### Fixed
-- Support GNSS data
+- extended support for GNSS data import from globk (GAMMIT)
 - SMC saving of sampler state does not dump full model graph
 - multiprocess FFI performance increase 
 
