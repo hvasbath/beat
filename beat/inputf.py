@@ -121,8 +121,9 @@ def load_kite_scenes(datadir, names):
     diffgs = []
     tobeloaded_names = set(copy.deepcopy(names))
     for k in names:
+        filepath = os.path.join(datadir, k)
         try:
-            sc = Scene.load(os.path.join(datadir, k))
+            sc = Scene.load(filepath)
             diffgs.append(heart.DiffIFG.from_kite_scene(sc))
             tobeloaded_names.discard(k)
             logger.info('Successfully imported kite scene %s' % k)
@@ -147,8 +148,15 @@ def load_ascii_gnss_globk(filedir, filename):
     from pyrocko.model import gnss
 
     filepath = os.path.join(filedir, filename)
-    names = num.loadtxt(filepath, skiprows=3, usecols=[12], dtype='str')
-    d = num.loadtxt(filepath, skiprows=3, usecols=range(12), dtype='float')
+    if os.path.exists(filepath):
+        names = num.loadtxt(filepath, skiprows=3, usecols=[12], dtype='str')
+        d = num.loadtxt(filepath, skiprows=3, usecols=range(12), dtype='float')
+    elif len(os.path.splitext(filepath)[1]) == 0:
+        logger.info('File %s is not an ascii text file!' % filepath)
+        return
+    else:
+        raise ImportError('Did not find data under: %s' % filepath)
+
     velocity_idxs = [2, 3, 9]
     std_idxs = [6, 7, 11]
 
@@ -213,14 +221,15 @@ def load_and_blacklist_gnss(datadir, filename, blacklist, campaign=False):
         list of heart.GNSSCompoundComponent
     """
     gnss_campaign = load_ascii_gnss_globk(datadir, filename)
-    for station_code in blacklist:
-        gnss_campaign.remove_station(station_code)
+    if gnss_campaign:
+        for station_code in blacklist:
+            gnss_campaign.remove_station(station_code)
 
-    if not campaign:
-        return heart.GNSSCompoundComponent.from_pyrocko_gnss_campaign(
-            gnss_campaign)
-    else:
-        return gnss_campaign
+        if not campaign:
+            return heart.GNSSCompoundComponent.from_pyrocko_gnss_campaign(
+                gnss_campaign)
+        else:
+            return gnss_campaign
 
 
 def load_and_blacklist_stations(datadir, blacklist):

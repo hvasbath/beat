@@ -438,11 +438,12 @@ def command_import(args):
                         if 'ascii' in options.geodetic_format:
                             for name in gc.names:
                                 try:
-                                    gtargets.extend(
-                                        inputf.load_and_blacklist_gnss(
-                                            gc.datadir, name, gc.blacklist))
-                                    logger.info('Successfully imported GNSS'
-                                                ' data for %s' % name)
+                                    targets = inputf.load_and_blacklist_gnss(
+                                        gc.datadir, name, gc.blacklist)
+                                    if targets:
+                                        gtargets.extend(targets)
+                                        logger.info('Successfully imported GNSS'
+                                                    ' data for %s' % name)
                                 except OSError:
                                     logger.warning(
                                         'File %s not conform with ascii '
