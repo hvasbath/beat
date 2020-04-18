@@ -458,9 +458,14 @@ def command_import(args):
                             'Geodetic datatype "%s" is not supported! '
                             'Supported types are: %s ' % (
                                 typ, list2string(supported_geodetic_types)))
-
-                logger.info('Pickleing geodetic data to %s' % geodetic_outpath)
-                utility.dump_objects(geodetic_outpath, outlist=gtargets)
+                if len(gtargets) > 0:
+                    logger.info(
+                        'Pickleing geodetic data to %s' % geodetic_outpath)
+                    utility.dump_objects(geodetic_outpath, outlist=gtargets)
+                else:
+                    raise ImportError(
+                        'Data import failed-found no data! '
+                        'Please check filepaths!')
             else:
                 logger.info('%s exists! Use --force to overwrite!' %
                             geodetic_outpath)
