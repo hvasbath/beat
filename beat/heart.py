@@ -465,7 +465,7 @@ physical_bounds = dict(
     offset=(-1.0, 1.0),
     lat=(-90., 90.),
     lon=(-180., 180.),
-    omega=(-3., 3.))
+    omega=(-10., 10.))
 
 
 class Parameter(Object):
@@ -698,14 +698,14 @@ class GeodeticDataset(gf.meta.MultiLocation):
                     'Setting up %s correction for %s' % (
                         corr_conf.feature, self.name))
                 locx_name, locy_name = corr.get_required_coordinate_names()
-                print(locx_name, locy_name)
+
                 locx = getattr(self, locx_name)
                 locy = getattr(self, locy_name)
 
                 blacklist = self.get_blacklist(corr_conf)
 
                 corr.setup_correction(
-                    lats=locy, lons=locx, los_vector=self.los_vector,
+                    locy=locy, locx=locx, los_vector=self.los_vector,
                     blacklist=blacklist,
                     dataset_name=self.name)
                 self.corrections.append(corr)

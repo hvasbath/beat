@@ -90,11 +90,11 @@ class EulerPoleCorrection(Correction):
         return ['lons', 'lats']
 
     def setup_correction(
-            self, lats, lons, los_vector, blacklist, dataset_name):
+            self, locy, locx, los_vector, blacklist, dataset_name):
 
         self.los_vector = los_vector
-        self.lats = lats
-        self.lons = lons
+        self.lats = locy
+        self.lons = locx
         self.correction_names = self.config.get_hierarchical_names(
             name=dataset_name)
         self.blacklist = blacklist
