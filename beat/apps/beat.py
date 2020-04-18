@@ -1831,7 +1831,9 @@ def command_export(args):
 
     for datatype, composite in problem.composites.items():
         logger.info(
-            'Exporting "%s" synthetics for "%s" likelihood parameters:' % (
+            'Exporting %s synthetics \n'
+            '-----------------------------\n'
+            ' for "%s" likelihood parameters:' % (
                 datatype, options.post_llk))
         for varname, value in point.items():
             logger.info('%s: %s' % (
@@ -1841,11 +1843,12 @@ def command_export(args):
             point, results_path, stage_number=options.stage_number,
             fix_output=options.fix_output, force=options.force)
 
-        stdzd_res_path = pjoin(
-            results_path, '{}_stdzd_residuals.pkl'.format(datatype))
-        logger.info('Exporting standardized residuals to %s' % stdzd_res_path)
         stdzd_res = composite.get_standardized_residuals(point)
         if stdzd_res:
+            stdzd_res_path = pjoin(
+                results_path, '{}_stdzd_residuals.pkl'.format(datatype))
+            logger.info(
+                'Exporting standardized residuals to %s' % stdzd_res_path)
             utility.dump_objects(stdzd_res_path, outlist=stdzd_res)
 
 

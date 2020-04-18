@@ -1,10 +1,9 @@
-import numpy as num
 from pyrocko import orthodrome
 from theano import shared
 from theano import config as tconfig
 
 from beat.theanof import EulerPole
-from beat.heart import velocities_from_pole
+from beat.heart import velocities_from_pole, get_ramp_displacement
 
 from collections import OrderedDict
 import logging
@@ -22,7 +21,7 @@ class Correction(object):
         """
         Setup dataset correction
         """
-        self.correction_config = correction_config
+        self.config = correction_config
         self.correction_names = None
 
     def get_required_coordinate_names(self):
@@ -39,7 +38,7 @@ class RampCorrection(Correction):
         return ['east_shifts', 'north_shifts']
 
     def setup_correction(
-            self, locy, locx, los_vector, blacklist, correction_names):
+            self, locy, locx, los_vector, blacklist, dataset_name):
 
         self.east_shifts = locx
         self.north_shifts = locy
@@ -49,7 +48,8 @@ class RampCorrection(Correction):
         self.slocy = shared(
             locy.astype(tconfig.floatX) / km, name='localy', borrow=True)
 
-        self.correction_names = correction_names
+        self.correction_names = self.config.get_hierarchical_names(
+                    name=dataset_name)
 
     def get_displacements(self, hierarchicals, point=None):
         """
@@ -90,12 +90,13 @@ class EulerPoleCorrection(Correction):
         return ['lons', 'lats']
 
     def setup_correction(
-            self, lats, lons, los_vector, blacklist, correction_names):
+            self, lats, lons, los_vector, blacklist, dataset_name):
 
         self.los_vector = los_vector
         self.lats = lats
         self.lons = lons
-        self.correction_names = correction_names
+        self.correction_names = self.config.get_hierarchical_names(
+            name=dataset_name)
         self.blacklist = blacklist
 
         self.euler_pole = EulerPole(

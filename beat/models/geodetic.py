@@ -196,22 +196,6 @@ class GeodeticComposite(Composite):
         logger.warning('Exporting geodetic data not supported yet!')
         pass
 
-    def get_standardized_residuals(self, point):
-        """
-        Parameters
-        ----------
-        point : dict
-            with parameters to point in solution space to calculate standardized
-            residuals for
-
-        Returns
-        -------
-        list of arrays of standardized residuals,
-        following order of self.datasets
-        """
-        logger.warning('Standardized residuals not implemented for geodetics!')
-        return None
-
     def init_hierarchicals(self, problem_config):
         """
         Initialize hierarchical parameters.

@@ -108,8 +108,27 @@ class Composite(object):
 
     def export(self, point, results_path, stage_number,
                fix_output=False, force=False, update=False):
-        logger.warning('Export method needs to be implemented to subclasses!')
+        logger.warning('Export method needs to be implemented for '
+                       '%s composite!' % self.name)
         pass
+
+    def get_standardized_residuals(self, point):
+        """
+        Parameters
+        ----------
+        point : dict
+            with parameters to point in solution space to calculate standardized
+            residuals for
+
+        Returns
+        -------
+        list of arrays of standardized residuals,
+        following order of self.datasets
+        """
+        logger.warning(
+            'Standardized residuals '
+            'not implemented for %s composite!' % self.name)
+        return None
 
 
 def sample(step, problem):

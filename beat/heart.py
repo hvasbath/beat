@@ -704,12 +704,10 @@ class GeodeticDataset(gf.meta.MultiLocation):
 
                 blacklist = self.get_blacklist(corr_conf)
 
-                correction_names = corr_conf.get_hierarchical_names(
-                    name=self.name)
                 corr.setup_correction(
                     lats=locy, lons=locx, los_vector=self.los_vector,
                     blacklist=blacklist,
-                    correction_names=correction_names)
+                    dataset_name=self.name)
                 self.corrections.append(corr)
                 self.has_correction = True
             else:
