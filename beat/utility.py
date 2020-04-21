@@ -361,7 +361,7 @@ def weed_input_rvs(input_rvs, mode, datatype):
     burian = '''
         lat lon name stf stf1 stf2 stf_mode moment anchor sign
         velocity interpolation decimation_factor npointsources
-        elevation
+        elevation exponent
         '''.split()
 
     if mode == 'geometry':
