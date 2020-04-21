@@ -1,6 +1,7 @@
 from beat.utility import list2string, positions2idxs, kmtypes, split_off_list, \
                          Counter, mod_i
 from beat.fast_sweeping import fast_sweep
+from beat.heart import velocities_from_pole
 
 from beat.config import ResolutionDiscretizationConfig, \
     UniformDiscretizationConfig
@@ -982,6 +983,36 @@ def get_division_mapping(patch_idxs, div_idxs, subfault_npatches):
             count.reset('npatches_new')
 
     return old2new, div2new, new_subfault_npatches
+
+
+def backslip2locking(point, fault):
+    """
+    Transform backslips and Euler pole rotation to coupling coefficients.
+
+    Parameters
+    ----------
+    point :
+    fault :
+
+    Returns
+    -------
+    ndarray : floats
+        of number of slip patches with coupling between 0 and 1,
+        0 - no coupling, 1 - full coupling
+    """
+    try:
+        backslips = point['uparr']
+    except KeyError:
+        raise ValueError('Parallel slip component not in result point!')
+
+    subfault_idxs = list(range(fault.nsubfaults))
+    strikevectors = fault.get_subfault_patch_attributes(
+        subfault_idxs, datattype='geodetic',
+        component='uparr', attributes=['strikevector'])
+    euler_velocities_xyz = velocities_from_pole(
+        lats, lons,
+        plat, plon, omega, earth_shape='ellipsoid')
+    return backslips / (euler_velocities_xyz * strikevectors).sum(axis=1)
 
 
 def optimize_discretization(
