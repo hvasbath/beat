@@ -1825,14 +1825,21 @@ def command_export(args):
         ffi_rupture_table_path = pjoin(
             results_path,
             'rupture_evolution_{}.yaml'.format(options.post_llk))
-        logger.info('Exporting finite rupture evolution'
-                    ' to %s' % ffi_rupture_table_path)
-        geom = fault.get_rupture_geometry(
-            point=point, target=target,
-            store=engine.get_store(target.store_id),
-            event=problem.event, datatype=datatype)
+
+        try:
+            geom = fault.get_rupture_geometry(
+                point=point, target=target,
+                store=engine.get_store(target.store_id),
+                event=problem.event, datatype=datatype)
+        except ImportError:
+            logger.info(
+                'Need to install the pyrocko sparrow branch for '
+                'export of the rupture geometry in 3d!')
+            geom = None
 
         if geom is not None:
+            logger.info('Exporting finite rupture evolution'
+                        ' to %s' % ffi_rupture_table_path)
             dump(geom, filename=ffi_rupture_table_path)
 
     for datatype, composite in problem.composites.items():
