@@ -380,9 +380,11 @@ total number of patches: %i ''' % (
 
             return num.vstack(verts)
 
-        uparr = point['uparr']
-        uperp = point['uperp']
-        slips = num.sqrt(uparr ** 2 + uperp ** 2)
+        slips = num.zeros(self.npatches)
+        for comp in self.components:
+            slips += point[comp] ** 2
+
+        slips = num.sqrt(slips)
 
         if datatype == 'seismic':
             durations = point['durations']
