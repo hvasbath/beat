@@ -135,7 +135,7 @@ class GeodeticComposite(Composite):
             if isinstance(dataset, heart.DiffIFG):
                 names.append(dataset.name)
             elif isinstance(dataset, heart.GNSSCompoundComponent):
-                names.extent(dataset.component)
+                names.append(dataset.component)
             else:
                 TypeError(
                     'Geodetic Dataset of class "%s" not '
