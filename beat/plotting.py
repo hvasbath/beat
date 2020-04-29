@@ -3949,7 +3949,6 @@ def draw_station_map_gmt(problem, po):
         gmt.makecpt(
             C='polar',
             T='%g/%g' % (-bound, bound),
-            Q=True,
             out_filename=cptfilepath, suppress_defaults=True)
 
         for i, station in enumerate(wmap.stations):
