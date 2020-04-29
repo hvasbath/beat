@@ -1,6 +1,7 @@
 from beat.utility import list2string, positions2idxs, kmtypes, split_off_list, \
                          Counter, mod_i
 from beat.fast_sweeping import fast_sweep
+from beat.heart import velocities_from_pole
 
 from beat.config import ResolutionDiscretizationConfig, \
     UniformDiscretizationConfig
@@ -9,7 +10,7 @@ from beat.models.laplacian import get_smoothing_operator_correlated, \
 from .base import get_backend, geo_construct_gf_linear_patches
 
 from pyrocko.gf.seismosizer import Cloneable
-from pyrocko.orthodrome import latlon_to_ne_numpy
+from pyrocko.orthodrome import latlon_to_ne_numpy, ne_to_latlon
 
 import copy
 from logging import getLogger
@@ -380,9 +381,11 @@ total number of patches: %i ''' % (
 
             return num.vstack(verts)
 
-        uparr = point['uparr']
-        uperp = point['uperp']
-        slips = num.sqrt(uparr ** 2 + uperp ** 2)
+        slips = num.zeros(self.npatches)
+        for comp in self.components:
+            slips += point[comp] ** 2
+
+        slips = num.sqrt(slips)
 
         if datatype == 'seismic':
             durations = point['durations']
@@ -421,6 +424,14 @@ total number of patches: %i ''' % (
             srf_slips = slips.ravel()
             srf_times = num.zeros(1)
             sub_headers = []
+
+            if 'pole_lat' in point:
+                logger.info(
+                    'Found Euler pole in point also exporting coupling ...!')
+                coupling = backslip2coupling(
+                    point=point, fault=self, event=event)
+            else:
+                coupling = None
         else:
             logger.warning(
                 'Datatype %s is not supported for rupture geometry!' % datatype)
@@ -445,6 +456,9 @@ total number of patches: %i ''' % (
         geom = Geometry(times=srf_times, event=event)
         geom.setup(vertices, faces, outlines=outlines)
         geom.add_property((('slip', 'float64', sub_headers)), srf_slips)
+        if coupling is not None:
+            coupling = duplicate_property(coupling)
+            geom.add_property((('coupling', 'float64', sub_headers)), coupling)
         return geom
 
     def get_patch_indexes(self, index):
@@ -980,6 +994,61 @@ def get_division_mapping(patch_idxs, div_idxs, subfault_npatches):
             count.reset('npatches_new')
 
     return old2new, div2new, new_subfault_npatches
+
+
+def backslip2coupling(point, fault, event):
+    """
+    Transform backslips and Euler pole rotation to coupling coefficients.
+
+    Parameters
+    ----------
+    point : dict
+        of numpy arrays of random variables
+    fault : :class:`FaultGeometry`
+    event : :class:`pyrocko.model.Event`
+
+    Returns
+    -------
+    ndarray : floats
+        of number of slip patches with coupling between 0 and 1,
+        0 - no coupling, 1 - full coupling
+    """
+    datatype = 'geodetic'
+    try:
+        backslips = point['uparr']
+    except KeyError:
+        raise ValueError('Parallel slip component not in result point!')
+
+    try:
+        plat = point['pole_lat']
+        plon = point['pole_lon']
+        omega = point['omega']
+    except KeyError:
+        raise ValueError('Euler Pole not in result point!')
+
+    subfault_idxs = list(range(fault.nsubfaults))
+    strikevectors = fault.get_subfault_patch_attributes(
+        subfault_idxs, datatype=datatype,
+        component='uparr', attributes=['strikevector'])
+
+    east_shifts, north_shifts = fault.get_subfault_patch_attributes(
+        subfault_idxs, datatype,
+        attributes=['east_shift', 'north_shift'])
+
+    lats, lons = ne_to_latlon(
+        lat0=event.lat, lon0=event.lon,
+        north_m=north_shifts, east_m=east_shifts)
+
+    euler_velocities_xyz = velocities_from_pole(
+        lats=lats, lons=lons,
+        plat=plat, plon=plon, omega=omega, earth_shape='ellipsoid')
+    vels_along_strike = num.abs(
+        (euler_velocities_xyz * strikevectors).sum(axis=1))
+
+    coupling = backslips / vels_along_strike
+    coupling[coupling < 0.] = 0.  # negative slip values mean no coupling
+    coupling[coupling > 1.] = 1.  # backslip higher than long term rate full coupling
+    return coupling
 
 
 def optimize_discretization(

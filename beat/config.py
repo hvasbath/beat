@@ -664,13 +664,17 @@ class SeismicConfig(Object):
 
 class CorrectionConfig(Object):
 
+    dataset_names = List.T(
+        String.T(),
+        default=[],
+        help='Datasets to include in the correction.')
+    station_blacklist = List.T(
+        String.T(),
+        default=[],
+        help='GNSS station names to apply no correction.')
     enabled = Bool.T(
         default=False,
         help='Flag to enable Correction.')
-    blacklist = List.T(
-        String.T(),
-        default=[],
-        help='Dataset name or GNSS station name to apply no correction.')
 
     def get_suffixes(self):
         return self._suffixes
@@ -679,9 +683,16 @@ class CorrectionConfig(Object):
     def _suffixes(self):
         return ['']
 
-    def get_hierarchical_names(self, name):
-        return ['{}_{}'.format(name, suffix) for suffix in self.get_suffixes()
-                if name not in self.blacklist]
+    def get_hierarchical_names(self):
+        raise NotImplementedError('Needs to be implemented in the subclass!')
+
+    def check_consistency(self):
+        if len(self.dataset_names) == 0 and self.enabled:
+            raise AttributeError(
+                '%s correction is enabled, but '
+                'dataset_names are empty! Either the correction needs to be '
+                'disabled or the field "dataset_names" needs to be '
+                'filled!' % self.feature)
 
 
 class EulerPoleConfig(CorrectionConfig):
@@ -694,13 +705,15 @@ class EulerPoleConfig(CorrectionConfig):
     def feature(self):
         return 'Euler Pole'
 
-    @property
-    def for_datatyp(self):
-        return 'GNSS'
+    def get_hierarchical_names(self, name=None):
+        # TODO include number for multiple Euler Poles?
+        return [
+            '{}'.format(suffix) for suffix in self.get_suffixes()]
 
-    def get_theano_op(self):
-        from beat.theanof import EulerPole
-        return EulerPole
+    def init_correction(self):
+        from beat.models.corrections import EulerPoleCorrection
+        self.check_consistency()
+        return EulerPoleCorrection(self)
 
 
 class RampConfig(CorrectionConfig):
@@ -713,9 +726,14 @@ class RampConfig(CorrectionConfig):
     def feature(self):
         return 'Ramps'
 
-    @property
-    def for_datatyp(self):
-        return 'SAR'
+    def get_hierarchical_names(self, name):
+        return ['{}_{}'.format(name, suffix) for suffix in self.get_suffixes()
+                if name in self.dataset_names]
+
+    def init_correction(self):
+        from beat.models.corrections import RampCorrection
+        self.check_consistency()
+        return RampCorrection(self)
 
 
 class GeodeticCorrectionsConfig(Object):
@@ -789,14 +807,16 @@ class GeodeticConfig(Object):
     def get_hierarchical_names(self, datasets=None):
 
         out_names = []
-        for corr in self.corrections_config.iter_corrections():
-            if corr.enabled:
+        for corr_conf in self.corrections_config.iter_corrections():
+            if corr_conf.enabled:
                 for dataset in datasets:
-                    if corr.for_datatyp == dataset.typ:
-                        out_names.extend(
-                            corr.get_hierarchical_names(dataset.name))
+                    if dataset.name in corr_conf.dataset_names:
+                        hiernames = corr_conf.get_hierarchical_names(
+                            name=dataset.name)
 
-        return out_names
+                        out_names.extend(hiernames)
+
+        return list(set(out_names))
 
 
 class ModeConfig(Object):

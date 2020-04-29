@@ -16,7 +16,8 @@ from beat import theanof, utility
 from beat.ffi import load_gf_library, get_gf_prefix
 from beat import config as bconfig
 from beat import heart, covariance as cov
-from beat.models.base import ConfigInconsistentError, Composite
+from beat.models.base import \
+    ConfigInconsistentError, Composite, FaultGeometryNotFoundError
 from beat.models.distributions import multivariate_normal_chol
 from beat.interseismic import geo_backslip_synthetics, seperate_point
 
@@ -98,7 +99,7 @@ class GeodeticComposite(Composite):
         self.weights = []
         for i, data in enumerate(self.datasets):
             if int(data.covariance.data.sum()) == data.ncoords:
-                logger.warn('Data covariance is identity matrix!'
+                logger.warning('Data covariance is identity matrix!'
                             ' Please double check!!!')
 
             choli = data.covariance.chol_inverse
@@ -107,11 +108,11 @@ class GeodeticComposite(Composite):
             data.covariance.update_slog_pdet()
 
         if gc.corrections_config.has_enabled_corrections:
+            correction_configs = gc.corrections_config.iter_corrections()
             logger.info('Initialising corrections ...')
-            for corr_conf in gc.corrections_config.iter_corrections():
-                for data in self.datasets:
-                    data.setup_correction(
-                        event=self.event, correction_config=corr_conf)
+            for data in self.datasets:
+                data.setup_corrections(
+                    event=self.event, correction_configs=correction_configs)
 
         self.config = gc
 
@@ -134,7 +135,7 @@ class GeodeticComposite(Composite):
             if isinstance(dataset, heart.DiffIFG):
                 names.append(dataset.name)
             elif isinstance(dataset, heart.GNSSCompoundComponent):
-                names.extent(dataset.component)
+                names.append(dataset.component)
             else:
                 TypeError(
                     'Geodetic Dataset of class "%s" not '
@@ -195,22 +196,6 @@ class GeodeticComposite(Composite):
         logger.warning('Exporting geodetic data not supported yet!')
         pass
 
-    def get_standardized_residuals(self, point):
-        """
-        Parameters
-        ----------
-        point : dict
-            with parameters to point in solution space to calculate standardized
-            residuals for
-
-        Returns
-        -------
-        list of arrays of standardized residuals,
-        following order of self.datasets
-        """
-        logger.warning('Standardized residuals not implemented for geodetics!')
-        return None
-
     def init_hierarchicals(self, problem_config):
         """
         Initialize hierarchical parameters.
@@ -225,24 +210,25 @@ class GeodeticComposite(Composite):
                 'for datasets...' % corr.feature)
             if corr.enabled:
                 for data in self.datasets:
-                    if data.typ == corr.for_datatyp:
-                        hierarchical_names = corr.get_hierarchical_names(data.name)
+                    if data.name in corr.dataset_names:
+                        hierarchical_names = corr.get_hierarchical_names(
+                            name=data.name)
                     else:
                         hierarchical_names = []
 
                     for hierarchical_name in hierarchical_names:
                         if not corr.enabled and hierarchical_name in hierarchicals:
                             raise ConfigInconsistentError(
-                                '%s disabled, but they are defined'
+                                '%s %s disabled, but they are defined'
                                 ' in the problem configuration'
-                                ' (hierarchicals)!' % corr.feature)
+                                ' (hierarchicals)!' % (corr.feature, data.name))
 
                         if corr.enabled and hierarchical_name not in hierarchicals \
-                                and data.name not in corr.blacklist:
+                                and data.name in corr.dataset_names:
                             raise ConfigInconsistentError(
-                                '%s corrections enabled, but they are'
+                                '%s %s corrections enabled, but they are'
                                 ' not defined in the problem configuration!'
-                                ' (hierarchicals)' % corr.feature)
+                                ' (hierarchicals)' % (corr.feature, data.name))
 
                         param = hierarchicals[hierarchical_name]
                         if hierarchical_name not in self.hierarchicals:
@@ -287,14 +273,15 @@ class GeodeticComposite(Composite):
         """
         for i, dataset in enumerate(self.datasets):
             if dataset.has_correction:
-                correction = dataset.get_correction(
-                    self.hierarchicals, point=point)
-                # correction = Print('corr')(correction)
+                for corr in dataset.corrections:
+                    correction = corr.get_displacements(
+                        self.hierarchicals, point=point)
+                    # correction = Print('corr')(correction)
 
-                if operation == '-':
-                    residuals[i] -= correction   # needs explicit assignment!
-                elif operation == '+':
-                    residuals[i] += correction
+                    if operation == '-':
+                        residuals[i] -= correction   # needs explicit assignment!
+                    elif operation == '+':
+                        residuals[i] += correction
 
         return residuals
 
@@ -421,7 +408,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         self.init_hierarchicals(problem_config)
         if self.config.corrections_config.has_enabled_corrections:
             logger.info('Applying corrections! ...')
-            residuals = self.apply_corrections(residuals)
+            residuals = self.apply_corrections(residuals, operation='-')
 
         logpts = multivariate_normal_chol(
             self.datasets, self.weights, hyperparams, residuals,
@@ -660,8 +647,11 @@ class GeodeticDistributerComposite(GeodeticComposite):
         -------
         :class:`heart.FaultGeometry`
         """
-        return utility.load_objects(
-            os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
+        try:
+            return utility.load_objects(
+                os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
+        except Exception:
+            raise FaultGeometryNotFoundError()
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
         """

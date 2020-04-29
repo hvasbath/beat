@@ -17,7 +17,8 @@ from beat import theanof, utility
 from beat.ffi import load_gf_library, get_gf_prefix
 from beat import config as bconfig
 from beat import heart, covariance as cov
-from beat.models.base import ConfigInconsistentError, Composite
+from beat.models.base import \
+    ConfigInconsistentError, Composite, FaultGeometryNotFoundError
 from beat.models.distributions import multivariate_normal_chol, get_hyper_name
 
 from pymc3 import Uniform, Deterministic
@@ -861,8 +862,11 @@ class SeismicDistributerComposite(SeismicComposite):
         -------
         :class:`heart.FaultGeometry`
         """
-        return utility.load_objects(
-            os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
+        try:
+            return utility.load_objects(
+                os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
+        except Exception:
+            raise FaultGeometryNotFoundError()
 
     def get_gflibrary_key(self, crust_ind, wavename, component):
         return '%i_%s_%s' % (crust_ind, wavename, component)

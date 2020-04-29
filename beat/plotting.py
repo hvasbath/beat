@@ -670,10 +670,13 @@ def gnss_fits(problem, stage, plot_options):
     gc = problem.config.geodetic_config
 
     logger.info('Trying to load GNSS data from: {}'.format(gc.datadir))
+
     for filename in gc.names:
         try:
-            campaign = load_and_blacklist_gnss(
+            tmp = load_and_blacklist_gnss(
                 gc.datadir, filename, gc.blacklist, campaign=True)
+            if tmp is not None:
+                campaign = tmp
         except(UnicodeDecodeError, OSError):
             logger.info('{} is no GNSS data, skipping'.format(filename))
 

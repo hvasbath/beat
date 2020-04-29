@@ -438,11 +438,12 @@ def command_import(args):
                         if 'ascii' in options.geodetic_format:
                             for name in gc.names:
                                 try:
-                                    gtargets.extend(
-                                        inputf.load_and_blacklist_gnss(
-                                            gc.datadir, name, gc.blacklist))
-                                    logger.info('Successfully imported GNSS'
-                                                ' data for %s' % name)
+                                    targets = inputf.load_and_blacklist_gnss(
+                                        gc.datadir, name, gc.blacklist)
+                                    if targets:
+                                        gtargets.extend(targets)
+                                        logger.info('Successfully imported GNSS'
+                                                    ' data for %s' % name)
                                 except OSError:
                                     logger.warning(
                                         'File %s not conform with ascii '
@@ -457,9 +458,14 @@ def command_import(args):
                             'Geodetic datatype "%s" is not supported! '
                             'Supported types are: %s ' % (
                                 typ, list2string(supported_geodetic_types)))
-
-                logger.info('Pickleing geodetic data to %s' % geodetic_outpath)
-                utility.dump_objects(geodetic_outpath, outlist=gtargets)
+                if len(gtargets) > 0:
+                    logger.info(
+                        'Pickleing geodetic data to %s' % geodetic_outpath)
+                    utility.dump_objects(geodetic_outpath, outlist=gtargets)
+                else:
+                    raise ImportError(
+                        'Data import failed-found no data! '
+                        'Please check filepaths!')
             else:
                 logger.info('%s exists! Use --force to overwrite!' %
                             geodetic_outpath)
@@ -1819,19 +1825,28 @@ def command_export(args):
         ffi_rupture_table_path = pjoin(
             results_path,
             'rupture_evolution_{}.yaml'.format(options.post_llk))
-        logger.info('Exporting finite rupture evolution'
-                    ' to %s' % ffi_rupture_table_path)
-        geom = fault.get_rupture_geometry(
-            point=point, target=target,
-            store=engine.get_store(target.store_id),
-            event=problem.event, datatype=datatype)
+
+        try:
+            geom = fault.get_rupture_geometry(
+                point=point, target=target,
+                store=engine.get_store(target.store_id),
+                event=problem.event, datatype=datatype)
+        except ImportError:
+            logger.info(
+                'Need to install the pyrocko sparrow branch for '
+                'export of the rupture geometry in 3d!')
+            geom = None
 
         if geom is not None:
+            logger.info('Exporting finite rupture evolution'
+                        ' to %s' % ffi_rupture_table_path)
             dump(geom, filename=ffi_rupture_table_path)
 
     for datatype, composite in problem.composites.items():
         logger.info(
-            'Exporting "%s" synthetics for "%s" likelihood parameters:' % (
+            'Exporting %s synthetics \n'
+            '-----------------------------\n'
+            ' for "%s" likelihood parameters:' % (
                 datatype, options.post_llk))
         for varname, value in point.items():
             logger.info('%s: %s' % (
@@ -1841,11 +1856,12 @@ def command_export(args):
             point, results_path, stage_number=options.stage_number,
             fix_output=options.fix_output, force=options.force)
 
-        stdzd_res_path = pjoin(
-            results_path, '{}_stdzd_residuals.pkl'.format(datatype))
-        logger.info('Exporting standardized residuals to %s' % stdzd_res_path)
         stdzd_res = composite.get_standardized_residuals(point)
         if stdzd_res:
+            stdzd_res_path = pjoin(
+                results_path, '{}_stdzd_residuals.pkl'.format(datatype))
+            logger.info(
+                'Exporting standardized residuals to %s' % stdzd_res_path)
             utility.dump_objects(stdzd_res_path, outlist=stdzd_res)
 
 
