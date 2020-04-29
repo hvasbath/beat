@@ -1076,10 +1076,11 @@ class SeismicDistributerComposite(SeismicComposite):
         obs_traces = []
         for wmap in self.wavemaps:
             # station corrections
-            if len(self.hierarchicals) > 0:
-                logger.info('Applying station corrections for wmap {}'.format(wmap.name))
+            if self.config.station_corrections:
+                logger.debug(
+                    'Applying station corrections for wmap {}'.format(wmap.name))
                 starttimes = (
-                    num.tile(starttimes0, wmap.n_t) +
+                    num.tile(starttimes0, wmap.n_t) -
                     num.repeat(point[wmap.time_shifts_id][
                         wmap.station_correction_idxs],
                         self.fault.npatches)).reshape(
