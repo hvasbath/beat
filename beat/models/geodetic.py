@@ -126,20 +126,21 @@ class GeodeticComposite(Composite):
     def n_t(self):
         return len(self.datasets)
 
-    def get_all_station_names(self):
+    def get_all_dataset_names(self, hp_name):
         """
         Return unique GNSS stations and radar acquisitions.
         """
         names = []
         for dataset in self.datasets:
-            if isinstance(dataset, heart.DiffIFG):
-                names.append(dataset.name)
-            elif isinstance(dataset, heart.GNSSCompoundComponent):
-                names.append(dataset.component)
-            else:
-                TypeError(
-                    'Geodetic Dataset of class "%s" not '
-                    'supported' % dataset.__class__.__name__)
+            if dataset.typ == hp_name.split('_')[1]:
+                if isinstance(dataset, heart.DiffIFG):
+                    names.append(dataset.name)
+                elif isinstance(dataset, heart.GNSSCompoundComponent):
+                    names.append(dataset.component)
+                else:
+                    TypeError(
+                        'Geodetic Dataset of class "%s" not '
+                        'supported' % dataset.__class__.__name__)
 
         return names
 
@@ -157,7 +158,7 @@ class GeodeticComposite(Composite):
         int
         """
         if self.config.dataset_specific_residual_noise_estimation:
-            return len(self.get_all_station_names())
+            return len(self.get_all_dataset_names(hp_name))
         else:
             return 1
 

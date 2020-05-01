@@ -400,6 +400,9 @@ class Problem(object):
 
                     n_hyp += dimension
                     self._hypernames.append(hyperpar.name)
+                    logger.info(
+                        'Initialised hyperparameter %s with '
+                        'size %i ' % (hp_name, ndata))
                 else:
                     logger.info(
                         'not solving for %s, got fixed at %s' % (
