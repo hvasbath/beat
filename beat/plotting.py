@@ -721,7 +721,7 @@ def gnss_fits(problem, stage, plot_options):
 
     if po.plot_projection == 'latlon':
         event = problem.config.event
-        locations = campaign.stations + [event]
+        locations = campaign.stations # + [event]
         #print(locations)
         #lat, lon = otd.geographic_midpoint_locations(locations)
 
