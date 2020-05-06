@@ -126,20 +126,21 @@ class GeodeticComposite(Composite):
     def n_t(self):
         return len(self.datasets)
 
-    def get_all_station_names(self):
+    def get_all_dataset_names(self, hp_name):
         """
         Return unique GNSS stations and radar acquisitions.
         """
         names = []
         for dataset in self.datasets:
-            if isinstance(dataset, heart.DiffIFG):
-                names.append(dataset.name)
-            elif isinstance(dataset, heart.GNSSCompoundComponent):
-                names.append(dataset.component)
-            else:
-                TypeError(
-                    'Geodetic Dataset of class "%s" not '
-                    'supported' % dataset.__class__.__name__)
+            if dataset.typ == hp_name.split('_')[1]:
+                if isinstance(dataset, heart.DiffIFG):
+                    names.append(dataset.name)
+                elif isinstance(dataset, heart.GNSSCompoundComponent):
+                    names.append(dataset.component)
+                else:
+                    TypeError(
+                        'Geodetic Dataset of class "%s" not '
+                        'supported' % dataset.__class__.__name__)
 
         return names
 
@@ -157,7 +158,7 @@ class GeodeticComposite(Composite):
         int
         """
         if self.config.dataset_specific_residual_noise_estimation:
-            return len(self.get_all_station_names())
+            return len(self.get_all_dataset_names(hp_name))
         else:
             return 1
 
@@ -193,8 +194,50 @@ class GeodeticComposite(Composite):
 
     def export(self, point, results_path, stage_number,
                fix_output=False, force=False, update=False):
-        logger.warning('Exporting geodetic data not supported yet!')
-        pass
+
+        from pyrocko.guts import dump
+
+        gc = self.config
+
+        results = self.assemble_results(point)
+
+        # export for gnss
+
+        if 'GNSS' in gc.types:
+            from pyrocko.model import gnss
+
+            logger.info('Exporting GNSS data ...')
+            from beat.inputf import load_and_blacklist_gnss
+
+            for filename in gc.names:
+                try:
+                    tmp = load_and_blacklist_gnss(
+                        gc.datadir, filename, gc.blacklist, campaign=True)
+                    if tmp is not None:
+                        campaign = tmp
+                except(UnicodeDecodeError, OSError):
+                    logger.info('{} is no GNSS data, skipping'.format(filename))
+
+            model_camp = gnss.GNSSCampaign(
+                stations=copy.deepcopy(campaign.stations),
+                name='model')
+
+            dataset_to_result = {}
+            for dataset, result in zip(self.datasets, results):
+                if dataset.typ == 'GNSS':
+                    dataset_to_result[dataset] = result
+
+            for dataset, result in dataset_to_result.items():
+                for ista, sta in enumerate(model_camp.stations):
+                    comp = getattr(sta, dataset.component)
+                    comp.shift = result.processed_syn[ista]
+                    comp.sigma = 0.
+
+            outname = os.path.join(
+                results_path, 'gnss_synths_%i.yaml' % stage_number)
+
+            dump(model_camp, filename=outname)
+
 
     def init_hierarchicals(self, problem_config):
         """
