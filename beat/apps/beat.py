@@ -1782,8 +1782,8 @@ def command_export(args):
     logger.info('Saving results to %s' % results_path)
     util.ensuredir(results_path)
 
+    point = problem.config.problem_config.get_test_point()
     if options.reference:
-        point = problem.config.problem_config.get_test_point()
         options.post_llk = 'ref'
     else:
         stage = Stage(homepath=problem.outfolder,
@@ -1794,8 +1794,9 @@ def command_export(args):
             model=problem.model, stage_number=options.stage_number,
             load='trace', chains=[-1])
 
-        point = plotting.get_result_point(
+        res_point = plotting.get_result_point(
             stage, problem.config, point_llk=options.post_llk)
+        point.update(res_point)
 
         if options.stage_number == -1:
             results_trace = pjoin(stage.handler.stage_path(-1), trace_name)
