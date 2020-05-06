@@ -419,6 +419,7 @@ total number of patches: %i ''' % (
                 srf_slips[i, slc] += tslips
 
             sub_headers = tuple([str(i) for i in num.arange(srf_times.size)])
+            coupling = None
 
         elif datatype == 'geodetic':
             srf_slips = slips.ravel()
