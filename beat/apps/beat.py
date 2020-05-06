@@ -1777,29 +1777,29 @@ def command_export(args):
 
     sc = problem.config.sampler_config
 
-    stage = Stage(homepath=problem.outfolder,
-                  backend=problem.config.sampler_config.backend)
-
-    stage.load_results(
-        varnames=problem.varnames,
-        model=problem.model, stage_number=options.stage_number,
-        load='trace', chains=[-1])
-
     trace_name = 'chain--1.{}'.format(problem.config.sampler_config.backend)
     results_path = pjoin(problem.outfolder, bconfig.results_dir_name)
     logger.info('Saving results to %s' % results_path)
     util.ensuredir(results_path)
 
-    if options.stage_number == -1:
-        results_trace = pjoin(stage.handler.stage_path(-1), trace_name)
-        shutil.copy(results_trace, pjoin(results_path, trace_name))
-
     if options.reference:
         point = problem.config.problem_config.get_test_point()
         options.post_llk = 'ref'
     else:
+        stage = Stage(homepath=problem.outfolder,
+                      backend=problem.config.sampler_config.backend)
+
+        stage.load_results(
+            varnames=problem.varnames,
+            model=problem.model, stage_number=options.stage_number,
+            load='trace', chains=[-1])
+
         point = plotting.get_result_point(
             stage, problem.config, point_llk=options.post_llk)
+
+        if options.stage_number == -1:
+            results_trace = pjoin(stage.handler.stage_path(-1), trace_name)
+            shutil.copy(results_trace, pjoin(results_path, trace_name))
 
     rpoint = heart.ResultPoint(point=point, post_llk=options.post_llk)
     dump(rpoint,

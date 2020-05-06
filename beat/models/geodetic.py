@@ -194,8 +194,50 @@ class GeodeticComposite(Composite):
 
     def export(self, point, results_path, stage_number,
                fix_output=False, force=False, update=False):
-        logger.warning('Exporting geodetic data not supported yet!')
-        pass
+
+        from pyrocko.guts import dump
+
+        gc = self.config
+
+        results = self.assemble_results(point)
+
+        # export for gnss
+
+        if 'GNSS' in gc.types:
+            from pyrocko.model import gnss
+
+            logger.info('Exporting GNSS data ...')
+            from beat.inputf import load_and_blacklist_gnss
+
+            for filename in gc.names:
+                try:
+                    tmp = load_and_blacklist_gnss(
+                        gc.datadir, filename, gc.blacklist, campaign=True)
+                    if tmp is not None:
+                        campaign = tmp
+                except(UnicodeDecodeError, OSError):
+                    logger.info('{} is no GNSS data, skipping'.format(filename))
+
+            model_camp = gnss.GNSSCampaign(
+                stations=copy.deepcopy(campaign.stations),
+                name='model')
+
+            dataset_to_result = {}
+            for dataset, result in zip(self.datasets, results):
+                if dataset.typ == 'GNSS':
+                    dataset_to_result[dataset] = result
+
+            for dataset, result in dataset_to_result.items():
+                for ista, sta in enumerate(model_camp.stations):
+                    comp = getattr(sta, dataset.component)
+                    comp.shift = result.processed_syn[ista]
+                    comp.sigma = 0.
+
+            outname = os.path.join(
+                results_path, 'gnss_synths_%i.yaml' % stage_number)
+
+            dump(model_camp, filename=outname)
+
 
     def init_hierarchicals(self, problem_config):
         """
