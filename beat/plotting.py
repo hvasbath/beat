@@ -3950,7 +3950,8 @@ def draw_station_map_gmt(problem, po):
         bound = num.ceil(max(num.abs(miny), maxy))
 
         gmt.makecpt(
-            C='polar',
+            C='blue,white,red',
+            Z=True,
             T='%g/%g' % (-bound, bound),
             out_filename=cptfilepath, suppress_defaults=True)
 
