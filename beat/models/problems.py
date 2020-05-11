@@ -688,6 +688,7 @@ class DistributionOptimizer(Problem):
                 regularization](
                 config.problem_config.mode_config.regularization_config,
                 config.project_dir,
+                self.event,
                 hypers)
 
             composite.set_slip_varnames(self.varnames)
@@ -697,7 +698,7 @@ class DistributionOptimizer(Problem):
 
         self.config = config
 
-    def lsq_solution(self, point):
+    def lsq_solution(self, point, plot=False):
         """
         Returns non-negtive least-squares solution for given input point.
 
@@ -736,7 +737,15 @@ class DistributionOptimizer(Problem):
                     crust_ind=crust_ind, wavename='static', component=var)
                     for var in slip_varnames]
                 Gs.extend([composite.gfs[key]._gfmatrix for key in keys])
-                ds.append(composite.sdata.get_value())
+
+                # removing hierarchicals from data
+                displacements = []
+                for dataset in composite.datasets:
+                    displacements.append(copy.deepcopy(dataset.displacement))
+
+                displacements = composite.apply_corrections(
+                    displacements, point=point, operation='-')
+                ds.extend(displacements)
 
             elif datatype == 'seismic':
                 if False:
@@ -767,6 +776,15 @@ class DistributionOptimizer(Problem):
         npatches = self.config.problem_config.mode_config.npatches
         for i, var in enumerate(slip_varnames):
             point[var] = m[i * npatches: (i + 1) * npatches]
+
+        if plot:
+            from beat.plotting import source_geometry
+            gc = self.composites['geodetic']
+            fault = gc.load_fault_geometry()
+            source_geometry(
+                fault, list(fault.iter_subfaults()), event=gc.event,
+                values=point[slip_varnames[0]],
+                title='slip [m]', datasets=gc.datasets)
 
         point['uperp'] = dzero
         return point

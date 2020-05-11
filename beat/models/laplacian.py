@@ -27,11 +27,12 @@ __all__ = [
 
 class LaplacianDistributerComposite(Composite):
 
-    def __init__(self, config, project_dir, hypers):
+    def __init__(self, config, project_dir, event, hypers):
 
         super(LaplacianDistributerComposite, self).__init__()
 
         self.config = config
+        self.event = event
         self._mode = 'ffi'
         self.name = 'laplacian'
 
@@ -50,13 +51,14 @@ class LaplacianDistributerComposite(Composite):
         # not implemented for more yet
         self.smoothing_op = \
             self.fault.get_smoothing_operator(
-                config.correlation_function).astype(
-                tconfig.floatX)
+                event=self.event,
+                correlation_function=config.correlation_function).astype(
+                    tconfig.floatX)
 
         if(0):
             from matplotlib import pyplot as plt
-            print(self.smoothing_op)
-            im = plt.matshow(self.smoothing_op, vmin=0)
+            print('Smoothing Op', self.smoothing_op)
+            im = plt.matshow(num.log(self.smoothing_op))
             plt.colorbar(im)
             plt.show()
 
@@ -221,7 +223,6 @@ def distances(points, ref_points):
     -------
     ndarray (n_points x n_ref_points)
     """
-
     nref_points = ref_points.shape[0]
     ndim = points.shape[1]
     ndim_ref = ref_points.shape[1]
@@ -233,6 +234,7 @@ def distances(points, ref_points):
 
     points_rep = num.tile(points, nref_points).reshape(
         points.shape[0], nref_points, ndim)
+
     distances = num.sqrt(num.power(
         points_rep - ref_points, 2).sum(axis=2))
     return distances
@@ -312,7 +314,6 @@ def get_smoothing_operator_correlated(
 
     inter_patch_distances = distances(patches_coords, patches_coords)
     norm_distances = inter_patch_distances.sum(0)
-
     if correlation_function == 'gaussian':
         a = 1 / num.power(inter_patch_distances, 2)
     elif correlation_function == 'exponential':

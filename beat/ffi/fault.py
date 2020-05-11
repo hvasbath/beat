@@ -530,7 +530,7 @@ total number of patches: %i ''' % (
             nuc_x=nuc_strike_idx, nuc_y=nuc_dip_idx)
         return start_times
 
-    def get_smoothing_operator(self, correlation_function='nearest_neighbor'):
+    def get_smoothing_operator(self, event, correlation_function='nearest_neighbor'):
         """
         Get second order Laplacian smoothing operator.
 
@@ -569,8 +569,16 @@ total number of patches: %i ''' % (
             centers = self.get_subfault_patch_attributes(
                 subfault_idxs, datatype, attributes=['center'])
 
+            lats, lons = self.get_subfault_patch_attributes(
+                subfault_idxs, datatype, attributes=['lat', 'lon'])
+
+            north_shifts_wrt_event, east_shifts_wrt_event = latlon_to_ne_numpy(
+                event.lat, event.lon, lats, lons)
+
+            centers[:, 0] += east_shifts_wrt_event / km
+            centers[:, 1] += north_shifts_wrt_event / km
             return get_smoothing_operator_correlated(
-                centers, correlation_function)
+                centers * km, correlation_function)
 
     def get_subfault_patch_attributes(
             self, index, datatype='geodetic', component=None, attributes=['']):
