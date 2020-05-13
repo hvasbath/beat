@@ -18,7 +18,7 @@ from collections import namedtuple, OrderedDict
 
 import numpy as num
 
-from scipy.linalg import block_diag
+from scipy.linalg import block_diag, svd
 
 from theano import shared
 from matplotlib import pyplot as plt
@@ -1075,7 +1075,7 @@ def optimize_discretization(
     from beat.plotting import source_geometry
     from numpy.testing import assert_array_equal
 
-    def sv_vec2matrix(sv_vec, ndata):
+    def sv_vec2matrix(sv_vec, ndata, nparams):
         """
         Transform vector of singular values to matrix (M, N),
         M - data length
@@ -1090,9 +1090,10 @@ def optimize_discretization(
         -------
         array-like (M x N)
         """
-        return num.vstack(
-            [num.diag(sv_vec),
-             num.zeros((ndata - sv_vec.size, sv_vec.size))])
+        n_sv = sv_vec.size
+        Lmat = num.zeros((ndata, nparams))
+        Lmat[:n_sv, :n_sv] = num.diag(sv_vec)
+        return Lmat
 
     logger.info('Optimizing fault discretization based on resolution: ... \n')
 
@@ -1228,7 +1229,9 @@ def optimize_discretization(
             num.array(fault.subfault_npatches), new_subfault_npatches)
 
         # U data-space, L singular values, V model space
-        U, l, V = num.linalg.svd(num.vstack(gfs_array), full_matrices=True)
+        full_GFs = num.vstack(gfs_array)
+        ndata, nparams = full_GFs.shape
+        U, l, V = svd(full_GFs, full_matrices=True)
 
         if debug:
             fig, axs = plt.subplots(2, 3)
@@ -1246,10 +1249,19 @@ def optimize_discretization(
 
         # apply singular value damping
         ldamped_inv = 1. / (l + config.epsilon ** 2)
-        Linv = sv_vec2matrix(ldamped_inv, ndata=U.shape[0])
-        L = sv_vec2matrix(l, ndata=U.shape[0])
+        Linv = sv_vec2matrix(ldamped_inv, ndata=ndata, nparams=nparams)
+        L = sv_vec2matrix(l, ndata=ndata, nparams=nparams)
 
         # calculate resolution matrix and take trace
+        if(0):
+            # for debugging
+            print('full_GFs', full_GFs.shape)
+            print('V', V.shape)
+            print('l', l.shape)
+            print('L', L.shape)
+            print('Linnv', Linv.shape)
+            print('U', U.shape)
+
         R = num.diag(num.dot(
             V.dot(Linv.T).dot(U.T),
             U.dot(L).dot(V.T)))
