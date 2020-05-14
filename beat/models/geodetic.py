@@ -202,41 +202,33 @@ class GeodeticComposite(Composite):
         results = self.assemble_results(point)
 
         # export for gnss
+        for typ, config in gc.types.items():
+            if 'GNSS' == typ:
+                from pyrocko.model import gnss
 
-        if 'GNSS' in gc.types:
-            from pyrocko.model import gnss
+                logger.info('Exporting GNSS data ...')
+                campaigns = config.load_data(campaign=True)
 
-            logger.info('Exporting GNSS data ...')
-            from beat.inputf import load_and_blacklist_gnss
+                for campaign in campaigns:
+                    model_camp = gnss.GNSSCampaign(
+                        stations=copy.deepcopy(campaign.stations),
+                        name='%s_model' % campaign.name)
 
-            for filename in gc.names:
-                try:
-                    tmp = load_and_blacklist_gnss(
-                        gc.datadir, filename, gc.blacklist, campaign=True)
-                    if tmp is not None:
-                        campaign = tmp
-                except(UnicodeDecodeError, OSError):
-                    logger.info('{} is no GNSS data, skipping'.format(filename))
+                    dataset_to_result = {}
+                    for dataset, result in zip(self.datasets, results):
+                        if dataset.typ == 'GNSS':
+                            dataset_to_result[dataset] = result
 
-            model_camp = gnss.GNSSCampaign(
-                stations=copy.deepcopy(campaign.stations),
-                name='model')
+                    for dataset, result in dataset_to_result.items():
+                        for ista, sta in enumerate(model_camp.stations):
+                            comp = getattr(sta, dataset.component)
+                            comp.shift = result.processed_syn[ista]
+                            comp.sigma = 0.
 
-            dataset_to_result = {}
-            for dataset, result in zip(self.datasets, results):
-                if dataset.typ == 'GNSS':
-                    dataset_to_result[dataset] = result
+                    outname = os.path.join(
+                        results_path, 'gnss_synths_%i.yaml' % stage_number)
 
-            for dataset, result in dataset_to_result.items():
-                for ista, sta in enumerate(model_camp.stations):
-                    comp = getattr(sta, dataset.component)
-                    comp.shift = result.processed_syn[ista]
-                    comp.sigma = 0.
-
-            outname = os.path.join(
-                results_path, 'gnss_synths_%i.yaml' % stage_number)
-
-            dump(model_camp, filename=outname)
+                    dump(model_camp, filename=outname)
 
 
     def init_hierarchicals(self, problem_config):
@@ -289,12 +281,13 @@ class GeodeticComposite(Composite):
                                 try:
                                     self.hierarchicals[
                                         hierarchical_name] = Uniform(**kwargs)
-                                    self._hierarchicalnames.append(
-                                        hierarchical_name)
                                 except TypeError:
                                     kwargs.pop('name')
                                     self.hierarchicals[hierarchical_name] = \
                                         Uniform.dist(**kwargs)
+
+                                self._hierarchicalnames.append(
+                                    hierarchical_name)
                             else:
                                 logger.info(
                                     'not solving for %s, got fixed at %s' % (

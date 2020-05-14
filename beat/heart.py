@@ -856,10 +856,19 @@ class GNSSCompoundComponent(GeodeticDataset):
         return self._station2index
 
     @classmethod
-    def from_pyrocko_gnss_campaign(cls, campaign):
+    def from_pyrocko_gnss_campaign(
+            cls, campaign, components=['north', 'east', 'up']):
+
+        valid_components = ['north', 'east', 'up']
 
         compounds = []
-        for comp in ('north', 'east', 'up'):
+        for comp in components:
+            logger.info('Loading "%s" GNSS component' % comp)
+            if comp not in valid_components:
+                raise ValueError(
+                    'Component: %s not available! Valid GNSS components are: %s'
+                    '' % (comp, utility.list2string(valid_components)))
+
             comp_stations = []
             components = []
             for st in campaign.stations:

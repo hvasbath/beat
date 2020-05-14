@@ -751,21 +751,67 @@ class GeodeticCorrectionsConfig(Object):
         return any([corr.enabled for corr in self.iter_corrections()])
 
 
+class DatasetConfig(Object):
+    """
+    Base config for datasets.
+    """
+    datadir = String.T(
+        default='./',
+        help='Path to directory of the data')
+    names = List.T(
+        String.T(), default=['Data prefix filenames here ...'])
+
+    def load_data(self):
+        raise NotImplementedError('Needs implementation in the subclass!')
+
+
+class SARDatasetConfig(DatasetConfig):
+
+    def load_data(self):
+        from beat.inputf import load_kite_scenes
+        return load_kite_scenes(self.datadir, self.names)
+
+
+class GNSSDatasetConfig(DatasetConfig):
+
+    components = List.T(String.T(), default=['north', 'east', 'up'])
+    blacklist = List.T(
+        String.T(),
+        default=['put blacklisted station names here or delete'],
+        help='GNSS station to be thrown out.')
+
+    def load_data(self, campaign=False):
+        from beat.inputf import load_and_blacklist_gnss
+        all_targets = []
+        for filename in self.names:
+            logger.info('Loading file %s ...' % filename)
+            try:
+                targets = load_and_blacklist_gnss(
+                    self.datadir, filename, self.blacklist,
+                    campaign=campaign, components=self.components)
+                if targets:
+                    logger.info(
+                        'Successfully loaded GNSS data of file %s' % filename)
+                    if campaign:
+                        all_targets.append(targets)
+                    else:
+                        all_targets.extend(targets)
+            except OSError:
+                logger.warning(
+                    'GNSS of file %s not conform with ascii format!' % filename)
+
+            return all_targets
+
+
 class GeodeticConfig(Object):
     """
     Config for geodetic data optimization related parameters.
     """
 
-    datadir = String.T(default='./')
-    names = List.T(String.T(), default=['Data prefix filenames here ...'])
-    blacklist = List.T(
-        String.T(),
-        default=[],
-        help='GNSS station name or scene name to be thrown out.')
-    types = List.T(
-        String.T(),
-        default=['SAR'],
-        help='Types of geodetic data, i.e. SAR, GNSS, ...')
+    types = Dict.T(
+        String.T(), DatasetConfig.T(),
+        default={'SAR': SARDatasetConfig.D(), 'GNSS': GNSSDatasetConfig.D()},
+        help='Types of geodetic data, i.e. SAR, GNSS, with their configs')
     calc_data_cov = Bool.T(
         default=True,
         help='Flag for calculating the data covariance matrix, '

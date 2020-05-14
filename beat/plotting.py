@@ -668,17 +668,22 @@ def gnss_fits(problem, stage, plot_options):
             'GMT needs to be installed for GNSS plot!')
 
     gc = problem.config.geodetic_config
+    try:
+        ds_config = gc.types['GNSS']
+    except KeyError:
+        raise ImportError('No GNSS data in configuration!')
 
-    logger.info('Trying to load GNSS data from: {}'.format(gc.datadir))
+    logger.info('Trying to load GNSS data from: {}'.format(ds_config.datadir))
 
-    for filename in gc.names:
-        try:
-            tmp = load_and_blacklist_gnss(
-                gc.datadir, filename, gc.blacklist, campaign=True)
-            if tmp is not None:
-                campaign = tmp
-        except(UnicodeDecodeError, OSError):
-            logger.info('{} is no GNSS data, skipping'.format(filename))
+    campaigns = ds_config.load_data(campaign=True)
+    if not campaigns:
+        raise ImportError('Did not fing GNSS data under %s' % ds_config.datadir)
+
+    if len(campaigns) > 1:
+        logger.warning(
+            'Plotting for more than 1 GNSS dataset needs tp be implemented')
+
+    campaign = campaigns[0]
 
     datatype = 'geodetic'
     mode = problem.config.problem_config.mode
@@ -708,9 +713,6 @@ def gnss_fits(problem, stage, plot_options):
         point = po.reference
     else:
         point = get_result_point(stage, problem.config, po.post_llk)
-
-    dataset_index = dict(
-        (data, i) for (i, data) in enumerate(composite.datasets))
 
     results = composite.assemble_results(point)
 
@@ -759,8 +761,15 @@ def gnss_fits(problem, stage, plot_options):
             comp.shift = result.processed_syn[ista]
             comp.sigma = 0.
 
+    plot_component_flags = []
+    if 'east' in ds_config.components or 'north' in ds_config.components:
+        plot_component_flags.append(False)
+
+    if 'up' in ds_config.components:
+        plot_component_flags.append(True)
+
     figs = []
-    for vertical in (False, True):
+    for vertical in plot_component_flags:
         m = automap.Map(
             width=figsize,
             height=figsize,
@@ -824,6 +833,11 @@ def scene_fits(problem, stage, plot_options):
     from pyrocko.dataset import gshhg
     from kite.scene import Scene, UserIOWarning
     import gc
+
+    try:
+        homepath = problem.config.geodetic_config.types['SAR'].datadir
+    except KeyError:
+        raise ValueError('SAR data not in geodetic types!')
 
     datatype = 'geodetic'
     mode = problem.config.problem_config.mode
@@ -1083,13 +1097,12 @@ def scene_fits(problem, stage, plot_options):
     for idata, (dataset, result) in enumerate(dataset_to_result.items()):
         subplot_letter = string.ascii_lowercase[idata]
         try:
-            homepath = problem.config.geodetic_config.datadir
             scene_path = os.path.join(homepath, dataset.name)
             logger.info(
                 'Loading full resolution kite scene: %s' % scene_path)
             scene = Scene.load(scene_path)
         except UserIOWarning:
-            logger.warn(
+            logger.warning(
                 'Full resolution data could not be loaded! Skipping ...')
             continue
 

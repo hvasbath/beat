@@ -119,22 +119,21 @@ def load_kite_scenes(datadir, names):
             'kite not installed! please checkout www.pyrocko.org!')
 
     diffgs = []
-    tobeloaded_names = set(copy.deepcopy(names))
     for k in names:
         filepath = os.path.join(datadir, k)
         try:
             sc = Scene.load(filepath)
             diffgs.append(heart.DiffIFG.from_kite_scene(sc))
-            tobeloaded_names.discard(k)
+
             logger.info('Successfully imported kite scene %s' % k)
         except(ImportError, UserIOWarning):
             logger.warning('File %s not conform with kite format!' % k)
 
-    names = list(tobeloaded_names)
     return diffgs
 
 
-def load_ascii_gnss_globk(filedir, filename):
+def load_ascii_gnss_globk(
+        filedir, filename, components=['east', 'north', 'up']):
     """
     Load ascii file columns containing:
     station name, Lon, Lat, ve, vn, vu, sigma_ve, sigma_vn, sigma_vu
@@ -157,8 +156,13 @@ def load_ascii_gnss_globk(filedir, filename):
     else:
         raise ImportError('Did not find data under: %s' % filepath)
 
-    velocity_idxs = [2, 3, 9]
-    std_idxs = [6, 7, 11]
+    component_to_idx_map = {
+        'east': (2, 6),
+        'north': (3, 7),
+        'up': (9, 11)}
+
+    # velocity_idxs = [2, 3, 9]
+    # std_idxs = [6, 7, 11]
 
     if names.size != d.shape[0]:
         raise Exception('Number of stations and available data differs!')
@@ -170,8 +174,8 @@ def load_ascii_gnss_globk(filedir, filename):
             code=str(name.split('_')[0]),
             lon=float(d[i, 0]),
             lat=float(d[i, 1]))
-        for j, (comp, vel_idx, std_idx) in enumerate(
-                zip(['east', 'north', 'up'], velocity_idxs, std_idxs)):
+        for j, comp in enumerate(components):
+            vel_idx, std_idx = component_to_idx_map[comp]
 
             setattr(gnss_station, comp,
                 gnss.GNSSComponent(
@@ -210,24 +214,34 @@ def load_repsonses_from_file(projectpath):
     return responses
 
 
-def load_and_blacklist_gnss(datadir, filename, blacklist, campaign=False):
+def load_and_blacklist_gnss(
+        datadir, filename, blacklist, campaign=False,
+        components=['north', 'east', 'up']):
     """
     Load ascii GNSS data from GLOBK, apply blacklist and initialise targets.
 
     Parameters
     ----------
+    datadir: string
+        of path to the directory
+    filename: string
+        filename to load
+    blacklist: list
+        of strings with station names to blacklist
     campaign : boolean
         if True return gnss.GNSSCampaign otherwise
         list of heart.GNSSCompoundComponent
+    components : tuple
+        of strings ('north', 'east', 'up') for displacement components to return
     """
-    gnss_campaign = load_ascii_gnss_globk(datadir, filename)
+    gnss_campaign = load_ascii_gnss_globk(datadir, filename, components)
     if gnss_campaign:
         for station_code in blacklist:
             gnss_campaign.remove_station(station_code)
 
         if not campaign:
             return heart.GNSSCompoundComponent.from_pyrocko_gnss_campaign(
-                gnss_campaign)
+                gnss_campaign, components=components)
         else:
             return gnss_campaign
 

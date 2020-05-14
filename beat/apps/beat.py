@@ -413,22 +413,23 @@ def command_import(args):
 
         if 'geodetic' in options.datatypes:
             gc = c.geodetic_config
-            logger.info('Attempting to import geodetic data from %s' %
-                        gc.datadir)
 
             geodetic_outpath = pjoin(c.project_dir, bconfig.geodetic_data_name)
             if not os.path.exists(geodetic_outpath) or options.force:
 
                 gtargets = []
-                for typ in gc.types:
-                    logger.info('Importing data for type %s ...' % typ)
+                for typ, config in gc.types.items():
+                    logger.info(
+                        'Attempting to import geodetic data for typ %s from %s' %
+                        (typ, config.datadir))
                     if typ == 'SAR':
                         if 'matlab' in options.geodetic_format:
                             gtargets.extend(
-                                inputf.load_SAR_data(gc.datadir, gc.names))
+                                inputf.load_SAR_data(
+                                    config.datadir, config.names))
                         elif 'kite' in options.geodetic_format:
                             gtargets.extend(
-                                inputf.load_kite_scenes(gc.datadir, gc.names))
+                                config.load_data())
                         else:
                             raise ImportError(
                                 'Format %s not implemented yet for SAR data.' %
@@ -436,18 +437,8 @@ def command_import(args):
 
                     elif typ == 'GNSS':
                         if 'ascii' in options.geodetic_format:
-                            for name in gc.names:
-                                try:
-                                    targets = inputf.load_and_blacklist_gnss(
-                                        gc.datadir, name, gc.blacklist)
-                                    if targets:
-                                        gtargets.extend(targets)
-                                        logger.info('Successfully imported GNSS'
-                                                    ' data for %s' % name)
-                                except OSError:
-                                    logger.warning(
-                                        'File %s not conform with ascii '
-                                        'format!' % name)
+                            targets = config.load_data(campaign=False)
+                            gtargets.extend(targets)
                         else:
                             raise ImportError(
                                 'Format %s not implemented yet for GNSS data.' %

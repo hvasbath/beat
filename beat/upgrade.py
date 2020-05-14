@@ -113,6 +113,14 @@ def upgrade_config_file(fn, diff=True, update=[]):
          drop_attribute('patch_lengths')),
         ('beat.GeodeticConfig',
          drop_attribute('fit_plane')),
+        ('beat.GeodeticConfig',
+         drop_attribute('datadir')),
+        ('beat.GeodeticConfig',
+         drop_attribute('names')),
+        ('beat.GeodeticConfig',
+         drop_attribute('blacklist')),
+        ('beat.GeodeticConfig',
+         drop_attribute('types')),
         ('beat.EulerPoleConfig',
          rename_attribute('blacklist', 'station_blacklist'))
     ]
