@@ -288,9 +288,14 @@ total number of patches: %i ''' % (
             for i, rs in enumerate(
                     self.get_subfault_patches(index=idx, datatype=datatype)):
 
-                rs.stf.duration = durations[i]
+                starttimes_idx = self.vector2subfault(
+                    index=idx, vector=starttimes)
+                durations_idx = self.vector2subfault(
+                    index=idx, vector=durations)
+
+                rs.stf.duration = durations_idx[i]
                 times, amplitudes = rs.stf.discretize_t(
-                    store.config.deltat, starttimes[i])
+                    store.config.deltat, starttimes_idx[i])
 
                 patch_times.append(times)
                 patch_amplitudes.append(amplitudes)
