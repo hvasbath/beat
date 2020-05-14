@@ -406,13 +406,12 @@ total number of patches: %i ''' % (
                 sts.append(self.point2starttimes(point, index=index).ravel())
 
             starttimes = num.hstack(sts)
-            # TODO make again relative to event time
-            starttimes -= starttimes.min()
             tmax = (num.ceil(
                 (starttimes.max() + durations.max()) / deltat) + 1) * \
                    deltat
+            tmin = num.floor(starttimes.min() / deltat) * deltat
 
-            srf_times = num.arange(0., tmax, deltat)
+            srf_times = num.arange(tmin, tmax, deltat)
             srf_slips = num.zeros((slips.size, srf_times.size))
 
             patch_times, patch_amplitudes = self.get_subfault_patch_stfs(
@@ -424,7 +423,8 @@ total number of patches: %i ''' % (
             for i, (slip, pt, pa) in enumerate(
                     zip(slips, patch_times, patch_amplitudes)):
                 tslips = pa * slip
-                slc = slice(int(pt.min() / deltat), int(pt.max() / deltat + 1))
+                slc = slice(int((pt.min() - tmin) / deltat),
+                            int((pt.max() - tmin) / deltat + 1))
                 srf_slips[i, slc] += tslips
 
             sub_headers = tuple([str(i) for i in num.arange(srf_times.size)])
