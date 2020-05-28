@@ -826,6 +826,17 @@ def gnss_fits(problem, stage, plot_options):
     return figs
 
 
+def map_displacement_grid(displacements, scene):
+    arr = num.full_like(scene.displacement, fill_value=num.nan)
+    qt = scene.quadtree
+
+    for syn_v, l in zip(displacements, qt.leaves):
+        arr[l._slice_rows, l._slice_cols] = syn_v
+
+    arr[scene.displacement_mask] = num.nan
+    return arr
+
+
 def scene_fits(problem, stage, plot_options):
     """
     Plot geodetic data, synthetics and residuals.
@@ -1074,16 +1085,6 @@ def scene_fits(problem, stage, plot_options):
                     fe[:, 0], fn[:, 1], marker='*',
                     markersize=10, color=color, **kwargs)
 
-    def mapDisplacementGrid(displacements, scene):
-        arr = num.full_like(scene.displacement, fill_value=num.nan)
-        qt = scene.quadtree
-
-        for syn_v, l in zip(displacements, qt.leaves):
-            arr[l._slice_rows, l._slice_cols] = syn_v
-
-        arr[scene.displacement_mask] = num.nan
-        return arr
-
     def cbtick(x):
         rx = math.floor(x * 1000.) / 1000.
         return [-rx, rx]
@@ -1157,7 +1158,7 @@ def scene_fits(problem, stage, plot_options):
                 vmax = colims[tidx]
 
             imgs.append(ax.imshow(
-                mapDisplacementGrid(datavec, scene),
+                map_displacement_grid(datavec, scene),
                 extent=im_extent, cmap=cmap,
                 vmin=vmin, vmax=vmax,
                 origin='lower'))

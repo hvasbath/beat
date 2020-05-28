@@ -230,6 +230,40 @@ class GeodeticComposite(Composite):
 
                     dump(model_camp, filename=outname)
 
+            elif 'SAR' == typ:
+                from kite.scene import Scene, UserIOWarning
+                from beat.plotting import map_displacement_grid
+
+                homepath = gc.types['SAR'].datadir
+                logger.info('Exporting SAR data ...')
+                for dataset, result in zip(self.datasets, results):
+                    if dataset.typ == 'SAR':
+                        try:
+                            scene_path = os.path.join(homepath, dataset.name)
+                            logger.info(
+                                'Loading full resolution kite scene:'
+                                ' %s' % scene_path)
+                            scene = Scene.load(scene_path)
+                        except UserIOWarning:
+                            logger.warning(
+                                'Full resolution data could'
+                                'not be loaded! Skipping ...')
+                            continue
+                    else:
+                        scene = None
+
+                    if scene:
+                        for attr in ['processed_syn', 'processed_res']:
+                            filename = os.path.join(
+                                results_path, '{}_{}_{}.csv'.format(
+                                    dataset.name, attr, stage_number))
+                            displacements = getattr(result, attr)
+                            mapped_dis = map_displacement_grid(
+                                displacements, scene)
+                            scene.displacement = mapped_dis
+                            scene.quadtree.export_csv(bfilename)
+                            logger.info('Stored CSV file to: %s' % filename)
+
 
     def init_hierarchicals(self, problem_config):
         """
