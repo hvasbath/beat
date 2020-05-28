@@ -232,36 +232,19 @@ class GeodeticComposite(Composite):
 
             elif 'SAR' == typ:
                 from kite.scene import Scene, UserIOWarning
-                from beat.plotting import map_displacement_grid
 
                 homepath = gc.types['SAR'].datadir
                 logger.info('Exporting SAR data ...')
                 for dataset, result in zip(self.datasets, results):
                     if dataset.typ == 'SAR':
-                        try:
-                            scene_path = os.path.join(homepath, dataset.name)
-                            logger.info(
-                                'Loading full resolution kite scene:'
-                                ' %s' % scene_path)
-                            scene = Scene.load(scene_path)
-                        except UserIOWarning:
-                            logger.warning(
-                                'Full resolution data could'
-                                'not be loaded! Skipping ...')
-                            continue
-                    else:
-                        scene = None
-
-                    if scene:
-                        for attr in ['processed_syn', 'processed_res']:
+                        for attr in ['processed_obs',
+                                     'processed_syn', 'processed_res']:
                             filename = os.path.join(
                                 results_path, '{}_{}_{}.csv'.format(
-                                    dataset.name, attr, stage_number))
+                                    os.path.splitext(dataset.name)[0],
+                                    attr, stage_number))
                             displacements = getattr(result, attr)
-                            mapped_dis = map_displacement_grid(
-                                displacements, scene)
-                            scene.displacement = mapped_dis
-                            scene.quadtree.export_csv(bfilename)
+                            dataset.export_to_csv(filename, displacements)
                             logger.info('Stored CSV file to: %s' % filename)
 
 

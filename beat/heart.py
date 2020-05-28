@@ -670,9 +670,6 @@ class GeodeticDataset(gf.meta.MultiLocation):
     name = String.T(
         default='A',
         help='e.g. GNSS campaign name or InSAR satellite track ')
-    utmn = Array.T(shape=(None,), dtype=num.float, optional=True)
-    utme = Array.T(shape=(None,), dtype=num.float, optional=True)
-
 
     def __init__(self, **kwargs):
         self.has_correction = False
@@ -741,8 +738,6 @@ class GeodeticDataset(gf.meta.MultiLocation):
     def samples(self):
         if self.lats is not None:
             n = self.lats.size
-        elif self.utmn is not None:
-            n = self.utmn.size
         elif self.north_shifts is not None:
             n = self.north_shifts.size
         else:
@@ -996,6 +991,23 @@ class DiffIFG(IFG):
              'Click polygon mask in kite!',
         optional=True)
 
+    def export_to_csv(self, filename, displacement=None):
+        logger.debug('Exporting dataset as csv to %s', filename)
+
+        if displacement is None:
+            displacement = self.displacement
+
+        with open(filename, mode='w') as f:
+            f.write(
+                'lat[deg], lon[deg], incidence[deg], heading[deg], '
+                'displacement[m]\n')
+            for lat, lon, inci, head, dis in zip(
+                    self.lats, self.lons,
+                    self.incidence, self.heading, displacement):
+                f.write(
+                    '{}, {}, {}, {}, {} \n'.format(
+                        lat, lon, inci, head, dis))
+
     @classmethod
     def from_kite_scene(cls, scene, **kwargs):
         name = os.path.basename(scene.meta.filename)
@@ -1071,9 +1083,9 @@ class GeodeticResult(Object):
     Result object assembling different geodetic data.
     """
     point = ResultPoint.T(default=ResultPoint.D())
-    processed_obs = GeodeticDataset.T(optional=True)
-    processed_syn = GeodeticDataset.T(optional=True)
-    processed_res = GeodeticDataset.T(optional=True)
+    processed_obs = Array.T(shape=(None,), dtype=num.float, optional=True)
+    processed_syn = Array.T(shape=(None,), dtype=num.float, optional=True)
+    processed_res = Array.T(shape=(None,), dtype=num.float, optional=True)
     llk = Float.T(default=0., optional=True)
 
 
