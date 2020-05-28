@@ -231,9 +231,6 @@ class GeodeticComposite(Composite):
                     dump(model_camp, filename=outname)
 
             elif 'SAR' == typ:
-                from kite.scene import Scene, UserIOWarning
-
-                homepath = gc.types['SAR'].datadir
                 logger.info('Exporting SAR data ...')
                 for dataset, result in zip(self.datasets, results):
                     if dataset.typ == 'SAR':
