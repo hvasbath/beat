@@ -334,9 +334,13 @@ OpenMPI
 """""""
 For the Parallel Tempering algorithm OpenMPI and the python 
 bindings are required. If you do not have any MPI library installed, this needs to be installed first.
-To install openmpi::
+For now BEAT only supports MPI versions <3. Available mpi versions can be listed with the command::
 
-    sudo apt-get install libopenmpi-dev openmpi-bin
+    apt-cache madison libopenmpi-dev
+
+To install openmpi for a specific version for example version 2.1.1-8::
+
+    sudo apt install openmpi-bin=2.1.1-8 libopenmpi-dev=2.1.1-8 -V
 
 Finally, the python wrapper::
 
