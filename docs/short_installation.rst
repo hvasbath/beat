@@ -8,9 +8,9 @@ First install pyrocko following this webpage:
 
  - `pyrocko <http://pyrocko.org/>`__
 
-Then install the following packages: openmpi and beat::
+Then install the following packages: openmpi (version 2.1.1) and beat::
 
-    sudo apt-get install libopenmpi-dev
+    sudo apt install openmpi-bin=2.1.1-8 libopenmpi-dev=2.1.1-8 -V
     sudo pip3 install mpi4py
 
     cd ~/src  # or whereever you keep the packages
