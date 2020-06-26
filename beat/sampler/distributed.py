@@ -144,8 +144,10 @@ class MPIRunner(object):
             logger.warning('Done shutting down child processes!')
             raise KeyboardInterrupt('Master interupted!')
 
-        logger.debug('===== begin mpiexec output =====\n'
-                     '%s===== end mpiexec output =====' % output_str.decode())
+        if output_str:
+            logger.info(
+                '===== begin mpiexec output =====\n'
+                '%s===== end mpiexec output =====' % output_str.decode())
 
         errmess = []
         if proc.returncode != 0:
@@ -163,13 +165,11 @@ class MPIRunner(object):
             os.chdir(old_wd)
 
             raise MPIError('''
-===== begin mpiexec output =====
-%s===== end mpiexec output =====
 ===== begin mpiexec error =====
 %s===== end mpiexec error =====
 %s
 mpiexec has been invoked as "%s"
-in the directory %s'''.lstrip() % (output_str.decode(), error_str.decode(),
+in the directory %s'''.lstrip() % (error_str.decode(),
                 '\n'.join(errmess), program, self.tempdir))
 
     def __del__(self):
