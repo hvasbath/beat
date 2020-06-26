@@ -107,7 +107,7 @@ class MPIRunner(object):
                     '''could not start "%s"''' % program)
 
             logger.debug('Running mpi with arguments: %s' % args)
-            proc.communicate()
+            (output_str, error_str) = proc.communicate()
 
         finally:
             signal.signal(signal.SIGINT, original)
@@ -144,18 +144,32 @@ class MPIRunner(object):
             logger.warning('Done shutting down child processes!')
             raise KeyboardInterrupt('Master interupted!')
 
+        logger.debug('===== begin mpiexec output =====\n'
+                     '%s===== end mpiexec output =====' % output_str.decode())
+
         errmess = []
         if proc.returncode != 0:
             errmess.append(
                 'mpiexec had a non-zero exit state: %i' % proc.returncode)
 
+        if error_str:
+            logger.warning(
+                'mpiexec emitted something via stderr:\n\n%s'
+                % error_str.decode())
+
         if errmess:
             self.keep_tmp = True
 
             os.chdir(old_wd)
+
             raise MPIError('''
+===== begin mpiexec output =====
+%s===== end mpiexec output =====
+===== begin mpiexec error =====
+%s===== end mpiexec error =====
 mpiexec has been invoked as "%s"
-in the directory %s'''.lstrip() % (program, self.tempdir))
+in the directory %s'''.lstrip() % (output_str.decode(), error_str.decode(),
+                '\n'.join(errmess), program, self.tempdir))
 
     def __del__(self):
         if self.tempdir:
