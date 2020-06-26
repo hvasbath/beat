@@ -167,6 +167,7 @@ class MPIRunner(object):
 %s===== end mpiexec output =====
 ===== begin mpiexec error =====
 %s===== end mpiexec error =====
+%s
 mpiexec has been invoked as "%s"
 in the directory %s'''.lstrip() % (output_str.decode(), error_str.decode(),
                 '\n'.join(errmess), program, self.tempdir))
