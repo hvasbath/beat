@@ -1,4 +1,4 @@
-from subprocess import PIPE, Popen, STDOUT
+from subprocess import PIPE, Popen
 from os.path import join as pjoin
 import os
 from tempfile import mkdtemp
@@ -99,7 +99,7 @@ class MPIRunner(object):
         try:
             try:
                 proc = Popen(
-                    commandstr.split(), stdout=sys.stdout, stderr=STDOUT)
+                    commandstr.split(), stdout=sys.stdout, stderr=sys.stderr)
 
             except OSError:
                 os.chdir(old_wd)
@@ -107,7 +107,7 @@ class MPIRunner(object):
                     '''could not start "%s"''' % program)
 
             logger.debug('Running mpi with arguments: %s' % args)
-            (output_str, error_str) = proc.communicate()
+            proc.communicate()
 
         finally:
             signal.signal(signal.SIGINT, original)
@@ -144,33 +144,18 @@ class MPIRunner(object):
             logger.warning('Done shutting down child processes!')
             raise KeyboardInterrupt('Master interupted!')
 
-        if output_str:
-            logger.info(
-                '===== begin mpiexec output =====\n'
-                '%s===== end mpiexec output =====' % output_str.decode())
-
         errmess = []
         if proc.returncode != 0:
             errmess.append(
                 'mpiexec had a non-zero exit state: %i' % proc.returncode)
 
-        if error_str:
-            logger.warning(
-                'mpiexec emitted something via stderr:\n\n%s'
-                % error_str.decode())
-
         if errmess:
             self.keep_tmp = True
 
             os.chdir(old_wd)
-
             raise MPIError('''
-===== begin mpiexec error =====
-%s
-===== end mpiexec error =====
 mpiexec has been invoked as "%s"
-in the directory %s'''.lstrip() % (
-                '\n'.join(errmess), program, self.tempdir))
+in the directory %s'''.lstrip() % (program, self.tempdir))
 
     def __del__(self):
         if self.tempdir:
