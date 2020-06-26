@@ -166,10 +166,10 @@ class MPIRunner(object):
 
             raise MPIError('''
 ===== begin mpiexec error =====
-%s===== end mpiexec error =====
 %s
+===== end mpiexec error =====
 mpiexec has been invoked as "%s"
-in the directory %s'''.lstrip() % (error_str.decode(),
+in the directory %s'''.lstrip() % (
                 '\n'.join(errmess), program, self.tempdir))
 
     def __del__(self):
