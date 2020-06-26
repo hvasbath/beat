@@ -1,4 +1,4 @@
-from subprocess import PIPE, Popen
+from subprocess import PIPE, Popen, STDOUT
 from os.path import join as pjoin
 import os
 from tempfile import mkdtemp
@@ -99,7 +99,7 @@ class MPIRunner(object):
         try:
             try:
                 proc = Popen(
-                    commandstr.split(), stdout=sys.stdout, stderr=sys.stderr)
+                    commandstr.split(), stdout=sys.stdout, stderr=STDOUT)
 
             except OSError:
                 os.chdir(old_wd)
