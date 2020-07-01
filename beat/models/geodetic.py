@@ -157,8 +157,14 @@ class GeodeticComposite(Composite):
         -------
         int
         """
-        if self.config.dataset_specific_residual_noise_estimation:
-            return len(self.get_all_dataset_names(hp_name))
+        n_datasets = len(self.get_all_dataset_names(hp_name))
+        if n_datasets == 0:
+            raise ConfigInconsistentError(
+                'Found no data for hyperparameter "%s". Please either load'
+                ' the data or remove it from types dictionary!' % hp_name,
+                params="hypers")
+        elif self.config.dataset_specific_residual_noise_estimation:
+            return n_datasets
         else:
             return 1
 

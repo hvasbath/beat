@@ -28,10 +28,10 @@ __all__ = [
 
 class ConfigInconsistentError(Exception):
 
-    def __init__(self, errmess=''):
+    def __init__(self, errmess='', params="hierarchicals"):
         self.default = \
             '\n Please run: ' \
-            '"beat update <project_dir> --parameters="hierarchicals"'
+            '"beat update <project_dir> --parameters=%s' % params
         self.errmess = errmess
 
     def __str__(self):
