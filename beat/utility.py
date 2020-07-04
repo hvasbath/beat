@@ -899,7 +899,7 @@ def dump_objects(outpath, outlist):
     """
 
     with open(outpath, 'wb') as f:
-        pickle.dump(outlist, f, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(outlist, f, protocol=4)
 
 
 def load_objects(loadpath):

@@ -1961,8 +1961,14 @@ def histplot_op(
         if bins is None:
             bins = int(num.ceil((maxd - mind) / step))
 
+        major, minor = get_matplotlib_version()
+        if major < 3:
+            kwargs['normed'] = True
+        else:
+            kwargs['density'] = True
+
         ax.hist(
-            d, bins=bins, normed=True, stacked=True, alpha=alpha,
+            d, bins=bins, stacked=True, alpha=alpha,
             align='left', histtype='stepfilled', color=color, edgecolor=color,
             **kwargs)
 
@@ -2335,6 +2341,11 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
     fig.tight_layout()
     return fig, axs, varbins
+
+
+def get_matplotlib_version():
+    from matplotlib import __version__ as mplversion
+    return float(mplversion[0]), float(mplversion[2:])
 
 
 def select_transform(sc, n_steps=None):
