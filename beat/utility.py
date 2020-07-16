@@ -1072,7 +1072,7 @@ def list2string(l, fill=', '):
     l: list
         of strings
     """
-    return fill.join('"%s"' % listentry for listentry in l)
+    return fill.join('%s' % listentry for listentry in l)
 
 
 def unique_list(l):

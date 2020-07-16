@@ -835,13 +835,19 @@ class GNSSCompoundComponent(GeodeticDataset):
 
     def get_blacklist(self, corr_config):
         s2idx = self.station_name_index_mapping()
-        station_blacklist_idxs = num.array([
-            s2idx[code] for code in corr_config.station_blacklist])
+        station_blacklist_idxs = []
+        for code in corr_config.station_blacklist:
+            try:
+                station_blacklist_idxs.append(s2idx[code])
+            except KeyError:
+                logger.warning(
+                    'Blacklisted station %s not in dataset,'
+                    ' skipping ...' % code)
 
         logger.info(
             'Stations with idxs %s got blacklisted!' %
-            utility.list2string(station_blacklist_idxs.tolist()))
-        return station_blacklist_idxs
+            utility.list2string(station_blacklist_idxs))
+        return num.array(station_blacklist_idxs)
 
     def station_name_index_mapping(self):
         if self._station2index is None:

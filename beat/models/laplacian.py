@@ -47,8 +47,6 @@ class LaplacianDistributerComposite(Composite):
         self.spatches = shared(self.fault.npatches, borrow=True)
         self._like_name = 'laplacian_like'
 
-        # only one subfault so far, smoothing across and fast-sweep
-        # not implemented for more yet
         self.smoothing_op = \
             self.fault.get_smoothing_operator(
                 event=self.event,
@@ -313,9 +311,9 @@ def get_smoothing_operator_correlated(
     """
 
     inter_patch_distances = distances(patches_coords, patches_coords)
-    norm_distances = inter_patch_distances.sum(0)
     if correlation_function == 'gaussian':
         a = 1 / num.power(inter_patch_distances, 2)
+        num.fill_diagonal(a, num.zeros(a.shape[0]))  # remove inf (div by zero)
     elif correlation_function == 'exponential':
         a = 1 / num.exp(inter_patch_distances)
     else:
@@ -323,5 +321,6 @@ def get_smoothing_operator_correlated(
             'Resolution based discretization does not support '
             '"nearest_neighbor" correlation function!')
 
+    norm_distances = a.sum(0)
     num.fill_diagonal(a, -norm_distances)
-    return a / inter_patch_distances.mean()
+    return a #/ inter_patch_distances.mean()

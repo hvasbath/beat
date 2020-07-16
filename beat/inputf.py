@@ -147,9 +147,12 @@ def load_ascii_gnss_globk(
     from pyrocko.model import gnss
 
     filepath = os.path.join(filedir, filename)
+    skiprows = 3
     if os.path.exists(filepath):
-        names = num.loadtxt(filepath, skiprows=3, usecols=[12], dtype='str')
-        d = num.loadtxt(filepath, skiprows=3, usecols=range(12), dtype='float')
+        names = num.loadtxt(
+            filepath, skiprows=skiprows, usecols=[12], dtype='str')
+        d = num.loadtxt(
+            filepath, skiprows=skiprows, usecols=range(12), dtype='float')
     elif len(os.path.splitext(filepath)[1]) == 0:
         logger.info('File %s is not an ascii text file!' % filepath)
         return
@@ -181,6 +184,7 @@ def load_ascii_gnss_globk(
                 gnss.GNSSComponent(
                     shift=float(d[i, vel_idx] / km),
                     sigma=float(d[i, std_idx] / km)))
+        logger.debug('Loaded station %s' % gnss_station.code)
         data.add_station(gnss_station)
 
     return data

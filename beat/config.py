@@ -791,7 +791,8 @@ class GNSSDatasetConfig(DatasetConfig):
                     campaign=campaign, components=self.components)
                 if targets:
                     logger.info(
-                        'Successfully loaded GNSS data of file %s' % filename)
+                        'Successfully loaded GNSS data of %i stations'
+                        ' from file %s' % (len(targets[0].stations), filename))
                     if campaign:
                         all_targets.append(targets)
                     else:

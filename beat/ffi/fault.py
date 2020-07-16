@@ -540,7 +540,8 @@ total number of patches: %i ''' % (
             nuc_x=nuc_strike_idx, nuc_y=nuc_dip_idx)
         return start_times
 
-    def get_smoothing_operator(self, event, correlation_function='nearest_neighbor'):
+    def get_smoothing_operator(
+            self, event, correlation_function='nearest_neighbor'):
         """
         Get second order Laplacian smoothing operator.
 
