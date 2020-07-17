@@ -5,7 +5,7 @@ from beat.models import laplacian
 from matplotlib import pyplot as plt
 
 import numpy as num
-
+from numpy.testing import assert_allclose
 from pyrocko import util
 
 
@@ -25,7 +25,6 @@ class LaplacianTest(unittest.TestCase):
     def test_distances(self):
 
         dists = laplacian.distances(self.coords, self.coords)
-        print(dists)
 
         plt.matshow(dists)
         plt.show()
@@ -34,18 +33,18 @@ class LaplacianTest(unittest.TestCase):
         L = laplacian.get_smoothing_operator_nearest_neighbor(
             len(self.x), len(self.y), 1., 1.)
 
-        print(L.shape)
-        print(L)
         im = plt.matshow(L)
         plt.title('Uniform')
         plt.colorbar(im)
         plt.show()
+        assert_allclose(L.sum(), 0., rtol=0., atol=1e-6)
 
     def test_variable_laplacian(self):
-        L_exp = laplacian.get_smoothing_operator_correlated(self.coords, 'exponential')
-        L_gauss= laplacian.get_smoothing_operator_correlated(self.coords, 'gaussian')
-        print(L_exp.shape)
-        print('exp gauss', L_exp, L_gauss)
+        L_exp = laplacian.get_smoothing_operator_correlated(
+            self.coords, 'exponential')
+        L_gauss= laplacian.get_smoothing_operator_correlated(
+            self.coords, 'gaussian')
+
         im = plt.matshow(L_exp, vmin=L_exp.min(), vmax=L_exp.max())
         plt.colorbar(im)
         plt.title('Exp')
@@ -53,6 +52,9 @@ class LaplacianTest(unittest.TestCase):
         plt.colorbar(im2)
         plt.title('Gauss')
         plt.show()
+
+        assert_allclose(L_exp.sum(), 0., rtol=0., atol=1e-6)
+        assert_allclose(L_gauss.sum(), 0., rtol=0., atol=1e-6)
 
 
 if __name__ == '__main__':

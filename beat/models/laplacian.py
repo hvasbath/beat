@@ -313,7 +313,7 @@ def get_smoothing_operator_correlated(
     inter_patch_distances = distances(patches_coords, patches_coords)
     if correlation_function == 'gaussian':
         a = 1 / num.power(inter_patch_distances, 2)
-        num.fill_diagonal(a, num.zeros(a.shape[0]))  # remove inf (div by zero)
+
     elif correlation_function == 'exponential':
         a = 1 / num.exp(inter_patch_distances)
     else:
@@ -321,6 +321,7 @@ def get_smoothing_operator_correlated(
             'Resolution based discretization does not support '
             '"nearest_neighbor" correlation function!')
 
+    num.fill_diagonal(a, num.zeros(a.shape[0]))  # remove invalid diag
     norm_distances = a.sum(0)
     num.fill_diagonal(a, -norm_distances)
     return a #/ inter_patch_distances.mean()

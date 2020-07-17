@@ -1635,12 +1635,12 @@ def command_check(args):
         sandbox = SandboxScene()
         if isinstance(dataset, heart.DiffIFG):
             try:
-                homepath = problem.config.geodetic_config.datadir
+                homepath = problem.config.geodetic_config.types['SAR'].datadir
                 scene_path = os.path.join(homepath, dataset.name)
                 logger.info(
                     'Loading full resolution kite scene: %s' % scene_path)
                 sandbox.loadReferenceScene(scene_path)
-            except UserIOWarning:
+            except(UserIOWarning, KeyError):
                 raise ImportError(
                     'Full resolution data could not be loaded!')
         elif isinstance(dataset, heart.GNSSCompoundComponent):
