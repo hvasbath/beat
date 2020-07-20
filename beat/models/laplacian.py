@@ -311,6 +311,8 @@ def get_smoothing_operator_correlated(
     """
 
     inter_patch_distances = distances(patches_coords, patches_coords)
+    inter_patch_distances /= inter_patch_distances.mean()
+
     if correlation_function == 'gaussian':
         a = 1 / num.power(inter_patch_distances, 2)
 
