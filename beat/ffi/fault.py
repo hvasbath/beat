@@ -1311,12 +1311,13 @@ def optimize_discretization(
         patch_size_ids = set(width_idxs_min + length_idxs_min)
 
         # remove patches from fixed idxs that are above max size
-        fixed_idxs = fixed_idxs.difference(
-            set(width_idxs_max + length_idxs_max))
+        above_size_thresh = set(width_idxs_max + length_idxs_max)
+        fixed_idxs = fixed_idxs.difference(above_size_thresh)
 
         # patches above R but below size thresholds & remove fixed patches
+        # put in patches that violate max size threshold
         unique_ids = set(R_idxs).difference(
-            patch_size_ids, fixed_idxs)
+            patch_size_ids, fixed_idxs).union(above_size_thresh)
 
         ncandidates = len(unique_ids)
 
@@ -1335,9 +1336,10 @@ def optimize_discretization(
             # depth penalty
             c1 = []
             for i, sf in enumerate(fault.iter_subfaults()):
+                #bdepths = fault.get_subfault_patch_attributes(
+                #    i, datatype, attributes=['depth'])
                 bdepths = fault.get_subfault_patch_attributes(
-                    i, datatype, attributes=['depth'])
-
+                        i, datatype, attributes=['center'])[:, 2]
                 c1.extend(num.exp(
                     -config.depth_penalty * bdepths * km /
                     sf.bottom_depth).tolist())
@@ -1382,13 +1384,20 @@ def optimize_discretization(
             idxs = rated_sel[range(int(num.ceil(config.alpha * n_sel)))]
 
             if debug:
-                print('C1', c_one_pen)
-                print('C2', c_two_pen)
-                print('C3', c_three_pen)
-                print('A', area_pen)
+                print('above size thresh', above_size_thresh)
+                print('---------')
+                print('min patch data distances', patch_data_distance_mins)
+                print('---------')
+                print('R', R)
+                print('---------')
+                print('depth pen C1', c_one_pen)
+                print('distance C2', c_two_pen)
+                print('resolution neighbor C3', c_three_pen)
+                print('area A', area_pen)
                 print('rating', rating)
+                print('---------')
                 print('rating argsorted', rating_idxs)
-                print('uids', uids)
+                print('unique patches uids', uids)
                 print('R select rated', rated_sel)
 
             logger.info(

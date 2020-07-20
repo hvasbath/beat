@@ -18,6 +18,7 @@ from beat.config import ResolutionDiscretizationConfig
 util.setup_logging('R-based subsampling', 'info')
 
 real = True    # if use real data
+synth_data_dist = 'half'
 
 km = 1000.
 nworkers = 4
@@ -103,8 +104,14 @@ if real:
         extension_widths=[0., 0., 0.],
     )
 else:
-    yvec = num.linspace(-15., 15., 30)
-    xvec = num.linspace(-20., 20., 40)
+
+    if synth_data_dist == 'uniform':
+        yvec = num.linspace(-15., 15., 30)
+        xvec = num.linspace(-20., 20., 40)
+    elif synth_data_dist == 'half':
+        yvec = num.linspace(-15., 15., 30)
+        xvec = num.linspace(-20., -5., 20)
+
     y_shift = x_shift = 0.
     X, Y = num.meshgrid(xvec, yvec)
     data_xloc = X.ravel()
@@ -122,7 +129,7 @@ else:
         depth_penalty=d_par,
         alpha=alphaprcnt,
         patch_widths_min=[1.],
-        patch_widths_max=[15.],
+        patch_widths_max=[20.],
         patch_lengths_min=[1.],
         patch_lengths_max=[30.],
         extension_lengths=[0.],
@@ -166,10 +173,6 @@ datasets = [DiffIFG(
     lons=lons.ravel(),
     los_vector=los,
     displacement=num.zeros_like(data_yloc).ravel())]
-
-
-
-
 
 
 fault = discretize_sources(
