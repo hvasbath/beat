@@ -172,9 +172,10 @@ def load_ascii_gnss_globk(
 
     data = gnss.GNSSCampaign(name=filename)
     for i, name in enumerate(names):
-
+        #code = str(name.split('_')[0])  # may produce duplicate sites
+        code = str(name)
         gnss_station = gnss.GNSSStation(
-            code=str(name.split('_')[0]),
+            code=code,
             lon=float(d[i, 0]),
             lat=float(d[i, 1]))
         for j, comp in enumerate(components):
@@ -241,8 +242,14 @@ def load_and_blacklist_gnss(
     gnss_campaign = load_ascii_gnss_globk(datadir, filename, components)
     if gnss_campaign:
         for station_code in blacklist:
+            logger.debug('Removing station %s for campaign.' % station_code)
             gnss_campaign.remove_station(station_code)
 
+        station_names = [station.code for station in gnss_campaign.stations]
+        logger.info(
+            'Loaded data of %i GNSS stations' % len(station_names))
+        logger.debug('Loaded GNSS stations %s' %
+                     utility.list2string(station_names))
         if not campaign:
             return heart.GNSSCompoundComponent.from_pyrocko_gnss_campaign(
                 gnss_campaign, components=components)
