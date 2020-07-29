@@ -1,6 +1,3 @@
-from pyrocko import cake_plot as cp
-from pyrocko import orthodrome as otd
-
 from pymc3 import plots as pmp
 from pymc3 import quantiles
 
@@ -27,6 +24,9 @@ import numpy as num
 from pyrocko.guts import (Object, String, Dict, List,
                           Bool, Int, load, StringChoice)
 from pyrocko import util, trace
+from pyrocko import cake_plot as cp
+from pyrocko import orthodrome as otd
+
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.cake_plot import light
 from pyrocko.plot import beachball, nice_value, AutoScaler
@@ -791,6 +791,10 @@ def gnss_fits(problem, stage, plot_options):
 
         offset_scale = num.sqrt(offset_scale ** 2).max()
 
+        if len(all_stations) > 40:
+            logger.warning('More than 40 stations disabling station labels ..')
+            labels = False
+
         m.add_gnss_campaign(
             campaign,
             psxy_style={
@@ -799,7 +803,7 @@ def gnss_fits(problem, stage, plot_options):
             },
             offset_scale=offset_scale,
             vertical=vertical,
-            labels=True)
+            labels=labels)
 
         m.add_gnss_campaign(
             model_camp,
@@ -812,14 +816,35 @@ def gnss_fits(problem, stage, plot_options):
             vertical=vertical,
             labels=False)
 
-        for source in sources:
-            if isinstance(source, RectangularSource):
+        for i, source in enumerate(sources):
+            in_rows = source.outline(cs='lonlat')
+            if mode != ffi_mode_str:
+                color = (num.array(mpl_graph_color(i)) * 255).tolist()
+                color_str = utility.list2string(color, '/')
+            else:
+                color_str = 'black'
+
+            if in_rows.shape[0] > 1:    # finite source
                 m.gmt.psxy(
-                    in_rows=source.outline(cs='lonlat'),
-                    L='+p2p,black',
+                    in_rows=in_rows,
+                    L='+p0.1p,%s' % color_str,
+                    W='0.1p,black',
+                    G=color_str,
+                    t=70,
+                    *m.jxyr)
+                m.gmt.psxy(
+                    in_rows=in_rows[0:2],
                     W='1p,black',
-                    G='black',
-                    t=60, *m.jxyr)
+                    *m.jxyr)
+            else:                       # point source
+                source_scale_factor = 2.
+                m.gmt.psxy(
+                    in_rows=in_rows,
+                    W='0.1p,black',
+                    G=color_str,
+                    S='c%fp' % float(source.magnitude * source_scale_factor),
+                    t=70,
+                    *m.jxyr)
 
         figs.append(m)
 
