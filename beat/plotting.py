@@ -660,8 +660,6 @@ def gnss_fits(problem, stage, plot_options):
 
     from pyrocko import automap
     from pyrocko.model import gnss
-    from beat.inputf import load_and_blacklist_gnss
-    from beat.sources import RectangularSource
 
     if len(automap.gmtpy.detect_gmt_installations()) < 1:
         raise automap.gmtpy.GmtPyError(
@@ -794,6 +792,8 @@ def gnss_fits(problem, stage, plot_options):
         if len(all_stations) > 40:
             logger.warning('More than 40 stations disabling station labels ..')
             labels = False
+        else:
+            labels = True
 
         m.add_gnss_campaign(
             campaign,
@@ -3925,7 +3925,9 @@ def draw_station_map_gmt(problem, po):
 
     from pyrocko import gmtpy
 
-    installations = gmtpy.detect_gmt_installations()
+    if len(gmtpy.detect_gmt_installations()) < 1:
+        raise gmtpy.GmtPyError(
+            'GMT needs to be installed for GNSS plot!')
 
     if po.outformat == 'svg':
         raise NotImplementedError('SVG format is not supported for this plot!')
