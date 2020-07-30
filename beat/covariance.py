@@ -154,14 +154,15 @@ class SeismicNoiseAnalyser(object):
         in [s], time before P arrival until variance is estimated
     engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
         processing object for synthetics calculation
-    event : :class:`pyrocko.meta.Event`
-        reference event from catalog
+    events : list
+        of :class:`pyrocko.meta.Event`
+        reference event(s) from catalog
     chop_bounds : list of len 2
         of taper attributes a, b, c, or d
     """
     def __init__(
             self, structure='identity', pre_arrival_time=5.,
-            engine=None, event=None, sources=None, chop_bounds=['b', 'c']):
+            engine=None, events=None, sources=None, chop_bounds=['b', 'c']):
 
         avail = available_noise_structures()
         if structure not in avail:
@@ -169,7 +170,7 @@ class SeismicNoiseAnalyser(object):
                 'Selected noise structure "%s" not supported! Implemented'
                 ' noise structures: %s' % (structure, list2string(avail)))
 
-        self.event = event
+        self.events = events
         self.engine = engine
         self.sources = sources
         self.pre_arrival_time = pre_arrival_time
@@ -215,11 +216,14 @@ class SeismicNoiseAnalyser(object):
 
         filterer = wmap.config.filterer
         scalings = []
+
         for i, (tr, target) in enumerate(zip(wmap.datasets, wmap.targets)):
             wavename = None   # None uses first tabulated phase
             arrival_time = heart.get_phase_arrival_time(
-                engine=self.engine, source=self.event,
-                target=target, wavename=wavename)
+                engine=self.engine,
+                source=self.events[wmap.config.event_idx],
+                target=target,
+                wavename=wavename)
 
             if arrival_time < tr.tmin:
                 logger.warning(
@@ -229,8 +233,10 @@ class SeismicNoiseAnalyser(object):
                 logger.info(
                     'Using reference arrival "%s" instead!' % wmap.name)
                 arrival_time = heart.get_phase_arrival_time(
-                    engine=self.engine, source=self.event,
-                    target=target, wavename=wmap.name)
+                    engine=self.engine,
+                    source=self.events[wmap.config.event_idx],
+                    target=target,
+                    wavename=wmap.name)
 
             if filterer is not None:
                 ctrace = tr.copy()

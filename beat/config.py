@@ -554,6 +554,11 @@ class WaveformFitConfig(Object):
     arrival_taper = trace.Taper.T(
         default=ArrivalTaper.D(),
         help='Taper a,b/c,d time [s] before/after wave arrival')
+    event_idx = Int.T(
+        default=0,
+        optional=True,
+        help='Index to event from events list for reference time and data '
+             'extraction. Default is 0 - always use the reference event.')
 
 
 class SeismicNoiseAnalyserConfig(Object):
@@ -1510,6 +1515,11 @@ class BEATconfig(Object, Cloneable):
     name = String.T()
     date = String.T()
     event = model.Event.T(optional=True)
+    subevents = List.T(
+        model.Event.T(),
+        default=[],
+        help='Event objects of other events that are supposed to be estimated'
+             'jointly with the main event. May have large temporal separation.')
     project_dir = String.T(default='event/')
 
     problem_config = ProblemConfig.T(default=ProblemConfig.D())

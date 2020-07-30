@@ -89,12 +89,17 @@ class Problem(object):
         logger.info('Analysing problem ...')
         logger.info('---------------------\n')
 
-        # Load event
+        # Load events
         if config.event is None:
-            logger.warn('Found no event information!')
+            logger.warning('Found no event information!')
             raise AttributeError('Problem config has no event information!')
         else:
             self.event = config.event
+            nsubevents = len(config.subevents)
+            self.subevents = config.subevents
+
+            if nsubevents > 0:
+                logger.info('Found %i subevents.' % nsubevents)
 
         self.config = config
 
@@ -107,6 +112,14 @@ class Problem(object):
 
         self.outfolder = outfolder
         util.ensuredir(self.outfolder)
+
+    @property
+    def events(self):
+        return [self.event] + self.subevents
+
+    @property
+    def nevents(self):
+        return len(self.events)
 
     def init_sampler(self, hypers=False):
         """
@@ -551,22 +564,28 @@ class SourceOptimizer(Problem):
 
         pc = config.problem_config
 
+        if self.nevents != pc.n_sources and self.nevents != 1:
+            raise ValueError(
+                'Number of events and sources have to be equal or only one '
+                'event has to be used! Number if events %i and number of '
+                'sources: %i!' % (self.nevents, pc.n_sources))
+
         # Init sources
         self.sources = []
         for i in range(pc.n_sources):
-            if self.event:
-                source = \
-                    bconfig.source_catalog[pc.source_type].from_pyrocko_event(
-                        self.event)
-
-                source.stf = bconfig.stf_catalog[pc.stf_type](
-                    duration=self.event.duration)
-
-                # hardcoded inversion for hypocentral time
-                if source.stf is not None:
-                    source.stf.anchor = -1.
+            if self.nevents > 1:
+                event = self.events[i]
             else:
-                source = bconfig.source_catalog[pc.source_type]()
+                event = self.event
+
+            source = \
+                bconfig.source_catalog[pc.source_type].from_pyrocko_event(event)
+            source.stf = bconfig.stf_catalog[pc.stf_type](
+                duration=event.duration)
+
+            # hardcoded inversion for hypocentral time
+            if source.stf is not None:
+                source.stf.anchor = -1.
 
             self.sources.append(source)
 
@@ -599,7 +618,7 @@ class GeometryOptimizer(SourceOptimizer):
                 config[datatype + '_config'],
                 config.project_dir,
                 dsources[datatype],
-                self.event,
+                self.events,
                 hypers)
 
         self.config = config
@@ -642,7 +661,7 @@ class InterseismicOptimizer(SourceOptimizer):
                     config[datatype + '_config'],
                     config.project_dir,
                     dsources[datatype],
-                    self.event,
+                    self.events,
                     hypers)
 
         self.config = config
@@ -676,7 +695,7 @@ class DistributionOptimizer(Problem):
                 datatype](
                     data_config,
                     config.project_dir,
-                    self.event,
+                    self.events,
                     hypers)
 
             composite.set_slip_varnames(self.varnames)
@@ -688,7 +707,7 @@ class DistributionOptimizer(Problem):
                 regularization](
                 config.problem_config.mode_config.regularization_config,
                 config.project_dir,
-                self.event,
+                self.events,
                 hypers)
 
             composite.set_slip_varnames(self.varnames)

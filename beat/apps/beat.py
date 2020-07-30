@@ -368,6 +368,7 @@ def command_import(args):
     if not options.results:
         c = bconfig.load_config(project_dir, options.mode)
 
+        # TODO datahandling event/ multi event based ...
         if 'seismic' in options.datatypes:
             sc = c.seismic_config
             logger.info('Attempting to import seismic data from %s' %
@@ -1526,13 +1527,14 @@ def command_check(args):
     elif options.what == 'traces':
         sc = problem.composites['seismic']
         for wmap in sc.wavemaps:
+            event = sc.events[wmap.config.event_idx]
             wmap.prepare_data(
-                source=sc.event,
+                source=event,
                 engine=sc.engine,
                 outmode='stacked_traces')
             snuffle(
                 wmap.datasets + wmap._prepared_data,
-                stations=wmap.stations, events=[sc.event])
+                stations=wmap.stations, events=[event])
 
     elif options.what == 'library':
         if options.mode != ffi_mode_str:

@@ -27,12 +27,11 @@ __all__ = [
 
 class LaplacianDistributerComposite(Composite):
 
-    def __init__(self, config, project_dir, event, hypers):
+    def __init__(self, config, project_dir, events, hypers):
 
-        super(LaplacianDistributerComposite, self).__init__()
+        super(LaplacianDistributerComposite, self).__init__(events)
 
         self.config = config
-        self.event = event
         self._mode = 'ffi'
         self.name = 'laplacian'
 

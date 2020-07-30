@@ -41,7 +41,8 @@ class SeismicComposite(Composite):
     ----------
     sc : :class:`config.SeismicConfig`
         configuration object containing seismic setup parameters
-    event: :class:`pyrocko.model.Event`
+    events: list
+        of :class:`pyrocko.model.Event`
     project_dir : str
         directory of the model project, where to find the data
     hypers : boolean
@@ -52,16 +53,15 @@ class SeismicComposite(Composite):
     _targets = None
     _hierarchicalnames = None
 
-    def __init__(self, sc, event, project_dir, hypers=False):
+    def __init__(self, sc, events, project_dir, hypers=False):
 
-        super(SeismicComposite, self).__init__()
+        super(SeismicComposite, self).__init__(events)
 
         logger.debug('Setting up seismic structure ...\n')
         self.name = 'seismic'
         self._like_name = 'seis_like'
         self.correction_name = 'time_shift'
 
-        self.event = event
         self.engine = LocalEngine(
             store_superdirs=[sc.gf_config.store_superdir])
 
@@ -74,6 +74,7 @@ class SeismicComposite(Composite):
         else:
             responses_path = sc.responses_path
 
+        # TODO make event dependend
         self.datahandler = heart.init_datahandler(
             seismic_config=sc,
             seismic_data_path=seismic_data_path,
@@ -83,7 +84,7 @@ class SeismicComposite(Composite):
             structure=sc.noise_estimator.structure,
             pre_arrival_time=sc.noise_estimator.pre_arrival_time,
             engine=self.engine,
-            event=self.event,
+            events=self.events,
             chop_bounds=['b', 'c'])
 
         self.wavemaps = []
@@ -91,8 +92,8 @@ class SeismicComposite(Composite):
             if wc.include:
                 wmap = heart.init_wavemap(
                     waveformfit_config=wc,
-                    datahandler=self.datahandler,
-                    event=event,
+                    datahandler=self.datahandler, # TODO
+                    event=self.events[wc.event_idx],
                     mapnumber=i)
 
                 self.wavemaps.append(wmap)
@@ -169,7 +170,7 @@ class SeismicComposite(Composite):
                     trc.covariance.data = cov_ds_seismic[j]
 
                 if int(trc.covariance.data.sum()) == trc.data_len():
-                    logger.warn('Data covariance is identity matrix!'
+                    logger.warning('Data covariance is identity matrix!'
                                 ' Please double check!!!')
 
     def init_hierarchicals(self, problem_config):
@@ -486,17 +487,18 @@ class SeismicGeometryComposite(SeismicComposite):
         directory of the model project, where to find the data
     sources : list
         of :class:`pyrocko.gf.seismosizer.Source`
-    event : :class:`pyrocko.model.Event`
-        contains information of reference event, coordinates of reference
-        point and source time
+    events : list
+        of :class:`pyrocko.model.Event`
+        contains information of reference event(s), coordinates of reference
+        point(s) and source time(s)
     hypers : boolean
         if true initialise object for hyper parameter optimization
     """
 
-    def __init__(self, sc, project_dir, sources, event, hypers=False):
+    def __init__(self, sc, project_dir, sources, events, hypers=False):
 
         super(SeismicGeometryComposite, self).__init__(
-            sc, event, project_dir, hypers=hypers)
+            sc, events, project_dir, hypers=hypers)
 
         self._mode = 'geometry'
         self.synthesizers = {}
@@ -537,7 +539,12 @@ class SeismicGeometryComposite(SeismicComposite):
             if param not in source_params:
                 tpoint.pop(param)
 
-        tpoint['time'] += self.event.time
+        # update source times
+        if self.nevents == 1:
+            tpoint['time'] += self.event.time       # single event
+        else:
+            for i, event in enumerate(self.events):     # multi event
+                tpoint['time'][i] += event.time
 
         source_points = utility.split_point(tpoint)
 
@@ -598,15 +605,27 @@ class SeismicGeometryComposite(SeismicComposite):
             logger.info(
                 'Preparing data of "%s" for optimization' % wmap._mapid)
             wmap.prepare_data(
-                source=self.event, engine=self.engine, outmode='array')
+                source=self.events[wc.event_idx],
+                engine=self.engine,
+                outmode='array')
 
             logger.info(
                 'Initializing synthesizer for "%s"' % wmap._mapid)
+
+            if self.nevents == 1:
+                logger.info('Using all sources for each wavemap!')
+                sources = self.sources
+            else:
+                logger.info(
+                    'Using individual sources based on event index '
+                    'for each wavemap!')
+                sources = [self.sources[wc.event_idx]]
+
             self.synthesizers[wmap._mapid] = theanof.SeisSynthesizer(
                 engine=self.engine,
-                sources=self.sources,
+                sources=sources,
                 targets=wmap.targets,
-                event=self.event,
+                event=self.events[wc.event_idx],
                 arrival_taper=wc.arrival_taper,
                 arrival_times=wmap._arrival_times,
                 wavename=wmap.name,
@@ -659,9 +678,8 @@ class SeismicGeometryComposite(SeismicComposite):
         obs = []
         for wmap in self.wavemaps:
             wc = wmap.config
-
             wmap.prepare_data(
-                source=self.event,
+                source=self.events[wc.event_idx],
                 engine=self.engine,
                 outmode=outmode,
                 chop_bounds=chop_bounds)
@@ -675,9 +693,18 @@ class SeismicGeometryComposite(SeismicComposite):
                     arrival_times += float(point[self.correction_name]) * \
                         num.ones(wmap.n_t)
 
+            if self.nevents == 1:
+                logger.debug('Using all sources for each wavemap!')
+                sources = self.sources
+            else:
+                logger.debug(
+                    'Using individual sources based on event index '
+                    'for each wavemap!')
+                sources = [self.sources[wc.event_idx]]
+
             synthetics, _ = heart.seis_synthetics(
                 engine=self.engine,
-                sources=self.sources,
+                sources=sources,
                 targets=wmap.targets,
                 arrival_taper=wc.arrival_taper,
                 wavename=wmap.name,
@@ -804,10 +831,10 @@ class SeismicDistributerComposite(SeismicComposite):
     Distributed slip
     """
 
-    def __init__(self, sc, project_dir, event, hypers=False):
+    def __init__(self, sc, project_dir, events, hypers=False):
 
         super(SeismicDistributerComposite, self).__init__(
-            sc, event, project_dir, hypers=hypers)
+            sc, events, project_dir, hypers=hypers)
 
         self.gfs = {}
         self.gf_names = {}
@@ -852,7 +879,9 @@ class SeismicDistributerComposite(SeismicComposite):
                 logger.info(
                     'Preparing data of "%s" for optimization' % wmap.name)
                 wmap.prepare_data(
-                    source=self.event, engine=self.engine, outmode='array')
+                    source=self.events[wmap.config.event_idx],
+                    engine=self.engine,
+                    outmode='array')
 
     def load_fault_geometry(self):
         """
@@ -975,6 +1004,7 @@ class SeismicDistributerComposite(SeismicComposite):
 
         wlogpts = []
         for wmap in self.wavemaps:
+            wc = wmap.config
             # station corrections
             if len(self.hierarchicals) > 0:
                 logger.info('Applying station corrections ...')
@@ -989,15 +1019,17 @@ class SeismicDistributerComposite(SeismicComposite):
 
             targetidxs = shared(
                 num.atleast_2d(num.arange(wmap.n_t)).T, borrow=True)
-            logger.debug('Stacking %s phase ...' % wmap.config.name)
+            logger.debug('Stacking %s phase ...' % wc.name)
             synthetics = tt.zeros(
-                (wmap.n_t, wmap.config.arrival_taper.nsamples(
+                (wmap.n_t, wc.arrival_taper.nsamples(
                     self.config.gf_config.sample_rate)),
                 dtype=tconfig.floatX)
 
             # make sure data is init as array, if non-toeplitz above-traces!
             wmap.prepare_data(
-                source=self.event, engine=self.engine, outmode='array')
+                source=self.events[wc.event_idx],
+                engine=self.engine,
+                outmode='array')
 
             for var in self.slip_varnames:
                 logger.debug('Stacking %s variable' % var)
@@ -1008,7 +1040,7 @@ class SeismicDistributerComposite(SeismicComposite):
                     starttimes=starttimes,
                     durations=input_rvs['durations'],
                     slips=input_rvs[var],
-                    interpolation=wmap.config.interpolation)
+                    interpolation=wc.interpolation)
 
             residuals = wmap.shared_data_array - synthetics
 
@@ -1075,6 +1107,7 @@ class SeismicDistributerComposite(SeismicComposite):
         synth_traces = []
         obs_traces = []
         for wmap in self.wavemaps:
+            wc = wmap.config
             # station corrections
             if self.config.station_corrections:
                 logger.debug(
@@ -1091,7 +1124,7 @@ class SeismicDistributerComposite(SeismicComposite):
             # TODO check targetidxs if station blacklisted!?
             targetidxs = num.atleast_2d(num.arange(wmap.n_t)).T
             synthetics = num.zeros(
-                (wmap.n_t, wmap.config.arrival_taper.nsamples(
+                (wmap.n_t, wc.arrival_taper.nsamples(
                     self.config.gf_config.sample_rate)))
             for var in self.slip_varnames:
                 key = self.get_gflibrary_key(
@@ -1111,7 +1144,7 @@ class SeismicDistributerComposite(SeismicComposite):
                     starttimes=starttimes,
                     durations=tpoint['durations'],
                     slips=tpoint[var],
-                    interpolation=wmap.config.interpolation)
+                    interpolation=wc.interpolation)
                 t1=time()
                 logger.debug(
                     '{} seconds to stack {}'.format((t1 - t0), wmap.name))
@@ -1133,7 +1166,7 @@ class SeismicDistributerComposite(SeismicComposite):
                 wmap_synthetics.append(tr)
 
             wmap.prepare_data(
-                source=self.event,
+                source=self.events[wc.event_idx],
                 engine=self.engine,
                 outmode=outmode,
                 chop_bounds=chop_bounds)

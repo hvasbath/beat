@@ -46,19 +46,18 @@ class GeodeticComposite(Composite):
         configuration object containing seismic setup parameters
     project_dir : str
         directory of the model project, where to find the data
-    event : :class:`pyrocko.model.Event`
-        contains information of reference event, coordinates of reference
-        point and source time
+    events : list
+        of :class:`pyrocko.model.Event`
+        contains information of reference event(s), coordinates of reference
+        point(s) and source time(s)
     hypers : boolean
         if true initialise object for hyper parameter optimization
     """
     _hierarchicalnames = None
 
-    def __init__(self, gc, project_dir, event, hypers=False):
+    def __init__(self, gc, project_dir, events, hypers=False):
 
-        super(GeodeticComposite, self).__init__()
-
-        self.event = event
+        super(GeodeticComposite, self).__init__(events)
 
         logger.debug('Setting up geodetic structure ...\n')
         self.name = 'geodetic'
@@ -371,17 +370,18 @@ class GeodeticSourceComposite(GeodeticComposite):
         directory of the model project, where to find the data
     sources : list
         of :class:`pyrocko.gf.seismosizer.Source`
-    event : :class:`pyrocko.model.Event`
+    events : list
+        of :class:`pyrocko.model.Event`
         contains information of reference event, coordinates of reference
         point and source time
     hypers : boolean
         if true initialise object for hyper parameter optimization
     """
 
-    def __init__(self, gc, project_dir, sources, event, hypers=False):
+    def __init__(self, gc, project_dir, sources, events, hypers=False):
 
         super(GeodeticSourceComposite, self).__init__(
-            gc, project_dir, event, hypers=hypers)
+            gc, project_dir, events, hypers=hypers)
 
         self.engine = LocalEngine(
             store_superdirs=[gc.gf_config.store_superdir])
@@ -476,10 +476,10 @@ class GeodeticSourceComposite(GeodeticComposite):
 
 class GeodeticGeometryComposite(GeodeticSourceComposite):
 
-    def __init__(self, gc, project_dir, sources, event, hypers=False):
+    def __init__(self, gc, project_dir, sources, events, hypers=False):
 
         super(GeodeticGeometryComposite, self).__init__(
-            gc, project_dir, sources, event, hypers=hypers)
+            gc, project_dir, sources, events, hypers=hypers)
 
         if not hypers:
             # synthetics generation
@@ -571,10 +571,10 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
 
 class GeodeticInterseismicComposite(GeodeticSourceComposite):
 
-    def __init__(self, gc, project_dir, sources, event, hypers=False):
+    def __init__(self, gc, project_dir, sources, events, hypers=False):
 
         super(GeodeticInterseismicComposite, self).__init__(
-            gc, project_dir, sources, event, hypers=hypers)
+            gc, project_dir, sources, events, hypers=hypers)
 
         for source in sources:
             if not isinstance(source, RectangularSource):
@@ -590,7 +590,7 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
                 engine=self.engine,
                 targets=self.targets,
                 sources=sources,
-                reference=event)
+                reference=self.event)
 
     def get_synthetics(self, point, **kwargs):
         """
@@ -638,10 +638,10 @@ class GeodeticDistributerComposite(GeodeticComposite):
     Distributed slip
     """
 
-    def __init__(self, gc, project_dir, event, hypers=False):
+    def __init__(self, gc, project_dir, events, hypers=False):
 
         super(GeodeticDistributerComposite, self).__init__(
-            gc, project_dir, event, hypers=hypers)
+            gc, project_dir, events, hypers=hypers)
 
         self.gfs = {}
         self.gf_names = {}

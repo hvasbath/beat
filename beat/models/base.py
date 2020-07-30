@@ -51,7 +51,7 @@ class Composite(object):
     used by an overarching problem object.
     """
 
-    def __init__(self):
+    def __init__(self, events):
 
         self.input_rvs = OrderedDict()
         self.fixed_rvs = OrderedDict()
@@ -61,6 +61,21 @@ class Composite(object):
         self._like_name = None
         self.config = None
         self.slip_varnames = []
+        self.events = events
+
+    @property
+    def event(self):
+        """
+        Reference event information
+        """
+        return self.events[0]
+
+    @property
+    def nevents(self):
+        """
+        Number of events with larger seperation in time, i.e. hours.
+        """
+        return len(self.events)
 
     def set_slip_varnames(self, varnames):
         """
