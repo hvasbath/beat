@@ -77,6 +77,9 @@ class SeismicComposite(Composite):
             seismic_data_path = os.path.join(
                 project_dir, bconfig.multi_event_seismic_data_name(i))
 
+            logger.info(
+                'Loading seismic data for event %i'
+                ' from: %s ' % (i, seismic_data_path))
             self.datahandlers.append(
                 heart.init_datahandler(
                     seismic_config=sc,
@@ -616,12 +619,12 @@ class SeismicGeometryComposite(SeismicComposite):
                 'Initializing synthesizer for "%s"' % wmap._mapid)
 
             if self.nevents == 1:
-                logger.info('Using all sources for each wavemap!')
+                logger.info('Using all sources for wavemap %s !' % wmap._mapid)
                 sources = self.sources
             else:
                 logger.info(
-                    'Using individual sources based on event index '
-                    'for each wavemap!')
+                    'Using source based on event %i for wavemap %s!' % (
+                        wc.event_idx, wmap._mapid))
                 sources = [self.sources[wc.event_idx]]
 
             self.synthesizers[wmap._mapid] = theanof.SeisSynthesizer(

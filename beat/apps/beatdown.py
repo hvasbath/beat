@@ -1100,6 +1100,7 @@ def main():
     fn_waveforms = op.join(output_dir, 'prepared', fn_template1)
     fn_stations = op.join(output_dir, 'stations.prepared.txt')
     fn_event = op.join(event_dir, 'event.txt')
+    fn_event_yaml = op.join(event_dir, 'event.yaml')
 
     nsl_to_station = {}
     for site in sites:
@@ -1147,6 +1148,10 @@ def main():
     util.ensuredirs(fn_stations)
     model.dump_stations(stations, fn_stations)
     model.dump_events([event], fn_event)
+
+    from pyrocko.guts import dump
+    dump([event], filename=fn_event_yaml)
+
     utility.dump_objects(
         op.join(cwd, 'seismic_data.pkl'),
         outlist=[stations, traces_beat])
