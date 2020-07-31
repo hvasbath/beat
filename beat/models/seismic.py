@@ -65,20 +65,23 @@ class SeismicComposite(Composite):
         self.engine = LocalEngine(
             store_superdirs=[sc.gf_config.store_superdir])
 
-        seismic_data_path = os.path.join(
-            project_dir, bconfig.seismic_data_name)
-
         if sc.responses_path is not None:
             responses_path = os.path.join(
                 sc.responses_path, bconfig.response_file_name)
         else:
             responses_path = sc.responses_path
 
-        # TODO make event dependend
-        self.datahandler = heart.init_datahandler(
-            seismic_config=sc,
-            seismic_data_path=seismic_data_path,
-            responses_path=responses_path)
+        # load data
+        self.datahandlers = []
+        for i in range(self.nevents):
+            seismic_data_path = os.path.join(
+                project_dir, bconfig.multi_event_seismic_data_name(i))
+
+            self.datahandlers.append(
+                heart.init_datahandler(
+                    seismic_config=sc,
+                    seismic_data_path=seismic_data_path,
+                    responses_path=responses_path))
 
         self.noise_analyser = cov.SeismicNoiseAnalyser(
             structure=sc.noise_estimator.structure,
@@ -92,7 +95,7 @@ class SeismicComposite(Composite):
             if wc.include:
                 wmap = heart.init_wavemap(
                     waveformfit_config=wc,
-                    datahandler=self.datahandler, # TODO
+                    datahandler=self.datahandlers[wc.event_idx],
                     event=self.events[wc.event_idx],
                     mapnumber=i)
 

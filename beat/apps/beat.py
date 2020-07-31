@@ -291,18 +291,19 @@ def command_init(args):
         name = args[0]
         date = None
 
-    return bconfig.init_config(name, date,
-                              main_path=options.main_path,
-                              min_magnitude=options.min_mag,
-                              datatypes=options.datatypes,
-                              mode=options.mode,
-                              source_type=options.source_type,
-                              n_sources=options.n_sources,
-                              waveforms=options.waveforms,
-                              sampler=options.sampler,
-                              hyper_sampler=options.hyper_sampler,
-                              use_custom=options.use_custom,
-                              individual_gfs=options.individual_gfs)
+    return bconfig.init_config(
+        name, date,
+        main_path=options.main_path,
+        min_magnitude=options.min_mag,
+        datatypes=options.datatypes,
+        mode=options.mode,
+        source_type=options.source_type,
+        n_sources=options.n_sources,
+        waveforms=options.waveforms,
+        sampler=options.sampler,
+        hyper_sampler=options.hyper_sampler,
+        use_custom=options.use_custom,
+        individual_gfs=options.individual_gfs)
 
 
 def command_import(args):
@@ -368,7 +369,6 @@ def command_import(args):
     if not options.results:
         c = bconfig.load_config(project_dir, options.mode)
 
-        # TODO datahandling event/ multi event based ...
         if 'seismic' in options.datatypes:
             sc = c.seismic_config
             logger.info('Attempting to import seismic data from %s' %
@@ -376,6 +376,7 @@ def command_import(args):
 
             seismic_outpath = pjoin(c.project_dir, bconfig.seismic_data_name)
             if not os.path.exists(seismic_outpath) or options.force:
+                # TODO datahandling multi event based ...
                 stations = model.load_stations(
                     pjoin(sc.datadir, 'stations.txt'))
 
@@ -1236,12 +1237,17 @@ def command_build_gfs(args):
                             force=options.force)
 
                 elif datatype == 'seismic':
-                    seismic_data_path = pjoin(
-                        c.project_dir, bconfig.seismic_data_name)
+
                     sc = c.seismic_config
                     gf = sc.gf_config
                     pc = c.problem_config
                     logger.info('using %i workers ...' % gf.nworkers)
+
+                    seismic_data_path = pjoin(
+                        c.project_dir, bconfig.seismic_data_name)
+                    datahandler = heart.init_datahandler(
+                        seismic_config=sc,
+                        seismic_data_path=seismic_data_path)
 
                     if 'time_shift' in pc.hierarchicals:
                         time_shift = pc.hierarchicals['time_shift']
@@ -1253,9 +1259,6 @@ def command_build_gfs(args):
                     for crust_ind in range(*gf.n_variations):
                         logger.info('crust_ind %i' % crust_ind)
                         sc.gf_config.reference_model_idx = crust_ind
-                        datahandler = heart.init_datahandler(
-                            seismic_config=sc,
-                            seismic_data_path=seismic_data_path)
 
                         for wc in sc.waveforms:
                             wmap = heart.init_wavemap(

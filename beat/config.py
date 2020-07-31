@@ -188,9 +188,15 @@ default_decimation_factors = {
     'geodetic': 4,
     'seismic': 2}
 
-seismic_data_name = 'seismic_data.pkl'
 response_file_name = 'responses.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
+seismic_data_name = 'seismic_data.pkl'
+
+def multi_event_seismic_data_name(nevent=0):
+    if nevent == 0:
+        return seismic_data_name
+    else:
+        return 'seismic_data_subevent_{}.pkl'.format(nevent)
 
 linear_gf_dir_name = 'linear_gfs'
 results_dir_name = 'results'
