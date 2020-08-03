@@ -272,7 +272,10 @@ The sampler can effectively exploit the parallel architecture of nowadays comput
 
     sampler_config: !beat.SamplerConfig
       name: SMC
+      backend: bin
       progressbar: true
+      buffer_size: 1000
+      buffer_thinning: 50
       parameters: !beat.SMCConfig
         n_chains: 500
         n_steps: 100
@@ -308,6 +311,7 @@ The sampling is successfully finished if the screen shows something like this::
     backend      - INFO     Loading multitrace from /home/vasyurhm/BEATS/Laquila/geometry/stage_-1
     smc          - INFO     Finished sampling!
 
+.. note:: The reader might have noticed the two different *backends* that have been specified in the *SamplerConfigs*, "csv" and "bin". `Here <https://hvasbath.github.io/beat/getting_started/backends.html#sampling-backends>`__ we refer to the backend section that describe these further.
 
 .. note::  For more detailed search of the solution space please modify the parameters 'n_steps' and 'n_chains' for the SMC sampler in the $project_directory/config_geometry.yaml file to higher numbers. Depending on these specifications and the available hardware the sampling may take several hours/few days.
 

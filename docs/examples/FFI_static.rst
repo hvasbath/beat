@@ -239,7 +239,8 @@ The *initialization* argument determines at which point in the solution space to
 
 The 'n_jobs' number should be set to as many CPUs as the user can spare under the *sampler_config*. The number of sampled MarkovChains and the number of steps for each chain of the SMC sampler should be set to high values as we are optimizing now for ca 250 random variables (if the values from the tutorial haven't been altered by the user); for example to 5000 and 400, respectively.
 
-.. warning:: With these sampler parameters a huge amount of samples are going to be stored to disk! With the values from the tutorial approximately *140GB* of samples are created in the course of the sampling. Please see `example 0 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#summarize-the-results>`__ for an instruction on how to keep only the important samples to reduce the disk usage.
+.. warning:: With these sampler parameters a huge amount of samples are going to be stored to disk! With the values from the tutorial approximately *140GB* of samples are created in the course of the sampling. Please see `example 0 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#summarize-the-results>`__ for an instruction on how to keep only the important samples to reduce the disk usage. Another way to reduce the required disc space is through the *buffer_thinning* parameter described `here <https://hvasbath.github.io/beat/getting_started/backends.html#sampling-backends>`__.
+
 
 Finally, we are set to run the full optimization for the static slip-distribution with::
 
