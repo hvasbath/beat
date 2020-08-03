@@ -1154,6 +1154,7 @@ def optimize_discretization(
 
     generation = 0
     R = None
+    patch_data_distance_mins = None    # dummy for first plotting
     fixed_idxs = set()
     while tobedivided:
         logger.info('Discretizing %ith generation \n' % generation)
@@ -1163,6 +1164,10 @@ def optimize_discretization(
             source_geometry(
                 fault, list(fault.iter_subfaults()),
                 event=event, datasets=datasets, values=R, title='Resolution')
+            source_geometry(
+                fault, list(fault.iter_subfaults()),
+                event=event, datasets=datasets,
+                values=patch_data_distance_mins, title='min distance')
 
         for gfs_i, component in enumerate(varnames):
             logger.info('Component %s' % component)
@@ -1213,8 +1218,8 @@ def optimize_discretization(
                     new_patches[new_idx] = tpatches[patch_idx]
                     new_gfs[new_idx] = tgfs[patch_idx]
 
-            if debug:
-                logger.debug('Cross checking gfs ...')
+            if False:
+                logger.info('Cross checking gfs ...')
                 check_gfs = geo_construct_gf_linear_patches(
                     engine=engine, datasets=datasets, targets=targets,
                     patches=new_patches, nworkers=nworkers)
@@ -1243,7 +1248,7 @@ def optimize_discretization(
         ndata, nparams = full_GFs.shape
         U, l, V = svd(full_GFs, full_matrices=True)
 
-        if debug:
+        if False:
             fig, axs = plt.subplots(2, 3)
             for i, gfidx in enumerate(
                     num.linspace(

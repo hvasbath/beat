@@ -33,7 +33,12 @@ ValueError: Specified more workers that sample in the posterior "8", than there 
 | There is an inconsistency in the MPI executable that is used for starting the sampler and the library that was used to compile mpi4py.
 | Please make sure to use the same MPI library. One fix would be to remove all installations of MPI from the machine and install a fresh version.
 
-| **5. Upgrading BEAT from beta**
+| **5. GF store error BAD_REQUEST**
+
+This means that the geodetic (static) Green's Function store does not cover the full depth-distance range of the source- receiver pairs.
+Please make sure that these ranges are wide enough in depths and distances!
+
+| **6. Upgrading BEAT from beta**
 
 Unfortunately, some incompatibility arose from beta to version 1.0. Finite fault projects that have been sampled and created using the beta version will need to undergo some manual changes by the user to be loadable under version 1.0.
 

@@ -20,7 +20,7 @@ known as earthquakes. These types of sources can be often approximated by
 one or many rectangular dislocations (geometry, position, amount of
 dislocation).
 With observations at the earth's surface like geodetic data, i.e. deformation
-maps from e.g. InSAR or GPS and seismic data i.e. seismic waveforms
+maps from e.g. InSAR or point information from GNSS and seismic data i.e. seismic waveforms
 from seismic stations, it is possible to estimate the parameters of these
 deformation sources.
 
@@ -39,7 +39,7 @@ Contents:
    anaconda_installation
    installation
    updating
-   getting_started
+   getting_started/index
    examples/index
    faq
    api

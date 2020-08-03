@@ -239,8 +239,10 @@ The configuration of the hyper parameter sampling, is determined by the hyper_sa
 
     hyper_sampler_config: !beat.SamplerConfig
       name: Metropolis
+      backend: csv
       progressbar: true
       buffer_size: 5000
+      buffer_thinning: 1
       parameters: !beat.MetropolisConfig
         tune_interval: 50
         proposal_dist: Normal
@@ -283,9 +285,10 @@ The sampler can effectively exploit the parallel architecture of nowadays comput
 
     sampler_config: !beat.SamplerConfig
       name: SMC
+      backend: bin
       progressbar: true
-      buffer_size: 5000
-      buffer_thinning: 10
+      buffer_size: 1000
+      buffer_thinning: 50
       parameters: !beat.SMCConfig
         n_chains: 500
         n_steps: 100
@@ -304,6 +307,8 @@ Here we use 4 cpus (n_jobs) - you can change this according to your systems spec
 Finally, we sample the solution space with::
 
     beat sample FullMT
+
+.. note:: The reader might have noticed the two different *backends* that have been specified in the *SamplerConfigs*, "csv" and "bin". `Here <https://hvasbath.github.io/beat/getting_started/backends.html#sampling-backends>`__ we refer to the backend section that describe these further.
 
 
 Summarize the results

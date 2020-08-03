@@ -230,7 +230,12 @@ Checking the $project_directory/config_ffi.yaml, the hyperparameter bounds show 
 
 Markov Chain initialization
 ===========================
-The *initialization* argument determines at which point in the solution space to initialize the Markov Chains. The default value *random* simply draws a random point in the solution space from the prior distributions for each Markov Chain to be sampled. However, as we are using a laplacian smoothing constraint we can use the non-negative least-squares solution as a starting value for a randomly drawn smoothing weight (from the initial guess on the *h_laplacian* parameter range)[Fukuda2008]_.
+The *initialization* argument determines at which point in the solution space to initialize the Markov Chains. The default value *random* simply draws a random point in the solution space from the prior distributions for each Markov Chain to be sampled. However, as we are using a laplacian smoothing constraint we can use the non-negative least-squares solution as a starting value for a randomly drawn smoothing weight (from the initial guess on the *h_laplacian* parameter range) [Fukuda2008]_. To do, so we need to set the *initialization* to "lsq"::
+
+   mode_config: !beat.FFIConfig
+     regularization: laplacian
+     npatches: 121
+     initialization: lsq
 
 The 'n_jobs' number should be set to as many CPUs as the user can spare under the *sampler_config*. The number of sampled MarkovChains and the number of steps for each chain of the SMC sampler should be set to high values as we are optimizing now for ca 250 random variables (if the values from the tutorial haven't been altered by the user); for example to 5000 and 400, respectively.
 

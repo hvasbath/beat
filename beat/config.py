@@ -414,9 +414,13 @@ class UniformDiscretizationConfig(DiscretizationConfig):
 
 class ResolutionDiscretizationConfig(DiscretizationConfig):
     """
-    Parameters that control the source discretization optimization following
-    Atzori & Antonioli 2011:
-        Optimal fault resolution in geodetic inversion of coseismic data
+    Parameters that control the resolution based source discretization.
+
+    References
+    ----------
+    .. [Atzori2011] Atzori & Antonioli (2011).
+        Optimal fault resolution in geodetic inversion of coseismic data.
+        Geophysical Journal International, 185(1):529-538
     """
 
     epsilon = Float.T(
