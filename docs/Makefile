@@ -48,10 +48,11 @@ help:
 
 .PHONY: clean
 clean:
-	rm -rf $(BUILDDIR)/html $(BUILDDIR)/doctrees
-	mkdir $(BUILDDIR)/html
-	cp -r $(BUILDDIR)/.git/ $(BUILDDIR)/html/
-	touch $(BUILDDIR)/html/.nojekyll
+	#rm -rf $(BUILDDIR)/html $(BUILDDIR)/doctrees
+	#mkdir $(BUILDDIR)/html
+	#cp -r $(BUILDDIR)/.git/ $(BUILDDIR)/html/
+	#touch $(BUILDDIR)/html/.nojekyll
+	@echo "Please follow to recreate! https://daler.github.io/sphinxdoc-test/includeme.html"
 
 .PHONY: html
 html:
