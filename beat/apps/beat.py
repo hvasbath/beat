@@ -695,83 +695,102 @@ def command_clone(args):
 
     util.ensuredir(cloned_dir)
 
-    for mode in [options.mode]:
-        config_fn = pjoin(project_dir, 'config_' + mode + '.yaml')
+    mode = options.mode
+    config_fn = pjoin(project_dir, 'config_' + mode + '.yaml')
 
-        if os.path.exists(config_fn):
-            logger.info('Cloning %s problem config.' % mode)
-            c = bconfig.load_config(project_dir, mode)
+    if os.path.exists(config_fn):
+        logger.info('Cloning %s problem config.' % mode)
+        c = bconfig.load_config(project_dir, mode)
 
-            c.name = cloned_name
-            c.project_dir = cloned_dir
+        c.name = cloned_name
+        c.project_dir = cloned_dir
 
-            new_datatypes = []
-            for datatype in datatype_choices:
-                if datatype in options.datatypes:
-                    if datatype not in c.problem_config.datatypes:
-                        logger.warn('Datatype %s to be cloned is not'
-                                    ' in config! Adding to new config!' % datatype)
-                        c[datatype + '_config'] = \
-                            bconfig.datatype_catalog[datatype](mode=options.mode)
-                        re_init = True
-                    else:
-                        re_init = False
-
-                    new_datatypes.append(datatype)
-
-                    data_path = pjoin(project_dir, datatype + '_data.pkl')
-
-                    if os.path.exists(data_path) and options.copy_data:
-                        logger.info('Cloning %s data.' % datatype)
-                        cloned_data_path = pjoin(
-                            cloned_dir, datatype + '_data.pkl')
-                        shutil.copyfile(data_path, cloned_data_path)
+        new_datatypes = []
+        for datatype in datatype_choices:
+            if datatype in options.datatypes:
+                if datatype not in c.problem_config.datatypes:
+                    logger.warn('Datatype %s to be cloned is not'
+                                ' in config! Adding to new config!' % datatype)
+                    c[datatype + '_config'] = \
+                        bconfig.datatype_catalog[datatype](mode=options.mode)
+                    re_init = True
                 else:
-                    if datatype in c.problem_config.datatypes:
-                        logger.warning(
-                            'Removing datatype "%s" '
-                            'from cloned config!' % datatype)
-                        c[datatype + '_config'] = None
+                    re_init = False
 
-            c.problem_config.datatypes = new_datatypes
+                new_datatypes.append(datatype)
 
-            if options.source_type is None:
-                old_priors = copy.deepcopy(c.problem_config.priors)
+                data_path = pjoin(project_dir, datatype + '_data.pkl')
 
-                new_priors = c.problem_config.select_variables()
-                for prior in new_priors:
-                    if prior in list(old_priors.keys()):
-                        c.problem_config.priors[prior] = old_priors[prior]
-
+                if os.path.exists(data_path) and options.copy_data:
+                    logger.info('Cloning %s data ...' % datatype)
+                    cloned_data_path = pjoin(
+                        cloned_dir, datatype + '_data.pkl')
+                    shutil.copyfile(data_path, cloned_data_path)
             else:
-                logger.info('Replacing source with "%s"' % options.source_type)
-                c.problem_config.source_type = options.source_type
-                c.problem_config.init_vars()
-                c.problem_config.set_decimation_factor()
-                re_init = False
+                if datatype in c.problem_config.datatypes:
+                    logger.warning(
+                        'Removing datatype "%s" '
+                        'from cloned config!' % datatype)
+                    c[datatype + '_config'] = None
 
-            if re_init:
+        c.problem_config.datatypes = new_datatypes
+
+        if options.copy_data and mode == ffi_mode_str:
+            ffi_dir_name = pjoin(project_dir, mode)
+            linear_gf_dir_name = pjoin(
+                ffi_dir_name, bconfig.linear_gf_dir_name)
+            cloned_ffi_dir_name = pjoin(cloned_dir, mode)
+            util.ensuredir(cloned_ffi_dir_name)
+            if os.path.exists(linear_gf_dir_name):
                 logger.info(
-                    'Re-initialized priors because of new datatype!'
-                    ' Please check prior bounds!')
-                c.problem_config.init_vars()
+                    'FFI mode - attempting to clone linear GF libraries ...')
+                cloned_linear_gf_dir_name = pjoin(
+                    cloned_ffi_dir_name, bconfig.linear_gf_dir_name)
+                if os.path.exists(cloned_linear_gf_dir_name):
+                    logger.warning('Linear GFs exist already! Removing ...')
+                    shutil.rmtree(cloned_linear_gf_dir_name)
 
-            old_hypers = copy.deepcopy(c.problem_config.hyperparameters)
+                shutil.copytree(
+                    linear_gf_dir_name, cloned_linear_gf_dir_name)
+                logger.info('Successfully cloned linear GF libraries.')
 
-            c.update_hypers()
-            for hyper in old_hypers.keys():
-                c.problem_config.hyperparameters[hyper] = old_hypers[hyper]
+        if options.source_type is None:
+            old_priors = copy.deepcopy(c.problem_config.priors)
 
-            if options.sampler:
-                c.sampler_config.name = options.sampler
-                c.sampler_config.set_parameters()
-
-            c.regularize()
-            c.validate()
-            bconfig.dump_config(c)
+            new_priors = c.problem_config.select_variables()
+            for prior in new_priors:
+                if prior in list(old_priors.keys()):
+                    c.problem_config.priors[prior] = old_priors[prior]
 
         else:
-            raise IOError('Config file: %s does not exist!' % config_fn)
+            logger.info('Replacing source with "%s"' % options.source_type)
+            c.problem_config.source_type = options.source_type
+            c.problem_config.init_vars()
+            c.problem_config.set_decimation_factor()
+            re_init = False
+
+        if re_init:
+            logger.info(
+                'Re-initialized priors because of new datatype!'
+                ' Please check prior bounds!')
+            c.problem_config.init_vars()
+
+        old_hypers = copy.deepcopy(c.problem_config.hyperparameters)
+
+        c.update_hypers()
+        for hyper in old_hypers.keys():
+            c.problem_config.hyperparameters[hyper] = old_hypers[hyper]
+
+        if options.sampler:
+            c.sampler_config.name = options.sampler
+            c.sampler_config.set_parameters()
+
+        c.regularize()
+        c.validate()
+        bconfig.dump_config(c)
+
+    else:
+        raise IOError('Config file: %s does not exist!' % config_fn)
 
 
 def command_sample(args):
