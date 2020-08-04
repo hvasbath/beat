@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Import Data &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="How to update the configuration files" href="update_config.html" />
+    <link rel="prev" title="Initialise a new Modeling Project" href="init_project.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="../_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="../_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="../index.html">beat 1.0 documentation</a> &#187;
+          </li>
+            <li><a href="index.html" accesskey="U">Getting started with BEAT</a> &#187;</li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="import-data">
+<h1>Import Data<a class="headerlink" href="#import-data" title="Permalink to this headline">¶</a></h1>
+<p>This is the step to import the user data into the program format and setup.</p>
+<div class="section" id="geodetic-data">
+<h2>geodetic data<a class="headerlink" href="#geodetic-data" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="insar">
+<h3>InSAR<a class="headerlink" href="#insar" title="Permalink to this headline">¶</a></h3>
+<p>To use static displacement InSAR measurements you need to prepare your data first with <a class="reference external" href="https://github.com/pyrocko/kite">kite</a>.
+Kite handels displacement data from a variety of formats, such as e.g. GMTSAR, ISCE, ROIPAC and GAMMA. After importing the data into kite you
+should consider to subsample it and to calculate the data-error-variance-covariance as described in the <a class="reference external" href="https://pyrocko.org/kite/docs/current/">kite documentation</a>.
+Once you are satisfied with your specifications please store the kite scenes in its native format as “numpy-npz containers”.</p>
+<p>In the $project_dir you find the config_geometry.yaml, where the geodetic_config variable ‘datadir’ points to the location where the data are stored.
+Under the ‘names’ variable, the names of the files of interest have to be entered (without the .npz and .yml suffixes). Afterwards, the following command has to be executed to import the data:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>beat import $project_dir
+</pre></div>
+</div>
+<p>The data are now accessible to beat as the file geodetic_data.pkl. In case it turns out the pre-processing (subsampling, covariance estimation) had to be repeated, the existing ‘geodetic_data.pkl’ file can be overwritten by adding the –force option to the import command above.</p>
+</div>
+<div class="section" id="gnss">
+<h3>GNSS<a class="headerlink" href="#gnss" title="Permalink to this headline">¶</a></h3>
+<p>The supported format for GNSS data is an ASCII file of the following format:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">DOGG</span>  <span class="mf">10.0000</span>   <span class="mf">15.6546</span>   <span class="o">-</span><span class="mf">0.61</span>   <span class="mf">0.44</span>   <span class="mf">3.5900</span>     <span class="mf">0.18</span>  <span class="mf">0.15</span>  <span class="mf">0.7000</span>
+<span class="n">CATT</span>  <span class="mf">135.0000</span>  <span class="o">-</span><span class="mf">45.000</span>   <span class="mf">0.15</span>    <span class="o">-</span><span class="mf">0.57</span>  <span class="mf">1.6100</span>     <span class="mf">0.23</span>  <span class="mf">0.20</span>  <span class="mf">0.9000</span>
+<span class="n">COOW</span>  <span class="mf">45.0000</span>   <span class="mf">98.0000</span>   <span class="mf">12.20</span>   <span class="mf">15.01</span>  <span class="mf">22.8600</span>    <span class="mf">0.93</span>  <span class="mf">0.78</span>  <span class="mf">3.5700</span>
+</pre></div>
+</div>
+<p>The columns are in this order: station name, Longitude, Latitude, velocity east component, velocity north component, velocity vertical component, standard-deviaion east component, standard-deviaion north component, standard-deviaion vertical component,
+The units for the location and the measurements are [decimal deg] and [mm/yr], respectively.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This is the native GAMMIT output file.</p>
+</div>
+</div>
+</div>
+<div class="section" id="seismic-data">
+<h2>seismic data<a class="headerlink" href="#seismic-data" title="Permalink to this headline">¶</a></h2>
+<p>For the import and aquistion of seismic data for beat exist several options. The command beatdown can be used to download a
+dataset from available FDSN services. Alternatively, exisiting files from any custom source may be converted by using the pyrocko framework.</p>
+<div class="section" id="beatdown">
+<h3>beatdown<a class="headerlink" href="#beatdown" title="Permalink to this headline">¶</a></h3>
+<p>The command line tool beatdown downloads waveforms from all available FDSN web services and prepares them for BEAT,
+including restituting the waveforms to displacements and rotating them into the R,T,Z or E, N,Z coordinate
+systems.</p>
+<p>The beatdown command for downloading FDSN data can be executed in different formats, e.g. by giving an event time or an event name.
+It will download all wanted data in a given radius around the origin. For a complete list of input options
+please use:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beatdown</span> <span class="o">--</span><span class="n">help</span>
+</pre></div>
+</div>
+<p>An example line to download and prepare the data for the 2009 L’Aquila earthquake would be:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beatdown</span> <span class="o">/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">project_directory</span> <span class="s2">&quot;2009-04-06 01:32:39&quot;</span> <span class="mf">1000.</span> <span class="mf">0.001</span> <span class="mf">5.</span> <span class="n">Laquila</span>
+</pre></div>
+</div>
+<p>This command downloads the available data for the event at time 2009-04-06 01:32:39 in a
+radius of 1000 km restitutes the traces to frequencies between 0.001 and 5. Hz and saves them in the folder
+/path/to/project_directory/data/events/Laquila. Additionally it creates a seismic_data.pkl into the “project_directory”, which will
+be used by BEAT.</p>
+<p>It may be desired to automatically pre-selected a subset of stations from all available data
+based on data quality and separation of stations. The option –nstations-wanted enables such a station
+weeding and tries to find a suitable subset of stations close to the number provided. The actual resulting
+station number might vary based on station distribution and quality. For the above
+example we might want to use around 60 stations, so the command line for that would look like:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beatdown</span> <span class="o">/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">home_directory</span> <span class="s2">&quot;2009-04-06 01:32:39&quot;</span> <span class="mf">1000.</span> <span class="mf">0.001</span> <span class="mf">5.</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">nstations</span><span class="o">-</span><span class="n">wanted</span><span class="o">=</span><span class="mi">60</span>
+</pre></div>
+</div>
+<p>To convert a distance in degree, e.g. 30 and 90 degrees for minimum and maximum data retrieval
+radii (rmin and rmax), you can use pyrockos cake function inbuilt converter factor d2m.
+The conversion than could look like this to retrieve rmin and rmax radii in km:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyrocko</span> <span class="k">import</span> <span class="n">cake</span>
+<span class="n">km</span> <span class="o">=</span> <span class="mf">1000.</span>
+<span class="n">rmin</span> <span class="o">=</span> <span class="mf">30.</span><span class="o">*</span><span class="n">cake</span><span class="o">.</span><span class="n">d2m</span><span class="o">/</span><span class="n">km</span>
+<span class="n">rmax</span> <span class="o">=</span> <span class="mf">90.</span><span class="o">*</span><span class="n">cake</span><span class="o">.</span><span class="n">d2m</span><span class="o">/</span><span class="n">km</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="data-import">
+<h3>Data import<a class="headerlink" href="#data-import" title="Permalink to this headline">¶</a></h3>
+<p>The output of <a class="reference external" href="https://github.com/emolch/kiwi">autokiwi</a> is supported for automatic import of seismic data.</p>
+<p>To see a list of the supported data types ($ending) please see: <a class="reference external" href="https://pyrocko.org/docs/current/library/examples/trace_handling.html">Trace Handeling</a>
+or type.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="kn">import</span> <span class="o">--</span><span class="n">help</span>
+</pre></div>
+</div>
+<p>The traces should be named in the format ‘network.station..channel.$ending’
+In addition to these an ascii text file with the station information is needed of the format:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="c1">#network_name.station_name.location_name latitude[deg] longitude[deg] elevation[m] depth[m]</span>
+<span class="n">IU</span><span class="o">.</span><span class="n">TSUM</span><span class="o">.</span><span class="mi">10</span>            <span class="o">-</span><span class="mf">19.20220</span>       <span class="mf">17.58380</span>         <span class="mf">1260.0</span>            <span class="mf">0.0</span>
+  <span class="n">BHE</span>             <span class="mi">90</span>              <span class="mi">0</span>              <span class="mi">1</span>   <span class="c1"># channel name azimuth[deg] dip[deg] gain \n</span>
+  <span class="n">BHN</span>              <span class="mi">0</span>              <span class="mi">0</span>              <span class="mi">1</span>
+  <span class="n">BHZ</span>              <span class="mi">0</span>            <span class="o">-</span><span class="mi">90</span>              <span class="mi">1</span>
+<span class="n">IU</span><span class="o">.</span><span class="n">RCBR</span><span class="o">.</span><span class="mi">00</span>             <span class="o">-</span><span class="mf">5.82740</span>      <span class="o">-</span><span class="mf">35.90140</span>          <span class="mf">291.0</span>          <span class="mf">109.0</span>
+  <span class="n">BH1</span>             <span class="mi">48</span>              <span class="mi">0</span>              <span class="mi">1</span>
+  <span class="n">BH2</span>            <span class="mi">138</span>              <span class="mi">0</span>              <span class="mi">1</span>
+  <span class="n">BHZ</span>              <span class="mi">0</span>            <span class="o">-</span><span class="mi">90</span>              <span class="mi">1</span>
+<span class="o">...</span>
+</pre></div>
+</div>
+<p>To ease the creation of this textfile we refer the user to investigate the pyrocko module: model (Function: dump_stations).</p>
+</div>
+<div class="section" id="custom-data-import">
+<h3>Custom Data import<a class="headerlink" href="#custom-data-import" title="Permalink to this headline">¶</a></h3>
+<p>To get other types of data imported the user will have to do some programing.</p>
+<p>The following remarks are just bits and pieces that may be followed to write a script to bring the data into the necessary format.</p>
+<p>The seismic data may be saved using the package “pickle” as a file “seismic_data.pkl” containing a list of 2 lists: 1. list of “pyrocko.trace.Trace” objects alternating for (R T Z) rotated traces. 2. list of “pyrocko.model.Station” objects in the same order like the data traces.</p>
+<p>Pyrocko supports the import of various data formats and all the necessary tools to remove the instrument response and to convert the traces to displacement.
+How to do this based on some examples is shown <a class="reference external" href="https://pyrocko.org/docs/current/library/examples/trace_handling.html#restitute-to-displacement-using-poles-and-zeros">here</a> webpage.</p>
+<p>For import from obspy you can checkout the <a class="reference external" href="https://pyrocko.org/docs/current/library/reference/obspy_compat.html#pyrocko.obspy_compat.plant">obspy_compat</a>
+pyrocko module to convert your obspy data into pyrocko data and obspy inventories to pyrocko stations.
+Once you have done this the standard pyrocko traces will need to be converted to beat trace objects, this is done simply, assuming that “traces”
+is a list of pyrocko trace objects, by:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">beat</span> <span class="k">import</span> <span class="n">heart</span>
+<span class="n">traces_beat</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">tr</span> <span class="ow">in</span> <span class="n">traces</span><span class="p">:</span>
+    <span class="n">tr_beat</span><span class="o">=</span> <span class="n">heart</span><span class="o">.</span><span class="n">SeismicDataset</span><span class="o">.</span><span class="n">from_pyrocko_trace</span><span class="p">(</span><span class="n">tr</span><span class="p">)</span>
+    <span class="n">traces_beat</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tr_beat</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Once a list of traces and station objects exists it may be exported to the project directory (here path from example):</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">beat</span> <span class="k">import</span> <span class="n">utility</span>
+
+<span class="n">seismic_outpath</span><span class="o">=</span><span class="s1">&#39;/home/vasyurhm/BEATS/LandersEQ/seismic_data.pkl&#39;</span>
+<span class="n">utility</span><span class="o">.</span><span class="n">dump_objects</span><span class="p">(</span><span class="n">seismic_outpath</span><span class="p">,</span> <span class="n">outlist</span><span class="o">=</span><span class="p">[</span><span class="n">stations</span><span class="p">,</span> <span class="n">data_traces</span><span class="p">])</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="../index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../updating.html">Updating beat</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Getting started with BEAT</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="general.html">General</a></li>
+<li class="toctree-l2"><a class="reference internal" href="init_project.html">Initialise a new Modeling Project</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Import Data</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#geodetic-data">geodetic data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#seismic-data">seismic data</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="update_config.html">How to update the configuration files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backends.html">Sampling Backends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="custom_gf_store.html">How to setup a Custom Greens Function Store</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ffi_setup.html">How to setup a Finite Fault Inference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="update_config.html" title="How to update the configuration files"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="init_project.html" title="Initialise a new Modeling Project"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

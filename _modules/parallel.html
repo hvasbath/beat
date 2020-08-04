@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>parallel &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="../_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="../_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="../index.html">beat 1.0 documentation</a> &#187;
+          </li>
+            <li><a href="index.html" accesskey="U">Module code</a> &#187;</li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for parallel</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">multiprocessing</span>
+<span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="k">import</span> <span class="n">reduction</span>
+<span class="kn">from</span> <span class="nn">logging</span> <span class="k">import</span> <span class="n">getLogger</span>
+<span class="kn">import</span> <span class="nn">traceback</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">wraps</span>
+<span class="kn">import</span> <span class="nn">signal</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">count</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">num</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span> <span class="nn">io</span> <span class="k">import</span> <span class="n">BytesIO</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;parallel&#39;</span><span class="p">)</span>
+
+<span class="c1"># for sharing memory across processes</span>
+<span class="n">_shared_memory</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+<span class="n">_tobememshared</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([])</span>
+
+
+<span class="nd">@classmethod</span>
+<span class="k">def</span> <span class="nf">dumps</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">buf</span> <span class="o">=</span> <span class="n">BytesIO</span><span class="p">()</span>
+    <span class="bp">cls</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">buf</span><span class="o">.</span><span class="n">getbuffer</span><span class="p">()</span>
+
+
+<span class="c1"># monkey patch pickling in multiprocessing</span>
+<span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">hexversion</span> <span class="o">&lt;</span> <span class="mh">0x30600F0</span><span class="p">:</span>
+    <span class="n">reduction</span><span class="o">.</span><span class="n">ForkingPickler</span><span class="o">.</span><span class="n">dumps</span> <span class="o">=</span> <span class="n">dumps</span>
+
+
+<div class="viewcode-block" id="get_process_id"><a class="viewcode-back" href="../api.html#parallel.get_process_id">[docs]</a><span class="k">def</span> <span class="nf">get_process_id</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the process id of the current process</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">current</span> <span class="o">=</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">current_process</span><span class="p">()</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">current</span><span class="o">.</span><span class="n">_identity</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+        <span class="c1"># in case of only one used core ...</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">n</span></div>
+
+
+<div class="viewcode-block" id="check_available_memory"><a class="viewcode-back" href="../api.html#parallel.check_available_memory">[docs]</a><span class="k">def</span> <span class="nf">check_available_memory</span><span class="p">(</span><span class="n">filesize</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Checks if the system memory can handle the given filesize.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    filesize : float</span>
+<span class="sd">       in [Mb] megabyte</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">psutil</span> <span class="k">import</span> <span class="n">virtual_memory</span>
+    <span class="n">mem</span> <span class="o">=</span> <span class="n">virtual_memory</span><span class="p">()</span>
+    <span class="n">avail_mem_mb</span> <span class="o">=</span> <span class="n">mem</span><span class="o">.</span><span class="n">available</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1080</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">phys_mem_mb</span> <span class="o">=</span> <span class="n">mem</span><span class="o">.</span><span class="n">total</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1080</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+        <span class="s1">&#39;Physical Memory [Mb] </span><span class="si">%f</span><span class="s1"> </span><span class="se">\n</span><span class="s1"> &#39;</span>
+        <span class="s1">&#39;Available Memory [Mb] </span><span class="si">%f</span><span class="s1"> </span><span class="se">\n</span><span class="s1"> &#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">phys_mem_mb</span><span class="p">,</span> <span class="n">avail_mem_mb</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">filesize</span> <span class="o">&gt;</span> <span class="n">phys_mem_mb</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">MemoryError</span><span class="p">(</span>
+            <span class="s1">&#39;Physical memory on this system: </span><span class="si">%f</span><span class="s1"> is to small for the&#39;</span>
+            <span class="s1">&#39; FFI setup configuration! The problem complexity&#39;</span>
+            <span class="s1">&#39; (please reduce the number of: patches, stations,&#39;</span>
+            <span class="s1">&#39; starttimes or durations or reduce the sample rate&#39;</span>
+            <span class="s1">&#39; of your data and synthetcs.)&#39;</span>
+            <span class="s1">&#39; has to be reduced or the hardware needs to be&#39;</span>
+            <span class="s1">&#39; upgraded!&#39;</span> <span class="o">%</span> <span class="n">phys_mem_mb</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">filesize</span> <span class="o">&gt;</span> <span class="n">avail_mem_mb</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s1">&#39;The Greens Functino Library filesize is larger than&#39;</span>
+            <span class="s1">&#39; the available memory. Likely it will use the SWAP which&#39;</span>
+            <span class="s1">&#39; may result in extremely slowed down calculation times!&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="exception_tracer"><a class="viewcode-back" href="../api.html#parallel.exception_tracer">[docs]</a><span class="k">def</span> <span class="nf">exception_tracer</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Function decorator that returns a traceback if an Error is raised in</span>
+<span class="sd">    a child process of a pool.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">wrapped_func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{}</span><span class="se">\n\n</span><span class="s2">Original </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">())</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Exception in &#39;</span> <span class="o">+</span> <span class="n">func</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">wrapped_func</span></div>
+
+
+<div class="viewcode-block" id="TimeoutException"><a class="viewcode-back" href="../api.html#parallel.TimeoutException">[docs]</a><span class="k">class</span> <span class="nc">TimeoutException</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Exception raised if a per-task timeout fires.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">jobstack</span><span class="o">=</span><span class="p">[]):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">TimeoutException</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">jobstack</span> <span class="o">=</span> <span class="n">jobstack</span></div>
+
+
+<span class="c1"># http://stackoverflow.com/questions/8616630/time-out-decorator-on-a-multprocessing-function</span>
+<div class="viewcode-block" id="overseer"><a class="viewcode-back" href="../api.html#parallel.overseer">[docs]</a><span class="k">def</span> <span class="nf">overseer</span><span class="p">(</span><span class="n">timeout</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Function decorator that raises a TimeoutException exception</span>
+<span class="sd">    after timeout seconds, if the decorated function did not return.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">decorate</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">timeout_handler</span><span class="p">(</span><span class="n">signum</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">TimeoutException</span><span class="p">(</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_stack</span><span class="p">())</span>
+
+        <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">wrapped_f</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="n">old_handler</span> <span class="o">=</span> <span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGALRM</span><span class="p">,</span> <span class="n">timeout_handler</span><span class="p">)</span>
+            <span class="n">signal</span><span class="o">.</span><span class="n">alarm</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span>
+
+            <span class="n">result</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+            <span class="c1"># Old signal handler is restored</span>
+            <span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGALRM</span><span class="p">,</span> <span class="n">old_handler</span><span class="p">)</span>
+            <span class="n">signal</span><span class="o">.</span><span class="n">alarm</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># Alarm removed</span>
+            <span class="k">return</span> <span class="n">result</span>
+
+        <span class="n">wrapped_f</span><span class="o">.</span><span class="vm">__name__</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="vm">__name__</span>
+        <span class="k">return</span> <span class="n">wrapped_f</span>
+
+    <span class="k">return</span> <span class="n">decorate</span></div>
+
+
+<div class="viewcode-block" id="WatchedWorker"><a class="viewcode-back" href="../api.html#parallel.WatchedWorker">[docs]</a><span class="k">class</span> <span class="nc">WatchedWorker</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Wrapper class for parallel execution of a task.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    task : function to execute</span>
+<span class="sd">    work : List</span>
+<span class="sd">        of arguments to specified function</span>
+<span class="sd">    timeout : int</span>
+<span class="sd">        time [s] after which worker is fired, default 65536s</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">task</span><span class="p">,</span> <span class="n">work</span><span class="p">,</span> <span class="n">initializer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">initargs</span><span class="o">=</span><span class="p">(),</span> <span class="n">timeout</span><span class="o">=</span><span class="mh">0xFFFF</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="n">task</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">work</span> <span class="o">=</span> <span class="n">work</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">timeout</span> <span class="o">=</span> <span class="n">timeout</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span> <span class="o">=</span> <span class="n">initializer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">initargs</span> <span class="o">=</span> <span class="n">initargs</span>
+
+<div class="viewcode-block" id="WatchedWorker.run"><a class="viewcode-back" href="../api.html#parallel.WatchedWorker.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Start working on the task!</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">initargs</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">work</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">TimeoutException</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Worker timed out! Fire him! Returning: None!&#39;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">None</span></div></div>
+
+
+<span class="k">def</span> <span class="nf">_pay_worker</span><span class="p">(</span><span class="n">worker</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Wrapping function for the pool start instance.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">overseer</span><span class="p">(</span><span class="n">worker</span><span class="o">.</span><span class="n">timeout</span><span class="p">)(</span><span class="n">worker</span><span class="o">.</span><span class="n">run</span><span class="p">)()</span>
+
+
+<div class="viewcode-block" id="paripool"><a class="viewcode-back" href="../api.html#parallel.paripool">[docs]</a><span class="k">def</span> <span class="nf">paripool</span><span class="p">(</span>
+        <span class="n">function</span><span class="p">,</span> <span class="n">workpackage</span><span class="p">,</span> <span class="n">nprocs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">chunksize</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mh">0xFFFF</span><span class="p">,</span>
+        <span class="n">initializer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">initargs</span><span class="o">=</span><span class="p">(),</span> <span class="n">worker_initializer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">winitargs</span><span class="o">=</span><span class="p">()):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Initialises a pool of workers and executes a function in parallel by</span>
+<span class="sd">    forking the process. Does forking once during initialisation.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    function : function</span>
+<span class="sd">        python function to be executed in parallel</span>
+<span class="sd">    workpackage : list</span>
+<span class="sd">        of iterables that are to be looped over/ executed in parallel usually</span>
+<span class="sd">        these objects are different for each task.</span>
+<span class="sd">    nprocs : int</span>
+<span class="sd">        number of processors to be used in paralell process</span>
+<span class="sd">    chunksize : int</span>
+<span class="sd">        number of work packages to throw at workers in each instance</span>
+<span class="sd">    timeout : int</span>
+<span class="sd">        time [s] after which processes are killed, default: 65536s</span>
+<span class="sd">    initializer : function</span>
+<span class="sd">        to init pool with may be container for shared arrays</span>
+<span class="sd">    initargs : tuple</span>
+<span class="sd">        of arguments for the initializer</span>
+<span class="sd">    worker_initializer : function</span>
+<span class="sd">        to initialize each worker process</span>
+<span class="sd">    winitargs : tuple</span>
+<span class="sd">        of argument to worker_initializer</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">start_message</span><span class="p">(</span><span class="o">*</span><span class="nb">globals</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Starting </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">current_process</span><span class="p">()</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">callback</span><span class="p">(</span><span class="n">result</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1"> Feierabend! Done with the work!&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">nprocs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">nprocs</span> <span class="o">=</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">chunksize</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">chunksize</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="k">if</span> <span class="n">nprocs</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">work</span> <span class="ow">in</span> <span class="n">workpackage</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">initializer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">initializer</span><span class="p">(</span><span class="o">*</span><span class="n">initargs</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="p">[</span><span class="n">function</span><span class="p">(</span><span class="o">*</span><span class="n">work</span><span class="p">)]</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">pool</span> <span class="o">=</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">Pool</span><span class="p">(</span>
+            <span class="n">processes</span><span class="o">=</span><span class="n">nprocs</span><span class="p">,</span>
+            <span class="n">initializer</span><span class="o">=</span><span class="n">initializer</span><span class="p">,</span>
+            <span class="n">initargs</span><span class="o">=</span><span class="n">initargs</span><span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Worker timeout after </span><span class="si">%i</span><span class="s1"> second(s)&#39;</span> <span class="o">%</span> <span class="n">timeout</span><span class="p">)</span>
+
+        <span class="n">workers</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">WatchedWorker</span><span class="p">(</span>
+                <span class="n">function</span><span class="p">,</span> <span class="n">work</span><span class="p">,</span>
+                <span class="n">initializer</span><span class="o">=</span><span class="n">worker_initializer</span><span class="p">,</span>
+                <span class="n">initargs</span><span class="o">=</span><span class="n">winitargs</span><span class="p">,</span>
+                <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">work</span> <span class="ow">in</span> <span class="n">workpackage</span><span class="p">]</span>
+
+        <span class="n">pool_timeout</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">workpackage</span><span class="p">)</span> <span class="o">/</span> <span class="mf">3.</span> <span class="o">*</span> <span class="n">timeout</span> <span class="o">/</span> <span class="n">nprocs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">pool_timeout</span> <span class="o">&lt;</span> <span class="mi">100</span><span class="p">:</span>
+            <span class="n">pool_timeout</span> <span class="o">=</span> <span class="mi">100</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Overseer timeout after </span><span class="si">%i</span><span class="s1"> second(s)&#39;</span> <span class="o">%</span> <span class="n">pool_timeout</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Chunksize: </span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">chunksize</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">pool</span><span class="o">.</span><span class="n">map_async</span><span class="p">(</span>
+                <span class="n">_pay_worker</span><span class="p">,</span> <span class="n">workers</span><span class="p">,</span>
+                <span class="n">chunksize</span><span class="o">=</span><span class="n">chunksize</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="n">callback</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">pool_timeout</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">TimeoutError</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;Overseer fell asleep. Fire everyone!&#39;</span><span class="p">)</span>
+            <span class="n">pool</span><span class="o">.</span><span class="n">terminate</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">KeyboardInterrupt</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;Got Ctrl + C&#39;</span><span class="p">)</span>
+            <span class="n">traceback</span><span class="o">.</span><span class="n">print_exc</span><span class="p">()</span>
+            <span class="n">pool</span><span class="o">.</span><span class="n">terminate</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">pool</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="n">pool</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+            <span class="c1"># reset process counter for tqdm progressbar</span>
+            <span class="n">multiprocessing</span><span class="o">.</span><span class="n">process</span><span class="o">.</span><span class="n">_process_counter</span> <span class="o">=</span> <span class="n">count</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="memshare"><a class="viewcode-back" href="../api.html#parallel.memshare">[docs]</a><span class="k">def</span> <span class="nf">memshare</span><span class="p">(</span><span class="n">parameternames</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Add parameters to set of variables that are to be put into shared</span>
+<span class="sd">    memory.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    parameternames : list of str</span>
+<span class="sd">        off names to :class:`theano.tensor.sharedvar.TensorSharedVariable`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">paramname</span> <span class="ow">in</span> <span class="n">parameternames</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">paramname</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;Parameter cannot be memshared! Invalid name! &quot;</span><span class="si">%s</span><span class="s1">&quot; &#39;</span>
+                <span class="s1">&#39;Has to be of type &quot;string&quot;&#39;</span> <span class="o">%</span> <span class="n">paramname</span><span class="p">)</span>
+
+    <span class="n">_tobememshared</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">parameternames</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="memshare_sparams"><a class="viewcode-back" href="../api.html#parallel.memshare_sparams">[docs]</a><span class="k">def</span> <span class="nf">memshare_sparams</span><span class="p">(</span><span class="n">shared_params</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    For each parameter in a list of Theano TensorSharedVariable</span>
+<span class="sd">    we substitute the memory with a sharedctype using the</span>
+<span class="sd">    multiprocessing library.</span>
+
+<span class="sd">    The wrapped memory can then be used by other child processes</span>
+<span class="sd">    thereby synchronising different instances of a model across</span>
+<span class="sd">    processes (e.g. for multi cpu gradient descent using single cpu</span>
+<span class="sd">    Theano code).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    shared_params : list</span>
+<span class="sd">        of :class:`theano.tensor.sharedvar.TensorSharedVariable`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    memshared_instances : list</span>
+<span class="sd">        of :class:`multiprocessing.sharedctypes.RawArray`</span>
+<span class="sd">        list of sharedctypes (shared memory arrays) that point</span>
+<span class="sd">        to the memory used by the current process&#39;s Theano variable.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Modified from:</span>
+<span class="sd">    https://github.com/JonathanRaiman/theano_lstm/blob/master/theano_lstm/shared_memory.py</span>
+
+<span class="sd">    # define some theano function:</span>
+<span class="sd">    myfunction = myfunction(20, 50, etc...)</span>
+
+<span class="sd">    # wrap the memory of the Theano variables:</span>
+<span class="sd">    memshared_instances = make_params_shared(myfunction.get_shared())</span>
+
+<span class="sd">    Then you can use this memory in child processes</span>
+<span class="sd">    (See usage of `borrow_memory`)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">shared_params</span><span class="p">:</span>
+        <span class="n">original</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">get_value</span><span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="n">original</span><span class="o">.</span><span class="n">size</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="n">original</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">original</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">size</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Allocating </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">param</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">ctypes</span> <span class="o">=</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">RawArray</span><span class="p">(</span>
+            <span class="s1">&#39;f&#39;</span> <span class="k">if</span> <span class="n">original</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="n">num</span><span class="o">.</span><span class="n">float32</span> <span class="k">else</span> <span class="s1">&#39;d&#39;</span><span class="p">,</span> <span class="n">size</span><span class="p">)</span>
+
+        <span class="n">ctypes_numarr</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">ctypeslib</span><span class="o">.</span><span class="n">as_array</span><span class="p">(</span><span class="n">ctypes</span><span class="p">)</span>
+        <span class="n">ctypes_numarr</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">original</span>
+
+        <span class="c1"># remove large object from Shared to get through pickle size limitation</span>
+        <span class="n">param</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">empty</span><span class="p">([</span><span class="mi">1</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">))]),</span> <span class="n">borrow</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">_shared_memory</span><span class="p">[</span><span class="n">param</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">ctypes_numarr</span><span class="p">,</span> <span class="n">shape</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="borrow_memory"><a class="viewcode-back" href="../api.html#parallel.borrow_memory">[docs]</a><span class="k">def</span> <span class="nf">borrow_memory</span><span class="p">(</span><span class="n">shared_param</span><span class="p">,</span> <span class="n">memshared_instance</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Spawn different processes with the shared memory</span>
+<span class="sd">    of your theano model&#39;s variables.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    shared_param : :class:`theano.tensor.sharedvar.TensorSharedVariable`</span>
+<span class="sd">        the Theano shared variable where</span>
+<span class="sd">        shared memory should be used instead.</span>
+<span class="sd">    memshared_instance : :class:`multiprocessing.RawArray`</span>
+<span class="sd">        the memory shared across processes (e.g.from `memshare_sparams`)</span>
+<span class="sd">    shape : tuple</span>
+<span class="sd">        of shape of shared instance</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Modiefied from:</span>
+<span class="sd">    https://github.com/JonathanRaiman/theano_lstm/blob/master/theano_lstm/shared_memory.py</span>
+
+<span class="sd">    For each process in the target function run the theano_borrow_memory</span>
+<span class="sd">    method on the parameters you want to have share memory across processes.</span>
+<span class="sd">    In this example we have a model called &quot;mymodel&quot; with parameters stored in</span>
+<span class="sd">    a list called &quot;params&quot;. We loop through each theano shared variable and</span>
+<span class="sd">    call `borrow_memory` on it to share memory across processes.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; def spawn_model(path, wrapped_params):</span>
+<span class="sd">        # prevent recompilation and arbitrary locks</span>
+<span class="sd">    &gt;&gt;&gt;     theano.config.reoptimize_unpickled_function = False</span>
+<span class="sd">    &gt;&gt;&gt;     theano.gof.compilelock.set_lock_status(False)</span>
+<span class="sd">        # load your function from its pickled instance (from path)</span>
+<span class="sd">    &gt;&gt;&gt;     myfunction = MyFunction.load(path)</span>
+<span class="sd">        # for each parameter in your function</span>
+<span class="sd">        # apply the borrow memory strategy to replace</span>
+<span class="sd">        # the internal parameter&#39;s memory with the</span>
+<span class="sd">        # across-process memory:</span>
+<span class="sd">    &gt;&gt;&gt;     for param, memshared_instance in zip(</span>
+<span class="sd">    &gt;&gt;&gt;             myfunction.get_shared(), memshared_instances):</span>
+<span class="sd">    &gt;&gt;&gt;         borrow_memory(param, memory)</span>
+<span class="sd">        # acquire your dataset (either through some smart shared memory</span>
+<span class="sd">        # or by reloading it for each process)</span>
+<span class="sd">        # dataset, dataset_labels = acquire_dataset()</span>
+<span class="sd">        # then run your model forward in this process</span>
+<span class="sd">    &gt;&gt;&gt;     epochs = 20</span>
+<span class="sd">    &gt;&gt;&gt;     for epoch in range(epochs):</span>
+<span class="sd">    &gt;&gt;&gt;         model.update_fun(dataset, dataset_labels)</span>
+
+<span class="sd">    See `borrow_all_memories` for list usage.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">shared_param</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+    <span class="n">param_value</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">frombuffer</span><span class="p">(</span><span class="n">memshared_instance</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+    <span class="n">shared_param</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span><span class="n">param_value</span><span class="p">,</span> <span class="n">borrow</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="borrow_all_memories"><a class="viewcode-back" href="../api.html#parallel.borrow_all_memories">[docs]</a><span class="k">def</span> <span class="nf">borrow_all_memories</span><span class="p">(</span><span class="n">shared_params</span><span class="p">,</span> <span class="n">memshared_instances</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Run theano_borrow_memory on a list of params and shared memory</span>
+<span class="sd">    sharedctypes.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    shared_params : list</span>
+<span class="sd">        of :class:`theano.tensor.sharedvar.TensorSharedVariable`</span>
+<span class="sd">        the Theano shared variable where</span>
+<span class="sd">        shared memory should be used instead.</span>
+<span class="sd">    memshared_instances : dict of tuples</span>
+<span class="sd">        of :class:`multiprocessing.RawArray` and their shapes</span>
+<span class="sd">        the memory shared across processes (e.g.from `memshare_sparams`)</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Same as `borrow_memory` but for lists of shared memories and</span>
+<span class="sd">    theano variables. See `borrow_memory`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">sparam</span> <span class="ow">in</span> <span class="n">shared_params</span><span class="p">:</span>
+        <span class="n">borrow_memory</span><span class="p">(</span><span class="n">sparam</span><span class="p">,</span> <span class="o">*</span><span class="n">memshared_instances</span><span class="p">[</span><span class="n">sparam</span><span class="o">.</span><span class="n">name</span><span class="p">])</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="../index.html">Table Of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../updating.html">Updating beat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/index.html">Getting started with BEAT</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

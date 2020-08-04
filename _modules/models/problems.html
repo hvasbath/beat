@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>models.problems &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="../../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="../../_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="../../_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="../../index.html">beat 1.0 documentation</a> &#187;
+          </li>
+            <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for models.problems</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+
+<span class="kn">from</span> <span class="nn">pymc3</span> <span class="k">import</span> <span class="n">Uniform</span><span class="p">,</span> <span class="n">Model</span><span class="p">,</span> <span class="n">Deterministic</span><span class="p">,</span> <span class="n">Potential</span>
+
+<span class="kn">from</span> <span class="nn">pyrocko</span> <span class="k">import</span> <span class="n">util</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">num</span>
+
+<span class="kn">import</span> <span class="nn">theano.tensor</span> <span class="k">as</span> <span class="nn">tt</span>
+<span class="kn">from</span> <span class="nn">theano</span> <span class="k">import</span> <span class="n">config</span> <span class="k">as</span> <span class="n">tconfig</span>
+
+<span class="kn">from</span> <span class="nn">beat.utility</span> <span class="k">import</span> <span class="n">list2string</span><span class="p">,</span> <span class="n">transform_sources</span><span class="p">,</span> <span class="n">weed_input_rvs</span>
+<span class="kn">from</span> <span class="nn">beat</span> <span class="k">import</span> <span class="n">sampler</span>
+<span class="kn">from</span> <span class="nn">beat.models</span> <span class="k">import</span> <span class="n">geodetic</span><span class="p">,</span> <span class="n">seismic</span><span class="p">,</span> <span class="n">laplacian</span>
+
+<span class="kn">from</span> <span class="nn">beat</span> <span class="k">import</span> <span class="n">config</span> <span class="k">as</span> <span class="n">bconfig</span>
+<span class="kn">from</span> <span class="nn">beat.backend</span> <span class="k">import</span> <span class="n">ListArrayOrdering</span><span class="p">,</span> <span class="n">ListToArrayBijection</span>
+
+<span class="kn">from</span> <span class="nn">logging</span> <span class="k">import</span> <span class="n">getLogger</span>
+
+<span class="c1"># disable theano rounding warning</span>
+<span class="n">tconfig</span><span class="o">.</span><span class="n">warn</span><span class="o">.</span><span class="n">round</span> <span class="o">=</span> <span class="kc">False</span>
+
+<span class="n">km</span> <span class="o">=</span> <span class="mf">1000.</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;models&#39;</span><span class="p">)</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;GeometryOptimizer&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;DistributionOptimizer&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;load_model&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">InconsistentNumberHyperparametersError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+
+    <span class="n">context</span> <span class="o">=</span> <span class="s1">&#39;Configuration file has to be updated!&#39;</span> <span class="o">+</span> \
+              <span class="s1">&#39; Hyperparameters have to be re-estimated. </span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">+</span> \
+              <span class="s1">&#39; Please run &quot;beat update &lt;project_dir&gt;&#39;</span> <span class="o">+</span> \
+              <span class="s1">&#39; --parameters=hypers,hierarchicals&quot;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">errmess</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">errmess</span> <span class="o">=</span> <span class="n">errmess</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="si">%s</span><span class="se">\n</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">errmess</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="p">)</span>
+
+
+<span class="n">geometry_composite_catalog</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;seismic&#39;</span><span class="p">:</span> <span class="n">seismic</span><span class="o">.</span><span class="n">SeismicGeometryComposite</span><span class="p">,</span>
+    <span class="s1">&#39;geodetic&#39;</span><span class="p">:</span> <span class="n">geodetic</span><span class="o">.</span><span class="n">GeodeticGeometryComposite</span><span class="p">}</span>
+
+
+<span class="n">distributer_composite_catalog</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;seismic&#39;</span><span class="p">:</span> <span class="n">seismic</span><span class="o">.</span><span class="n">SeismicDistributerComposite</span><span class="p">,</span>
+    <span class="s1">&#39;geodetic&#39;</span><span class="p">:</span> <span class="n">geodetic</span><span class="o">.</span><span class="n">GeodeticDistributerComposite</span><span class="p">,</span>
+    <span class="s1">&#39;laplacian&#39;</span><span class="p">:</span> <span class="n">laplacian</span><span class="o">.</span><span class="n">LaplacianDistributerComposite</span><span class="p">}</span>
+
+
+<span class="n">interseismic_composite_catalog</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;geodetic&#39;</span><span class="p">:</span> <span class="n">geodetic</span><span class="o">.</span><span class="n">GeodeticInterseismicComposite</span><span class="p">}</span>
+
+
+<span class="k">class</span> <span class="nc">Problem</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Overarching class for the optimization problems to be solved.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    config : :class:`beat.BEATConfig`</span>
+<span class="sd">        Configuration object that contains the problem definition.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_varnames</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">_hypernames</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">_hierarchicalnames</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">hypers</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_like_name</span> <span class="o">=</span> <span class="s1">&#39;like&#39;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">fixed_params</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">composites</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hyperparams</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Analysing problem ...&#39;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;---------------------</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Load events</span>
+        <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">event</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Found no event information!&#39;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;Problem config has no event information!&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">event</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">event</span>
+            <span class="n">nsubevents</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">subevents</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">subevents</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">subevents</span>
+
+            <span class="k">if</span> <span class="n">nsubevents</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Found </span><span class="si">%i</span><span class="s1"> subevents.&#39;</span> <span class="o">%</span> <span class="n">nsubevents</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
+
+        <span class="n">mode</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">problem_config</span><span class="o">.</span><span class="n">mode</span>
+
+        <span class="n">outfolder</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">project_dir</span><span class="p">,</span> <span class="n">mode</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">hypers</span><span class="p">:</span>
+            <span class="n">outfolder</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">outfolder</span><span class="p">,</span> <span class="s1">&#39;hypers&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">outfolder</span> <span class="o">=</span> <span class="n">outfolder</span>
+        <span class="n">util</span><span class="o">.</span><span class="n">ensuredir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">outfolder</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">events</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">event</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">subevents</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">nevents</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">events</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">init_sampler</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hypers</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialise the Sampling algorithm as defined in the configuration file.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">hypers</span><span class="p">:</span>
+            <span class="n">sc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">hyper_sampler_config</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">sampler_config</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Using &quot;</span><span class="si">%s</span><span class="s1">&quot; backend to store samples!&#39;</span> <span class="o">%</span> <span class="n">sc</span><span class="o">.</span><span class="n">backend</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span>
+                <span class="s1">&#39;Model has to be built before initialising the sampler.&#39;</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">sc</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;Metropolis&#39;</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                    <span class="s1">&#39;... Initiate Metropolis ... </span><span class="se">\n</span><span class="s1">&#39;</span>
+                    <span class="s1">&#39; proposal_distribution: </span><span class="si">%s</span><span class="s1">, tune_interval=</span><span class="si">%i</span><span class="s1">,&#39;</span>
+                    <span class="s1">&#39; n_jobs=</span><span class="si">%i</span><span class="s1"> </span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                        <span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">proposal_dist</span><span class="p">,</span>
+                        <span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">tune_interval</span><span class="p">,</span>
+                        <span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">n_jobs</span><span class="p">))</span>
+
+                <span class="n">t1</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">hypers</span><span class="p">:</span>
+                    <span class="n">step</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">Metropolis</span><span class="p">(</span>
+                        <span class="n">n_chains</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">n_chains</span><span class="p">,</span>
+                        <span class="n">likelihood_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_like_name</span><span class="p">,</span>
+                        <span class="n">tune_interval</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">tune_interval</span><span class="p">,</span>
+                        <span class="n">proposal_name</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">proposal_dist</span><span class="p">,</span>
+                        <span class="n">backend</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">backend</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">step</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">Metropolis</span><span class="p">(</span>
+                        <span class="n">n_chains</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">n_chains</span><span class="p">,</span>
+                        <span class="n">tune_interval</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">tune_interval</span><span class="p">,</span>
+                        <span class="n">likelihood_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_like_name</span><span class="p">,</span>
+                        <span class="n">proposal_name</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">proposal_dist</span><span class="p">,</span>
+                        <span class="n">backend</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">backend</span><span class="p">)</span>
+                <span class="n">t2</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Compilation time: </span><span class="si">%f</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">t2</span> <span class="o">-</span> <span class="n">t1</span><span class="p">))</span>
+
+            <span class="k">elif</span> <span class="n">sc</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;SMC&#39;</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                    <span class="s1">&#39;... Initiate Sequential Monte Carlo ... </span><span class="se">\n</span><span class="s1">&#39;</span>
+                    <span class="s1">&#39; n_chains=</span><span class="si">%i</span><span class="s1">, tune_interval=</span><span class="si">%i</span><span class="s1">, n_jobs=</span><span class="si">%i</span><span class="s1">,&#39;</span>
+                    <span class="s1">&#39; proposal_distribution: </span><span class="si">%s</span><span class="s1">, </span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                        <span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">n_chains</span><span class="p">,</span>
+                        <span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">tune_interval</span><span class="p">,</span>
+                        <span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">n_jobs</span><span class="p">,</span>
+                        <span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">proposal_dist</span><span class="p">))</span>
+
+                <span class="n">t1</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+                <span class="n">step</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">SMC</span><span class="p">(</span>
+                    <span class="n">n_chains</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">n_chains</span><span class="p">,</span>
+                    <span class="n">tune_interval</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">tune_interval</span><span class="p">,</span>
+                    <span class="n">coef_variation</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">coef_variation</span><span class="p">,</span>
+                    <span class="n">proposal_dist</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">proposal_dist</span><span class="p">,</span>
+                    <span class="n">likelihood_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_like_name</span><span class="p">,</span>
+                    <span class="n">backend</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">backend</span><span class="p">)</span>
+                <span class="n">t2</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Compilation time: </span><span class="si">%f</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">t2</span> <span class="o">-</span> <span class="n">t1</span><span class="p">))</span>
+
+            <span class="k">elif</span> <span class="n">sc</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;PT&#39;</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                    <span class="s1">&#39;... Initiate Metropolis for Parallel Tempering... </span><span class="se">\n</span><span class="s1">&#39;</span>
+                    <span class="s1">&#39; proposal_distribution: </span><span class="si">%s</span><span class="s1">, tune_interval=</span><span class="si">%i</span><span class="s1">,&#39;</span>
+                    <span class="s1">&#39; n_chains=</span><span class="si">%i</span><span class="s1"> </span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                        <span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">proposal_dist</span><span class="p">,</span>
+                        <span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">tune_interval</span><span class="p">,</span>
+                        <span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">n_chains</span><span class="p">))</span>
+                <span class="n">step</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">Metropolis</span><span class="p">(</span>
+                    <span class="n">n_chains</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">n_chains</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span>  <span class="c1"># plus master</span>
+                    <span class="n">likelihood_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_like_name</span><span class="p">,</span>
+                    <span class="n">tune_interval</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">tune_interval</span><span class="p">,</span>
+                    <span class="n">proposal_name</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">proposal_dist</span><span class="p">,</span>
+                    <span class="n">backend</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">backend</span><span class="p">)</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s1">&#39;Sampler &quot;</span><span class="si">%s</span><span class="s1">&quot; not supported! &#39;</span>
+                    <span class="s1">&#39; Typo in config file?&#39;</span> <span class="o">%</span> <span class="n">sc</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">step</span>
+
+    <span class="k">def</span> <span class="nf">built_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialise :class:`pymc3.Model` depending on problem composites,</span>
+<span class="sd">        geodetic and/or seismic data are included. Composites also determine</span>
+<span class="sd">        the problem to be solved.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;... Building model ...</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="n">pc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">problem_config</span>
+
+        <span class="k">with</span> <span class="n">Model</span><span class="p">()</span> <span class="k">as</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">:</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">rvs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixed_params</span> <span class="o">=</span> <span class="n">pc</span><span class="o">.</span><span class="n">get_random_variables</span><span class="p">()</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">init_hyperparams</span><span class="p">()</span>
+
+            <span class="n">total_llk</span> <span class="o">=</span> <span class="n">tt</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">),</span> <span class="n">tconfig</span><span class="o">.</span><span class="n">floatX</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">datatype</span><span class="p">,</span> <span class="n">composite</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">datatype</span> <span class="ow">in</span> <span class="n">bconfig</span><span class="o">.</span><span class="n">modes_catalog</span><span class="p">[</span><span class="n">pc</span><span class="o">.</span><span class="n">mode</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="n">input_rvs</span> <span class="o">=</span> <span class="n">weed_input_rvs</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">rvs</span><span class="p">,</span> <span class="n">pc</span><span class="o">.</span><span class="n">mode</span><span class="p">,</span> <span class="n">datatype</span><span class="o">=</span><span class="n">datatype</span><span class="p">)</span>
+                    <span class="n">fixed_rvs</span> <span class="o">=</span> <span class="n">weed_input_rvs</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">fixed_params</span><span class="p">,</span> <span class="n">pc</span><span class="o">.</span><span class="n">mode</span><span class="p">,</span> <span class="n">datatype</span><span class="o">=</span><span class="n">datatype</span><span class="p">)</span>
+
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">input_rvs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rvs</span>
+                    <span class="n">fixed_rvs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fixed_params</span>
+
+                <span class="n">total_llk</span> <span class="o">+=</span> <span class="n">composite</span><span class="o">.</span><span class="n">get_formula</span><span class="p">(</span>
+                    <span class="n">input_rvs</span><span class="p">,</span> <span class="n">fixed_rvs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">hyperparams</span><span class="p">,</span> <span class="n">pc</span><span class="p">)</span>
+
+            <span class="c1"># deterministic RV to write out llks to file</span>
+            <span class="n">like</span> <span class="o">=</span> <span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;tmp&#39;</span><span class="p">,</span> <span class="n">total_llk</span><span class="p">)</span>
+
+            <span class="c1"># will overwrite deterministic name ...</span>
+            <span class="n">llk</span> <span class="o">=</span> <span class="n">Potential</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_like_name</span><span class="p">,</span> <span class="n">like</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Model building was successful! </span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">plant_lijection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Add list to array bijection to model object by monkey-patching.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">lordering</span> <span class="o">=</span> <span class="n">ListArrayOrdering</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">unobserved_RVs</span><span class="p">,</span> <span class="n">intype</span><span class="o">=</span><span class="s1">&#39;tensor&#39;</span><span class="p">)</span>
+            <span class="n">lpoint</span> <span class="o">=</span> <span class="p">[</span><span class="n">var</span><span class="o">.</span><span class="n">tag</span><span class="o">.</span><span class="n">test_value</span> <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">unobserved_RVs</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">lijection</span> <span class="o">=</span> <span class="n">ListToArrayBijection</span><span class="p">(</span><span class="n">lordering</span><span class="p">,</span> <span class="n">lpoint</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;Model needs to be built!&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">built_hyper_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialise :class:`pymc3.Model` depending on configuration file,</span>
+<span class="sd">        geodetic and/or seismic data are included. Estimates initial parameter</span>
+<span class="sd">        bounds for hyperparameters.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;... Building Hyper model ...</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="n">pc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">problem_config</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hierarchicals</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">init_hierarchicals</span><span class="p">()</span>
+
+        <span class="n">point</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_random_point</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;hierarchicals&#39;</span><span class="p">,</span> <span class="s1">&#39;priors&#39;</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">problem_config</span><span class="o">.</span><span class="n">mode</span> <span class="o">==</span> <span class="n">bconfig</span><span class="o">.</span><span class="n">geometry_mode_str</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">pc</span><span class="o">.</span><span class="n">priors</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="n">point</span><span class="p">[</span><span class="n">param</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">testvalue</span>
+
+        <span class="k">with</span> <span class="n">Model</span><span class="p">()</span> <span class="k">as</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">:</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">init_hyperparams</span><span class="p">()</span>
+
+            <span class="n">total_llk</span> <span class="o">=</span> <span class="n">tt</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">),</span> <span class="n">tconfig</span><span class="o">.</span><span class="n">floatX</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">composite</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">composite</span><span class="p">,</span> <span class="s1">&#39;analyse_noise&#39;</span><span class="p">):</span>
+                    <span class="n">composite</span><span class="o">.</span><span class="n">analyse_noise</span><span class="p">(</span><span class="n">point</span><span class="p">)</span>
+                    <span class="n">composite</span><span class="o">.</span><span class="n">init_weights</span><span class="p">()</span>
+
+                <span class="n">composite</span><span class="o">.</span><span class="n">update_llks</span><span class="p">(</span><span class="n">point</span><span class="p">)</span>
+
+                <span class="n">total_llk</span> <span class="o">+=</span> <span class="n">composite</span><span class="o">.</span><span class="n">get_hyper_formula</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hyperparams</span><span class="p">)</span>
+
+            <span class="n">like</span> <span class="o">=</span> <span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;tmp&#39;</span><span class="p">,</span> <span class="n">total_llk</span><span class="p">)</span>
+            <span class="n">llk</span> <span class="o">=</span> <span class="n">Potential</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_like_name</span><span class="p">,</span> <span class="n">like</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Hyper model building was successful!&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_random_point</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;priors&#39;</span><span class="p">,</span> <span class="s1">&#39;hierarchicals&#39;</span><span class="p">,</span> <span class="s1">&#39;hypers&#39;</span><span class="p">]):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get random point in solution space.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">pc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">problem_config</span>
+
+        <span class="n">point</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="s1">&#39;hierarchicals&#39;</span> <span class="ow">in</span> <span class="n">include</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">hierarchicals</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">param</span><span class="p">,</span> <span class="n">num</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+                    <span class="n">point</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="s1">&#39;priors&#39;</span> <span class="ow">in</span> <span class="n">include</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">pc</span><span class="o">.</span><span class="n">priors</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="n">dimension</span> <span class="o">=</span> <span class="n">bconfig</span><span class="o">.</span><span class="n">get_parameter_shape</span><span class="p">(</span><span class="n">param</span><span class="p">,</span> <span class="n">pc</span><span class="p">)</span>
+                <span class="n">point</span><span class="p">[</span><span class="n">param</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">random</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="n">dimension</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="s1">&#39;hypers&#39;</span> <span class="ow">in</span> <span class="n">include</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hyperparams</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">init_hyperparams</span><span class="p">()</span>
+
+            <span class="n">hps</span> <span class="o">=</span> <span class="p">{</span><span class="n">hp_name</span><span class="p">:</span> <span class="n">param</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>
+                   <span class="k">for</span> <span class="n">hp_name</span><span class="p">,</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">hyperparams</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                   <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">param</span><span class="p">,</span> <span class="n">num</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)}</span>
+
+            <span class="n">point</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">hps</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">point</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">varnames</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Sampled random variable names.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list of strings</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_varnames</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_varnames</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">problem_config</span><span class="o">.</span><span class="n">get_random_variables</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_varnames</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">hypernames</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Sampled random variable names.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list of strings</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hypernames</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">init_hyperparams</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hypernames</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">hierarchicalnames</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Sampled random variable names.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        list of strings</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hierarchicalnames</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">init_hierarchicals</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hierarchicalnames</span>
+
+    <span class="k">def</span> <span class="nf">init_hyperparams</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Evaluate problem setup and return hyperparameter dictionary.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">pc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">problem_config</span>
+        <span class="n">hyperparameters</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">pc</span><span class="o">.</span><span class="n">hyperparameters</span><span class="p">)</span>
+
+        <span class="n">hyperparams</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">n_hyp</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">modelinit</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_hypernames</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">datatype</span><span class="p">,</span> <span class="n">composite</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">hypernames</span> <span class="o">=</span> <span class="n">composite</span><span class="o">.</span><span class="n">get_hypernames</span><span class="p">()</span>
+
+            <span class="k">for</span> <span class="n">hp_name</span> <span class="ow">in</span> <span class="n">hypernames</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">hp_name</span> <span class="ow">in</span> <span class="n">hyperparameters</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                    <span class="n">hyperpar</span> <span class="o">=</span> <span class="n">hyperparameters</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">hp_name</span><span class="p">)</span>
+                    <span class="n">ndata</span> <span class="o">=</span> <span class="n">composite</span><span class="o">.</span><span class="n">get_hypersize</span><span class="p">(</span><span class="n">hp_name</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">InconsistentNumberHyperparametersError</span><span class="p">(</span>
+                        <span class="s1">&#39;Datasets and -types require additional &#39;</span>
+                        <span class="s1">&#39; hyperparameter(s): </span><span class="si">%s</span><span class="s1">!&#39;</span> <span class="o">%</span> <span class="n">hp_name</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">num</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span><span class="n">hyperpar</span><span class="o">.</span><span class="n">lower</span><span class="p">,</span> <span class="n">hyperpar</span><span class="o">.</span><span class="n">upper</span><span class="p">):</span>
+                    <span class="n">dimension</span> <span class="o">=</span> <span class="n">hyperpar</span><span class="o">.</span><span class="n">dimension</span> <span class="o">*</span> <span class="n">ndata</span>
+
+                    <span class="n">kwargs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+                        <span class="n">name</span><span class="o">=</span><span class="n">hyperpar</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                        <span class="n">shape</span><span class="o">=</span><span class="n">dimension</span><span class="p">,</span>
+                        <span class="n">lower</span><span class="o">=</span><span class="n">num</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">hyperpar</span><span class="o">.</span><span class="n">lower</span><span class="p">,</span> <span class="n">ndata</span><span class="p">),</span>
+                        <span class="n">upper</span><span class="o">=</span><span class="n">num</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">hyperpar</span><span class="o">.</span><span class="n">upper</span><span class="p">,</span> <span class="n">ndata</span><span class="p">),</span>
+                        <span class="n">testval</span><span class="o">=</span><span class="n">num</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">hyperpar</span><span class="o">.</span><span class="n">testvalue</span><span class="p">,</span> <span class="n">ndata</span><span class="p">),</span>
+                        <span class="n">dtype</span><span class="o">=</span><span class="n">tconfig</span><span class="o">.</span><span class="n">floatX</span><span class="p">,</span>
+                        <span class="n">transform</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">hyperparams</span><span class="p">[</span><span class="n">hp_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">Uniform</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+                    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                        <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">)</span>
+                        <span class="n">hyperparams</span><span class="p">[</span><span class="n">hp_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">Uniform</span><span class="o">.</span><span class="n">dist</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+                        <span class="n">modelinit</span> <span class="o">=</span> <span class="kc">False</span>
+
+                    <span class="n">n_hyp</span> <span class="o">+=</span> <span class="n">dimension</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_hypernames</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">hyperpar</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                        <span class="s1">&#39;Initialised hyperparameter </span><span class="si">%s</span><span class="s1"> with &#39;</span>
+                        <span class="s1">&#39;size </span><span class="si">%i</span><span class="s1"> &#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">hp_name</span><span class="p">,</span> <span class="n">ndata</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                        <span class="s1">&#39;not solving for </span><span class="si">%s</span><span class="s1">, got fixed at </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                            <span class="n">hyperpar</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                            <span class="n">list2string</span><span class="p">(</span><span class="n">hyperpar</span><span class="o">.</span><span class="n">lower</span><span class="o">.</span><span class="n">flatten</span><span class="p">())))</span>
+                    <span class="n">hyperparams</span><span class="p">[</span><span class="n">hyperpar</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">hyperpar</span><span class="o">.</span><span class="n">lower</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">hyperparameters</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InconsistentNumberHyperparametersError</span><span class="p">(</span>
+                <span class="s1">&#39;There are hyperparameters in config file, which are not&#39;</span>
+                <span class="s1">&#39; covered by datasets/datatypes.&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">modelinit</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Optimization for </span><span class="si">%i</span><span class="s1"> hyperparameters in total!&#39;</span><span class="p">,</span> <span class="n">n_hyp</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">hyperparams</span> <span class="o">=</span> <span class="n">hyperparams</span>
+
+    <span class="k">def</span> <span class="nf">update_llks</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">point</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update posterior likelihoods of each composite of the problem with</span>
+<span class="sd">        respect to one point in the solution space.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        point : dict</span>
+<span class="sd">            with numpy array-like items and variable name keys</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">composite</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">composite</span><span class="o">.</span><span class="n">update_llks</span><span class="p">(</span><span class="n">point</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">weights_dict</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update composites in problem object with given composites.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">comp_name</span><span class="p">,</span> <span class="n">weights</span> <span class="ow">in</span> <span class="n">weights_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">comp_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="p">[</span><span class="n">comp_name</span><span class="p">]</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">weights</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">point2sources</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">point</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update composite sources(in place) with values from given point.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        point : :func:`pymc3.Point`</span>
+<span class="sd">            Dictionary with model parameters, for which the sources are</span>
+<span class="sd">            updated</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">composite</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="p">[</span><span class="n">composite</span><span class="o">.</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">point2sources</span><span class="p">(</span><span class="n">point</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">update_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">point</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">plot</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate and update model prediction uncertainty covariances of</span>
+<span class="sd">        composites due to uncertainty in the velocity model with respect to</span>
+<span class="sd">        one point in the solution space. Shared variables are updated in place.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        point : :func:`pymc3.Point`</span>
+<span class="sd">            Dictionary with model parameters, for which the covariance matrixes</span>
+<span class="sd">            with respect to velocity model uncertainties are calculated</span>
+<span class="sd">        n_jobs : int</span>
+<span class="sd">            Number of processors to use for calculation of seismic covariances</span>
+<span class="sd">        plot : boolean</span>
+<span class="sd">            Flag for opening the seismic waveforms in the snuffler</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">composite</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">composite</span><span class="p">,</span> <span class="s1">&#39;update_weights&#39;</span><span class="p">):</span>
+                <span class="n">composite</span><span class="o">.</span><span class="n">update_weights</span><span class="p">(</span><span class="n">point</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=</span><span class="n">n_jobs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Assemble weights of problem composites in dict for saving.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">outd</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">datatype</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">problem_config</span><span class="o">.</span><span class="n">datatypes</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">datatype</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="n">outd</span><span class="p">[</span><span class="n">datatype</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="p">[</span><span class="n">datatype</span><span class="p">]</span><span class="o">.</span><span class="n">weights</span>
+
+        <span class="k">return</span> <span class="n">outd</span>
+
+    <span class="k">def</span> <span class="nf">get_synthetics</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">point</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get synthetics for given point in solution space.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        point : :func:`pymc3.Point`</span>
+<span class="sd">            Dictionary with model parameters</span>
+<span class="sd">        kwargs especially to change output of seismic forward model</span>
+<span class="sd">            outmode = &#39;traces&#39;/ &#39;array&#39; / &#39;data&#39;</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Dictionary with keys according to composites containing the synthetics</span>
+<span class="sd">        as lists.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">d</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">composite</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">d</span><span class="p">[</span><span class="n">composite</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">composite</span><span class="o">.</span><span class="n">get_synthetics</span><span class="p">(</span><span class="n">point</span><span class="p">,</span> <span class="n">outmode</span><span class="o">=</span><span class="s1">&#39;data&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">d</span>
+
+    <span class="k">def</span> <span class="nf">init_hierarchicals</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialise hierarchical random variables of all composites.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_hierarchicalnames</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">composite</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">composite</span><span class="o">.</span><span class="n">init_hierarchicals</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">problem_config</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_hierarchicalnames</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">composite</span><span class="o">.</span><span class="n">_hierarchicalnames</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">hierarchicals</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return dictionary of all hierarchical variables of the problem.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">composite</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">composite</span><span class="o">.</span><span class="n">hierarchicals</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">d</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">composite</span><span class="o">.</span><span class="n">hierarchicals</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">d</span>
+
+
+<span class="k">class</span> <span class="nc">SourceOptimizer</span><span class="p">(</span><span class="n">Problem</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Defines the base-class setup involving non-linear fault geometry.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    config : :class:&#39;config.BEATconfig&#39;</span>
+<span class="sd">        Contains all the information about the model setup and optimization</span>
+<span class="sd">        boundaries, as well as the sampler parameters.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">hypers</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">SourceOptimizer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">hypers</span><span class="p">)</span>
+
+        <span class="n">pc</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">problem_config</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">nevents</span> <span class="o">!=</span> <span class="n">pc</span><span class="o">.</span><span class="n">n_sources</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">nevents</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;Number of events and sources have to be equal or only one &#39;</span>
+                <span class="s1">&#39;event has to be used! Number if events </span><span class="si">%i</span><span class="s1"> and number of &#39;</span>
+                <span class="s1">&#39;sources: </span><span class="si">%i</span><span class="s1">!&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nevents</span><span class="p">,</span> <span class="n">pc</span><span class="o">.</span><span class="n">n_sources</span><span class="p">))</span>
+
+        <span class="c1"># Init sources</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sources</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">pc</span><span class="o">.</span><span class="n">n_sources</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">nevents</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">event</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">events</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">event</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">event</span>
+
+            <span class="n">source</span> <span class="o">=</span> \
+                <span class="n">bconfig</span><span class="o">.</span><span class="n">source_catalog</span><span class="p">[</span><span class="n">pc</span><span class="o">.</span><span class="n">source_type</span><span class="p">]</span><span class="o">.</span><span class="n">from_pyrocko_event</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+            <span class="n">source</span><span class="o">.</span><span class="n">stf</span> <span class="o">=</span> <span class="n">bconfig</span><span class="o">.</span><span class="n">stf_catalog</span><span class="p">[</span><span class="n">pc</span><span class="o">.</span><span class="n">stf_type</span><span class="p">](</span>
+                <span class="n">duration</span><span class="o">=</span><span class="n">event</span><span class="o">.</span><span class="n">duration</span><span class="p">)</span>
+
+            <span class="c1"># hardcoded inversion for hypocentral time</span>
+            <span class="k">if</span> <span class="n">source</span><span class="o">.</span><span class="n">stf</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">source</span><span class="o">.</span><span class="n">stf</span><span class="o">.</span><span class="n">anchor</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">sources</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="GeometryOptimizer"><a class="viewcode-back" href="../../api.html#models.problems.GeometryOptimizer">[docs]</a><span class="k">class</span> <span class="nc">GeometryOptimizer</span><span class="p">(</span><span class="n">SourceOptimizer</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Defines the model setup to solve for the non-linear fault geometry.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    config : :class:&#39;config.BEATconfig&#39;</span>
+<span class="sd">        Contains all the information about the model setup and optimization</span>
+<span class="sd">        boundaries, as well as the sampler parameters.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">hypers</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;... Initialising Geometry Optimizer ... </span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">GeometryOptimizer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">hypers</span><span class="p">)</span>
+
+        <span class="n">pc</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">problem_config</span>
+
+        <span class="n">dsources</span> <span class="o">=</span> <span class="n">transform_sources</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sources</span><span class="p">,</span>
+            <span class="n">pc</span><span class="o">.</span><span class="n">datatypes</span><span class="p">,</span>
+            <span class="n">pc</span><span class="o">.</span><span class="n">decimation_factors</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">datatype</span> <span class="ow">in</span> <span class="n">pc</span><span class="o">.</span><span class="n">datatypes</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="p">[</span><span class="n">datatype</span><span class="p">]</span> <span class="o">=</span> <span class="n">geometry_composite_catalog</span><span class="p">[</span><span class="n">datatype</span><span class="p">](</span>
+                <span class="n">config</span><span class="p">[</span><span class="n">datatype</span> <span class="o">+</span> <span class="s1">&#39;_config&#39;</span><span class="p">],</span>
+                <span class="n">config</span><span class="o">.</span><span class="n">project_dir</span><span class="p">,</span>
+                <span class="n">dsources</span><span class="p">[</span><span class="n">datatype</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">events</span><span class="p">,</span>
+                <span class="n">hypers</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
+
+        <span class="c1"># updating source objects with test-value in bounds</span>
+        <span class="n">tpoint</span> <span class="o">=</span> <span class="n">pc</span><span class="o">.</span><span class="n">get_test_point</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">point2sources</span><span class="p">(</span><span class="n">tpoint</span><span class="p">)</span></div>
+
+
+<span class="k">class</span> <span class="nc">InterseismicOptimizer</span><span class="p">(</span><span class="n">SourceOptimizer</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Uses the backslip-model in combination with the blockmodel to formulate an</span>
+<span class="sd">    interseismic model.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    config : :class:&#39;config.BEATconfig&#39;</span>
+<span class="sd">        Contains all the information about the model setup and optimization</span>
+<span class="sd">        boundaries, as well as the sampler parameters.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">hypers</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;... Initialising Interseismic Optimizer ... </span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">InterseismicOptimizer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">hypers</span><span class="p">)</span>
+
+        <span class="n">pc</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">problem_config</span>
+
+        <span class="k">if</span> <span class="n">pc</span><span class="o">.</span><span class="n">source_type</span> <span class="o">==</span> <span class="s1">&#39;RectangularSource&#39;</span><span class="p">:</span>
+            <span class="n">dsources</span> <span class="o">=</span> <span class="n">transform_sources</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">sources</span><span class="p">,</span>
+                <span class="n">pc</span><span class="o">.</span><span class="n">datatypes</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Interseismic Optimizer has to be used with&#39;</span>
+                            <span class="s1">&#39; RectangularSources!&#39;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">datatype</span> <span class="ow">in</span> <span class="n">pc</span><span class="o">.</span><span class="n">datatypes</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="p">[</span><span class="n">datatype</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="n">interseismic_composite_catalog</span><span class="p">[</span><span class="n">datatype</span><span class="p">](</span>
+                    <span class="n">config</span><span class="p">[</span><span class="n">datatype</span> <span class="o">+</span> <span class="s1">&#39;_config&#39;</span><span class="p">],</span>
+                    <span class="n">config</span><span class="o">.</span><span class="n">project_dir</span><span class="p">,</span>
+                    <span class="n">dsources</span><span class="p">[</span><span class="n">datatype</span><span class="p">],</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">events</span><span class="p">,</span>
+                    <span class="n">hypers</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
+
+        <span class="c1"># updating source objects with fixed values</span>
+        <span class="n">point</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_random_point</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">point2sources</span><span class="p">(</span><span class="n">point</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="DistributionOptimizer"><a class="viewcode-back" href="../../api.html#models.problems.DistributionOptimizer">[docs]</a><span class="k">class</span> <span class="nc">DistributionOptimizer</span><span class="p">(</span><span class="n">Problem</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Defines the model setup to solve the linear slip-distribution and</span>
+<span class="sd">    returns the model object.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    config : :class:&#39;config.BEATconfig&#39;</span>
+<span class="sd">        Contains all the information about the model setup and optimization</span>
+<span class="sd">        boundaries, as well as the sampler parameters.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">hypers</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;... Initialising Distribution Optimizer ... </span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">DistributionOptimizer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">hypers</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">datatype</span> <span class="ow">in</span> <span class="n">config</span><span class="o">.</span><span class="n">problem_config</span><span class="o">.</span><span class="n">datatypes</span><span class="p">:</span>
+            <span class="n">data_config</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="n">datatype</span> <span class="o">+</span> <span class="s1">&#39;_config&#39;</span><span class="p">]</span>
+
+            <span class="n">composite</span> <span class="o">=</span> <span class="n">distributer_composite_catalog</span><span class="p">[</span>
+                <span class="n">datatype</span><span class="p">](</span>
+                    <span class="n">data_config</span><span class="p">,</span>
+                    <span class="n">config</span><span class="o">.</span><span class="n">project_dir</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">events</span><span class="p">,</span>
+                    <span class="n">hypers</span><span class="p">)</span>
+
+            <span class="n">composite</span><span class="o">.</span><span class="n">set_slip_varnames</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">varnames</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="p">[</span><span class="n">datatype</span><span class="p">]</span> <span class="o">=</span> <span class="n">composite</span>
+
+        <span class="n">regularization</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">problem_config</span><span class="o">.</span><span class="n">mode_config</span><span class="o">.</span><span class="n">regularization</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">composite</span> <span class="o">=</span> <span class="n">distributer_composite_catalog</span><span class="p">[</span>
+                <span class="n">regularization</span><span class="p">](</span>
+                <span class="n">config</span><span class="o">.</span><span class="n">problem_config</span><span class="o">.</span><span class="n">mode_config</span><span class="o">.</span><span class="n">regularization_config</span><span class="p">,</span>
+                <span class="n">config</span><span class="o">.</span><span class="n">project_dir</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">events</span><span class="p">,</span>
+                <span class="n">hypers</span><span class="p">)</span>
+
+            <span class="n">composite</span><span class="o">.</span><span class="n">set_slip_varnames</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">varnames</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="p">[</span><span class="n">regularization</span><span class="p">]</span> <span class="o">=</span> <span class="n">composite</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Using &quot;</span><span class="si">%s</span><span class="s1">&quot; regularization ...&#39;</span> <span class="o">%</span> <span class="n">regularization</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
+
+<div class="viewcode-block" id="DistributionOptimizer.lsq_solution"><a class="viewcode-back" href="../../api.html#models.problems.DistributionOptimizer.lsq_solution">[docs]</a>    <span class="k">def</span> <span class="nf">lsq_solution</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">point</span><span class="p">,</span> <span class="n">plot</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns non-negtive least-squares solution for given input point.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        point : dict</span>
+<span class="sd">            in solution space</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        point with least-squares solution</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">scipy.optimize</span> <span class="k">import</span> <span class="n">nnls</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">problem_config</span><span class="o">.</span><span class="n">mode_config</span><span class="o">.</span><span class="n">regularization</span> <span class="o">!=</span> \
+                <span class="s1">&#39;laplacian&#39;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;Least-squares- solution for distributed slip is only &#39;</span>
+                <span class="s1">&#39;available with laplacian regularization!&#39;</span><span class="p">)</span>
+
+        <span class="n">lc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="p">[</span><span class="s1">&#39;laplacian&#39;</span><span class="p">]</span>
+        <span class="n">slip_varnames</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;uparr&#39;</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="n">slip_varnames</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">var</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">varnames</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s1">&#39;Distributed slip is only available for &quot;uparr&quot;,&#39;</span>
+                    <span class="s1">&#39; which was fixed in the setup!&#39;</span><span class="p">)</span>
+
+        <span class="n">Gs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">ds</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">datatype</span><span class="p">,</span> <span class="n">composite</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">datatype</span> <span class="o">==</span> <span class="s1">&#39;geodetic&#39;</span><span class="p">:</span>
+                <span class="n">crust_ind</span> <span class="o">=</span> <span class="n">composite</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">gf_config</span><span class="o">.</span><span class="n">reference_model_idx</span>
+                <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">composite</span><span class="o">.</span><span class="n">get_gflibrary_key</span><span class="p">(</span>
+                    <span class="n">crust_ind</span><span class="o">=</span><span class="n">crust_ind</span><span class="p">,</span> <span class="n">wavename</span><span class="o">=</span><span class="s1">&#39;static&#39;</span><span class="p">,</span> <span class="n">component</span><span class="o">=</span><span class="n">var</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="n">slip_varnames</span><span class="p">]</span>
+                <span class="n">Gs</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">composite</span><span class="o">.</span><span class="n">gfs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">_gfmatrix</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">])</span>
+
+                <span class="c1"># removing hierarchicals from data</span>
+                <span class="n">displacements</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">dataset</span> <span class="ow">in</span> <span class="n">composite</span><span class="o">.</span><span class="n">datasets</span><span class="p">:</span>
+                    <span class="n">displacements</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">displacement</span><span class="p">))</span>
+
+                <span class="n">displacements</span> <span class="o">=</span> <span class="n">composite</span><span class="o">.</span><span class="n">apply_corrections</span><span class="p">(</span>
+                    <span class="n">displacements</span><span class="p">,</span> <span class="n">point</span><span class="o">=</span><span class="n">point</span><span class="p">,</span> <span class="n">operation</span><span class="o">=</span><span class="s1">&#39;-&#39;</span><span class="p">)</span>
+                <span class="n">ds</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">displacements</span><span class="p">)</span>
+
+            <span class="k">elif</span> <span class="n">datatype</span> <span class="o">==</span> <span class="s1">&#39;seismic&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="kc">False</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">wmap</span> <span class="ow">in</span> <span class="n">composite</span><span class="o">.</span><span class="n">wavemaps</span><span class="p">:</span>
+                        <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">composite</span><span class="o">.</span><span class="n">get_gflibrary_key</span><span class="p">(</span>
+                            <span class="n">crust_ind</span><span class="o">=</span><span class="n">crust_ind</span><span class="p">,</span>
+                            <span class="n">wavename</span><span class="o">=</span><span class="n">wmap</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">component</span><span class="o">=</span><span class="n">var</span><span class="p">)</span>
+                            <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="n">slip_varnames</span><span class="p">]</span>
+                        <span class="n">Gs</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+                            <span class="p">[</span><span class="n">composite</span><span class="o">.</span><span class="n">gfs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">_gfmatrix</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">])</span>
+                        <span class="n">ds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">wmap</span><span class="o">.</span><span class="n">_prepared_data</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">Gs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;No Greens Function matrix available!&#39;</span>
+                <span class="s1">&#39; (needs geodetic datatype!)&#39;</span><span class="p">)</span>
+
+        <span class="n">G</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">Gs</span><span class="p">)</span>
+        <span class="n">D</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">lc</span><span class="o">.</span><span class="n">smoothing_op</span> <span class="k">for</span> <span class="n">sv</span> <span class="ow">in</span> <span class="n">slip_varnames</span><span class="p">])</span> <span class="o">*</span> \
+            <span class="n">point</span><span class="p">[</span><span class="n">bconfig</span><span class="o">.</span><span class="n">hyper_name_laplacian</span><span class="p">]</span> <span class="o">**</span> <span class="mf">2.</span>
+
+        <span class="n">dzero</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">D</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">tconfig</span><span class="o">.</span><span class="n">floatX</span><span class="p">)</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">G</span><span class="p">,</span> <span class="n">D</span><span class="p">])</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span><span class="n">ds</span> <span class="o">+</span> <span class="p">[</span><span class="n">dzero</span><span class="p">])</span>
+
+        <span class="c1"># m, rmse, rankA, singularsA =  num.linalg.lstsq(A.T, d, rcond=None)</span>
+        <span class="n">m</span><span class="p">,</span> <span class="n">res</span> <span class="o">=</span> <span class="n">nnls</span><span class="p">(</span><span class="n">A</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+        <span class="n">npatches</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">problem_config</span><span class="o">.</span><span class="n">mode_config</span><span class="o">.</span><span class="n">npatches</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">var</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">slip_varnames</span><span class="p">):</span>
+            <span class="n">point</span><span class="p">[</span><span class="n">var</span><span class="p">]</span> <span class="o">=</span> <span class="n">m</span><span class="p">[</span><span class="n">i</span> <span class="o">*</span> <span class="n">npatches</span><span class="p">:</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">npatches</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">plot</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">beat.plotting</span> <span class="k">import</span> <span class="n">source_geometry</span>
+            <span class="n">gc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="p">[</span><span class="s1">&#39;geodetic&#39;</span><span class="p">]</span>
+            <span class="n">fault</span> <span class="o">=</span> <span class="n">gc</span><span class="o">.</span><span class="n">load_fault_geometry</span><span class="p">()</span>
+            <span class="n">source_geometry</span><span class="p">(</span>
+                <span class="n">fault</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">fault</span><span class="o">.</span><span class="n">iter_subfaults</span><span class="p">()),</span> <span class="n">event</span><span class="o">=</span><span class="n">gc</span><span class="o">.</span><span class="n">event</span><span class="p">,</span>
+                <span class="n">values</span><span class="o">=</span><span class="n">point</span><span class="p">[</span><span class="n">slip_varnames</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>
+                <span class="n">title</span><span class="o">=</span><span class="s1">&#39;slip [m]&#39;</span><span class="p">,</span> <span class="n">datasets</span><span class="o">=</span><span class="n">gc</span><span class="o">.</span><span class="n">datasets</span><span class="p">)</span>
+
+        <span class="n">point</span><span class="p">[</span><span class="s1">&#39;uperp&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">dzero</span>
+        <span class="k">return</span> <span class="n">point</span></div></div>
+
+
+<span class="n">problem_modes</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">bconfig</span><span class="o">.</span><span class="n">modes_catalog</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+<span class="n">problem_catalog</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="n">problem_modes</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span> <span class="n">GeometryOptimizer</span><span class="p">,</span>
+    <span class="n">problem_modes</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span> <span class="n">DistributionOptimizer</span><span class="p">,</span>
+    <span class="n">problem_modes</span><span class="p">[</span><span class="mi">2</span><span class="p">]:</span> <span class="n">InterseismicOptimizer</span><span class="p">}</span>
+
+
+<div class="viewcode-block" id="load_model"><a class="viewcode-back" href="../../api.html#models.problems.load_model">[docs]</a><span class="k">def</span> <span class="nf">load_model</span><span class="p">(</span><span class="n">project_dir</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">hypers</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">build</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Load config from project directory and return BEAT problem including model.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    project_dir : string</span>
+<span class="sd">        path to beat model directory</span>
+<span class="sd">    mode : string</span>
+<span class="sd">        problem name to be loaded</span>
+<span class="sd">    hypers : boolean</span>
+<span class="sd">        flag to return hyper parameter estimation model instead of main model.</span>
+<span class="sd">    build : boolean</span>
+<span class="sd">        flag to build models</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    problem : :class:`Problem`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">config</span> <span class="o">=</span> <span class="n">bconfig</span><span class="o">.</span><span class="n">load_config</span><span class="p">(</span><span class="n">project_dir</span><span class="p">,</span> <span class="n">mode</span><span class="p">)</span>
+
+    <span class="n">pc</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">problem_config</span>
+
+    <span class="k">if</span> <span class="n">hypers</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">pc</span><span class="o">.</span><span class="n">hyperparameters</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s1">&#39;No hyperparameters specified!&#39;</span>
+            <span class="s1">&#39; option --hypers not applicable&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">pc</span><span class="o">.</span><span class="n">mode</span> <span class="ow">in</span> <span class="n">problem_catalog</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="n">problem</span> <span class="o">=</span> <span class="n">problem_catalog</span><span class="p">[</span><span class="n">pc</span><span class="o">.</span><span class="n">mode</span><span class="p">](</span><span class="n">config</span><span class="p">,</span> <span class="n">hypers</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;Modeling problem </span><span class="si">%s</span><span class="s1"> not supported&#39;</span> <span class="o">%</span> <span class="n">pc</span><span class="o">.</span><span class="n">mode</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Model not supported&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">build</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">hypers</span><span class="p">:</span>
+            <span class="n">problem</span><span class="o">.</span><span class="n">built_hyper_model</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">problem</span><span class="o">.</span><span class="n">built_model</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">problem</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="../../index.html">Table Of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../updating.html">Updating beat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/index.html">Getting started with BEAT</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

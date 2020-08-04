@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>interseismic &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="../_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="../_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="../index.html">beat 1.0 documentation</a> &#187;
+          </li>
+            <li><a href="index.html" accesskey="U">Module code</a> &#187;</li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for interseismic</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Module for interseismic models.</span>
+
+<span class="sd">Block-backslip model</span>
+<span class="sd">--------------------</span>
+<span class="sd">The fault is assumed to be locked above a certain depth &quot;locking_depth&quot; and</span>
+<span class="sd">it is creeping with the rate of the defined plate- which is handled as a</span>
+<span class="sd">rigid block.</span>
+
+<span class="sd">STILL EXPERIMENTAL!</span>
+
+<span class="sd">References</span>
+<span class="sd">==========</span>
+<span class="sd">Savage &amp; Prescott 1978</span>
+<span class="sd">Metzger et al. 2011</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">beat</span> <span class="k">import</span> <span class="n">utility</span>
+<span class="kn">from</span> <span class="nn">beat.heart</span> <span class="k">import</span> <span class="n">geo_synthetics</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">num</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+
+<span class="kn">from</span> <span class="nn">pyrocko.orthodrome</span> <span class="k">import</span> <span class="n">latlon_to_ne_numpy</span><span class="p">,</span> <span class="n">latlon_to_xyz</span><span class="p">,</span> <span class="n">earthradius</span>
+<span class="kn">from</span> <span class="nn">pyrocko.gf</span> <span class="k">import</span> <span class="n">RectangularSource</span> <span class="k">as</span> <span class="n">RS</span>
+
+<span class="kn">from</span> <span class="nn">matplotlib.path</span> <span class="k">import</span> <span class="n">Path</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;interseismic&#39;</span><span class="p">)</span>
+
+<span class="n">km</span> <span class="o">=</span> <span class="mf">1000.</span>
+<span class="n">d2r</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mf">180.</span>
+<span class="n">r2d</span> <span class="o">=</span> <span class="mf">180.</span> <span class="o">/</span> <span class="n">num</span><span class="o">.</span><span class="n">pi</span>
+
+<span class="n">non_source</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="s1">&#39;amplitude&#39;</span><span class="p">,</span> <span class="s1">&#39;azimuth&#39;</span><span class="p">,</span> <span class="s1">&#39;locking_depth&#39;</span><span class="p">])</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;geo_backslip_synthetics&#39;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">block_mask</span><span class="p">(</span><span class="n">easts</span><span class="p">,</span> <span class="n">norths</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">east_ref</span><span class="p">,</span> <span class="n">north_ref</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Determine stable and moving observation points dependend on the input</span>
+<span class="sd">    fault orientation.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    easts : :class:`numpy.ndarray`</span>
+<span class="sd">        east - local coordinates [m] of observations</span>
+<span class="sd">    norths : :class:`numpy.ndarray`</span>
+<span class="sd">        north - local coordinates [m] of observations</span>
+<span class="sd">    sources : list</span>
+<span class="sd">        of :class:`RectangularSource`</span>
+<span class="sd">    east_ref : float</span>
+<span class="sd">        east local coordinate [m] of stable reference</span>
+<span class="sd">    north_ref : float</span>
+<span class="sd">        north local coordinate [m] of stable reference</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.ndarray` with zeros at stable points, ones at moving points</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">get_vertex</span><span class="p">(</span><span class="n">outlines</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">):</span>
+        <span class="n">f1</span> <span class="o">=</span> <span class="n">outlines</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">f2</span> <span class="o">=</span> <span class="n">outlines</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">f1</span><span class="p">,</span> <span class="n">f2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">utility</span><span class="o">.</span><span class="n">line_intersect</span><span class="p">(</span><span class="n">f1</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">f1</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="n">f2</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">f2</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:])</span>
+
+    <span class="n">tol</span> <span class="o">=</span> <span class="mf">2.</span> <span class="o">*</span> <span class="n">km</span>
+
+    <span class="n">Eline</span> <span class="o">=</span> <span class="n">RS</span><span class="p">(</span>
+        <span class="n">east_shift</span><span class="o">=</span><span class="n">easts</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">+</span> <span class="n">tol</span><span class="p">,</span> <span class="n">north_shift</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span>
+        <span class="n">strike</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">dip</span><span class="o">=</span><span class="mf">90.</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="mi">1</span> <span class="o">*</span> <span class="n">km</span><span class="p">)</span>
+    <span class="n">Nline</span> <span class="o">=</span> <span class="n">RS</span><span class="p">(</span>
+        <span class="n">east_shift</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">north_shift</span><span class="o">=</span><span class="n">norths</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">+</span> <span class="n">tol</span><span class="p">,</span>
+        <span class="n">strike</span><span class="o">=</span><span class="mi">90</span><span class="p">,</span> <span class="n">dip</span><span class="o">=</span><span class="mf">90.</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="mi">1</span> <span class="o">*</span> <span class="n">km</span><span class="p">)</span>
+    <span class="n">Sline</span> <span class="o">=</span> <span class="n">RS</span><span class="p">(</span>
+        <span class="n">east_shift</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">north_shift</span><span class="o">=</span><span class="n">norths</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">-</span> <span class="n">tol</span><span class="p">,</span>
+        <span class="n">strike</span><span class="o">=</span><span class="mi">90</span><span class="p">,</span> <span class="n">dip</span><span class="o">=</span><span class="mf">90.</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="mi">1</span> <span class="o">*</span> <span class="n">km</span><span class="p">)</span>
+
+    <span class="n">frame</span> <span class="o">=</span> <span class="p">[</span><span class="n">Nline</span><span class="p">,</span> <span class="n">Eline</span><span class="p">,</span> <span class="n">Sline</span><span class="p">]</span>
+
+    <span class="c1"># collect frame lines</span>
+    <span class="n">outlines</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">source</span> <span class="ow">in</span> <span class="n">sources</span> <span class="o">+</span> <span class="n">frame</span><span class="p">:</span>
+        <span class="n">outline</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">outline</span><span class="p">(</span><span class="n">cs</span><span class="o">=</span><span class="s1">&#39;xy&#39;</span><span class="p">)</span>
+        <span class="n">outlines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">utility</span><span class="o">.</span><span class="n">swap_columns</span><span class="p">(</span><span class="n">outline</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">,</span> <span class="p">:])</span>
+
+    <span class="c1"># get polygon vertices</span>
+    <span class="n">poly_vertices</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">outlines</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">poly_vertices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">get_vertex</span><span class="p">(</span><span class="n">outlines</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">poly_vertices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">get_vertex</span><span class="p">(</span><span class="n">outlines</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="n">poly_vertices</span><span class="p">,</span> <span class="n">outlines</span><span class="p">)</span>
+    <span class="n">polygon</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">poly_vertices</span><span class="p">),</span> <span class="n">closed</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">ens</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">easts</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">norths</span><span class="o">.</span><span class="n">flatten</span><span class="p">()])</span><span class="o">.</span><span class="n">T</span>
+    <span class="n">ref_en</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">east_ref</span><span class="p">,</span> <span class="n">north_ref</span><span class="p">])</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">ens</span><span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">polygon</span><span class="o">.</span><span class="n">contains_points</span><span class="p">(</span><span class="n">ens</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">polygon</span><span class="o">.</span><span class="n">contains_point</span><span class="p">(</span><span class="n">ref_en</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">mask</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">logical_not</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">block_geometry</span><span class="p">(</span><span class="n">lons</span><span class="p">,</span> <span class="n">lats</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">reference</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Construct block geometry determine stable and moving parts dependend</span>
+<span class="sd">    on the reference location.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    lons : :class:`num.ndarray`</span>
+<span class="sd">        Longitudes [deg] of observation points</span>
+<span class="sd">    lats : :class:`num.ndarray`</span>
+<span class="sd">        Latitudes [deg] of observation points</span>
+<span class="sd">    sources : list</span>
+<span class="sd">        of RectangularFault objects</span>
+<span class="sd">    reference : :class:`heart.ReferenceLocation`</span>
+<span class="sd">        reference location that determines the stable block</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`num.ndarray`</span>
+<span class="sd">        mask with zeros/ones for stable/moving observation points, respectively</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">norths</span><span class="p">,</span> <span class="n">easts</span> <span class="o">=</span> <span class="n">latlon_to_ne_numpy</span><span class="p">(</span>
+        <span class="n">reference</span><span class="o">.</span><span class="n">lat</span><span class="p">,</span> <span class="n">reference</span><span class="o">.</span><span class="n">lon</span><span class="p">,</span> <span class="n">lats</span><span class="p">,</span> <span class="n">lons</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">block_mask</span><span class="p">(</span><span class="n">easts</span><span class="p">,</span> <span class="n">norths</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">east_ref</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">north_ref</span><span class="o">=</span><span class="mf">0.</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">block_movement</span><span class="p">(</span><span class="n">bmask</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">azimuth</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get block movements. Assumes one side of the model stable, therefore</span>
+<span class="sd">    the moving side is moving 2 times the given amplitude.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    bmask : :class:`numpy.ndarray`</span>
+<span class="sd">        masked block determining stable and moving observation points</span>
+<span class="sd">    amplitude : float</span>
+<span class="sd">        slip [m] of the moving block</span>
+<span class="sd">    azimuth : float</span>
+<span class="sd">        azimuth-angle[deg] ergo direction of moving block towards North</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.ndarray`</span>
+<span class="sd">         (n x 3) [North, East, Down] displacements [m]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">tmp</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span>
+        <span class="n">bmask</span> <span class="o">*</span> <span class="mf">2.</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">amplitude</span><span class="p">),</span> <span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="n">bmask</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">3</span><span class="p">))</span>
+    <span class="n">sv</span> <span class="o">=</span> <span class="n">utility</span><span class="o">.</span><span class="n">strike_vector</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">azimuth</span><span class="p">),</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;NEZ&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">tmp</span> <span class="o">*</span> <span class="n">sv</span>
+
+
+<span class="k">def</span> <span class="nf">geo_block_synthetics</span><span class="p">(</span><span class="n">lons</span><span class="p">,</span> <span class="n">lats</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">azimuth</span><span class="p">,</span> <span class="n">reference</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Block model: forward model for synthetic displacements(n,e,d) [m] caused by</span>
+<span class="sd">    a rigid moving block defined by the bounding geometry of rectangular</span>
+<span class="sd">    faults. The reference location determines the stable regions.</span>
+<span class="sd">    The amplitude and azimuth determines the amount and direction of the</span>
+<span class="sd">    moving block.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    lons : :class:`num.ndarray`</span>
+<span class="sd">        Longitudes [deg] of observation points</span>
+<span class="sd">    lats : :class:`num.ndarray`</span>
+<span class="sd">        Latitudes [deg] of observation points</span>
+<span class="sd">    sources : list</span>
+<span class="sd">        of RectangularFault objects</span>
+<span class="sd">    amplitude : float</span>
+<span class="sd">        slip [m] of the moving block</span>
+<span class="sd">    azimuth : float</span>
+<span class="sd">        azimuth-angle[deg] ergo direction of moving block towards North</span>
+<span class="sd">    reference : :class:`heart.ReferenceLocation`</span>
+<span class="sd">        reference location that determines the stable block</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.ndarray`</span>
+<span class="sd">         (n x 3) [North, East, Down] displacements [m]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">bmask</span> <span class="o">=</span> <span class="n">block_geometry</span><span class="p">(</span><span class="n">lons</span><span class="p">,</span> <span class="n">lats</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">reference</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">block_movement</span><span class="p">(</span><span class="n">bmask</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">azimuth</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">backslip_params</span><span class="p">(</span><span class="n">azimuth</span><span class="p">,</span> <span class="n">strike</span><span class="p">,</span> <span class="n">dip</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">locking_depth</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Transforms the interseismic blockmodel parameters to fault input parameters</span>
+<span class="sd">    for the backslip model.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    azimuth : float</span>
+<span class="sd">        azimuth [deg] of the block-motion towards the North</span>
+<span class="sd">    strike : float</span>
+<span class="sd">        strike-angle[deg] of the backslipping fault</span>
+<span class="sd">    dip : float</span>
+<span class="sd">        dip-angle[deg] of the back-slipping fault</span>
+<span class="sd">    amplitude : float</span>
+<span class="sd">        slip rate of the blockmodel [m/yr]</span>
+<span class="sd">    locking_depth : float</span>
+<span class="sd">        locking depth [km] of the fault</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict of parameters for the back-slipping RectangularSource</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">dip</span> <span class="o">==</span> <span class="mf">0.</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Dip must not be zero!&#39;</span><span class="p">)</span>
+
+    <span class="n">az_vec</span> <span class="o">=</span> <span class="n">utility</span><span class="o">.</span><span class="n">strike_vector</span><span class="p">(</span><span class="n">azimuth</span><span class="p">)</span>
+    <span class="n">strike_vec</span> <span class="o">=</span> <span class="n">utility</span><span class="o">.</span><span class="n">strike_vector</span><span class="p">(</span><span class="n">strike</span><span class="p">)</span>
+    <span class="n">alpha</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">arccos</span><span class="p">(</span><span class="n">az_vec</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">strike_vec</span><span class="p">))</span>
+    <span class="n">alphad</span> <span class="o">=</span> <span class="n">alpha</span> <span class="o">*</span> <span class="n">r2d</span>
+
+    <span class="n">sdip</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">dip</span> <span class="o">*</span> <span class="n">d2r</span><span class="p">)</span>
+
+    <span class="c1"># assuming dip-slip is zero --&gt; strike slip = slip</span>
+    <span class="n">slip</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">amplitude</span> <span class="o">*</span> <span class="n">num</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">alpha</span><span class="p">))</span>
+    <span class="n">opening</span> <span class="o">=</span> <span class="o">-</span><span class="n">amplitude</span> <span class="o">*</span> <span class="n">num</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">alpha</span><span class="p">)</span> <span class="o">*</span> <span class="n">sdip</span>
+
+    <span class="k">if</span> <span class="n">alphad</span> <span class="o">&lt;</span> <span class="mf">90.</span> <span class="ow">and</span> <span class="n">alphad</span> <span class="o">&gt;=</span> <span class="mf">0.</span><span class="p">:</span>
+        <span class="n">rake</span> <span class="o">=</span> <span class="mf">0.</span>
+    <span class="k">elif</span> <span class="n">alphad</span> <span class="o">&gt;=</span> <span class="mf">90.</span> <span class="ow">and</span> <span class="n">alphad</span> <span class="o">&lt;=</span> <span class="mf">180.</span><span class="p">:</span>
+        <span class="n">rake</span> <span class="o">=</span> <span class="mf">180.</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;Angle between vectors inconsistent!&#39;</span><span class="p">)</span>
+
+    <span class="n">width</span> <span class="o">=</span> <span class="n">locking_depth</span> <span class="o">*</span> <span class="n">km</span> <span class="o">/</span> <span class="n">sdip</span>
+
+    <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span>
+        <span class="n">slip</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">slip</span><span class="p">),</span> <span class="n">opening</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">opening</span><span class="p">),</span> <span class="n">width</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">width</span><span class="p">),</span>
+        <span class="n">depth</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">rake</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">rake</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="geo_backslip_synthetics"><a class="viewcode-back" href="../api.html#interseismic.geo_backslip_synthetics">[docs]</a><span class="k">def</span> <span class="nf">geo_backslip_synthetics</span><span class="p">(</span>
+    <span class="n">engine</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">lons</span><span class="p">,</span> <span class="n">lats</span><span class="p">,</span> <span class="n">reference</span><span class="p">,</span>
+    <span class="n">amplitude</span><span class="p">,</span> <span class="n">azimuth</span><span class="p">,</span> <span class="n">locking_depth</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Interseismic backslip model: forward model for synthetic</span>
+<span class="sd">    displacements(n,e,d) [m] caused by a rigid moving block defined by the</span>
+<span class="sd">    bounding geometry of rectangular faults. The reference location determines</span>
+<span class="sd">    the stable regions. The amplitude and azimuth determines the amount and</span>
+<span class="sd">    direction of the moving block.</span>
+<span class="sd">    Based on this block-movement the upper part of the crust that is not locked</span>
+<span class="sd">    is assumed to slip back. Thus the final synthetics are the superposition</span>
+<span class="sd">    of the block-movement and the backslip.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`</span>
+<span class="sd">    sources : list</span>
+<span class="sd">        of :class:`pyrocko.gf.seismosizer.RectangularSource`</span>
+<span class="sd">        Sources to calculate synthetics for</span>
+<span class="sd">    targets : list</span>
+<span class="sd">        of :class:`pyrocko.gf.targets.StaticTarget`</span>
+<span class="sd">    lons : list of floats, or :class:`numpy.ndarray`</span>
+<span class="sd">        longitudes [deg] of observation points</span>
+<span class="sd">    lats : list of floats, or :class:`numpy.ndarray`</span>
+<span class="sd">        latitudes [deg] of observation points</span>
+<span class="sd">    amplitude : float</span>
+<span class="sd">        slip [m] of the moving block</span>
+<span class="sd">    azimuth : float</span>
+<span class="sd">        azimuth-angle[deg] ergo direction of moving block towards North</span>
+<span class="sd">    locking_depth : :class:`numpy.ndarray`</span>
+<span class="sd">        locking_depth [km] of the fault(s) below there is no movement</span>
+<span class="sd">    reference : :class:`heart.ReferenceLocation`</span>
+<span class="sd">        reference location that determines the stable block</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.ndarray`</span>
+<span class="sd">         (n x 3) [North, East, Down] displacements [m]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">disp_block</span> <span class="o">=</span> <span class="n">geo_block_synthetics</span><span class="p">(</span>
+        <span class="n">lons</span><span class="p">,</span> <span class="n">lats</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">azimuth</span><span class="p">,</span> <span class="n">reference</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">source</span><span class="p">,</span> <span class="n">ld</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">sources</span><span class="p">,</span> <span class="n">locking_depth</span><span class="p">):</span>
+        <span class="n">source_params</span> <span class="o">=</span> <span class="n">backslip_params</span><span class="p">(</span>
+            <span class="n">azimuth</span><span class="o">=</span><span class="n">azimuth</span><span class="p">,</span> <span class="n">amplitude</span><span class="o">=</span><span class="n">amplitude</span><span class="p">,</span> <span class="n">locking_depth</span><span class="o">=</span><span class="n">ld</span><span class="p">,</span>
+            <span class="n">strike</span><span class="o">=</span><span class="n">source</span><span class="o">.</span><span class="n">strike</span><span class="p">,</span> <span class="n">dip</span><span class="o">=</span><span class="n">source</span><span class="o">.</span><span class="n">dip</span><span class="p">)</span>
+        <span class="n">source</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="o">**</span><span class="n">source_params</span><span class="p">)</span>
+
+    <span class="n">disp_block</span> <span class="o">+=</span> <span class="n">geo_synthetics</span><span class="p">(</span>
+        <span class="n">engine</span><span class="o">=</span><span class="n">engine</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="n">targets</span><span class="p">,</span> <span class="n">sources</span><span class="o">=</span><span class="n">sources</span><span class="p">,</span>
+        <span class="n">outmode</span><span class="o">=</span><span class="s1">&#39;stacked_array&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">disp_block</span></div>
+
+
+<span class="k">def</span> <span class="nf">seperate_point</span><span class="p">(</span><span class="n">point</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Seperate point into source object related components and the rest.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">tpoint</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">point</span><span class="p">)</span>
+
+    <span class="n">interseismic_point</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="n">non_source</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">var</span> <span class="ow">in</span> <span class="n">tpoint</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">interseismic_point</span><span class="p">[</span><span class="n">var</span><span class="p">]</span> <span class="o">=</span> <span class="n">tpoint</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">var</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">tpoint</span><span class="p">,</span> <span class="n">interseismic_point</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="../index.html">Table Of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../updating.html">Updating beat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/index.html">Getting started with BEAT</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

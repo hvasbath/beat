@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Examples &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Example 1: Regional Full Moment Tensor" href="FullMT_regional.html" />
+    <link rel="prev" title="How to setup a Finite Fault Inference" href="../getting_started/ffi_setup.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="../_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="../_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="../index.html">beat 1.0 documentation</a> &#187;
+          </li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="examples">
+<h1>Examples<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h1>
+<p>To get familiar with the basic functionality of BEAT we provide scenarios that can be followed step by step.
+The examples are located in the directory:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span><span class="o">/</span><span class="n">data</span><span class="o">/</span><span class="n">examples</span>
+</pre></div>
+</div>
+<p>In the following tutorials we will use synthetic example data.</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="FullMT_regional.html">Example 1: Regional Full Moment Tensor</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="FullMT_regional.html#clone-project">Clone project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FullMT_regional.html#calculate-greens-functions">Calculate Greens Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FullMT_regional.html#data-windowing-and-optimization-setup">Data windowing and optimization setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FullMT_regional.html#sample-the-solution-space">Sample the solution space</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FullMT_regional.html#summarize-the-results">Summarize the results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FullMT_regional.html#plotting">Plotting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FullMT_regional.html#seismic-noise-estimation">Seismic noise estimation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FullMT_regional.html#clone-setup-into-new-project">Clone setup into new project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FullMT_regional.html#references">References</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<p>In the following examples we will use real data of the 2009 L’Aquila earthquake.</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="dc_teleseismic.html">Example 2: Teleseismic Double Couple</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="dc_teleseismic.html#clone-project">Clone project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dc_teleseismic.html#download-greens-functions">Download Greens Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dc_teleseismic.html#how-to-convert-green-s-mill-store-to-beat-format">How to convert Green’s Mill store to beat format</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dc_teleseismic.html#data-windowing-and-optimization-setup">Data windowing and optimization setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dc_teleseismic.html#sample-the-solution-space">Sample the solution space</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dc_teleseismic.html#summarize-the-results">Summarize the results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dc_teleseismic.html#plotting">Plotting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dc_teleseismic.html#clone-setup-into-new-project">Clone setup into new project</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="Rectangular.html">Example 3: Rectangular source</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="Rectangular.html#clone-project">Clone project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Rectangular.html#calculate-greens-functions">Calculate Greens Functions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="Rectangular.html#geodetic">Geodetic</a></li>
+<li class="toctree-l3"><a class="reference internal" href="Rectangular.html#seismic">Seismic</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="Rectangular.html#optimization-setup">Optimization setup</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="Rectangular.html#datatype-specific-setup-options">Datatype specific setup options</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="Rectangular.html#sample-the-solution-space">Sample the solution space</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Rectangular.html#restarting-sampling">Restarting sampling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Rectangular.html#summarize-and-plotting">Summarize and plotting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Rectangular.html#references">References</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="FFI_static.html">Example 4: Static finite-fault estimation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="FFI_static.html#init">Init</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FFI_static.html#calculate-greens-functions">Calculate Greens Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FFI_static.html#optimization-setup">Optimization setup</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="FFI_static.html#hierarchicals">Hierarchicals</a></li>
+<li class="toctree-l3"><a class="reference internal" href="FFI_static.html#priors">Priors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="FFI_static.html#regularization">Regularization</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="FFI_static.html#sample-the-solution-space">Sample the solution space</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="FFI_static.html#markov-chain-initialization">Markov Chain initialization</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="FFI_static.html#summarize-and-plotting">Summarize and plotting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FFI_static.html#references">References</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="FFI_kinematic.html">Example 5: Kinematic finite-fault estimation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="FFI_kinematic.html#clone-config">Clone config</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FFI_kinematic.html#import-results">Import results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FFI_kinematic.html#calculate-green-s-functions">Calculate Green’s Functions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="FFI_kinematic.html#elementary-gfs">Elementary GFs</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="FFI_kinematic.html#data-windowing">Data windowing</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="FFI_kinematic.html#gf-library">GF Library</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="FFI_kinematic.html#sample-the-solution-space">Sample the solution space</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="FFI_kinematic.html#markov-chain-initialization">Markov Chain initialization</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="FFI_kinematic.html#summarize-and-plotting">Summarize and plotting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FFI_kinematic.html#animation">Animation</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="../index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../updating.html">Updating beat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/index.html">Getting started with BEAT</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Examples</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="FullMT_regional.html">Example 1: Regional Full Moment Tensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dc_teleseismic.html">Example 2: Teleseismic Double Couple</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Rectangular.html">Example 3: Rectangular source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FFI_static.html">Example 4: Static finite-fault estimation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FFI_kinematic.html">Example 5: Kinematic finite-fault estimation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="FullMT_regional.html" title="Example 1: Regional Full Moment Tensor"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="../getting_started/ffi_setup.html" title="How to setup a Finite Fault Inference"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

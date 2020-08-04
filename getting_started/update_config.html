@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>How to update the configuration files &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Sampling Backends" href="backends.html" />
+    <link rel="prev" title="Import Data" href="import_data.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="../_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="../_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="../index.html">beat 1.0 documentation</a> &#187;
+          </li>
+            <li><a href="index.html" accesskey="U">Getting started with BEAT</a> &#187;</li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="how-to-update-the-configuration-files">
+<h1>How to update the configuration files<a class="headerlink" href="#how-to-update-the-configuration-files" title="Permalink to this headline">¶</a></h1>
+<p>In the course of development in BEAT it happened and may happen in the future that
+the structure in the configuration file changes. Thus after a code base upgrade it may happen that
+older configuration files cannot be read anymore. The program will raise an Error with the message
+that the configuration file has to be updated and how this can be done. However, it may be of interest to know
+before the actual update what is going to change. These changes can be displayed with:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">update</span> <span class="o">&lt;</span><span class="n">project_directory</span><span class="o">&gt;</span> <span class="o">--</span><span class="n">diff</span>
+</pre></div>
+</div>
+<p>An update screen that appears may look like this.</p>
+<img alt="../_images/beat_update_cut.png" src="../_images/beat_update_cut.png" />
+<p>Where omitting the “–diff” option will update the configuration file right away.</p>
+<p>An update of the configuration file is also necessary, if some of the hierarchical parameters are affected by some changes in the configuration file. For example by enabling temporal “station_corrections” in seismic setups or enabling “fit_ramp”
+for residual ramp estimation in the InSAR data.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">update</span> <span class="o">&lt;</span><span class="n">project_directory</span><span class="o">&gt;</span> <span class="o">--</span><span class="n">diff</span> <span class="o">--</span><span class="n">parameters</span><span class="o">=</span><span class="s1">&#39;hierarchicals, hypers&#39;</span>
+</pre></div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="../index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../updating.html">Updating beat</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Getting started with BEAT</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="general.html">General</a></li>
+<li class="toctree-l2"><a class="reference internal" href="init_project.html">Initialise a new Modeling Project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="import_data.html">Import Data</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">How to update the configuration files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backends.html">Sampling Backends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="custom_gf_store.html">How to setup a Custom Greens Function Store</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ffi_setup.html">How to setup a Finite Fault Inference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="backends.html" title="Sampling Backends"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="import_data.html" title="Import Data"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

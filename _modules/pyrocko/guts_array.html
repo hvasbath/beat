@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>pyrocko.guts_array &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="../../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="../../_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="../../_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="../../index.html">beat 1.0 documentation</a> &#187;
+          </li>
+            <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for pyrocko.guts_array</h1><div class="highlight"><pre>
+<span></span><span class="c1"># https://pyrocko.org - GPLv3</span>
+<span class="c1">#</span>
+<span class="c1"># The Pyrocko Developers, 21st Century</span>
+<span class="c1"># ---|P------/S----------~Lg----------</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">num</span>
+<span class="kn">from</span> <span class="nn">io</span> <span class="k">import</span> <span class="n">BytesIO</span>
+<span class="kn">from</span> <span class="nn">base64</span> <span class="k">import</span> <span class="n">b64decode</span><span class="p">,</span> <span class="n">b64encode</span>
+<span class="kn">import</span> <span class="nn">binascii</span>
+
+<span class="kn">from</span> <span class="nn">.guts</span> <span class="k">import</span> <span class="n">TBase</span><span class="p">,</span> <span class="n">Object</span><span class="p">,</span> <span class="n">ValidationError</span><span class="p">,</span> <span class="n">literal</span><span class="p">,</span> <span class="n">newstr</span>
+
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">unicode</span>
+<span class="k">except</span> <span class="ne">NameError</span><span class="p">:</span>
+    <span class="n">unicode</span> <span class="o">=</span> <span class="nb">str</span>
+
+
+<span class="n">restricted_dtype_map</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="n">num</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="s1">&#39;float64&#39;</span><span class="p">):</span> <span class="s1">&#39;&lt;f8&#39;</span><span class="p">,</span>
+    <span class="n">num</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="s1">&#39;float32&#39;</span><span class="p">):</span> <span class="s1">&#39;&lt;f4&#39;</span><span class="p">,</span>
+    <span class="n">num</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="s1">&#39;int64&#39;</span><span class="p">):</span> <span class="s1">&#39;&lt;i8&#39;</span><span class="p">,</span>
+    <span class="n">num</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="s1">&#39;int32&#39;</span><span class="p">):</span> <span class="s1">&#39;&lt;i4&#39;</span><span class="p">,</span>
+    <span class="n">num</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="s1">&#39;int16&#39;</span><span class="p">):</span> <span class="s1">&#39;&lt;i2&#39;</span><span class="p">,</span>
+    <span class="n">num</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="s1">&#39;int8&#39;</span><span class="p">):</span> <span class="s1">&#39;&lt;i1&#39;</span><span class="p">}</span>
+
+<span class="n">restricted_dtype_map_rev</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+    <span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">restricted_dtype_map</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+
+
+<span class="k">def</span> <span class="nf">array_equal</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">a</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="n">b</span><span class="o">.</span><span class="n">dtype</span> \
+        <span class="ow">and</span> <span class="n">a</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">b</span><span class="o">.</span><span class="n">shape</span> \
+        <span class="ow">and</span> <span class="n">num</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">a</span> <span class="o">==</span> <span class="n">b</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">Array</span><span class="p">(</span><span class="n">Object</span><span class="p">):</span>
+
+    <span class="n">dummy_for</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">ndarray</span>
+
+    <span class="k">class</span> <span class="nc">__T</span><span class="p">(</span><span class="n">TBase</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+                <span class="bp">self</span><span class="p">,</span>
+                <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">serialize_as</span><span class="o">=</span><span class="s1">&#39;table&#39;</span><span class="p">,</span>
+                <span class="n">serialize_dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+            <span class="n">TBase</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">shape</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
+            <span class="k">assert</span> <span class="n">serialize_as</span> <span class="ow">in</span> <span class="p">(</span>
+                <span class="s1">&#39;table&#39;</span><span class="p">,</span> <span class="s1">&#39;base64&#39;</span><span class="p">,</span> <span class="s1">&#39;list&#39;</span><span class="p">,</span> <span class="s1">&#39;npy&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;base64+meta&#39;</span><span class="p">,</span> <span class="s1">&#39;base64-compat&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">serialize_as</span> <span class="o">=</span> <span class="n">serialize_as</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">serialize_dtype</span> <span class="o">=</span> <span class="n">serialize_dtype</span>
+
+        <span class="k">def</span> <span class="nf">is_default</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_cmp</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">val</span> <span class="ow">is</span> <span class="kc">None</span>
+            <span class="k">elif</span> <span class="n">val</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">array_equal</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_default_cmp</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">regularize_extra</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">newstr</span><span class="p">)):</span>
+                <span class="n">ndim</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">:</span>
+                    <span class="n">ndim</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">serialize_as</span> <span class="o">==</span> <span class="s1">&#39;table&#39;</span><span class="p">:</span>
+                    <span class="n">val</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span>
+                        <span class="n">BytesIO</span><span class="p">(</span><span class="n">val</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)),</span>
+                        <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">ndmin</span><span class="o">=</span><span class="n">ndim</span><span class="p">)</span>
+
+                <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">serialize_as</span> <span class="o">==</span> <span class="s1">&#39;base64&#39;</span><span class="p">:</span>
+                    <span class="n">data</span> <span class="o">=</span> <span class="n">b64decode</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+                    <span class="n">val</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">fromstring</span><span class="p">(</span>
+                        <span class="n">data</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">serialize_dtype</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+                <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">serialize_as</span> <span class="o">==</span> <span class="s1">&#39;base64-compat&#39;</span><span class="p">:</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">data</span> <span class="o">=</span> <span class="n">b64decode</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+                        <span class="n">val</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">fromstring</span><span class="p">(</span>
+                            <span class="n">data</span><span class="p">,</span>
+                            <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">serialize_dtype</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="n">binascii</span><span class="o">.</span><span class="n">Error</span><span class="p">:</span>
+                        <span class="n">val</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span>
+                            <span class="n">BytesIO</span><span class="p">(</span><span class="n">val</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)),</span>
+                            <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">ndmin</span><span class="o">=</span><span class="n">ndim</span><span class="p">)</span>
+
+                <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">serialize_as</span> <span class="o">==</span> <span class="s1">&#39;npy&#39;</span><span class="p">:</span>
+                    <span class="n">data</span> <span class="o">=</span> <span class="n">b64decode</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">val</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">BytesIO</span><span class="p">(</span><span class="n">data</span><span class="p">),</span> <span class="n">allow_pickle</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                        <span class="c1"># allow_pickle only available in newer NumPy</span>
+                        <span class="n">val</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">BytesIO</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
+
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">serialize_as</span> <span class="o">==</span> <span class="s1">&#39;base64+meta&#39;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">val</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">==</span> <span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="s1">&#39;shape&#39;</span><span class="p">]:</span>
+                        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+                            <span class="s1">&#39;array in format &quot;base64+meta&quot; must have keys &#39;</span>
+                            <span class="s1">&#39;&quot;data&quot;, &quot;dtype&quot;, and &quot;shape&quot;&#39;</span><span class="p">)</span>
+
+                    <span class="n">shape</span> <span class="o">=</span> <span class="n">val</span><span class="p">[</span><span class="s1">&#39;shape&#39;</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+                        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="s1">&#39;invalid shape definition&#39;</span><span class="p">)</span>
+
+                    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">shape</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                            <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="s1">&#39;invalid shape definition&#39;</span><span class="p">)</span>
+
+                    <span class="n">serialize_dtype</span> <span class="o">=</span> <span class="n">val</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">]</span>
+                    <span class="n">allowed</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">restricted_dtype_map_rev</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">serialize_dtype</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">allowed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">serialize_dtype</span><span class="p">)</span>
+
+                    <span class="k">if</span> <span class="n">serialize_dtype</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">allowed</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+                            <span class="s1">&#39;only the following dtypes are allowed: </span><span class="si">%s</span><span class="s1">&#39;</span>
+                            <span class="o">%</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">allowed</span><span class="p">)))</span>
+
+                    <span class="n">data</span> <span class="o">=</span> <span class="n">val</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">newstr</span><span class="p">)):</span>
+                        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+                            <span class="s1">&#39;data must be given as a base64 encoded string&#39;</span><span class="p">)</span>
+
+                    <span class="n">data</span> <span class="o">=</span> <span class="n">b64decode</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+                    <span class="n">dtype</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="ow">or</span> \
+                        <span class="n">restricted_dtype_map_rev</span><span class="p">[</span><span class="n">serialize_dtype</span><span class="p">]</span>
+
+                    <span class="n">val</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">fromstring</span><span class="p">(</span>
+                        <span class="n">data</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">serialize_dtype</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span>
+
+                    <span class="k">if</span> <span class="n">val</span><span class="o">.</span><span class="n">size</span> <span class="o">!=</span> <span class="n">num</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">shape</span><span class="p">):</span>
+                        <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span><span class="s1">&#39;size/shape mismatch&#39;</span><span class="p">)</span>
+
+                    <span class="n">val</span> <span class="o">=</span> <span class="n">val</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">val</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">val</span>
+
+        <span class="k">def</span> <span class="nf">validate_extra</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">num</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+                    <span class="s1">&#39;object is not of type numpy.ndarray: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">val</span><span class="p">))</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">val</span><span class="o">.</span><span class="n">dtype</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+                    <span class="s1">&#39;array not of required type: need </span><span class="si">%s</span><span class="s1">, got </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">val</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">la</span><span class="p">,</span> <span class="n">lb</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">val</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">la</span> <span class="o">!=</span> <span class="n">lb</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+                        <span class="s1">&#39;array dimension mismatch: need </span><span class="si">%i</span><span class="s1">, got </span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                            <span class="n">la</span><span class="p">,</span> <span class="n">lb</span><span class="p">))</span>
+
+                <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">val</span><span class="o">.</span><span class="n">shape</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">a</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">a</span> <span class="o">!=</span> <span class="n">b</span><span class="p">:</span>
+                            <span class="k">raise</span> <span class="n">ValidationError</span><span class="p">(</span>
+                                <span class="s1">&#39;array shape mismatch: need </span><span class="si">%s</span><span class="s1">, got: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                                    <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">val</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+
+        <span class="k">def</span> <span class="nf">to_save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">serialize_as</span> <span class="o">==</span> <span class="s1">&#39;table&#39;</span><span class="p">:</span>
+                <span class="n">out</span> <span class="o">=</span> <span class="n">BytesIO</span><span class="p">()</span>
+                <span class="n">num</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%12.7g</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">literal</span><span class="p">(</span><span class="n">out</span><span class="o">.</span><span class="n">getvalue</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">serialize_as</span> <span class="o">==</span> <span class="s1">&#39;base64&#39;</span> \
+                    <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">serialize_as</span> <span class="o">==</span> <span class="s1">&#39;base64-compat&#39;</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">val</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">serialize_dtype</span><span class="p">)</span><span class="o">.</span><span class="n">tostring</span><span class="p">()</span>
+                <span class="k">return</span> <span class="n">literal</span><span class="p">(</span><span class="n">b64encode</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">serialize_as</span> <span class="o">==</span> <span class="s1">&#39;list&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="n">num</span><span class="o">.</span><span class="n">complex</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="p">[</span><span class="nb">repr</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">val</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">val</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">serialize_as</span> <span class="o">==</span> <span class="s1">&#39;npy&#39;</span><span class="p">:</span>
+                <span class="n">out</span> <span class="o">=</span> <span class="n">BytesIO</span><span class="p">()</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">num</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="n">allow_pickle</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                    <span class="c1"># allow_pickle only available in newer NumPy</span>
+                    <span class="n">num</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+
+                <span class="k">return</span> <span class="n">literal</span><span class="p">(</span><span class="n">b64encode</span><span class="p">(</span><span class="n">out</span><span class="o">.</span><span class="n">getvalue</span><span class="p">())</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">))</span>
+
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">serialize_as</span> <span class="o">==</span> <span class="s1">&#39;base64+meta&#39;</span><span class="p">:</span>
+                <span class="n">serialize_dtype</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">serialize_dtype</span> <span class="ow">or</span> \
+                    <span class="n">restricted_dtype_map</span><span class="p">[</span><span class="n">val</span><span class="o">.</span><span class="n">dtype</span><span class="p">]</span>
+
+                <span class="n">data</span> <span class="o">=</span> <span class="n">val</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">serialize_dtype</span><span class="p">)</span><span class="o">.</span><span class="n">tostring</span><span class="p">()</span>
+
+                <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span>
+                    <span class="n">dtype</span><span class="o">=</span><span class="n">serialize_dtype</span><span class="p">,</span>
+                    <span class="n">shape</span><span class="o">=</span><span class="n">val</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+                    <span class="n">data</span><span class="o">=</span><span class="n">literal</span><span class="p">(</span><span class="n">b64encode</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)))</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Array&#39;</span><span class="p">]</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="../../index.html">Table Of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../updating.html">Updating beat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/index.html">Getting started with BEAT</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

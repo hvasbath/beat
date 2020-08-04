@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>How to setup a Custom Greens Function Store &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="How to setup a Finite Fault Inference" href="ffi_setup.html" />
+    <link rel="prev" title="Sampling Backends" href="backends.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="../_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="../_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="../index.html">beat 1.0 documentation</a> &#187;
+          </li>
+            <li><a href="index.html" accesskey="U">Getting started with BEAT</a> &#187;</li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="how-to-setup-a-custom-greens-function-store">
+<h1>How to setup a Custom Greens Function Store<a class="headerlink" href="#how-to-setup-a-custom-greens-function-store" title="Permalink to this headline">¶</a></h1>
+<p>This section covers how to generate a custom Greens Function store for seismic data at a location of choice.
+First a new model project has to be created to generate the configuration file. As we have no specific event in mind
+we skip the catalog search by not specifiying the date.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">init</span> <span class="n">Cascadia</span> <span class="o">--</span><span class="n">datatypes</span><span class="o">=</span><span class="s1">&#39;seismic&#39;</span> <span class="o">--</span><span class="n">mode</span><span class="o">=</span><span class="s1">&#39;geometry&#39;</span> <span class="o">--</span><span class="n">use_custom</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">To use the default ak135 earth-model in combination with crust2 one needs to execute above command without the ‘–use_custom’ flag.</p>
+</div>
+<p>This will create a beat project folder named ‘Cascadia’ and a configuration file ‘config_geometry.yaml’.
+In this configuration file we may now edit the reference location and the velocity model to the specific model we
+received from a colleague or found in the literature.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="n">Cascadia</span>
+<span class="n">vi</span> <span class="n">config_geometry</span><span class="o">.</span><span class="n">yaml</span>
+</pre></div>
+</div>
+<p>This will open the configuration file in the vi editor.
+In lines 4-6 we find the reference event:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>event: !pf.Event
+  lat: 0.0
+  lon: 0.0
+</pre></div>
+</div>
+<p>In lines 160-165 we find the reference location:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>reference_location: !beat.heart.ReferenceLocation
+  lat: 10.0
+  lon: 10.0
+  elevation: 0.0
+  depth: 0.0
+  station: Store_Name
+</pre></div>
+</div>
+<p>The distance between these two locations determines the center point of the grid of Greens Functions that we want to calculate.
+The following image (contributed by So-Young Baag) sketches the geometry of an example setup.</p>
+<img alt="../_images/custom_gf_store_setup.png" src="../_images/custom_gf_store_setup.png" />
+<p>For our example we set the reference location close to Vancouver, Canada as we want to study the Cascadia subduction zone.
+We ignore the ‘elevation’ and ‘depth’ attributes but we set the ‘station’ attribute, which determines the prefix of the name of the
+Greens Function store.</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>reference_location: !beat.heart.ReferenceLocation
+  lat: 49.28098
+  lon: -123.12244
+  elevation: 0.0
+  depth: 0.0
+  station: Vancouver
+</pre></div>
+</div>
+<p>The events we want to study are going to be around Vancouver island, and we set the reference event coordinates accordingly:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>event: !pf.Event
+  lat: 49.608839
+  lon: -125.647683
+</pre></div>
+</div>
+<p>So far we determined the general location of the store, but now we need to specify the spatial dimensions of the grid.
+In lines 154-158 we find the respective parameters:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">source_depth_min</span><span class="p">:</span> <span class="mf">0.0</span>
+<span class="n">source_depth_max</span><span class="p">:</span> <span class="mf">10.0</span>
+<span class="n">source_depth_spacing</span><span class="p">:</span> <span class="mf">1.0</span>
+<span class="n">source_distance_radius</span><span class="p">:</span> <span class="mf">20.0</span>
+<span class="n">source_distance_spacing</span><span class="p">:</span> <span class="mf">1.0</span>
+</pre></div>
+</div>
+<p>We are going to have stations in a distance of 500km and the events we are going to study are going to be located in a depth range of 5-40km depth so we update these values accordingly.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">source_depth_min</span><span class="p">:</span> <span class="mf">5.0</span>
+<span class="n">source_depth_max</span><span class="p">:</span> <span class="mf">40.0</span>
+<span class="n">source_depth_spacing</span><span class="p">:</span> <span class="mf">1.0</span>
+<span class="n">source_distance_radius</span><span class="p">:</span> <span class="mf">500.0</span>
+<span class="n">source_distance_spacing</span><span class="p">:</span> <span class="mf">1.0</span>
+</pre></div>
+</div>
+<p>To decide on the resolution of the grid and the sample_rate (line 167) depends on the use-case and aim of the study.
+A description of the corner points to have in mind is <a class="reference external" href="https://pyrocko.org/docs/current/apps/fomosto/tutorial.html#considerations-for-real-world-applications">here</a>
+For example for a regional Full Moment Tensor inversion we want to optimize data up to 0.2 Hz. So a source grid of 1. km step size and 1. Hz ‘sample_rate’ seems a safe way to go.
+As we are in a regional setup we use QSEIS for the calculation of the Greens Functions, which we have to specify in line 166.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">code</span><span class="p">:</span> <span class="n">qseis</span>
+</pre></div>
+</div>
+<p>In the lines 144-153 is the velocity model defined for which the Greens Functions are going to be calculated.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">custom_velocity_model</span><span class="p">:</span> <span class="o">|</span><span class="mi">2</span>
+      <span class="mf">0.</span>             <span class="mf">5.8</span>            <span class="mf">3.46</span>           <span class="mf">2.6</span>         <span class="mf">1264.</span>           <span class="mf">600.</span>
+     <span class="mf">20.</span>             <span class="mf">5.8</span>            <span class="mf">3.46</span>           <span class="mf">2.6</span>         <span class="mf">1264.</span>           <span class="mf">600.</span>
+     <span class="mf">20.</span>             <span class="mf">6.5</span>            <span class="mf">3.85</span>           <span class="mf">2.9</span>         <span class="mf">1283.</span>           <span class="mf">600.</span>
+     <span class="mf">35.</span>             <span class="mf">6.5</span>            <span class="mf">3.85</span>           <span class="mf">2.9</span>         <span class="mf">1283.</span>           <span class="mf">600.</span>
+  <span class="n">mantle</span>
+     <span class="mf">35.</span>             <span class="mf">8.04</span>           <span class="mf">4.48</span>           <span class="mf">3.58</span>        <span class="mf">1449.</span>           <span class="mf">600.</span>
+     <span class="mf">77.5</span>            <span class="mf">8.045</span>          <span class="mf">4.49</span>           <span class="mf">3.5</span>         <span class="mf">1445.</span>           <span class="mf">600.</span>
+     <span class="mf">77.5</span>            <span class="mf">8.045</span>          <span class="mf">4.49</span>           <span class="mf">3.5</span>          <span class="mf">180.6</span>           <span class="mf">75.</span>
+    <span class="mf">100.</span>             <span class="mf">8.048</span>          <span class="mf">4.495</span>          <span class="mf">3.461</span>        <span class="mf">180.3</span>           <span class="mf">75.</span>
+</pre></div>
+</div>
+<p>The columns are ‘depth’, ‘p-wave velocity’, ‘s-wave velocity’, ‘density’, ‘Qp’, ‘Qs’. Here the values may be changed to a custom velociy.
+For example if we want to add another layer (from 20-25 km depth) between 20 and 35 km depth we would write:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">custom_velocity_model</span><span class="p">:</span> <span class="o">|</span><span class="mi">2</span>
+      <span class="mf">0.</span>             <span class="mf">5.8</span>            <span class="mf">3.46</span>           <span class="mf">2.6</span>         <span class="mf">1264.</span>           <span class="mf">600.</span>
+     <span class="mf">20.</span>             <span class="mf">5.8</span>            <span class="mf">3.46</span>           <span class="mf">2.6</span>         <span class="mf">1264.</span>           <span class="mf">600.</span>
+     <span class="mf">20.</span>             <span class="mf">6.1</span>            <span class="mf">3.54</span>           <span class="mf">2.7</span>         <span class="mf">1280.</span>           <span class="mf">600.</span>
+     <span class="mf">25.</span>             <span class="mf">6.1</span>            <span class="mf">3.54</span>           <span class="mf">2.7</span>         <span class="mf">1280.</span>           <span class="mf">600.</span>
+     <span class="mf">25.</span>             <span class="mf">6.5</span>            <span class="mf">3.85</span>           <span class="mf">2.9</span>         <span class="mf">1283.</span>           <span class="mf">600.</span>
+     <span class="mf">35.</span>             <span class="mf">6.5</span>            <span class="mf">3.85</span>           <span class="mf">2.9</span>         <span class="mf">1283.</span>           <span class="mf">600.</span>
+  <span class="n">mantle</span>
+     <span class="mf">35.</span>             <span class="mf">8.04</span>           <span class="mf">4.48</span>           <span class="mf">3.58</span>        <span class="mf">1449.</span>           <span class="mf">600.</span>
+     <span class="mf">77.5</span>            <span class="mf">8.045</span>          <span class="mf">4.49</span>           <span class="mf">3.5</span>         <span class="mf">1445.</span>           <span class="mf">600.</span>
+     <span class="mf">77.5</span>            <span class="mf">8.045</span>          <span class="mf">4.49</span>           <span class="mf">3.5</span>          <span class="mf">180.6</span>           <span class="mf">75.</span>
+    <span class="mf">100.</span>             <span class="mf">8.048</span>          <span class="mf">4.495</span>          <span class="mf">3.461</span>        <span class="mf">180.3</span>           <span class="mf">75.</span>
+</pre></div>
+</div>
+<p>Below the specified depth it is going to be combined with the earth-model specified in line 141.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>In case the standard earth-model should be used rather than a custom model the ‘custom_velocity_model’ attribute may be deleted.
+For the shallow crust one may decide to use the implemented crust2 model and to remove (potential) water layers. Lines 141-143:</p>
+<div class="last highlight-default"><div class="highlight"><pre><span></span><span class="n">earth_model_name</span><span class="p">:</span> <span class="n">ak135</span><span class="o">-</span><span class="n">f</span><span class="o">-</span><span class="n">average</span><span class="o">.</span><span class="n">m</span>
+<span class="n">use_crust2</span><span class="p">:</span> <span class="n">false</span>
+<span class="n">replace_water</span><span class="p">:</span> <span class="n">false</span>
+</pre></div>
+</div>
+</div>
+<p>Then, we have to specify under line 135 ‘store_superdir’ the path to the directory where to save the GreensFunction store on disk.
+One should have in mind that for large grids with high sample-rate the stores might become several GigaBytes in size and may calculate a very long time!</p>
+<p>Lastly, we start the store calculation with:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">build_gfs</span> <span class="n">Cascadia</span> <span class="o">--</span><span class="n">execute</span> <span class="o">--</span><span class="n">datatypes</span><span class="o">=</span><span class="s1">&#39;seismic&#39;</span>
+</pre></div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="../index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../updating.html">Updating beat</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Getting started with BEAT</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="general.html">General</a></li>
+<li class="toctree-l2"><a class="reference internal" href="init_project.html">Initialise a new Modeling Project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="import_data.html">Import Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="update_config.html">How to update the configuration files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backends.html">Sampling Backends</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">How to setup a Custom Greens Function Store</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ffi_setup.html">How to setup a Finite Fault Inference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="ffi_setup.html" title="How to setup a Finite Fault Inference"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="backends.html" title="Sampling Backends"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

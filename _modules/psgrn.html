@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>psgrn &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="../_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="../_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="../index.html">beat 1.0 documentation</a> &#187;
+          </li>
+            <li><a href="index.html" accesskey="U">Module code</a> &#187;</li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for psgrn</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module got merged with the pscmp module and is now part of the pyrocko</span>
+<span class="sd">library and may be removed from the beat repository in the future.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">import</span> <span class="nn">math</span>
+
+<span class="kn">import</span> <span class="nn">signal</span>
+
+<span class="kn">from</span> <span class="nn">subprocess</span> <span class="k">import</span> <span class="n">Popen</span><span class="p">,</span> <span class="n">PIPE</span>
+<span class="kn">from</span> <span class="nn">os.path</span> <span class="k">import</span> <span class="n">join</span> <span class="k">as</span> <span class="n">pjoin</span>
+
+<span class="kn">from</span> <span class="nn">pyrocko.guts</span> <span class="k">import</span> <span class="n">Float</span><span class="p">,</span> <span class="n">Int</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Object</span><span class="p">,</span> <span class="n">String</span>
+<span class="kn">from</span> <span class="nn">pyrocko</span> <span class="k">import</span> <span class="n">cake</span>
+<span class="kn">from</span> <span class="nn">pyrocko</span> <span class="k">import</span> <span class="n">gf</span>
+
+
+<span class="n">km</span> <span class="o">=</span> <span class="mf">1000.</span>
+
+<span class="n">guts_prefix</span> <span class="o">=</span> <span class="s1">&#39;pf&#39;</span>
+
+<span class="n">Timing</span> <span class="o">=</span> <span class="n">gf</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">Timing</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;PsGrn&#39;</span><span class="p">)</span>
+
+<span class="c1"># how to call the programs</span>
+<span class="n">program_bins</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;psgrn.2008a&#39;</span><span class="p">:</span> <span class="s1">&#39;fomosto_psgrn2008a&#39;</span>
+<span class="p">}</span>
+
+<span class="n">psgrn_components</span> <span class="o">=</span> <span class="s1">&#39;ep ss ds cl&#39;</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+
+<span class="n">psgrn_displ_names</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;uz&#39;</span><span class="p">,</span> <span class="s1">&#39;ur&#39;</span><span class="p">,</span> <span class="s1">&#39;ut&#39;</span><span class="p">)</span>
+<span class="n">psgrn_stress_names</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;szz&#39;</span><span class="p">,</span> <span class="s1">&#39;srr&#39;</span><span class="p">,</span> <span class="s1">&#39;stt&#39;</span><span class="p">,</span> <span class="s1">&#39;szr&#39;</span><span class="p">,</span> <span class="s1">&#39;srt&#39;</span><span class="p">,</span> <span class="s1">&#39;stz&#39;</span><span class="p">)</span>
+<span class="n">psgrn_tilt_names</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;tr&#39;</span><span class="p">,</span> <span class="s1">&#39;tt&#39;</span><span class="p">,</span> <span class="s1">&#39;rot&#39;</span><span class="p">)</span>
+<span class="n">psgrn_gravity_names</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;gd&#39;</span><span class="p">,</span> <span class="s1">&#39;gr&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">nextpow2</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+    <span class="k">return</span> <span class="mi">2</span> <span class="o">**</span> <span class="nb">int</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">2.</span><span class="p">)))</span>
+
+
+<span class="k">def</span> <span class="nf">str_float_vals</span><span class="p">(</span><span class="n">vals</span><span class="p">):</span>
+    <span class="k">return</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%e</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">val</span> <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">vals</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">str_int_vals</span><span class="p">(</span><span class="n">vals</span><span class="p">):</span>
+    <span class="k">return</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">val</span> <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">vals</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">str_str_vals</span><span class="p">(</span><span class="n">vals</span><span class="p">):</span>
+    <span class="k">return</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;&#39;</span><span class="si">%s</span><span class="s2">&#39;&quot;</span> <span class="o">%</span> <span class="n">val</span> <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">vals</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">cake_model_to_config</span><span class="p">(</span><span class="n">mod</span><span class="p">):</span>
+    <span class="c1"># fix elasticity params here !!! todo future include properly into cake ...</span>
+    <span class="n">eta1</span> <span class="o">=</span> <span class="mf">0.</span>
+    <span class="n">eta2</span> <span class="o">=</span> <span class="mf">0.</span>
+    <span class="n">alpha</span> <span class="o">=</span> <span class="mf">1.</span>
+
+    <span class="n">k</span> <span class="o">=</span> <span class="mf">1000.</span>
+    <span class="n">srows</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">mod</span><span class="o">.</span><span class="n">to_scanlines</span><span class="p">()):</span>
+        <span class="n">depth</span><span class="p">,</span> <span class="n">vp</span><span class="p">,</span> <span class="n">vs</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">qp</span><span class="p">,</span> <span class="n">qs</span> <span class="o">=</span> <span class="n">row</span>
+        <span class="c1"># replace qs with etas = 0.</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="p">[</span><span class="n">depth</span> <span class="o">/</span> <span class="n">k</span><span class="p">,</span> <span class="n">vp</span> <span class="o">/</span> <span class="n">k</span><span class="p">,</span> <span class="n">vs</span> <span class="o">/</span> <span class="n">k</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">eta1</span><span class="p">,</span> <span class="n">eta2</span><span class="p">,</span> <span class="n">alpha</span><span class="p">]</span>
+        <span class="n">srows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%i</span><span class="s1"> </span><span class="si">%15s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">str_float_vals</span><span class="p">(</span><span class="n">row</span><span class="p">)))</span>
+
+    <span class="k">return</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">srows</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">srows</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="PsGrnSpatialSampling"><a class="viewcode-back" href="../api.html#psgrn.PsGrnSpatialSampling">[docs]</a><span class="k">class</span> <span class="nc">PsGrnSpatialSampling</span><span class="p">(</span><span class="n">Object</span><span class="p">):</span>
+    <span class="n">n_steps</span> <span class="o">=</span> <span class="n">Int</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+    <span class="n">start_distance</span> <span class="o">=</span> <span class="n">Float</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">0.</span><span class="p">)</span>    <span class="c1"># start sampling [km] from source</span>
+    <span class="n">end_distance</span> <span class="o">=</span> <span class="n">Float</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">100.</span><span class="p">)</span>    <span class="c1"># end</span>
+
+    <span class="k">def</span> <span class="nf">string_for_config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%i</span><span class="s1"> </span><span class="si">%15e</span><span class="s1"> </span><span class="si">%15e</span><span class="s1">&#39;</span> \
+            <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_steps</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_distance</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_distance</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PsGrnConfig"><a class="viewcode-back" href="../api.html#psgrn.PsGrnConfig">[docs]</a><span class="k">class</span> <span class="nc">PsGrnConfig</span><span class="p">(</span><span class="n">Object</span><span class="p">):</span>
+
+    <span class="n">psgrn_version</span> <span class="o">=</span> <span class="n">String</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="s1">&#39;2008a&#39;</span><span class="p">)</span>
+
+    <span class="n">n_snapshots</span> <span class="o">=</span> <span class="n">Int</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">max_time</span> <span class="o">=</span> <span class="n">Float</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">1.</span><span class="p">)</span>
+
+    <span class="n">observation_depth</span> <span class="o">=</span> <span class="n">Float</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">0.</span><span class="p">)</span>
+    <span class="n">distance_grid</span> <span class="o">=</span> <span class="n">PsGrnSpatialSampling</span><span class="p">(</span>
+        <span class="n">n_steps</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+        <span class="n">start_distance</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">end_distance</span><span class="o">=</span><span class="mf">50.</span><span class="p">)</span>
+    <span class="n">depth_grid</span> <span class="o">=</span> <span class="n">PsGrnSpatialSampling</span><span class="p">(</span>
+        <span class="n">n_steps</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+        <span class="n">start_distance</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">end_distance</span><span class="o">=</span><span class="mf">40.</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">items</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">inamevals</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="PsGrnConfigFull"><a class="viewcode-back" href="../api.html#psgrn.PsGrnConfigFull">[docs]</a><span class="k">class</span> <span class="nc">PsGrnConfigFull</span><span class="p">(</span><span class="n">PsGrnConfig</span><span class="p">):</span>
+
+    <span class="n">earthmodel_1d</span> <span class="o">=</span> <span class="n">gf</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">Earthmodel1D</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">optional</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">psgrn_outdir</span> <span class="o">=</span> <span class="n">String</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="s1">&#39;psgrn_green/&#39;</span><span class="p">)</span>
+
+    <span class="n">sampling_interval</span> <span class="o">=</span> <span class="n">Float</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>    <span class="c1"># 1.0 for equidistant</span>
+
+    <span class="n">sw_source_regime</span> <span class="o">=</span> <span class="n">Int</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>         <span class="c1"># 1-continental, 0-ocean</span>
+    <span class="n">sw_gravity</span> <span class="o">=</span> <span class="n">Int</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="n">accuracy_wavenumber_integration</span> <span class="o">=</span> <span class="n">Float</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mf">0.025</span><span class="p">)</span>
+
+    <span class="n">displ_filenames</span> <span class="o">=</span> <span class="n">Tuple</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">String</span><span class="o">.</span><span class="n">T</span><span class="p">(),</span> <span class="n">default</span><span class="o">=</span><span class="n">psgrn_displ_names</span><span class="p">)</span>
+    <span class="n">stress_filenames</span> <span class="o">=</span> <span class="n">Tuple</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="n">String</span><span class="o">.</span><span class="n">T</span><span class="p">(),</span> <span class="n">default</span><span class="o">=</span><span class="n">psgrn_stress_names</span><span class="p">)</span>
+    <span class="n">tilt_filenames</span> <span class="o">=</span> <span class="n">Tuple</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">String</span><span class="o">.</span><span class="n">T</span><span class="p">(),</span> <span class="n">psgrn_tilt_names</span><span class="p">)</span>
+    <span class="n">gravity_filenames</span> <span class="o">=</span> <span class="n">Tuple</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">String</span><span class="o">.</span><span class="n">T</span><span class="p">(),</span> <span class="n">psgrn_gravity_names</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">example</span><span class="p">():</span>
+        <span class="n">conf</span> <span class="o">=</span> <span class="n">PsGrnConfigFull</span><span class="p">()</span>
+        <span class="n">conf</span><span class="o">.</span><span class="n">earthmodel_1d</span> <span class="o">=</span> <span class="n">cake</span><span class="o">.</span><span class="n">load_model</span><span class="p">()</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span><span class="n">depth_max</span><span class="o">=</span><span class="mi">100</span> <span class="o">*</span> <span class="n">km</span><span class="p">)</span>
+        <span class="n">conf</span><span class="o">.</span><span class="n">psgrn_outdir</span> <span class="o">=</span> <span class="s1">&#39;TEST_psgrn_functions/&#39;</span>
+        <span class="k">return</span> <span class="n">conf</span>
+
+    <span class="k">def</span> <span class="nf">string_for_config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">earthmodel_1d</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+        <span class="n">d</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="n">model_str</span><span class="p">,</span> <span class="n">nlines</span> <span class="o">=</span> <span class="n">cake_model_to_config</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">earthmodel_1d</span><span class="p">)</span>
+        <span class="n">d</span><span class="p">[</span><span class="s1">&#39;n_model_lines&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">nlines</span>
+        <span class="n">d</span><span class="p">[</span><span class="s1">&#39;model_lines&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">model_str</span>
+
+        <span class="n">d</span><span class="p">[</span><span class="s1">&#39;str_psgrn_outdir&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;&#39;</span><span class="si">%s</span><span class="s2">&#39;&quot;</span> <span class="o">%</span> <span class="s1">&#39;./&#39;</span>
+
+        <span class="n">d</span><span class="p">[</span><span class="s1">&#39;str_displ_filenames&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">str_str_vals</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">displ_filenames</span><span class="p">)</span>
+        <span class="n">d</span><span class="p">[</span><span class="s1">&#39;str_stress_filenames&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">str_str_vals</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stress_filenames</span><span class="p">)</span>
+        <span class="n">d</span><span class="p">[</span><span class="s1">&#39;str_tilt_filenames&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">str_str_vals</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tilt_filenames</span><span class="p">)</span>
+        <span class="n">d</span><span class="p">[</span><span class="s1">&#39;str_gravity_filenames&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">str_str_vals</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gravity_filenames</span><span class="p">)</span>
+
+        <span class="n">d</span><span class="p">[</span><span class="s1">&#39;str_distance_grid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance_grid</span><span class="o">.</span><span class="n">string_for_config</span><span class="p">()</span>
+        <span class="n">d</span><span class="p">[</span><span class="s1">&#39;str_depth_grid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">depth_grid</span><span class="o">.</span><span class="n">string_for_config</span><span class="p">()</span>
+
+        <span class="n">template</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;# autogenerated PSGRN input by psgrn.py</span>
+<span class="s1">#=============================================================================</span>
+<span class="s1"># This is input file of FORTRAN77 program &quot;psgrn08a&quot; for computing responses</span>
+<span class="s1"># (Green&#39;s functions) of a multi-layered viscoelastic halfspace to point</span>
+<span class="s1"># dislocation sources buried at different depths. All results will be stored in</span>
+<span class="s1"># the given directory and provide the necessary data base for the program</span>
+<span class="s1"># &quot;pscmp07a&quot; for computing time-dependent deformation, geoid and gravity changes</span>
+<span class="s1"># induced by an earthquake with extended fault planes via linear superposition.</span>
+<span class="s1"># For more details, please read the accompanying READ.ME file.</span>
+<span class="s1">#</span>
+<span class="s1"># written by Rongjiang Wang</span>
+<span class="s1"># GeoForschungsZentrum Potsdam</span>
+<span class="s1"># e-mail: wang@gfz-potsdam.de</span>
+<span class="s1"># phone +49 331 2881209</span>
+<span class="s1"># fax +49 331 2881204</span>
+<span class="s1">#</span>
+<span class="s1"># Last modified: Potsdam, Jan, 2008</span>
+<span class="s1">#</span>
+<span class="s1">#################################################################</span>
+<span class="s1">##                                                             ##</span>
+<span class="s1">## Cylindrical coordinates (Z positive downwards!) are used.   ##</span>
+<span class="s1">##                                                             ##</span>
+<span class="s1">## If not specified otherwise, SI Unit System is used overall! ##</span>
+<span class="s1">##                                                             ##</span>
+<span class="s1">#################################################################</span>
+<span class="s1">#</span>
+<span class="s1">#------------------------------------------------------------------------------</span>
+<span class="s1">#</span>
+<span class="s1">#	PARAMETERS FOR SOURCE-OBSERVATION CONFIGURATIONS</span>
+<span class="s1">#	================================================</span>
+<span class="s1"># 1. the uniform depth of the observation points [km], switch for oceanic (0)</span>
+<span class="s1">#    or continental(1) earthquakes;</span>
+<span class="s1"># 2. number of (horizontal) observation distances (&gt; 1 and &lt;= nrmax defined in</span>
+<span class="s1">#    psgglob.h), start and end distances [km], ratio (&gt;= 1.0) between max. and</span>
+<span class="s1">#    min. sampling interval (1.0 for equidistant sampling);</span>
+<span class="s1"># 3. number of equidistant source depths (&gt;= 1 and &lt;= nzsmax defined in</span>
+<span class="s1">#    psgglob.h), start and end source depths [km];</span>
+<span class="s1">#</span>
+<span class="s1">#    r1,r2 = minimum and maximum horizontal source-observation</span>
+<span class="s1">#            distances (r2 &gt; r1).</span>
+<span class="s1">#    zs1,zs2 = minimum and maximum source depths (zs2 &gt;= zs1 &gt; 0).</span>
+<span class="s1">#</span>
+<span class="s1">#    Note that the same sampling rates dr_min and dzs will be used later by the</span>
+<span class="s1">#    program &quot;pscmp07a&quot; for discretizing the finite source planes to a 2D grid</span>
+<span class="s1">#    of point sources.</span>
+<span class="s1">#------------------------------------------------------------------------------</span>
+<span class="s1">        </span><span class="si">%(observation_depth)e</span><span class="s1">  </span><span class="si">%(sw_source_regime)i</span><span class="s1"></span>
+<span class="s1"> </span><span class="si">%(str_distance_grid)s</span><span class="s1">  </span><span class="si">%(sampling_interval)e</span><span class="s1"></span>
+<span class="s1"> </span><span class="si">%(str_depth_grid)s</span><span class="s1"></span>
+<span class="s1">#------------------------------------------------------------------------------</span>
+<span class="s1">#</span>
+<span class="s1">#	PARAMETERS FOR TIME SAMPLING</span>
+<span class="s1">#	============================</span>
+<span class="s1"># 1. number of time samples (&lt;= ntmax def. in psgglob.h) and time window [days].</span>
+<span class="s1">#</span>
+<span class="s1">#    Note that nt (&gt; 0) should be power of 2 (the fft-rule). If nt = 1, the</span>
+<span class="s1">#    coseismic (t = 0) changes will be computed; If nt = 2, the coseismic</span>
+<span class="s1">#    (t = 0) and steady-state (t -&gt; infinity) changes will be computed;</span>
+<span class="s1">#    Otherwise, time series for the given time samples will be computed.</span>
+<span class="s1">#</span>
+<span class="s1">#------------------------------------------------------------------------------</span>
+<span class="s1"> </span><span class="si">%(n_snapshots)i</span><span class="s1">    </span><span class="si">%(max_time)f</span><span class="s1"></span>
+<span class="s1">#------------------------------------------------------------------------------</span>
+<span class="s1">#</span>
+<span class="s1">#	PARAMETERS FOR WAVENUMBER INTEGRATION</span>
+<span class="s1">#	=====================================</span>
+<span class="s1"># 1. relative accuracy of the wave-number integration (suggested: 0.1 - 0.01)</span>
+<span class="s1"># 2. factor (&gt; 0 and &lt; 1) for including influence of earth&#39;s gravity on the</span>
+<span class="s1">#    deformation field (e.g. 0/1 = without / with 100percent gravity effect).</span>
+<span class="s1">#------------------------------------------------------------------------------</span>
+<span class="s1"> </span><span class="si">%(accuracy_wavenumber_integration)e</span><span class="s1"></span>
+<span class="s1"> </span><span class="si">%(sw_gravity)i</span><span class="s1"></span>
+<span class="s1">#------------------------------------------------------------------------------</span>
+<span class="s1">#</span>
+<span class="s1">#	PARAMETERS FOR OUTPUT FILES</span>
+<span class="s1">#	===========================</span>
+<span class="s1">#</span>
+<span class="s1"># 1. output directory</span>
+<span class="s1"># 2. file names for 3 displacement components (uz, ur, ut)</span>
+<span class="s1"># 3. file names for 6 stress components (szz, srr, stt, szr, srt, stz)</span>
+<span class="s1"># 4. file names for radial and tangential tilt components (as measured by a</span>
+<span class="s1">#    borehole tiltmeter), rigid rotation of horizontal plane, geoid and gravity</span>
+<span class="s1">#    changes (tr, tt, rot, gd, gr)</span>
+<span class="s1">#</span>
+<span class="s1">#    Note that all file or directory names should not be longer than 80</span>
+<span class="s1">#    characters. Directory and subdirectoy names must be separated and ended</span>
+<span class="s1">#    by / (unix) or \ (dos)! All file names should be given without extensions</span>
+<span class="s1">#    that will be appended automatically by &quot;.ep&quot; for the explosion (inflation)</span>
+<span class="s1">#    source, &quot;.ss&quot; for the strike-slip source, &quot;.ds&quot; for the dip-slip source,</span>
+<span class="s1">#    and &quot;.cl&quot; for the compensated linear vector dipole source)</span>
+<span class="s1">#</span>
+<span class="s1">#------------------------------------------------------------------------------</span>
+<span class="s1"> </span><span class="si">%(str_psgrn_outdir)s</span><span class="s1"></span>
+<span class="s1"> </span><span class="si">%(str_displ_filenames)s</span><span class="s1"></span>
+<span class="s1"> </span><span class="si">%(str_stress_filenames)s</span><span class="s1"></span>
+<span class="s1"> </span><span class="si">%(str_tilt_filenames)s</span><span class="s1"> </span><span class="si">%(str_gravity_filenames)s</span><span class="s1"></span>
+<span class="s1">#------------------------------------------------------------------------------</span>
+<span class="s1">#</span>
+<span class="s1">#	GLOBAL MODEL PARAMETERS</span>
+<span class="s1">#	=======================</span>
+<span class="s1"># 1. number of data lines of the layered model (&lt;= lmax as defined in psgglob.h)</span>
+<span class="s1">#</span>
+<span class="s1">#    The surface and the upper boundary of the half-space as well as the</span>
+<span class="s1">#    interfaces at which the viscoelastic parameters are continuous, are all</span>
+<span class="s1">#    defined by a single data line; All other interfaces, at which the</span>
+<span class="s1">#    viscoelastic parameters are discontinuous, are all defined by two data</span>
+<span class="s1">#    lines (upper-side and lower-side values). This input format could also be</span>
+<span class="s1">#    used for a graphic plot of the layered model. Layers which have different</span>
+<span class="s1">#    parameter values at top and bottom, will be treated as layers with a</span>
+<span class="s1">#    constant gradient, and will be discretised to a number of homogeneous</span>
+<span class="s1">#    sublayers. Errors due to the discretisation are limited within about</span>
+<span class="s1">#    5percent (changeable, see psgglob.h).</span>
+<span class="s1">#</span>
+<span class="s1"># 2....	parameters of the multilayered model</span>
+<span class="s1">#</span>
+<span class="s1">#    Burgers rheology (a Kelvin-Voigt body and a Maxwell body in series</span>
+<span class="s1">#    connection) for relaxation of shear modulus is implemented. No relaxation</span>
+<span class="s1">#    of compressional modulus is considered.</span>
+<span class="s1">#</span>
+<span class="s1">#    eta1  = transient viscosity (dashpot of the Kelvin-Voigt body; &lt;= 0 means</span>
+<span class="s1">#            infinity value)</span>
+<span class="s1">#    eta2  = steady-state viscosity (dashpot of the Maxwell body; &lt;= 0 means</span>
+<span class="s1">#            infinity value)</span>
+<span class="s1">#    alpha = ratio between the effective and the unrelaxed shear modulus</span>
+<span class="s1">#            = mu1/(mu1+mu2) (&gt; 0 and &lt;= 1)</span>
+<span class="s1">#</span>
+<span class="s1">#    Special cases:</span>
+<span class="s1">#        (1) Elastic: eta1 and eta2 &lt;= 0 (i.e. infinity); alpha meaningless</span>
+<span class="s1">#        (2) Maxwell body: eta1 &lt;= 0 (i.e. eta1 = infinity)</span>
+<span class="s1">#                          or alpha = 1 (i.e. mu1 = infinity)</span>
+<span class="s1">#        (3) Standard-Linear-Solid: eta2 &lt;= 0 (i.e. infinity)</span>
+<span class="s1">#------------------------------------------------------------------------------</span>
+<span class="s1"> </span><span class="si">%(n_model_lines)i</span><span class="s1">                               |int: no_model_lines;</span>
+<span class="s1">#------------------------------------------------------------------------------</span>
+<span class="s1"># no  depth[km]  vp[km/s]  vs[km/s]  rho[kg/m^3] eta1[Pa*s] eta2[Pa*s] alpha</span>
+<span class="s1">#------------------------------------------------------------------------------</span>
+<span class="si">%(model_lines)s</span><span class="s1"></span>
+<span class="s1">#=======================end of input===========================================</span>
+<span class="s1">&#39;&#39;&#39;</span>  <span class="c1"># noqa</span>
+        <span class="k">return</span> <span class="n">template</span> <span class="o">%</span> <span class="n">d</span></div>
+
+
+<span class="k">class</span> <span class="nc">PsGrnError</span><span class="p">(</span><span class="n">gf</span><span class="o">.</span><span class="n">store</span><span class="o">.</span><span class="n">StoreError</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+
+<span class="k">class</span> <span class="nc">Interrupted</span><span class="p">(</span><span class="n">gf</span><span class="o">.</span><span class="n">store</span><span class="o">.</span><span class="n">StoreError</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;Interrupted.&#39;</span>
+
+
+<span class="k">def</span> <span class="nf">remove_if_exists</span><span class="p">(</span><span class="n">fn</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">fn</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">force</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">gf</span><span class="o">.</span><span class="n">CannotCreate</span><span class="p">(</span><span class="s1">&#39;file </span><span class="si">%s</span><span class="s1"> already exists&#39;</span> <span class="o">%</span> <span class="n">fn</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">PsGrnRunner</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">outdir</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">outdir</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">outdir</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">outdir</span> <span class="o">=</span> <span class="n">outdir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
+
+        <span class="n">input_fn</span> <span class="o">=</span> <span class="n">pjoin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">outdir</span><span class="p">,</span> <span class="s1">&#39;input&#39;</span><span class="p">)</span>
+
+        <span class="n">remove_if_exists</span><span class="p">(</span><span class="n">input_fn</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="n">force</span><span class="p">)</span>
+
+        <span class="n">f</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">input_fn</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="n">input_str</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">string_for_config</span><span class="p">()</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;===== begin psgrn input =====</span><span class="se">\n</span><span class="s1">&#39;</span>
+                     <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">===== end psgrn input =====&#39;</span> <span class="o">%</span> <span class="n">input_str</span><span class="p">)</span>
+
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">input_str</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="n">program</span> <span class="o">=</span> <span class="n">program_bins</span><span class="p">[</span><span class="s1">&#39;psgrn.</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">config</span><span class="o">.</span><span class="n">psgrn_version</span><span class="p">]</span>
+
+        <span class="n">old_wd</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">()</span>
+
+        <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">outdir</span><span class="p">)</span>
+
+        <span class="n">interrupted</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">def</span> <span class="nf">signal_handler</span><span class="p">(</span><span class="n">signum</span><span class="p">,</span> <span class="n">frame</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">kill</span><span class="p">(</span><span class="n">proc</span><span class="o">.</span><span class="n">pid</span><span class="p">,</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIGTERM</span><span class="p">)</span>
+            <span class="n">interrupted</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="n">original</span> <span class="o">=</span> <span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGINT</span><span class="p">,</span> <span class="n">signal_handler</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">proc</span> <span class="o">=</span> <span class="n">Popen</span><span class="p">(</span><span class="n">program</span><span class="p">,</span> <span class="n">stdin</span><span class="o">=</span><span class="n">PIPE</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">PIPE</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">PIPE</span><span class="p">)</span>
+
+            <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="n">old_wd</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="n">PsGrnError</span><span class="p">(</span><span class="s1">&#39;could not start psgrn: &quot;</span><span class="si">%s</span><span class="s1">&quot;&#39;</span> <span class="o">%</span> <span class="n">program</span><span class="p">)</span>
+
+            <span class="p">(</span><span class="n">output_str</span><span class="p">,</span> <span class="n">error_str</span><span class="p">)</span> <span class="o">=</span> <span class="n">proc</span><span class="o">.</span><span class="n">communicate</span><span class="p">(</span><span class="s1">&#39;input</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGINT</span><span class="p">,</span> <span class="n">original</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">interrupted</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyboardInterrupt</span><span class="p">()</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;===== begin psgrn output =====</span><span class="se">\n</span><span class="s1">&#39;</span>
+                     <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">===== end psgrn output =====&#39;</span> <span class="o">%</span> <span class="n">output_str</span><span class="p">)</span>
+
+        <span class="n">errmess</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">proc</span><span class="o">.</span><span class="n">returncode</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">errmess</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="s1">&#39;psgrn had a non-zero exit state: </span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">proc</span><span class="o">.</span><span class="n">returncode</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">error_str</span><span class="p">:</span>
+            <span class="n">errmess</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;psgrn emitted something via stderr&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">output_str</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">&#39;error&#39;</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+            <span class="n">errmess</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;the string &#39;error&#39; appeared in psgrn output&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">errmess</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="n">old_wd</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">PsGrnError</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">===== begin psgrn input =====</span>
+<span class="si">%s</span><span class="s1">===== end psgrn input =====</span>
+<span class="s1">===== begin psgrn output =====</span>
+<span class="si">%s</span><span class="s1">===== end psgrn output =====</span>
+<span class="s1">===== begin psgrn error =====</span>
+<span class="si">%s</span><span class="s1">===== end psgrn error =====</span>
+<span class="si">%s</span><span class="s1"></span>
+<span class="s1">psgrn has been invoked as &quot;</span><span class="si">%s</span><span class="s1">&quot;</span>
+<span class="s1">in the directory </span><span class="si">%s</span><span class="s1">&#39;&#39;&#39;</span><span class="o">.</span><span class="n">lstrip</span><span class="p">()</span> <span class="o">%</span> <span class="p">(</span>
+                <span class="n">input_str</span><span class="p">,</span> <span class="n">output_str</span><span class="p">,</span> <span class="n">error_str</span><span class="p">,</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">errmess</span><span class="p">),</span> <span class="n">program</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">outdir</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">psgrn_output</span> <span class="o">=</span> <span class="n">output_str</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">psgrn_error</span> <span class="o">=</span> <span class="n">error_str</span>
+
+        <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="n">old_wd</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="../index.html">Table Of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../updating.html">Updating beat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/index.html">Getting started with BEAT</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

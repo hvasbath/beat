@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Example 3: Rectangular source &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Example 4: Static finite-fault estimation" href="FFI_static.html" />
+    <link rel="prev" title="Example 2: Teleseismic Double Couple" href="dc_teleseismic.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="../_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="../_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="../index.html">beat 1.0 documentation</a> &#187;
+          </li>
+            <li><a href="index.html" accesskey="U">Examples</a> &#187;</li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="example-3-rectangular-source">
+<h1>Example 3: Rectangular source<a class="headerlink" href="#example-3-rectangular-source" title="Permalink to this headline">¶</a></h1>
+<p>In this example we will explore the parameter space of a Rectangular Source <a class="reference internal" href="#okada1985" id="id1">[Okada1985]</a> for the L’aquila 2009 earthquake.
+It is up to the user to decide, which data is going to be used in the optimization, teleseismic waveforms and/or geodetic data.</p>
+<p>The geodetic data consists of two static displacements data sets from the 06.04.2009 Mw6.3 L’Aquila earthquake. The data are InSAR displacement maps from ascending
+and descending orbits.
+The data has been pre-processed with <a class="reference external" href="https://github.com/pyrocko/kite">kite</a>. For details on the use and data display we refer to the tutorial on the website.</p>
+<img alt="../_images/Laquila_asc.png" src="../_images/Laquila_asc.png" />
+<p>The seismic data consists of teleseismic waveforms of 35 stations that have been restituted to displacement, rotated to RTZ and downsampled to 2.5 Hz.</p>
+<div class="section" id="clone-project">
+<h2>Clone project<a class="headerlink" href="#clone-project" title="Permalink to this headline">¶</a></h2>
+<p>To copy the example (including the data) to a directory outside of the package source directory, please edit the ‘&amp;beat_models_path’ and depending on which datatypes you want to use in the optimization fill the datatypes argument. For both datatypes (if only selected datatypes are of interest please delete either):</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>cd /path/to/beat/data/examples/
+beat clone Laquila $beat_models_path/Laquila --datatypes=seismic,geodetic --copy_data
+</pre></div>
+</div>
+<dl class="docutils">
+<dt>This will create a BEAT project directory named ‘Laquila’ with a configuration file (config_geometry.yaml) and an example dataset.</dt>
+<dd><ul class="first last simple">
+<li>If your datatypes list included “geodetic” real Envisat InSAR data (geodetic_data.pkl) will be copied.</li>
+<li>If “seismic” was included in the datatypes list, teleseismic waveforms, real data from 35 stations will be copied to seismic_data.pkl</li>
+</ul>
+</dd>
+</dl>
+<p>Please change to your &amp;beat_models_path with:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>cd $beat_models_path
+</pre></div>
+</div>
+</div>
+<div class="section" id="calculate-greens-functions">
+<h2>Calculate Greens Functions<a class="headerlink" href="#calculate-greens-functions" title="Permalink to this headline">¶</a></h2>
+<p>We need to calculate a Greens function (GF) store, as done in <a class="reference external" href="https://hvasbath.github.io/beat/examples.html#calculate-greens-functions">Example 1</a>
+the regional Full Moment Tensor example.
+Depending on the datatypes you selected earlier you will have to calculate the Greens Functions for both or either datatypes.</p>
+<div class="section" id="geodetic">
+<h3>Geodetic<a class="headerlink" href="#geodetic" title="Permalink to this headline">¶</a></h3>
+<p>In this case we will calculate a Greens Function store that holds static displacements. For this we will make use of the PSGRN/PSCMP <a class="reference internal" href="#wang2008" id="id2">[Wang2008]</a> backend.
+You will need to install the respective executables if not done yet! Please follow this <a class="reference external" href="https://hvasbath.github.io/beat/installation.html#greens-functions">link</a> to do so.</p>
+<p>Please open $project_directory/config_geometry.yaml with any text editor (e.g. vi) and search for: store_superdir.
+The path specified here needs to be replaced with the path to where the GFs are supposed to be stored on your computer.
+This directory is referred to as the $GF_path in the rest of the text. It is strongly recommended to use a separate directory
+apart from the beat source directory. The statics Green’s function stores are not very large, but could be re-used by several projects in the
+future.</p>
+<p>In the $project_path/config_geometry.yaml under geodetic_config we find the gf_config, which holds the major parameters for GF calculation:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>gf_config: !beat.GeodeticGFConfig
+  store_superdir: $project_directory/
+  reference_model_idx: 0
+  n_variations: [0, 1]
+  earth_model_name: ak135-f-continental.m
+  nworkers: 6
+  use_crust2: false
+  replace_water: false
+  source_depth_min: 0.0
+  source_depth_max: 35.0
+  source_depth_spacing: 1.0
+  source_distance_radius: 100.0
+  source_distance_spacing: 1.
+  error_depth: 0.1
+  error_velocities: 0.1
+  depth_limit_variation: 600.0
+  code: psgrn
+  sample_rate: 1.1574074074074073e-05
+  sampling_interval: 1.0
+  medium_depth_spacing: 1.0
+  medium_distance_spacing: 1.0
+</pre></div>
+</div>
+<p>To get a short explanation for each parameter please see the API modules <a class="reference external" href="https://hvasbath.github.io/beat/api.html#config.NonlinearGFConfig">here</a>.</p>
+<p>The variable ‘store_superdir’ needs to contain an <strong>absolute path</strong> to your $project_directory/.
+You can also change the number of cores available to your system with the variable ‘nworkers’ to speed up the calculation of the GFs.
+The GF grid spacing is important and can be modified in x,y direction with ‘source_distance_spacing’ and in depth with ‘source_depth_spacing’.
+The grid extent can be modified by ‘source_distance_radius’. All the units are given in [km].</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Please keep the extent of the expected finite rectangular fault in mind! The source grid has to cover <strong>always</strong> the <strong>complete</strong> fault!. <strong>Example</strong>: For a fault with expected width between 10 - 15 km with, a dip of 70-90 degrees and an upper edge depth of 0-2. km; the depth grid of the GF store (including safety buffer) has to range from: 0. km to 17.5 km</p>
+</div>
+<p>The GF parameters for the 2009 L’Aquila static example are good for now.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">build_gfs</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">datatypes</span><span class="o">=</span><span class="n">geodetic</span>
+</pre></div>
+</div>
+<p>This will create an empty Greens Function store named statics_ak135_0.000Hz_0 in the $GF_path. It will use the AK135 earth model <a class="reference internal" href="#kennet1995" id="id3">[Kennet1995]</a> . Optionally, one could decide to use CRUST2.0 <a class="reference internal" href="#bassin2000" id="id4">[Bassin2000]</a> for the shallow layers (use_crust2 flag above).
+Under $GF_path/statics_ak135_0.000Hz_0/config the Green’s Functions “config”-file could be further customized .</p>
+<p>For this 2009 L’Aquila static datatype, we can next build the Green’s Functions with:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">build_gfs</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">force</span> <span class="o">--</span><span class="n">execute</span>
+</pre></div>
+</div>
+<p>This will take some time, depending on how much cores you specified to execute in parallel at ‘nworkers’. However, this only has to be done once and
+the GF store can be reused for different examples if the velocity model does not differ between the different cases.</p>
+</div>
+<div class="section" id="seismic">
+<h3>Seismic<a class="headerlink" href="#seismic" title="Permalink to this headline">¶</a></h3>
+<p>In this case we will calculate a Greens Function store that holds dynamic displacements. For this we will make use of the QSSP <a class="reference internal" href="#wang2017" id="id5">[Wang2017]</a> backend.
+The station-event geometry determines the grid of Greens Functions (GFs) that will need to be calculated next.</p>
+<p>Please open $project_directory/config_geometry.yaml with any text editor (e.g. vi) and search for “store_superdir”. Here, it is written for now /home/vasyurhm/BEATS/GF, which is an example path to the directory of Greens Functions.
+This path needs to be replaced with the path to where the GFs are supposed to be stored on your computer. This directory is referred to as the $GF_path in the rest of the text. It is strongly recommended to use a separate directory apart from the beat source directory and the $project_directory as the GF databases can become very large, depending on the problem! For real examples, the GF databases may require up to several Gigabyte of free disc space. For our example the databases that we are going to create for each station are only few Megabytes ( 16 each and 586 MB in total for the higher resolution for kinematic FFO).</p>
+<p>Dependend on the case study there are crucial parameters that often need to be changed from the default values: the spatial grid dimensions, the sample rate and the wave phases (body waves and/or surface waves) to be calculated.</p>
+<p>In the $project_path/config_geometry.yaml under seismic config we find the gf_config, which holds the major parameters for GF calculation:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>gf_config: !beat.SeismicGFConfig
+  store_superdir: /home/vasyurhm/BEATS/GF
+  reference_model_idx: 0
+  n_variations: [0, 1]
+  earth_model_name: ak135-f-continental.m
+  nworkers: 4
+  use_crust2: false
+  replace_water: false
+  source_depth_min: 0.0
+  source_depth_max: 30.0
+  source_depth_spacing: 4.0
+  source_distance_radius: 30.0
+  source_distance_spacing: 4.0
+  error_depth: 0.1
+  error_velocities: 0.1
+  depth_limit_variation: 600.0
+  code: qssp
+  sample_rate: 0.5
+  rm_gfs: true
+</pre></div>
+</div>
+<p>Here we see that we use the global velocity model ak135 for all the stations. We could decide to use the CRUST2.0 model <a class="reference internal" href="#bassin2000" id="id6">[Bassin2000]</a> (set use_crust2: True) to replace the shallow crustal model, so that each station would have an individual velocity model depending on their location.
+Below are the grid definitions of the GFs. These grid sampling parameters as well as the sample rate are of major importance for the overall optimization.
+With such a setup, Greens Function stores for each station named $station_name_ak135_0.500Hz_0 are going to be created in the $GF_path.
+The respective distance grid of GFs is relative to each station-event distance.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last"><strong>Example</strong>: The event-station distance is 1000 km and source_distance_radius is set to 60 km, the resulting distance grid will be from 940 to 1060 km.</p>
+</div>
+<p>How to adjust the other parameters such as the grid spacing and the sample_rate are very problem dependend.
+Rule of thumbs for setting these parameters for other individual studies are discussed <a class="reference external" href="https://pyrocko.org/docs/current/apps/fomosto/tutorial.html#considerations-for-real-world-applications">here</a>.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Please keep the extent of the expected finite rectangular fault in mind! The source grid has to cover <strong>always</strong> the <strong>complete</strong> fault!. <strong>Example</strong>: For a fault with expected width between 10 - 15 km with, a dip of 70-90 degrees and an upper edge depth of 0-2. km; the depth grid of the GF store (including safety buffer) has to range from: 0. km to 17.5 km</p>
+</div>
+<p>The ‘nworkers’ variable defines the number of CPUs to use in parallel for the GF calculations. As these calculations may become very expensive and time-consuming it is of advantage to use as many CPUs as available. To be still able to navigate in your Operating System without crashing the system it is recommended to leave at least one CPU work-less. Please edit the ‘nworkers’ parameter now!</p>
+<p>For our use-case the grid specifications are fine for now.</p>
+<p>The seismic phases for which the GFs are going to be calculated are defined under ‘waveforms’ in the $project_directory/config_geometry.yaml; there are</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>- !beat.WaveformFitConfig
+  include: true
+  name: any_P
+  blacklist: []
+  channels: [Z]
+  filterer: !beat.heart.Filter
+    lower_corner: 0.01
+    upper_corner: 0.1
+    order: 3
+  distances: [0.0, 9.0]
+  interpolation: multilinear
+  arrival_taper: !beat.heart.ArrivalTaper
+    a: -20.0
+    b: -10.0
+    c: 250.0
+    d: 270.0
+</pre></div>
+</div>
+<p>In this case the GFs are going to be calculated for the P body waves as can be seen by the “name” parameter “any_P”. How to calculate GFs also for S or surface waves is discussed in <a class="reference external" href="https://hvasbath.github.io/beat/examples/FullMT_regional.html#calculate-greens-functions">Example 1</a>.</p>
+<p>The specifications for the Green’s Functions are fine now and we can start the setup with:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">build_gfs</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">datatypes</span><span class="o">=</span><span class="s1">&#39;seismic&#39;</span> <span class="o">--</span><span class="n">execute</span>
+</pre></div>
+</div>
+<p>To check if the calculated GF stores are complete please run:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">check</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">what</span><span class="o">=</span><span class="n">stores</span>
+</pre></div>
+</div>
+<p>Everything worked well if the output is like that:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>heart        - INFO     Checking stores for empty traces ...
+beat         - WARNING  Store(s) with empty traces! : []
+</pre></div>
+</div>
+<p>If there are stores with empty traces please rerun:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">build_gfs</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">datatypes</span><span class="o">=</span><span class="s1">&#39;seismic&#39;</span> <span class="o">--</span><span class="n">execute</span> <span class="o">--</span><span class="n">force</span>
+</pre></div>
+</div>
+<p>In case the holes still persist likely the velocity model has to be adjusted.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Please also see <a class="reference external" href="https://hvasbath.github.io/beat/examples/FullMT_regional.html#calculate-greens-functions">Example 1</a> for more detailed instructions like quality control.</p>
+</div>
+</div>
+</div>
+<div class="section" id="optimization-setup">
+<h2>Optimization setup<a class="headerlink" href="#optimization-setup" title="Permalink to this headline">¶</a></h2>
+<p>Before further setup we should check that the ‘project_dir’ variable in the main upper body of the $project_directory/config_geometry file is set correctly to your $project_directory/.
+Please also take note of the ‘event’ variables, which are the GCMT source parameters for the 2009 L’Aquila earthquake in the <a class="reference external" href="https://github.com/pyrocko/pyrocko">pyrocko</a>. event format.
+The location and timing parameters of this event are used as the reference point in the setup of the local coordinate system.
+We will explore the solution space of a Rectangular Source <a class="reference internal" href="#okada1985" id="id7">[Okada1985]</a> in an elastic homogeneously layered halfspace.</p>
+<p>The parameters to explore are the sources east_shift, north_shift, depth, strike, rake, dip, length, width and slip.
+The unit for slip is [m] and for all the other length measures (length, width, depth etc…) it is [km]. The angles (strike, dip and rake) are given in [degree].
+If <strong>seismic</strong> data is used, also kinematic parameters as source time, duration, nucleation_x, nucleation_y are optimized for (assuming constant rupture velocity of 3.5km/s).</p>
+<p>Often there the user has some apriori knowledge about the parameters of the Rectangular Source. These can be defined under the “priors” dictionary in the problem_config section.
+Here is an example:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>priors:
+  rake: !beat.heart.Parameter
+    name: rake
+    form: Uniform
+    lower: [-180.0]
+    upper: [0.0]
+    testvalue: [-110.0]
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The “testvalue” has to be within the upper and lower bounds!</p>
+</div>
+<p>However, for the L’Aquila example we are now satisfied with the pre-set priors, in the config_geometry.yaml file. These are chosen with broad bounds around the reference solution, demonstrating a case where some prior knowledge is available. This allows for a faster search of the solution space.</p>
+<p>The ‘decimation_factor’ variable controls how detailed the displacement from the source should be calculated.
+High numbers allow for faster calculation through each forward calculation, but the accuracy will be lower.
+The sub variable ‘geodetic’ controls the decimation for the geodetic data only.
+As the datasets for the L’Aquila earthquake example consist of subsampled datasets at a low resolution, we can set the decimation_factor to 4.</p>
+<div class="section" id="datatype-specific-setup-options">
+<h3>Datatype specific setup options<a class="headerlink" href="#datatype-specific-setup-options" title="Permalink to this headline">¶</a></h3>
+<div class="section" id="orbital-ramps">
+<h4>Orbital ramps<a class="headerlink" href="#orbital-ramps" title="Permalink to this headline">¶</a></h4>
+<p>There are additional hierarchical parameters that could be enabled in the setup of the optimization. These would be sampled in the course of the optimization as well.
+For <strong>geodetic</strong> data this is an additional linear trend (‘ramp’ in InSAR terminology) to each dataset. This can be turned on and off with the variable ‘fit_plane’ in the geodetic_config section.</p>
+</div>
+<div class="section" id="station-corrections">
+<h4>Station corrections<a class="headerlink" href="#station-corrections" title="Permalink to this headline">¶</a></h4>
+<p>For <strong>seismic</strong> data a station correction term could be optimized for, which is a time_shift of the whole waveform related to each station.
+This is a reasonable option to enable to account for a time_shift caused by a poor knowledge of the velocity model.
+To enable this option the parameter ‘station_corrections’ in the seismic_config section would need to be set to true.</p>
+</div>
+<div class="section" id="noise-scalings">
+<h4>Noise scalings<a class="headerlink" href="#noise-scalings" title="Permalink to this headline">¶</a></h4>
+<p>The residual noise estimation per default is set to each datatype. Thus an additional noise scaling parameter (Bayesian jargon in literature: hyperparameter) is added as a random variable in the setup. However, often the noise conditions for some datasets can be very different and the initial data-covariance estimations might have different quality. Therefore, it might be a reasonable option to enable the parameters ‘dataset_specific_residual_noise_estimation’ to estimate a noise scaling for each dataset for either datatypes. For the L’aquila case for geodetic data this option is enabled.</p>
+<p>If you did so, the config_geometry.yaml has to be updated with the additional hierarchical parameters (ramp, time_shift).:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">update</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">parameters</span><span class="o">=</span><span class="s2">&quot;hierarchicals&quot;</span>
+</pre></div>
+</div>
+<p>If the config setup for the noise scaling parameter has been changed also the hyperparameters have to be updated.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">update</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">parameters</span><span class="o">=</span><span class="s2">&quot;hypers&quot;</span>
+</pre></div>
+</div>
+<p>These two commands could also be executed in one line.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">update</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">parameters</span><span class="o">=</span><span class="s2">&quot;hierarchicals,hypers&quot;</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="section" id="sample-the-solution-space">
+<h2>Sample the solution space<a class="headerlink" href="#sample-the-solution-space" title="Permalink to this headline">¶</a></h2>
+<p>Firstly, we only optimize for the noise scaling or hyperparameters (HPs):</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">sample</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">hypers</span>
+</pre></div>
+</div>
+<p>Checking the $project_directory/config_geometry.yaml, the HPs parameter bounds show something like:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>hyperparameters:
+h_SAR: !beat.heart.Parameter
+  name: h_SAR
+  form: Uniform
+  lower: [-1.0]
+  upper: [5.0]
+  testvalue: [2.0]
+</pre></div>
+</div>
+<p>At this point the bounds could be relaxed again as well by manually editing the configuration file, or the step could be entirely skipped.
+Now that we have an initial guess on the hyperparameters we can run the optimization using the default sampling algorithm, a Sequential Monte Carlo sampler.
+The sampler can effectively exploit the parallel architecture of nowadays computers. The ‘n_jobs’ number should be set to as many CPUs as possible in the configuration file.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>sampler_config: !beat.SamplerConfig
+  name: SMC
+  backend: bin
+  progressbar: true
+  buffer_size: 1000
+  buffer_thinning: 50
+  parameters: !beat.SMCConfig
+    n_chains: 500
+    n_steps: 100
+    n_jobs: 1
+    tune_interval: 10
+    coef_variation: 1.0
+    stage: 0
+    proposal_dist: MultivariateNormal
+    check_bnd: true
+    update_covariances: false
+    rm_flag: true
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">‘n_chains’ divided by ‘n_jobs’ MUST yield a whole number! An error is going to be thrown if this is not the case!</p>
+</div>
+<p>Dependend on the hardware, sampler specifications and number of jobs that have been defined, this calculation is going to take few hours.
+Therefore, in order to avoid crashes or in the case of remote connection via ssh it is very much recommended to use something like ‘screen’
+to detach the terminal where the process is running. For now we do not do that, simply run:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">sample</span> <span class="n">Laquila</span>
+</pre></div>
+</div>
+<p>The sampling is successfully finished if the screen shows something like this:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>...
+backend      - INFO     Loading multitrace from /home/vasyurhm/BEATS/Laquila/geometry/stage_25
+smc          - INFO     Beta &gt; 1.: 1.293753
+smc          - INFO     Sample final stage
+smc          - INFO     Initialising 400 chain traces ...
+smc          - INFO     Sampling ...
+paripool     - INFO     Worker timeout after 12 second(s)
+paripool     - INFO     Overseer timeout after 400 second(s)
+paripool     - INFO     Chunksize: 4
+paripool     - INFO     Feierabend! Done with the work!
+backend      - INFO     Loading multitrace from /home/vasyurhm/BEATS/Laquila/geometry/stage_-1
+smc          - INFO     Finished sampling!
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The reader might have noticed the two different <em>backends</em> that have been specified in the <em>SamplerConfigs</em>, “csv” and “bin”. <a class="reference external" href="https://hvasbath.github.io/beat/getting_started/backends.html#sampling-backends">Here</a> we refer to the backend section that describe these further.</p>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">For more detailed search of the solution space please modify the parameters ‘n_steps’ and ‘n_chains’ for the SMC sampler in the $project_directory/config_geometry.yaml file to higher numbers. Depending on these specifications and the available hardware the sampling may take several hours/few days.</p>
+</div>
+</div>
+<div class="section" id="restarting-sampling">
+<h2>Restarting sampling<a class="headerlink" href="#restarting-sampling" title="Permalink to this headline">¶</a></h2>
+<p>For one or the other reason it may happen that sampling crashes and you will want to restart at the point where it crashed.
+Otherwise all the sampling that has been done before would be lost. First you have to find out in which ‘stage’ of the sampling the
+algorithm crashed. You can do this in two ways. Either by checking the output to the screen of the terminal where you did run the job.
+If that is not available anymore check the last lines of the $project_directory/BEAT_log.txt. Open it in any texteditor and go to the end of the file.
+There might be written for example:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="mi">2018</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">09</span> <span class="mi">20</span><span class="p">:</span><span class="mi">05</span><span class="p">:</span><span class="mi">26</span><span class="p">,</span><span class="mi">749</span> <span class="o">-</span> <span class="n">backend</span> <span class="o">-</span> <span class="n">INFO</span> <span class="o">-</span> <span class="n">Loading</span> <span class="n">multitrace</span> <span class="kn">from</span> <span class="o">/</span><span class="n">home</span><span class="o">/</span><span class="n">vasyurhm</span><span class="o">/</span><span class="n">BEATS</span><span class="o">/</span><span class="n">Laquila</span><span class="o">/</span><span class="n">geometry</span><span class="o">/</span><span class="n">stage_19</span>
+<span class="mi">2018</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">09</span> <span class="mi">20</span><span class="p">:</span><span class="mi">05</span><span class="p">:</span><span class="mi">32</span><span class="p">,</span><span class="mi">035</span> <span class="o">-</span> <span class="n">smc</span> <span class="o">-</span> <span class="n">INFO</span> <span class="o">-</span> <span class="n">Beta</span><span class="p">:</span> <span class="mf">0.117085</span> <span class="n">Stage</span><span class="p">:</span> <span class="mi">20</span>
+<span class="mi">2018</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">09</span> <span class="mi">20</span><span class="p">:</span><span class="mi">05</span><span class="p">:</span><span class="mi">32</span><span class="p">,</span><span class="mi">035</span> <span class="o">-</span> <span class="n">smc</span> <span class="o">-</span> <span class="n">INFO</span> <span class="o">-</span> <span class="n">Initialising</span> <span class="mi">500</span> <span class="n">chain</span> <span class="n">traces</span> <span class="o">...</span>
+<span class="mi">2018</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">09</span> <span class="mi">20</span><span class="p">:</span><span class="mi">05</span><span class="p">:</span><span class="mi">32</span><span class="p">,</span><span class="mi">355</span> <span class="o">-</span> <span class="n">smc</span> <span class="o">-</span> <span class="n">INFO</span> <span class="o">-</span> <span class="n">Sampling</span> <span class="o">...</span>
+</pre></div>
+</div>
+<p>This means that the algorithm crashed in ‘stage’ 20. To restart from this stage please open $project_directory/config_geometry.yaml and got to
+the ‘sampler_config’. There under ‘parameters’ must be a parameter ‘stage’. At this point if the algorithm has been started from the beginning there should be
+‘0’. So here we put now 20 as we want to restart in stage 20. As we want to keep all the previous sampling results of that stage, we have to make sure that again under
+‘parameters’ the flag ‘rm_flag’ shows ‘false’! If ‘true’, all the previous sampling results will be deleted in the course of new sampling.
+Now that we redefined the starting point of the sampling algorithm we are good to start the sampling again.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">sample</span> <span class="n">Laquila</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="summarize-and-plotting">
+<h2>Summarize and plotting<a class="headerlink" href="#summarize-and-plotting" title="Permalink to this headline">¶</a></h2>
+<p>The SMC sampler has several stages that would need to be summarized if their results is meant to be plotted.
+To summarize only a specific stage please add the ‘stage_number’ option, e.g. the final stage -1:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">summarize</span> <span class="n">FullMT</span> <span class="o">--</span><span class="n">stage_number</span><span class="o">=-</span><span class="mi">1</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Only for SMC:
+All the chain_*.csv files under the $project_directory/geometry/stage_* directories can be problematic for
+the operation system, e.g. on Clusters. Once a stage finished sampling these can be also deleted by setting the ‘rm_flag’
+under the ‘SamplerConfig.parameters’. The program will ask again once for safety reasons if the files are really supposed to be deleted. Once they are gone, they are gone! Restarting the sampling from that stage (see above) wont be possible anymore.</p>
+</div>
+<p>After that, several figures illustrating the results can be created. To do so the <strong>kite</strong> software needs to be installed and the original displacement data needs to be downloaded <a class="reference external" href="https://github.com/braunfuss/laquila_kite_container">here</a>. They need to be put into the specified data path given under “datadir” in the geodetic_config section of the configuration file.
+For a comparison between data, synthetic displacements and residuals for the two InSAR tracks in a local coordinate system please run:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">plot</span> <span class="n">Laquila</span> <span class="n">scene_fits</span>
+</pre></div>
+</div>
+<dl class="docutils">
+<dt>The plot should show something like this. Here the residuals are displayed with an individual color scale according to their minimum and maximum values:</dt>
+<dd><img alt="../_images/Laquila_scenes_-1_max_local_0.png" class="first last" src="../_images/Laquila_scenes_-1_max_local_0.png" />
+</dd>
+</dl>
+<p>For a plot using the global geographic coordinate system where the residuals have the same color bar as data and synthetics please run:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">plot</span> <span class="n">Laquila</span> <span class="n">scene_fits</span> <span class="o">--</span><span class="n">plot_projection</span><span class="o">=</span><span class="n">latlon</span>
+</pre></div>
+</div>
+<img alt="../_images/Laquila_scenes_-1_max_latlon_0.png" src="../_images/Laquila_scenes_-1_max_latlon_0.png" />
+<p>To plot waveform fits with an ensemble of 100 draws from the PPD:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">plot</span> <span class="n">Laquila</span> <span class="n">waveform_fits</span> <span class="o">--</span><span class="n">nensemble</span><span class="o">=</span><span class="mi">100</span>
+</pre></div>
+</div>
+<img alt="../_images/Laquila_waveforms_-1_max_0.png" src="../_images/Laquila_waveforms_-1_max_0.png" />
+<p>To plot the posterior marginal distributions of the source parameters for only the final stage, please run:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">plot</span> <span class="n">Laquila</span> <span class="n">stage_posteriors</span> <span class="o">--</span><span class="n">stage_number</span><span class="o">=-</span><span class="mi">1</span>
+</pre></div>
+</div>
+<img alt="../_images/Laquila_stage_-1_max.png" src="../_images/Laquila_stage_-1_max.png" />
+<p>Here h_SAR are the noise scaling parameters for the two InSAR scenes and h_any_P_0_Z is the noise scaling for the P-phases.</p>
+<p>For a correlation plot of the parameter marginals please run:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">plot</span> <span class="n">LaquilaJointPonlyUPDATE</span> <span class="n">correlation_hist</span> <span class="o">--</span><span class="nb">format</span><span class="o">=</span><span class="n">png</span> <span class="o">--</span><span class="n">varnames</span><span class="o">=</span><span class="n">east_shift</span><span class="p">,</span><span class="n">north_shift</span><span class="p">,</span><span class="n">depth</span><span class="p">,</span><span class="n">length</span><span class="p">,</span><span class="n">width</span><span class="p">,</span><span class="n">strike</span><span class="p">,</span><span class="n">dip</span><span class="p">,</span><span class="n">rake</span><span class="p">,</span><span class="n">slip</span>
+</pre></div>
+</div>
+<img alt="../_images/Laquila_corr_hist_-1_max.png" src="../_images/Laquila_corr_hist_-1_max.png" />
+<p>The “varnames” argument determines the order of the plotted variables and which variable to plot. The kinematic source parameters are only resolved by using seismic data. So for optimization results that include only <strong>geodetic</strong> data, the parameters time, duration, nucleation_x and nucleation_y have to be omitted.</p>
+<p>These plots are stored under your Laquila folder under geometry/figures.</p>
+</div>
+<div class="section" id="references">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
+<table class="docutils citation" frame="void" id="bassin2000" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label">[Bassin2000]</td><td><em>(<a class="fn-backref" href="#id4">1</a>, <a class="fn-backref" href="#id6">2</a>)</em> Bassin, C., Laske, G., &amp; Masters, G., 2000. The Current Limits of Resolution for Surface Wave Tomography in North America, EOS Trans AGU , 81(F897)</td></tr>
+</tbody>
+</table>
+<table class="docutils citation" frame="void" id="kennet1995" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id3">[Kennet1995]</a></td><td>Kennett, B. L. N., Engdahl, E. R., and Buland, R. (1995). Constraints on seismic velocities in the Earth from traveltimes. Geophys. J. Int., 122:108–124</td></tr>
+</tbody>
+</table>
+<table class="docutils citation" frame="void" id="wang2008" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id2">[Wang2008]</a></td><td>Wang, R., Lorenzo-Martín, F., and Roth, F. (2006). PSGRN / PSCMP — a new code for calculating co- and post-seismic deformation , geoid and gravity changes based on the viscoelastic-gravitational dislocation theory. Computers and Geosciences Geosciences, 32(4):527–541</td></tr>
+</tbody>
+</table>
+<table class="docutils citation" frame="void" id="wang2017" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id5">[Wang2017]</a></td><td>Wang, R., Heimann, S., Zhang, Y., Wang, H., and Dahm, T. (2017). Complete synthetic seismograms based on a spherical self-gravitating Earth model with an atmosphere – ocean – mantle – core structure. Geophys, J. Int., 210:1739–1764</td></tr>
+</tbody>
+</table>
+<table class="docutils citation" frame="void" id="okada1985" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label">[Okada1985]</td><td><em>(<a class="fn-backref" href="#id1">1</a>, <a class="fn-backref" href="#id7">2</a>)</em> Okada, Y. (1985). Surface deformation due to shear and tensile faults in a half-space. Bulletin of the Seismological Society of America, 75(4):1135–1154</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="../index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../updating.html">Updating beat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/index.html">Getting started with BEAT</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Examples</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="FullMT_regional.html">Example 1: Regional Full Moment Tensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dc_teleseismic.html">Example 2: Teleseismic Double Couple</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Example 3: Rectangular source</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#clone-project">Clone project</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#calculate-greens-functions">Calculate Greens Functions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#optimization-setup">Optimization setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sample-the-solution-space">Sample the solution space</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#restarting-sampling">Restarting sampling</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#summarize-and-plotting">Summarize and plotting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#references">References</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="FFI_static.html">Example 4: Static finite-fault estimation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FFI_kinematic.html">Example 5: Kinematic finite-fault estimation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="FFI_static.html" title="Example 4: Static finite-fault estimation"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="dc_teleseismic.html" title="Example 2: Teleseismic Double Couple"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

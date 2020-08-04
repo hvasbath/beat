@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>covariance &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="../_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="../_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="../index.html">beat 1.0 documentation</a> &#187;
+          </li>
+            <li><a href="index.html" accesskey="U">Module code</a> &#187;</li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for covariance</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">pyrocko</span> <span class="k">import</span> <span class="n">gf</span><span class="p">,</span> <span class="n">trace</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">num</span>
+<span class="kn">from</span> <span class="nn">time</span> <span class="k">import</span> <span class="n">time</span>
+<span class="kn">from</span> <span class="nn">scipy.linalg</span> <span class="k">import</span> <span class="n">toeplitz</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+
+<span class="kn">from</span> <span class="nn">beat</span> <span class="k">import</span> <span class="n">heart</span>
+<span class="kn">from</span> <span class="nn">beat.utility</span> <span class="k">import</span> <span class="n">ensure_cov_psd</span><span class="p">,</span> <span class="n">running_window_rms</span><span class="p">,</span> <span class="n">list2string</span>
+<span class="kn">from</span> <span class="nn">theano</span> <span class="k">import</span> <span class="n">config</span> <span class="k">as</span> <span class="n">tconfig</span>
+
+<span class="kn">from</span> <span class="nn">pymc3</span> <span class="k">import</span> <span class="n">Point</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;covariance&#39;</span><span class="p">)</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;geodetic_cov_velocity_models&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;geodetic_cov_velocity_models_pscmp&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;seismic_cov_velocity_models&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;SeismicNoiseAnalyser&#39;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">exponential_data_covariance</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">tzero</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get exponential sub-covariance matrix without variance, toeplitz form.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    n : int</span>
+<span class="sd">        length of trace/ samples of quadratic Covariance matrix</span>
+<span class="sd">    dt : float</span>
+<span class="sd">        time step of samples, sampling interval</span>
+<span class="sd">    tzero : float</span>
+<span class="sd">        shortest period of waves in trace</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.ndarray`</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Cd(i,j) = (Variance of trace)*exp(-abs(ti-tj)/</span>
+<span class="sd">                                     (shortest period T0 of waves))</span>
+
+<span class="sd">    i,j are samples of the seismic trace</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span>
+        <span class="o">-</span><span class="n">num</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n</span><span class="p">)[:,</span> <span class="n">num</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span> <span class="o">-</span>
+                 <span class="n">num</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n</span><span class="p">)[</span><span class="n">num</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:])</span> <span class="o">*</span> <span class="n">dt</span> <span class="o">/</span> <span class="n">tzero</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">identity_data_covariance</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tzero</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get identity covariance matrix.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    n : int</span>
+<span class="sd">        length of trace/ samples of quadratic Covariance matrix</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.ndarray`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">tconfig</span><span class="o">.</span><span class="n">floatX</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">ones_data_covariance</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tzero</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get ones covariance matrix. Dummy for importing.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    n : int</span>
+<span class="sd">        length of trace/ samples of quadratic Covariance matrix</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.ndarray`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">n</span><span class="p">,</span> <span class="n">n</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">tconfig</span><span class="o">.</span><span class="n">floatX</span><span class="p">)</span>
+
+
+<span class="n">NoiseStructureCatalog</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;variance&#39;</span><span class="p">:</span> <span class="n">identity_data_covariance</span><span class="p">,</span>
+    <span class="s1">&#39;exponential&#39;</span><span class="p">:</span> <span class="n">exponential_data_covariance</span><span class="p">,</span>
+    <span class="s1">&#39;import&#39;</span><span class="p">:</span> <span class="n">ones_data_covariance</span><span class="p">,</span>
+    <span class="s1">&#39;non-toeplitz&#39;</span><span class="p">:</span> <span class="n">ones_data_covariance</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<span class="k">def</span> <span class="nf">available_noise_structures</span><span class="p">():</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">NoiseStructureCatalog</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+
+<span class="k">def</span> <span class="nf">import_data_covariance</span><span class="p">(</span><span class="n">data_trace</span><span class="p">,</span> <span class="n">arrival_taper</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Use imported covariance matrixes and check size consistency with taper.</span>
+<span class="sd">    Cut or extend based on variance and taper size.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data_trace : :class:`heart.SeismicDataset`</span>
+<span class="sd">        with data covariance matrix in the covariance attribute</span>
+<span class="sd">    arrival_taper : :class: `heart.ArrivalTaper`</span>
+<span class="sd">        determines tapering around phase Arrival</span>
+<span class="sd">    sample_rate : float</span>
+<span class="sd">        sampling rate of data_traces and GreensFunction stores</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    covariance matrix : :class:`numpy.ndarray`</span>
+<span class="sd">        with size of given arrival taper</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;No data-covariance estimation, using imported&#39;</span>
+                <span class="s1">&#39; covariances...</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="n">at</span> <span class="o">=</span> <span class="n">arrival_taper</span>
+    <span class="n">n_samples</span> <span class="o">=</span> <span class="n">at</span><span class="o">.</span><span class="n">nsamples</span><span class="p">(</span><span class="n">sample_rate</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">data_trace</span><span class="o">.</span><span class="n">covariance</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s1">&#39;No data covariance given/estimated! &#39;</span>
+            <span class="s1">&#39;Setting default: eye&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">n_samples</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">data_cov</span> <span class="o">=</span> <span class="n">data_trace</span><span class="o">.</span><span class="n">covariance</span><span class="o">.</span><span class="n">data</span>
+        <span class="k">if</span> <span class="n">data_cov</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">n_samples</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s1">&#39;Imported covariance </span><span class="si">%i</span><span class="s1"> does not agree &#39;</span>
+                <span class="s1">&#39; with taper samples </span><span class="si">%i</span><span class="s1">! Using Identity&#39;</span>
+                <span class="s1">&#39; matrix and mean of variance of imported&#39;</span>
+                <span class="s1">&#39; covariance matrix!&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                    <span class="n">data_cov</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">n_samples</span><span class="p">))</span>
+            <span class="n">data_cov</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">n_samples</span><span class="p">)</span> <span class="o">*</span> \
+                <span class="n">data_cov</span><span class="o">.</span><span class="n">diagonal</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">data_cov</span>
+
+
+<div class="viewcode-block" id="SeismicNoiseAnalyser"><a class="viewcode-back" href="../api.html#covariance.SeismicNoiseAnalyser">[docs]</a><span class="k">class</span> <span class="nc">SeismicNoiseAnalyser</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Seismic noise analyser</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    structure : string</span>
+<span class="sd">        either identity, exponential, import</span>
+<span class="sd">    pre_arrival_time : float</span>
+<span class="sd">        in [s], time before P arrival until variance is estimated</span>
+<span class="sd">    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`</span>
+<span class="sd">        processing object for synthetics calculation</span>
+<span class="sd">    events : list</span>
+<span class="sd">        of :class:`pyrocko.meta.Event`</span>
+<span class="sd">        reference event(s) from catalog</span>
+<span class="sd">    chop_bounds : list of len 2</span>
+<span class="sd">        of taper attributes a, b, c, or d</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">structure</span><span class="o">=</span><span class="s1">&#39;identity&#39;</span><span class="p">,</span> <span class="n">pre_arrival_time</span><span class="o">=</span><span class="mf">5.</span><span class="p">,</span>
+            <span class="n">engine</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">events</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sources</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">chop_bounds</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;b&#39;</span><span class="p">,</span> <span class="s1">&#39;c&#39;</span><span class="p">]):</span>
+
+        <span class="n">avail</span> <span class="o">=</span> <span class="n">available_noise_structures</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">structure</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">avail</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span>
+                <span class="s1">&#39;Selected noise structure &quot;</span><span class="si">%s</span><span class="s1">&quot; not supported! Implemented&#39;</span>
+                <span class="s1">&#39; noise structures: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">structure</span><span class="p">,</span> <span class="n">list2string</span><span class="p">(</span><span class="n">avail</span><span class="p">)))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">events</span> <span class="o">=</span> <span class="n">events</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">engine</span> <span class="o">=</span> <span class="n">engine</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sources</span> <span class="o">=</span> <span class="n">sources</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pre_arrival_time</span> <span class="o">=</span> <span class="n">pre_arrival_time</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">structure</span> <span class="o">=</span> <span class="n">structure</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chop_bounds</span> <span class="o">=</span> <span class="n">chop_bounds</span>
+
+    <span class="k">def</span> <span class="nf">get_structure</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">wmap</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">):</span>
+
+        <span class="n">tzero</span> <span class="o">=</span> <span class="mf">1.</span> <span class="o">/</span> <span class="n">wmap</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">filterer</span><span class="o">.</span><span class="n">upper_corner</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="mf">1.</span> <span class="o">/</span> <span class="n">sample_rate</span>
+        <span class="n">ataper</span> <span class="o">=</span> <span class="n">wmap</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">arrival_taper</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">ataper</span><span class="o">.</span><span class="n">nsamples</span><span class="p">(</span><span class="n">sample_rate</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">chop_bounds</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">NoiseStructureCatalog</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">structure</span><span class="p">](</span><span class="n">n</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">tzero</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">do_import</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">wmap</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">):</span>
+
+        <span class="n">scalings</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">tr</span><span class="p">,</span> <span class="n">target</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">wmap</span><span class="o">.</span><span class="n">datasets</span><span class="p">,</span> <span class="n">wmap</span><span class="o">.</span><span class="n">targets</span><span class="p">):</span>
+            <span class="n">scaling</span> <span class="o">=</span> <span class="n">import_data_covariance</span><span class="p">(</span>
+                <span class="n">tr</span><span class="p">,</span> <span class="n">arrival_taper</span><span class="o">=</span><span class="n">wmap</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">arrival_taper</span><span class="p">,</span>
+                <span class="n">sample_rate</span><span class="o">=</span><span class="n">sample_rate</span><span class="p">)</span>
+            <span class="n">scalings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">scaling</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">scalings</span>
+
+    <span class="k">def</span> <span class="nf">do_non_toeplitz</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">wmap</span><span class="p">,</span> <span class="n">results</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="n">results</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;Results need(s) to be given for non-toeplitz&#39;</span>
+                <span class="s1">&#39; covariance estimates!&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">scalings</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">results</span><span class="p">:</span>
+                <span class="n">residual</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">processed_res</span><span class="o">.</span><span class="n">get_ydata</span><span class="p">()</span>
+                <span class="n">scaling</span> <span class="o">=</span> <span class="n">non_toeplitz_covariance</span><span class="p">(</span>
+                    <span class="n">residual</span><span class="p">,</span> <span class="n">window_size</span><span class="o">=</span><span class="n">residual</span><span class="o">.</span><span class="n">size</span> <span class="o">//</span> <span class="mi">5</span><span class="p">)</span>
+                <span class="n">scalings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">scaling</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">scalings</span>
+
+    <span class="k">def</span> <span class="nf">do_variance_estimate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">wmap</span><span class="p">):</span>
+
+        <span class="n">filterer</span> <span class="o">=</span> <span class="n">wmap</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">filterer</span>
+        <span class="n">scalings</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">tr</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">wmap</span><span class="o">.</span><span class="n">datasets</span><span class="p">,</span> <span class="n">wmap</span><span class="o">.</span><span class="n">targets</span><span class="p">)):</span>
+            <span class="n">wavename</span> <span class="o">=</span> <span class="kc">None</span>   <span class="c1"># None uses first tabulated phase</span>
+            <span class="n">arrival_time</span> <span class="o">=</span> <span class="n">heart</span><span class="o">.</span><span class="n">get_phase_arrival_time</span><span class="p">(</span>
+                <span class="n">engine</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="p">,</span>
+                <span class="n">source</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">events</span><span class="p">[</span><span class="n">wmap</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">event_idx</span><span class="p">],</span>
+                <span class="n">target</span><span class="o">=</span><span class="n">target</span><span class="p">,</span>
+                <span class="n">wavename</span><span class="o">=</span><span class="n">wavename</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">arrival_time</span> <span class="o">&lt;</span> <span class="n">tr</span><span class="o">.</span><span class="n">tmin</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s1">&#39;no data for variance estimation on pre-P arrival&#39;</span>
+                    <span class="s1">&#39; in wavemap </span><span class="si">%s</span><span class="s1">, for trace </span><span class="si">%s</span><span class="s1">!&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                        <span class="n">wmap</span><span class="o">.</span><span class="n">_mapid</span><span class="p">,</span> <span class="n">list2string</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">nslc_id</span><span class="p">)))</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                    <span class="s1">&#39;Using reference arrival &quot;</span><span class="si">%s</span><span class="s1">&quot; instead!&#39;</span> <span class="o">%</span> <span class="n">wmap</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                <span class="n">arrival_time</span> <span class="o">=</span> <span class="n">heart</span><span class="o">.</span><span class="n">get_phase_arrival_time</span><span class="p">(</span>
+                    <span class="n">engine</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="p">,</span>
+                    <span class="n">source</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">events</span><span class="p">[</span><span class="n">wmap</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">event_idx</span><span class="p">],</span>
+                    <span class="n">target</span><span class="o">=</span><span class="n">target</span><span class="p">,</span>
+                    <span class="n">wavename</span><span class="o">=</span><span class="n">wmap</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">filterer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">ctrace</span> <span class="o">=</span> <span class="n">tr</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                <span class="n">ctrace</span><span class="o">.</span><span class="n">bandpass</span><span class="p">(</span>
+                    <span class="n">corner_hp</span><span class="o">=</span><span class="n">filterer</span><span class="o">.</span><span class="n">lower_corner</span><span class="p">,</span>
+                    <span class="n">corner_lp</span><span class="o">=</span><span class="n">filterer</span><span class="o">.</span><span class="n">upper_corner</span><span class="p">,</span>
+                    <span class="n">order</span><span class="o">=</span><span class="n">filterer</span><span class="o">.</span><span class="n">order</span><span class="p">)</span>
+
+            <span class="n">ctrace</span> <span class="o">=</span> <span class="n">ctrace</span><span class="o">.</span><span class="n">chop</span><span class="p">(</span>
+                <span class="n">tmin</span><span class="o">=</span><span class="n">tr</span><span class="o">.</span><span class="n">tmin</span><span class="p">,</span>
+                <span class="n">tmax</span><span class="o">=</span><span class="n">arrival_time</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_arrival_time</span><span class="p">)</span>
+
+            <span class="n">scaling</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="n">ctrace</span><span class="o">.</span><span class="n">get_ydata</span><span class="p">())</span>
+            <span class="n">scalings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">scaling</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">scalings</span>
+
+<div class="viewcode-block" id="SeismicNoiseAnalyser.get_data_covariances"><a class="viewcode-back" href="../api.html#covariance.SeismicNoiseAnalyser.get_data_covariances">[docs]</a>    <span class="k">def</span> <span class="nf">get_data_covariances</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">wmap</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">,</span> <span class="n">results</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Estimated data covariances of seismic traces</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        wmap : :class:`eat.WaveformMapping`</span>
+<span class="sd">        results</span>
+<span class="sd">        sample_rate : float</span>
+<span class="sd">            sampling rate of data_traces and GreensFunction stores</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        :class:`numpy.ndarray`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">covariance_structure</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_structure</span><span class="p">(</span><span class="n">wmap</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">structure</span> <span class="o">==</span> <span class="s1">&#39;import&#39;</span><span class="p">:</span>
+            <span class="n">scalings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">do_import</span><span class="p">(</span><span class="n">wmap</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">structure</span> <span class="o">==</span> <span class="s1">&#39;non-toeplitz&#39;</span><span class="p">:</span>
+            <span class="n">scalings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">do_non_toeplitz</span><span class="p">(</span><span class="n">wmap</span><span class="p">,</span> <span class="n">results</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">scalings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">do_variance_estimate</span><span class="p">(</span><span class="n">wmap</span><span class="p">)</span>
+
+        <span class="n">cov_ds</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">scaling</span> <span class="ow">in</span> <span class="n">scalings</span><span class="p">:</span>
+            <span class="n">cov_ds</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">scaling</span> <span class="o">*</span> <span class="n">covariance_structure</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">cov_ds</span></div></div>
+
+
+<span class="k">def</span> <span class="nf">model_prediction_sensitivity</span><span class="p">(</span><span class="n">engine</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Calculate the model prediction Covariance Sensitivity Kernel.</span>
+<span class="sd">    (numerical derivation with respect to the input source parameter(s))</span>
+<span class="sd">    Following Duputel et al. 2014</span>
+
+<span class="sd">    :Input:</span>
+<span class="sd">    :py:class:&#39;engine&#39;</span>
+<span class="sd">    source_parms = list of parameters with respect to which the kernel</span>
+<span class="sd">                   is being calculated e.g. [&#39;strike&#39;, &#39;dip&#39;, &#39;depth&#39;]</span>
+<span class="sd">    !!!</span>
+<span class="sd">    NEEDS to have seismosizer source object parameter variable name convention</span>
+<span class="sd">    !!!</span>
+<span class="sd">    (see seismosizer.source.keys())</span>
+
+<span class="sd">    calculate_model_prediction_sensitivity(request, source_params, **kwargs)</span>
+<span class="sd">    calculate_model_prediction_sensitivity(sources,</span>
+<span class="sd">                                             targets, source_params, **kwargs)</span>
+
+<span class="sd">    Returns traces in a list[parameter][targets] for each station and channel</span>
+<span class="sd">    as specified in the targets. The location code of each trace is placed to</span>
+<span class="sd">    show the respective source parameter.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">gf</span><span class="o">.</span><span class="n">BadRequest</span><span class="p">(</span><span class="s1">&#39;invalid arguments&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;request&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;source_params&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">gf</span><span class="o">.</span><span class="n">Request</span><span class="o">.</span><span class="n">args2kwargs</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]))</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;source_params&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+
+    <span class="n">request</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;request&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">nprocs</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;nprocs&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">source_params</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;source_params&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;h&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">request</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">request</span> <span class="o">=</span> <span class="n">gf</span><span class="o">.</span><span class="n">Request</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">h</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">source_params</span><span class="p">))</span> <span class="o">*</span> <span class="mf">1e-1</span>
+
+    <span class="c1"># create results list</span>
+    <span class="n">sensitivity_param_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">sensitivity_param_trcs</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">source_params</span><span class="p">)):</span>
+        <span class="n">sensitivity_param_list</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">targets</span><span class="p">))</span>
+        <span class="n">sensitivity_param_trcs</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">targets</span><span class="p">))</span>
+
+    <span class="k">for</span> <span class="n">ref_source</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">sources</span><span class="p">:</span>
+        <span class="n">par_count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">source_params</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">param</span><span class="p">,</span> <span class="s1">&#39;with h = &#39;</span><span class="p">,</span> <span class="n">h</span><span class="p">[</span><span class="n">par_count</span><span class="p">])</span>
+            <span class="n">calc_source_p2h</span> <span class="o">=</span> <span class="n">ref_source</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">calc_source_ph</span> <span class="o">=</span> <span class="n">ref_source</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">calc_source_mh</span> <span class="o">=</span> <span class="n">ref_source</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="n">calc_source_m2h</span> <span class="o">=</span> <span class="n">ref_source</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+
+            <span class="nb">setattr</span><span class="p">(</span><span class="n">calc_source_p2h</span><span class="p">,</span> <span class="n">param</span><span class="p">,</span>
+                    <span class="n">ref_source</span><span class="p">[</span><span class="n">param</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">h</span><span class="p">[</span><span class="n">par_count</span><span class="p">]))</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="n">calc_source_ph</span><span class="p">,</span> <span class="n">param</span><span class="p">,</span>
+                    <span class="n">ref_source</span><span class="p">[</span><span class="n">param</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">h</span><span class="p">[</span><span class="n">par_count</span><span class="p">]))</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="n">calc_source_mh</span><span class="p">,</span> <span class="n">param</span><span class="p">,</span>
+                    <span class="n">ref_source</span><span class="p">[</span><span class="n">param</span><span class="p">]</span> <span class="o">-</span> <span class="p">(</span><span class="n">h</span><span class="p">[</span><span class="n">par_count</span><span class="p">]))</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="n">calc_source_m2h</span><span class="p">,</span> <span class="n">param</span><span class="p">,</span>
+                    <span class="n">ref_source</span><span class="p">[</span><span class="n">param</span><span class="p">]</span> <span class="o">-</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">h</span><span class="p">[</span><span class="n">par_count</span><span class="p">]))</span>
+
+            <span class="n">calc_sources</span> <span class="o">=</span> <span class="p">[</span><span class="n">calc_source_p2h</span><span class="p">,</span> <span class="n">calc_source_ph</span><span class="p">,</span>
+                            <span class="n">calc_source_mh</span><span class="p">,</span> <span class="n">calc_source_m2h</span><span class="p">]</span>
+
+            <span class="n">response</span> <span class="o">=</span> <span class="n">engine</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">sources</span><span class="o">=</span><span class="n">calc_sources</span><span class="p">,</span>
+                                      <span class="n">targets</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">targets</span><span class="p">,</span>
+                                      <span class="n">nprocs</span><span class="o">=</span><span class="n">nprocs</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">targets</span><span class="p">)):</span>
+                <span class="c1"># zero padding if necessary</span>
+                <span class="n">trc_lengths</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+                    <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">results_list</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">data</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span>
+                     <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">results_list</span><span class="p">))])</span>
+                <span class="n">Id</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">trc_lengths</span> <span class="o">!=</span> <span class="n">trc_lengths</span><span class="o">.</span><span class="n">max</span><span class="p">())</span>
+
+                <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">Id</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                    <span class="n">response</span><span class="o">.</span><span class="n">results_list</span><span class="p">[</span><span class="n">l</span><span class="p">][</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+                            <span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">results_list</span><span class="p">[</span><span class="n">l</span><span class="p">][</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                             <span class="n">num</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">trc_lengths</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">-</span> <span class="n">trc_lengths</span><span class="p">[</span><span class="n">l</span><span class="p">])))</span>
+
+                <span class="c1"># calculate numerical partial derivative for</span>
+                <span class="c1"># each source and target</span>
+                <span class="n">sensitivity_param_list</span><span class="p">[</span><span class="n">par_count</span><span class="p">][</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="n">sensitivity_param_list</span><span class="p">[</span><span class="n">par_count</span><span class="p">][</span><span class="n">k</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span>
+                            <span class="o">-</span> <span class="n">response</span><span class="o">.</span><span class="n">results_list</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">data</span> <span class="o">+</span>
+                            <span class="mi">8</span> <span class="o">*</span> <span class="n">response</span><span class="o">.</span><span class="n">results_list</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">data</span> <span class="o">-</span>
+                            <span class="mi">8</span> <span class="o">*</span> <span class="n">response</span><span class="o">.</span><span class="n">results_list</span><span class="p">[</span><span class="mi">2</span><span class="p">][</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">data</span> <span class="o">+</span>
+                            <span class="n">response</span><span class="o">.</span><span class="n">results_list</span><span class="p">[</span><span class="mi">3</span><span class="p">][</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">data</span><span class="p">)</span> <span class="o">/</span>
+                        <span class="p">(</span><span class="mi">12</span> <span class="o">*</span> <span class="n">h</span><span class="p">[</span><span class="n">par_count</span><span class="p">])</span>
+                    <span class="p">)</span>
+
+            <span class="n">par_count</span> <span class="o">=</span> <span class="n">par_count</span> <span class="o">+</span> <span class="mi">1</span>
+
+    <span class="c1"># form traces from sensitivities</span>
+    <span class="n">par_count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">source_params</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">targets</span><span class="p">)):</span>
+            <span class="n">sensitivity_param_trcs</span><span class="p">[</span><span class="n">par_count</span><span class="p">][</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">trace</span><span class="o">.</span><span class="n">Trace</span><span class="p">(</span>
+                        <span class="n">network</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">targets</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">codes</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                        <span class="n">station</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">targets</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">codes</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                        <span class="n">ydata</span><span class="o">=</span><span class="n">sensitivity_param_list</span><span class="p">[</span><span class="n">par_count</span><span class="p">][</span><span class="n">k</span><span class="p">],</span>
+                        <span class="n">deltat</span><span class="o">=</span><span class="n">response</span><span class="o">.</span><span class="n">results_list</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">deltat</span><span class="p">,</span>
+                        <span class="n">tmin</span><span class="o">=</span><span class="n">response</span><span class="o">.</span><span class="n">results_list</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">tmin</span><span class="p">,</span>
+                        <span class="n">channel</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">targets</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">codes</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span>
+                        <span class="n">location</span><span class="o">=</span><span class="n">param</span><span class="p">)</span>
+
+        <span class="n">par_count</span> <span class="o">=</span> <span class="n">par_count</span> <span class="o">+</span> <span class="mi">1</span>
+
+    <span class="k">return</span> <span class="n">sensitivity_param_trcs</span>
+
+
+<div class="viewcode-block" id="seismic_cov_velocity_models"><a class="viewcode-back" href="../api.html#covariance.seismic_cov_velocity_models">[docs]</a><span class="k">def</span> <span class="nf">seismic_cov_velocity_models</span><span class="p">(</span>
+        <span class="n">engine</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">arrival_taper</span><span class="p">,</span> <span class="n">arrival_time</span><span class="p">,</span>
+        <span class="n">wavename</span><span class="p">,</span> <span class="n">filterer</span><span class="p">,</span> <span class="n">plot</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Calculate model prediction uncertainty matrix with respect to uncertainties</span>
+<span class="sd">    in the velocity model for station and channel.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`</span>
+<span class="sd">        contains synthetics generation machine</span>
+<span class="sd">    sources : list</span>
+<span class="sd">        of :class:`pyrocko.gf.seismosizer.Source`</span>
+<span class="sd">    targets : list</span>
+<span class="sd">        of :class:`pyrocko.gf.seismosizer.Targets`</span>
+<span class="sd">    arrival_taper : :class: `heart.ArrivalTaper`</span>
+<span class="sd">        determines tapering around phase Arrival</span>
+<span class="sd">    arrival_time : None or :class:`numpy.NdArray` or float</span>
+<span class="sd">        of phase to apply taper, if None theoretic arrival of ray tracing used</span>
+<span class="sd">    filterer : :class:`heart.Filter`</span>
+<span class="sd">        determines the bandpass-filtering corner frequencies</span>
+<span class="sd">    plot : boolean</span>
+<span class="sd">        open snuffler and browse traces if True</span>
+<span class="sd">    n_jobs : int</span>
+<span class="sd">        number of processors to be used for calculation</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.ndarray` with Covariance due to velocity model uncertainties</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="n">arrival_times</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">targets</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float64&#39;</span><span class="p">)</span> <span class="o">*</span> <span class="n">arrival_time</span>
+
+    <span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
+    <span class="n">synths</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">heart</span><span class="o">.</span><span class="n">seis_synthetics</span><span class="p">(</span>
+        <span class="n">engine</span><span class="o">=</span><span class="n">engine</span><span class="p">,</span>
+        <span class="n">sources</span><span class="o">=</span><span class="n">sources</span><span class="p">,</span>
+        <span class="n">targets</span><span class="o">=</span><span class="n">targets</span><span class="p">,</span>
+        <span class="n">arrival_taper</span><span class="o">=</span><span class="n">arrival_taper</span><span class="p">,</span>
+        <span class="n">wavename</span><span class="o">=</span><span class="n">wavename</span><span class="p">,</span>
+        <span class="n">filterer</span><span class="o">=</span><span class="n">filterer</span><span class="p">,</span>
+        <span class="n">arrival_times</span><span class="o">=</span><span class="n">arrival_times</span><span class="p">,</span>
+        <span class="n">pre_stack_cut</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">plot</span><span class="o">=</span><span class="n">plot</span><span class="p">,</span>
+        <span class="n">outmode</span><span class="o">=</span><span class="s1">&#39;array&#39;</span><span class="p">,</span>
+        <span class="n">chop_bounds</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;b&#39;</span><span class="p">,</span> <span class="s1">&#39;c&#39;</span><span class="p">])</span>
+
+    <span class="n">t1</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Trace generation time </span><span class="si">%f</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">t1</span> <span class="o">-</span> <span class="n">t0</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">cov</span><span class="p">(</span><span class="n">synths</span><span class="p">,</span> <span class="n">rowvar</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="geodetic_cov_velocity_models"><a class="viewcode-back" href="../api.html#covariance.geodetic_cov_velocity_models">[docs]</a><span class="k">def</span> <span class="nf">geodetic_cov_velocity_models</span><span class="p">(</span>
+        <span class="n">engine</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">dataset</span><span class="p">,</span> <span class="n">plot</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate model prediction uncertainty matrix with respect to uncertainties</span>
+<span class="sd">    in the velocity model for geodetic targets using fomosto GF stores.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`</span>
+<span class="sd">        contains synthetics generation machine</span>
+<span class="sd">    target : :class:`pyrocko.gf.targets.StaticTarget`</span>
+<span class="sd">        dataset and observation points to calculate covariance for</span>
+<span class="sd">    sources : list</span>
+<span class="sd">        of :py:class:`pyrocko.gf.seismosizer.Source` determines the covariance</span>
+<span class="sd">        matrix</span>
+<span class="sd">    plot : boolean</span>
+<span class="sd">        if set, a plot is produced and not covariance matrix is returned</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.ndarray` with Covariance due to velocity model uncertainties</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
+    <span class="n">displacements</span> <span class="o">=</span> <span class="n">heart</span><span class="o">.</span><span class="n">geo_synthetics</span><span class="p">(</span>
+        <span class="n">engine</span><span class="o">=</span><span class="n">engine</span><span class="p">,</span>
+        <span class="n">targets</span><span class="o">=</span><span class="n">targets</span><span class="p">,</span>
+        <span class="n">sources</span><span class="o">=</span><span class="n">sources</span><span class="p">,</span>
+        <span class="n">outmode</span><span class="o">=</span><span class="s1">&#39;stacked_arrays&#39;</span><span class="p">)</span>
+    <span class="n">t1</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Synthetics generation time </span><span class="si">%f</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">t1</span> <span class="o">-</span> <span class="n">t0</span><span class="p">))</span>
+
+    <span class="n">synths</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">targets</span><span class="p">),</span> <span class="n">dataset</span><span class="o">.</span><span class="n">samples</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">disp</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">displacements</span><span class="p">):</span>
+        <span class="n">synths</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">disp</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">dataset</span><span class="o">.</span><span class="n">los_vector</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span>
+            <span class="n">disp</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">dataset</span><span class="o">.</span><span class="n">los_vector</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span>
+            <span class="n">disp</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">dataset</span><span class="o">.</span><span class="n">los_vector</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">])</span> <span class="o">*</span> <span class="n">dataset</span><span class="o">.</span><span class="n">odw</span>
+
+    <span class="k">if</span> <span class="n">plot</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="nn">matplotlib</span> <span class="k">import</span> <span class="n">pyplot</span> <span class="k">as</span> <span class="n">plt</span>
+        <span class="n">indexes</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">get_distances_to_event</span><span class="p">(</span><span class="n">event</span><span class="p">)</span><span class="o">.</span><span class="n">argsort</span><span class="p">()</span>  <span class="c1"># noqa</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">axes</span><span class="p">()</span>
+        <span class="n">im</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">matshow</span><span class="p">(</span><span class="n">synths</span><span class="p">)</span>  <span class="c1"># [:, indexes])</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">im</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">cov</span><span class="p">(</span><span class="n">synths</span><span class="p">,</span> <span class="n">rowvar</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="geodetic_cov_velocity_models_pscmp"><a class="viewcode-back" href="../api.html#covariance.geodetic_cov_velocity_models_pscmp">[docs]</a><span class="k">def</span> <span class="nf">geodetic_cov_velocity_models_pscmp</span><span class="p">(</span>
+        <span class="n">store_superdir</span><span class="p">,</span> <span class="n">crust_inds</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">sources</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate model prediction uncertainty matrix with respect to uncertainties</span>
+<span class="sd">    in the velocity model for geodetic targets based on pscmp.</span>
+<span class="sd">    Deprecated!!!</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    store_superdir : str</span>
+<span class="sd">        Absolute path to the geodetic GreensFunction directory</span>
+<span class="sd">    crust_inds : list</span>
+<span class="sd">        of int of indices for respective GreensFunction store indexes</span>
+<span class="sd">    target : :class:`heart.GeodeticDataset`</span>
+<span class="sd">        dataset and observation points to calculate covariance for</span>
+<span class="sd">    sources : list</span>
+<span class="sd">        of :py:class:`pscmp.PsCmpRectangularSource` determines the covariance</span>
+<span class="sd">        matrix</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.ndarray` with Covariance due to velocity model uncertainties</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">synths</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">crust_inds</span><span class="p">),</span> <span class="n">target</span><span class="o">.</span><span class="n">samples</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">crust_ind</span> <span class="ow">in</span> <span class="n">crust_inds</span><span class="p">:</span>
+        <span class="n">disp</span> <span class="o">=</span> <span class="n">heart</span><span class="o">.</span><span class="n">geo_layer_synthetics</span><span class="p">(</span>
+            <span class="n">store_superdir</span><span class="p">,</span> <span class="n">crust_ind</span><span class="p">,</span>
+            <span class="n">lons</span><span class="o">=</span><span class="n">target</span><span class="o">.</span><span class="n">lons</span><span class="p">,</span>
+            <span class="n">lats</span><span class="o">=</span><span class="n">target</span><span class="o">.</span><span class="n">lats</span><span class="p">,</span>
+            <span class="n">sources</span><span class="o">=</span><span class="n">sources</span><span class="p">)</span>
+        <span class="n">synths</span><span class="p">[</span><span class="n">crust_ind</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">disp</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">target</span><span class="o">.</span><span class="n">los_vector</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span>
+            <span class="n">disp</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">target</span><span class="o">.</span><span class="n">los_vector</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span>
+            <span class="n">disp</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">target</span><span class="o">.</span><span class="n">los_vector</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">])</span> <span class="o">*</span> <span class="n">target</span><span class="o">.</span><span class="n">odw</span>
+
+    <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">cov</span><span class="p">(</span><span class="n">synths</span><span class="p">,</span> <span class="n">rowvar</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">autocovariance</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate autocovariance of data.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.ndarray`</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Following Dettmer et al. 2007 JASA</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">size</span>
+    <span class="n">meand</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+
+    <span class="n">autocov</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n</span><span class="p">),</span> <span class="n">tconfig</span><span class="o">.</span><span class="n">floatX</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="n">j</span><span class="p">):</span>
+            <span class="n">autocov</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">+=</span> <span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">j</span> <span class="o">+</span> <span class="n">k</span><span class="p">]</span> <span class="o">-</span> <span class="n">meand</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">-</span> <span class="n">meand</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">autocov</span> <span class="o">/</span> <span class="n">n</span>
+
+
+<span class="k">def</span> <span class="nf">toeplitz_covariance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">window_size</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get Toeplitz banded matrix for given data.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    toeplitz : :class:`numpy.ndarray` 2-d, (size data, size data)</span>
+<span class="sd">    stds : :class:`numpy.ndarray` 1-d, size data</span>
+<span class="sd">        of running windows</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">stds</span> <span class="o">=</span> <span class="n">running_window_rms</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">window_size</span><span class="o">=</span><span class="n">window_size</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;same&#39;</span><span class="p">)</span>
+    <span class="n">coeffs</span> <span class="o">=</span> <span class="n">autocovariance</span><span class="p">(</span><span class="n">data</span> <span class="o">/</span> <span class="n">stds</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">toeplitz</span><span class="p">(</span><span class="n">coeffs</span><span class="p">),</span> <span class="n">stds</span>
+
+
+<span class="k">def</span> <span class="nf">non_toeplitz_covariance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">window_size</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get scaled non- Toeplitz covariance matrix, which may be able to account</span>
+<span class="sd">    for non-stationary data-errors.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : :class:`numpy.ndarray`</span>
+<span class="sd">        of data to estimate non-stationary error matrix for</span>
+<span class="sd">    window_size : int</span>
+<span class="sd">        samples to take on running rmse estimation over data</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.ndarray` (size data, size data)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">toeplitz</span><span class="p">,</span> <span class="n">stds</span> <span class="o">=</span> <span class="n">toeplitz_covariance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">window_size</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">toeplitz</span> <span class="o">*</span> <span class="n">stds</span><span class="p">[:,</span> <span class="n">num</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span> <span class="o">*</span> <span class="n">stds</span><span class="p">[</span><span class="n">num</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:]</span>
+
+
+<span class="k">def</span> <span class="nf">init_proposal_covariance</span><span class="p">(</span><span class="n">bij</span><span class="p">,</span> <span class="nb">vars</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">pop_size</span><span class="o">=</span><span class="mi">1000</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create initial proposal covariance matrix based on random samples</span>
+<span class="sd">    from the solution space.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">population_array</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">pop_size</span><span class="p">,</span> <span class="n">bij</span><span class="o">.</span><span class="n">ordering</span><span class="o">.</span><span class="n">size</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">pop_size</span><span class="p">):</span>
+        <span class="n">point</span> <span class="o">=</span> <span class="n">Point</span><span class="p">({</span><span class="n">v</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">random</span><span class="p">()</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">},</span> <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">)</span>
+        <span class="n">population_array</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">bij</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">point</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">population_array</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">calc_sample_covariance</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="n">lij</span><span class="p">,</span> <span class="n">bij</span><span class="p">,</span> <span class="n">beta</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate trace covariance matrix based on given trace values.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    lpoints : list</span>
+<span class="sd">        of list points (e.g. buffer of traces)</span>
+<span class="sd">    lij : `beat.utility.ListArrayOrdering`</span>
+<span class="sd">        that holds orderings of RVs</span>
+<span class="sd">    beta : float</span>
+<span class="sd">        tempering parameter of the trace</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    cov : :class:`numpy.ndarray`</span>
+<span class="sd">        weighted covariances (NumPy &gt; 1.10. required)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">n_points</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span>
+
+    <span class="n">population_array</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_points</span><span class="p">,</span> <span class="n">bij</span><span class="o">.</span><span class="n">ordering</span><span class="o">.</span><span class="n">size</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">lpoint</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">buffer</span><span class="p">):</span>
+        <span class="n">point</span> <span class="o">=</span> <span class="n">lij</span><span class="o">.</span><span class="n">l2d</span><span class="p">(</span><span class="n">lpoint</span><span class="p">)</span>
+        <span class="n">population_array</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">bij</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">point</span><span class="p">)</span>
+
+    <span class="n">like_idx</span> <span class="o">=</span> <span class="n">lij</span><span class="o">.</span><span class="n">ordering</span><span class="p">[</span><span class="s1">&#39;like&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">list_ind</span>
+    <span class="n">weights</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">lpoint</span><span class="p">[</span><span class="n">like_idx</span><span class="p">]</span> <span class="k">for</span> <span class="n">lpoint</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">buffer</span><span class="p">])</span>
+    <span class="n">temp_weights</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">exp</span><span class="p">((</span><span class="n">weights</span> <span class="o">-</span> <span class="n">weights</span><span class="o">.</span><span class="n">max</span><span class="p">()))</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+    <span class="n">norm_weights</span> <span class="o">=</span> <span class="n">temp_weights</span> <span class="o">/</span> <span class="n">num</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">temp_weights</span><span class="p">)</span>
+
+    <span class="n">cov</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">cov</span><span class="p">(</span>
+        <span class="n">population_array</span><span class="p">,</span>
+        <span class="n">aweights</span><span class="o">=</span><span class="n">norm_weights</span><span class="p">,</span>
+        <span class="n">bias</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">rowvar</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="n">cov</span> <span class="o">=</span> <span class="n">ensure_cov_psd</span><span class="p">(</span><span class="n">cov</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">num</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">cov</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="ow">or</span> <span class="n">num</span><span class="o">.</span><span class="n">isinf</span><span class="p">(</span><span class="n">cov</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="s1">&#39;Proposal covariances contain Inf or NaN! &#39;</span>
+            <span class="s1">&#39;For chain with beta: </span><span class="si">%f</span><span class="s1"> &#39;</span>
+            <span class="s1">&#39;Buffer size maybe too small! Keeping previous proposal.&#39;</span> <span class="o">%</span> <span class="n">beta</span><span class="p">)</span>
+        <span class="n">cov</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">return</span> <span class="n">cov</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="../index.html">Table Of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../updating.html">Updating beat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/index.html">Getting started with BEAT</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

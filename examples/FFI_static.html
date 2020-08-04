@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Example 4: Static finite-fault estimation &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Example 5: Kinematic finite-fault estimation" href="FFI_kinematic.html" />
+    <link rel="prev" title="Example 3: Rectangular source" href="Rectangular.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="../_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="../_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="../index.html">beat 1.0 documentation</a> &#187;
+          </li>
+            <li><a href="index.html" accesskey="U">Examples</a> &#187;</li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="example-4-static-finite-fault-estimation">
+<h1>Example 4: Static finite-fault estimation<a class="headerlink" href="#example-4-static-finite-fault-estimation" title="Permalink to this headline">¶</a></h1>
+<p>In this example we will determine a variable slip distribution for the L’aquila 2009 earthquake by using static InSAR data.
+The data is the exact same from <a class="reference external" href="https://hvasbath.github.io/beat/examples/Rectangular.html#">Example 3</a>, where the overall geometry of the fault plane was estimated.
+It is a requirement to have Example 3 completed in order to follow the instructions and commands given in this example.</p>
+<p>Please make sure that you are one level above the Laquila project folder (created earlier).:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>cd $beat_models_path
+</pre></div>
+</div>
+<div class="section" id="init">
+<h2>Init<a class="headerlink" href="#init" title="Permalink to this headline">¶</a></h2>
+<p>In this example you will first make use of the <strong>mode</strong> argument. The default is: <em>geometry</em>, which is why it was not necessary to specify it in the earlier examples. Now we will always have to set <strong>mode</strong> to <em>ffi</em>, which is an abbreviation for finite-fault-optimization.
+The following command will create a configuration file for the <em>ffi</em> mode called <em>config_ffi.yaml</em> right next to the <em>config_geometry.yaml</em>:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">init</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">mode</span><span class="o">=</span><span class="s1">&#39;ffi&#39;</span> <span class="o">--</span><span class="n">datatypes</span><span class="o">=</span><span class="n">geodetic</span>
+</pre></div>
+</div>
+<p>It will load the <em>config_geometry.yaml</em> and port arguments that have been specified before to ensure consistency and will only use <em>geodetic</em> data.</p>
+<p>The main differences in the two configuration files are in the <em>geodetic_config.gf_config</em> and the <em>problem_config</em>. You may want to have a first glance at the new config. The general structure is the same and the argument names are chosen to give the user an initial idea what these are for. A short explanation for each argument is again given in the module API <a class="reference external" href="https://hvasbath.github.io/beat/api.html#module-config">here</a>, where you can use the search function of your browser to find the argument of interest.</p>
+</div>
+<div class="section" id="calculate-greens-functions">
+<h2>Calculate Greens Functions<a class="headerlink" href="#calculate-greens-functions" title="Permalink to this headline">¶</a></h2>
+<p>For the distributed slip optimization a reference fault has to be defined that determines the overall geometry.
+Once this has been done the problem becomes linear as the only unknown parameters are the slips in rake perpendicular and rake parallel direction.
+The fault geometry needs to be defined in the <em>geodetic.gf_config.reference_sources</em>.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>gf_config: !beat.GeodeticLinearGFConfig
+  store_superdir: /home/vasyurhm/GF/Laquila
+  reference_model_idx: 0
+  n_variations: [0, 1]
+  earth_model_name: ak135-f-average.m
+  nworkers: 4
+  reference_sources:
+  - !beat.sources.RectangularSource
+    lat: 42.29
+    lon: 13.35
+    north_shift: 5542.073672733207
+    east_shift: 10698.176839272524
+    elevation: 0.0
+    depth: 2926.702988951863
+    time: 2009-04-06 01:32:49.19
+    stf: !pf.HalfSinusoidSTF
+      duration: 0.0
+      anchor: 0.0
+    stf_mode: post
+    strike: 144.48588106798306
+    dip: 54.804317242125464
+    rake: -114.58259929068664
+    length: 12219.56636799338
+    width: 9347.802691161543
+    velocity: 3500.0
+    slip: 0.5756726498300268
+  patch_widths: [2.0]
+  patch_lengths: [2.0]
+  extension_widths: [0.6]
+  extension_lengths: [0.4]
+  sample_rate: 1.1574074074074073e-05
+</pre></div>
+</div>
+<p>The values shown above are parts of the MAP solution from the optimization from Example 3. The results can been imported through the import command specifiying the –results option. We want to import the results from the <em>Laquila</em> project_directory from an optimization in <em>geometry</em> mode and we want to update the <em>geodetic</em> part of the <em>config_ffi.yaml</em>:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="kn">import</span> <span class="nn">Laquila</span> <span class="o">--</span><span class="n">results</span><span class="o">=</span><span class="n">Laquila</span> <span class="o">--</span><span class="n">mode</span><span class="o">=</span><span class="s1">&#39;geometry&#39;</span> <span class="o">--</span><span class="n">datatypes</span><span class="o">=</span><span class="n">geodetic</span>
+</pre></div>
+</div>
+<p>Of course, these values could be edited manually to whatever the user deems reasonable.</p>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">The reference point(s) on the <em>reference_fault(s)</em> are the top, central point of the fault(s)! Ergo the <em>depth</em> parameter(s) relate(s) to the <strong>top edge(s)</strong> of the fault(s).</p>
+</div>
+<p>Now we need to specify the dimensions of the patches we want to discretize the reference fault(s) into. The <em>patch_widths</em> and <em>patch_lengths</em> arguments have to be lists and the respective entry needs to result in <strong>square</strong> patches. The parameters <strong>extension_withs</strong> and <strong>extension_lengths</strong> specify by how much the reference fault(s)should be extended in <strong>each</strong> direction. Example: 0.1 means that the fault is extended by 10% of its width/length value in each direction and 0. means no extension.</p>
+<p>Once we decided for the discretization and the reference fault values we can create the discretized fault through.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">build_gfs</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">datatypes</span><span class="o">=</span><span class="n">geodetic</span> <span class="o">--</span><span class="n">mode</span><span class="o">=</span><span class="n">ffi</span>
+</pre></div>
+</div>
+<p>This will create a directory (<strong>$linear_gfs</strong>): <em>Laquila/ffi/linear_gfs</em> where the fault geometry is saved as a pickle file ‘fault_geometry.pkl’.
+We can inspect the geometry of the resulting extended discretized fault wrt. the reference fault with:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">check</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">what</span><span class="o">=</span><span class="n">geometry</span> <span class="o">--</span><span class="n">mode</span><span class="o">=</span><span class="n">ffi</span>
+</pre></div>
+</div>
+<p>This will open an interactive 3d plot of the fault geometry, which looks along the lines of</p>
+<img alt="../_images/Laquila_FaultGeometry.png" src="../_images/Laquila_FaultGeometry.png" />
+<p>The grey rectangle shows the geometry of the fault specified under <em>reference_sources</em> and the red rectangle(s) show the extended fault with the respective discretization of the sub-patches. The grey and red dots mark the centres of the <em>reference_fault(s)</em> and the extended faults, respectively.
+The numbers are the indexes of the repsective sub-patch in the Green’s Function matrix we are going to calculate next.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">If the upper edge of the fault would intersect the surface (no topography assumed) due to the extension it is truncated at the intersection and not extended further. Which is why the extent of the red fault is assymetric around the grey reference fault in dip-direction.</p>
+</div>
+<p>To repeat the fault discretization after changing some parameters please add the –force option and the previously fault geometry will be overwritten.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">build_gfs</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">datatypes</span><span class="o">=</span><span class="n">geodetic</span> <span class="o">--</span><span class="n">mode</span><span class="o">=</span><span class="n">ffi</span> <span class="o">--</span><span class="n">force</span>
+</pre></div>
+</div>
+<p>The next command starts the calculation of the linear Green’s Function matrixes (also called <em>library</em>) using <em>nworkers</em> CPUs in parallel with unit slip in each slip-direction.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">build_gfs</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">datatypes</span><span class="o">=</span><span class="n">geodetic</span> <span class="o">--</span><span class="n">mode</span><span class="o">=</span><span class="n">ffi</span> <span class="o">--</span><span class="n">execute</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The slip components are not dip-slip and strike-slip, but rake-parallel (uparr in <em>config_ffi.yaml</em> priors) and rake-perpendicular (uperp in <em>config_ffi.yaml</em> priors) wrt to <em>reference_fault(s)</em> rake angle(s). This is following the convention of <a class="reference internal" href="../api.html#minson2013" id="id1">[Minson2013]</a>.</p>
+</div>
+<dl class="docutils">
+<dt>This will create two files for each GF <em>library</em> in the <strong>$linear_gfs</strong> directory:</dt>
+<dd><ul class="first last simple">
+<li><em>geodetic_uparr_static_0.traces.npy</em> a numpy array containing the linear GFs</li>
+<li><em>geodetic_uparr_static_0.yaml</em> a yaml file with the meta information</li>
+</ul>
+</dd>
+</dl>
+<p>Now we are ready to prepare the optimization setup.</p>
+</div>
+<div class="section" id="optimization-setup">
+<h2>Optimization setup<a class="headerlink" href="#optimization-setup" title="Permalink to this headline">¶</a></h2>
+<p>Under the <em>problem_config</em> we find the parameters that we need to adjust:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>problem_config: !beat.ProblemConfig
+  mode: ffi
+  mode_config: !beat.FFIConfig
+    regularization: none
+    npatches: 121
+    initialization: random
+  source_type: RectangularSource
+  stf_type: HalfSinusoid
+  decimation_factors:
+    geodetic: 1
+    seismic: 1
+  n_sources: 1
+  datatypes: [geodetic, seismic]
+  hyperparameters:
+    h_SAR: !beat.heart.Parameter
+      name: h_SAR
+      form: Uniform
+      lower: [-20.0]
+      upper: [20.0]
+      testvalue: [0.0]
+  priors:
+    uparr: !beat.heart.Parameter
+      name: uparr
+      form: Uniform
+      lower: [-0.05]
+      upper: [6.0]
+      testvalue: [1.15]
+    uperp: !beat.heart.Parameter
+      name: uperp
+      form: Uniform
+      lower: [-0.3]
+      upper: [4.0]
+      testvalue: [0.5]
+  hierarchicals:
+    Laquila_ascxn_offset: !beat.heart.Parameter
+      name: Laquila_ascxn_offset
+      form: Uniform
+      lower: [-0.004496268249748271]
+      upper: [-0.004496268249748271]
+      testvalue: [-0.004496268249748271]
+    Laquila_ascxn_ramp: !beat.heart.Parameter
+      name: Laquila_ascxn_ramp
+      form: Uniform
+      lower: [-0.00043773457168120667, -0.00023808150002277328]
+      upper: [-0.00043773457168120667, -0.00023808150002277328]
+      testvalue: [-0.00043773457168120667, -0.00023808150002277328]
+    Laquila_dscxn_offset: !beat.heart.Parameter
+      name: Laquila_dscxn_offset
+      form: Uniform
+      lower: [-0.003754963750062188]
+      upper: [-0.003754963750062188]
+      testvalue: [-0.003754963750062188]
+    Laquila_dscxn_ramp: !beat.heart.Parameter
+      name: Laquila_dscxn_ramp
+      form: Uniform
+      lower: [4.978325480108451e-05, -0.00025072248953317104]
+      upper: [4.978325480108451e-05, -0.00025072248953317104]
+      testvalue: [4.978325480108451e-05, -0.00025072248953317104]
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The npatches parameter should not be manually adjusted. It is automatically set by running the fault discretizeation step during GF calculation(above).</p>
+</div>
+<div class="section" id="hierarchicals">
+<h3>Hierarchicals<a class="headerlink" href="#hierarchicals" title="Permalink to this headline">¶</a></h3>
+<p>Please notice the hierarchicals parameters! These are the MAP parameters for the orbital ramps for each radar scene that have been optimized in Example 2.
+These parameters are imported if the <em>fit_plane</em> parameter in the <em>geodetic_config</em> was set to True. The default is to fix these ramp parameters during the static distributed slip optimization, because leaving them open often results in tradeoffs with patches at greater depth and thus artificial slip is optimized at greater depth.
+Nevertheless, the user may want to try out to free the upper and lower bounds again to include the parameters into the optimization.</p>
+</div>
+<div class="section" id="priors">
+<h3>Priors<a class="headerlink" href="#priors" title="Permalink to this headline">¶</a></h3>
+<p>The upper and lower bounds of the two prior variables can be adjusted to reduce the solution space (slip parameters [m]). For the L’aquila earthquake it is highly unlikely to have 6 meters of slip, which is simply the default parameter. A maximum slip of 2 meters in slip parallel direction may be more reasonable. In order to be able to sample the zero value at the lower bound it is necessary to allow for some backslip- ergo negative <em>uparr</em>; here 0.1 might be a reasonable choice.</p>
+<p>To also allow for variable rake angles accross the fault we may want to allow some rake perpendicular slip. Here the lower and upper bounds should be set to -1. and 1., respectively.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">In order to fix a variable at a certain value, the lower and upper bounds as well as the testvlue need to be set to the same value.</p>
+</div>
+</div>
+<div class="section" id="regularization">
+<h3>Regularization<a class="headerlink" href="#regularization" title="Permalink to this headline">¶</a></h3>
+<p>The <em>regularization</em> argument should be set to <em>laplacian</em> to introduce a smoothing constraint that penalizes high slip gradients between neighboring patches.
+Once this is enabled we need to update the configuration file to initialize the slip-smoothing weight as a random variable in the optimization <a class="reference internal" href="#fukuda2008" id="id2">[Fukuda2008]</a>.
+Adding the –diff option will display the changes to the config to screen instead of applying them to the file.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">update</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">mode</span><span class="o">=</span><span class="n">ffi</span> <span class="o">--</span><span class="n">diff</span> <span class="o">--</span><span class="n">parameters</span><span class="o">=</span><span class="n">hypers</span>
+</pre></div>
+</div>
+<p>Once happy with the displayed changes the changes will be applied to the file with:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">update</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">mode</span><span class="o">=</span><span class="n">ffi</span> <span class="o">--</span><span class="n">parameters</span><span class="o">=</span><span class="n">hypers</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The <em>None</em> regularization would be used if covariance matrices that describe the theory errors for the velocity model and/or the fault geometry have been estimated <a class="reference internal" href="#duputel2014" id="id3">[Duputel2014]</a> , <a class="reference internal" href="#ragon2018" id="id4">[Ragon2018]</a>. How to do that in BEAT will be part of another tutorial in the future.</p>
+</div>
+</div>
+</div>
+<div class="section" id="sample-the-solution-space">
+<h2>Sample the solution space<a class="headerlink" href="#sample-the-solution-space" title="Permalink to this headline">¶</a></h2>
+<p>Please refer to the ‘Sample the solution space section’ of <a class="reference external" href="https://hvasbath.github.io/beat/examples/FullMT_regional.html#sample-the-solution-space">example 3</a> example for a more detailed description of the sampling and associated parameters.</p>
+<p>Firstly, we only optimize for the noise scaling or hyperparameters (HPs) including the laplacian smoothing weight:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">sample</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">hypers</span> <span class="o">--</span><span class="n">mode</span><span class="o">=</span><span class="n">ffi</span>
+</pre></div>
+</div>
+<p>Checking the $project_directory/config_ffi.yaml, the hyperparameter bounds show something like:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>hyperparameters:
+h_SAR: !beat.heart.Parameter
+  name: h_SAR
+  form: Uniform
+  lower: [-1.0]
+  upper: [5.0]
+  testvalue: [2.0]
+h_laplacian: !beat.heart.Parameter
+  name: h_laplacian
+  form: Uniform
+  lower: [-5.0]
+  upper: [5.0]
+  testvalue: [0.5]
+</pre></div>
+</div>
+<div class="section" id="markov-chain-initialization">
+<h3>Markov Chain initialization<a class="headerlink" href="#markov-chain-initialization" title="Permalink to this headline">¶</a></h3>
+<p>The <em>initialization</em> argument determines at which point in the solution space to initialize the Markov Chains. The default value <em>random</em> simply draws a random point in the solution space from the prior distributions for each Markov Chain to be sampled. However, as we are using a laplacian smoothing constraint we can use the non-negative least-squares solution as a starting value for a randomly drawn smoothing weight (from the initial guess on the <em>h_laplacian</em> parameter range) <a class="reference internal" href="#fukuda2008" id="id5">[Fukuda2008]</a>. To do, so we need to set the <em>initialization</em> to “lsq”:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>mode_config: !beat.FFIConfig
+  regularization: laplacian
+  npatches: 121
+  initialization: lsq
+</pre></div>
+</div>
+<p>The ‘n_jobs’ number should be set to as many CPUs as the user can spare under the <em>sampler_config</em>. The number of sampled MarkovChains and the number of steps for each chain of the SMC sampler should be set to high values as we are optimizing now for ca 250 random variables (if the values from the tutorial haven’t been altered by the user); for example to 5000 and 400, respectively.</p>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">With these sampler parameters a huge amount of samples are going to be stored to disk! With the values from the tutorial approximately <em>140GB</em> of samples are created in the course of the sampling. Please see <a class="reference external" href="https://hvasbath.github.io/beat/examples/FullMT_regional.html#summarize-the-results">example 0</a> for an instruction on how to keep only the important samples to reduce the disk usage. Another way to reduce the required disc space is through the <em>buffer_thinning</em> parameter described <a class="reference external" href="https://hvasbath.github.io/beat/getting_started/backends.html#sampling-backends">here</a>.</p>
+</div>
+<p>Finally, we are set to run the full optimization for the static slip-distribution with:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">sample</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">mode</span><span class="o">=</span><span class="n">ffi</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="summarize-and-plotting">
+<h2>Summarize and plotting<a class="headerlink" href="#summarize-and-plotting" title="Permalink to this headline">¶</a></h2>
+<p>After the sampling successfully finished, the final stage results have to be summarized with:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">summarize</span> <span class="n">Laquila</span> <span class="o">--</span><span class="n">stage_number</span><span class="o">=-</span><span class="mi">1</span> <span class="o">--</span><span class="n">mode</span><span class="o">=</span><span class="n">ffi</span>
+</pre></div>
+</div>
+<p>After that several figures illustrating the results can be created.</p>
+<p>For the slip-distribution please run:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">plot</span> <span class="n">Laquila</span> <span class="n">slip_distribution</span> <span class="o">--</span><span class="n">mode</span><span class="o">=</span><span class="n">ffi</span>
+</pre></div>
+</div>
+<img alt="../_images/Laquila_static_slip_dist_-1_max.png" src="../_images/Laquila_static_slip_dist_-1_max.png" />
+<p>To get histograms for the laplacian smoothing, the noise scalings and the posterior likelihood please run:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">plot</span> <span class="n">LaquilaJointPonlyUPDATE_wide</span> <span class="n">stage_posteriors</span> <span class="o">--</span><span class="n">stage_number</span><span class="o">=-</span><span class="mi">1</span> <span class="o">--</span><span class="n">mode</span><span class="o">=</span><span class="n">ffi</span> <span class="o">--</span><span class="n">varnames</span><span class="o">=</span><span class="n">h_laplacian</span><span class="p">,</span><span class="n">h_SAR</span><span class="p">,</span><span class="n">like</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_images/stage_-1_max1.png"><img alt="../_images/stage_-1_max1.png" src="../_images/stage_-1_max1.png" style="width: 350px; height: 350px;" /></a>
+<p>For a comparison between data, synthetic displacements and residuals for the two InSAR tracks in a local coordinate system please run:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">plot</span> <span class="n">Laquila</span> <span class="n">scene_fits</span> <span class="o">--</span><span class="n">mode</span><span class="o">=</span><span class="n">ffi</span>
+</pre></div>
+</div>
+<img alt="../_images/scenes_-1_max_local_01.png" src="../_images/scenes_-1_max_local_01.png" />
+<p>The plot should show something like this. Here the residuals are displayed with an individual color scale according to their minimum and maximum values.</p>
+<p>For a plot using the global geographic coordinate system where the residuals have the same color bar as data and synthetics please run:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">plot</span> <span class="n">Laquila</span> <span class="n">scene_fits</span> <span class="o">--</span><span class="n">mode</span><span class="o">=</span><span class="n">ffi</span> <span class="o">--</span><span class="n">plot_projection</span><span class="o">=</span><span class="n">latlon</span>
+</pre></div>
+</div>
+<img alt="../_images/scenes_-1_max_latlon_01.png" src="../_images/scenes_-1_max_latlon_01.png" />
+</div>
+<div class="section" id="references">
+<h2>References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
+<table class="docutils citation" frame="void" id="duputel2014" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id3">[Duputel2014]</a></td><td>Duputel, Z., Agram, P. S., Simons, M., Minson, S. E., and Beck, J. L. (2014). Accounting for prediction uncertainty when inferring subsurface fault slip. Geophysical Journal International, 197(1):464–482</td></tr>
+</tbody>
+</table>
+<table class="docutils citation" frame="void" id="fukuda2008" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label">[Fukuda2008]</td><td><em>(<a class="fn-backref" href="#id2">1</a>, <a class="fn-backref" href="#id5">2</a>)</em> Fukuda, J. and Johnson, K. M. (2008). A fully Bayesian inversion for spatial distribution of fault slip with objective smoothing. Bulletin of the Seismological Society of America, 98(3):1128–1146</td></tr>
+</tbody>
+</table>
+<table class="docutils citation" frame="void" id="ragon2018" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id4">[Ragon2018]</a></td><td>Ragon, T., Sladen, A., Simons,  M. Accounting for uncertain fault geometry in earthquake source inversions – I: theory and simplified application, Geophysical Journal International, 214(2):1174–1190</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="../index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../updating.html">Updating beat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/index.html">Getting started with BEAT</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Examples</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="FullMT_regional.html">Example 1: Regional Full Moment Tensor</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dc_teleseismic.html">Example 2: Teleseismic Double Couple</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Rectangular.html">Example 3: Rectangular source</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Example 4: Static finite-fault estimation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#init">Init</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#calculate-greens-functions">Calculate Greens Functions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#optimization-setup">Optimization setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sample-the-solution-space">Sample the solution space</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#summarize-and-plotting">Summarize and plotting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#references">References</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="FFI_kinematic.html">Example 5: Kinematic finite-fault estimation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="FFI_kinematic.html" title="Example 5: Kinematic finite-fault estimation"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="Rectangular.html" title="Example 3: Rectangular source"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

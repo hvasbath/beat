@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Sampling Backends &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="How to setup a Custom Greens Function Store" href="custom_gf_store.html" />
+    <link rel="prev" title="How to update the configuration files" href="update_config.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="../_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="../_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="../index.html">beat 1.0 documentation</a> &#187;
+          </li>
+            <li><a href="index.html" accesskey="U">Getting started with BEAT</a> &#187;</li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="sampling-backends">
+<h1>Sampling Backends<a class="headerlink" href="#sampling-backends" title="Permalink to this headline">¶</a></h1>
+<p>Currently, there are two <em>backends</em> implemented that allow to select the format in which the sampling results are stored to the disc.</p>
+<blockquote>
+<div><ul class="simple">
+<li>csv- comma seperated value: This format is good for getting started, debugging and to inspect the content and form of sampling results that are written to disc. Any text editor can easily open these files and the user can check if sampled values are reasonable. However, resulting disc space needed for storing the samples is large and the performance of reading and writing is low.</li>
+<li>bin- binary: This format is good once the user knows what is going on and when performance matters for longer sophisticated model runs. Speed of reading and writing is ca. 100 times faster than with the <em>csv</em> format and required disc space is less. However, accessing the content of the files is more complicated through the BEAT-API and is not human readable.</li>
+</ul>
+</div></blockquote>
+<p>The first lines of the <em>SamplerConfigs</em>:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>sampler_config: !beat.SamplerConfig
+  name: SMC
+  backend: bin  # could be also &quot;csv&quot;
+  progressbar: true
+  buffer_size: 1000
+  buffer_thinning: 50
+</pre></div>
+</div>
+<p>Two parameters determine the behavior of the sampling backends.</p>
+<p><em>buffer_size</em> determines the number of samples after which results are written to disc.</p>
+<p><em>buffer_thinning</em> e.g. with 50 here, every 50th sample is going to be written to files. This is useful to significantly reduce the amount of disc space that is needed to store the samples obtained with the <em>SMC</em> sampler. Especially, for setups with hundreds of random variables and thousands of chains this can make a difference of hundreds of giga-bytes. For the intermediate PDFs that are being sampled by the <em>SMC</em> only the last samples of the stage are needed to transition into the next stage. Thus, it is ok to throw away the rest.</p>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="../index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../updating.html">Updating beat</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Getting started with BEAT</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="general.html">General</a></li>
+<li class="toctree-l2"><a class="reference internal" href="init_project.html">Initialise a new Modeling Project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="import_data.html">Import Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="update_config.html">How to update the configuration files</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Sampling Backends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="custom_gf_store.html">How to setup a Custom Greens Function Store</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ffi_setup.html">How to setup a Finite Fault Inference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="custom_gf_store.html" title="How to setup a Custom Greens Function Store"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="update_config.html" title="How to update the configuration files"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Anaconda Installation instructions &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Detailed Installation instructions" href="installation.html" />
+    <link rel="prev" title="Short Installation instructions" href="short_installation.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="index.html">beat 1.0 documentation</a> &#187;
+          </li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="anaconda-installation-instructions">
+<h1>Anaconda Installation instructions<a class="headerlink" href="#anaconda-installation-instructions" title="Permalink to this headline">¶</a></h1>
+<p>For users that want to use anaconda to install BEAT one cannot follow the short or detailed installation instructions.
+A general advice when dealing with anaconda is that the “sudo” command must NOT be used at any time, otherwise things will be installed to the system
+instead of the respective anaconda environment.
+Below are a series of commands that might be able to get you up and running using anaconda3 (thanks to Rebecca Salvage).</p>
+<p>Create and activate a new conda environment e.g. called “beat” using python3.6 (minimum required is 3.5):</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">conda</span> <span class="n">create</span> <span class="o">-</span><span class="n">n</span> <span class="n">beat</span> <span class="n">python</span><span class="o">=</span><span class="mf">3.6</span>
+<span class="n">conda</span> <span class="n">activate</span> <span class="n">beat</span>
+<span class="n">cd</span> <span class="o">~/</span><span class="n">src</span>  <span class="c1"># or whereever you keep the packages</span>
+</pre></div>
+</div>
+<p>Download the beat source package from github (requires git to be installed on your machine):</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">clone</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">hvasbath</span><span class="o">/</span><span class="n">beat</span>
+</pre></div>
+</div>
+<p>Download and install several required packages:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">conda</span> <span class="n">install</span> <span class="o">-</span><span class="n">n</span> <span class="n">beat</span> <span class="n">libgfortran</span> <span class="n">openblas</span> <span class="n">theano</span> <span class="n">pygpu</span> <span class="n">openmpi</span> <span class="n">pandas</span><span class="o">=</span><span class="mf">0.24</span><span class="o">.</span><span class="mi">2</span> <span class="n">numpy</span><span class="o">=</span><span class="mf">1.17</span><span class="o">.</span><span class="mi">1</span> <span class="n">openmpi</span>
+</pre></div>
+</div>
+<p>Configure theano to find your libraries by creating a file “.theanorc” in your home directory containing:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">[</span><span class="n">blas</span><span class="p">]</span>
+<span class="n">ldflags</span> <span class="o">=</span> <span class="o">-</span><span class="n">L</span><span class="o">/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">your</span><span class="o">/</span><span class="n">anaconda</span><span class="o">/</span><span class="n">environments</span><span class="o">/</span><span class="n">beat</span><span class="o">/</span><span class="n">lib</span> <span class="o">-</span><span class="n">lopenblas</span> <span class="o">-</span><span class="n">lgfortran</span>
+
+<span class="p">[</span><span class="n">nvcc</span><span class="p">]</span>
+<span class="n">fastmath</span> <span class="o">=</span> <span class="kc">True</span>
+
+<span class="p">[</span><span class="k">global</span><span class="p">]</span>
+<span class="n">device</span> <span class="o">=</span> <span class="n">cpu</span>
+<span class="n">floatX</span> <span class="o">=</span> <span class="n">float64</span>
+
+<span class="p">[</span><span class="n">lib</span><span class="p">]</span>
+<span class="n">amdlibm</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># if applicable set True here (also see detailed instructions)</span>
+</pre></div>
+</div>
+<p>For testing if numpy and theano installations worked fine:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="o">~/</span><span class="n">src</span><span class="o">/</span><span class="n">beat</span>
+<span class="n">python3</span> <span class="n">test</span><span class="o">/</span><span class="n">numpy_test</span><span class="o">.</span><span class="n">py</span>
+<span class="n">THEANO_FLAGS</span><span class="o">=</span><span class="n">mode</span><span class="o">=</span><span class="n">FAST_RUN</span><span class="p">,</span><span class="n">device</span><span class="o">=</span><span class="n">cpu</span><span class="p">,</span><span class="n">floatX</span><span class="o">=</span><span class="n">float32</span> <span class="n">python3</span> <span class="n">test</span><span class="o">/</span><span class="n">gpu_test</span><span class="o">.</span><span class="n">py</span>
+</pre></div>
+</div>
+<p>Install pymc3 and pyrocko packages:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">conda</span> <span class="n">install</span> <span class="o">-</span><span class="n">n</span> <span class="n">beat</span> <span class="o">-</span><span class="n">c</span> <span class="n">conda</span><span class="o">-</span><span class="n">forge</span> <span class="n">pymc3</span>
+<span class="n">conda</span> <span class="n">install</span> <span class="o">-</span><span class="n">n</span> <span class="n">beat</span> <span class="o">-</span><span class="n">c</span> <span class="n">pyrocko</span> <span class="n">pyrocko</span>
+</pre></div>
+</div>
+<p>Once all the requirements are installed we install BEAT with:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">cd</span> <span class="o">~/</span><span class="n">src</span><span class="o">/</span><span class="n">beat</span>
+<span class="n">python3</span> <span class="n">setup</span><span class="o">.</span><span class="n">py</span> <span class="n">install</span>
+</pre></div>
+</div>
+<p>Then for a fast check if beat is running one can start it calling the help:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">init</span> <span class="o">--</span><span class="n">help</span>
+</pre></div>
+</div>
+<div class="section" id="greens-function-calculations">
+<h2>Greens Function calculations<a class="headerlink" href="#greens-function-calculations" title="Permalink to this headline">¶</a></h2>
+<p>To calculate the Greens Functions we rely on modeling codes written by
+<a class="reference external" href="http://www.gfz-potsdam.de/en/section/physics-of-earthquakes-and-volcanoes/staff/profil/rongjiang-wang/">Rongjiang Wang</a>.
+If you plan to use the GreensFunction calculation framework,
+these codes are required and need to be compiled manually.
+The original codes are packaged for windows and can be found
+<a class="reference external" href="http://www.gfz-potsdam.de/en/section/physics-of-earthquakes-and-volcanoes/data-products-services/downloads-software/">here</a>.</p>
+<p>For Unix systems the codes had to be repackaged.</p>
+<p>The packages below are also github repositories and you may want to use “git clone” to download:</p>
+<blockquote>
+<div>git clone &lt;url&gt;</div></blockquote>
+<p>This also enables easy updating for potential future changes.</p>
+<p>For configuration and compilation please follow the descriptions provided in each repository respectively.
+For now we have no feedback on, if there are specific things to have in mind to install these programs within an anaconda environment.</p>
+<div class="section" id="seismic-synthetics">
+<h3>Seismic synthetics<a class="headerlink" href="#seismic-synthetics" title="Permalink to this headline">¶</a></h3>
+<ul class="simple">
+<li><a class="reference external" href="https://github.com/pyrocko/fomosto-qseis">QSEIS</a></li>
+<li><a class="reference external" href="https://github.com/pyrocko/fomosto-qssp">QSSP</a></li>
+</ul>
+</div>
+<div class="section" id="geodetic-synthetics">
+<h3>Geodetic synthetics<a class="headerlink" href="#geodetic-synthetics" title="Permalink to this headline">¶</a></h3>
+<ul class="simple">
+<li><a class="reference external" href="https://github.com/pyrocko/fomosto-psgrn-pscmp">PSGRN_PSCMP</a></li>
+</ul>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Anaconda Installation instructions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#greens-function-calculations">Greens Function calculations</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#seismic-synthetics">Seismic synthetics</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodetic-synthetics">Geodetic synthetics</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="updating.html">Updating beat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/index.html">Getting started with BEAT</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="installation.html" title="Detailed Installation instructions"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="short_installation.html" title="Short Installation instructions"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

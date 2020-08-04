@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>utility &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="../_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="../_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="../index.html">beat 1.0 documentation</a> &#187;
+          </li>
+            <li><a href="index.html" accesskey="U">Module code</a> &#187;</li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for utility</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module provides a namespace for various functions:</span>
+<span class="sd">coordinate transformations,</span>
+<span class="sd">loading and storing objects,</span>
+<span class="sd">book-keeping of indexes in arrays that relate to defined variable names,</span>
+<span class="sd">manipulation of various pyrocko objects</span>
+<span class="sd">and many more ...</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">collections</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">pickle</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">wraps</span>
+<span class="kn">from</span> <span class="nn">timeit</span> <span class="k">import</span> <span class="n">Timer</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">num</span>
+<span class="kn">from</span> <span class="nn">pyrocko</span> <span class="k">import</span> <span class="n">util</span><span class="p">,</span> <span class="n">orthodrome</span><span class="p">,</span> <span class="n">catalog</span>
+<span class="kn">from</span> <span class="nn">pyrocko.cake</span> <span class="k">import</span> <span class="n">m2d</span><span class="p">,</span> <span class="n">LayeredModel</span><span class="p">,</span> <span class="n">read_nd_model_str</span>
+<span class="kn">from</span> <span class="nn">pyrocko.gf.seismosizer</span> <span class="k">import</span> <span class="n">RectangularSource</span>
+<span class="kn">from</span> <span class="nn">theano</span> <span class="k">import</span> <span class="n">config</span> <span class="k">as</span> <span class="n">tconfig</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;utility&#39;</span><span class="p">)</span>
+
+<span class="n">DataMap</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;DataMap&#39;</span><span class="p">,</span> <span class="s1">&#39;list_ind, slc, shp, dtype, name&#39;</span><span class="p">)</span>
+
+<span class="n">locationtypes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;east_shift&#39;</span><span class="p">,</span> <span class="s1">&#39;north_shift&#39;</span><span class="p">,</span> <span class="s1">&#39;depth&#39;</span><span class="p">,</span> <span class="s1">&#39;distance&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;delta_depth&#39;</span><span class="p">}</span>
+<span class="n">dimensiontypes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;length&#39;</span><span class="p">,</span> <span class="s1">&#39;width&#39;</span><span class="p">}</span>
+<span class="n">mttypes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;mnn&#39;</span><span class="p">,</span> <span class="s1">&#39;mee&#39;</span><span class="p">,</span> <span class="s1">&#39;mdd&#39;</span><span class="p">,</span> <span class="s1">&#39;mne&#39;</span><span class="p">,</span> <span class="s1">&#39;mnd&#39;</span><span class="p">,</span> <span class="s1">&#39;med&#39;</span><span class="p">}</span>
+<span class="n">degtypes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;strike&#39;</span><span class="p">,</span> <span class="s1">&#39;dip&#39;</span><span class="p">,</span> <span class="s1">&#39;rake&#39;</span><span class="p">}</span>
+<span class="n">nucleationtypes</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;nucleation_x&#39;</span><span class="p">,</span> <span class="s1">&#39;nucleation_y&#39;</span><span class="p">}</span>
+<span class="n">patch_anchor_points</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="s1">&#39;bottom_depth&#39;</span><span class="p">,</span> <span class="s1">&#39;bottom_left&#39;</span><span class="p">}</span>
+
+<span class="n">kmtypes</span> <span class="o">=</span> <span class="nb">set</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="n">locationtypes</span><span class="p">,</span> <span class="n">dimensiontypes</span><span class="p">,</span> <span class="n">patch_anchor_points</span><span class="p">)</span>
+<span class="n">grouped_vars</span> <span class="o">=</span> <span class="nb">set</span><span class="o">.</span><span class="n">union</span><span class="p">(</span>
+    <span class="n">kmtypes</span><span class="p">,</span> <span class="n">mttypes</span><span class="p">,</span> <span class="n">degtypes</span><span class="p">,</span> <span class="n">nucleationtypes</span><span class="p">)</span>
+
+<span class="n">unit_sets</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;locationtypes&#39;</span><span class="p">:</span> <span class="n">locationtypes</span><span class="p">,</span>
+    <span class="s1">&#39;dimensiontypes&#39;</span><span class="p">:</span> <span class="n">dimensiontypes</span><span class="p">,</span>
+    <span class="s1">&#39;mttypes&#39;</span><span class="p">:</span> <span class="n">mttypes</span><span class="p">,</span>
+    <span class="s1">&#39;degtypes&#39;</span><span class="p">:</span> <span class="n">degtypes</span><span class="p">,</span>
+    <span class="s1">&#39;nucleationtypes&#39;</span><span class="p">:</span> <span class="n">nucleationtypes</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="n">seconds_str</span> <span class="o">=</span> <span class="s1">&#39;00:00:00&#39;</span>
+
+<span class="n">sphr</span> <span class="o">=</span> <span class="mf">3600.</span>
+<span class="n">hrpd</span> <span class="o">=</span> <span class="mf">24.</span>
+
+<span class="n">d2r</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mf">180.</span>
+<span class="n">km</span> <span class="o">=</span> <span class="mf">1000.</span>
+
+
+<span class="k">def</span> <span class="nf">argsorted</span><span class="p">(</span><span class="n">seq</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="c1">#http://stackoverflow.com/questions/3382352/equivalent-of-numpy-argsort-in-basic-python/3382369#3382369</span>
+    <span class="c1">#by unutbu</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">)),</span> <span class="n">key</span><span class="o">=</span><span class="n">seq</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="n">reverse</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Counter"><a class="viewcode-back" href="../api.html#utility.Counter">[docs]</a><span class="k">class</span> <span class="nc">Counter</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Counts calls of types with string_ids. Repeated calls with the same</span>
+<span class="sd">    string id increase the count.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">d</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">string</span><span class="p">,</span> <span class="n">multiplier</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="n">string</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span><span class="n">string</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span><span class="n">string</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span> <span class="o">*</span> <span class="n">multiplier</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span><span class="n">string</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span>
+                <span class="s1">&#39;type &quot;</span><span class="si">%s</span><span class="s1">&quot; is not listed in the counter!&#39;</span>
+                <span class="s1">&#39; Counted types are: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                    <span class="n">key</span><span class="p">,</span> <span class="n">list2string</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="o">.</span><span class="n">keys</span><span class="p">()))))</span>
+
+    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">string</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">string</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">d</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span><span class="n">string</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span></div>
+
+
+<div class="viewcode-block" id="ListArrayOrdering"><a class="viewcode-back" href="../api.html#utility.ListArrayOrdering">[docs]</a><span class="k">class</span> <span class="nc">ListArrayOrdering</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    An ordering for a list to an array space. Takes also non theano.tensors.</span>
+<span class="sd">    Modified from pymc3 blocking.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    list_arrays : list</span>
+<span class="sd">        :class:`numpy.ndarray` or :class:`theano.tensor.Tensor`</span>
+<span class="sd">    intype : str</span>
+<span class="sd">        defining the input type &#39;tensor&#39; or &#39;numpy&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">list_arrays</span><span class="p">,</span> <span class="n">intype</span><span class="o">=</span><span class="s1">&#39;numpy&#39;</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">vmap</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">array</span> <span class="ow">in</span> <span class="n">list_arrays</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">intype</span> <span class="o">==</span> <span class="s1">&#39;tensor&#39;</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">array</span><span class="o">.</span><span class="n">name</span>
+                <span class="n">array</span> <span class="o">=</span> <span class="n">array</span><span class="o">.</span><span class="n">tag</span><span class="o">.</span><span class="n">test_value</span>
+            <span class="k">elif</span> <span class="n">intype</span> <span class="o">==</span> <span class="s1">&#39;numpy&#39;</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;numpy&#39;</span>
+
+            <span class="n">slc</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">dim</span> <span class="o">+</span> <span class="n">array</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+            <span class="n">vm</span> <span class="o">=</span> <span class="n">DataMap</span><span class="p">(</span>
+                <span class="n">count</span><span class="p">,</span> <span class="n">slc</span><span class="p">,</span> <span class="n">array</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">array</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">vmap</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">vm</span><span class="p">)</span>
+            <span class="n">dim</span> <span class="o">+=</span> <span class="n">array</span><span class="o">.</span><span class="n">size</span>
+            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="o">=</span> <span class="n">dim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_keys</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">vmap</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">key</span><span class="p">)]</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span>
+                <span class="s1">&#39;Variable &quot;</span><span class="si">%s</span><span class="s1">&quot; is not in the mapping!&#39;</span>
+                <span class="s1">&#39; Mapped Variables: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">list2string</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">)))</span>
+
+    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">iter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">variables</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">variables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keys</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">vmap</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">vmap</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">vmap</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keys</span></div>
+
+
+<div class="viewcode-block" id="ListToArrayBijection"><a class="viewcode-back" href="../api.html#utility.ListToArrayBijection">[docs]</a><span class="k">class</span> <span class="nc">ListToArrayBijection</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A mapping between a List of arrays and an array space</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ordering : :class:`ListArrayOrdering`</span>
+<span class="sd">    list_arrays : list</span>
+<span class="sd">        of :class:`numpy.ndarray`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ordering</span><span class="p">,</span> <span class="n">list_arrays</span><span class="p">,</span> <span class="n">blacklist</span><span class="o">=</span><span class="p">[]):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ordering</span> <span class="o">=</span> <span class="n">ordering</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">list_arrays</span> <span class="o">=</span> <span class="n">list_arrays</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dummy</span> <span class="o">=</span> <span class="o">-</span><span class="mf">9.e40</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">blacklist</span> <span class="o">=</span> <span class="n">blacklist</span>
+
+<div class="viewcode-block" id="ListToArrayBijection.d2l"><a class="viewcode-back" href="../api.html#utility.ListToArrayBijection.d2l">[docs]</a>    <span class="k">def</span> <span class="nf">d2l</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dpt</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Maps values from dict space to List space</span>
+<span class="sd">        If variable expected from ordering is not in point</span>
+<span class="sd">        it is filled with a low dummy value -999999.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        dpt : list</span>
+<span class="sd">            of :class:`numpy.ndarray`</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        lpoint</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">a_list</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">list_arrays</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">list_ind</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">shp</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">var</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ordering</span><span class="o">.</span><span class="n">vmap</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">a_list</span><span class="p">[</span><span class="n">list_ind</span><span class="p">]</span> <span class="o">=</span> <span class="n">dpt</span><span class="p">[</span><span class="n">var</span><span class="p">]</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="c1"># Needed for initialisation of chain_l_point in Metropolis</span>
+                <span class="n">a_list</span><span class="p">[</span><span class="n">list_ind</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span>
+                    <span class="n">num</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">shp</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dummy</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">a_list</span></div>
+
+<div class="viewcode-block" id="ListToArrayBijection.l2d"><a class="viewcode-back" href="../api.html#utility.ListToArrayBijection.l2d">[docs]</a>    <span class="k">def</span> <span class="nf">l2d</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a_list</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Maps values from List space to dict space</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        list_arrays : list</span>
+<span class="sd">            of :class:`numpy.ndarray`</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        :class:`pymc3.model.Point`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">point</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">list_ind</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">var</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ordering</span><span class="o">.</span><span class="n">vmap</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">var</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">blacklist</span><span class="p">:</span>
+                <span class="n">point</span><span class="p">[</span><span class="n">var</span><span class="p">]</span> <span class="o">=</span> <span class="n">a_list</span><span class="p">[</span><span class="n">list_ind</span><span class="p">]</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">point</span></div>
+
+<div class="viewcode-block" id="ListToArrayBijection.l2a"><a class="viewcode-back" href="../api.html#utility.ListToArrayBijection.l2a">[docs]</a>    <span class="k">def</span> <span class="nf">l2a</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">list_arrays</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Maps values from List space to array space</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        list_arrays : list</span>
+<span class="sd">            of :class:`numpy.ndarray`</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        array : :class:`numpy.ndarray`</span>
+<span class="sd">            single array comprising all the input arrays</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">array</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ordering</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">list_ind</span><span class="p">,</span> <span class="n">slc</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ordering</span><span class="o">.</span><span class="n">vmap</span><span class="p">:</span>
+            <span class="n">array</span><span class="p">[</span><span class="n">slc</span><span class="p">]</span> <span class="o">=</span> <span class="n">list_arrays</span><span class="p">[</span><span class="n">list_ind</span><span class="p">]</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">array</span></div>
+
+<div class="viewcode-block" id="ListToArrayBijection.f3map"><a class="viewcode-back" href="../api.html#utility.ListToArrayBijection.f3map">[docs]</a>    <span class="k">def</span> <span class="nf">f3map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">list_arrays</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Maps values from List space to array space with 3 columns</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        list_arrays : list</span>
+<span class="sd">            of :class:`numpy.ndarray` with size: n x 3</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        array : :class:`numpy.ndarray`</span>
+<span class="sd">            single array comprising all the input arrays</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">array</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">ordering</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">list_ind</span><span class="p">,</span> <span class="n">slc</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ordering</span><span class="o">.</span><span class="n">vmap</span><span class="p">:</span>
+            <span class="n">array</span><span class="p">[</span><span class="n">slc</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">list_arrays</span><span class="p">[</span><span class="n">list_ind</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">array</span></div>
+
+<div class="viewcode-block" id="ListToArrayBijection.a2l"><a class="viewcode-back" href="../api.html#utility.ListToArrayBijection.a2l">[docs]</a>    <span class="k">def</span> <span class="nf">a2l</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">array</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Maps value from array space to List space</span>
+<span class="sd">        Inverse operation of fmap.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        array : :class:`numpy.ndarray`</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        a_list : list</span>
+<span class="sd">            of :class:`numpy.ndarray`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">a_list</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">list_arrays</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">list_ind</span><span class="p">,</span> <span class="n">slc</span><span class="p">,</span> <span class="n">shp</span><span class="p">,</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ordering</span><span class="o">.</span><span class="n">vmap</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">a_list</span><span class="p">[</span><span class="n">list_ind</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span>
+                    <span class="n">array</span><span class="p">)[</span><span class="n">slc</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shp</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>  <span class="c1"># variable does not exist in array use dummy</span>
+                <span class="n">a_list</span><span class="p">[</span><span class="n">list_ind</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span>
+                    <span class="n">num</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">shp</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dummy</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">a_list</span></div>
+
+<div class="viewcode-block" id="ListToArrayBijection.a_nd2l"><a class="viewcode-back" href="../api.html#utility.ListToArrayBijection.a_nd2l">[docs]</a>    <span class="k">def</span> <span class="nf">a_nd2l</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">array</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Maps value from ndarray space (ndims, data) to List space</span>
+<span class="sd">        Inverse operation of fmap. Nd</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        array : :class:`numpy.ndarray`</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        a_list : list</span>
+<span class="sd">            of :class:`numpy.ndarray`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">a_list</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">list_arrays</span><span class="p">)</span>
+        <span class="n">nd</span> <span class="o">=</span> <span class="n">array</span><span class="o">.</span><span class="n">ndim</span>
+        <span class="k">if</span> <span class="n">nd</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;Input array has wrong dimensions! Needed 2d array! Got </span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">nd</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">list_ind</span><span class="p">,</span> <span class="n">slc</span><span class="p">,</span> <span class="n">shp</span><span class="p">,</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ordering</span><span class="o">.</span><span class="n">vmap</span><span class="p">:</span>
+            <span class="n">shpnd</span> <span class="o">=</span> <span class="p">(</span><span class="n">array</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">)</span> <span class="o">+</span> <span class="n">shp</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">a_list</span><span class="p">[</span><span class="n">list_ind</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span>
+                    <span class="n">array</span><span class="p">)[:,</span> <span class="n">slc</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shpnd</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>  <span class="c1"># variable does not exist in array use dummy</span>
+                <span class="n">a_list</span><span class="p">[</span><span class="n">list_ind</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span>
+                    <span class="n">num</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">shpnd</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dummy</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">a_list</span></div>
+
+<div class="viewcode-block" id="ListToArrayBijection.srmap"><a class="viewcode-back" href="../api.html#utility.ListToArrayBijection.srmap">[docs]</a>    <span class="k">def</span> <span class="nf">srmap</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tarray</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Maps value from symbolic variable array space to List space</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        tarray : :class:`theano.tensor.Tensor`</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        a_list : list</span>
+<span class="sd">            of :class:`theano.tensor.Tensor`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">a_list</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">list_arrays</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">list_ind</span><span class="p">,</span> <span class="n">slc</span><span class="p">,</span> <span class="n">shp</span><span class="p">,</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ordering</span><span class="o">.</span><span class="n">vmap</span><span class="p">:</span>
+            <span class="n">a_list</span><span class="p">[</span><span class="n">list_ind</span><span class="p">]</span> <span class="o">=</span> <span class="n">tarray</span><span class="p">[</span><span class="n">slc</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shp</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">dtype</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">a_list</span></div></div>
+
+
+<div class="viewcode-block" id="weed_input_rvs"><a class="viewcode-back" href="../api.html#utility.weed_input_rvs">[docs]</a><span class="k">def</span> <span class="nf">weed_input_rvs</span><span class="p">(</span><span class="n">input_rvs</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">datatype</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Throw out random variables (RV)s from input list that are not included by</span>
+<span class="sd">    the respective synthetics generating functions.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    input_rvs : dict</span>
+<span class="sd">        of :class:`pymc3.Distribution` or set of variable names</span>
+<span class="sd">    mode : str</span>
+<span class="sd">        &#39;geometry&#39;, &#39;static, &#39;kinematic&#39;, &#39;interseismic&#39; determining the</span>
+<span class="sd">        discarded RVs</span>
+<span class="sd">    datatype : str</span>
+<span class="sd">        &#39;seismic&#39; or &#39;geodetic&#39; determining the discarded RVs</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    weeded_input_rvs : dict</span>
+<span class="sd">        of :class:`pymc3.Distribution`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">weeded_input_rvs</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">input_rvs</span><span class="p">)</span>
+
+    <span class="n">burian</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">        lat lon name stf stf1 stf2 stf_mode moment anchor sign</span>
+<span class="s1">        velocity interpolation decimation_factor npointsources</span>
+<span class="s1">        elevation exponent</span>
+<span class="s1">        &#39;&#39;&#39;</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;geometry&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">datatype</span> <span class="o">==</span> <span class="s1">&#39;geodetic&#39;</span><span class="p">:</span>
+            <span class="n">tobeweeded</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="s1">&#39;time&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;duration&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;delta_time&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;nucleation_x&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;nucleation_y&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">burian</span>
+        <span class="k">elif</span> <span class="n">datatype</span> <span class="o">==</span> <span class="s1">&#39;seismic&#39;</span><span class="p">:</span>
+            <span class="n">tobeweeded</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;opening&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">burian</span>
+
+    <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;interseismic&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">datatype</span> <span class="o">==</span> <span class="s1">&#39;geodetic&#39;</span><span class="p">:</span>
+            <span class="n">tobeweeded</span> <span class="o">=</span> <span class="n">burian</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">tobeweeded</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">weed</span> <span class="ow">in</span> <span class="n">tobeweeded</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">weeded_input_rvs</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">weed</span> <span class="ow">in</span> <span class="n">weeded_input_rvs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="n">weeded_input_rvs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">weed</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">weeded_input_rvs</span><span class="p">,</span> <span class="nb">set</span><span class="p">):</span>
+            <span class="n">weeded_input_rvs</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="n">weed</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="s1">&#39;Variables are not of proper format: </span><span class="si">%s</span><span class="s1"> !&#39;</span> <span class="o">%</span>
+                <span class="n">weeded_input_rvs</span><span class="o">.</span><span class="vm">__class__</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">weeded_input_rvs</span></div>
+
+
+<div class="viewcode-block" id="apply_station_blacklist"><a class="viewcode-back" href="../api.html#utility.apply_station_blacklist">[docs]</a><span class="k">def</span> <span class="nf">apply_station_blacklist</span><span class="p">(</span><span class="n">stations</span><span class="p">,</span> <span class="n">blacklist</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Weed stations listed in the blacklist.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    stations : list</span>
+<span class="sd">        :class:`pyrocko.model.Station`</span>
+<span class="sd">    blacklist : list</span>
+<span class="sd">        strings of station names</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    stations : list of :class:`pyrocko.model.Station`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">outstations</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">st</span> <span class="ow">in</span> <span class="n">stations</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">st</span><span class="o">.</span><span class="n">station</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">blacklist</span><span class="p">:</span>
+            <span class="n">outstations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">st</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">outstations</span></div>
+
+
+<div class="viewcode-block" id="weed_data_traces"><a class="viewcode-back" href="../api.html#utility.weed_data_traces">[docs]</a><span class="k">def</span> <span class="nf">weed_data_traces</span><span class="p">(</span><span class="n">data_traces</span><span class="p">,</span> <span class="n">stations</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Throw out data traces belonging to stations that are not in the</span>
+<span class="sd">    stations list. Keeps list orders!</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data_traces : list</span>
+<span class="sd">        of :class:`pyrocko.trace.Trace`</span>
+<span class="sd">    stations : list</span>
+<span class="sd">        of :class:`pyrocko.model.Station`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    weeded_data_traces : list</span>
+<span class="sd">        of :class:`pyrocko.trace.Trace`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">station_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">station</span><span class="o">.</span><span class="n">station</span> <span class="k">for</span> <span class="n">station</span> <span class="ow">in</span> <span class="n">stations</span><span class="p">]</span>
+
+    <span class="n">weeded_data_traces</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">tr</span> <span class="ow">in</span> <span class="n">data_traces</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">tr</span><span class="o">.</span><span class="n">station</span> <span class="ow">in</span> <span class="n">station_names</span><span class="p">:</span>
+            <span class="n">weeded_data_traces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tr</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">weeded_data_traces</span></div>
+
+
+<div class="viewcode-block" id="weed_targets"><a class="viewcode-back" href="../api.html#utility.weed_targets">[docs]</a><span class="k">def</span> <span class="nf">weed_targets</span><span class="p">(</span><span class="n">targets</span><span class="p">,</span> <span class="n">stations</span><span class="p">,</span> <span class="n">discard_targets</span><span class="o">=</span><span class="p">[]):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Throw out targets belonging to stations that are not in the</span>
+<span class="sd">    stations list. Keeps list orders and returns new list!</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    targets : list</span>
+<span class="sd">        of :class:`pyrocko.gf.targets.Target`</span>
+<span class="sd">    stations : list</span>
+<span class="sd">        of :class:`pyrocko.model.Station`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    weeded_targets : list</span>
+<span class="sd">        of :class:`pyrocko.gf.targets.Target`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">station_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">station</span><span class="o">.</span><span class="n">station</span> <span class="k">for</span> <span class="n">station</span> <span class="ow">in</span> <span class="n">stations</span><span class="p">]</span>
+
+    <span class="n">weeded_targets</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">target</span> <span class="ow">in</span> <span class="n">targets</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">target</span><span class="o">.</span><span class="n">codes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">in</span> <span class="n">station_names</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">target</span> <span class="ow">in</span> <span class="n">discard_targets</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">weeded_targets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">weeded_targets</span></div>
+
+
+<div class="viewcode-block" id="downsample_trace"><a class="viewcode-back" href="../api.html#utility.downsample_trace">[docs]</a><span class="k">def</span> <span class="nf">downsample_trace</span><span class="p">(</span><span class="n">data_trace</span><span class="p">,</span> <span class="n">deltat</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">snap</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Downsample data_trace to given sampling interval &#39;deltat&#39;.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data_trace : :class:`pyrocko.trace.Trace`</span>
+<span class="sd">    deltat : sampling interval [s] to which trace should be downsampled</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`pyrocko.trace.Trace`</span>
+<span class="sd">        new instance</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">tr</span> <span class="o">=</span> <span class="n">data_trace</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">deltat</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">num</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">deltat</span> <span class="o">-</span> <span class="n">deltat</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">1.e-6</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">tr</span><span class="o">.</span><span class="n">downsample_to</span><span class="p">(</span>
+                    <span class="n">deltat</span><span class="p">,</span> <span class="n">snap</span><span class="o">=</span><span class="n">snap</span><span class="p">,</span> <span class="n">allow_upsample_max</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">demean</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="n">tr</span><span class="o">.</span><span class="n">deltat</span> <span class="o">=</span> <span class="n">deltat</span>
+                <span class="k">if</span> <span class="n">snap</span><span class="p">:</span>
+                    <span class="n">tr</span><span class="o">.</span><span class="n">snap</span><span class="p">()</span>
+
+            <span class="k">except</span> <span class="n">util</span><span class="o">.</span><span class="n">UnavailableDecimation</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                    <span class="s1">&#39;Cannot downsample </span><span class="si">%s</span><span class="s1">.</span><span class="si">%s</span><span class="s1">.</span><span class="si">%s</span><span class="s1">.</span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">nslc_id</span> <span class="o">+</span> <span class="p">(</span><span class="n">e</span><span class="p">,)))</span>
+        <span class="k">elif</span> <span class="n">snap</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">tr</span><span class="o">.</span><span class="n">tmin</span> <span class="o">/</span> <span class="n">tr</span><span class="o">.</span><span class="n">deltat</span> <span class="o">&gt;</span> <span class="mf">1e-6</span> <span class="ow">or</span> <span class="n">tr</span><span class="o">.</span><span class="n">tmax</span> <span class="o">/</span> <span class="n">tr</span><span class="o">.</span><span class="n">deltat</span> <span class="o">&gt;</span> <span class="mf">1e-6</span><span class="p">:</span>
+                <span class="n">tr</span><span class="o">.</span><span class="n">snap</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Need to provide target sample rate!&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">tr</span></div>
+
+
+<div class="viewcode-block" id="weed_stations"><a class="viewcode-back" href="../api.html#utility.weed_stations">[docs]</a><span class="k">def</span> <span class="nf">weed_stations</span><span class="p">(</span><span class="n">stations</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">distances</span><span class="o">=</span><span class="p">(</span><span class="mf">30.</span><span class="p">,</span> <span class="mf">90.</span><span class="p">)):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Weed stations, that are not within the given distance range(min, max) to</span>
+<span class="sd">    a reference event.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    stations : list</span>
+<span class="sd">        of :class:`pyrocko.model.Station`</span>
+<span class="sd">    event</span>
+<span class="sd">        :class:`pyrocko.model.Event`</span>
+<span class="sd">    distances : tuple</span>
+<span class="sd">        of minimum and maximum distance [deg] for station-event pairs</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    weeded_stations : list</span>
+<span class="sd">        of :class:`pyrocko.model.Station`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">weeded_stations</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+        <span class="s1">&#39;Valid distance range: [</span><span class="si">%f</span><span class="s1">, </span><span class="si">%f</span><span class="s1">]!&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">distances</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">distances</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+    <span class="k">for</span> <span class="n">station</span> <span class="ow">in</span> <span class="n">stations</span><span class="p">:</span>
+        <span class="n">distance</span> <span class="o">=</span> <span class="n">orthodrome</span><span class="o">.</span><span class="n">distance_accurate50m</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">station</span><span class="p">)</span> <span class="o">*</span> <span class="n">m2d</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="s1">&#39;Distance of station </span><span class="si">%s</span><span class="s1">: </span><span class="si">%f</span><span class="s1"> [deg]&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">station</span><span class="o">.</span><span class="n">station</span><span class="p">,</span> <span class="n">distance</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">distance</span> <span class="o">&gt;=</span> <span class="n">distances</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">and</span> <span class="n">distance</span> <span class="o">&lt;=</span> <span class="n">distances</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Inside defined distance range!&#39;</span><span class="p">)</span>
+            <span class="n">weeded_stations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">station</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Outside defined distance range!&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">weeded_stations</span></div>
+
+
+<div class="viewcode-block" id="transform_sources"><a class="viewcode-back" href="../api.html#utility.transform_sources">[docs]</a><span class="k">def</span> <span class="nf">transform_sources</span><span class="p">(</span><span class="n">sources</span><span class="p">,</span> <span class="n">datatypes</span><span class="p">,</span> <span class="n">decimation_factors</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Transforms a list of :py:class:`heart.RectangularSource` to a dictionary of</span>
+<span class="sd">    sources :py:class:`pscmp.PsCmpRectangularSource` for geodetic data and</span>
+<span class="sd">    :py:class:`pyrocko.gf.seismosizer.RectangularSource` for seismic data.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    sources : list</span>
+<span class="sd">        :class:`heart.RectangularSource`</span>
+<span class="sd">    datatypes : list</span>
+<span class="sd">        of strings with the datatypes to be included &#39;geodetic&#39; or &#39;seismic&#39;</span>
+<span class="sd">    decimation_factors : dict</span>
+<span class="sd">        of datatypes and their respective decimation factor</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    d : dict</span>
+<span class="sd">        of transformed sources with datatypes as keys</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">d</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">datatype</span> <span class="ow">in</span> <span class="n">datatypes</span><span class="p">:</span>
+        <span class="n">transformed_sources</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">source</span> <span class="ow">in</span> <span class="n">sources</span><span class="p">:</span>
+            <span class="n">transformed_source</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">decimation_factors</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">transformed_source</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+                    <span class="n">decimation_factor</span><span class="o">=</span><span class="n">decimation_factors</span><span class="p">[</span><span class="n">datatype</span><span class="p">],</span>
+                    <span class="n">anchor</span><span class="o">=</span><span class="s1">&#39;top&#39;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">datatype</span> <span class="o">==</span> <span class="s1">&#39;geodetic&#39;</span><span class="p">:</span>
+                <span class="n">transformed_source</span><span class="o">.</span><span class="n">stf</span> <span class="o">=</span> <span class="kc">None</span>
+
+            <span class="n">transformed_sources</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">transformed_source</span><span class="p">)</span>
+
+        <span class="n">d</span><span class="p">[</span><span class="n">datatype</span><span class="p">]</span> <span class="o">=</span> <span class="n">transformed_sources</span>
+
+    <span class="k">return</span> <span class="n">d</span></div>
+
+
+<div class="viewcode-block" id="adjust_point_units"><a class="viewcode-back" href="../api.html#utility.adjust_point_units">[docs]</a><span class="k">def</span> <span class="nf">adjust_point_units</span><span class="p">(</span><span class="n">point</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Transform variables with [km] units to [m]</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    point : dict</span>
+<span class="sd">        :func:`pymc3.model.Point` of model parameter units as keys</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    mpoint : dict</span>
+<span class="sd">        :func:`pymc3.model.Point`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mpoint</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">point</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">kmtypes</span><span class="p">:</span>
+            <span class="n">mpoint</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span> <span class="o">*</span> <span class="n">km</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mpoint</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="k">return</span> <span class="n">mpoint</span></div>
+
+
+<div class="viewcode-block" id="split_point"><a class="viewcode-back" href="../api.html#utility.split_point">[docs]</a><span class="k">def</span> <span class="nf">split_point</span><span class="p">(</span><span class="n">point</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Split point in solution space into List of dictionaries with source</span>
+<span class="sd">    parameters for each source.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    point : dict</span>
+<span class="sd">        :func:`pymc3.model.Point`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    source_points : list</span>
+<span class="sd">        of :func:`pymc3.model.Point`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">params</span> <span class="o">=</span> <span class="n">point</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">params</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">n_sources</span> <span class="o">=</span> <span class="n">point</span><span class="p">[</span><span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">params</span><span class="p">))]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">n_sources</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="n">source_points</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_sources</span><span class="p">):</span>
+        <span class="n">source_param_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">param</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">point</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">source_param_dict</span><span class="p">[</span><span class="n">param</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+
+        <span class="n">source_points</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">source_param_dict</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">source_points</span></div>
+
+
+<div class="viewcode-block" id="join_points"><a class="viewcode-back" href="../api.html#utility.join_points">[docs]</a><span class="k">def</span> <span class="nf">join_points</span><span class="p">(</span><span class="n">ldicts</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Join list of dicts into one dict with concatenating</span>
+<span class="sd">    values of keys that are present in multiple dicts.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">keys</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">k</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">ldicts</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">keys</span><span class="p">()])</span>
+
+    <span class="n">jpoint</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
+        <span class="n">jvar</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">ldicts</span><span class="p">:</span>
+            <span class="n">jvar</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="n">k</span><span class="p">])</span>
+
+        <span class="n">jpoint</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">jvar</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">jpoint</span></div>
+
+
+<div class="viewcode-block" id="update_source"><a class="viewcode-back" href="../api.html#utility.update_source">[docs]</a><span class="k">def</span> <span class="nf">update_source</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="o">**</span><span class="n">point</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Update source keeping stf and source params seperate.</span>
+<span class="sd">    Modifies input source Object!</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    source : :class:`pyrocko.gf.seismosizer.Source`</span>
+<span class="sd">    point : dict</span>
+<span class="sd">        :func:`pymc3.model.Point`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">for</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">point</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">source</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">source</span><span class="o">.</span><span class="n">stf</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">source</span><span class="o">.</span><span class="n">stf</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="k">except</span><span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s1">&#39;Not updating source with </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">k</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span>
+                    <span class="s1">&#39;Please set a STF before updating its&#39;</span>
+                    <span class="s1">&#39; parameters.&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">source</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">v</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="setup_logging"><a class="viewcode-back" href="../api.html#utility.setup_logging">[docs]</a><span class="k">def</span> <span class="nf">setup_logging</span><span class="p">(</span><span class="n">project_dir</span><span class="p">,</span> <span class="n">levelname</span><span class="p">,</span> <span class="n">logfilename</span><span class="o">=</span><span class="s1">&#39;BEAT_log.txt&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Setup function for handling BEAT logging. The logfile &#39;BEAT_log.txt&#39; is</span>
+<span class="sd">    saved in the &#39;project_dir&#39;.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    project_dir : str</span>
+<span class="sd">        absolute path to the output directory for the Log file</span>
+<span class="sd">    levelname : str</span>
+<span class="sd">        defining the level of logging</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">levels</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;debug&#39;</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">,</span>
+              <span class="s1">&#39;info&#39;</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span>
+              <span class="s1">&#39;warning&#39;</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">,</span>
+              <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">ERROR</span><span class="p">,</span>
+              <span class="s1">&#39;critical&#39;</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">CRITICAL</span><span class="p">}</span>
+
+    <span class="n">filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">project_dir</span><span class="p">,</span> <span class="n">logfilename</span><span class="p">)</span>
+
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">()</span>
+    <span class="c1"># remove existing handlers</span>
+    <span class="k">for</span> <span class="n">handler</span> <span class="ow">in</span> <span class="n">logger</span><span class="o">.</span><span class="n">handlers</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">removeHandler</span><span class="p">(</span><span class="n">handler</span><span class="p">)</span>
+
+    <span class="c1"># setup file handler</span>
+    <span class="n">fhandler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">FileHandler</span><span class="p">(</span><span class="n">filename</span><span class="o">=</span><span class="n">filename</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;a&#39;</span><span class="p">)</span>
+    <span class="n">fformatter</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span>
+        <span class="s1">&#39;</span><span class="si">%(asctime)s</span><span class="s1"> - </span><span class="si">%(name)s</span><span class="s1"> - </span><span class="si">%(levelname)s</span><span class="s1"> - </span><span class="si">%(message)s</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="n">fhandler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">fformatter</span><span class="p">)</span>
+    <span class="n">fhandler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">levels</span><span class="p">[</span><span class="n">levelname</span><span class="p">])</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">fhandler</span><span class="p">)</span>
+
+    <span class="c1"># setup screen handler</span>
+    <span class="n">console</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">()</span>
+    <span class="n">console</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">levels</span><span class="p">[</span><span class="n">levelname</span><span class="p">])</span>
+    <span class="n">cformatter</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%(name)-12s</span><span class="s1"> - </span><span class="si">%(levelname)-8s</span><span class="s1"> </span><span class="si">%(message)s</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="n">console</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">cformatter</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">console</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">levels</span><span class="p">[</span><span class="n">levelname</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="search_catalog"><a class="viewcode-back" href="../api.html#utility.search_catalog">[docs]</a><span class="k">def</span> <span class="nf">search_catalog</span><span class="p">(</span><span class="n">date</span><span class="p">,</span> <span class="n">min_magnitude</span><span class="p">,</span> <span class="n">dayrange</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Search the gcmt catalog for the specified date (+- 1 day), filtering the</span>
+<span class="sd">    events with given magnitude threshold.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    date : str</span>
+<span class="sd">        &#39;YYYY-MM-DD&#39;, date of the event</span>
+<span class="sd">    min_magnitude : float</span>
+<span class="sd">        approximate minimum Mw of the event</span>
+<span class="sd">    dayrange : float</span>
+<span class="sd">        temporal search interval [days] around date</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    event : :class:`pyrocko.model.Event`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">gcmt</span> <span class="o">=</span> <span class="n">catalog</span><span class="o">.</span><span class="n">GlobalCMT</span><span class="p">()</span>
+
+    <span class="n">time_s</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">stt</span><span class="p">(</span><span class="n">date</span> <span class="o">+</span> <span class="s1">&#39; &#39;</span> <span class="o">+</span> <span class="n">seconds_str</span><span class="p">)</span>
+    <span class="n">d1</span> <span class="o">=</span> <span class="n">time_s</span> <span class="o">-</span> <span class="p">(</span><span class="n">dayrange</span> <span class="o">*</span> <span class="p">(</span><span class="n">sphr</span> <span class="o">*</span> <span class="n">hrpd</span><span class="p">))</span>
+    <span class="n">d2</span> <span class="o">=</span> <span class="n">time_s</span> <span class="o">+</span> <span class="p">(</span><span class="n">dayrange</span> <span class="o">*</span> <span class="p">(</span><span class="n">sphr</span> <span class="o">*</span> <span class="n">hrpd</span><span class="p">))</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Getting relevant events from the gCMT catalog for the dates:&#39;</span>
+                <span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> - </span><span class="si">%s</span><span class="s1"> </span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">util</span><span class="o">.</span><span class="n">tts</span><span class="p">(</span><span class="n">d1</span><span class="p">),</span> <span class="n">util</span><span class="o">.</span><span class="n">tts</span><span class="p">(</span><span class="n">d2</span><span class="p">)))</span>
+
+    <span class="n">events</span> <span class="o">=</span> <span class="n">gcmt</span><span class="o">.</span><span class="n">get_events</span><span class="p">((</span><span class="n">d1</span><span class="p">,</span> <span class="n">d2</span><span class="p">),</span> <span class="n">magmin</span><span class="o">=</span><span class="n">min_magnitude</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">events</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Found no event information in the gCMT catalog.&#39;</span><span class="p">)</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">events</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s1">&#39;More than one event from that date with specified magnitude &#39;</span>
+            <span class="s1">&#39;found! Please copy the relevant event information to the &#39;</span>
+            <span class="s1">&#39;configuration file!&#39;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">events</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+
+        <span class="n">event</span> <span class="o">=</span> <span class="n">events</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">events</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="n">events</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">event</span></div>
+
+
+<div class="viewcode-block" id="RS_dipvector"><a class="viewcode-back" href="../api.html#utility.RS_dipvector">[docs]</a><span class="k">def</span> <span class="nf">RS_dipvector</span><span class="p">(</span><span class="n">source</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get 3 dimensional dip-vector of a planar fault.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    source : RectangularSource</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.ndarray`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">num</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">dip</span> <span class="o">*</span> <span class="n">d2r</span><span class="p">)</span> <span class="o">*</span> <span class="n">num</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">strike</span> <span class="o">*</span> <span class="n">d2r</span><span class="p">),</span>
+         <span class="o">-</span><span class="n">num</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">dip</span> <span class="o">*</span> <span class="n">d2r</span><span class="p">)</span> <span class="o">*</span> <span class="n">num</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">strike</span> <span class="o">*</span> <span class="n">d2r</span><span class="p">),</span>
+         <span class="n">num</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">dip</span> <span class="o">*</span> <span class="n">d2r</span><span class="p">)])</span></div>
+
+
+<span class="k">def</span> <span class="nf">strike_vector</span><span class="p">(</span><span class="n">strike</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;ENZ&#39;</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">order</span> <span class="o">==</span> <span class="s1">&#39;ENZ&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">num</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">strike</span> <span class="o">*</span> <span class="n">d2r</span><span class="p">),</span>
+             <span class="n">num</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">strike</span> <span class="o">*</span> <span class="n">d2r</span><span class="p">),</span>
+             <span class="mf">0.</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">order</span> <span class="o">==</span> <span class="s1">&#39;NEZ&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">num</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">strike</span> <span class="o">*</span> <span class="n">d2r</span><span class="p">),</span>
+             <span class="n">num</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">strike</span> <span class="o">*</span> <span class="n">d2r</span><span class="p">),</span>
+             <span class="mf">0.</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;Order </span><span class="si">%s</span><span class="s1"> not implemented!&#39;</span> <span class="o">%</span> <span class="n">order</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="RS_strikevector"><a class="viewcode-back" href="../api.html#utility.RS_strikevector">[docs]</a><span class="k">def</span> <span class="nf">RS_strikevector</span><span class="p">(</span><span class="n">source</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get 3 dimensional strike-vector of a planar fault.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    source : RedctangularSource</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.ndarray`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">strike_vector</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">strike</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RS_center"><a class="viewcode-back" href="../api.html#utility.RS_center">[docs]</a><span class="k">def</span> <span class="nf">RS_center</span><span class="p">(</span><span class="n">source</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get 3d fault center coordinates. Depth attribute is top depth!</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    source : RedctangularSource</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.ndarray` with x, y, z coordinates of the center of the</span>
+<span class="sd">    fault</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">source</span><span class="o">.</span><span class="n">east_shift</span><span class="p">,</span> <span class="n">source</span><span class="o">.</span><span class="n">north_shift</span><span class="p">,</span> <span class="n">source</span><span class="o">.</span><span class="n">depth</span><span class="p">])</span> <span class="o">+</span> \
+        <span class="mf">0.5</span> <span class="o">*</span> <span class="n">source</span><span class="o">.</span><span class="n">width</span> <span class="o">*</span> <span class="n">RS_dipvector</span><span class="p">(</span><span class="n">source</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="adjust_fault_reference"><a class="viewcode-back" href="../api.html#utility.adjust_fault_reference">[docs]</a><span class="k">def</span> <span class="nf">adjust_fault_reference</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">input_depth</span><span class="o">=</span><span class="s1">&#39;top&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Adjusts source depth and east/north-shifts variables of fault according to</span>
+<span class="sd">    input_depth mode &#39;top/center&#39;.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    source : :class:`RectangularSource` or :class:`pscmp.RectangularSource` or</span>
+<span class="sd">        :class:`pyrocko.gf.seismosizer.RectangularSource`</span>
+<span class="sd">    input_depth : string</span>
+<span class="sd">        if &#39;top&#39; the depth in the source is interpreted as top depth</span>
+<span class="sd">        if &#39;center&#39; the depth in the source is interpreted as center depth</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Updated input source object</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">input_depth</span> <span class="o">==</span> <span class="s1">&#39;top&#39;</span><span class="p">:</span>
+        <span class="n">center</span> <span class="o">=</span> <span class="n">RS_center</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">input_depth</span> <span class="o">==</span> <span class="s1">&#39;center&#39;</span><span class="p">:</span>
+        <span class="n">center</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">source</span><span class="o">.</span><span class="n">east_shift</span><span class="p">,</span> <span class="n">source</span><span class="o">.</span><span class="n">north_shift</span><span class="p">,</span> <span class="n">source</span><span class="o">.</span><span class="n">depth</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;input_depth </span><span class="si">%s</span><span class="s1"> not supported!&#39;</span> <span class="o">%</span> <span class="n">input_depth</span><span class="p">)</span>
+
+    <span class="n">source</span><span class="o">.</span><span class="n">east_shift</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">center</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">source</span><span class="o">.</span><span class="n">north_shift</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">center</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">source</span><span class="o">.</span><span class="n">depth</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">center</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="dump_objects"><a class="viewcode-back" href="../api.html#utility.dump_objects">[docs]</a><span class="k">def</span> <span class="nf">dump_objects</span><span class="p">(</span><span class="n">outpath</span><span class="p">,</span> <span class="n">outlist</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dump objects in outlist into pickle file.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    outpath : str</span>
+<span class="sd">        absolute path and file name for the file to be stored</span>
+<span class="sd">    outlist : list</span>
+<span class="sd">        of objects to save pickle</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">outpath</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">outlist</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="n">pickle</span><span class="o">.</span><span class="n">HIGHEST_PROTOCOL</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="load_objects"><a class="viewcode-back" href="../api.html#utility.load_objects">[docs]</a><span class="k">def</span> <span class="nf">load_objects</span><span class="p">(</span><span class="n">loadpath</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Load (unpickle) saved (pickled) objects from specified loadpath.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    loadpath : absolute path and file name to the file to be loaded</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    objects : list</span>
+<span class="sd">        of saved objects</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">objects</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="n">loadpath</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">))</span>
+    <span class="k">except</span> <span class="ne">UnicodeDecodeError</span><span class="p">:</span>
+        <span class="n">objects</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="n">loadpath</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">),</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;latin1&#39;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">IOError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span>
+            <span class="s1">&#39;File </span><span class="si">%s</span><span class="s1"> does not exist!&#39;</span> <span class="o">%</span> <span class="n">loadpath</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">objects</span></div>
+
+
+<div class="viewcode-block" id="ensure_cov_psd"><a class="viewcode-back" href="../api.html#utility.ensure_cov_psd">[docs]</a><span class="k">def</span> <span class="nf">ensure_cov_psd</span><span class="p">(</span><span class="n">cov</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Ensure that the input covariance matrix is positive definite.</span>
+<span class="sd">    If not, find the nearest positive semi-definite matrix.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    cov : :class:`numpy.ndarray`</span>
+<span class="sd">        symmetric covariance matrix</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    cov : :class:`numpy.ndarray`</span>
+<span class="sd">        positive definite covariance matrix</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">num</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">cholesky</span><span class="p">(</span><span class="n">cov</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">num</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">LinAlgError</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="s1">&#39;Cov_pv not positive definite!&#39;</span>
+            <span class="s1">&#39; Finding nearest psd matrix...&#39;</span><span class="p">)</span>
+        <span class="n">cov</span> <span class="o">=</span> <span class="n">repair_covariance</span><span class="p">(</span><span class="n">cov</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">cov</span></div>
+
+
+<div class="viewcode-block" id="near_psd"><a class="viewcode-back" href="../api.html#utility.near_psd">[docs]</a><span class="k">def</span> <span class="nf">near_psd</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">epsilon</span><span class="o">=</span><span class="n">num</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculates the nearest postive semi-definite matrix for a correlation/</span>
+<span class="sd">    covariance matrix</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : :class:`numpy.ndarray`</span>
+<span class="sd">        Covariance/correlation matrix</span>
+<span class="sd">    epsilon : float</span>
+<span class="sd">        Eigenvalue limit</span>
+<span class="sd">        here set to accuracy of numbers in numpy, otherwise the resulting</span>
+<span class="sd">        matrix, likely is still not going to be positive definite</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    near_cov : :class:`numpy.ndarray`</span>
+<span class="sd">        closest positive definite covariance/correlation matrix</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Numpy number precission not high enough to resolve this for low valued</span>
+<span class="sd">    covariance matrixes! The result will have very small negative eigvals!!!</span>
+
+<span class="sd">    See repair_covariance below for a simpler implementation that can resolve</span>
+<span class="sd">    the numbers!</span>
+
+<span class="sd">    Algorithm after Rebonato &amp; Jaekel 1999</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="nb">min</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">eigvals</span><span class="p">(</span><span class="n">x</span><span class="p">))</span> <span class="o">&gt;</span> <span class="n">epsilon</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">x</span>
+
+    <span class="c1"># Removing scaling factor of covariance matrix</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">scaling</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+    <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">scaling</span><span class="p">,</span> <span class="n">scaling</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">x</span> <span class="o">/</span> <span class="p">(</span><span class="n">a</span> <span class="o">*</span> <span class="n">b</span><span class="p">)</span>
+
+    <span class="c1"># getting the nearest correlation matrix</span>
+    <span class="n">eigval</span><span class="p">,</span> <span class="n">eigvec</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">eigh</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+    <span class="n">val</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">eigval</span><span class="p">,</span> <span class="n">epsilon</span><span class="p">)</span>
+    <span class="n">vec</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">matrix</span><span class="p">(</span><span class="n">eigvec</span><span class="p">)</span>
+    <span class="n">T</span> <span class="o">=</span> <span class="mf">1.</span> <span class="o">/</span> <span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">vec</span><span class="p">,</span> <span class="n">vec</span><span class="p">)</span> <span class="o">*</span> <span class="n">val</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+    <span class="n">T</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">matrix</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">T</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="n">n</span><span class="p">)))))</span>
+    <span class="n">B</span> <span class="o">=</span> <span class="n">T</span> <span class="o">*</span> <span class="n">vec</span> <span class="o">*</span> <span class="n">num</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">val</span><span class="p">))</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="n">n</span><span class="p">)))</span>
+    <span class="n">near_corr</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">B</span> <span class="o">*</span> <span class="n">B</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+
+    <span class="c1"># returning the scaling factors</span>
+    <span class="k">return</span> <span class="n">near_corr</span> <span class="o">*</span> <span class="n">a</span> <span class="o">*</span> <span class="n">b</span></div>
+
+
+<div class="viewcode-block" id="repair_covariance"><a class="viewcode-back" href="../api.html#utility.repair_covariance">[docs]</a><span class="k">def</span> <span class="nf">repair_covariance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">epsilon</span><span class="o">=</span><span class="n">num</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Make covariance input matrix A positive definite.</span>
+<span class="sd">    Setting eigenvalues that are lower than the precission of numpy floats to</span>
+<span class="sd">    at least that precision and backtransform.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : :class:`numpy.ndarray`</span>
+<span class="sd">        Covariance/correlation matrix</span>
+<span class="sd">    epsilon : float</span>
+<span class="sd">        Eigenvalue limit</span>
+<span class="sd">        here set to accuracy of numbers in numpy, otherwise the resulting</span>
+<span class="sd">        matrix, likely is still not going to be positive definite</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    near_cov : :class:`numpy.ndarray`</span>
+<span class="sd">        closest positive definite covariance/correlation matrix</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Algorithm after Gilbert Strange, &#39;Introduction to linear Algebra&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">eigval</span><span class="p">,</span> <span class="n">eigvec</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">eigh</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="n">val</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">eigval</span><span class="p">,</span> <span class="n">epsilon</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">eigvec</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">val</span><span class="p">))</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">eigvec</span><span class="o">.</span><span class="n">T</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="running_window_rms"><a class="viewcode-back" href="../api.html#utility.running_window_rms">[docs]</a><span class="k">def</span> <span class="nf">running_window_rms</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">window_size</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;valid&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the standard deviations of a running window over data.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : :class:`numpy.ndarray` 1-d</span>
+<span class="sd">        containing data to calculate stds from</span>
+<span class="sd">    window_size : int</span>
+<span class="sd">        sample size of running window</span>
+<span class="sd">    mode : str</span>
+<span class="sd">        see numpy.convolve for modes</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.ndarray` 1-d</span>
+<span class="sd">        with stds, size data.size - window_size + 1</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">data2</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">window</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">window_size</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">window_size</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">convolve</span><span class="p">(</span><span class="n">data2</span><span class="p">,</span> <span class="n">window</span><span class="p">,</span> <span class="n">mode</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="list2string"><a class="viewcode-back" href="../api.html#utility.list2string">[docs]</a><span class="k">def</span> <span class="nf">list2string</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">fill</span><span class="o">=</span><span class="s1">&#39;, &#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert list of string to single string.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    l: list</span>
+<span class="sd">        of strings</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">fill</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">listentry</span> <span class="k">for</span> <span class="n">listentry</span> <span class="ow">in</span> <span class="n">l</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="unique_list"><a class="viewcode-back" href="../api.html#utility.unique_list">[docs]</a><span class="k">def</span> <span class="nf">unique_list</span><span class="p">(</span><span class="n">l</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Find unique entries in list and return them in a list.</span>
+<span class="sd">    Keeps variable order.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    l : list</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list with only unique elements</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">used</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">l</span> <span class="k">if</span> <span class="n">x</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">used</span> <span class="ow">and</span> <span class="p">(</span><span class="n">used</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">or</span> <span class="kc">True</span><span class="p">)]</span></div>
+
+
+<div class="viewcode-block" id="join_models"><a class="viewcode-back" href="../api.html#utility.join_models">[docs]</a><span class="k">def</span> <span class="nf">join_models</span><span class="p">(</span><span class="n">global_model</span><span class="p">,</span> <span class="n">crustal_model</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Replace the part of the &#39;global model&#39; that is covered by &#39;crustal_model&#39;.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    global_model : :class:`pyrocko.cake.LayeredModel`</span>
+<span class="sd">    crustal_model : :class:`pyrocko.cake.LayeredModel`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    joined_model : cake.LayeredModel</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">max_depth</span> <span class="o">=</span> <span class="n">crustal_model</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="s1">&#39;z&#39;</span><span class="p">)</span>
+
+    <span class="n">cut_model</span> <span class="o">=</span> <span class="n">global_model</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span><span class="n">depth_min</span><span class="o">=</span><span class="n">max_depth</span><span class="p">)</span>
+    <span class="n">joined_model</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">crustal_model</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="n">cut_model</span><span class="o">.</span><span class="n">elements</span><span class="p">():</span>
+        <span class="n">joined_model</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">element</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">joined_model</span></div>
+
+
+<div class="viewcode-block" id="split_off_list"><a class="viewcode-back" href="../api.html#utility.split_off_list">[docs]</a><span class="k">def</span> <span class="nf">split_off_list</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">off_length</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Split a list with length &#39;off_length&#39; from the beginning of an input</span>
+<span class="sd">    list l.</span>
+<span class="sd">    Modifies input list!</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    l : list</span>
+<span class="sd">        of objects to be seperated</span>
+<span class="sd">    off_length : int</span>
+<span class="sd">        number of elements from l to be split off</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="p">[</span><span class="n">l</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">off_length</span><span class="p">)]</span></div>
+
+
+<div class="viewcode-block" id="mod_i"><a class="viewcode-back" href="../api.html#utility.mod_i">[docs]</a><span class="k">def</span> <span class="nf">mod_i</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">cycle</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculates modulus of a function and returns number of full cycles and the</span>
+<span class="sd">    rest.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    i : int or float</span>
+<span class="sd">        Number to be cycled over</span>
+<span class="sd">    cycle : int o float</span>
+<span class="sd">        Cycle length</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    fullc : int or float depending on input</span>
+<span class="sd">    rest : int or float depending on input</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">fullc</span> <span class="o">=</span> <span class="n">i</span> <span class="o">//</span> <span class="n">cycle</span>
+    <span class="n">rest</span> <span class="o">=</span> <span class="n">i</span> <span class="o">%</span> <span class="n">cycle</span>
+    <span class="k">return</span> <span class="n">fullc</span><span class="p">,</span> <span class="n">rest</span></div>
+
+
+<div class="viewcode-block" id="biggest_common_divisor"><a class="viewcode-back" href="../api.html#utility.biggest_common_divisor">[docs]</a><span class="k">def</span> <span class="nf">biggest_common_divisor</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Find the biggest common divisor of two float numbers a and b.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    a, b: float</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    int</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">while</span> <span class="n">b</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">rest</span> <span class="o">=</span> <span class="n">a</span> <span class="o">%</span> <span class="n">b</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">b</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">rest</span>
+
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">a</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="gather"><a class="viewcode-back" href="../api.html#utility.gather">[docs]</a><span class="k">def</span> <span class="nf">gather</span><span class="p">(</span><span class="n">l</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">sort</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="nb">filter</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return dictionary of input l grouped by key.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">l</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">filter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">filter</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+            <span class="k">continue</span>
+
+        <span class="n">k</span> <span class="o">=</span> <span class="n">key</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">d</span><span class="p">:</span>
+            <span class="n">d</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="n">d</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">sort</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">v</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">sort</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">d</span></div>
+
+
+<div class="viewcode-block" id="get_fit_indexes"><a class="viewcode-back" href="../api.html#utility.get_fit_indexes">[docs]</a><span class="k">def</span> <span class="nf">get_fit_indexes</span><span class="p">(</span><span class="n">llk</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Find indexes of various likelihoods in a likelihood distribution.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    llk : :class:`numpy.ndarray`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict with array indexes</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mean_idx</span> <span class="o">=</span> <span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">llk</span> <span class="o">-</span> <span class="n">llk</span><span class="o">.</span><span class="n">mean</span><span class="p">()))</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+    <span class="n">min_idx</span> <span class="o">=</span> <span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">llk</span> <span class="o">-</span> <span class="n">llk</span><span class="o">.</span><span class="n">min</span><span class="p">()))</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+    <span class="n">max_idx</span> <span class="o">=</span> <span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">llk</span> <span class="o">-</span> <span class="n">llk</span><span class="o">.</span><span class="n">max</span><span class="p">()))</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+
+    <span class="n">posterior_idxs</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;mean&#39;</span><span class="p">:</span> <span class="n">mean_idx</span><span class="p">,</span>
+        <span class="s1">&#39;min&#39;</span><span class="p">:</span> <span class="n">min_idx</span><span class="p">,</span>
+        <span class="s1">&#39;max&#39;</span><span class="p">:</span> <span class="n">max_idx</span><span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">posterior_idxs</span></div>
+
+
+<div class="viewcode-block" id="check_hyper_flag"><a class="viewcode-back" href="../api.html#utility.check_hyper_flag">[docs]</a><span class="k">def</span> <span class="nf">check_hyper_flag</span><span class="p">(</span><span class="n">problem</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Check problem setup for type of model standard/hyperparameters.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    :class:`models.Problem`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    flag : boolean</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">problem</span><span class="o">.</span><span class="n">outfolder</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;hypers&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
+
+
+<div class="viewcode-block" id="error_not_whole"><a class="viewcode-back" href="../api.html#utility.error_not_whole">[docs]</a><span class="k">def</span> <span class="nf">error_not_whole</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">errstr</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Test if float is a whole number, if not raise Error.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">is_integer</span><span class="p">():</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> : </span><span class="si">%f</span><span class="s1"> is not a whole number!&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">errstr</span><span class="p">,</span> <span class="n">f</span><span class="p">))</span></div>
+
+
+<span class="k">def</span> <span class="nf">scalar2floatX</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">floatX</span><span class="o">=</span><span class="n">tconfig</span><span class="o">.</span><span class="n">floatX</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">floatX</span> <span class="o">==</span> <span class="s1">&#39;float32&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">float32</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">floatX</span> <span class="o">==</span> <span class="s1">&#39;float64&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">scalar2int</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">floatX</span><span class="o">=</span><span class="n">tconfig</span><span class="o">.</span><span class="n">floatX</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">floatX</span> <span class="o">==</span> <span class="s1">&#39;float32&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">int16</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">floatX</span> <span class="o">==</span> <span class="s1">&#39;float64&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">int64</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="PsGrnArray2LayeredModel"><a class="viewcode-back" href="../api.html#utility.PsGrnArray2LayeredModel">[docs]</a><span class="k">def</span> <span class="nf">PsGrnArray2LayeredModel</span><span class="p">(</span><span class="n">psgrn_input_path</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Read PsGrn Input file and return velocity model.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    psgrn_input_path : str</span>
+<span class="sd">        Absolute path to the psgrn input file.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`LayeredModel`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">psgrn_input_path</span><span class="p">,</span> <span class="n">skiprows</span><span class="o">=</span><span class="mi">136</span><span class="p">)</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">a</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">b</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">/=</span> <span class="mf">1000.</span>
+    <span class="k">return</span> <span class="n">LayeredModel</span><span class="o">.</span><span class="n">from_scanlines</span><span class="p">(</span>
+        <span class="n">read_nd_model_str</span><span class="p">(</span>
+            <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s1">&#39;[\[\]]&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">num</span><span class="o">.</span><span class="n">array2string</span><span class="p">(</span>
+                <span class="n">b</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+                <span class="n">formatter</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;float_kind&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="s2">&quot;</span><span class="si">%.3f</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">x</span><span class="p">}))))</span></div>
+
+
+<div class="viewcode-block" id="swap_columns"><a class="viewcode-back" href="../api.html#utility.swap_columns">[docs]</a><span class="k">def</span> <span class="nf">swap_columns</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">index1</span><span class="p">,</span> <span class="n">index2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Swaps the column of the input array based on the given indexes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">array</span><span class="p">[:,</span> <span class="n">index1</span><span class="p">],</span> <span class="n">array</span><span class="p">[:,</span> <span class="n">index2</span><span class="p">]</span> <span class="o">=</span> \
+        <span class="n">array</span><span class="p">[:,</span> <span class="n">index2</span><span class="p">],</span> <span class="n">array</span><span class="p">[:,</span> <span class="n">index1</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">array</span></div>
+
+
+<div class="viewcode-block" id="line_intersect"><a class="viewcode-back" href="../api.html#utility.line_intersect">[docs]</a><span class="k">def</span> <span class="nf">line_intersect</span><span class="p">(</span><span class="n">e1</span><span class="p">,</span> <span class="n">e2</span><span class="p">,</span> <span class="n">n1</span><span class="p">,</span> <span class="n">n2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get intersection point of n-lines.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    end points of each line in (n x 2) arrays</span>
+<span class="sd">    e1 : :class:`numpy.array` (n x 2)</span>
+<span class="sd">        east coordinates of first line</span>
+<span class="sd">    e2 : :class:`numpy.array` (n x 2)</span>
+<span class="sd">        east coordinates of second line</span>
+<span class="sd">    n1 : :class:`numpy.array` (n x 2)</span>
+<span class="sd">        north coordinates of first line</span>
+<span class="sd">    n2 : :class:`numpy.array` (n x 2)</span>
+<span class="sd">        east coordinates of second line</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    :class:`numpy.array` (n x 2) of intersection points (easts, norths)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">perp</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]])</span>
+    <span class="n">de</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">e2</span> <span class="o">-</span> <span class="n">e1</span><span class="p">)</span>
+    <span class="n">dn</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">n2</span> <span class="o">-</span> <span class="n">n1</span><span class="p">)</span>
+    <span class="n">dp</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">e1</span> <span class="o">-</span> <span class="n">n1</span><span class="p">)</span>
+    <span class="n">dep</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">de</span><span class="p">,</span> <span class="n">perp</span><span class="p">)</span>
+    <span class="n">denom</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dep</span> <span class="o">*</span> <span class="n">dn</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">denom</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Lines are parallel! No intersection point!&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">tmp</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dep</span> <span class="o">*</span> <span class="n">dp</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">tmp</span> <span class="o">/</span> <span class="n">denom</span><span class="p">)</span><span class="o">.</span><span class="n">T</span> <span class="o">*</span> <span class="n">dn</span> <span class="o">+</span> <span class="n">n1</span></div>
+
+
+<div class="viewcode-block" id="get_rotation_matrix"><a class="viewcode-back" href="../api.html#utility.get_rotation_matrix">[docs]</a><span class="k">def</span> <span class="nf">get_rotation_matrix</span><span class="p">(</span><span class="n">axes</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="s1">&#39;z&#39;</span><span class="p">]):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a function for 3-d rotation matrix for a specified axis.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    axes : str or list of str</span>
+<span class="sd">        x, y or z for the axis</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    func that takes an angle [rad]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ax_avail</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="s1">&#39;z&#39;</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="n">axes</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">ax</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ax_avail</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="s1">&#39;Rotation axis </span><span class="si">%s</span><span class="s1"> not supported!&#39;</span>
+                <span class="s1">&#39; Available axes: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ax</span><span class="p">,</span> <span class="n">list2string</span><span class="p">(</span><span class="n">ax_avail</span><span class="p">)))</span>
+
+    <span class="k">def</span> <span class="nf">rotx</span><span class="p">(</span><span class="n">angle</span><span class="p">):</span>
+        <span class="n">cos_angle</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">angle</span><span class="p">)</span>
+        <span class="n">sin_angle</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">angle</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">cos_angle</span><span class="p">,</span> <span class="o">-</span><span class="n">sin_angle</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">sin_angle</span><span class="p">,</span> <span class="n">cos_angle</span><span class="p">]],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float64&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">roty</span><span class="p">(</span><span class="n">angle</span><span class="p">):</span>
+        <span class="n">cos_angle</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">angle</span><span class="p">)</span>
+        <span class="n">sin_angle</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">angle</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[[</span><span class="n">cos_angle</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">sin_angle</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="o">-</span><span class="n">sin_angle</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">cos_angle</span><span class="p">]],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float64&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">rotz</span><span class="p">(</span><span class="n">angle</span><span class="p">):</span>
+        <span class="n">cos_angle</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">angle</span><span class="p">)</span>
+        <span class="n">sin_angle</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">angle</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[[</span><span class="n">cos_angle</span><span class="p">,</span> <span class="o">-</span><span class="n">sin_angle</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="n">sin_angle</span><span class="p">,</span> <span class="n">cos_angle</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+             <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float64&#39;</span><span class="p">)</span>
+
+    <span class="n">R</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;x&#39;</span><span class="p">:</span> <span class="n">rotx</span><span class="p">,</span>
+         <span class="s1">&#39;y&#39;</span><span class="p">:</span> <span class="n">roty</span><span class="p">,</span>
+         <span class="s1">&#39;z&#39;</span><span class="p">:</span> <span class="n">rotz</span><span class="p">}</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">axes</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">R</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">axes</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">R</span><span class="p">[</span><span class="n">axes</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;axis has to be either string or list of strings!&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="get_random_uniform"><a class="viewcode-back" href="../api.html#utility.get_random_uniform">[docs]</a><span class="k">def</span> <span class="nf">get_random_uniform</span><span class="p">(</span><span class="n">lower</span><span class="p">,</span> <span class="n">upper</span><span class="p">,</span> <span class="n">dimension</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get uniform random values between given bounds</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+<span class="sd">    lower : float</span>
+<span class="sd">    upper : float</span>
+<span class="sd">    dimension : size of result vector</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="p">(</span><span class="n">upper</span> <span class="o">-</span> <span class="n">lower</span><span class="p">)</span> <span class="o">*</span> <span class="n">num</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">dimension</span><span class="p">)</span> <span class="o">+</span> <span class="n">lower</span>
+    <span class="k">if</span> <span class="n">dimension</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">values</span></div>
+
+
+<div class="viewcode-block" id="positions2idxs"><a class="viewcode-back" href="../api.html#utility.positions2idxs">[docs]</a><span class="k">def</span> <span class="nf">positions2idxs</span><span class="p">(</span>
+        <span class="n">positions</span><span class="p">,</span> <span class="n">cell_size</span><span class="p">,</span> <span class="n">min_pos</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">backend</span><span class="o">=</span><span class="n">num</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;int16&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return index to a grid with a given cell size.npatches</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    positions : :class:`numpy.NdArray` float</span>
+<span class="sd">        of positions [km]</span>
+<span class="sd">    cell_size : float</span>
+<span class="sd">        size of grid cells</span>
+<span class="sd">    backend : str</span>
+<span class="sd">    dtype : str</span>
+<span class="sd">        data type of returned array, default: int16</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">backend</span><span class="o">.</span><span class="n">round</span><span class="p">((</span><span class="n">positions</span> <span class="o">-</span> <span class="n">min_pos</span> <span class="o">-</span> <span class="p">(</span>
+        <span class="n">cell_size</span> <span class="o">/</span> <span class="mf">2.</span><span class="p">))</span> <span class="o">/</span> <span class="n">cell_size</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">time_method</span><span class="p">(</span><span class="n">loop</span><span class="o">=</span><span class="mi">10000</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">timer_decorator</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">wrap_func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="n">total_time</span> <span class="o">=</span> <span class="n">Timer</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span><span class="o">.</span><span class="n">timeit</span><span class="p">(</span><span class="n">number</span><span class="o">=</span><span class="n">loop</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Method </span><span class="si">{name}</span><span class="s2"> run </span><span class="si">{loop}</span><span class="s2"> times&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">func</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">loop</span><span class="o">=</span><span class="n">loop</span><span class="p">))</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;It took: </span><span class="si">{time}</span><span class="s2"> s, Mean: </span><span class="si">{mean_time}</span><span class="s2"> s&quot;</span><span class="o">.</span>
+                  <span class="nb">format</span><span class="p">(</span><span class="n">mean_time</span><span class="o">=</span><span class="n">total_time</span> <span class="o">/</span> <span class="n">loop</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="n">total_time</span><span class="p">))</span>
+            <span class="c1"># return func(*args, **kwargs)</span>
+        <span class="k">return</span> <span class="n">wrap_func</span>
+    <span class="k">return</span> <span class="n">timer_decorator</span>
+
+
+<span class="k">def</span> <span class="nf">is_odd</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">value</span> <span class="o">&amp;</span> <span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+
+
+<span class="k">def</span> <span class="nf">is_even</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">value</span> <span class="o">&amp;</span> <span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="../index.html">Table Of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../updating.html">Updating beat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/index.html">Getting started with BEAT</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

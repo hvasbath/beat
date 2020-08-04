@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Initialise a new Modeling Project &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Import Data" href="import_data.html" />
+    <link rel="prev" title="General" href="general.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="../_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="../_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="../index.html">beat 1.0 documentation</a> &#187;
+          </li>
+            <li><a href="index.html" accesskey="U">Getting started with BEAT</a> &#187;</li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="initialise-a-new-modeling-project">
+<h1>Initialise a new Modeling Project<a class="headerlink" href="#initialise-a-new-modeling-project" title="Permalink to this headline">¶</a></h1>
+<p>Each modeling project is initiated with the “beat init” command. There are many options that define the type of optimization, datatypes to include, sampling algorithm to use, number of sources, velocity model to use for the Greens Function calculations etc …</p>
+<p>For example to optimize for a Full Moment Tensor for the Landers EQ by using seismic data, with station dependend Greens Functions for P and S waves with the default sampling algorithm (Sequential Monte Carlo) run:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">init</span> <span class="n">LandersEQ</span> <span class="mi">1992</span><span class="o">-</span><span class="mi">06</span><span class="o">-</span><span class="mi">28</span> <span class="o">--</span><span class="n">datatypes</span><span class="o">=</span><span class="s1">&#39;seismic&#39;</span> <span class="o">--</span><span class="n">individual_gfs</span> <span class="o">--</span><span class="n">n_sources</span><span class="o">=</span><span class="mi">1</span> <span class="o">--</span><span class="n">source_type</span><span class="o">=</span><span class="n">MTSource</span> <span class="o">--</span><span class="n">min_mag</span><span class="o">=</span><span class="mi">7</span>
+</pre></div>
+</div>
+<p>This will create project directory called LandersEQ in the current directory.
+Within the directoy you will see that there have been two files created:</p>
+<ul class="simple">
+<li>BEAT_log.txt</li>
+<li>geometry_config.yaml</li>
+</ul>
+<p>The first file is a logging file where all the executed comments and outputs are written to. In case something goes wrong this log file helps to find the error.
+For now it contains:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>2018-01-04 16:15:06,696 - utility - INFO - Getting relevant events from the gCMT catalog for the dates:1992-06-27 00:00:00.000 - 1992-06-29 00:00:00.000
+
+2018-01-04 16:15:07,097 - config - INFO - Added hyperparameter h_any_P_Z to config and model setup!
+2018-01-04 16:15:07,097 - config - INFO - Added hyperparameter h_any_S_Z to config and model setup!
+2018-01-04 16:15:07,097 - config - INFO - All hyper-parameters ok!
+2018-01-04 16:15:07,097 - config - INFO - Number of hyperparameters! 2
+2018-01-04 16:15:07,098 - config - INFO - All parameter-priors ok!
+2018-01-04 16:15:07,102 - config - INFO - Project_directory: /home/vasyurhm/BEATS/LandersEQ
+</pre></div>
+</div>
+<p>The second file is a yaml-configuration file and it is where ALL the changes in parameters and settings have to be done to avoid tinkering with the program itself!
+This file can be read as is by the computer, therefore, it is important to keep the syntax clean!
+The content of this file is basically the serialised instance of the BEAT config class. At first the amount of content seems overwhelming, but once you are familiar with the variables you will find that there are not too many things that will need to be edited. Also we have to be aware that the problem we are going to try to solve is very complex, ergo a complex parameter file is somewhat understandable.
+To find a short explanation to each parameter and its format the reader is refered to the webpage of the <a class="reference external" href="https://hvasbath.github.io/beat/_modules/config.html#SeismicConfig">config</a> module.</p>
+<p>This example configuration file looks like this:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>--- !beat.BEATconfig
+name: LandersEQ
+date: &#39;1992-06-28&#39;
+event: !pf.Event
+  lat: 34.65
+  lon: -116.65
+  time: 1992-06-28 11:57:53
+  name: 062892C
+  depth: 15000.0
+  magnitude: 7.316312340268055
+  region: SOUTHERN CALIFORNIA
+  catalog: gCMT
+  moment_tensor: !pf.MomentTensor
+    mnn: -6.12e+19
+    mee: 7.001e+19
+    mdd: -8.81e+18
+    mne: -7.335e+19
+    mnd: 3.807e+19
+    med: -9.9e+17
+    strike1: 247.72308708747312
+    dip1: 82.44124210318292
+    rake1: -20.30350409572225
+    strike2: 340.50937853818954
+    dip2: 69.88059010043526
+    rake2: -171.9468551048134
+    moment: 1.0579582033331939e+20
+    magnitude: 7.316312340268055
+  duration: 38.4
+project_dir: /home/vasyurhm/BEATS/LandersEQ
+problem_config: !beat.ProblemConfig
+  mode: geometry
+  source_type: MTSource
+  stf_type: HalfSinusoid
+  n_sources: 1
+  datatypes: [seismic]
+  hyperparameters:
+    h_any_P_Z: !beat.heart.Parameter
+      name: h_any_P_Z
+      form: Uniform
+      lower: [-20.0]
+      upper: [20.0]
+      testvalue: [0.0]
+    h_any_S_Z: !beat.heart.Parameter
+      name: h_any_S_Z
+      form: Uniform
+      lower: [-20.0]
+      upper: [20.0]
+      testvalue: [0.0]
+  priors:
+    depth: !beat.heart.Parameter
+      name: depth
+      form: Uniform
+      lower: [0.0]
+      upper: [5.0]
+      testvalue: [2.5]
+    duration: !beat.heart.Parameter
+      name: duration
+      form: Uniform
+      lower: [0.0]
+      upper: [20.0]
+      testvalue: [10.0]
+    east_shift: !beat.heart.Parameter
+      name: east_shift
+      form: Uniform
+      lower: [-10.0]
+      upper: [10.0]
+      testvalue: [0.0]
+    magnitude: !beat.heart.Parameter
+      name: magnitude
+      form: Uniform
+      lower: [4.0]
+      upper: [7.0]
+      testvalue: [5.5]
+    mdd: !beat.heart.Parameter
+      name: mdd
+      form: Uniform
+      lower: [-1.4142135623730951]
+      upper: [1.4142135623730951]
+      testvalue: [0.0]
+    med: !beat.heart.Parameter
+      name: med
+      form: Uniform
+      lower: [-1.0]
+      upper: [1.0]
+      testvalue: [0.0]
+    mee: !beat.heart.Parameter
+      name: mee
+      form: Uniform
+      lower: [-1.4142135623730951]
+      upper: [1.4142135623730951]
+      testvalue: [0.0]
+    mnd: !beat.heart.Parameter
+      name: mnd
+      form: Uniform
+      lower: [-1.0]
+      upper: [1.0]
+      testvalue: [0.0]
+    mne: !beat.heart.Parameter
+      name: mne
+      form: Uniform
+      lower: [-1.0]
+      upper: [1.0]
+      testvalue: [0.0]
+    mnn: !beat.heart.Parameter
+      name: mnn
+      form: Uniform
+      lower: [-1.4142135623730951]
+      upper: [1.4142135623730951]
+      testvalue: [0.0]
+    north_shift: !beat.heart.Parameter
+      name: north_shift
+      form: Uniform
+      lower: [-10.0]
+      upper: [10.0]
+      testvalue: [0.0]
+    time: !beat.heart.Parameter
+      name: time
+      form: Uniform
+      lower: [-3.0]
+      upper: [3.0]
+      testvalue: [0.0]
+seismic_config: !beat.SeismicConfig
+  datadir: ./
+  blacklist: [placeholder]
+  calc_data_cov: true
+  pre_stack_cut: true
+  waveforms:
+  - !beat.WaveformFitConfig
+    include: true
+    name: any_P
+    channels: [Z]
+    filterer: !beat.heart.Filter
+      lower_corner: 0.001
+      upper_corner: 0.1
+      order: 4
+    distances: [30.0, 90.0]
+    interpolation: multilinear
+    arrival_taper: !beat.heart.ArrivalTaper
+      a: -15.0
+      b: -10.0
+      c: 50.0
+      d: 55.0
+  - !beat.WaveformFitConfig
+    include: true
+    name: any_S
+    channels: [Z]
+    filterer: !beat.heart.Filter
+      lower_corner: 0.001
+      upper_corner: 0.1
+      order: 4
+    distances: [30.0, 90.0]
+    interpolation: multilinear
+    arrival_taper: !beat.heart.ArrivalTaper
+      a: -15.0
+      b: -10.0
+      c: 50.0
+      d: 55.0
+  gf_config: !beat.SeismicGFConfig
+    store_superdir: ./
+    reference_model_idx: 0
+    n_variations: [0, 1]
+    error_depth: 0.1
+    error_velocities: 0.1
+    depth_limit_variation: 600.0
+    earth_model_name: ak135-f-average.m
+    use_crust2: true
+    replace_water: true
+    source_depth_min: 0.0
+    source_depth_max: 10.0
+    source_depth_spacing: 1.0
+    source_distance_radius: 20.0
+    source_distance_spacing: 1.0
+    nworkers: 1
+    code: qssp
+    sample_rate: 2.0
+    rm_gfs: true
+sampler_config: !beat.SamplerConfig
+  name: SMC
+  progressbar: true
+  parameters: !beat.SMCConfig
+    n_chains: 1000
+    n_steps: 100
+    n_jobs: 1
+    tune_interval: 10
+    coef_variation: 1.0
+    stage: 0
+    proposal_dist: MultivariateNormal
+    check_bnd: true
+    update_covariances: false
+    rm_flag: false
+hyper_sampler_config: !beat.SamplerConfig
+  name: Metropolis
+  progressbar: true
+  parameters: !beat.MetropolisConfig
+    n_jobs: 1
+    n_stages: 10
+    n_steps: 25000
+    stage: 0
+    tune_interval: 50
+    proposal_dist: Normal
+    thin: 2
+    burn: 0.5
+    rm_flag: false
+</pre></div>
+</div>
+<p>Each BEAT config consists of some general information, from information collected from the gCMT catalog, of a ProblemConfig, the configurations for each dataset (here only seismic_config) and configurations for the sampling algorithms to use for the optimizations of the general problem (sampler_config) as well as a of an initial guess for the hyperparameters (hyper_sampler_config).</p>
+<p>Most of the edits likely will be made in the ProblemConfig, particularly in the priors of the source parameters. For now only uniform priors are available. To change the bounds of the priors simply type other values into the ‘upper’ and ‘lower’ fields of each source parameter. Note: The test parameter needs to be within these bounds!
+To fix one or the other parameter in the optimizations the upper and lower bounds as well as the test value need to be set equal.</p>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="../index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../updating.html">Updating beat</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Getting started with BEAT</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="general.html">General</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Initialise a new Modeling Project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="import_data.html">Import Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="update_config.html">How to update the configuration files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backends.html">Sampling Backends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="custom_gf_store.html">How to setup a Custom Greens Function Store</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ffi_setup.html">How to setup a Finite Fault Inference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="import_data.html" title="Import Data"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="general.html" title="General"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

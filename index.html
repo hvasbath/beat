@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Welcome to beat’s documentation! &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Short Installation instructions" href="short_installation.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="#">beat 1.0 documentation</a> &#187;
+          </li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="welcome-to-beat-s-documentation">
+<h1>Welcome to beat’s documentation!<a class="headerlink" href="#welcome-to-beat-s-documentation" title="Permalink to this headline">¶</a></h1>
+<img alt="_images/LOGO_BEAT.png" src="_images/LOGO_BEAT.png" />
+<p>Author: Hannes Vasyura-Bathke</p>
+<div class="section" id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p>In crustal deformation studies geophysicists are interested in estimating the
+parameters of sources that might be the cause of deformation in the Earth’s
+crust. These may be for example, movement of fluids (e.g. magma) below a
+volcano or the fast movements of one tectonic plate compared to another, also
+known as earthquakes. These types of sources can be often approximated by
+one or many rectangular dislocations (geometry, position, amount of
+dislocation).
+With observations at the earth’s surface like geodetic data, i.e. deformation
+maps from e.g. InSAR or point information from GNSS and seismic data i.e. seismic waveforms
+from seismic stations, it is possible to estimate the parameters of these
+deformation sources.</p>
+<blockquote>
+<div><img alt="_images/defor_sources.png" src="_images/defor_sources.png" />
+</div></blockquote>
+<p>BEAT is a package that can handle either geodetic and/or seismic data to
+estimate source parameters of dislocations in the Earth’s crust.</p>
+<p>Contents:</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="short_installation.html">Short Installation instructions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="short_installation.html#greens-function-calculations">Greens Function calculations</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="short_installation.html#seismic-synthetics">Seismic synthetics</a></li>
+<li class="toctree-l3"><a class="reference internal" href="short_installation.html#geodetic-synthetics">Geodetic synthetics</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="anaconda_installation.html">Anaconda Installation instructions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="anaconda_installation.html#greens-function-calculations">Greens Function calculations</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="anaconda_installation.html#seismic-synthetics">Seismic synthetics</a></li>
+<li class="toctree-l3"><a class="reference internal" href="anaconda_installation.html#geodetic-synthetics">Geodetic synthetics</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Detailed Installation instructions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#prerequisites">Prerequisites</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#openblas">OpenBlas</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#numpy">Numpy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#theano">Theano</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#main-packages">Main Packages</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#pymc3">pymc3</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#pyrocko">Pyrocko</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#openmpi">OpenMPI</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#beat">BEAT</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#greens-functions">Greens Functions</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="updating.html">Updating beat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/index.html">Getting started with BEAT</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/general.html">General</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/init_project.html">Initialise a new Modeling Project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/import_data.html">Import Data</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="getting_started/import_data.html#geodetic-data">geodetic data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="getting_started/import_data.html#seismic-data">seismic data</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/update_config.html">How to update the configuration files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/backends.html">Sampling Backends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/custom_gf_store.html">How to setup a Custom Greens Function Store</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/ffi_setup.html">How to setup a Finite Fault Inference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="examples/index.html">Examples</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="examples/FullMT_regional.html">Example 1: Regional Full Moment Tensor</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="examples/FullMT_regional.html#clone-project">Clone project</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FullMT_regional.html#calculate-greens-functions">Calculate Greens Functions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FullMT_regional.html#data-windowing-and-optimization-setup">Data windowing and optimization setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FullMT_regional.html#sample-the-solution-space">Sample the solution space</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FullMT_regional.html#summarize-the-results">Summarize the results</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FullMT_regional.html#plotting">Plotting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FullMT_regional.html#seismic-noise-estimation">Seismic noise estimation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FullMT_regional.html#clone-setup-into-new-project">Clone setup into new project</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FullMT_regional.html#references">References</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="examples/dc_teleseismic.html">Example 2: Teleseismic Double Couple</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="examples/dc_teleseismic.html#clone-project">Clone project</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/dc_teleseismic.html#download-greens-functions">Download Greens Functions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/dc_teleseismic.html#how-to-convert-green-s-mill-store-to-beat-format">How to convert Green’s Mill store to beat format</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/dc_teleseismic.html#data-windowing-and-optimization-setup">Data windowing and optimization setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/dc_teleseismic.html#sample-the-solution-space">Sample the solution space</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/dc_teleseismic.html#summarize-the-results">Summarize the results</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/dc_teleseismic.html#plotting">Plotting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/dc_teleseismic.html#clone-setup-into-new-project">Clone setup into new project</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="examples/Rectangular.html">Example 3: Rectangular source</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="examples/Rectangular.html#clone-project">Clone project</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/Rectangular.html#calculate-greens-functions">Calculate Greens Functions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/Rectangular.html#optimization-setup">Optimization setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/Rectangular.html#sample-the-solution-space">Sample the solution space</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/Rectangular.html#restarting-sampling">Restarting sampling</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/Rectangular.html#summarize-and-plotting">Summarize and plotting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/Rectangular.html#references">References</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="examples/FFI_static.html">Example 4: Static finite-fault estimation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="examples/FFI_static.html#init">Init</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FFI_static.html#calculate-greens-functions">Calculate Greens Functions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FFI_static.html#optimization-setup">Optimization setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FFI_static.html#sample-the-solution-space">Sample the solution space</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FFI_static.html#summarize-and-plotting">Summarize and plotting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FFI_static.html#references">References</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="examples/FFI_kinematic.html">Example 5: Kinematic finite-fault estimation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="examples/FFI_kinematic.html#clone-config">Clone config</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FFI_kinematic.html#import-results">Import results</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FFI_kinematic.html#calculate-green-s-functions">Calculate Green’s Functions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FFI_kinematic.html#data-windowing">Data windowing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FFI_kinematic.html#sample-the-solution-space">Sample the solution space</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FFI_kinematic.html#summarize-and-plotting">Summarize and plotting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="examples/FFI_kinematic.html#animation">Animation</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-heart">The <code class="docutils literal"><span class="pre">heart</span></code> Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-config">The <code class="docutils literal"><span class="pre">config</span></code> Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-sampler">The <code class="docutils literal"><span class="pre">sampler</span></code> Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api.html#module-sampler.metropolis"><code class="docutils literal"><span class="pre">metropolis</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api.html#module-sampler.smc"><code class="docutils literal"><span class="pre">smc</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api.html#module-sampler.pt"><code class="docutils literal"><span class="pre">pt</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-ffi">The <code class="docutils literal"><span class="pre">ffi</span></code> Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-parallel">The <code class="docutils literal"><span class="pre">parallel</span></code> Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-backend">The <code class="docutils literal"><span class="pre">backend</span></code> Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api.html#file-format">File format</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-models">The <code class="docutils literal"><span class="pre">models</span></code> Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api.html#module-models.problems"><code class="docutils literal"><span class="pre">problems</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api.html#module-models.seismic"><code class="docutils literal"><span class="pre">seismic</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api.html#module-models.geodetic"><code class="docutils literal"><span class="pre">geodetic</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-psgrn">The <code class="docutils literal"><span class="pre">psgrn</span></code> Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-pscmp">The <code class="docutils literal"><span class="pre">pscmp</span></code> Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-interseismic">The <code class="docutils literal"><span class="pre">interseismic</span></code> Module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api.html#block-backslip-model">Block-backslip model</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-covariance">The <code class="docutils literal"><span class="pre">covariance</span></code> Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-theanof">The <code class="docutils literal"><span class="pre">theanof</span></code> Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-utility">The <code class="docutils literal"><span class="pre">utility</span></code> Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-plotting">The <code class="docutils literal"><span class="pre">plotting</span></code> Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#module-inputf">The <code class="docutils literal"><span class="pre">inputf</span></code> Module</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="section" id="indices-and-tables">
+<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h1>
+<ul class="simple">
+<li><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></li>
+<li><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></li>
+<li><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></li>
+</ul>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="#">Table Of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="updating.html">Updating beat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/index.html">Getting started with BEAT</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="short_installation.html" title="Short Installation instructions"
+             accesskey="N">next</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

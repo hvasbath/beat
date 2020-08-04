@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>sampler.metropolis &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="../../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="../../_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="../../_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="../../index.html">beat 1.0 documentation</a> &#187;
+          </li>
+            <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for sampler.metropolis</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Metropolis algorithm module, wrapping the pymc3 implementation.</span>
+<span class="sd">Provides the possibility to update the involved covariance matrixes within</span>
+<span class="sd">the course of sampling the chain.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">shutil</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">time</span> <span class="k">import</span> <span class="n">time</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">from</span> <span class="nn">copy</span> <span class="k">import</span> <span class="n">deepcopy</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">num</span>
+
+<span class="kn">from</span> <span class="nn">theano</span> <span class="k">import</span> <span class="n">config</span> <span class="k">as</span> <span class="n">tconfig</span>
+
+<span class="kn">from</span> <span class="nn">pymc3.vartypes</span> <span class="k">import</span> <span class="n">discrete_types</span>
+<span class="kn">from</span> <span class="nn">pymc3.model</span> <span class="k">import</span> <span class="n">modelcontext</span><span class="p">,</span> <span class="n">Point</span>
+<span class="kn">from</span> <span class="nn">pymc3.step_methods.metropolis</span> <span class="k">import</span> <span class="n">metrop_select</span>
+<span class="kn">from</span> <span class="nn">pymc3.step_methods.metropolis</span> <span class="k">import</span> <span class="n">tune</span> <span class="k">as</span> <span class="n">step_tune</span>
+
+<span class="kn">from</span> <span class="nn">pymc3.theanof</span> <span class="k">import</span> <span class="n">make_shared_replacements</span><span class="p">,</span> <span class="n">inputvars</span>
+<span class="kn">from</span> <span class="nn">pymc3.backends</span> <span class="k">import</span> <span class="n">text</span>
+
+<span class="kn">from</span> <span class="nn">pyrocko</span> <span class="k">import</span> <span class="n">util</span>
+
+<span class="kn">from</span> <span class="nn">beat</span> <span class="k">import</span> <span class="n">backend</span><span class="p">,</span> <span class="n">utility</span>
+<span class="kn">from</span> <span class="nn">beat.covariance</span> <span class="k">import</span> <span class="n">init_proposal_covariance</span>
+<span class="kn">from</span> <span class="nn">.base</span> <span class="k">import</span> <span class="n">iter_parallel_chains</span><span class="p">,</span> <span class="n">choose_proposal</span><span class="p">,</span> <span class="n">logp_forw</span><span class="p">,</span> \
+    <span class="n">init_stage</span><span class="p">,</span> <span class="n">update_last_samples</span><span class="p">,</span> <span class="n">multivariate_proposals</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;metropolis_sample&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;get_trace_stats&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;get_final_stage&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;Metropolis&#39;</span><span class="p">]</span>
+
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;metropolis&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Metropolis"><a class="viewcode-back" href="../../api.html#sampler.metropolis.Metropolis">[docs]</a><span class="k">class</span> <span class="nc">Metropolis</span><span class="p">(</span><span class="n">backend</span><span class="o">.</span><span class="n">ArrayStepSharedLLK</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Metropolis-Hastings sampler</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    vars : list</span>
+<span class="sd">        List of variables for sampler</span>
+<span class="sd">    out_vars : list</span>
+<span class="sd">        List of output variables for trace recording. If empty unobserved_RVs</span>
+<span class="sd">        are taken.</span>
+<span class="sd">    n_chains : int</span>
+<span class="sd">        Number of chains per stage has to be a large number</span>
+<span class="sd">        of number of n_jobs (processors to be used) on the machine.</span>
+<span class="sd">    scaling : float</span>
+<span class="sd">        Factor applied to the proposal distribution i.e. the step size of the</span>
+<span class="sd">        Markov Chain</span>
+<span class="sd">    covariance : :class:`numpy.ndarray`</span>
+<span class="sd">        (n_chains x n_chains) for MutlivariateNormal, otherwise (n_chains)</span>
+<span class="sd">        Initial Covariance matrix for proposal distribution,</span>
+<span class="sd">        if None - identity matrix taken</span>
+<span class="sd">    likelihood_name : string</span>
+<span class="sd">        name of the :class:`pymc3.determinsitic` variable that contains the</span>
+<span class="sd">        model likelihood - defaults to &#39;like&#39;</span>
+<span class="sd">    backend :  str</span>
+<span class="sd">        type of backend to use for sample results storage, for alternatives</span>
+<span class="sd">        see :class:`backend.backend:catalog`</span>
+<span class="sd">    proposal_dist :</span>
+<span class="sd">        :class:`pymc3.metropolis.Proposal`</span>
+<span class="sd">        Type of proposal distribution, see</span>
+<span class="sd">        :module:`pymc3.step_methods.metropolis` for options</span>
+<span class="sd">    tune : boolean</span>
+<span class="sd">        Flag for adaptive scaling based on the acceptance rate</span>
+<span class="sd">    model : :class:`pymc3.Model`</span>
+<span class="sd">        Optional model for sampling step.</span>
+<span class="sd">        Defaults to None (taken from context).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">default_blocked</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">vars</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">out_vars</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">covariance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1.</span><span class="p">,</span>
+                 <span class="n">n_chains</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">tune</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">tune_interval</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">check_bound</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">likelihood_name</span><span class="o">=</span><span class="s1">&#39;like&#39;</span><span class="p">,</span> <span class="n">backend</span><span class="o">=</span><span class="s1">&#39;csv&#39;</span><span class="p">,</span>
+                 <span class="n">proposal_name</span><span class="o">=</span><span class="s1">&#39;MultivariateNormal&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="n">model</span> <span class="o">=</span> <span class="n">modelcontext</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">vars</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="nb">vars</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">vars</span>
+
+        <span class="nb">vars</span> <span class="o">=</span> <span class="n">inputvars</span><span class="p">(</span><span class="nb">vars</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">out_vars</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">out_vars</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">unobserved_RVs</span>
+
+        <span class="n">out_varnames</span> <span class="o">=</span> <span class="p">[</span><span class="n">out_var</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">out_var</span> <span class="ow">in</span> <span class="n">out_vars</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">scaling</span> <span class="o">=</span> <span class="n">utility</span><span class="o">.</span><span class="n">scalar2floatX</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">scale</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">tune</span> <span class="o">=</span> <span class="n">tune</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">check_bound</span> <span class="o">=</span> <span class="n">check_bound</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tune_interval</span> <span class="o">=</span> <span class="n">tune_interval</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">steps_until_tune</span> <span class="o">=</span> <span class="n">tune_interval</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">stage_sample</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cumulative_samples</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">accepted</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">beta</span> <span class="o">=</span> <span class="mf">1.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stage</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chain_index</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1"># needed to use the same parallel implementation function as for SMC</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">resampling_indexes</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n_chains</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_chains</span> <span class="o">=</span> <span class="n">n_chains</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">likelihood_name</span> <span class="o">=</span> <span class="n">likelihood_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_llk_index</span> <span class="o">=</span> <span class="n">out_varnames</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">likelihood_name</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">backend</span> <span class="o">=</span> <span class="n">backend</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">discrete</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+            <span class="p">[[</span><span class="n">v</span><span class="o">.</span><span class="n">dtype</span> <span class="ow">in</span> <span class="n">discrete_types</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">dsize</span> <span class="ow">or</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">any_discrete</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">discrete</span><span class="o">.</span><span class="n">any</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">all_discrete</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">discrete</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+        <span class="c1"># create initial population</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">population</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">array_population</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_chains</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Creating initial population for </span><span class="si">{}</span><span class="s1"> chains ...&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_chains</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_chains</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">population</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">Point</span><span class="p">({</span><span class="n">v</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">random</span><span class="p">()</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">},</span> <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">population</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">test_point</span>
+
+        <span class="n">shared</span> <span class="o">=</span> <span class="n">make_shared_replacements</span><span class="p">(</span><span class="nb">vars</span><span class="p">,</span> <span class="n">model</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logp_forw</span> <span class="o">=</span> <span class="n">logp_forw</span><span class="p">(</span><span class="n">out_vars</span><span class="p">,</span> <span class="nb">vars</span><span class="p">,</span> <span class="n">shared</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">check_bnd</span> <span class="o">=</span> <span class="n">logp_forw</span><span class="p">([</span><span class="n">model</span><span class="o">.</span><span class="n">varlogpt</span><span class="p">],</span> <span class="nb">vars</span><span class="p">,</span> <span class="n">shared</span><span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">Metropolis</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="nb">vars</span><span class="p">,</span> <span class="n">out_vars</span><span class="p">,</span> <span class="n">shared</span><span class="p">)</span>
+
+        <span class="c1"># init proposal</span>
+        <span class="k">if</span> <span class="n">covariance</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">proposal_name</span> <span class="ow">in</span> <span class="n">multivariate_proposals</span><span class="p">:</span>
+            <span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">covariance</span> <span class="o">=</span> <span class="n">init_proposal_covariance</span><span class="p">(</span>
+                <span class="n">bij</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">bij</span><span class="p">,</span> <span class="nb">vars</span><span class="o">=</span><span class="nb">vars</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span> <span class="n">pop_size</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+            <span class="n">t1</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Time for proposal covariance init: </span><span class="si">%f</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">t1</span> <span class="o">-</span> <span class="n">t0</span><span class="p">))</span>
+            <span class="n">scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">covariance</span>
+        <span class="k">elif</span> <span class="n">covariance</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">scale</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">dsize</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">scale</span> <span class="o">=</span> <span class="n">covariance</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">proposal_name</span> <span class="o">=</span> <span class="n">proposal_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proposal_dist</span> <span class="o">=</span> <span class="n">choose_proposal</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">proposal_name</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="n">scale</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proposal_samples_array</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">proposal_dist</span><span class="p">(</span><span class="n">n_chains</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">chain_previous_lpoint</span> <span class="o">=</span> <span class="p">[[]]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_chains</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tps</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">_sampler_state_blacklist</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns sampler attributes that are not saved.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">bl</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;check_bnd&#39;</span><span class="p">,</span>
+              <span class="s1">&#39;logp_forw&#39;</span><span class="p">,</span>
+              <span class="s1">&#39;proposal_samples_array&#39;</span><span class="p">,</span>
+              <span class="s1">&#39;vars&#39;</span><span class="p">,</span>
+              <span class="s1">&#39;bij&#39;</span><span class="p">,</span>
+              <span class="s1">&#39;lij&#39;</span><span class="p">,</span>
+              <span class="s1">&#39;ordering&#39;</span><span class="p">,</span>
+              <span class="s1">&#39;lordering&#39;</span><span class="p">,</span>
+              <span class="s1">&#39;_BlockedStep__newargs&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">bl</span>
+
+<div class="viewcode-block" id="Metropolis.get_sampler_state"><a class="viewcode-back" href="../../api.html#sampler.metropolis.Metropolis.get_sampler_state">[docs]</a>    <span class="k">def</span> <span class="nf">get_sampler_state</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return dictionary of sampler state.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dict of sampler state</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">blacklist</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sampler_state_blacklist</span><span class="p">()</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">blacklist</span><span class="p">}</span></div>
+
+<div class="viewcode-block" id="Metropolis.apply_sampler_state"><a class="viewcode-back" href="../../api.html#sampler.metropolis.Metropolis.apply_sampler_state">[docs]</a>    <span class="k">def</span> <span class="nf">apply_sampler_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update sampler state to given state</span>
+<span class="sd">        (obtained by &#39;get_sampler_state&#39;)</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        state : dict</span>
+<span class="sd">            with sampler parameters</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">state</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">time_per_sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_points</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tps</span><span class="p">:</span>
+            <span class="n">tps</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_points</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_points</span><span class="p">):</span>
+                <span class="n">q</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bij</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">population</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+                <span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logp_forw</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>
+                <span class="n">t1</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
+                <span class="n">tps</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">t1</span> <span class="o">-</span> <span class="n">t0</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_tps</span> <span class="o">=</span>  <span class="n">tps</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tps</span>
+
+    <span class="k">def</span> <span class="nf">astep</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q0</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">l_new</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">logp_forw</span><span class="p">(</span><span class="n">q0</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">num</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">l_new</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_llk_index</span><span class="p">]):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s1">&#39;Got NaN in likelihood evaluation! &#39;</span>
+                    <span class="s1">&#39;Invalid model definition? &#39;</span>
+                    <span class="s1">&#39;Or starting point outside prior bounds!&#39;</span><span class="p">)</span>
+
+            <span class="n">q_new</span> <span class="o">=</span> <span class="n">q0</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_sample</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">proposal_samples_array</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">proposal_dist</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">n_steps</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">tconfig</span><span class="o">.</span><span class="n">floatX</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">steps_until_tune</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">tune</span><span class="p">:</span>
+                <span class="c1"># Tune scaling parameter</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Tuning: Chain_</span><span class="si">%i</span><span class="s1"> step_</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_sample</span><span class="p">))</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">scaling</span> <span class="o">=</span> <span class="n">utility</span><span class="o">.</span><span class="n">scalar2floatX</span><span class="p">(</span>
+                    <span class="n">step_tune</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">scaling</span><span class="p">,</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">accepted</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tune_interval</span><span class="p">)))</span>
+
+                <span class="c1"># Reset counter</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">steps_until_tune</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tune_interval</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">accepted</span> <span class="o">=</span> <span class="mi">0</span>
+
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="s1">&#39;Get delta: Chain_</span><span class="si">%i</span><span class="s1"> step_</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_sample</span><span class="p">))</span>
+            <span class="n">delta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">proposal_samples_array</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">stage_sample</span><span class="p">,</span> <span class="p">:]</span> <span class="o">*</span> \
+                <span class="bp">self</span><span class="o">.</span><span class="n">scaling</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">any_discrete</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">all_discrete</span><span class="p">:</span>
+                    <span class="n">delta</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">delta</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+                    <span class="n">q0</span> <span class="o">=</span> <span class="n">q0</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+                    <span class="n">q</span> <span class="o">=</span> <span class="p">(</span><span class="n">q0</span> <span class="o">+</span> <span class="n">delta</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">delta</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">discrete</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">round</span><span class="p">(</span>
+                        <span class="n">delta</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">discrete</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+                    <span class="n">q</span> <span class="o">=</span> <span class="n">q0</span> <span class="o">+</span> <span class="n">delta</span>
+                    <span class="n">q</span> <span class="o">=</span> <span class="n">q</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">discrete</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+
+                <span class="n">q</span> <span class="o">=</span> <span class="n">q0</span> <span class="o">+</span> <span class="n">delta</span>
+
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">l0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">chain_previous_lpoint</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">chain_index</span><span class="p">]</span>
+                <span class="n">llk0</span> <span class="o">=</span> <span class="n">l0</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_llk_index</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+                <span class="n">l0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">logp_forw</span><span class="p">(</span><span class="n">q0</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">chain_previous_lpoint</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">chain_index</span><span class="p">]</span> <span class="o">=</span> <span class="n">l0</span>
+                <span class="n">llk0</span> <span class="o">=</span> <span class="n">l0</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_llk_index</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">check_bound</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Checking bound: Chain_</span><span class="si">%i</span><span class="s1"> step_</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_sample</span><span class="p">))</span>
+                <span class="n">varlogp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">check_bnd</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">num</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">varlogp</span><span class="p">):</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Calc llk: Chain_</span><span class="si">%i</span><span class="s1"> step_</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_sample</span><span class="p">))</span>
+
+                    <span class="n">lp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">logp_forw</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>
+
+                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Select llk: Chain_</span><span class="si">%i</span><span class="s1"> step_</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_sample</span><span class="p">))</span>
+
+                    <span class="n">tempered_llk_ratio</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">beta</span> <span class="o">*</span> <span class="p">(</span>
+                            <span class="n">lp</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_llk_index</span><span class="p">]</span> <span class="o">-</span> <span class="n">l0</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_llk_index</span><span class="p">])</span>
+                    <span class="n">q_new</span><span class="p">,</span> <span class="n">accepted</span> <span class="o">=</span> <span class="n">metrop_select</span><span class="p">(</span>
+                        <span class="n">tempered_llk_ratio</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">q0</span><span class="p">)</span>
+
+                    <span class="k">if</span> <span class="n">accepted</span><span class="p">:</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Accepted: Chain_</span><span class="si">%i</span><span class="s1"> step_</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_sample</span><span class="p">))</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;proposed: </span><span class="si">%f</span><span class="s1"> previous: </span><span class="si">%f</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                            <span class="n">lp</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_llk_index</span><span class="p">],</span> <span class="n">llk0</span><span class="p">))</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">accepted</span> <span class="o">+=</span> <span class="mi">1</span>
+                        <span class="n">l_new</span> <span class="o">=</span> <span class="n">lp</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">chain_previous_lpoint</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">chain_index</span><span class="p">]</span> <span class="o">=</span> <span class="n">l_new</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Rejected: Chain_</span><span class="si">%i</span><span class="s1"> step_</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_sample</span><span class="p">))</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;proposed: </span><span class="si">%f</span><span class="s1"> previous: </span><span class="si">%f</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                            <span class="n">lp</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_llk_index</span><span class="p">],</span> <span class="n">l0</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_llk_index</span><span class="p">]))</span>
+                        <span class="n">l_new</span> <span class="o">=</span> <span class="n">l0</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">q_new</span> <span class="o">=</span> <span class="n">q0</span>
+                    <span class="n">l_new</span> <span class="o">=</span> <span class="n">l0</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Calc llk: Chain_</span><span class="si">%i</span><span class="s1"> step_</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_sample</span><span class="p">))</span>
+
+                <span class="n">lp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">logp_forw</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>
+
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Select: Chain_</span><span class="si">%i</span><span class="s1"> step_</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_sample</span><span class="p">))</span>
+                <span class="n">q_new</span><span class="p">,</span> <span class="n">accepted</span> <span class="o">=</span> <span class="n">metrop_select</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">beta</span> <span class="o">*</span> <span class="p">(</span><span class="n">lp</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_llk_index</span><span class="p">]</span> <span class="o">-</span> <span class="n">llk0</span><span class="p">),</span>
+                    <span class="n">q</span><span class="p">,</span> <span class="n">q0</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">accepted</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">accepted</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="n">l_new</span> <span class="o">=</span> <span class="n">lp</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">chain_previous_lpoint</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">chain_index</span><span class="p">]</span> <span class="o">=</span> <span class="n">l_new</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">l_new</span> <span class="o">=</span> <span class="n">l0</span>
+
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="s1">&#39;Counters: Chain_</span><span class="si">%i</span><span class="s1"> step_</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_sample</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">steps_until_tune</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">stage_sample</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cumulative_samples</span> <span class="o">+=</span> <span class="mi">1</span>
+
+            <span class="c1"># reset sample counter</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_sample</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_steps</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">stage_sample</span> <span class="o">=</span> <span class="mi">0</span>
+
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="s1">&#39;End step: Chain_</span><span class="si">%i</span><span class="s1"> step_</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">chain_index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_sample</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">q_new</span><span class="p">,</span> <span class="n">l_new</span></div>
+
+
+<div class="viewcode-block" id="get_final_stage"><a class="viewcode-back" href="../../api.html#sampler.metropolis.get_final_stage">[docs]</a><span class="k">def</span> <span class="nf">get_final_stage</span><span class="p">(</span><span class="n">homepath</span><span class="p">,</span> <span class="n">n_stages</span><span class="p">,</span> <span class="n">model</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Combine Metropolis results into final stage to get one single chain for</span>
+<span class="sd">    plotting results.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">util</span><span class="o">.</span><span class="n">ensuredir</span><span class="p">(</span><span class="n">homepath</span><span class="p">)</span>
+
+    <span class="n">mtraces</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">stage</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_stages</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Loading Metropolis stage </span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">stage</span><span class="p">)</span>
+        <span class="n">stage_outpath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">homepath</span><span class="p">,</span> <span class="s1">&#39;stage_</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">stage</span><span class="p">)</span>
+
+        <span class="n">mtraces</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">backend</span><span class="o">.</span><span class="n">load</span><span class="p">(</span>
+                <span class="n">name</span><span class="o">=</span><span class="n">stage_outpath</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">))</span>
+
+    <span class="n">ctrace</span> <span class="o">=</span> <span class="n">backend</span><span class="o">.</span><span class="n">concatenate_traces</span><span class="p">(</span><span class="n">mtraces</span><span class="p">)</span>
+    <span class="n">outname</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">homepath</span><span class="p">,</span> <span class="s1">&#39;stage_final&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">outname</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Removing existing previous final stage!&#39;</span><span class="p">)</span>
+        <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">outname</span><span class="p">)</span>
+
+    <span class="n">util</span><span class="o">.</span><span class="n">ensuredir</span><span class="p">(</span><span class="n">outname</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Creating final Metropolis stage&#39;</span><span class="p">)</span>
+
+    <span class="n">text</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">outname</span><span class="p">,</span> <span class="n">trace</span><span class="o">=</span><span class="n">ctrace</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="metropolis_sample"><a class="viewcode-back" href="../../api.html#sampler.metropolis.metropolis_sample">[docs]</a><span class="k">def</span> <span class="nf">metropolis_sample</span><span class="p">(</span>
+        <span class="n">n_steps</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span> <span class="n">homepath</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">backend</span><span class="o">=</span><span class="s1">&#39;csv&#39;</span><span class="p">,</span>
+        <span class="n">progressbar</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">rm_flag</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">buffer_size</span><span class="o">=</span><span class="mi">5000</span><span class="p">,</span> <span class="n">buffer_thinning</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">update</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">burn</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">thin</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Execute Metropolis algorithm repeatedly depending on the number of chains.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># hardcoded stage here as there are no stages</span>
+    <span class="n">stage</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">modelcontext</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+    <span class="n">step</span><span class="o">.</span><span class="n">n_steps</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">n_steps</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">n_steps</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Argument `n_steps` should be above 0.&#39;</span><span class="p">,</span> <span class="n">exc_info</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">step</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Argument `step` has to be a Metropolis step object.&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">homepath</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+            <span class="s1">&#39;Argument `homepath` should be path to result_directory.&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">n_jobs</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">step</span><span class="o">.</span><span class="n">n_chains</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">n_jobs</span><span class="p">))</span><span class="o">.</span><span class="n">is_integer</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;n_chains / n_jobs has to be a whole number!&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">start</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">start</span><span class="p">)</span> <span class="o">!=</span> <span class="n">step</span><span class="o">.</span><span class="n">n_chains</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;Argument `start` should have dicts equal the &#39;</span>
+                            <span class="s1">&#39;number of chains (step.N-chains)&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">step</span><span class="o">.</span><span class="n">population</span> <span class="o">=</span> <span class="n">start</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span>
+            <span class="n">step</span><span class="o">.</span><span class="n">likelihood_name</span> <span class="ow">in</span> <span class="n">var</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">deterministics</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;Model (deterministic) variables need to contain &#39;</span>
+                            <span class="s1">&#39;a variable </span><span class="si">%s</span><span class="s1"> &#39;</span>
+                            <span class="s1">&#39;as defined in `step`.&#39;</span> <span class="o">%</span> <span class="n">step</span><span class="o">.</span><span class="n">likelihood_name</span><span class="p">)</span>
+
+    <span class="n">stage_handler</span> <span class="o">=</span> <span class="n">backend</span><span class="o">.</span><span class="n">SampleStage</span><span class="p">(</span><span class="n">homepath</span><span class="p">,</span> <span class="n">backend</span><span class="o">=</span><span class="n">step</span><span class="o">.</span><span class="n">backend</span><span class="p">)</span>
+
+    <span class="n">util</span><span class="o">.</span><span class="n">ensuredir</span><span class="p">(</span><span class="n">homepath</span><span class="p">)</span>
+
+    <span class="n">chains</span><span class="p">,</span> <span class="n">step</span><span class="p">,</span> <span class="n">update</span> <span class="o">=</span> <span class="n">init_stage</span><span class="p">(</span>
+        <span class="n">stage_handler</span><span class="o">=</span><span class="n">stage_handler</span><span class="p">,</span>
+        <span class="n">step</span><span class="o">=</span><span class="n">step</span><span class="p">,</span>
+        <span class="n">stage</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>   <span class="c1"># needs zero otherwise tries to load stage_0 results</span>
+        <span class="n">progressbar</span><span class="o">=</span><span class="n">progressbar</span><span class="p">,</span>
+        <span class="n">update</span><span class="o">=</span><span class="n">update</span><span class="p">,</span>
+        <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+        <span class="n">rm_flag</span><span class="o">=</span><span class="n">rm_flag</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">model</span><span class="p">:</span>
+
+        <span class="n">chains</span> <span class="o">=</span> <span class="n">stage_handler</span><span class="o">.</span><span class="n">clean_directory</span><span class="p">(</span><span class="n">step</span><span class="o">.</span><span class="n">stage</span><span class="p">,</span> <span class="n">chains</span><span class="p">,</span> <span class="n">rm_flag</span><span class="p">)</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Sampling stage ...&#39;</span><span class="p">)</span>
+
+        <span class="n">draws</span> <span class="o">=</span> <span class="n">n_steps</span>
+
+        <span class="n">step</span><span class="o">.</span><span class="n">stage</span> <span class="o">=</span> <span class="n">stage</span>
+
+        <span class="n">sample_args</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;draws&#39;</span><span class="p">:</span> <span class="n">draws</span><span class="p">,</span>
+            <span class="s1">&#39;step&#39;</span><span class="p">:</span> <span class="n">step</span><span class="p">,</span>
+            <span class="s1">&#39;stage_path&#39;</span><span class="p">:</span> <span class="n">stage_handler</span><span class="o">.</span><span class="n">stage_path</span><span class="p">(</span><span class="n">step</span><span class="o">.</span><span class="n">stage</span><span class="p">),</span>
+            <span class="s1">&#39;progressbar&#39;</span><span class="p">:</span> <span class="n">progressbar</span><span class="p">,</span>
+            <span class="s1">&#39;model&#39;</span><span class="p">:</span> <span class="n">model</span><span class="p">,</span>
+            <span class="s1">&#39;n_jobs&#39;</span><span class="p">:</span> <span class="n">n_jobs</span><span class="p">,</span>
+            <span class="s1">&#39;buffer_size&#39;</span><span class="p">:</span> <span class="n">buffer_size</span><span class="p">,</span>
+            <span class="s1">&#39;buffer_thinning&#39;</span><span class="p">:</span> <span class="n">buffer_thinning</span><span class="p">,</span>
+            <span class="s1">&#39;chains&#39;</span><span class="p">:</span> <span class="n">chains</span><span class="p">}</span>
+
+        <span class="n">mtrace</span> <span class="o">=</span> <span class="n">iter_parallel_chains</span><span class="p">(</span><span class="o">**</span><span class="n">sample_args</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">step</span><span class="o">.</span><span class="n">proposal_name</span> <span class="o">==</span> <span class="s1">&#39;MultivariateNormal&#39;</span><span class="p">:</span>
+            <span class="n">pdict</span><span class="p">,</span> <span class="n">step</span><span class="o">.</span><span class="n">covariance</span> <span class="o">=</span> <span class="n">get_trace_stats</span><span class="p">(</span>
+                <span class="n">mtrace</span><span class="p">,</span> <span class="n">step</span><span class="p">,</span> <span class="n">burn</span><span class="p">,</span> <span class="n">thin</span><span class="p">)</span>
+
+            <span class="n">step</span><span class="o">.</span><span class="n">proposal_dist</span> <span class="o">=</span> <span class="n">choose_proposal</span><span class="p">(</span>
+                <span class="n">step</span><span class="o">.</span><span class="n">proposal_name</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="n">step</span><span class="o">.</span><span class="n">covariance</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">update</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Updating Covariances ...&#39;</span><span class="p">)</span>
+            <span class="n">update</span><span class="o">.</span><span class="n">update_weights</span><span class="p">(</span><span class="n">pdict</span><span class="p">[</span><span class="s1">&#39;dist_mean&#39;</span><span class="p">],</span> <span class="n">n_jobs</span><span class="o">=</span><span class="n">n_jobs</span><span class="p">)</span>
+
+            <span class="n">mtrace</span> <span class="o">=</span> <span class="n">update_last_samples</span><span class="p">(</span>
+                <span class="n">homepath</span><span class="p">,</span> <span class="n">step</span><span class="p">,</span> <span class="n">progressbar</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">n_jobs</span><span class="p">,</span> <span class="n">rm_flag</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">update</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">stage</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">update</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">close_cashed_stores</span><span class="p">()</span>
+
+        <span class="n">step</span><span class="o">.</span><span class="n">chain_previous_lpoint</span> <span class="o">=</span> <span class="n">step</span><span class="o">.</span><span class="n">get_chain_previous_lpoint</span><span class="p">(</span><span class="n">mtrace</span><span class="p">)</span>
+
+        <span class="n">outparam_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">step</span><span class="o">.</span><span class="n">get_sampler_state</span><span class="p">(),</span> <span class="n">update</span><span class="p">]</span>
+        <span class="n">stage_handler</span><span class="o">.</span><span class="n">dump_atmip_params</span><span class="p">(</span><span class="n">step</span><span class="o">.</span><span class="n">stage</span><span class="p">,</span> <span class="n">outparam_list</span><span class="p">)</span>
+
+        <span class="c1"># get_final_stage(homepath, n_stages, model=model)</span>
+        <span class="k">return</span> <span class="n">stage_handler</span><span class="o">.</span><span class="n">load_multitrace</span><span class="p">(</span><span class="n">step</span><span class="o">.</span><span class="n">stage</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="get_trace_stats"><a class="viewcode-back" href="../../api.html#sampler.metropolis.get_trace_stats">[docs]</a><span class="k">def</span> <span class="nf">get_trace_stats</span><span class="p">(</span><span class="n">mtrace</span><span class="p">,</span> <span class="n">step</span><span class="p">,</span> <span class="n">burn</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">thin</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get mean value of trace variables and return point.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    mtrace : :class:`pymc3.backends.base.MultiTrace`</span>
+<span class="sd">        Multitrace sampling result</span>
+<span class="sd">    step : initialised :class:`smc.SMC` sampler object</span>
+<span class="sd">    burn : float</span>
+<span class="sd">        Burn-in parameter to throw out samples from the beginning of the trace</span>
+<span class="sd">    thin : int</span>
+<span class="sd">        Thinning of samples in the trace</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict with points, covariance matrix</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">n_steps</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">mtrace</span><span class="p">)</span>
+
+    <span class="n">array_population</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">step</span><span class="o">.</span><span class="n">n_jobs</span> <span class="o">*</span> <span class="nb">int</span><span class="p">(</span>
+            <span class="n">num</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">n_steps</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">burn</span><span class="p">)</span> <span class="o">/</span> <span class="n">thin</span><span class="p">)),</span>
+            <span class="n">step</span><span class="o">.</span><span class="n">ordering</span><span class="o">.</span><span class="n">size</span><span class="p">))</span>
+
+    <span class="c1"># collect end points of each chain and put into array</span>
+    <span class="k">for</span> <span class="n">var</span><span class="p">,</span> <span class="n">slc</span><span class="p">,</span> <span class="n">shp</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">step</span><span class="o">.</span><span class="n">ordering</span><span class="o">.</span><span class="n">vmap</span><span class="p">:</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="n">mtrace</span><span class="o">.</span><span class="n">get_values</span><span class="p">(</span>
+            <span class="n">varname</span><span class="o">=</span><span class="n">var</span><span class="p">,</span>
+            <span class="n">burn</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">burn</span> <span class="o">*</span> <span class="n">n_steps</span><span class="p">),</span>
+            <span class="n">thin</span><span class="o">=</span><span class="n">thin</span><span class="p">,</span>
+            <span class="n">combine</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">shp</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">array_population</span><span class="p">[:,</span> <span class="n">slc</span><span class="p">]</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">samples</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">array_population</span><span class="p">[:,</span> <span class="n">slc</span><span class="p">]</span> <span class="o">=</span> <span class="n">samples</span>
+
+    <span class="n">llks</span> <span class="o">=</span> <span class="n">mtrace</span><span class="o">.</span><span class="n">get_values</span><span class="p">(</span>
+        <span class="n">varname</span><span class="o">=</span><span class="n">step</span><span class="o">.</span><span class="n">likelihood_name</span><span class="p">,</span>
+        <span class="n">burn</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">burn</span> <span class="o">*</span> <span class="n">n_steps</span><span class="p">),</span>
+        <span class="n">thin</span><span class="o">=</span><span class="n">thin</span><span class="p">,</span>
+        <span class="n">combine</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">posterior_idxs</span> <span class="o">=</span> <span class="n">utility</span><span class="o">.</span><span class="n">get_fit_indexes</span><span class="p">(</span><span class="n">llks</span><span class="p">)</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">posterior_idxs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">d</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">step</span><span class="o">.</span><span class="n">bij</span><span class="o">.</span><span class="n">rmap</span><span class="p">(</span><span class="n">array_population</span><span class="p">[</span><span class="n">v</span><span class="p">,</span> <span class="p">:])</span>
+
+    <span class="n">d</span><span class="p">[</span><span class="s1">&#39;dist_mean&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">step</span><span class="o">.</span><span class="n">bij</span><span class="o">.</span><span class="n">rmap</span><span class="p">(</span><span class="n">array_population</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+    <span class="n">avar</span> <span class="o">=</span> <span class="n">array_population</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">avar</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">==</span> <span class="mf">0.</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Trace std not valid not enough samples! Use 1.&#39;</span><span class="p">)</span>
+        <span class="n">avar</span> <span class="o">=</span> <span class="mf">1.</span>
+
+    <span class="n">cov</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">step</span><span class="o">.</span><span class="n">ordering</span><span class="o">.</span><span class="n">size</span><span class="p">)</span> <span class="o">*</span> <span class="n">avar</span>
+    <span class="k">return</span> <span class="n">d</span><span class="p">,</span> <span class="n">cov</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="../../index.html">Table Of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../updating.html">Updating beat</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/index.html">Getting started with BEAT</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>

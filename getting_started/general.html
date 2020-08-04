@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>General &#8212; beat 1.0 documentation</title>
+    <link rel="stylesheet" href="../_static/pydoctheme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Initialise a new Modeling Project" href="init_project.html" />
+    <link rel="prev" title="Getting started with BEAT" href="index.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Roboto+Slab">
+    
+    
+    <script type="text/javascript" src="../_static/jquery.gifplayer.js"></script>
+    <link rel="stylesheet" type="text/css" href="../_static/gifplayer.css">
+    <!-- Piwik -->
+    <script type="text/javascript">
+      var _paq = _paq || [];
+      /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+      _paq.push(['trackPageView']);
+      _paq.push(['enableLinkTracking']);
+      (function() {
+        var u="//pyrocko.org/pwk/";
+        _paq.push(['setTrackerUrl', u+'piwik.php']);
+        _paq.push(['setSiteId', '1']);
+        var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+        g.type='text/javascript'; g.async=true; g.defer=true; g.src=u+'piwik.js'; s.parentNode.insertBefore(g,s);
+      })();
+    </script>
+    <noscript>
+    <img src="https://pyrocko.org/pwk/piwik.php?idsite=1&rec=1" style="border:0" alt="" />
+    </noscript>
+
+  </head>
+  <body>
+
+    <div class="related">
+      <h3>Navigation</h3>
+        <ul>
+          <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+          <li>
+            <img src='https://pyrocko.org/_static/pyrocko.svg' class='pyrocko-button' onclick="window.location = 'https://pyrocko.org';">
+          </li>
+           &#187;
+          <li>
+              <a href="../index.html">beat 1.0 documentation</a> &#187;
+          </li>
+            <li><a href="index.html" accesskey="U">Getting started with BEAT</a> &#187;</li> 
+        </ul>
+    </div>
+    
+
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="general">
+<h1>General<a class="headerlink" href="#general" title="Permalink to this headline">¶</a></h1>
+<p>The beat internal help can always be executed by typing ‘–help’ in the execution string.
+Also, by using the ‘tab’ button you can use automatic bash completion to see available commands and options.
+For example:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">beat</span> <span class="n">init</span> <span class="o">--</span><span class="n">help</span>
+</pre></div>
+</div>
+<p>Will display:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>Usage: beat init &lt;event_name&gt; &lt;event_date &quot;YYYY-MM-DD&quot;&gt; [options]
+
+Create a new EQ model project, use only event name to skip catalog search.
+
+Options:
+  -h, --help            show this help message and exit
+  --min_mag=MIN_MAG     Minimum Mw for event, for catalog search. Default:
+                        &quot;6.0&quot;
+  --main_path=MAIN_PATH
+                        Main path (absolute) for creating directory structure.
+                        Default: current directory ./
+  --datatypes=DATATYPES
+                        Datatypes to include in the setup; &quot;geodetic,
+                        seismic&quot;.
+  --mode=MODE           Inversion problem to solve; &quot;geometry&quot;, &quot;ffi&quot;,
+                        &quot;interseismic&quot; Default: &quot;geometry&quot;
+  --source_type=SOURCE_TYPE
+                        Source type to solve for; ExplosionSource&quot;,
+                        &quot;RectangularExplosionSource&quot;, &quot;DCSource&quot;,
+                        &quot;CLVDSource&quot;, &quot;MTSource&quot;, &quot;RectangularSource&quot;,
+                        &quot;DoubleDCSource&quot;, &quot;RingfaultSource. Default:
+                        &quot;RectangularSource&quot;
+  --n_sources=N_SOURCES
+                        Integer Number of sources to invert for. Default: 1
+  --waveforms=WAVEFORMS
+                        Waveforms to include in the setup; &quot;any_P, any_S,
+                        slowest&quot;.
+  --sampler=SAMPLER     Sampling algorithm to sample the solution space of the
+                        general problem; &quot;SMC&quot;, &quot;Metropolis&quot;. Default: &quot;SMC&quot;
+  --hyper_sampler=HYPER_SAMPLER
+                        Sampling algorithm to sample the solution space of the
+                        hyperparameters only; So far only &quot;Metropolis&quot;
+                        supported.Default: &quot;Metropolis&quot;
+  --use_custom          If set, a slot for a custom velocity model is being
+                        created in the configuration file.
+  --individual_gfs      If set, Green&#39;s Function stores will be created
+                        individually for each station!
+  --loglevel=LOGLEVEL   set logger level to &quot;critical&quot;, &quot;error&quot;, &quot;warning&quot;,
+                        &quot;info&quot;, or &quot;debug&quot;. Default is &quot;info&quot;.
+</pre></div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+<h3><a href="../index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../short_installation.html">Short Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../anaconda_installation.html">Anaconda Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Detailed Installation instructions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../updating.html">Updating beat</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Getting started with BEAT</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">General</a></li>
+<li class="toctree-l2"><a class="reference internal" href="init_project.html">Initialise a new Modeling Project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="import_data.html">Import Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="update_config.html">How to update the configuration files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backends.html">Sampling Backends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="custom_gf_store.html">How to setup a Custom Greens Function Store</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ffi_setup.html">How to setup a Finite Fault Inference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../faq.html">Frequently asked questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+    &nbsp;
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="init_project.html" title="Initialise a new Modeling Project"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Getting started with BEAT"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, Hannes Vasyura-Bathke.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.7.
+    </div>
+  </body>
+</html>
