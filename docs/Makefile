@@ -49,10 +49,15 @@ help:
 .PHONY: clean
 clean:
 	#rm -rf $(BUILDDIR)/html $(BUILDDIR)/doctrees
-	#mkdir $(BUILDDIR)/html
-	#cp -r $(BUILDDIR)/.git/ $(BUILDDIR)/html/
+	@echo "Following to recreate!: https://daler.github.io/sphinxdoc-test/includeme.html"
+	#cd $(BUILDDIR)
+	#git clone https://github.com/hvasbath/beat html
+	#cd html
+	#git branch gh-pages
+	#git symbolic-ref HEAD refs/heads/gh-pages
+	#rm .git/index
+	#git clean -fdx
 	#touch $(BUILDDIR)/html/.nojekyll
-	@echo "Please follow to recreate! https://daler.github.io/sphinxdoc-test/includeme.html"
 
 .PHONY: html
 html:
