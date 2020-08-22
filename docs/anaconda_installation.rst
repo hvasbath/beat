@@ -47,7 +47,7 @@ For testing if numpy and theano installations worked fine::
 
 Install pymc3 and pyrocko packages::
 
-  conda install -n beat -c conda-forge pymc3
+  conda install -n beat -c conda-forge pymc3=3.4.1
   conda install -n beat -c pyrocko pyrocko
 
 Once all the requirements are installed we install BEAT with::

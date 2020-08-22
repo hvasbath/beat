@@ -46,7 +46,14 @@ For that we need to change the name of the Greens function store by::
 To enable velocity model uncertainty perturbation each store is named after the earthmodel used,
 followed by the sampling rate and the reference model index, each separated by a '_'
 The format is %station_%earth_model_name_%sampling_%reference_model_idx.
-%station is defined in the reference_location of the gf_config section of the config_geometry.yaml.
+%station is defined in the reference_location of the gf_config section of the config_geometry.yaml as "global_2s_25km".::
+
+  reference_location: !beat.heart.ReferenceLocation
+    lat: 54.47458
+    lon: -117.23484
+    depth: 0.0
+    station: global_2s_25km
+
 We now also want to change the tabulated phases in the store.
 
 Open the store config under $GF_path/global_2s_25km_ak135_0.500Hz_0/config with any editor.
