@@ -1476,12 +1476,13 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
                 raise ValueError(
                     'Results test point does not exist'
                     ' at: %s' % results_test_point)
-        try:
-            po.reference = problem.model.test_point
-            step = problem.init_sampler()
-            po.reference['like'] = step.step(problem.model.test_point)[1][-1]
-        except AttributeError:
-            po.reference = problem.config.problem_config.get_test_point()
+        else:
+            try:
+                po.reference = problem.model.test_point
+                step = problem.init_sampler()
+                po.reference['like'] = step.step(problem.model.test_point)[1][-1]
+            except AttributeError:
+                po.reference = problem.config.problem_config.get_test_point()
     else:
         if po.post_llk == 'test':
             raise ValueError(
