@@ -1330,7 +1330,7 @@ def command_plot(args):
         parser.add_option(
             '--post_llk',
             dest='post_llk',
-            choices=['max', 'min', 'mean', 'all', 'None'],
+            choices=['max', 'min', 'mean', 'all', 'None', 'test'],
             default='max',
             help='Plot model with specified likelihood; "max", "min", "mean"'
                  ' "None" or "all"; Default: "max"')
@@ -1464,6 +1464,18 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
         source_idxs=source_idxs)
 
     if options.reference:
+        if po.post_llk == 'test':
+            results_path = pjoin(problem.outfolder, bconfig.results_dir_name)
+            results_test_point = pjoin(results_path, 'solution_test.yaml')
+            if os.path.exists(results_test_point):
+                logger.info(
+                    'Result test point exists at %s !'
+                    ' Forward modeling ...' % results_test_point)
+                po.reference = load(filename=results_test_point).point
+            else:
+                raise ValueError(
+                    'Results test point does not exist'
+                    ' at: %s' % results_test_point)
         try:
             po.reference = problem.model.test_point
             step = problem.init_sampler()
@@ -1471,6 +1483,9 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
         except AttributeError:
             po.reference = problem.config.problem_config.get_test_point()
     else:
+        if po.post_llk == 'test':
+            raise ValueError(
+                '"post_llk=test" only works together with --reference!')
         po.reference = {}
 
     figure_path = pjoin(problem.outfolder, po.figure_dir)
