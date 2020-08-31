@@ -3288,6 +3288,9 @@ def fault_slip_distribution(
         rot_centers = rotate_coords_plane_normal(centers, ext_source)[:, 1::-1]
 
         xgr, ygr = rot_centers.T
+        shp = fault.ordering.get_subfault_discretization(ns)
+        xgr = xgr.reshape(shp)
+        ygr = ygr.reshape(shp)
         if 'seismic' in fault.datatypes:
             if mtrace is not None:
                 from tqdm import tqdm
@@ -3314,8 +3317,6 @@ def fault_slip_distribution(
                     sts = fault.get_subfault_starttimes(
                         ns, veloc_ns, nuc_dip_idx[ns], nuc_strike_idx[ns])
                     
-                    xgr = xgr.reshape(sts.shape)
-                    ygr = ygr.reshape(sts.shape)
                     contours = dummy_ax.contour(xgr, ygr, sts)
                     rupture_fronts.append(contours.allsegs)
 
