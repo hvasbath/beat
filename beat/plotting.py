@@ -1901,23 +1901,28 @@ def draw_hudson(problem, po):
         except beachball.BeachballError as e:
             logger.warn(str(e))
 
-    mt = problem.event.moment_tensor
-    u, v = hudson.project(mt)
+    if isinstance(problem.event.moment_tensor, mtm.MomentTensor):
+        mt = problem.event.moment_tensor
+        u, v = hudson.project(mt)
 
-    if not po.reference:
-        try:
-            beachball.plot_beachball_mpl(
-                mt, axes,
-                beachball_type=beachball_type,
-                position=(u, v),
-                size=beachballsize,
-                color_t='grey',
-                alpha=0.5,
-                zorder=2,
-                linewidth=0.25)
-            logger.info('drawing reference event in grey ...')
-        except beachball.BeachballError as e:
-            logger.warn(str(e))
+        if not po.reference:
+            try:
+                beachball.plot_beachball_mpl(
+                    mt, axes,
+                    beachball_type=beachball_type,
+                    position=(u, v),
+                    size=beachballsize,
+                    color_t='grey',
+                    alpha=0.5,
+                    zorder=2,
+                    linewidth=0.25)
+                logger.info('drawing reference event in grey ...')
+            except beachball.BeachballError as e:
+                logger.warn(str(e))
+    else:
+        logger.info(
+            'No reference event moment tensor information given, '
+            'skipping drawing ...')
 
     outpath = os.path.join(
         problem.outfolder,
