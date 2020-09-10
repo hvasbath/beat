@@ -1560,7 +1560,12 @@ def command_check(args):
 
         for datatype in options.datatypes:
             store_ids = corrupted_stores[datatype]
-            logger.warn('Store(s) with empty traces! : %s ' % store_ids)
+            if len(store_ids) > 0:
+                logger.warning(
+                    'Store(s) with empty traces! : %s for %s datatype!'
+                    % (list2string(store_ids), datatype))
+            else:
+                logger.info('All stores ok for %s datatype!' % datatype)
 
     elif options.what == 'traces':
         sc = problem.composites['seismic']
