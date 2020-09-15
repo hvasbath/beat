@@ -461,7 +461,7 @@ class TextChain(FileChain):
         if self._df is None:
             try:
                 self._df = pd.read_csv(self.filename)
-            except pd.errors.EmptyDataError:
+            except EmptyDataError:
                 logger.warning(
                     'Trace %s is empty and needs to be resampled!' %
                     self.filename)
@@ -985,7 +985,9 @@ class SampleStage(object):
             logger.info('Loading end points of last completed stage: '
                         '%s' % prev_stage_path)
             mtrace = load_multitrace(
-                dirname=prev_stage_path, varnames=varnames, backend=self.backend)
+                dirname=prev_stage_path,
+                varnames=varnames,
+                backend=self.backend)
 
             step.population, step.array_population, step.likelihoods = \
                 step.select_end_points(mtrace)
@@ -1151,8 +1153,8 @@ def load_sampler_params(project_dir, stage_number, mode):
         problem mode that has been solved ('geometry', 'static', 'kinematic')
     """
 
-    stage_path = os.path.join(project_dir, mode, 'stage_%s' % stage_number,
-        sample_p_outname)
+    stage_path = os.path.join(
+        project_dir, mode, 'stage_%s' % stage_number, sample_p_outname)
     return load_objects(stage_path)
 
 

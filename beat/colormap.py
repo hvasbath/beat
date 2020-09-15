@@ -5,9 +5,10 @@ Module for customized colormaps.
 from matplotlib.colors import LinearSegmentedColormap
 from numpy import array
 
+
 def slip_colormap(nbins=64, return_numpy=False):
     """
-    Colormap optimized for distributed Easrthquake-slip models.
+    Colormap optimized for distributed Earthquake-slip models.
     white-blue-green-yellow-orange-red
 
     Parameters

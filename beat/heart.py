@@ -16,7 +16,6 @@ from theano import config as tconfig
 from theano import shared
 import numpy as num
 from scipy import linalg
-from scipy.signal import lfilter, zpk2tf
 
 from pyrocko.guts import (Dict, Object, String, StringChoice,
                           Float, Int, Tuple, List)
@@ -554,8 +553,8 @@ class Parameter(Object):
                 dimension) + self.lower
         except ValueError:
             raise ValueError(
-                'Either use number of patches input vector size for variable {}'
-                ' or only [1]]! Now the size is {}!'.format(
+                'Either use number of patches input vector size for'
+                ' variable {} or only [1]]! Now the size is {}!'.format(
                     self.name, self.lower.size))
 
     @property
@@ -574,7 +573,7 @@ class DynamicTarget(gf.Target):
     def update_response(self, magnification, damping, period):
         z, p, k = proto2zpk(
             magnification, damping, period, quantity='displacement')
-        #b, a = zpk2tf(z, p, k)
+        # b, a = zpk2tf(z, p, k)
 
         if self.response:
             self.response.zeros = z
@@ -867,8 +866,9 @@ class GNSSCompoundComponent(GeodeticDataset):
             logger.info('Loading "%s" GNSS component' % comp)
             if comp not in valid_components:
                 raise ValueError(
-                    'Component: %s not available! Valid GNSS components are: %s'
-                    '' % (comp, utility.list2string(valid_components)))
+                    'Component: %s not available! '
+                    'Valid GNSS components are: %s' % (
+                        comp, utility.list2string(valid_components)))
 
             comp_stations = []
             components = []
@@ -952,7 +952,8 @@ class IFG(GeodeticDataset):
         """
         if self.los_vector is None or force:
             if self.incidence is None and self.heading is None:
-                raise AttributeError('Incidence and Heading need to be provided!')
+                raise AttributeError(
+                    'Incidence and Heading need to be provided!')
 
             Su = num.cos(num.deg2rad(self.incidence))
             Sn = - num.sin(num.deg2rad(self.incidence)) * \
@@ -1020,7 +1021,7 @@ class DiffIFG(IFG):
         logger.info(
             'Attempting to access the full covariance matrix of the kite'
             ' scene %s. If this is not precalculated it will be calculated '
-            'now, which may take a significant amount of time...' %name)
+            'now, which may take a significant amount of time...' % name)
         covariance = Covariance(data=scene.covariance.covariance_matrix)
 
         if scene.quadtree.frame.isDegree():
@@ -1052,13 +1053,12 @@ class DiffIFG(IFG):
             leaf_idxs_cols = scene.quadtree.leaf_eastings / scene.frame.dE
 
             points = num.vstack([leaf_idxs_cols, leaf_idxs_rows]).T
-            for vertices in polygons.values():    #vertexes [cols, rows]
+            for vertices in polygons.values():    # vertexes [cols, rows]
                 p = Path(vertices)
                 mask |= p.contains_points(points)
 
         else:
             logger.info('No polygon mask in %s!' % name)
-
 
         d = dict(
             name=name,
@@ -1174,7 +1174,7 @@ def init_seismic_targets(
 
 def get_store_id(prefix, earth_model_name, sample_rate, crust_ind=0):
     return '%s_%s_%.3fHz_%s' % (
-            prefix, earth_model_name, sample_rate, crust_ind)
+        prefix, earth_model_name, sample_rate, crust_ind)
 
 
 def init_geodetic_targets(
@@ -1310,8 +1310,8 @@ def vary_model(
                         count += 1
                     else:
                         layer.mbot.vp += deltavp
-                        layer.mbot.vs += (deltavp /
-                                          layer.mbot.vp_vs_ratio())
+                        layer.mbot.vs += (
+                            deltavp / layer.mbot.vp_vs_ratio())
                         repeat = 0
                         cost += count
                 elif layer.mtop.vp + deltavp / 10 < last_l.mbot.vp:
@@ -1579,7 +1579,7 @@ def get_fomosto_baseconfig(
     if 'any_P' in waveforms:
         tabulated_phases.append(gf.TPDef(
             id='any_P',
-            definition='p,P,p\\,P\\'))
+            definition='p,P,p\\,P\\,Pv_(cmb)p'))
 
     if 'any_S' in waveforms:
         tabulated_phases.append(gf.TPDef(
@@ -1674,8 +1674,8 @@ def choose_backend(
             slowness_max=float(num.max(slowness_taper)),
             toroidal_modes=True,
             spheroidal_modes=True,
-            source_patch_radius=(fc.distance_delta -
-                                 fc.distance_delta * 0.05) / km)
+            source_patch_radius=(
+                fc.distance_delta - fc.distance_delta * 0.05) / km)
 
     elif code == 'qseis2d':
         version = '2014'
@@ -1957,8 +1957,9 @@ def geo_construct_gf_psgrn(
 
     c = psgrn.PsGrnConfigFull()
 
-    n_steps_depth = int((gfc.source_depth_max - gfc.source_depth_min) /
-                        gfc.source_depth_spacing) + 1
+    n_steps_depth = int(
+        (gfc.source_depth_max - gfc.source_depth_min) /
+        gfc.source_depth_spacing) + 1
     n_steps_distance = int(
         (gfc.source_distance_max - gfc.source_distance_min) /
         gfc.source_distance_spacing) + 1
@@ -2890,11 +2891,11 @@ def seis_synthetics(
 
     if arrival_taper and outmode != 'data':
         try:
-            synths = num.vstack([tr.ydata for tr in synt_trcs])
+            synths = num.vstack([trc.ydata for trc in synt_trcs])
         except ValueError:
-            lengths = [tr.ydata.size for tr in synt_trcs]
-            tmins = num.array([tr.tmin for tr in synt_trcs])
-            tmaxs = num.array([tr.tmax for tr in synt_trcs])
+            lengths = [trc.ydata.size for trc in synt_trcs]
+            tmins = num.array([trc.tmin for trc in synt_trcs])
+            tmaxs = num.array([trc.tmax for trc in synt_trcs])
             tmins -= tmins.min()
 
             print('lengths', lengths)
@@ -2922,7 +2923,7 @@ def seis_synthetics(
         tmins = num.array([getattr(at, chop_bounds[0]) for at in taperers])
     else:
         # no taper defined so return trace tmins
-        tmins = num.array([tr.tmin for tr in synt_trcs])
+        tmins = num.array([trc.tmin for trc in synt_trcs])
 
     if outmode == 'stacked_traces':
         if arrival_taper:
@@ -3100,7 +3101,8 @@ def taper_filter_traces(
         return cut_traces
 
 
-def velocities_from_pole(lats, lons, plat, plon, omega, earth_shape='ellipsoid'):
+def velocities_from_pole(
+        lats, lons, plat, plon, omega, earth_shape='ellipsoid'):
     """
     Return horizontal velocities at input locations for rotation around
     given Euler pole

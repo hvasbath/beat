@@ -5,7 +5,6 @@ from time import time
 from scipy.linalg import toeplitz
 
 import logging
-import copy
 
 from beat import heart
 from beat.utility import ensure_cov_psd, running_window_rms, list2string
@@ -48,9 +47,10 @@ def exponential_data_covariance(n, dt, tzero):
 
     i,j are samples of the seismic trace
     """
-    return num.exp(
-        -num.abs(num.arange(n)[:, num.newaxis] -
-                 num.arange(n)[num.newaxis, :]) * dt / tzero)
+    return num.exp(-num.abs(
+        num.arange(n)[:, num.newaxis] - num.arange(n)[num.newaxis, :]) * (
+        dt / tzero))
+
 
 def identity_data_covariance(n, dt=None, tzero=None):
     """

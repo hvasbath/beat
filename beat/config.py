@@ -72,10 +72,10 @@ stf_names = '''
     '''.split()
 
 source_catalog = {name: source_class for name, source_class in zip(
-source_names, source_classes)}
+    source_names, source_classes)}
 
 stf_catalog = {name: stf_class for name, stf_class in zip(
-stf_names, stf_classes[1:4])}
+    stf_names, stf_classes[1:4])}
 
 interseismic_vars = [
     'east_shift', 'north_shift', 'strike', 'dip', 'length',
@@ -89,7 +89,7 @@ voronoi_locations = ['voronoi_strike', 'voronoi_dip']
 
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars + hypo_vars
 transd_vars_dist = partial_kinematic_vars + static_dist_vars + \
-voronoi_locations
+    voronoi_locations
 dist_vars = static_dist_vars + partial_kinematic_vars
 
 interseismic_catalog = {
@@ -192,11 +192,13 @@ response_file_name = 'responses.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
 seismic_data_name = 'seismic_data.pkl'
 
+
 def multi_event_seismic_data_name(nevent=0):
     if nevent == 0:
         return seismic_data_name
     else:
         return 'seismic_data_subevent_{}.pkl'.format(nevent)
+
 
 linear_gf_dir_name = 'linear_gfs'
 results_dir_name = 'results'
@@ -430,8 +432,8 @@ class ResolutionDiscretizationConfig(DiscretizationConfig):
     resolution_thresh = Float.T(
         default=0.95,
         help='Resolution threshold discretization continues until all patches '
-             'are below this threshold. The lower the finer the discretization. '
-             'Reasonable between: [0.95, 0.99]')
+             'are below this threshold. The lower the finer the '
+             'discretization. Reasonable between: [0.95, 0.99]')
     depth_penalty = Float.T(
         default=3.5,
         help='The higher the number the more penalty on the deeper '
