@@ -488,7 +488,10 @@ class MTQTSource(gf.SourceWithMagnitude):
         d = {}
         mt = ev.moment_tensor
         if mt:
-            d.update(m6=list(map(float, mt.m6())))
+            logger.warning(
+                'From event will ignore MT components initially. '
+                'Needs mapping from NED to QT space!')
+            # d.update(m6=list(map(float, mt.m6())))
 
         d.update(kwargs)
         return super(MTQTSource, cls).from_pyrocko_event(ev, **d)
