@@ -400,6 +400,10 @@ class MTQTSource(gf.SourceWithMagnitude):
         return (pi / 2.) - self.beta
 
     @property
+    def rho(self):
+        return mtm.magnitude_to_moment(self.magnitude) * sqrt2
+
+    @property
     def theta(self):
         return num.arccos(self.h)
 
@@ -422,7 +426,7 @@ class MTQTSource(gf.SourceWithMagnitude):
         sin_gamma = num.sin(self.gamma)
         cos_gamma = num.cos(self.gamma)
         vec = num.array([sin_beta * cos_gamma, sin_beta * sin_gamma, cos_beta])
-        return 1. / sqrt6 * self.lambda_factor_matrix.dot(vec)
+        return 1. / sqrt6 * self.lambda_factor_matrix.dot(vec) * self.rho
 
     @property
     def lune_lambda_matrix(self):
@@ -466,10 +470,8 @@ class MTQTSource(gf.SourceWithMagnitude):
     def discretize_basesource(self, store, target=None):
         times, amplitudes = self.effective_stf_pre().discretize_t(
             store.config.deltat, self.time)
-        m0 = mtm.magnitude_to_moment(self.magnitude)
-        m6s = self.m6 * m0
         return meta.DiscretizedMTSource(
-            m6s=m6s[num.newaxis, :] * amplitudes[:, num.newaxis],
+            m6s=self.m6[num.newaxis, :] * amplitudes[:, num.newaxis],
             **self._dparams_base_repeated(times))
 
     def pyrocko_moment_tensor(self):
