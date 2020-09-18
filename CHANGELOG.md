@@ -41,13 +41,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 - extended support for GNSS data import from globk (GAMMIT)
 - SMC saving of sampler state does not dump full model graph
-- multiprocess FFI performance increase 
+- multiprocess FFI performance increase
+- MTQTSource magnitude scaling
 
 ### Changed
 - fit_ramp option at the geoedetic_config is now an Hierarchical Correction
 - laplacian has now configuration arguments for functional form, nearest neighbor as previously now only for single fault
 - moved beat command level export to dataset composites export method
-
+- MTQTSource input argument u removed in favor of w
 
 ## [v.1.0.0]  18.06.2019
 Initial release:
