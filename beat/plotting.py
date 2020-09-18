@@ -104,7 +104,7 @@ plot_units = {
     'pole_lon': u_deg,
     'omega': u_deg_myr,
 
-    'u': u_rad,
+    'w': u_rad,
     'v': u_rad,
     'kappa': u_rad,
     'sigma': u_rad,

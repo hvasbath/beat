@@ -29,9 +29,10 @@ class TestSources(unittest.TestCase):
             3. / 4.)
 
         magnitude = mtm.moment_to_magnitude(1. / num.sqrt(2.))
+        w = 3. / 8. * pi - u
 
         mt = MTQTSource(
-            u=u, v=v, kappa=kappa, sigma=sigma, h=h,
+            w=w, v=v, kappa=kappa, sigma=sigma, h=h,
             magnitude=magnitude)
 
         assert_allclose(mt.rho, 1.)  # check rho
@@ -43,7 +44,7 @@ class TestSources(unittest.TestCase):
             [0.807, -0.588, -0.051],
             [0.063, 0., 0.998]])
         reference_lambda = num.array(
-            [0.749, -0.092, -0.656]) * mt.rho
+            [0.749, -0.092, -0.656])
         reference_m9_nwu = num.array([
             [0.196, -0.397, -0.052],
             [-0.397, 0.455, 0.071],
@@ -97,12 +98,11 @@ class TestSources(unittest.TestCase):
         m6use = mtpar.change_basis(m6ned, i1=2, i2=1)  # rotate to USE
 
         rho, v, w, kappa_deg, sigma_deg, h = mtpar.cmt2tt15(m6use)
-        u = 3. * num.pi / 8. - w
 
         magnitude = mtm.moment_to_magnitude(rho / num.sqrt(2.))
 
         mtqt = MTQTSource(
-            u=u, v=v, kappa=kappa_deg * num.pi / 180.,
+            w=w, v=v, kappa=kappa_deg * num.pi / 180.,
             sigma=sigma_deg * num.pi / 180., h=h, magnitude=magnitude)
 
         mt_TT = mtpar.tt152cmt(rho, v, w, kappa_deg, sigma_deg, h)  # MT in USE
@@ -111,6 +111,7 @@ class TestSources(unittest.TestCase):
         mt_TT_ned = mtpar.change_basis(mt_TT, 1, 2)
 
         print('MTQTSource NED: \n', mtqt.m6)
+        print(mtqt)
         print('TT15, USE: \n', mt_TT)
         print('Input NED: \n', m6ned)
         print('MTTT15: \n', mt_TT_ned)

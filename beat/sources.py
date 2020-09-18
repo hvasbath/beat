@@ -332,15 +332,17 @@ class MTQTSource(gf.SourceWithMagnitude):
 
     discretized_source_class = meta.DiscretizedMTSource
 
-    u = Float.T(
+    w = Float.T(
         default=0.,
-        help='Lune co-latitude transformed to grid.'
-             'Defined: 0 <= u <=3/4pi')
+        help='Lune latitude delta transformed to grid. '
+             'Defined: -3/8pi <= w <=3/8pi. '
+             'If fixed to zero the MT is deviatoric.')
 
     v = Float.T(
         default=0.,
-        help='Lune co-longitude transformed to grid.'
-             'Definded: -1/3 <= v <= 1/3')
+        help='Lune co-longitude transformed to grid. '
+             'Definded: -1/3 <= v <= 1/3. '
+             'If fixed to zero together with w the MT is pure DC.')
 
     kappa = Float.T(
         default=0.,
@@ -379,9 +381,16 @@ class MTQTSource(gf.SourceWithMagnitude):
         Source.__init__(self, **kwargs)
 
     @property
+    def u(self):
+        """
+        Lunar co-latitude(beta), dependend on w
+        """
+        return (3. / 8.) * num.pi - self.w
+
+    @property
     def gamma(self):
         """
-        Lunar co-longitude, dependend on v
+        Lunar longitude, dependend on v
         """
         return (1. / 3.) * num.arcsin(3. * self.v)
 
