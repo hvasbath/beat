@@ -183,3 +183,59 @@ def hyper_normal(datasets, hyperparams, llks, hp_specific=False):
                 llks[k]))
 
     return logpts
+
+
+def vonmises_fisher(lats, lons, lats0, lons0, sigma):
+    """
+    Von-Mises Fisher distribution function.
+
+    Parameters
+    ----------
+    lats : float or array_like
+        Spherical-polar latitude to evaluate function at.
+    lons : float or array_like
+        Spherical-polar longitude to evaluate function at
+    lats0 : float or array_like
+        latitude at the center of the distribution.
+    lons0 : float or array_like
+        longitude at the center of the distribution.
+    sigma : float
+        Width of the distribution.
+
+    Returns
+    -------
+    float or array_like
+        log-probability of the VonMises-Fisher distribution.
+
+    Notes
+    -----
+    (phi-longitude, theta-latitude)
+    Wikipedia:
+        https://en.wikipedia.org/wiki/Von_Mises-Fisher_distribution
+    """
+    from pyrocko.orthodrome import latlon_to_xyz
+
+    def logsinh(x):
+        """ Compute log(sinh(x)), stably for large x.
+        Parameters
+        ----------
+        x : float or numpy.array
+            argument to evaluate at, must be positive
+        Returns
+        -------
+        float or numpy.array
+            log(sinh(x))
+        """
+        if num.any(x < 0):
+            raise ValueError("logsinh only valid for positive arguments")
+        return x + num.log(1. - num.exp(-2. * x)) - num.log(2.)
+
+    latlons = num.vstack([lats, lons]).T
+    latlons0 = num.vstack([lats0, lons0]).T
+
+    x = latlon_to_xyz(latlons)
+    x0 = latlon_to_xyz(latlons0)
+    #x = cartesian_from_polar(phi, theta)
+    #x0 = cartesian_from_polar(phi0, theta0)
+    norm = -num.log(4. * num.pi * sigma ** 2) - logsinh(1. / sigma ** 2)
+    return norm + num.tensordot(x, x0, axes=[[0], [0]]) / sigma ** 2

@@ -3922,13 +3922,40 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
         plt.show()
 
 
+def get_gmt_config(gmtpy, h=20., w=20.):
+
+    if gmtpy.is_gmt5(version='newest'):
+        gmtconfig = {
+            'MAP_GRID_PEN_PRIMARY': '0.1p',
+            'MAP_GRID_PEN_SECONDARY': '0.1p',
+            'MAP_FRAME_TYPE': 'fancy',
+            'FONT_ANNOT_PRIMARY': '14p,Helvetica,black',
+            'FONT_ANNOT_SECONDARY': '14p,Helvetica,black',
+            'FONT_LABEL': '14p,Helvetica,black',
+            'FORMAT_GEO_MAP': 'D',
+            'PS_MEDIA': 'Custom_%ix%i' % (w * gmtpy.cm, h * gmtpy.cm),
+        }
+    else:
+        gmtconfig = {
+            'MAP_FRAME_TYPE': 'fancy',
+            'GRID_PEN_PRIMARY': '0.01p',
+            'ANNOT_FONT_PRIMARY': '1',
+            'ANNOT_FONT_SIZE_PRIMARY': '12p',
+            'PLOT_DEGREE_FORMAT': 'D',
+            'GRID_PEN_SECONDARY': '0.01p',
+            'FONT_LABEL': '14p,Helvetica,black',
+            'PS_MEDIA': 'Custom_%ix%i' % (w * gmtpy.cm, h * gmtpy.cm),
+        }
+    return gmtconfig
+
+
 def draw_station_map_gmt(problem, po):
 
     from pyrocko import gmtpy
 
     if len(gmtpy.detect_gmt_installations()) < 1:
         raise gmtpy.GmtPyError(
-            'GMT needs to be installed for GNSS plot!')
+            'GMT needs to be installed for station_map plot!')
 
     if po.outformat == 'svg':
         raise NotImplementedError('SVG format is not supported for this plot!')
@@ -3951,28 +3978,7 @@ def draw_station_map_gmt(problem, po):
     h = 20  # outsize in cm
     w = h - 5
 
-    if gmtpy.is_gmt5(version='newest'):
-        gmtconfig = {
-                'MAP_GRID_PEN_PRIMARY': '0.1p',
-                'MAP_GRID_PEN_SECONDARY': '0.1p',
-                'MAP_FRAME_TYPE': 'fancy',
-                'FONT_ANNOT_PRIMARY': '14p,Helvetica,black',
-                'FONT_ANNOT_SECONDARY': '14p,Helvetica,black',
-                'FONT_LABEL': '14p,Helvetica,black',
-                'FORMAT_GEO_MAP': 'D',
-                'PS_MEDIA': 'Custom_%ix%i' % (h * gmtpy.cm, h * gmtpy.cm),
-        }
-    else:
-        gmtconfig = {
-                'MAP_FRAME_TYPE': 'fancy',
-                'GRID_PEN_PRIMARY': '0.01p',
-                'ANNOT_FONT_PRIMARY': '1',
-                'ANNOT_FONT_SIZE_PRIMARY': '12p',
-                'PLOT_DEGREE_FORMAT': 'D',
-                'GRID_PEN_SECONDARY': '0.01p',
-                'FONT_LABEL': '14p,Helvetica,black',
-                'PS_MEDIA': 'Custom_%ix%i' % (h * gmtpy.cm, h * gmtpy.cm),
-        }
+    gmtconfig = get_gmt_config(gmtpy, h=h, w=h)
 
     def draw_time_shifts_stations(gmt, point, wmap, J, R):
         """
@@ -4148,6 +4154,87 @@ def draw_station_map_gmt(problem, po):
             logger.info('saving figure to %s' % outpath)
         else:
             logger.info('Plot exists! Use --force to overwrite!')
+
+
+def draw_lune_plot(problem, po):
+
+    if po.outformat == 'svg':
+        raise NotImplementedError('SVG format is not supported for this plot!')
+
+    # lune_plot(lats, lons, likelihoods)
+    return 
+
+
+def lune_plot(lats=None, lons=None, likelihoods=None):
+
+    from pyrocko import gmtpy
+
+    if len(gmtpy.detect_gmt_installations()) < 1:
+        raise gmtpy.GmtPyError(
+            'GMT needs to be installed for lune_plot!')
+
+    fontsize = 10
+    font = '1'
+
+    def draw_lune_arcs(gmt, R, J):
+
+        lons = [30., -30., 30., -30.]
+        lats = [54.7356, 35.2644, -35.2644, -54.7356]
+
+        gmt.psxy(
+            in_columns=(lons, lats), N=True, W='1p,black', R=R, J=J)
+
+    def draw_lune_points(gmt, R, J, labels=True):
+
+        lons = [0., -30., -30., -30., 0., 30., 30., 30., 0.]
+        lats = [-90., -54.7356, 0., 35.2644, 90., 54.7356, 0., -35.2644, 0.]
+        annotations = [
+            '-ISO', '', '+CLVD', '+LVD', '+ISO', '', '-CLVD', '-LVD', 'DC']
+        alignments = ['TC', 'TC', 'RM', 'RM', 'BC', 'BC', 'LM', 'LM', 'TC']
+
+        gmt.psxy(in_columns=(lons, lats), N=True, S='p6p', W='1p,0', R=R, J=J)
+
+        rows = []
+        if labels:
+            farg = ['-F+f+j']
+            for lon, lat, text, align in zip(
+                    lons, lats, annotations, alignments):
+
+                rows.append((
+                    lon, lat,
+                    '%i,%s,%s' % (fontsize, font, 'black'),
+                    align, text))
+
+            gmt.pstext(
+                in_rows=rows,
+                N=True, R=R, J=J, D='j5p', *farg)
+
+    h = 20.
+    w = h / 1.9
+
+    gmtconfig = get_gmt_config(gmtpy, h=h, w=w)
+    bin_width = 15  # tick increment
+
+    J = 'H0/%f' % (w - 5.)
+    R = '-30/30/-90/90'
+    B = 'f%ig%i/f%ig%i' % (bin_width, bin_width, bin_width, bin_width)
+    # range_arg="-T${zmin}/${zmax}/${dz}"
+
+    gmt = gmtpy.GMT(config=gmtconfig)
+    gmt.psbasemap(
+        R=R, J=J, B=B)
+
+    draw_lune_arcs(gmt, R=R, J=J)
+    draw_lune_points(gmt, R=R, J=J)
+
+    cptfilepath = '/tmp/tempfile.cpt'
+    gmt.makecpt(
+        C='blue,white,red',
+        Z=True,
+        T='%g/%g' % (-bound, bound),
+        out_filename=cptfilepath, suppress_defaults=True)
+
+    gmt.save('lune_test.pdf', resolution=300, size=10)
 
 
 def draw_station_map_cartopy(problem, po):
