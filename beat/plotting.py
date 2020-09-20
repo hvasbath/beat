@@ -2169,23 +2169,28 @@ def draw_hudson(problem, po):
         except beachball.BeachballError as e:
             logger.warn(str(e))
 
-    mt = problem.event.moment_tensor
-    u, v = hudson.project(mt)
+    if isinstance(problem.event.moment_tensor, mtm.MomentTensor):
+        mt = problem.event.moment_tensor
+        u, v = hudson.project(mt)
 
-    if not po.reference:
-        try:
-            beachball.plot_beachball_mpl(
-                mt, axes,
-                beachball_type=beachball_type,
-                position=(u, v),
-                size=beachballsize,
-                color_t='grey',
-                alpha=0.5,
-                zorder=2,
-                linewidth=0.25)
-            logger.info('drawing reference event in grey ...')
-        except beachball.BeachballError as e:
-            logger.warn(str(e))
+        if not po.reference:
+            try:
+                beachball.plot_beachball_mpl(
+                    mt, axes,
+                    beachball_type=beachball_type,
+                    position=(u, v),
+                    size=beachballsize,
+                    color_t='grey',
+                    alpha=0.5,
+                    zorder=2,
+                    linewidth=0.25)
+                logger.info('drawing reference event in grey ...')
+            except beachball.BeachballError as e:
+                logger.warn(str(e))
+    else:
+        logger.info(
+            'No reference event moment tensor information given, '
+            'skipping drawing ...')
 
     outpath = os.path.join(
         problem.outfolder,
@@ -2229,8 +2234,14 @@ def histplot_op(
         if bins is None:
             bins = int(num.ceil((maxd - mind) / step))
 
+        major, minor = get_matplotlib_version()
+        if major < 3:
+            kwargs['normed'] = True
+        else:
+            kwargs['density'] = True
+
         ax.hist(
-            d, bins=bins, normed=True, stacked=True, alpha=alpha,
+            d, bins=bins, stacked=True, alpha=alpha,
             align='left', histtype='stepfilled', color=color, edgecolor=color,
             **kwargs)
 
@@ -2610,6 +2621,11 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
     fig.tight_layout()
     return fig, axs, varbins
+
+
+def get_matplotlib_version():
+    from matplotlib import __version__ as mplversion
+    return float(mplversion[0]), float(mplversion[2:])
 
 
 def select_transform(sc, n_steps=None):

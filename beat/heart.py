@@ -2851,10 +2851,15 @@ def seis_synthetics(
             t.update_target_times(sources, taperer)
 
     t_2 = time()
-    response = engine.process(
-        sources=sources,
-        targets=targets, nprocs=nprocs)
-    t_1 = time()
+    try:
+        response = engine.process(
+            sources=sources,
+            targets=targets, nprocs=nprocs)
+        t_1 = time()
+    except IndexError:
+        for source in sources:
+            print(source)
+        raise ValueError('The GF store returned an empty trace!')
 
     logger.debug('Synthetics generation time: %f' % (t_1 - t_2))
     # logger.debug('Details: %s \n' % response.stats)
