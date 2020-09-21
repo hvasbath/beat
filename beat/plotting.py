@@ -228,6 +228,35 @@ def kde2plot(x, y, grid=200, ax=None, **kwargs):
     return ax
 
 
+def spherical_kde_op(
+        lats0, lons0, lats=None, lons=None, grid_size=(200, 200), sigma=None):
+
+    from scipy.special import logsumexp
+    from beat.models.distributions import vonmises_fisher, vonmises_std
+
+    if sigma is None:
+        logger.debug('No sigma given, estimating VonMisesStd ...')
+        sigmahat = vonmises_std(lats=lats0, lons=lons0)
+        sigma = 1.06 * sigmahat * lats0.size ** -0.2
+        logger.debug(
+            'suggested sigma: %f, sigmahat: %f' % (sigma, sigmahat))
+
+    if lats is None and lons is None:
+        lats_vec = num.linspace(-90., 90, grid_size[0])
+        lons_vec = num.linspace(-180., 180, grid_size[1])
+
+        lons, lats = num.meshgrid(lons_vec, lats_vec)
+
+    if lats is not None:
+        assert lats.size == lons.size
+
+    return logsumexp(
+        vonmises_fisher(
+            lats=lats, lons=lons,
+            lats0=lats0, lons0=lons0, sigma=sigma),
+        axis=-1).reshape((grid_size[0], grid_size[1]))  # , b=self.weights)
+
+
 def correlation_plot(
         mtrace, varnames=None,
         transform=lambda x: x, figsize=None, cmap=None, grid=200, point=None,
@@ -4156,6 +4185,8 @@ def draw_station_map_gmt(problem, po):
             logger.info('Plot exists! Use --force to overwrite!')
 
 
+
+
 def draw_lune_plot(problem, po):
 
     if po.outformat == 'svg':
@@ -4165,7 +4196,7 @@ def draw_lune_plot(problem, po):
     return 
 
 
-def lune_plot(lats=None, lons=None, likelihoods=None):
+def lune_plot(v=None, w=None):
 
     from pyrocko import gmtpy
 
@@ -4208,6 +4239,26 @@ def lune_plot(lats=None, lons=None, likelihoods=None):
             gmt.pstext(
                 in_rows=rows,
                 N=True, R=R, J=J, D='j5p', *farg)
+
+    def draw_lune_kde(v, w, grid_size=200):
+
+        from beat.sources import v_to_gamma, w_to_delta
+
+        gamma = num.rad2deg(v_to_gamma(v))   # lune longitude [rad]
+        delta = w_to_delta(w)            # lune latitude [rad]
+
+        lats_vec = num.linspace(-89.5, 89.5, grid_size)
+        lons_vec = num.linspace(-30., 30., grid_size)
+        lons, lats = num.meshgrid(lons_vec, lats_vec)
+
+        kde_vals = spherical_kde_op(
+            lats0=delta, lons0=gamma, lons=lons, lats=lats)
+
+        # gmt makecpt -Chot -G0.25/1. -Ic -D > tmp0_$out.cpt
+        # gmt makecpt -Ctmp0_$out.cpt -D $range_arg > tmp_$out.cpt
+        # gmt pscontour $in $proj_arg $area_arg -Ctmp_$out.cpt -I -N -A- -O -K >> $ps
+
+
 
     h = 20.
     w = h / 1.9
