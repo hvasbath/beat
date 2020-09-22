@@ -174,7 +174,7 @@ default_bounds = dict(
     bl_amplitude=(0., 0.1),
     locking_depth=(1., 10.),
 
-    hypers=(-20., 20.),
+    hypers=(-5., 8.),
     ramp=(-0.005, 0.005),
     offset=(-0.05, 0.05),
     lat=(30., 30.5),
