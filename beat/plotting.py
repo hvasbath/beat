@@ -250,11 +250,12 @@ def spherical_kde_op(
     if lats is not None:
         assert lats.size == lons.size
 
-    return logsumexp(
-        vonmises_fisher(
-            lats=lats, lons=lons,
-            lats0=lats0, lons0=lons0, sigma=sigma),
-        axis=-1).reshape((grid_size[0], grid_size[1]))  # , b=self.weights)
+    vmf = vonmises_fisher(
+        lats=lats, lons=lons,
+        lats0=lats0, lons0=lons0, sigma=sigma)
+    kde = num.exp(logsumexp(vmf, axis=-1)).reshape(   # , b=self.weights)
+        (grid_size[0], grid_size[1]))
+    return kde, lats, lons
 
 
 def correlation_plot(
@@ -3962,6 +3963,7 @@ def get_gmt_config(gmtpy, h=20., w=20.):
             'FONT_ANNOT_SECONDARY': '14p,Helvetica,black',
             'FONT_LABEL': '14p,Helvetica,black',
             'FORMAT_GEO_MAP': 'D',
+            'GMT_TRIANGULATE': 'Watson',
             'PS_MEDIA': 'Custom_%ix%i' % (w * gmtpy.cm, h * gmtpy.cm),
         }
     else:
@@ -4196,7 +4198,7 @@ def draw_lune_plot(problem, po):
     return 
 
 
-def lune_plot(v=None, w=None):
+def lune_plot(v_tape=None, w_tape=None):
 
     from pyrocko import gmtpy
 
@@ -4204,7 +4206,7 @@ def lune_plot(v=None, w=None):
         raise gmtpy.GmtPyError(
             'GMT needs to be installed for lune_plot!')
 
-    fontsize = 10
+    fontsize = 14
     font = '1'
 
     def draw_lune_arcs(gmt, R, J):
@@ -4240,25 +4242,42 @@ def lune_plot(v=None, w=None):
                 in_rows=rows,
                 N=True, R=R, J=J, D='j5p', *farg)
 
-    def draw_lune_kde(v, w, grid_size=200):
+    def draw_lune_kde(
+            gmt, v_tape, w_tape, grid_size=(200, 200), R=None, J=None):
 
         from beat.sources import v_to_gamma, w_to_delta
 
-        gamma = num.rad2deg(v_to_gamma(v))   # lune longitude [rad]
-        delta = w_to_delta(w)            # lune latitude [rad]
+        gamma = num.rad2deg(v_to_gamma(v_tape))   # lune longitude [rad]
+        delta = num.rad2deg(w_to_delta(w_tape))   # lune latitude [rad]
 
-        lats_vec = num.linspace(-89.5, 89.5, grid_size)
-        lons_vec = num.linspace(-30., 30., grid_size)
+        lats_vec, lats_inc = num.linspace(
+            -90., 90., grid_size[0], retstep=True)
+        lons_vec, lons_inc = num.linspace(
+            -30., 30., grid_size[1], retstep=True)
         lons, lats = num.meshgrid(lons_vec, lats_vec)
 
-        kde_vals = spherical_kde_op(
-            lats0=delta, lons0=gamma, lons=lons, lats=lats)
+        kde_vals, _, _ = spherical_kde_op(
+            lats0=delta, lons0=gamma,
+            lons=lons, lats=lats, grid_size=grid_size)
 
-        # gmt makecpt -Chot -G0.25/1. -Ic -D > tmp0_$out.cpt
-        # gmt makecpt -Ctmp0_$out.cpt -D $range_arg > tmp_$out.cpt
-        # gmt pscontour $in $proj_arg $area_arg -Ctmp_$out.cpt -I -N -A- -O -K >> $ps
+        cptfilepath = '/tmp/tempfile.cpt'
+        gmt.makecpt(
+            C='white,yellow,orange,red,magenta',
+            Z=True, D=True,
+            T='%g/%g' % (0., kde_vals.max()),
+            out_filename=cptfilepath, suppress_defaults=True)
 
+        grdfile = gmt.tempfilename()
+        gmt.xyz2grd(
+            G=grdfile, R=R, I='%f/%f' % (lons_inc, lats_inc),
+            in_columns=(lons.ravel(), lats.ravel(), kde_vals.ravel()),  # noqa
+            out_discard=True)
 
+        gmt.grdimage(grdfile, R=R, J=J, C=cptfilepath)
+        # gmt.pscontour(
+        #    in_columns=(lons.ravel(), lats.ravel(),  kde_vals.ravel()),
+        #    R=R, J=J, I=True, N=True, A=True, C=cptfilepath)
+        # -Ctmp_$out.cpt -I -N -A- -O -K >> $ps
 
     h = 20.
     w = h / 1.9
@@ -4272,18 +4291,12 @@ def lune_plot(v=None, w=None):
     # range_arg="-T${zmin}/${zmax}/${dz}"
 
     gmt = gmtpy.GMT(config=gmtconfig)
-    gmt.psbasemap(
-        R=R, J=J, B=B)
 
+    draw_lune_kde(
+        gmt, v_tape=v_tape, w_tape=w_tape, grid_size=(300, 300), R=R, J=J)
+    gmt.psbasemap(R=R, J=J, B=B)
     draw_lune_arcs(gmt, R=R, J=J)
     draw_lune_points(gmt, R=R, J=J)
-
-    cptfilepath = '/tmp/tempfile.cpt'
-    gmt.makecpt(
-        C='blue,white,red',
-        Z=True,
-        T='%g/%g' % (-bound, bound),
-        out_filename=cptfilepath, suppress_defaults=True)
 
     gmt.save('lune_test.pdf', resolution=300, size=10)
 
