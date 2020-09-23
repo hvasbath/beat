@@ -1577,9 +1577,14 @@ def get_fomosto_baseconfig(
     # define phases
     tabulated_phases = []
     if 'any_P' in waveforms:
+        if sf.earth_model_name == 'local':
+            definition = 'p,P,p\\,P\\'
+        else:
+            definition = 'p,P,p\\,P\\,Pv_(cmb)p'
+
         tabulated_phases.append(gf.TPDef(
             id='any_P',
-            definition='p,P,p\\,P\\,Pv_(cmb)p'))
+            definition=definition))
 
     if 'any_S' in waveforms:
         tabulated_phases.append(gf.TPDef(
@@ -1641,7 +1646,7 @@ def choose_backend(
             logger.info(
                 'Receiver and source'
                 ' site structures have to be identical as distance'
-                ' and ray depth not high enough for common reeiver'
+                ' and ray depth not high enough for common receiver'
                 ' depth!')
             receiver_model = None
             slowness_taper = (0., 0., 0., 0.)
