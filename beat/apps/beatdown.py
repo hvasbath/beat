@@ -309,6 +309,14 @@ def main():
              '(default) or east-north-up [enu]')
 
     parser.add_option(
+        '--out-units',
+        choices=['M', 'M/S'],
+        dest='output_units',
+        default='M',
+        help='set output units to displacement "M" (default),'
+             ' or velocity "M/S"')
+
+    parser.add_option(
         '--padding-factor',
         type=float,
         default=3.0,
@@ -381,6 +389,7 @@ def main():
 
     (options, args) = parser.parse_args(sys.argv[1:])
 
+    print('Parsed arguments:', args)
     if len(args) not in (10, 7, 6):
         parser.print_help()
         sys.exit(1)
@@ -436,7 +445,7 @@ def main():
             else:
                 sname_or_date = args[1] + ' ' + args[2]
 
-            iarg = 2
+            iarg = 3
 
         elif len(args) == 6:
             sname_or_date = args[1]
@@ -578,7 +587,7 @@ def main():
 
     priority_units = ['M/S', 'M', 'M/S**2']
 
-    output_units = 'M'
+    # output_units = 'M'
 
     sites = [x.strip() for x in options.sites.split(',') if x.strip()]
 
@@ -1037,7 +1046,7 @@ def main():
                     response = sxs[site].get_pyrocko_response(
                         tr.nslc_id,
                         timespan=(tr.tmin, tr.tmax),
-                        fake_input_units=output_units)
+                        fake_input_units=options.output_units)
 
                     break
 
