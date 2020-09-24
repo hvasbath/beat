@@ -212,6 +212,7 @@ summary_name = 'summary.txt'
 km = 1000.
 
 
+_quantity_choices = ['displacement', 'velocity']
 _interpolation_choices = ['nearest_neighbor', 'multilinear']
 _structure_choices = available_noise_structures()
 _mode_choices = [geometry_mode_str, ffi_mode_str]
@@ -555,6 +556,10 @@ class WaveformFitConfig(Object):
         String.T(),
         default=[],
         help='Station name for stations to be thrown out.')
+    quantity = StringChoice.T(
+        choices=_quantity_choices,
+        default='displacement',
+        help='Quantity of synthetics to be computed.')
     channels = List.T(String.T(), default=['Z'])
     filterer = FilterBase.T(default=Filter.D())
     distances = Tuple.T(2, Float.T(), default=(30., 90.))

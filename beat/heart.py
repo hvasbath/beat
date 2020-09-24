@@ -2515,7 +2515,8 @@ class DataWaveformCollection(object):
     def n_data(self):
         return len(self._datasets.keys())
 
-    def get_waveform_mapping(self, waveform, channels=['Z', 'T', 'R']):
+    def get_waveform_mapping(
+            self, waveform, channels=['Z', 'T', 'R'], quantity='displacement'):
 
         self._check_collection(waveform, errormode='not_in')
 
@@ -2529,6 +2530,7 @@ class DataWaveformCollection(object):
         datasets = []
         discard_targets = []
         for target in targets:
+            target.quantity = quantity
             nslc_id = target.codes
             try:
                 dtrace = self._datasets[nslc_id]
@@ -2663,7 +2665,8 @@ def init_wavemap(
     wmap : :class:`WaveformMapping`
     """
     wc = waveformfit_config
-    wmap = datahandler.get_waveform_mapping(wc.name, channels=wc.channels)
+    wmap = datahandler.get_waveform_mapping(
+        wc.name, channels=wc.channels, quantity=wc.quantity)
     wmap.config = wc
     wmap.mapnumber = mapnumber
 
