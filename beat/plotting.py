@@ -4303,10 +4303,20 @@ def lune_plot(v_tape=None, w_tape=None):
     def draw_lune_kde(
             gmt, v_tape, w_tape, grid_size=(200, 200), R=None, J=None):
 
+        def check_fixed(a, varname):
+            if a.std() == 0:
+                logger.info(
+                    'Variable "%s" got fixed to %f, adding some jitter to'
+                    ' make kde estimate possible' % (varname, a[0]))
+                a += num.random.normal(loc=0., scale=0.25, size=a.size)
+
         from beat.sources import v_to_gamma, w_to_delta
 
         gamma = num.rad2deg(v_to_gamma(v_tape))   # lune longitude [rad]
         delta = num.rad2deg(w_to_delta(w_tape))   # lune latitude [rad]
+
+        check_fixed(gamma, varname='v')
+        check_fixed(delta, varname='w')
 
         lats_vec, lats_inc = num.linspace(
             -90., 90., grid_size[0], retstep=True)
@@ -4314,29 +4324,26 @@ def lune_plot(v_tape=None, w_tape=None):
             -30., 30., grid_size[1], retstep=True)
         lons, lats = num.meshgrid(lons_vec, lats_vec)
 
-        try:
-            kde_vals, _, _ = spherical_kde_op(
-                lats0=delta, lons0=gamma,
-                lons=lons, lats=lats, grid_size=grid_size)
+        kde_vals, _, _ = spherical_kde_op(
+            lats0=delta, lons0=gamma,
+            lons=lons, lats=lats, grid_size=grid_size)
+        Tmin = num.min([0., kde_vals.min()])
+        Tmax = num.max([0., kde_vals.max()])
 
-            cptfilepath = '/tmp/tempfile.cpt'
-            gmt.makecpt(
-                C='white,yellow,orange,red,magenta',
-                Z=True, D=True,
-                T='%g/%g' % (0., kde_vals.max()),
-                out_filename=cptfilepath, suppress_defaults=True)
+        cptfilepath = '/tmp/tempfile.cpt'
+        gmt.makecpt(
+            C='white,yellow,orange,red,magenta,violet',
+            Z=True, D=True,
+            T='%f/%f' % (Tmin, Tmax),
+            out_filename=cptfilepath, suppress_defaults=True)
 
-            grdfile = gmt.tempfilename()
-            gmt.xyz2grd(
-                G=grdfile, R=R, I='%f/%f' % (lons_inc, lats_inc),
-                in_columns=(lons.ravel(), lats.ravel(), kde_vals.ravel()),  # noqa
-                out_discard=True)
+        grdfile = gmt.tempfilename()
+        gmt.xyz2grd(
+            G=grdfile, R=R, I='%f/%f' % (lons_inc, lats_inc),
+            in_columns=(lons.ravel(), lats.ravel(), kde_vals.ravel()),  # noqa
+            out_discard=True)
 
-            gmt.grdimage(grdfile, R=R, J=J, C=cptfilepath)
-
-        except ValueError:
-            logger.warning(
-                'Some MTQTSource parameters got fixed! Cannot draw kde!')
+        gmt.grdimage(grdfile, R=R, J=J, C=cptfilepath)
 
         # gmt.pscontour(
         #    in_columns=(lons.ravel(), lats.ravel(),  kde_vals.ravel()),
