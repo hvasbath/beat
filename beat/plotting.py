@@ -1833,6 +1833,7 @@ def extract_mt_components(problem, po, include_magnitude=False):
         varnames += ['magnitude']
 
     if not po.reference:
+        rpoint = None
         llk_str = po.post_llk
         stage = load_stage(
             problem, stage_number=po.load_stage, load='trace', chains=[-1])
