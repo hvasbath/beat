@@ -183,3 +183,119 @@ def hyper_normal(datasets, hyperparams, llks, hp_specific=False):
                 llks[k]))
 
     return logpts
+
+
+def cartesian_from_polar(phi, theta):
+    """
+    Embedded 3D unit vector from spherical polar coordinates.
+
+    Parameters
+    ----------
+    phi, theta : float or numpy.array
+        azimuthal and polar angle in radians.
+        (phi-longitude, theta-latitude)
+    Returns
+    -------
+    nhat : numpy.array
+        unit vector(s) in direction (phi, theta).
+    """
+    x = num.sin(theta) * num.cos(phi)
+    y = num.sin(theta) * num.sin(phi)
+    z = num.cos(theta)
+    return num.array([x, y, z])
+
+
+def vonmises_fisher(lats, lons, lats0, lons0, sigma=1.):
+    """
+    Von-Mises Fisher distribution function.
+
+    Parameters
+    ----------
+    lats : float or array_like
+        Spherical-polar latitude [deg][-pi/2 pi/2] to evaluate function at.
+    lons : float or array_like
+        Spherical-polar longitude [deg][-pi pi] to evaluate function at
+    lats0 : float or array_like
+        latitude [deg] at the center of the distribution (estimated values)
+    lons0 : float or array_like
+        longitude [deg] at the center of the distribution (estimated values)
+    sigma : float
+        Width of the distribution.
+
+    Returns
+    -------
+    float or array_like
+        log-probability of the VonMises-Fisher distribution.
+
+    Notes
+    -----
+    Wikipedia:
+        https://en.wikipedia.org/wiki/Von_Mises-Fisher_distribution
+        modified from: https://github.com/williamjameshandley/spherical_kde
+    """
+
+    def logsinh(x):
+        """ Compute log(sinh(x)), stably for large x.<
+        Parameters
+        ----------
+        x : float or numpy.array
+            argument to evaluate at, must be positive
+        Returns
+        -------
+        float or numpy.array
+            log(sinh(x))
+        """
+        if num.any(x < 0):
+            raise ValueError("logsinh only valid for positive arguments")
+        return x + num.log(1. - num.exp(-2. * x)) - num.log(2.)
+
+    # transform to [0-pi, 0-2pi]
+    lats_t = 90. + lats
+    lons_t = 180. + lons
+    lats0_t = 90. + lats0
+    lons0_t = 180. + lons0
+
+    x = cartesian_from_polar(
+        phi=num.deg2rad(lons_t), theta=num.deg2rad(lats_t))
+    x0 = cartesian_from_polar(
+        phi=num.deg2rad(lons0_t), theta=num.deg2rad(lats0_t))
+
+    norm = -num.log(4. * num.pi * sigma ** 2) - logsinh(1. / sigma ** 2)
+    return norm + num.tensordot(x, x0, axes=[[0], [0]]) / sigma ** 2
+
+
+def vonmises_std(lons, lats):
+    """
+    Von-Mises sample standard deviation.
+
+    Parameters
+    ----------
+    phi, theta : array-like
+        Spherical-polar coordinate samples to compute mean from.
+
+    Returns
+    -------
+        solution for
+        ..math:: 1/tanh(x) - 1/x = R,
+        where
+        ..math:: R = || \sum_i^N x_i || / N
+
+    Notes
+    -----
+    Wikipedia:
+        https://en.wikipedia.org/wiki/Von_Mises-Fisher_distribution#Estimation_of_parameters
+        but re-parameterised for sigma rather than kappa.
+    modidied from: https://github.com/williamjameshandley/spherical_kde
+    """
+    from scipy.optimize import brentq
+
+    x = cartesian_from_polar(phi=num.deg2rad(lons), theta=num.deg2rad(lats))
+    S = num.sum(x, axis=-1)
+    R = S.dot(S) ** 0.5 / x.shape[-1]
+
+    def f(s):
+        return 1. / num.tanh(s) - 1. / s - R
+
+    kappa = brentq(f, 1e-8, 1e8)
+    sigma = kappa ** -0.5
+    return sigma

@@ -314,11 +314,40 @@ class RectangularSource(gf.RectangularSource):
             anchor='top',
             **kwargs)
 
-
         if hasattr(source, 'decimation_factor'):
             d['decimation_factor'] = source.decimation_factor
 
         return cls(**d)
+
+
+def v_to_gamma(v):
+    """
+    Converts from v parameter (Tape2015) to lune longitude [rad]
+    """
+    return (1. / 3.) * num.arcsin(3. * v)
+
+
+def w_to_beta(w, u_mapping=None, beta_mapping=None, n=1000):
+    """
+    Converts from  parameter w (Tape2015) to lune co-latitude
+    """
+    if beta_mapping is None:
+        beta_mapping = num.linspace(0, pi, n)
+
+    if u_mapping is None:
+        u_mapping = (
+            3. / 4. * beta_mapping) - (
+            1. / 2. * num.sin(2. * beta_mapping)) + (
+            1. / 16. * num.sin(4. * beta_mapping))
+    return num.interp(3. * pi / 8. - w, u_mapping, beta_mapping)
+
+
+def w_to_delta(w, n=1000):
+    """
+    Converts from parameter w (Tape2015) to lune latitude
+    """
+    beta = w_to_beta(w)
+    return pi / 2. - beta
 
 
 class MTQTSource(gf.SourceWithMagnitude):
@@ -392,14 +421,15 @@ class MTQTSource(gf.SourceWithMagnitude):
         """
         Lunar longitude, dependend on v
         """
-        return (1. / 3.) * num.arcsin(3. * self.v)
+        return v_to_gamma(self.v)
 
     @property
     def beta(self):
         """
         Lunar co-latitude, dependend on u
         """
-        return num.interp(self.u, self._u_mapping, self._beta_mapping)
+        return w_to_beta(
+            self.w, u_mapping=self._u_mapping, beta_mapping=self._beta_mapping)
 
     def delta(self):
         """

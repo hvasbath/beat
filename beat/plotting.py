@@ -228,6 +228,36 @@ def kde2plot(x, y, grid=200, ax=None, **kwargs):
     return ax
 
 
+def spherical_kde_op(
+        lats0, lons0, lats=None, lons=None, grid_size=(200, 200), sigma=None):
+
+    from scipy.special import logsumexp
+    from beat.models.distributions import vonmises_fisher, vonmises_std
+
+    if sigma is None:
+        logger.debug('No sigma given, estimating VonMisesStd ...')
+        sigmahat = vonmises_std(lats=lats0, lons=lons0)
+        sigma = 1.06 * sigmahat * lats0.size ** -0.2
+        logger.debug(
+            'suggested sigma: %f, sigmahat: %f' % (sigma, sigmahat))
+
+    if lats is None and lons is None:
+        lats_vec = num.linspace(-90., 90, grid_size[0])
+        lons_vec = num.linspace(-180., 180, grid_size[1])
+
+        lons, lats = num.meshgrid(lons_vec, lats_vec)
+
+    if lats is not None:
+        assert lats.size == lons.size
+
+    vmf = vonmises_fisher(
+        lats=lats, lons=lons,
+        lats0=lats0, lons0=lons0, sigma=sigma)
+    kde = num.exp(logsumexp(vmf, axis=-1)).reshape(   # , b=self.weights)
+        (grid_size[0], grid_size[1]))
+    return kde, lats, lons
+
+
 def correlation_plot(
         mtrace, varnames=None,
         transform=lambda x: x, figsize=None, cmap=None, grid=200, point=None,
@@ -1786,6 +1816,8 @@ def extract_mt_components(problem, po, include_magnitude=False):
         varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
     elif source_type == 'DCSource':
         varnames = ['strike', 'dip', 'rake']
+    elif source_type == 'MTQTSource':
+        varnames = ['v', 'w']
     else:
         raise ValueError(
             'Plot is only supported for point "MTSource" and "DCSource"')
@@ -1804,10 +1836,15 @@ def extract_mt_components(problem, po, include_magnitude=False):
             m6s[:, i] = stage.mtrace.get_values(
                 varname, combine=True, squeeze=True).ravel()
 
-        csteps = float(n_mts) / po.nensemble
-        idxs = num.floor(
-            num.arange(0, n_mts, csteps)).astype('int32')
-        m6s = m6s[idxs, :]
+        if po.nensemble:
+            logger.info(
+                'Drawing %i solutions from ensemble ...' % po.nensemble)
+            csteps = float(n_mts) / po.nensemble
+            idxs = num.floor(
+                num.arange(0, n_mts, csteps)).astype('int32')
+            m6s = m6s[idxs, :]
+        else:
+            logger.info('Drawing full ensemble ...')
 
         point = get_result_point(stage, problem.config, po.post_llk)
         best_mt = point2array(point, varnames=varnames)
@@ -3939,13 +3976,41 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
         plt.show()
 
 
+def get_gmt_config(gmtpy, h=20., w=20.):
+
+    if gmtpy.is_gmt5(version='newest'):
+        gmtconfig = {
+            'MAP_GRID_PEN_PRIMARY': '0.1p',
+            'MAP_GRID_PEN_SECONDARY': '0.1p',
+            'MAP_FRAME_TYPE': 'fancy',
+            'FONT_ANNOT_PRIMARY': '14p,Helvetica,black',
+            'FONT_ANNOT_SECONDARY': '14p,Helvetica,black',
+            'FONT_LABEL': '14p,Helvetica,black',
+            'FORMAT_GEO_MAP': 'D',
+            'GMT_TRIANGULATE': 'Watson',
+            'PS_MEDIA': 'Custom_%ix%i' % (w * gmtpy.cm, h * gmtpy.cm),
+        }
+    else:
+        gmtconfig = {
+            'MAP_FRAME_TYPE': 'fancy',
+            'GRID_PEN_PRIMARY': '0.01p',
+            'ANNOT_FONT_PRIMARY': '1',
+            'ANNOT_FONT_SIZE_PRIMARY': '12p',
+            'PLOT_DEGREE_FORMAT': 'D',
+            'GRID_PEN_SECONDARY': '0.01p',
+            'FONT_LABEL': '14p,Helvetica,black',
+            'PS_MEDIA': 'Custom_%ix%i' % (w * gmtpy.cm, h * gmtpy.cm),
+        }
+    return gmtconfig
+
+
 def draw_station_map_gmt(problem, po):
 
     from pyrocko import gmtpy
 
     if len(gmtpy.detect_gmt_installations()) < 1:
         raise gmtpy.GmtPyError(
-            'GMT needs to be installed for GNSS plot!')
+            'GMT needs to be installed for station_map plot!')
 
     if po.outformat == 'svg':
         raise NotImplementedError('SVG format is not supported for this plot!')
@@ -3968,28 +4033,7 @@ def draw_station_map_gmt(problem, po):
     h = 20  # outsize in cm
     w = h - 5
 
-    if gmtpy.is_gmt5(version='newest'):
-        gmtconfig = {
-                'MAP_GRID_PEN_PRIMARY': '0.1p',
-                'MAP_GRID_PEN_SECONDARY': '0.1p',
-                'MAP_FRAME_TYPE': 'fancy',
-                'FONT_ANNOT_PRIMARY': '14p,Helvetica,black',
-                'FONT_ANNOT_SECONDARY': '14p,Helvetica,black',
-                'FONT_LABEL': '14p,Helvetica,black',
-                'FORMAT_GEO_MAP': 'D',
-                'PS_MEDIA': 'Custom_%ix%i' % (h * gmtpy.cm, h * gmtpy.cm),
-        }
-    else:
-        gmtconfig = {
-                'MAP_FRAME_TYPE': 'fancy',
-                'GRID_PEN_PRIMARY': '0.01p',
-                'ANNOT_FONT_PRIMARY': '1',
-                'ANNOT_FONT_SIZE_PRIMARY': '12p',
-                'PLOT_DEGREE_FORMAT': 'D',
-                'GRID_PEN_SECONDARY': '0.01p',
-                'FONT_LABEL': '14p,Helvetica,black',
-                'PS_MEDIA': 'Custom_%ix%i' % (h * gmtpy.cm, h * gmtpy.cm),
-        }
+    gmtconfig = get_gmt_config(gmtpy, h=h, w=h)
 
     def draw_time_shifts_stations(gmt, point, wmap, *args):
         """
@@ -4166,6 +4210,139 @@ def draw_station_map_gmt(problem, po):
             logger.info('Plot exists! Use --force to overwrite!')
 
 
+def draw_lune_plot(problem, po):
+
+    if po.outformat == 'svg':
+        raise NotImplementedError('SVG format is not supported for this plot!')
+
+    if problem.config.problem_config.n_sources > 1:
+        raise NotImplementedError(
+            'Lune plot is not yet implemented for more than one source!')
+
+    if po.load_stage is None:
+        po.load_stage = -1
+
+    po.nensemble = None  # to draw complete ensemble
+    mvws, best_mt, llk_str = extract_mt_components(problem, po)
+
+    outpath = os.path.join(
+        problem.outfolder,
+        po.figure_dir,
+        'lune_%i_%s_%i.%s' % (
+            po.load_stage, llk_str, po.nensemble, po.outformat))
+
+    if not os.path.exists(outpath) or po.force or po.outformat == 'display':
+        logger.info('Drawing Lune plot ...')
+        gmt = lune_plot(v_tape=mvws[:, 0], w_tape=mvws[:, 1])
+
+        logger.info('saving figure to %s' % outpath)
+        gmt.save(outpath, resolution=300, size=10)
+    else:
+        logger.info('Plot exists! Use --force to overwrite!')
+
+
+def lune_plot(v_tape=None, w_tape=None):
+
+    from pyrocko import gmtpy
+
+    if len(gmtpy.detect_gmt_installations()) < 1:
+        raise gmtpy.GmtPyError(
+            'GMT needs to be installed for lune_plot!')
+
+    fontsize = 14
+    font = '1'
+
+    def draw_lune_arcs(gmt, R, J):
+
+        lons = [30., -30., 30., -30.]
+        lats = [54.7356, 35.2644, -35.2644, -54.7356]
+
+        gmt.psxy(
+            in_columns=(lons, lats), N=True, W='1p,black', R=R, J=J)
+
+    def draw_lune_points(gmt, R, J, labels=True):
+
+        lons = [0., -30., -30., -30., 0., 30., 30., 30., 0.]
+        lats = [-90., -54.7356, 0., 35.2644, 90., 54.7356, 0., -35.2644, 0.]
+        annotations = [
+            '-ISO', '', '+CLVD', '+LVD', '+ISO', '', '-CLVD', '-LVD', 'DC']
+        alignments = ['TC', 'TC', 'RM', 'RM', 'BC', 'BC', 'LM', 'LM', 'TC']
+
+        gmt.psxy(in_columns=(lons, lats), N=True, S='p6p', W='1p,0', R=R, J=J)
+
+        rows = []
+        if labels:
+            farg = ['-F+f+j']
+            for lon, lat, text, align in zip(
+                    lons, lats, annotations, alignments):
+
+                rows.append((
+                    lon, lat,
+                    '%i,%s,%s' % (fontsize, font, 'black'),
+                    align, text))
+
+            gmt.pstext(
+                in_rows=rows,
+                N=True, R=R, J=J, D='j5p', *farg)
+
+    def draw_lune_kde(
+            gmt, v_tape, w_tape, grid_size=(200, 200), R=None, J=None):
+
+        from beat.sources import v_to_gamma, w_to_delta
+
+        gamma = num.rad2deg(v_to_gamma(v_tape))   # lune longitude [rad]
+        delta = num.rad2deg(w_to_delta(w_tape))   # lune latitude [rad]
+
+        lats_vec, lats_inc = num.linspace(
+            -90., 90., grid_size[0], retstep=True)
+        lons_vec, lons_inc = num.linspace(
+            -30., 30., grid_size[1], retstep=True)
+        lons, lats = num.meshgrid(lons_vec, lats_vec)
+
+        kde_vals, _, _ = spherical_kde_op(
+            lats0=delta, lons0=gamma,
+            lons=lons, lats=lats, grid_size=grid_size)
+
+        cptfilepath = '/tmp/tempfile.cpt'
+        gmt.makecpt(
+            C='white,yellow,orange,red,magenta',
+            Z=True, D=True,
+            T='%g/%g' % (0., kde_vals.max()),
+            out_filename=cptfilepath, suppress_defaults=True)
+
+        grdfile = gmt.tempfilename()
+        gmt.xyz2grd(
+            G=grdfile, R=R, I='%f/%f' % (lons_inc, lats_inc),
+            in_columns=(lons.ravel(), lats.ravel(), kde_vals.ravel()),  # noqa
+            out_discard=True)
+
+        gmt.grdimage(grdfile, R=R, J=J, C=cptfilepath)
+        # gmt.pscontour(
+        #    in_columns=(lons.ravel(), lats.ravel(),  kde_vals.ravel()),
+        #    R=R, J=J, I=True, N=True, A=True, C=cptfilepath)
+        # -Ctmp_$out.cpt -I -N -A- -O -K >> $ps
+
+    h = 20.
+    w = h / 1.9
+
+    gmtconfig = get_gmt_config(gmtpy, h=h, w=w)
+    bin_width = 15  # tick increment
+
+    J = 'H0/%f' % (w - 5.)
+    R = '-30/30/-90/90'
+    B = 'f%ig%i/f%ig%i' % (bin_width, bin_width, bin_width, bin_width)
+    # range_arg="-T${zmin}/${zmax}/${dz}"
+
+    gmt = gmtpy.GMT(config=gmtconfig)
+
+    draw_lune_kde(
+        gmt, v_tape=v_tape, w_tape=w_tape, grid_size=(300, 300), R=R, J=J)
+    gmt.psbasemap(R=R, J=J, B=B)
+    draw_lune_arcs(gmt, R=R, J=J)
+    draw_lune_points(gmt, R=R, J=J)
+    return gmt
+
+
 def draw_station_map_cartopy(problem, po):
     import matplotlib.ticker as mticker
 
@@ -4290,6 +4467,7 @@ plots_catalog = {
     'velocity_models': draw_earthmodels,
     'slip_distribution': draw_slip_dist,
     'hudson': draw_hudson,
+    'lune': draw_lune_plot,
     'fuzzy_beachball': draw_fuzzy_beachball,
     'fuzzy_mt_decomp': draw_fuzzy_mt_decomposition,
     'moment_rate': draw_moment_rate,
@@ -4314,6 +4492,7 @@ geodetic_plots = [
 geometry_plots = [
     'correlation_hist',
     'hudson',
+    'lune',
     'fuzzy_beachball']
 
 
