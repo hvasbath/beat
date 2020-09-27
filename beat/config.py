@@ -142,7 +142,7 @@ default_bounds = dict(
     mnd=moffdiag,
     med=moffdiag,
 
-    u=(0., 3. / 4. * num.pi),
+    w=(-3. / 8. * num.pi, 3. / 8. * num.pi),
     v=(-1. / 3, 1. / 3.),
     kappa=(0., 2 * num.pi),
     sigma=(-num.pi / 2., num.pi / 2.),
