@@ -1793,14 +1793,21 @@ def draw_seismic_fits(problem, po):
                 fig.savefig(outpath + '_%i.%s' % (i, po.outformat), dpi=po.dpi)
 
 
-def point2array(point, varnames):
+def point2array(point, varnames, rpoint=None):
     """
     Concatenate values of point according to order of given varnames.
     """
-    if point != None:
+    if point is not None:
         array = num.empty((len(varnames)), dtype='float64')
         for i, varname in enumerate(varnames):
-            array[i] = point[varname].ravel()
+            try:
+                array[i] = point[varname].ravel()
+            except KeyError:  # in case fixed variable
+                if rpoint:
+                    array[i] = rpoint[varname].ravel()
+                else:
+                    raise ValueError(
+                        'Fixed Component "%s" no fixed value given!' % varname)
 
         return array
     else:
@@ -1833,8 +1840,14 @@ def extract_mt_components(problem, po, include_magnitude=False):
         n_mts = len(stage.mtrace)
         m6s = num.empty((n_mts, len(varnames)), dtype='float64')
         for i, varname in enumerate(varnames):
-            m6s[:, i] = stage.mtrace.get_values(
-                varname, combine=True, squeeze=True).ravel()
+            try:
+                m6s[:, i] = stage.mtrace.get_values(
+                    varname, combine=True, squeeze=True).ravel()
+            except ValueError:  # if fixed value add that to the ensemble
+                rpoint = problem.get_random_point()
+                mtfield = num.full_like(
+                    num.empty((n_mts), dtype=num.float64), rpoint[varname])
+                m6s[:, i] = mtfield
 
         if po.nensemble:
             logger.info(
@@ -1847,7 +1860,7 @@ def extract_mt_components(problem, po, include_magnitude=False):
             logger.info('Drawing full ensemble ...')
 
         point = get_result_point(stage, problem.config, po.post_llk)
-        best_mt = point2array(point, varnames=varnames)
+        best_mt = point2array(point, varnames=varnames, rpoint=rpoint)
     else:
         llk_str = 'ref'
         m6s = [point2array(point=po.reference, varnames=varnames)]
@@ -4222,6 +4235,7 @@ def draw_lune_plot(problem, po):
     if po.load_stage is None:
         po.load_stage = -1
 
+    nensemble = po.nensemble
     po.nensemble = None  # to draw complete ensemble
     mvws, best_mt, llk_str = extract_mt_components(problem, po)
 
@@ -4229,7 +4243,7 @@ def draw_lune_plot(problem, po):
         problem.outfolder,
         po.figure_dir,
         'lune_%i_%s_%i.%s' % (
-            po.load_stage, llk_str, po.nensemble, po.outformat))
+            po.load_stage, llk_str, nensemble, po.outformat))
 
     if not os.path.exists(outpath) or po.force or po.outformat == 'display':
         logger.info('Drawing Lune plot ...')
@@ -4299,24 +4313,30 @@ def lune_plot(v_tape=None, w_tape=None):
             -30., 30., grid_size[1], retstep=True)
         lons, lats = num.meshgrid(lons_vec, lats_vec)
 
-        kde_vals, _, _ = spherical_kde_op(
-            lats0=delta, lons0=gamma,
-            lons=lons, lats=lats, grid_size=grid_size)
+        try:
+            kde_vals, _, _ = spherical_kde_op(
+                lats0=delta, lons0=gamma,
+                lons=lons, lats=lats, grid_size=grid_size)
 
-        cptfilepath = '/tmp/tempfile.cpt'
-        gmt.makecpt(
-            C='white,yellow,orange,red,magenta',
-            Z=True, D=True,
-            T='%g/%g' % (0., kde_vals.max()),
-            out_filename=cptfilepath, suppress_defaults=True)
+            cptfilepath = '/tmp/tempfile.cpt'
+            gmt.makecpt(
+                C='white,yellow,orange,red,magenta',
+                Z=True, D=True,
+                T='%g/%g' % (0., kde_vals.max()),
+                out_filename=cptfilepath, suppress_defaults=True)
 
-        grdfile = gmt.tempfilename()
-        gmt.xyz2grd(
-            G=grdfile, R=R, I='%f/%f' % (lons_inc, lats_inc),
-            in_columns=(lons.ravel(), lats.ravel(), kde_vals.ravel()),  # noqa
-            out_discard=True)
+            grdfile = gmt.tempfilename()
+            gmt.xyz2grd(
+                G=grdfile, R=R, I='%f/%f' % (lons_inc, lats_inc),
+                in_columns=(lons.ravel(), lats.ravel(), kde_vals.ravel()),  # noqa
+                out_discard=True)
 
-        gmt.grdimage(grdfile, R=R, J=J, C=cptfilepath)
+            gmt.grdimage(grdfile, R=R, J=J, C=cptfilepath)
+
+        except ValueError:
+            logger.warning(
+                'Some MTQTSource parameters got fixed! Cannot draw kde!')
+
         # gmt.pscontour(
         #    in_columns=(lons.ravel(), lats.ravel(),  kde_vals.ravel()),
         #    R=R, J=J, I=True, N=True, A=True, C=cptfilepath)

@@ -500,10 +500,15 @@ class TextChain(FileChain):
         """
         self._load_df()
 
-        var_df = self._df[self.flat_names[varname]]
-        shape = (self._df.shape[0],) + self.var_shapes[varname]
-        vals = var_df.values.ravel().reshape(shape)
-        return vals[burn::thin]
+        try:
+            var_df = self._df[self.flat_names[varname]]
+            shape = (self._df.shape[0],) + self.var_shapes[varname]
+            vals = var_df.values.ravel().reshape(shape)
+            return vals[burn::thin]
+        except(KeyError):
+            raise ValueError(
+                'Did not find varname "%s" in sampling '
+                'results! Fixed?' % varname)
 
     def _slice(self, idx):
         if idx.stop is not None:
@@ -719,10 +724,15 @@ class NumpyChain(FileChain):
 
     def get_values(self, varname, burn=0, thin=1):
         self._load_df()
-        data = self._df[varname]
-        shape = (self._df.shape[0],) + self.var_shapes[varname]
-        vals = data.ravel().reshape(shape)
-        return vals[burn::thin]
+        try:
+            data = self._df[varname]
+            shape = (self._df.shape[0],) + self.var_shapes[varname]
+            vals = data.ravel().reshape(shape)
+            return vals[burn::thin]
+        except(ValueError):
+            raise ValueError(
+                'Did not find varname "%s" in sampling '
+                'results! Fixed?' % varname)
 
     def point(self, idx):
         """
