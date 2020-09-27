@@ -3304,10 +3304,11 @@ def fault_slip_distribution(
         rot_centers = rotate_coords_plane_normal(centers, ext_source)[:, 1::-1]
 
         xgr, ygr = rot_centers.T
-        shp = fault.ordering.get_subfault_discretization(ns)
-        xgr = xgr.reshape(shp)
-        ygr = ygr.reshape(shp)
         if 'seismic' in fault.datatypes:
+            shp = fault.ordering.get_subfault_discretization(ns)
+            xgr = xgr.reshape(shp)
+            ygr = ygr.reshape(shp)
+
             if mtrace is not None:
                 from tqdm import tqdm
                 nuc_dip = transform(mtrace.get_values(
@@ -3990,7 +3991,7 @@ def draw_station_map_gmt(problem, po):
                 'PS_MEDIA': 'Custom_%ix%i' % (h * gmtpy.cm, h * gmtpy.cm),
         }
 
-    def draw_time_shifts_stations(gmt, point, wmap, J, R):
+    def draw_time_shifts_stations(gmt, point, wmap, *args):
         """
         Draw MAP time-shifts at station locations as colored triangles
         """
@@ -4018,10 +4019,9 @@ def draw_station_map_gmt(problem, po):
 
         gmt.psxy(
             in_columns=(st_lons, st_lats, time_shifts.tolist()),
-            R=R,
             C=cptfilepath,
             S='t14p',
-            J=J)
+            *args)
 
         # add a colorbar
         gmt.psscale(
@@ -4088,7 +4088,8 @@ def draw_station_map_gmt(problem, po):
 
                 if point:
                     draw_time_shifts_stations(
-                        gmt, point, wmap, J=J_location, R=R_location)
+                        gmt, point, wmap, *(
+                            '-J%s' % J_location, '-R%s' % R_location))
                 else:
                     gmt.psxy(
                         R=R_location,
@@ -4146,10 +4147,9 @@ def draw_station_map_gmt(problem, po):
                     show_plates=False,
                     gmt_config=gmtconfig)
 
-                J, _, _, R = m.jxyr
                 if point:
                     draw_time_shifts_stations(
-                        m.gmt, point, wmap, J=J, R=R)
+                        m.gmt, point, wmap, *m.jxyr)
 
                     for st in wmap.stations:
                         text = '{}.{}'.format(st.network, st.station)
