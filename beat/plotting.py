@@ -1816,6 +1816,8 @@ def extract_mt_components(problem, po, include_magnitude=False):
         varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
     elif source_type == 'DCSource':
         varnames = ['strike', 'dip', 'rake']
+    elif source_type == 'MTQTSource':
+        varnames = ['v', 'w']
     else:
         raise ValueError(
             'Plot is only supported for point "MTSource" and "DCSource"')
@@ -1834,10 +1836,15 @@ def extract_mt_components(problem, po, include_magnitude=False):
             m6s[:, i] = stage.mtrace.get_values(
                 varname, combine=True, squeeze=True).ravel()
 
-        csteps = float(n_mts) / po.nensemble
-        idxs = num.floor(
-            num.arange(0, n_mts, csteps)).astype('int32')
-        m6s = m6s[idxs, :]
+        if po.nensemble:
+            logger.info(
+                'Drawing %i solutions from ensemble ...' % po.nensemble)
+            csteps = float(n_mts) / po.nensemble
+            idxs = num.floor(
+                num.arange(0, n_mts, csteps)).astype('int32')
+            m6s = m6s[idxs, :]
+        else:
+            logger.info('Drawing full ensemble ...')
 
         point = get_result_point(stage, problem.config, po.post_llk)
         best_mt = point2array(point, varnames=varnames)
@@ -4187,15 +4194,35 @@ def draw_station_map_gmt(problem, po):
             logger.info('Plot exists! Use --force to overwrite!')
 
 
-
-
 def draw_lune_plot(problem, po):
 
     if po.outformat == 'svg':
         raise NotImplementedError('SVG format is not supported for this plot!')
 
-    # lune_plot(lats, lons, likelihoods)
-    return 
+    if problem.config.problem_config.n_sources > 1:
+        raise NotImplementedError(
+            'Lune plot is not yet implemented for more than one source!')
+
+    if po.load_stage is None:
+        po.load_stage = -1
+
+    po.nensemble = None  # to draw complete ensemble
+    mvws, best_mt, llk_str = extract_mt_components(problem, po)
+
+    outpath = os.path.join(
+        problem.outfolder,
+        po.figure_dir,
+        'lune_%i_%s_%i.%s' % (
+            po.load_stage, llk_str, po.nensemble, po.outformat))
+
+    if not os.path.exists(outpath) or po.force or po.outformat == 'display':
+        logger.info('Drawing Lune plot ...')
+        gmt = lune_plot(v_tape=mvws[:, 0], w_tape=mvws[:, 1])
+
+        logger.info('saving figure to %s' % outpath)
+        gmt.save(outpath, resolution=300, size=10)
+    else:
+        logger.info('Plot exists! Use --force to overwrite!')
 
 
 def lune_plot(v_tape=None, w_tape=None):
@@ -4297,8 +4324,7 @@ def lune_plot(v_tape=None, w_tape=None):
     gmt.psbasemap(R=R, J=J, B=B)
     draw_lune_arcs(gmt, R=R, J=J)
     draw_lune_points(gmt, R=R, J=J)
-
-    gmt.save('lune_test.pdf', resolution=300, size=10)
+    return gmt
 
 
 def draw_station_map_cartopy(problem, po):
@@ -4425,6 +4451,7 @@ plots_catalog = {
     'velocity_models': draw_earthmodels,
     'slip_distribution': draw_slip_dist,
     'hudson': draw_hudson,
+    'lune': draw_lune_plot,
     'fuzzy_beachball': draw_fuzzy_beachball,
     'fuzzy_mt_decomp': draw_fuzzy_mt_decomposition,
     'moment_rate': draw_moment_rate,
@@ -4449,6 +4476,7 @@ geodetic_plots = [
 geometry_plots = [
     'correlation_hist',
     'hudson',
+    'lune',
     'fuzzy_beachball']
 
 
