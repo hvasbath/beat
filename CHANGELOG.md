@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [unreleased]
 
 ### Added
+**General**
+- Wavemap attribute "quantity" to sample velocity or displacement waveforms
+
 **Finite Fault**
 - discretization options for the fault into patches:
   + uniform
@@ -37,6 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - waveform misfits with plot_projection =individual allows to get individual source contributions for geometry mode
 - new station map with GMT, allows time shift plotting
 - FFI exports geometry object for fast and easy interactive inspection in pyrocko.sparrow
+- Lune plot for Moment Tensors (Tape and Tape 2012)
 
 ### Fixed
 - extended support for GNSS data import from globk (GAMMIT)
