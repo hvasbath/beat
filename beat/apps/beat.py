@@ -22,7 +22,7 @@ from beat.backend import backend_catalog, extract_bounds_from_summary, \
 from beat.sampler import SamplingHistory
 from beat.sampler.smc import sample_factor_final_stage
 
-from beat.sources import MTSourceWithMagnitude
+from beat.sources import MTSourceWithMagnitude, MTQTSource
 from beat.utility import list2string
 from numpy import atleast_2d, floor
 
@@ -841,6 +841,7 @@ def result_check(mtrace, min_length):
 def command_summarize(args):
 
     from pymc3 import summary
+    from numpy import vstack, split
 
     command_str = 'summarize'
 
@@ -881,7 +882,9 @@ def command_summarize(args):
     problem = load_model(project_dir, options.mode)
     problem.plant_lijection()
 
-    stage = Stage(homepath=problem.outfolder, backend=problem.config.sampler_config.backend)
+    stage = Stage(
+        homepath=problem.outfolder,
+        backend=problem.config.sampler_config.backend)
     stage_numbers = stage.handler.get_stage_indexes(options.stage_number)
     logger.info('Summarizing stage(s): %s' % list2string(stage_numbers))
     if len(stage_numbers) == 0:
@@ -905,7 +908,9 @@ def command_summarize(args):
         stage_path = stage.handler.stage_path(stage_number)
         logger.info('Summarizing stage under: %s' % stage_path)
 
-        result_trace_path = pjoin(stage_path, 'chain--1.csv')
+        trace_name = 'chain--1.{}'.format(
+            problem.config.sampler_config.backend)
+        result_trace_path = pjoin(stage_path, trace_name)
         if not os.path.exists(result_trace_path) or options.force:
             # trace may exist by forceing
             if os.path.exists(result_trace_path):
@@ -944,6 +949,9 @@ def command_summarize(args):
             rtrace = backend_catalog[sc.backend](
                 stage_path, model=problem.model, buffer_size=sc.buffer_size,
                 progressbar=False)
+            pc = problem.config.problem_config
+            rtrace.add_derived_variables(
+                pc.source_type, n_sources=pc.n_sources)
             rtrace.setup(
                 draws=draws, chain=-1, overwrite=True)
 
@@ -971,6 +979,15 @@ def command_summarize(args):
                         del jpoint, ldicts
 
                     lpoint = problem.model.lijection.d2l(point)
+
+                    if isinstance(source, MTQTSource):
+                        composite.point2sources(point)
+                        m6s = []
+                        for source in composite.sources:
+                            m6s.append(source.m6 / source.moment)
+
+                        lpoint.extend(split(vstack(m6s), 6, axis=1))
+
                     # TODO: in PT with large buffer sizes somehow memory leak
                     rtrace.write(lpoint, draw=chain)
                     del lpoint, point

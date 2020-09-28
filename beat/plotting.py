@@ -1819,12 +1819,10 @@ def extract_mt_components(problem, po, include_magnitude=False):
     Extract Moment Tensor components from problem results for plotting.
     """
     source_type = problem.config.problem_config.source_type
-    if source_type == 'MTSource':
+    if source_type in ['MTSource', 'MTQTSource']:
         varnames = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
     elif source_type == 'DCSource':
         varnames = ['strike', 'dip', 'rake']
-    elif source_type == 'MTQTSource':
-        varnames = ['v', 'w']
     else:
         raise ValueError(
             'Plot is only supported for point "MTSource" and "DCSource"')
@@ -4236,19 +4234,31 @@ def draw_lune_plot(problem, po):
     if po.load_stage is None:
         po.load_stage = -1
 
-    nensemble = po.nensemble
-    po.nensemble = None  # to draw complete ensemble
-    mvws, best_mt, llk_str = extract_mt_components(problem, po)
+    stage = load_stage(
+        problem, stage_number=po.load_stage, load='trace', chains=[-1])
+
+    result_ensemble = {}
+    for varname in ['v', 'w']:
+        try:
+            result_ensemble[varname] = stage.mtrace.get_values(
+                varname, combine=True, squeeze=True).ravel()
+        except ValueError:  # if fixed value add that to the ensemble
+            n_mts = len(stage.mtrace)
+            rpoint = problem.get_random_point()
+            result_ensemble[varname] = num.full_like(
+                num.empty((n_mts), dtype=num.float64), rpoint[varname])
 
     outpath = os.path.join(
         problem.outfolder,
         po.figure_dir,
         'lune_%i_%s_%i.%s' % (
-            po.load_stage, llk_str, nensemble, po.outformat))
+            po.load_stage, po.post_llk, po.nensemble, po.outformat))
 
     if not os.path.exists(outpath) or po.force or po.outformat == 'display':
         logger.info('Drawing Lune plot ...')
-        gmt = lune_plot(v_tape=mvws[:, 0], w_tape=mvws[:, 1])
+        gmt = lune_plot(            # this explodes for large sample sizes ...
+            v_tape=result_ensemble['v'][::3],
+            w_tape=result_ensemble['w'][::3])
 
         logger.info('saving figure to %s' % outpath)
         gmt.save(outpath, resolution=300, size=10)

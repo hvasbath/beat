@@ -53,6 +53,11 @@ from beat.utility import load_objects, dump_objects, \
 logger = logging.getLogger('backend')
 
 
+derived_variables_mapping = {
+    'MTQTSource': ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med'],
+}
+
+
 def thin_buffer(buffer, buffer_thinning, ensure_last=True):
     """
     Reduce a list of objects by a given value.
@@ -275,6 +280,21 @@ class FileChain(BaseChain):
             return 0
         else:
             return self._df.shape[0] + len(self.buffer)
+
+    def add_derived_variables(self, source_type, n_sources=1):
+
+        try:
+            varnames = derived_variables_mapping[source_type]
+        except KeyError:
+            logger.info('No derived variables for %s' % source_type)
+            varnames = []
+
+        for varname in varnames:
+            shape = (n_sources,)
+            self.flat_names[varname] = ttab.create_flat_names(varname, shape)
+            self.var_shapes[varname] = shape
+            self.var_dtypes[varname] = 'float64'
+            self.varnames.append(varname)
 
     def _load_df(self):
         raise ValueError('This method must be defined in inheriting classes!')

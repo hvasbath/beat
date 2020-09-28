@@ -296,6 +296,7 @@ def vonmises_std(lons, lats):
     def f(s):
         return 1. / num.tanh(s) - 1. / s - R
 
+    logger.debug('Estimating VonMises std ...')
     kappa = brentq(f, 1e-8, 1e8)
     sigma = kappa ** -0.5
     return sigma
