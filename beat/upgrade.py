@@ -87,6 +87,15 @@ def upgrade_config_file(fn, diff=True, update=[]):
             set_attribute('mode', 'ffi', 'ffo')),
         ('beat.WaveformFitConfig',
             set_attribute('preprocess_data', True, True)),
+        ('beat.WaveformFitConfig',
+            set_attribute(
+                'filterer',
+                aguts.load(string='''
+                    - !beat.heart.Filter
+                      lower_corner: 0.01
+                      upper_corner: 0.1
+                      order: 4
+                      '''))),
         ('beat.MetropolisConfig',
             drop_attribute('n_stages')),
         ('beat.MetropolisConfig',
@@ -94,35 +103,35 @@ def upgrade_config_file(fn, diff=True, update=[]):
         ('beat.ParallelTemperingConfig',
             set_attribute('resample', False, False)),
         ('beat.FFOConfig',
-        rename_class('beat.FFIConfig')),
+            rename_class('beat.FFIConfig')),
         ('beat.GeodeticLinearGFConfig',
-         drop_attribute('extension_widths')),
+            drop_attribute('extension_widths')),
         ('beat.GeodeticLinearGFConfig',
-         drop_attribute('extension_lengths')),
+            drop_attribute('extension_lengths')),
         ('beat.GeodeticLinearGFConfig',
-         drop_attribute('patch_widths')),
+            drop_attribute('patch_widths')),
         ('beat.GeodeticLinearGFConfig',
-         drop_attribute('patch_lengths')),
+            drop_attribute('patch_lengths')),
         ('beat.SeismicLinearGFConfig',
-         drop_attribute('extension_widths')),
+            drop_attribute('extension_widths')),
         ('beat.SeismicLinearGFConfig',
-         drop_attribute('extension_lengths')),
+            drop_attribute('extension_lengths')),
         ('beat.SeismicLinearGFConfig',
-         drop_attribute('patch_widths')),
+            drop_attribute('patch_widths')),
         ('beat.SeismicLinearGFConfig',
-         drop_attribute('patch_lengths')),
+            drop_attribute('patch_lengths')),
         ('beat.GeodeticConfig',
-         drop_attribute('fit_plane')),
+            drop_attribute('fit_plane')),
         ('beat.GeodeticConfig',
-         drop_attribute('datadir')),
+            drop_attribute('datadir')),
         ('beat.GeodeticConfig',
-         drop_attribute('names')),
+            drop_attribute('names')),
         ('beat.GeodeticConfig',
-         drop_attribute('blacklist')),
+            drop_attribute('blacklist')),
         ('beat.GeodeticConfig',
-         drop_attribute('types')),
+            drop_attribute('types')),
         ('beat.EulerPoleConfig',
-         rename_attribute('blacklist', 'station_blacklist'))
+            rename_attribute('blacklist', 'station_blacklist'))
     ]
 
     def apply_rules(path, obj):

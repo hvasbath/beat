@@ -315,6 +315,49 @@ class Filter(FilterBase):
         help='If set to true the bandpass filter is done it two'
              ' consecutive steps, first high-pass then low-pass.')
 
+    def apply(self, trace):
+        # filter traces
+        # stepwise
+        if self.stepwise:
+            logger.debug('Stepwise HP LP filtering')
+            trace.highpass(
+                corner=self.lower_corner,
+                order=self.order,
+                demean=True)
+            trace.lowpass(
+                corner=self.upper_corner,
+                order=self.order,
+                demean=False)
+        else:
+            logger.debug('Single BP filtering')
+            trace.bandpass(
+                corner_hp=self.lower_corner,
+                corner_lp=self.upper_corner,
+                order=self.order)
+
+
+class BandstopFilter(FilterBase):
+    """
+    Filter object defining suppressed frequency range of traces after
+    time-domain filtering.
+    """
+    lower_corner = Float.T(
+        default=0.12,
+        help='Lower corner frequency')
+    upper_corner = Float.T(
+        default=0.25,
+        help='Upper corner frequency')
+    order = Int.T(
+        default=4,
+        help='order of filter, the higher the steeper')
+
+    def apply(self, trace):
+        logger.debug('single bandstop filtering')
+        trace.bandstop(
+            corner_hp=self.lower_corner,
+            corner_lp=self.upper_corner,
+            order=self.order, demean=False)
+
 
 class FrequencyFilter(FilterBase):
 
@@ -326,6 +369,10 @@ class FrequencyFilter(FilterBase):
         default=20.,
         help='Rise/fall time in seconds of taper applied in timedomain at both'
              ' ends of trace.')
+
+    def apply(self, trace):
+        trace = trace.transfer(
+            self.tfade, self.freqlimits, invert=False, cut_off_fading=False)
 
 
 class ResultPoint(Object):
@@ -2708,7 +2755,8 @@ def post_process_trace(
     ----------
     trace : :class:`SeismicDataset`
     arrival_taper : :class:`pyrocko.trace.Taper`
-    filterer : :class:`Filterer`
+    filterer : list
+        of :class:`Filterer`
     taper_tolerance_factor : float
         default: 0 , cut exactly at the taper edges
         taper.fadein times this factor determines added tolerance
@@ -2726,31 +2774,9 @@ def post_process_trace(
         logger.debug('transfer trace: %s' % trace.__str__())
 
     if filterer:
-        if isinstance(filterer, Filter):
-            # filter traces
-            # stepwise
-            if filterer.stepwise:
-                logger.debug('Stepwise HP LP filtering')
-                trace.highpass(
-                    corner=filterer.lower_corner,
-                    order=filterer.order,
-                    demean=True)
-                trace.lowpass(
-                    corner=filterer.upper_corner,
-                    order=filterer.order,
-                    demean=False)
-                #trace.bandstop(3, 0.12, 0.25, demean=False)
-            else:
-                logger.debug('Single BP filtering')
-                trace.bandpass(
-                    corner_hp=filterer.lower_corner,
-                    corner_lp=filterer.upper_corner,
-                    order=filterer.order)
-
-        if isinstance(filterer, FrequencyFilter):
-            trace = trace.transfer(
-                filterer.tfade, filterer.freqlimits,
-                invert=False, cut_off_fading=False)
+        # apply all the filters
+        for filt in filterer:
+            filt.apply(trace)
 
     if taper and outmode != 'data':
         tolerance = (taper.b - taper.a) * taper_tolerance_factor
