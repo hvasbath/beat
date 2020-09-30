@@ -18,7 +18,7 @@ import numpy as num
 from scipy import linalg
 
 from pyrocko.guts import (Dict, Object, String, StringChoice,
-                          Float, Int, Tuple, List)
+                          Float, Int, Tuple, List, Bool)
 from pyrocko.guts_array import Array
 
 from pyrocko import crust2x2, gf, cake, orthodrome, trace, util
@@ -310,6 +310,10 @@ class Filter(FilterBase):
     order = Int.T(
         default=4,
         help='order of filter, the higher the steeper')
+    stepwise = Bool.T(
+        default=False,
+        help='If set to true the bandpass filter is done it two'
+             ' consecutive steps, first high-pass then low-pass.')
 
 
 class FrequencyFilter(FilterBase):
@@ -2713,10 +2717,23 @@ def post_process_trace(
     if filterer:
         if isinstance(filterer, Filter):
             # filter traces
-            trace.bandpass(
-                corner_hp=filterer.lower_corner,
-                corner_lp=filterer.upper_corner,
-                order=filterer.order)
+            # stepwise
+            if filterer.stepwise:
+                logger.debug('Stepwise HP LP filtering')
+                trace.highpass(
+                    corner=filterer.lower_corner,
+                    order=filterer.order,
+                    demean=True)
+                trace.lowpass(
+                    corner=filterer.upper_corner,
+                    order=filterer.order,
+                    demean=False)
+            else:
+                logger.debug('Single BP filtering')
+                trace.bandpass(
+                    corner_hp=filterer.lower_corner,
+                    corner_lp=filterer.upper_corner,
+                    order=filterer.order)
 
         if isinstance(filterer, FrequencyFilter):
             trace = trace.transfer(
