@@ -561,7 +561,10 @@ class WaveformFitConfig(Object):
         default='displacement',
         help='Quantity of synthetics to be computed.')
     channels = List.T(String.T(), default=['Z'])
-    filterer = FilterBase.T(default=Filter.D())
+    filterer = List.T(
+        FilterBase.T(
+            default=Filter.D()),
+        help='List of Filters that are applied in the order of the list.')
     distances = Tuple.T(2, Float.T(), default=(30., 90.))
     interpolation = StringChoice.T(
         choices=_interpolation_choices,
