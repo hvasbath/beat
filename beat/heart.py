@@ -2174,7 +2174,7 @@ class WaveformMapping(object):
         of :class:`pyrocko.gf.target.Target`
     """
     def __init__(self, name, stations, weights=None, channels=['Z'],
-                 datasets=[], targets=[]):
+                 datasets=[], targets=[], deltat=None):
 
         self.name = name
         self.stations = stations
@@ -2187,6 +2187,7 @@ class WaveformMapping(object):
         self._arrival_times = None
         self._target2index = None
         self._station2index = None
+        self.deltat = deltat
 
         if self.datasets is not None:
             self._update_trace_wavenames()
@@ -2355,13 +2356,16 @@ class WaveformMapping(object):
                 logger.debug('Not pre-processing data ...')
                 filterer = None
 
-            self._prepared_data = taper_filter_traces(
+            filtered_datasets = taper_filter_traces(
                 self.datasets,
                 arrival_taper=self.config.arrival_taper,
                 filterer=filterer,
                 arrival_times=arrival_times,
                 outmode=outmode,
                 chop_bounds=chop_bounds)
+
+            self._prepared_data = adjust_sampling_datasets(
+                filtered_datasets, self.deltat, snap=False, force=False)
 
             self._arrival_times = arrival_times
         else:
@@ -2394,14 +2398,18 @@ class DataWaveformCollection(object):
 
     Parameters
     ----------
+    stations : List of :class:`pyrocko.model.Station`
+        List of station objects that are contained in the dataset
     waveforms : list
         of strings of tabulated phases that are to be used for misfit
         calculation
+    target_deltat : float
+        sampling interval the data is going to be downsampled to
     """
-    def __init__(self, stations, waveforms=None):
+    def __init__(self, stations, waveforms=None, target_deltat=None):
         self.stations = stations
         self.waveforms = waveforms
-        self._deltat = None
+        self._deltat = target_deltat
         self._targets = OrderedDict()
         self._datasets = OrderedDict()
         self._raw_datasets = OrderedDict()
@@ -2537,7 +2545,7 @@ class DataWaveformCollection(object):
             target.quantity = quantity
             nslc_id = target.codes
             try:
-                dtrace = self._datasets[nslc_id]
+                dtrace = self._raw_datasets[nslc_id]
                 datasets.append(dtrace)
             except KeyError:
                 logger.warn(
@@ -2569,7 +2577,8 @@ class DataWaveformCollection(object):
             stations=copy.deepcopy(self.stations),
             datasets=copy.deepcopy(datasets),
             targets=copy.deepcopy(targets),
-            channels=channels)
+            channels=channels,
+            deltat=self._deltat)
 
 
 def concatenate_datasets(datasets):
@@ -2627,8 +2636,6 @@ def init_datahandler(
 
     wavenames = sc.get_waveform_names()
 
-    target_deltat = 1. / sc.gf_config.sample_rate
-
     targets = init_seismic_targets(
         stations,
         earth_model_name=sc.gf_config.earth_model_name,
@@ -2637,10 +2644,14 @@ def init_datahandler(
         crust_inds=[sc.gf_config.reference_model_idx],
         reference_location=sc.gf_config.reference_location)
 
-    datahandler = DataWaveformCollection(stations, wavenames)
+    target_deltat = 1. / sc.gf_config.sample_rate
+
+    datahandler = DataWaveformCollection(stations, wavenames, target_deltat)
     datahandler.add_datasets(
         data_traces, location=sc.gf_config.reference_model_idx)
-    datahandler.adjust_sampling_datasets(target_deltat, snap=True)
+
+    # decimation needs to come after filtering
+    # datahandler.adjust_sampling_datasets(target_deltat, snap=True)
     datahandler.add_targets(targets)
     if responses_path:
         responses = utility.load_objects(responses_path)
@@ -2728,6 +2739,7 @@ def post_process_trace(
                     corner=filterer.upper_corner,
                     order=filterer.order,
                     demean=False)
+                #trace.bandstop(3, 0.12, 0.25, demean=False)
             else:
                 logger.debug('Single BP filtering')
                 trace.bandpass(
@@ -3129,6 +3141,22 @@ def taper_filter_traces(
             raise IOError('Cannot return array without tapering!')
     else:
         return cut_traces
+
+
+def adjust_sampling_datasets(
+        traces, deltat, snap=False, force=False):
+    """
+    Decimate list of traces to given sampling interval deltat.
+
+    Returns a copy of the input!
+    """
+
+    decimated = []
+    for tr in traces:
+        decimated.append(
+            utility.downsample_trace(tr, deltat, snap=snap))
+
+    return decimated
 
 
 def velocities_from_pole(
