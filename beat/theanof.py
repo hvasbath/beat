@@ -325,7 +325,7 @@ class SeisSynthesizer(theano.Op):
         self.arrival_taper = arrival_taper
         self.arrival_times = tuple(arrival_times.tolist())
         self.wavename = wavename
-        self.filterer = filterer
+        self.filterer = tuple(filterer)
         self.pre_stack_cut = pre_stack_cut
         self.station_corrections = station_corrections
 
@@ -421,7 +421,7 @@ class SeisDataChopper(theano.Op):
         self.sample_rate = sample_rate
         self.traces = tuple(traces)
         self.arrival_taper = arrival_taper
-        self.filterer = filterer
+        self.filterer = tuple(filterer)
 
     def make_node(self, *inputs):
         inlist = []
