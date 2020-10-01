@@ -2235,6 +2235,7 @@ class WaveformMapping(object):
         self._target2index = None
         self._station2index = None
         self.deltat = deltat
+        self.config = None
 
         if self.datasets is not None:
             self._update_trace_wavenames()
@@ -2403,20 +2404,30 @@ class WaveformMapping(object):
                 logger.debug('Not pre-processing data ...')
                 filterer = None
 
-            filtered_datasets = taper_filter_traces(
+            self._prepared_data = taper_filter_traces(
                 self.datasets,
                 arrival_taper=self.config.arrival_taper,
                 filterer=filterer,
                 arrival_times=arrival_times,
                 outmode=outmode,
-                chop_bounds=chop_bounds)
-
-            self._prepared_data = adjust_sampling_datasets(
-                filtered_datasets, self.deltat, snap=False, force=False)
+                chop_bounds=chop_bounds,
+                deltat=self.deltat,
+                plot=False)
 
             self._arrival_times = arrival_times
         else:
             raise ValueError('Wavemap needs configuration!')
+
+    def get_highest_frequency(self):
+        """
+        Loop over filterers and return highest frequency.
+        """
+        highest_fs = []
+        for filt in self.config.filterer:
+            if isinstance(filt, Filter):
+                highest_fs.append(filt.upper_corner)
+
+        return num.max(highest_fs)
 
     @property
     def shared_data_array(self):
@@ -2746,7 +2757,7 @@ def init_wavemap(
 
 
 def post_process_trace(
-        trace, taper, filterer, taper_tolerance_factor=0.,
+        trace, taper, filterer, taper_tolerance_factor=0., deltat=None,
         outmode=None, chop_bounds=['b', 'c'], transfer_function=None):
     """
     Taper, filter and then chop one trace in place.
@@ -2777,6 +2788,9 @@ def post_process_trace(
         # apply all the filters
         for filt in filterer:
             filt.apply(trace)
+
+    if deltat is not None:
+        trace = utility.downsample_trace(trace, deltat, snap=True)
 
     if taper and outmode != 'data':
         tolerance = (taper.b - taper.a) * taper_tolerance_factor
@@ -3100,7 +3114,7 @@ def geo_synthetics(
 
 
 def taper_filter_traces(
-        traces, arrival_taper=None, filterer=None,
+        traces, arrival_taper=None, filterer=None, deltat=None,
         arrival_times=None, plot=False, outmode='array',
         taper_tolerance_factor=0., chop_bounds=['b', 'c']):
     """
@@ -3112,7 +3126,10 @@ def taper_filter_traces(
     traces : List
         containing :class:`pyrocko.trace.Trace` objects
     arrival_taper : :class:`ArrivalTaper`
-    filterer : :class:`Filterer`
+    filterer : list
+        of :class:`Filterer`
+    deltat : float
+        if set data is downsampled to that sampling interval
     arrival_times : list or:class:`numpy.ndarray`
         containing the start times [s] since 1st.January 1970 to start
         tapering
@@ -3149,6 +3166,7 @@ def taper_filter_traces(
             trace=cut_trace,
             taper=taper,
             filterer=filterer,
+            deltat=deltat,
             taper_tolerance_factor=taper_tolerance_factor,
             outmode=outmode,
             chop_bounds=chop_bounds)
@@ -3161,28 +3179,16 @@ def taper_filter_traces(
     if outmode == 'array':
         if arrival_taper:
             logger.debug('Returning chopped traces ...')
-            return num.vstack(
-                [cut_traces[i].ydata for i in range(len(traces))])
+            try:
+                return num.vstack(
+                    [ctr.ydata for ctr in cut_traces])
+            except ValueError:
+                raise ValueError(
+                    'Traces have different length, cannot return array!')
         else:
             raise IOError('Cannot return array without tapering!')
     else:
         return cut_traces
-
-
-def adjust_sampling_datasets(
-        traces, deltat, snap=False, force=False):
-    """
-    Decimate list of traces to given sampling interval deltat.
-
-    Returns a copy of the input!
-    """
-
-    decimated = []
-    for tr in traces:
-        decimated.append(
-            utility.downsample_trace(tr, deltat, snap=snap))
-
-    return decimated
 
 
 def velocities_from_pole(

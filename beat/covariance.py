@@ -179,7 +179,7 @@ class SeismicNoiseAnalyser(object):
 
     def get_structure(self, wmap, sample_rate):
 
-        tzero = 1. / wmap.config.filterer.upper_corner
+        tzero = 1. / wmap.get_highest_frequency()
         dt = 1. / sample_rate
         ataper = wmap.config.arrival_taper
         n = ataper.nsamples(sample_rate, self.chop_bounds)
@@ -238,12 +238,11 @@ class SeismicNoiseAnalyser(object):
                     target=target,
                     wavename=wmap.name)
 
-            if filterer is not None:
+            if filterer:
                 ctrace = tr.copy()
-                ctrace.bandpass(
-                    corner_hp=filterer.lower_corner,
-                    corner_lp=filterer.upper_corner,
-                    order=filterer.order)
+                # apply all the filters
+                for filt in filterer:
+                    filt.apply(ctrace)
 
             ctrace = ctrace.chop(
                 tmin=tr.tmin,
@@ -426,8 +425,9 @@ def seismic_cov_velocity_models(
         determines tapering around phase Arrival
     arrival_time : None or :class:`numpy.NdArray` or float
         of phase to apply taper, if None theoretic arrival of ray tracing used
-    filterer : :class:`heart.Filter`
-        determines the bandpass-filtering corner frequencies
+    filterer : list
+        of :class:`heart.Filter` determining the filtering corner frequencies
+        of various filters
     plot : boolean
         open snuffler and browse traces if True
     n_jobs : int
