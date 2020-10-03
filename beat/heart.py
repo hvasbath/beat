@@ -1149,7 +1149,7 @@ class GeodeticResult(Object):
 def init_seismic_targets(
         stations, earth_model_name='ak135-f-average.m', channels=['T', 'Z'],
         sample_rate=1.0, crust_inds=[0], interpolation='multilinear',
-        reference_location=None, blacklist=[]):
+        reference_location=None):
     """
     Initiate a list of target objects given a list of indexes to the
     respective GF store velocity model variation index (crust_inds).
@@ -1175,7 +1175,6 @@ def init_seismic_targets(
     reference_location : :class:`ReferenceLocation` or
         :class:`pyrocko.model.Station`
         if given, targets are initialised with this reference location
-    blacklist : stations that are blacklisted later
 
     Returns
     -------
@@ -1198,12 +1197,9 @@ def init_seismic_targets(
             for crust_ind in crust_inds:
                 cha = station.get_channel(channel)
                 if cha is None:
-                    if station.station not in blacklist:
-                        logger.warn(
-                            'Channel "%s" for station "%s" does not exist!'
-                            ' Putting station into blacklist!' % (
-                                channel, station.station))
-                        blacklist.append(station.station)
+                    logger.warning(
+                        'Channel "%s" for station "%s" does not exist!'
+                        % (channel, station.station))
                 else:
                     targets.append(DynamicTarget(
                         quantity='displacement',
@@ -2282,6 +2278,8 @@ class WaveformMapping(object):
         Weed stations and related objects based on distances and blacklist.
         Works only a single time after init!
         """
+        empty_stations = self.get_station_names_without_data()
+        blacklist.extend(empty_stations)
 
         self.stations = utility.apply_station_blacklist(
             self.stations, blacklist)
@@ -2310,6 +2308,21 @@ class WaveformMapping(object):
         """
         return [station.station for station in self.stations]
 
+    def get_station_names_without_data(self):
+
+        blacklist = []
+        station_names = self.get_station_names()
+        dataset_station_names = [tr.station for tr in self.datasets]
+
+        for station_name in station_names:
+            if station_name not in dataset_station_names:
+                logger.warning(
+                    'Found no data for station "%s" '
+                    '- removing it from setup.' % station_name)
+                blacklist.append(station_name)
+
+        return blacklist
+
     def check_consistency(self):
         if self.n_t != self.n_data:
             raise CollectionError(
@@ -2324,6 +2337,7 @@ class WaveformMapping(object):
         else:
             logger.info('Consistent number of '
                         'datasets and targets in %s wavemap!' % self._mapid)
+
 
     def update_interpolation(self, method):
         for target in self.targets:
