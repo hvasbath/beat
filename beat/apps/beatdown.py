@@ -564,7 +564,7 @@ def main():
         longitude=lon,
         minradius=options.radius_min*km*cake.m2d,
         maxradius=radius*cake.m2d,
-        channel=','.join('?%s?' % s for s in priority_band_code))
+        channel=','.join('%s??' % s for s in priority_band_code))
 
     target_sample_rate = sample_rate
 
