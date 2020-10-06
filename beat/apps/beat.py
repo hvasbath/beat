@@ -553,16 +553,18 @@ def command_import(args):
                 c.seismic_config.gf_config.reference_sources = \
                     reference_sources
 
-            summarydf = read_csv(
-                pjoin(problem.outfolder, 'summary.txt'), sep='\s+')
+            if 'seismic' in problem.config.problem_config.datatypes:
+                summarydf = read_csv(
+                    pjoin(problem.outfolder, 'summary.txt'), sep='\s+')
 
-            new_bounds = {}
-            for param in ['time']:
-                new_bounds[param] = extract_bounds_from_summary(
-                    summarydf, varname=param, shape=(n_sources,), roundto=0)
+                new_bounds = {}
+                for param in ['time']:
+                    new_bounds[param] = extract_bounds_from_summary(
+                        summarydf, varname=param,
+                        shape=(n_sources,), roundto=0)
 
-            c.problem_config.set_vars(
-                new_bounds, attribute='priors')
+                c.problem_config.set_vars(
+                    new_bounds, attribute='priors')
 
         elif options.mode == ffi_mode_str:
             npatches = problem.config.problem_config.mode_config.npatches
