@@ -342,6 +342,12 @@ class ResultPoint(Object):
             dtype=tconfig.floatX),
         default={},
         help='Point in Solution space for which result is produced.')
+    variance_reductions = Dict.T(
+        String.T(),
+        Float.T(),
+        default={},
+        optional=True,
+        help='Variance reductions for each dataset.')
 
 
 class SeismicResult(Object):
@@ -371,8 +377,9 @@ class SeismicResult(Object):
 
     @property
     def processed_res(self):
-        tr = self.processed_obs.copy()
-        tr.set_ydata(tr.get_ydata() - self.processed_syn.ydata)
+        tr = copy.deepcopy(self.processed_obs)
+        tr.set_ydata(
+            self.processed_obs.get_ydata() - self.processed_syn.get_ydata())
         return tr
 
 

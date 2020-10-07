@@ -1857,7 +1857,10 @@ def command_export(args):
             results_trace = pjoin(stage.handler.stage_path(-1), trace_name)
             shutil.copy(results_trace, pjoin(results_path, trace_name))
 
-    rpoint = heart.ResultPoint(point=point, post_llk=options.post_llk)
+    var_reds = problem.get_variance_reductions(point)
+    print(var_reds)
+    rpoint = heart.ResultPoint(
+        point=point, post_llk=options.post_llk, variance_reductions=var_reds)
     dump(rpoint,
          filename=pjoin(
              results_path, 'solution_{}.yaml'.format(options.post_llk)))

@@ -289,6 +289,7 @@ class SeismicComposite(Composite):
         """
         Initialise shared weights in wavemaps.
         """
+        logger.info('Initialising weights ...')
         for wmap in self.wavemaps:
             weights = []
             for j, trc in enumerate(wmap.datasets):
@@ -344,7 +345,7 @@ class SeismicComposite(Composite):
 
     @property
     def weights(self):
-        if self._weights is None:
+        if self._weights is None or len(self._weights) == 0:
             ws = []
             for wmap in self.wavemaps:
                 if wmap.weights:
@@ -452,13 +453,13 @@ class SeismicComposite(Composite):
         Parameters
         ----------
         point : dict
-            with parameters to point in solution space to calculate standardized
-            residuals for
+            with parameters to point in solution space to calculate
+            standardized residuals
 
         Returns
         -------
-        list of arrays of standardized residuals,
-        following order of self.datasets
+        dict of arrays of standardized residuals,
+            keys are nslc_ids
         """
         results = self.assemble_results(
             point, order='list', chop_bounds=['b', 'c'])
@@ -476,9 +477,68 @@ class SeismicComposite(Composite):
 
             choli = num.linalg.inv(
                 data_trc.covariance.chol * num.exp(hp) / 2.)
-            stdz_res[data_trc.nslc_id] = choli.dot(result.processed_res.get_ydata())
+            stdz_res[data_trc.nslc_id] = choli.dot(
+                result.processed_res.get_ydata())
 
         return stdz_res
+
+    def get_variance_reductions(self, point):
+        """
+        Parameters
+        ----------
+        point : dict
+            with parameters to point in solution space to calculate
+            variance reductions
+
+        Returns
+        -------
+        dict of floats,
+            keys are nslc_ids
+        """
+        results = self.assemble_results(
+            point, order='list', chop_bounds=['b', 'c'])
+        self.analyse_noise(point)
+        self.update_weights(point)
+
+        logger.info('Calculating variance reduction for solution ...')
+        counter = utility.Counter()
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
+        var_reds = OrderedDict()
+        print(len(self.weights), len(results), len(self.datasets))
+        for data_trc, weight, result in zip(
+                self.datasets, self.weights, results):
+
+            hp_name = get_hyper_name(data_trc)
+            if hp_specific:
+                hp = point[hp_name][counter(hp_name)]
+            else:
+                hp = point[hp_name]
+
+            hpval = (1 / num.exp(hp * 2))
+            print('hp', hpval)
+            inv_cov = hpval * weight.get_value()
+            data = result.processed_obs.get_ydata()
+            residual = result.processed_res.get_ydata()
+            result.processed_obs.set_location('d')
+            result.source_contributions[0].set_location('s')
+            print(result.processed_syn.nslc_id)
+            print(result.processed_obs.nslc_id)
+            print(data)
+            print(residual)
+            from pyrocko.trace import snuffle
+            snuffle([result.processed_obs, result.processed_res, result.source_contributions[0]])
+            zaehler = residual.T.dot(inv_cov).dot(residual)
+            nenner = data.T.dot(inv_cov).dot(data)
+            var_red = 1 - (zaehler / nenner)
+            print('Z, N ', zaehler, nenner)
+            nslc_id = utility.list2string(result.processed_obs.nslc_id)
+            logger.debug(
+                'Variance reduction for %s is %f' % (nslc_id, var_red))
+
+            var_reds[nslc_id] = var_red
+
+        print(var_reds)
+        return var_reds
 
 
 class SeismicGeometryComposite(SeismicComposite):
@@ -763,7 +823,6 @@ class SeismicGeometryComposite(SeismicComposite):
         sc = self.config
 
         self.point2sources(point)
-
 
         # update data covariances in case model dependend non-toeplitz
         if self.config.noise_estimator.structure == 'non-toeplitz':
