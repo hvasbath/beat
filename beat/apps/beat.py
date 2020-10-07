@@ -843,7 +843,8 @@ def result_check(mtrace, min_length):
 def command_summarize(args):
 
     from pymc3 import summary
-    from numpy import vstack, split
+    from numpy import hstack, vstack, split
+    from pyrocko.moment_tensor import MomentTensor
 
     command_str = 'summarize'
 
@@ -973,22 +974,28 @@ def command_summarize(args):
                     if isinstance(source, MTSourceWithMagnitude):
                         composite.point2sources(point)
                         ldicts = []
+                        derived = []
                         for source in composite.sources:
                             ldicts.append(source.scaled_m6_dict)
+                            mt = MomentTensor.from_values(source.scaled_m6)
+                            derived.append(hstack(mt.both_strike_dip_rake()))
 
                         jpoint = utility.join_points(ldicts)
                         point.update(jpoint)
                         del jpoint, ldicts
 
-                    lpoint = problem.model.lijection.d2l(point)
-
-                    if isinstance(source, MTQTSource):
+                    elif isinstance(source, MTQTSource):
                         composite.point2sources(point)
-                        m6s = []
+                        derived = []
                         for source in composite.sources:
-                            m6s.append(source.m6 / source.moment)
+                            derived.append(source.m6 / source.moment)
 
-                        lpoint.extend(split(vstack(m6s), 6, axis=1))
+                    else:
+                        derived = []
+
+                    lpoint = problem.model.lijection.d2l(point)
+                    if derived:
+                        lpoint.extend(split(vstack(derived), 6, axis=1))
 
                     # TODO: in PT with large buffer sizes somehow memory leak
                     rtrace.write(lpoint, draw=chain)

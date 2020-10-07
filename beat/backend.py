@@ -48,13 +48,14 @@ from pyrocko import util
 from beat.config import sample_p_outname, transd_vars_dist
 from beat.covariance import calc_sample_covariance
 from beat.utility import load_objects, dump_objects, \
-    ListArrayOrdering, ListToArrayBijection
+    ListArrayOrdering, ListToArrayBijection, list2string
 
 logger = logging.getLogger('backend')
 
 
 derived_variables_mapping = {
     'MTQTSource': ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med'],
+    'MTSource': ['strike1', 'strike2', 'dip1', 'dip2', 'rake1', 'rake2'],
 }
 
 
@@ -285,6 +286,9 @@ class FileChain(BaseChain):
 
         try:
             varnames = derived_variables_mapping[source_type]
+            logger.info(
+                'Adding derived variables %s to '
+                'trace.' % list2string(varnames))
         except KeyError:
             logger.info('No derived variables for %s' % source_type)
             varnames = []
