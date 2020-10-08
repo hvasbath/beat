@@ -248,8 +248,14 @@ class SeismicNoiseAnalyser(object):
                 tmin=tr.tmin,
                 tmax=arrival_time - self.pre_arrival_time)
 
-            scaling = num.var(ctrace.get_ydata())
-            scalings.append(scaling)
+            scaling = num.nanvar(ctrace.get_ydata())
+
+            if num.isfinite(scaling).all():
+                scalings.append(scaling)
+            else:
+                raise ValueError(
+                    'Pre P-trace of %s contains Inf or'
+                    ' NaN!' % list2string(ctrace.nslc_id))
 
         return scalings
 
