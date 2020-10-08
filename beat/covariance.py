@@ -248,14 +248,23 @@ class SeismicNoiseAnalyser(object):
                 tmin=tr.tmin,
                 tmax=arrival_time - self.pre_arrival_time)
 
-            scaling = num.nanvar(ctrace.get_ydata())
+            nslc_id_str = list2string(ctrace.nslc_id)
+            data = ctrace.get_ydata()
+            if data.size == 0:
+                raise ValueError(
+                    'Trace %s contains no pre-P arrival data! Please either '
+                    'remove/blacklist or make sure data contains times before'
+                    ' the P arrival time!' % nslc_id_str)
 
+            scaling = num.nanvar(data)
             if num.isfinite(scaling).all():
+                logger.debug(
+                    'Variance estimate of %s = %g' % (nslc_id_str, scaling))
                 scalings.append(scaling)
             else:
                 raise ValueError(
                     'Pre P-trace of %s contains Inf or'
-                    ' NaN!' % list2string(ctrace.nslc_id))
+                    ' NaN!' % nslc_id_str)
 
         return scalings
 
