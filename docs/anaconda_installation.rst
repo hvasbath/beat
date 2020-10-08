@@ -22,7 +22,7 @@ Download the beat source package from github (requires git to be installed on yo
 
 Download and install several required packages::
 
-  conda install -n beat libgfortran openblas theano pygpu openmpi pandas=0.24.2 numpy=1.17.1 openmpi
+  conda install -n beat libgfortran openblas theano pygpu openmpi pandas numpy openmpi
 
 Configure theano to find your libraries by creating a file ".theanorc" in your home directory containing::
 
@@ -35,9 +35,6 @@ Configure theano to find your libraries by creating a file ".theanorc" in your h
   [global]
   device = cpu
   floatX = float64
-
-  [lib]
-  amdlibm = False  # if applicable set True here (also see detailed instructions)
 
 For testing if numpy and theano installations worked fine::
 
