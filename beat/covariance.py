@@ -177,12 +177,15 @@ class SeismicNoiseAnalyser(object):
         self.structure = structure
         self.chop_bounds = chop_bounds
 
-    def get_structure(self, wmap, sample_rate):
+    def get_structure(self, wmap, sample_rate, chop_bounds=None):
+
+        if chop_bounds is None:
+            chop_bounds = self.chop_bounds
 
         tzero = 1. / wmap.config.filterer.upper_corner
         dt = 1. / sample_rate
         ataper = wmap.config.arrival_taper
-        n = ataper.nsamples(sample_rate, self.chop_bounds)
+        n = ataper.nsamples(sample_rate, chop_bounds)
         return NoiseStructureCatalog[self.structure](n, dt, tzero)
 
     def do_import(self, wmap, sample_rate):
@@ -254,7 +257,8 @@ class SeismicNoiseAnalyser(object):
 
         return scalings
 
-    def get_data_covariances(self, wmap, sample_rate, results=None):
+    def get_data_covariances(
+            self, wmap, sample_rate, results=None, chop_bounds=None):
         """
         Estimated data covariances of seismic traces
 
@@ -269,7 +273,9 @@ class SeismicNoiseAnalyser(object):
         -------
         :class:`numpy.ndarray`
         """
-        covariance_structure = self.get_structure(wmap, sample_rate)
+
+        covariance_structure = self.get_structure(
+            wmap, sample_rate, chop_bounds)
 
         if self.structure == 'import':
             scalings = self.do_import(wmap, sample_rate)

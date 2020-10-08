@@ -1858,12 +1858,13 @@ def command_export(args):
             shutil.copy(results_trace, pjoin(results_path, trace_name))
 
     var_reds = problem.get_variance_reductions(point)
-    print(var_reds)
+
     rpoint = heart.ResultPoint(
         point=point, post_llk=options.post_llk, variance_reductions=var_reds)
-    dump(rpoint,
-         filename=pjoin(
-             results_path, 'solution_{}.yaml'.format(options.post_llk)))
+    outpoint_name = pjoin(
+        results_path, 'solution_{}.yaml'.format(options.post_llk))
+    dump(rpoint, filename=outpoint_name)
+    logger.info('Dumped %s solution to %s' % (options.post_llk, outpoint_name))
 
     if options.mode == ffi_mode_str:
         if 'seismic' in problem.config.problem_config.datatypes:

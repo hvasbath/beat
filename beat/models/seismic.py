@@ -148,7 +148,7 @@ class SeismicComposite(Composite):
         self.engine.close_cashed_stores()
         return self.__dict__.copy()
 
-    def analyse_noise(self, tpoint=None):
+    def analyse_noise(self, tpoint=None, chop_bounds=None):
         """
         Analyse seismic noise in datatraces and set
         data-covariance matrixes accordingly.
@@ -167,7 +167,8 @@ class SeismicComposite(Composite):
 
             cov_ds_seismic = self.noise_analyser.get_data_covariances(
                 wmap=wmap, results=wmap_results,
-                sample_rate=self.config.gf_config.sample_rate)
+                sample_rate=self.config.gf_config.sample_rate,
+                chop_bounds=chop_bounds)
 
             for j, trc in enumerate(wmap.datasets):
                 if trc.covariance is None:
@@ -176,8 +177,9 @@ class SeismicComposite(Composite):
                     trc.covariance.data = cov_ds_seismic[j]
 
                 if int(trc.covariance.data.sum()) == trc.data_len():
-                    logger.warning('Data covariance is identity matrix!'
-                                ' Please double check!!!')
+                    logger.warning(
+                        'Data covariance is identity matrix!'
+                        ' Please double check!!!')
 
     def init_hierarchicals(self, problem_config):
         """
@@ -482,7 +484,8 @@ class SeismicComposite(Composite):
 
         return stdz_res
 
-    def get_variance_reductions(self, point):
+    def get_variance_reductions(
+            self, point, results=None, weights=None, chop_bounds=['a', 'd']):
         """
         Parameters
         ----------
@@ -495,18 +498,27 @@ class SeismicComposite(Composite):
         dict of floats,
             keys are nslc_ids
         """
-        results = self.assemble_results(
-            point, order='list', chop_bounds=['b', 'c'])
-        self.analyse_noise(point)
-        self.update_weights(point)
+
+        if results is None:
+            results = self.assemble_results(
+                point, order='list', chop_bounds=chop_bounds)
+
+        assert len(results) == len(self.datasets)
+
+        if weights is None:
+            self.analyse_noise(point, chop_bounds=chop_bounds)
+            self.update_weights(point)
+            weights = self.weights
+
+        assert len(weights) == len(self.datasets)
 
         logger.info('Calculating variance reduction for solution ...')
         counter = utility.Counter()
         hp_specific = self.config.dataset_specific_residual_noise_estimation
         var_reds = OrderedDict()
-        print(len(self.weights), len(results), len(self.datasets))
+
         for data_trc, weight, result in zip(
-                self.datasets, self.weights, results):
+                self.datasets, weights, results):
 
             hp_name = get_hyper_name(data_trc)
             if hp_specific:
@@ -515,29 +527,21 @@ class SeismicComposite(Composite):
                 hp = point[hp_name]
 
             hpval = (1 / num.exp(hp * 2))
-            print('hp', hpval)
+
             inv_cov = hpval * weight.get_value()
             data = result.processed_obs.get_ydata()
             residual = result.processed_res.get_ydata()
-            result.processed_obs.set_location('d')
-            result.source_contributions[0].set_location('s')
-            print(result.processed_syn.nslc_id)
-            print(result.processed_obs.nslc_id)
-            print(data)
-            print(residual)
-            from pyrocko.trace import snuffle
-            snuffle([result.processed_obs, result.processed_res, result.source_contributions[0]])
+
             zaehler = residual.T.dot(inv_cov).dot(residual)
             nenner = data.T.dot(inv_cov).dot(data)
             var_red = 1 - (zaehler / nenner)
-            print('Z, N ', zaehler, nenner)
+
             nslc_id = utility.list2string(result.processed_obs.nslc_id)
             logger.debug(
                 'Variance reduction for %s is %f' % (nslc_id, var_red))
 
             var_reds[nslc_id] = var_red
 
-        print(var_reds)
         return var_reds
 
 

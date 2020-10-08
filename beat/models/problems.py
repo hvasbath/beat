@@ -468,7 +468,11 @@ class Problem(object):
             if hasattr(composite, 'get_variance_reductions'):
                 logger.info(
                     'Calculating variance reductions for %s' % composite.name)
-                vrs.update(**composite.get_variance_reductions(point))
+                vr = composite.get_variance_reductions(point)
+                print(vr)
+                vrs.update(vr)
+                print(vr)
+        return vrs
 
     def point2sources(self, point):
         """
