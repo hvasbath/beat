@@ -95,10 +95,9 @@
 <span class="kn">from</span> <span class="nn">theano</span> <span class="k">import</span> <span class="n">shared</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">num</span>
 <span class="kn">from</span> <span class="nn">scipy</span> <span class="k">import</span> <span class="n">linalg</span>
-<span class="kn">from</span> <span class="nn">scipy.signal</span> <span class="k">import</span> <span class="n">lfilter</span><span class="p">,</span> <span class="n">zpk2tf</span>
 
 <span class="kn">from</span> <span class="nn">pyrocko.guts</span> <span class="k">import</span> <span class="p">(</span><span class="n">Dict</span><span class="p">,</span> <span class="n">Object</span><span class="p">,</span> <span class="n">String</span><span class="p">,</span> <span class="n">StringChoice</span><span class="p">,</span>
-                          <span class="n">Float</span><span class="p">,</span> <span class="n">Int</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">List</span><span class="p">)</span>
+                          <span class="n">Float</span><span class="p">,</span> <span class="n">Int</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Bool</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">pyrocko.guts_array</span> <span class="k">import</span> <span class="n">Array</span>
 
 <span class="kn">from</span> <span class="nn">pyrocko</span> <span class="k">import</span> <span class="n">crust2x2</span><span class="p">,</span> <span class="n">gf</span><span class="p">,</span> <span class="n">cake</span><span class="p">,</span> <span class="n">orthodrome</span><span class="p">,</span> <span class="n">trace</span><span class="p">,</span> <span class="n">util</span>
@@ -389,7 +388,54 @@
         <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Upper corner frequency&#39;</span><span class="p">)</span>
     <span class="n">order</span> <span class="o">=</span> <span class="n">Int</span><span class="o">.</span><span class="n">T</span><span class="p">(</span>
         <span class="n">default</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;order of filter, the higher the steeper&#39;</span><span class="p">)</span></div>
+        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;order of filter, the higher the steeper&#39;</span><span class="p">)</span>
+    <span class="n">stepwise</span> <span class="o">=</span> <span class="n">Bool</span><span class="o">.</span><span class="n">T</span><span class="p">(</span>
+        <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;If set to true the bandpass filter is done it two&#39;</span>
+             <span class="s1">&#39; consecutive steps, first high-pass then low-pass.&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">trace</span><span class="p">):</span>
+        <span class="c1"># filter traces</span>
+        <span class="c1"># stepwise</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stepwise</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Stepwise HP LP filtering&#39;</span><span class="p">)</span>
+            <span class="n">trace</span><span class="o">.</span><span class="n">highpass</span><span class="p">(</span>
+                <span class="n">corner</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">lower_corner</span><span class="p">,</span>
+                <span class="n">order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">order</span><span class="p">,</span>
+                <span class="n">demean</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">trace</span><span class="o">.</span><span class="n">lowpass</span><span class="p">(</span>
+                <span class="n">corner</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">upper_corner</span><span class="p">,</span>
+                <span class="n">order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">order</span><span class="p">,</span>
+                <span class="n">demean</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Single BP filtering&#39;</span><span class="p">)</span>
+            <span class="n">trace</span><span class="o">.</span><span class="n">bandpass</span><span class="p">(</span>
+                <span class="n">corner_hp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">lower_corner</span><span class="p">,</span>
+                <span class="n">corner_lp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">upper_corner</span><span class="p">,</span>
+                <span class="n">order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">order</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="BandstopFilter"><a class="viewcode-back" href="../api.html#heart.BandstopFilter">[docs]</a><span class="k">class</span> <span class="nc">BandstopFilter</span><span class="p">(</span><span class="n">FilterBase</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Filter object defining suppressed frequency range of traces after</span>
+<span class="sd">    time-domain filtering.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">lower_corner</span> <span class="o">=</span> <span class="n">Float</span><span class="o">.</span><span class="n">T</span><span class="p">(</span>
+        <span class="n">default</span><span class="o">=</span><span class="mf">0.12</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Lower corner frequency&#39;</span><span class="p">)</span>
+    <span class="n">upper_corner</span> <span class="o">=</span> <span class="n">Float</span><span class="o">.</span><span class="n">T</span><span class="p">(</span>
+        <span class="n">default</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Upper corner frequency&#39;</span><span class="p">)</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="n">Int</span><span class="o">.</span><span class="n">T</span><span class="p">(</span>
+        <span class="n">default</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;order of filter, the higher the steeper&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">trace</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;single bandstop filtering&#39;</span><span class="p">)</span>
+        <span class="n">trace</span><span class="o">.</span><span class="n">bandstop</span><span class="p">(</span>
+            <span class="n">corner_hp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">lower_corner</span><span class="p">,</span>
+            <span class="n">corner_lp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">upper_corner</span><span class="p">,</span>
+            <span class="n">order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">order</span><span class="p">,</span> <span class="n">demean</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="FrequencyFilter"><a class="viewcode-back" href="../api.html#heart.FrequencyFilter">[docs]</a><span class="k">class</span> <span class="nc">FrequencyFilter</span><span class="p">(</span><span class="n">FilterBase</span><span class="p">):</span>
@@ -401,7 +447,11 @@
     <span class="n">tfade</span> <span class="o">=</span> <span class="n">Float</span><span class="o">.</span><span class="n">T</span><span class="p">(</span>
         <span class="n">default</span><span class="o">=</span><span class="mf">20.</span><span class="p">,</span>
         <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Rise/fall time in seconds of taper applied in timedomain at both&#39;</span>
-             <span class="s1">&#39; ends of trace.&#39;</span><span class="p">)</span></div>
+             <span class="s1">&#39; ends of trace.&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">trace</span><span class="p">):</span>
+        <span class="n">trace</span> <span class="o">=</span> <span class="n">trace</span><span class="o">.</span><span class="n">transfer</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">tfade</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">freqlimits</span><span class="p">,</span> <span class="n">invert</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">cut_off_fading</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="ResultPoint"><a class="viewcode-back" href="../api.html#heart.ResultPoint">[docs]</a><span class="k">class</span> <span class="nc">ResultPoint</span><span class="p">(</span><span class="n">Object</span><span class="p">):</span>
@@ -502,7 +552,7 @@
     <span class="n">mnd</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">),</span>
     <span class="n">med</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">1.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">),</span>
 
-    <span class="n">u</span><span class="o">=</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">3.</span> <span class="o">/</span> <span class="mf">4.</span> <span class="o">*</span> <span class="n">num</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+    <span class="n">w</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">3.</span> <span class="o">/</span> <span class="mf">8.</span> <span class="o">*</span> <span class="n">num</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">3.</span> <span class="o">/</span> <span class="mf">8.</span> <span class="o">*</span> <span class="n">num</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
     <span class="n">v</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">1.</span> <span class="o">/</span> <span class="mi">3</span><span class="p">,</span> <span class="mf">1.</span> <span class="o">/</span> <span class="mf">3.</span><span class="p">),</span>
     <span class="n">kappa</span><span class="o">=</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">num</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
     <span class="n">sigma</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="n">num</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mf">2.</span><span class="p">,</span> <span class="n">num</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mf">2.</span><span class="p">),</span>
@@ -633,8 +683,8 @@
                 <span class="n">dimension</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower</span>
         <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                <span class="s1">&#39;Either use number of patches input vector size for variable </span><span class="si">{}</span><span class="s1">&#39;</span>
-                <span class="s1">&#39; or only [1]]! Now the size is </span><span class="si">{}</span><span class="s1">!&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="s1">&#39;Either use number of patches input vector size for&#39;</span>
+                <span class="s1">&#39; variable </span><span class="si">{}</span><span class="s1"> or only [1]]! Now the size is </span><span class="si">{}</span><span class="s1">!&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lower</span><span class="o">.</span><span class="n">size</span><span class="p">))</span></div>
 
     <span class="nd">@property</span>
@@ -653,7 +703,7 @@
     <span class="k">def</span> <span class="nf">update_response</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">magnification</span><span class="p">,</span> <span class="n">damping</span><span class="p">,</span> <span class="n">period</span><span class="p">):</span>
         <span class="n">z</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">k</span> <span class="o">=</span> <span class="n">proto2zpk</span><span class="p">(</span>
             <span class="n">magnification</span><span class="p">,</span> <span class="n">damping</span><span class="p">,</span> <span class="n">period</span><span class="p">,</span> <span class="n">quantity</span><span class="o">=</span><span class="s1">&#39;displacement&#39;</span><span class="p">)</span>
-        <span class="c1">#b, a = zpk2tf(z, p, k)</span>
+        <span class="c1"># b, a = zpk2tf(z, p, k)</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">response</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">response</span><span class="o">.</span><span class="n">zeros</span> <span class="o">=</span> <span class="n">z</span>
@@ -946,8 +996,9 @@
             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Loading &quot;</span><span class="si">%s</span><span class="s1">&quot; GNSS component&#39;</span> <span class="o">%</span> <span class="n">comp</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">comp</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">valid_components</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
-                    <span class="s1">&#39;Component: </span><span class="si">%s</span><span class="s1"> not available! Valid GNSS components are: </span><span class="si">%s</span><span class="s1">&#39;</span>
-                    <span class="s1">&#39;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">comp</span><span class="p">,</span> <span class="n">utility</span><span class="o">.</span><span class="n">list2string</span><span class="p">(</span><span class="n">valid_components</span><span class="p">)))</span>
+                    <span class="s1">&#39;Component: </span><span class="si">%s</span><span class="s1"> not available! &#39;</span>
+                    <span class="s1">&#39;Valid GNSS components are: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                        <span class="n">comp</span><span class="p">,</span> <span class="n">utility</span><span class="o">.</span><span class="n">list2string</span><span class="p">(</span><span class="n">valid_components</span><span class="p">)))</span>
 
             <span class="n">comp_stations</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="n">components</span> <span class="o">=</span> <span class="p">[]</span>
@@ -1031,7 +1082,8 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">los_vector</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">force</span><span class="p">:</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">incidence</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">heading</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;Incidence and Heading need to be provided!&#39;</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span>
+                    <span class="s1">&#39;Incidence and Heading need to be provided!&#39;</span><span class="p">)</span>
 
             <span class="n">Su</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">deg2rad</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">incidence</span><span class="p">))</span>
             <span class="n">Sn</span> <span class="o">=</span> <span class="o">-</span> <span class="n">num</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">deg2rad</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">incidence</span><span class="p">))</span> <span class="o">*</span> \
@@ -1099,7 +1151,7 @@
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
             <span class="s1">&#39;Attempting to access the full covariance matrix of the kite&#39;</span>
             <span class="s1">&#39; scene </span><span class="si">%s</span><span class="s1">. If this is not precalculated it will be calculated &#39;</span>
-            <span class="s1">&#39;now, which may take a significant amount of time...&#39;</span> <span class="o">%</span><span class="n">name</span><span class="p">)</span>
+            <span class="s1">&#39;now, which may take a significant amount of time...&#39;</span> <span class="o">%</span> <span class="n">name</span><span class="p">)</span>
         <span class="n">covariance</span> <span class="o">=</span> <span class="n">Covariance</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">scene</span><span class="o">.</span><span class="n">covariance</span><span class="o">.</span><span class="n">covariance_matrix</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="n">scene</span><span class="o">.</span><span class="n">quadtree</span><span class="o">.</span><span class="n">frame</span><span class="o">.</span><span class="n">isDegree</span><span class="p">():</span>
@@ -1131,13 +1183,12 @@
             <span class="n">leaf_idxs_cols</span> <span class="o">=</span> <span class="n">scene</span><span class="o">.</span><span class="n">quadtree</span><span class="o">.</span><span class="n">leaf_eastings</span> <span class="o">/</span> <span class="n">scene</span><span class="o">.</span><span class="n">frame</span><span class="o">.</span><span class="n">dE</span>
 
             <span class="n">points</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">leaf_idxs_cols</span><span class="p">,</span> <span class="n">leaf_idxs_rows</span><span class="p">])</span><span class="o">.</span><span class="n">T</span>
-            <span class="k">for</span> <span class="n">vertices</span> <span class="ow">in</span> <span class="n">polygons</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>    <span class="c1">#vertexes [cols, rows]</span>
+            <span class="k">for</span> <span class="n">vertices</span> <span class="ow">in</span> <span class="n">polygons</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>    <span class="c1"># vertexes [cols, rows]</span>
                 <span class="n">p</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">vertices</span><span class="p">)</span>
                 <span class="n">mask</span> <span class="o">|=</span> <span class="n">p</span><span class="o">.</span><span class="n">contains_points</span><span class="p">(</span><span class="n">points</span><span class="p">)</span>
 
         <span class="k">else</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;No polygon mask in </span><span class="si">%s</span><span class="s1">!&#39;</span> <span class="o">%</span> <span class="n">name</span><span class="p">)</span>
-
 
         <span class="n">d</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
             <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
@@ -1177,7 +1228,7 @@
 <div class="viewcode-block" id="init_seismic_targets"><a class="viewcode-back" href="../api.html#heart.init_seismic_targets">[docs]</a><span class="k">def</span> <span class="nf">init_seismic_targets</span><span class="p">(</span>
         <span class="n">stations</span><span class="p">,</span> <span class="n">earth_model_name</span><span class="o">=</span><span class="s1">&#39;ak135-f-average.m&#39;</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;T&#39;</span><span class="p">,</span> <span class="s1">&#39;Z&#39;</span><span class="p">],</span>
         <span class="n">sample_rate</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">crust_inds</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;multilinear&#39;</span><span class="p">,</span>
-        <span class="n">reference_location</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">blacklist</span><span class="o">=</span><span class="p">[]):</span>
+        <span class="n">reference_location</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Initiate a list of target objects given a list of indexes to the</span>
 <span class="sd">    respective GF store velocity model variation index (crust_inds).</span>
@@ -1203,7 +1254,6 @@
 <span class="sd">    reference_location : :class:`ReferenceLocation` or</span>
 <span class="sd">        :class:`pyrocko.model.Station`</span>
 <span class="sd">        if given, targets are initialised with this reference location</span>
-<span class="sd">    blacklist : stations that are blacklisted later</span>
 
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
@@ -1226,12 +1276,9 @@
             <span class="k">for</span> <span class="n">crust_ind</span> <span class="ow">in</span> <span class="n">crust_inds</span><span class="p">:</span>
                 <span class="n">cha</span> <span class="o">=</span> <span class="n">station</span><span class="o">.</span><span class="n">get_channel</span><span class="p">(</span><span class="n">channel</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">cha</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="k">if</span> <span class="n">station</span><span class="o">.</span><span class="n">station</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">blacklist</span><span class="p">:</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
-                            <span class="s1">&#39;Channel &quot;</span><span class="si">%s</span><span class="s1">&quot; for station &quot;</span><span class="si">%s</span><span class="s1">&quot; does not exist!&#39;</span>
-                            <span class="s1">&#39; Putting station into blacklist!&#39;</span> <span class="o">%</span> <span class="p">(</span>
-                                <span class="n">channel</span><span class="p">,</span> <span class="n">station</span><span class="o">.</span><span class="n">station</span><span class="p">))</span>
-                        <span class="n">blacklist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">station</span><span class="o">.</span><span class="n">station</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="s1">&#39;Channel &quot;</span><span class="si">%s</span><span class="s1">&quot; for station &quot;</span><span class="si">%s</span><span class="s1">&quot; does not exist!&#39;</span>
+                        <span class="o">%</span> <span class="p">(</span><span class="n">channel</span><span class="p">,</span> <span class="n">station</span><span class="o">.</span><span class="n">station</span><span class="p">))</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">targets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">DynamicTarget</span><span class="p">(</span>
                         <span class="n">quantity</span><span class="o">=</span><span class="s1">&#39;displacement&#39;</span><span class="p">,</span>
@@ -1253,7 +1300,7 @@
 
 <span class="k">def</span> <span class="nf">get_store_id</span><span class="p">(</span><span class="n">prefix</span><span class="p">,</span> <span class="n">earth_model_name</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">,</span> <span class="n">crust_ind</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
     <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">_</span><span class="si">%s</span><span class="s1">_</span><span class="si">%.3f</span><span class="s1">Hz_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span>
-            <span class="n">prefix</span><span class="p">,</span> <span class="n">earth_model_name</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">,</span> <span class="n">crust_ind</span><span class="p">)</span>
+        <span class="n">prefix</span><span class="p">,</span> <span class="n">earth_model_name</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">,</span> <span class="n">crust_ind</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="init_geodetic_targets"><a class="viewcode-back" href="../api.html#heart.init_geodetic_targets">[docs]</a><span class="k">def</span> <span class="nf">init_geodetic_targets</span><span class="p">(</span>
@@ -1389,8 +1436,8 @@
                         <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
                     <span class="k">else</span><span class="p">:</span>
                         <span class="n">layer</span><span class="o">.</span><span class="n">mbot</span><span class="o">.</span><span class="n">vp</span> <span class="o">+=</span> <span class="n">deltavp</span>
-                        <span class="n">layer</span><span class="o">.</span><span class="n">mbot</span><span class="o">.</span><span class="n">vs</span> <span class="o">+=</span> <span class="p">(</span><span class="n">deltavp</span> <span class="o">/</span>
-                                          <span class="n">layer</span><span class="o">.</span><span class="n">mbot</span><span class="o">.</span><span class="n">vp_vs_ratio</span><span class="p">())</span>
+                        <span class="n">layer</span><span class="o">.</span><span class="n">mbot</span><span class="o">.</span><span class="n">vs</span> <span class="o">+=</span> <span class="p">(</span>
+                            <span class="n">deltavp</span> <span class="o">/</span> <span class="n">layer</span><span class="o">.</span><span class="n">mbot</span><span class="o">.</span><span class="n">vp_vs_ratio</span><span class="p">())</span>
                         <span class="n">repeat</span> <span class="o">=</span> <span class="mi">0</span>
                         <span class="n">cost</span> <span class="o">+=</span> <span class="n">count</span>
                 <span class="k">elif</span> <span class="n">layer</span><span class="o">.</span><span class="n">mtop</span><span class="o">.</span><span class="n">vp</span> <span class="o">+</span> <span class="n">deltavp</span> <span class="o">/</span> <span class="mi">10</span> <span class="o">&lt;</span> <span class="n">last_l</span><span class="o">.</span><span class="n">mbot</span><span class="o">.</span><span class="n">vp</span><span class="p">:</span>
@@ -1656,9 +1703,14 @@
     <span class="c1"># define phases</span>
     <span class="n">tabulated_phases</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">if</span> <span class="s1">&#39;any_P&#39;</span> <span class="ow">in</span> <span class="n">waveforms</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">sf</span><span class="o">.</span><span class="n">earth_model_name</span> <span class="o">==</span> <span class="s1">&#39;local&#39;</span><span class="p">:</span>
+            <span class="n">definition</span> <span class="o">=</span> <span class="s1">&#39;p,P,p</span><span class="se">\\</span><span class="s1">,P</span><span class="se">\\</span><span class="s1">&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">definition</span> <span class="o">=</span> <span class="s1">&#39;p,P,p</span><span class="se">\\</span><span class="s1">,P</span><span class="se">\\</span><span class="s1">,Pv_(cmb)p&#39;</span>
+
         <span class="n">tabulated_phases</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">gf</span><span class="o">.</span><span class="n">TPDef</span><span class="p">(</span>
             <span class="nb">id</span><span class="o">=</span><span class="s1">&#39;any_P&#39;</span><span class="p">,</span>
-            <span class="n">definition</span><span class="o">=</span><span class="s1">&#39;p,P,p</span><span class="se">\\</span><span class="s1">,P</span><span class="se">\\</span><span class="s1">&#39;</span><span class="p">))</span>
+            <span class="n">definition</span><span class="o">=</span><span class="n">definition</span><span class="p">))</span>
 
     <span class="k">if</span> <span class="s1">&#39;any_S&#39;</span> <span class="ow">in</span> <span class="n">waveforms</span><span class="p">:</span>
         <span class="n">tabulated_phases</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">gf</span><span class="o">.</span><span class="n">TPDef</span><span class="p">(</span>
@@ -1720,7 +1772,7 @@
             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
                 <span class="s1">&#39;Receiver and source&#39;</span>
                 <span class="s1">&#39; site structures have to be identical as distance&#39;</span>
-                <span class="s1">&#39; and ray depth not high enough for common reeiver&#39;</span>
+                <span class="s1">&#39; and ray depth not high enough for common receiver&#39;</span>
                 <span class="s1">&#39; depth!&#39;</span><span class="p">)</span>
             <span class="n">receiver_model</span> <span class="o">=</span> <span class="kc">None</span>
             <span class="n">slowness_taper</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">)</span>
@@ -1753,8 +1805,8 @@
             <span class="n">slowness_max</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">slowness_taper</span><span class="p">)),</span>
             <span class="n">toroidal_modes</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
             <span class="n">spheroidal_modes</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-            <span class="n">source_patch_radius</span><span class="o">=</span><span class="p">(</span><span class="n">fc</span><span class="o">.</span><span class="n">distance_delta</span> <span class="o">-</span>
-                                 <span class="n">fc</span><span class="o">.</span><span class="n">distance_delta</span> <span class="o">*</span> <span class="mf">0.05</span><span class="p">)</span> <span class="o">/</span> <span class="n">km</span><span class="p">)</span>
+            <span class="n">source_patch_radius</span><span class="o">=</span><span class="p">(</span>
+                <span class="n">fc</span><span class="o">.</span><span class="n">distance_delta</span> <span class="o">-</span> <span class="n">fc</span><span class="o">.</span><span class="n">distance_delta</span> <span class="o">*</span> <span class="mf">0.05</span><span class="p">)</span> <span class="o">/</span> <span class="n">km</span><span class="p">)</span>
 
     <span class="k">elif</span> <span class="n">code</span> <span class="o">==</span> <span class="s1">&#39;qseis2d&#39;</span><span class="p">:</span>
         <span class="n">version</span> <span class="o">=</span> <span class="s1">&#39;2014&#39;</span>
@@ -2036,8 +2088,9 @@
 
     <span class="n">c</span> <span class="o">=</span> <span class="n">psgrn</span><span class="o">.</span><span class="n">PsGrnConfigFull</span><span class="p">()</span>
 
-    <span class="n">n_steps_depth</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">gfc</span><span class="o">.</span><span class="n">source_depth_max</span> <span class="o">-</span> <span class="n">gfc</span><span class="o">.</span><span class="n">source_depth_min</span><span class="p">)</span> <span class="o">/</span>
-                        <span class="n">gfc</span><span class="o">.</span><span class="n">source_depth_spacing</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">n_steps_depth</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">gfc</span><span class="o">.</span><span class="n">source_depth_max</span> <span class="o">-</span> <span class="n">gfc</span><span class="o">.</span><span class="n">source_depth_min</span><span class="p">)</span> <span class="o">/</span>
+        <span class="n">gfc</span><span class="o">.</span><span class="n">source_depth_spacing</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
     <span class="n">n_steps_distance</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span>
         <span class="p">(</span><span class="n">gfc</span><span class="o">.</span><span class="n">source_distance_max</span> <span class="o">-</span> <span class="n">gfc</span><span class="o">.</span><span class="n">source_distance_min</span><span class="p">)</span> <span class="o">/</span>
         <span class="n">gfc</span><span class="o">.</span><span class="n">source_distance_spacing</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
@@ -2243,7 +2296,7 @@
 <span class="sd">        of :class:`pyrocko.gf.target.Target`</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">stations</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Z&#39;</span><span class="p">],</span>
-                 <span class="n">datasets</span><span class="o">=</span><span class="p">[],</span> <span class="n">targets</span><span class="o">=</span><span class="p">[]):</span>
+                 <span class="n">datasets</span><span class="o">=</span><span class="p">[],</span> <span class="n">targets</span><span class="o">=</span><span class="p">[],</span> <span class="n">deltat</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">stations</span> <span class="o">=</span> <span class="n">stations</span>
@@ -2256,6 +2309,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_arrival_times</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_target2index</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_station2index</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">deltat</span> <span class="o">=</span> <span class="n">deltat</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">datasets</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_update_trace_wavenames</span><span class="p">()</span>
@@ -2302,6 +2357,8 @@
 <span class="sd">        Weed stations and related objects based on distances and blacklist.</span>
 <span class="sd">        Works only a single time after init!</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">empty_stations</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_station_names_without_data</span><span class="p">()</span>
+        <span class="n">blacklist</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">empty_stations</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">stations</span> <span class="o">=</span> <span class="n">utility</span><span class="o">.</span><span class="n">apply_station_blacklist</span><span class="p">(</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">stations</span><span class="p">,</span> <span class="n">blacklist</span><span class="p">)</span>
@@ -2330,6 +2387,21 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">[</span><span class="n">station</span><span class="o">.</span><span class="n">station</span> <span class="k">for</span> <span class="n">station</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stations</span><span class="p">]</span></div>
 
+    <span class="k">def</span> <span class="nf">get_station_names_without_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="n">blacklist</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">station_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_station_names</span><span class="p">()</span>
+        <span class="n">dataset_station_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">tr</span><span class="o">.</span><span class="n">station</span> <span class="k">for</span> <span class="n">tr</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">datasets</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">station_name</span> <span class="ow">in</span> <span class="n">station_names</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">station_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">dataset_station_names</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s1">&#39;Found no data for station &quot;</span><span class="si">%s</span><span class="s1">&quot; &#39;</span>
+                    <span class="s1">&#39;- removing it from setup.&#39;</span> <span class="o">%</span> <span class="n">station_name</span><span class="p">)</span>
+                <span class="n">blacklist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">station_name</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">blacklist</span>
+
     <span class="k">def</span> <span class="nf">check_consistency</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_t</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_data</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">CollectionError</span><span class="p">(</span>
@@ -2344,6 +2416,7 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Consistent number of &#39;</span>
                         <span class="s1">&#39;datasets and targets in </span><span class="si">%s</span><span class="s1"> wavemap!&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mapid</span><span class="p">)</span>
+
 
     <span class="k">def</span> <span class="nf">update_interpolation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">target</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">targets</span><span class="p">:</span>
@@ -2430,11 +2503,24 @@
                 <span class="n">filterer</span><span class="o">=</span><span class="n">filterer</span><span class="p">,</span>
                 <span class="n">arrival_times</span><span class="o">=</span><span class="n">arrival_times</span><span class="p">,</span>
                 <span class="n">outmode</span><span class="o">=</span><span class="n">outmode</span><span class="p">,</span>
-                <span class="n">chop_bounds</span><span class="o">=</span><span class="n">chop_bounds</span><span class="p">)</span>
+                <span class="n">chop_bounds</span><span class="o">=</span><span class="n">chop_bounds</span><span class="p">,</span>
+                <span class="n">deltat</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">deltat</span><span class="p">,</span>
+                <span class="n">plot</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
             <span class="bp">self</span><span class="o">.</span><span class="n">_arrival_times</span> <span class="o">=</span> <span class="n">arrival_times</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Wavemap needs configuration!&#39;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="WaveformMapping.get_highest_frequency"><a class="viewcode-back" href="../api.html#heart.WaveformMapping.get_highest_frequency">[docs]</a>    <span class="k">def</span> <span class="nf">get_highest_frequency</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Loop over filterers and return highest frequency.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">highest_fs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">filt</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">filterer</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">filt</span><span class="p">,</span> <span class="n">Filter</span><span class="p">):</span>
+                <span class="n">highest_fs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">filt</span><span class="o">.</span><span class="n">upper_corner</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">highest_fs</span><span class="p">)</span></div>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">shared_data_array</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -2463,14 +2549,18 @@
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
+<span class="sd">    stations : List of :class:`pyrocko.model.Station`</span>
+<span class="sd">        List of station objects that are contained in the dataset</span>
 <span class="sd">    waveforms : list</span>
 <span class="sd">        of strings of tabulated phases that are to be used for misfit</span>
 <span class="sd">        calculation</span>
+<span class="sd">    target_deltat : float</span>
+<span class="sd">        sampling interval the data is going to be downsampled to</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stations</span><span class="p">,</span> <span class="n">waveforms</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stations</span><span class="p">,</span> <span class="n">waveforms</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">target_deltat</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">stations</span> <span class="o">=</span> <span class="n">stations</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">waveforms</span> <span class="o">=</span> <span class="n">waveforms</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_deltat</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_deltat</span> <span class="o">=</span> <span class="n">target_deltat</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_targets</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_datasets</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_raw_datasets</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
@@ -2588,7 +2678,8 @@
     <span class="k">def</span> <span class="nf">n_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_datasets</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
 
-    <span class="k">def</span> <span class="nf">get_waveform_mapping</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">waveform</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Z&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">,</span> <span class="s1">&#39;R&#39;</span><span class="p">]):</span>
+    <span class="k">def</span> <span class="nf">get_waveform_mapping</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">waveform</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Z&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">,</span> <span class="s1">&#39;R&#39;</span><span class="p">],</span> <span class="n">quantity</span><span class="o">=</span><span class="s1">&#39;displacement&#39;</span><span class="p">):</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_check_collection</span><span class="p">(</span><span class="n">waveform</span><span class="p">,</span> <span class="n">errormode</span><span class="o">=</span><span class="s1">&#39;not_in&#39;</span><span class="p">)</span>
 
@@ -2602,9 +2693,10 @@
         <span class="n">datasets</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">discard_targets</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">target</span> <span class="ow">in</span> <span class="n">targets</span><span class="p">:</span>
+            <span class="n">target</span><span class="o">.</span><span class="n">quantity</span> <span class="o">=</span> <span class="n">quantity</span>
             <span class="n">nslc_id</span> <span class="o">=</span> <span class="n">target</span><span class="o">.</span><span class="n">codes</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="n">dtrace</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_datasets</span><span class="p">[</span><span class="n">nslc_id</span><span class="p">]</span>
+                <span class="n">dtrace</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_raw_datasets</span><span class="p">[</span><span class="n">nslc_id</span><span class="p">]</span>
                 <span class="n">datasets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dtrace</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
@@ -2636,7 +2728,8 @@
             <span class="n">stations</span><span class="o">=</span><span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stations</span><span class="p">),</span>
             <span class="n">datasets</span><span class="o">=</span><span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">datasets</span><span class="p">),</span>
             <span class="n">targets</span><span class="o">=</span><span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">targets</span><span class="p">),</span>
-            <span class="n">channels</span><span class="o">=</span><span class="n">channels</span><span class="p">)</span></div>
+            <span class="n">channels</span><span class="o">=</span><span class="n">channels</span><span class="p">,</span>
+            <span class="n">deltat</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_deltat</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="concatenate_datasets"><a class="viewcode-back" href="../api.html#heart.concatenate_datasets">[docs]</a><span class="k">def</span> <span class="nf">concatenate_datasets</span><span class="p">(</span><span class="n">datasets</span><span class="p">):</span>
@@ -2694,8 +2787,6 @@
 
     <span class="n">wavenames</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">get_waveform_names</span><span class="p">()</span>
 
-    <span class="n">target_deltat</span> <span class="o">=</span> <span class="mf">1.</span> <span class="o">/</span> <span class="n">sc</span><span class="o">.</span><span class="n">gf_config</span><span class="o">.</span><span class="n">sample_rate</span>
-
     <span class="n">targets</span> <span class="o">=</span> <span class="n">init_seismic_targets</span><span class="p">(</span>
         <span class="n">stations</span><span class="p">,</span>
         <span class="n">earth_model_name</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">gf_config</span><span class="o">.</span><span class="n">earth_model_name</span><span class="p">,</span>
@@ -2704,10 +2795,14 @@
         <span class="n">crust_inds</span><span class="o">=</span><span class="p">[</span><span class="n">sc</span><span class="o">.</span><span class="n">gf_config</span><span class="o">.</span><span class="n">reference_model_idx</span><span class="p">],</span>
         <span class="n">reference_location</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">gf_config</span><span class="o">.</span><span class="n">reference_location</span><span class="p">)</span>
 
-    <span class="n">datahandler</span> <span class="o">=</span> <span class="n">DataWaveformCollection</span><span class="p">(</span><span class="n">stations</span><span class="p">,</span> <span class="n">wavenames</span><span class="p">)</span>
+    <span class="n">target_deltat</span> <span class="o">=</span> <span class="mf">1.</span> <span class="o">/</span> <span class="n">sc</span><span class="o">.</span><span class="n">gf_config</span><span class="o">.</span><span class="n">sample_rate</span>
+
+    <span class="n">datahandler</span> <span class="o">=</span> <span class="n">DataWaveformCollection</span><span class="p">(</span><span class="n">stations</span><span class="p">,</span> <span class="n">wavenames</span><span class="p">,</span> <span class="n">target_deltat</span><span class="p">)</span>
     <span class="n">datahandler</span><span class="o">.</span><span class="n">add_datasets</span><span class="p">(</span>
         <span class="n">data_traces</span><span class="p">,</span> <span class="n">location</span><span class="o">=</span><span class="n">sc</span><span class="o">.</span><span class="n">gf_config</span><span class="o">.</span><span class="n">reference_model_idx</span><span class="p">)</span>
-    <span class="n">datahandler</span><span class="o">.</span><span class="n">adjust_sampling_datasets</span><span class="p">(</span><span class="n">target_deltat</span><span class="p">,</span> <span class="n">snap</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="c1"># decimation needs to come after filtering</span>
+    <span class="c1"># datahandler.adjust_sampling_datasets(target_deltat, snap=True)</span>
     <span class="n">datahandler</span><span class="o">.</span><span class="n">add_targets</span><span class="p">(</span><span class="n">targets</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">responses_path</span><span class="p">:</span>
         <span class="n">responses</span> <span class="o">=</span> <span class="n">utility</span><span class="o">.</span><span class="n">load_objects</span><span class="p">(</span><span class="n">responses_path</span><span class="p">)</span>
@@ -2736,7 +2831,8 @@
 <span class="sd">    wmap : :class:`WaveformMapping`</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">wc</span> <span class="o">=</span> <span class="n">waveformfit_config</span>
-    <span class="n">wmap</span> <span class="o">=</span> <span class="n">datahandler</span><span class="o">.</span><span class="n">get_waveform_mapping</span><span class="p">(</span><span class="n">wc</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="n">wc</span><span class="o">.</span><span class="n">channels</span><span class="p">)</span>
+    <span class="n">wmap</span> <span class="o">=</span> <span class="n">datahandler</span><span class="o">.</span><span class="n">get_waveform_mapping</span><span class="p">(</span>
+        <span class="n">wc</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">channels</span><span class="o">=</span><span class="n">wc</span><span class="o">.</span><span class="n">channels</span><span class="p">,</span> <span class="n">quantity</span><span class="o">=</span><span class="n">wc</span><span class="o">.</span><span class="n">quantity</span><span class="p">)</span>
     <span class="n">wmap</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">wc</span>
     <span class="n">wmap</span><span class="o">.</span><span class="n">mapnumber</span> <span class="o">=</span> <span class="n">mapnumber</span>
 
@@ -2754,7 +2850,7 @@
 
 
 <div class="viewcode-block" id="post_process_trace"><a class="viewcode-back" href="../api.html#heart.post_process_trace">[docs]</a><span class="k">def</span> <span class="nf">post_process_trace</span><span class="p">(</span>
-        <span class="n">trace</span><span class="p">,</span> <span class="n">taper</span><span class="p">,</span> <span class="n">filterer</span><span class="p">,</span> <span class="n">taper_tolerance_factor</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span>
+        <span class="n">trace</span><span class="p">,</span> <span class="n">taper</span><span class="p">,</span> <span class="n">filterer</span><span class="p">,</span> <span class="n">taper_tolerance_factor</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">deltat</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">outmode</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">chop_bounds</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;b&#39;</span><span class="p">,</span> <span class="s1">&#39;c&#39;</span><span class="p">],</span> <span class="n">transfer_function</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Taper, filter and then chop one trace in place.</span>
@@ -2763,7 +2859,8 @@
 <span class="sd">    ----------</span>
 <span class="sd">    trace : :class:`SeismicDataset`</span>
 <span class="sd">    arrival_taper : :class:`pyrocko.trace.Taper`</span>
-<span class="sd">    filterer : :class:`Filterer`</span>
+<span class="sd">    filterer : list</span>
+<span class="sd">        of :class:`Filterer`</span>
 <span class="sd">    taper_tolerance_factor : float</span>
 <span class="sd">        default: 0 , cut exactly at the taper edges</span>
 <span class="sd">        taper.fadein times this factor determines added tolerance</span>
@@ -2781,17 +2878,12 @@
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;transfer trace: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">trace</span><span class="o">.</span><span class="fm">__str__</span><span class="p">())</span>
 
     <span class="k">if</span> <span class="n">filterer</span><span class="p">:</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">filterer</span><span class="p">,</span> <span class="n">Filter</span><span class="p">):</span>
-            <span class="c1"># filter traces</span>
-            <span class="n">trace</span><span class="o">.</span><span class="n">bandpass</span><span class="p">(</span>
-                <span class="n">corner_hp</span><span class="o">=</span><span class="n">filterer</span><span class="o">.</span><span class="n">lower_corner</span><span class="p">,</span>
-                <span class="n">corner_lp</span><span class="o">=</span><span class="n">filterer</span><span class="o">.</span><span class="n">upper_corner</span><span class="p">,</span>
-                <span class="n">order</span><span class="o">=</span><span class="n">filterer</span><span class="o">.</span><span class="n">order</span><span class="p">)</span>
+        <span class="c1"># apply all the filters</span>
+        <span class="k">for</span> <span class="n">filt</span> <span class="ow">in</span> <span class="n">filterer</span><span class="p">:</span>
+            <span class="n">filt</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">trace</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">filterer</span><span class="p">,</span> <span class="n">FrequencyFilter</span><span class="p">):</span>
-            <span class="n">trace</span> <span class="o">=</span> <span class="n">trace</span><span class="o">.</span><span class="n">transfer</span><span class="p">(</span>
-                <span class="n">filterer</span><span class="o">.</span><span class="n">tfade</span><span class="p">,</span> <span class="n">filterer</span><span class="o">.</span><span class="n">freqlimits</span><span class="p">,</span>
-                <span class="n">invert</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">cut_off_fading</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">deltat</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">trace</span> <span class="o">=</span> <span class="n">utility</span><span class="o">.</span><span class="n">downsample_trace</span><span class="p">(</span><span class="n">trace</span><span class="p">,</span> <span class="n">deltat</span><span class="p">,</span> <span class="n">snap</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">taper</span> <span class="ow">and</span> <span class="n">outmode</span> <span class="o">!=</span> <span class="s1">&#39;data&#39;</span><span class="p">:</span>
         <span class="n">tolerance</span> <span class="o">=</span> <span class="p">(</span><span class="n">taper</span><span class="o">.</span><span class="n">b</span> <span class="o">-</span> <span class="n">taper</span><span class="o">.</span><span class="n">a</span><span class="p">)</span> <span class="o">*</span> <span class="n">taper_tolerance_factor</span>
@@ -2929,10 +3021,15 @@
             <span class="n">t</span><span class="o">.</span><span class="n">update_target_times</span><span class="p">(</span><span class="n">sources</span><span class="p">,</span> <span class="n">taperer</span><span class="p">)</span>
 
     <span class="n">t_2</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
-    <span class="n">response</span> <span class="o">=</span> <span class="n">engine</span><span class="o">.</span><span class="n">process</span><span class="p">(</span>
-        <span class="n">sources</span><span class="o">=</span><span class="n">sources</span><span class="p">,</span>
-        <span class="n">targets</span><span class="o">=</span><span class="n">targets</span><span class="p">,</span> <span class="n">nprocs</span><span class="o">=</span><span class="n">nprocs</span><span class="p">)</span>
-    <span class="n">t_1</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">response</span> <span class="o">=</span> <span class="n">engine</span><span class="o">.</span><span class="n">process</span><span class="p">(</span>
+            <span class="n">sources</span><span class="o">=</span><span class="n">sources</span><span class="p">,</span>
+            <span class="n">targets</span><span class="o">=</span><span class="n">targets</span><span class="p">,</span> <span class="n">nprocs</span><span class="o">=</span><span class="n">nprocs</span><span class="p">)</span>
+        <span class="n">t_1</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
+    <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">source</span> <span class="ow">in</span> <span class="n">sources</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The GF store returned an empty trace!&#39;</span><span class="p">)</span>
 
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Synthetics generation time: </span><span class="si">%f</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">t_1</span> <span class="o">-</span> <span class="n">t_2</span><span class="p">))</span>
     <span class="c1"># logger.debug(&#39;Details: %s \n&#39; % response.stats)</span>
@@ -2969,11 +3066,11 @@
 
     <span class="k">if</span> <span class="n">arrival_taper</span> <span class="ow">and</span> <span class="n">outmode</span> <span class="o">!=</span> <span class="s1">&#39;data&#39;</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">synths</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">tr</span><span class="o">.</span><span class="n">ydata</span> <span class="k">for</span> <span class="n">tr</span> <span class="ow">in</span> <span class="n">synt_trcs</span><span class="p">])</span>
+            <span class="n">synths</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">trc</span><span class="o">.</span><span class="n">ydata</span> <span class="k">for</span> <span class="n">trc</span> <span class="ow">in</span> <span class="n">synt_trcs</span><span class="p">])</span>
         <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-            <span class="n">lengths</span> <span class="o">=</span> <span class="p">[</span><span class="n">tr</span><span class="o">.</span><span class="n">ydata</span><span class="o">.</span><span class="n">size</span> <span class="k">for</span> <span class="n">tr</span> <span class="ow">in</span> <span class="n">synt_trcs</span><span class="p">]</span>
-            <span class="n">tmins</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">tr</span><span class="o">.</span><span class="n">tmin</span> <span class="k">for</span> <span class="n">tr</span> <span class="ow">in</span> <span class="n">synt_trcs</span><span class="p">])</span>
-            <span class="n">tmaxs</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">tr</span><span class="o">.</span><span class="n">tmax</span> <span class="k">for</span> <span class="n">tr</span> <span class="ow">in</span> <span class="n">synt_trcs</span><span class="p">])</span>
+            <span class="n">lengths</span> <span class="o">=</span> <span class="p">[</span><span class="n">trc</span><span class="o">.</span><span class="n">ydata</span><span class="o">.</span><span class="n">size</span> <span class="k">for</span> <span class="n">trc</span> <span class="ow">in</span> <span class="n">synt_trcs</span><span class="p">]</span>
+            <span class="n">tmins</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">trc</span><span class="o">.</span><span class="n">tmin</span> <span class="k">for</span> <span class="n">trc</span> <span class="ow">in</span> <span class="n">synt_trcs</span><span class="p">])</span>
+            <span class="n">tmaxs</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">trc</span><span class="o">.</span><span class="n">tmax</span> <span class="k">for</span> <span class="n">trc</span> <span class="ow">in</span> <span class="n">synt_trcs</span><span class="p">])</span>
             <span class="n">tmins</span> <span class="o">-=</span> <span class="n">tmins</span><span class="o">.</span><span class="n">min</span><span class="p">()</span>
 
             <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;lengths&#39;</span><span class="p">,</span> <span class="n">lengths</span><span class="p">)</span>
@@ -3001,7 +3098,7 @@
         <span class="n">tmins</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">getattr</span><span class="p">(</span><span class="n">at</span><span class="p">,</span> <span class="n">chop_bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">at</span> <span class="ow">in</span> <span class="n">taperers</span><span class="p">])</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># no taper defined so return trace tmins</span>
-        <span class="n">tmins</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">tr</span><span class="o">.</span><span class="n">tmin</span> <span class="k">for</span> <span class="n">tr</span> <span class="ow">in</span> <span class="n">synt_trcs</span><span class="p">])</span>
+        <span class="n">tmins</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">trc</span><span class="o">.</span><span class="n">tmin</span> <span class="k">for</span> <span class="n">trc</span> <span class="ow">in</span> <span class="n">synt_trcs</span><span class="p">])</span>
 
     <span class="k">if</span> <span class="n">outmode</span> <span class="o">==</span> <span class="s1">&#39;stacked_traces&#39;</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">arrival_taper</span><span class="p">:</span>
@@ -3110,7 +3207,7 @@
 
 
 <div class="viewcode-block" id="taper_filter_traces"><a class="viewcode-back" href="../api.html#heart.taper_filter_traces">[docs]</a><span class="k">def</span> <span class="nf">taper_filter_traces</span><span class="p">(</span>
-        <span class="n">traces</span><span class="p">,</span> <span class="n">arrival_taper</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">filterer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">traces</span><span class="p">,</span> <span class="n">arrival_taper</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">filterer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">deltat</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">arrival_times</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">plot</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">outmode</span><span class="o">=</span><span class="s1">&#39;array&#39;</span><span class="p">,</span>
         <span class="n">taper_tolerance_factor</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">chop_bounds</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;b&#39;</span><span class="p">,</span> <span class="s1">&#39;c&#39;</span><span class="p">]):</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -3122,7 +3219,10 @@
 <span class="sd">    traces : List</span>
 <span class="sd">        containing :class:`pyrocko.trace.Trace` objects</span>
 <span class="sd">    arrival_taper : :class:`ArrivalTaper`</span>
-<span class="sd">    filterer : :class:`Filterer`</span>
+<span class="sd">    filterer : list</span>
+<span class="sd">        of :class:`Filterer`</span>
+<span class="sd">    deltat : float</span>
+<span class="sd">        if set data is downsampled to that sampling interval</span>
 <span class="sd">    arrival_times : list or:class:`numpy.ndarray`</span>
 <span class="sd">        containing the start times [s] since 1st.January 1970 to start</span>
 <span class="sd">        tapering</span>
@@ -3159,6 +3259,7 @@
             <span class="n">trace</span><span class="o">=</span><span class="n">cut_trace</span><span class="p">,</span>
             <span class="n">taper</span><span class="o">=</span><span class="n">taper</span><span class="p">,</span>
             <span class="n">filterer</span><span class="o">=</span><span class="n">filterer</span><span class="p">,</span>
+            <span class="n">deltat</span><span class="o">=</span><span class="n">deltat</span><span class="p">,</span>
             <span class="n">taper_tolerance_factor</span><span class="o">=</span><span class="n">taper_tolerance_factor</span><span class="p">,</span>
             <span class="n">outmode</span><span class="o">=</span><span class="n">outmode</span><span class="p">,</span>
             <span class="n">chop_bounds</span><span class="o">=</span><span class="n">chop_bounds</span><span class="p">)</span>
@@ -3171,15 +3272,20 @@
     <span class="k">if</span> <span class="n">outmode</span> <span class="o">==</span> <span class="s1">&#39;array&#39;</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">arrival_taper</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Returning chopped traces ...&#39;</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span>
-                <span class="p">[</span><span class="n">cut_traces</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">ydata</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">traces</span><span class="p">))])</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span>
+                    <span class="p">[</span><span class="n">ctr</span><span class="o">.</span><span class="n">ydata</span> <span class="k">for</span> <span class="n">ctr</span> <span class="ow">in</span> <span class="n">cut_traces</span><span class="p">])</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s1">&#39;Traces have different length, cannot return array!&#39;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">IOError</span><span class="p">(</span><span class="s1">&#39;Cannot return array without tapering!&#39;</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">cut_traces</span></div>
 
 
-<div class="viewcode-block" id="velocities_from_pole"><a class="viewcode-back" href="../api.html#heart.velocities_from_pole">[docs]</a><span class="k">def</span> <span class="nf">velocities_from_pole</span><span class="p">(</span><span class="n">lats</span><span class="p">,</span> <span class="n">lons</span><span class="p">,</span> <span class="n">plat</span><span class="p">,</span> <span class="n">plon</span><span class="p">,</span> <span class="n">omega</span><span class="p">,</span> <span class="n">earth_shape</span><span class="o">=</span><span class="s1">&#39;ellipsoid&#39;</span><span class="p">):</span>
+<div class="viewcode-block" id="velocities_from_pole"><a class="viewcode-back" href="../api.html#heart.velocities_from_pole">[docs]</a><span class="k">def</span> <span class="nf">velocities_from_pole</span><span class="p">(</span>
+        <span class="n">lats</span><span class="p">,</span> <span class="n">lons</span><span class="p">,</span> <span class="n">plat</span><span class="p">,</span> <span class="n">plon</span><span class="p">,</span> <span class="n">omega</span><span class="p">,</span> <span class="n">earth_shape</span><span class="o">=</span><span class="s1">&#39;ellipsoid&#39;</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Return horizontal velocities at input locations for rotation around</span>
 <span class="sd">    given Euler pole</span>

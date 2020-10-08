@@ -138,6 +138,21 @@ Please make sure that these ranges are wide enough in depths and distances!</p>
 </div>
 </li>
 </ol>
+<div class="line-block">
+<div class="line"><strong>7. Cannot connect to display while working remotely</strong></div>
+</div>
+<p>X forwarding needs to be activated in the ssh config! For linux:</p>
+<ol class="arabic">
+<li><p class="first">vi /etc/ssh/ssh_config</p>
+</li>
+<li><p class="first">set “X11Forwarding” to “yes”, save and close</p>
+</li>
+<li><p class="first">in the shell run:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">systemctl</span> <span class="n">restart</span> <span class="n">sshd</span>   <span class="c1"># could require sudo rights</span>
+</pre></div>
+</div>
+</li>
+</ol>
 </div>
 
 

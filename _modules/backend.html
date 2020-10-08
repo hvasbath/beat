@@ -127,9 +127,15 @@
 <span class="kn">from</span> <span class="nn">beat.config</span> <span class="k">import</span> <span class="n">sample_p_outname</span><span class="p">,</span> <span class="n">transd_vars_dist</span>
 <span class="kn">from</span> <span class="nn">beat.covariance</span> <span class="k">import</span> <span class="n">calc_sample_covariance</span>
 <span class="kn">from</span> <span class="nn">beat.utility</span> <span class="k">import</span> <span class="n">load_objects</span><span class="p">,</span> <span class="n">dump_objects</span><span class="p">,</span> \
-    <span class="n">ListArrayOrdering</span><span class="p">,</span> <span class="n">ListToArrayBijection</span>
+    <span class="n">ListArrayOrdering</span><span class="p">,</span> <span class="n">ListToArrayBijection</span><span class="p">,</span> <span class="n">list2string</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;backend&#39;</span><span class="p">)</span>
+
+
+<span class="n">derived_variables_mapping</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;MTQTSource&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;mnn&#39;</span><span class="p">,</span> <span class="s1">&#39;mee&#39;</span><span class="p">,</span> <span class="s1">&#39;mdd&#39;</span><span class="p">,</span> <span class="s1">&#39;mne&#39;</span><span class="p">,</span> <span class="s1">&#39;mnd&#39;</span><span class="p">,</span> <span class="s1">&#39;med&#39;</span><span class="p">],</span>
+    <span class="s1">&#39;MTSource&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;strike1&#39;</span><span class="p">,</span> <span class="s1">&#39;strike2&#39;</span><span class="p">,</span> <span class="s1">&#39;dip1&#39;</span><span class="p">,</span> <span class="s1">&#39;dip2&#39;</span><span class="p">,</span> <span class="s1">&#39;rake1&#39;</span><span class="p">,</span> <span class="s1">&#39;rake2&#39;</span><span class="p">],</span>
+<span class="p">}</span>
 
 
 <div class="viewcode-block" id="thin_buffer"><a class="viewcode-back" href="../api.html#backend.thin_buffer">[docs]</a><span class="k">def</span> <span class="nf">thin_buffer</span><span class="p">(</span><span class="n">buffer</span><span class="p">,</span> <span class="n">buffer_thinning</span><span class="p">,</span> <span class="n">ensure_last</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
@@ -355,6 +361,24 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">buffer</span><span class="p">)</span>
 
+    <span class="k">def</span> <span class="nf">add_derived_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source_type</span><span class="p">,</span> <span class="n">n_sources</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">varnames</span> <span class="o">=</span> <span class="n">derived_variables_mapping</span><span class="p">[</span><span class="n">source_type</span><span class="p">]</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="s1">&#39;Adding derived variables </span><span class="si">%s</span><span class="s1"> to &#39;</span>
+                <span class="s1">&#39;trace.&#39;</span> <span class="o">%</span> <span class="n">list2string</span><span class="p">(</span><span class="n">varnames</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;No derived variables for </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">source_type</span><span class="p">)</span>
+            <span class="n">varnames</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">varname</span> <span class="ow">in</span> <span class="n">varnames</span><span class="p">:</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">n_sources</span><span class="p">,)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">flat_names</span><span class="p">[</span><span class="n">varname</span><span class="p">]</span> <span class="o">=</span> <span class="n">ttab</span><span class="o">.</span><span class="n">create_flat_names</span><span class="p">(</span><span class="n">varname</span><span class="p">,</span> <span class="n">shape</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">var_shapes</span><span class="p">[</span><span class="n">varname</span><span class="p">]</span> <span class="o">=</span> <span class="n">shape</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">var_dtypes</span><span class="p">[</span><span class="n">varname</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;float64&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">varnames</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">varname</span><span class="p">)</span>
+
     <span class="k">def</span> <span class="nf">_load_df</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;This method must be defined in inheriting classes!&#39;</span><span class="p">)</span>
 
@@ -540,7 +564,7 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filename</span><span class="p">)</span>
-            <span class="k">except</span> <span class="n">pd</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">EmptyDataError</span><span class="p">:</span>
+            <span class="k">except</span> <span class="n">EmptyDataError</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                     <span class="s1">&#39;Trace </span><span class="si">%s</span><span class="s1"> is empty and needs to be resampled!&#39;</span> <span class="o">%</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">filename</span><span class="p">)</span>
@@ -579,10 +603,15 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_load_df</span><span class="p">()</span>
 
-        <span class="n">var_df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">flat_names</span><span class="p">[</span><span class="n">varname</span><span class="p">]]</span>
-        <span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">var_shapes</span><span class="p">[</span><span class="n">varname</span><span class="p">]</span>
-        <span class="n">vals</span> <span class="o">=</span> <span class="n">var_df</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">vals</span><span class="p">[</span><span class="n">burn</span><span class="p">::</span><span class="n">thin</span><span class="p">]</span></div>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">var_df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">flat_names</span><span class="p">[</span><span class="n">varname</span><span class="p">]]</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">var_shapes</span><span class="p">[</span><span class="n">varname</span><span class="p">]</span>
+            <span class="n">vals</span> <span class="o">=</span> <span class="n">var_df</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">vals</span><span class="p">[</span><span class="n">burn</span><span class="p">::</span><span class="n">thin</span><span class="p">]</span>
+        <span class="k">except</span><span class="p">(</span><span class="ne">KeyError</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;Did not find varname &quot;</span><span class="si">%s</span><span class="s1">&quot; in sampling &#39;</span>
+                <span class="s1">&#39;results! Fixed?&#39;</span> <span class="o">%</span> <span class="n">varname</span><span class="p">)</span></div>
 
     <span class="k">def</span> <span class="nf">_slice</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">idx</span><span class="o">.</span><span class="n">stop</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -798,10 +827,15 @@
 
     <span class="k">def</span> <span class="nf">get_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">varname</span><span class="p">,</span> <span class="n">burn</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">thin</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_load_df</span><span class="p">()</span>
-        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">varname</span><span class="p">]</span>
-        <span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">var_shapes</span><span class="p">[</span><span class="n">varname</span><span class="p">]</span>
-        <span class="n">vals</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">vals</span><span class="p">[</span><span class="n">burn</span><span class="p">::</span><span class="n">thin</span><span class="p">]</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="p">[</span><span class="n">varname</span><span class="p">]</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_df</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">var_shapes</span><span class="p">[</span><span class="n">varname</span><span class="p">]</span>
+            <span class="n">vals</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">vals</span><span class="p">[</span><span class="n">burn</span><span class="p">::</span><span class="n">thin</span><span class="p">]</span>
+        <span class="k">except</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;Did not find varname &quot;</span><span class="si">%s</span><span class="s1">&quot; in sampling &#39;</span>
+                <span class="s1">&#39;results! Fixed?&#39;</span> <span class="o">%</span> <span class="n">varname</span><span class="p">)</span>
 
 <div class="viewcode-block" id="NumpyChain.point"><a class="viewcode-back" href="../api.html#backend.NumpyChain.point">[docs]</a>    <span class="k">def</span> <span class="nf">point</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -1064,7 +1098,9 @@
             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Loading end points of last completed stage: &#39;</span>
                         <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">prev_stage_path</span><span class="p">)</span>
             <span class="n">mtrace</span> <span class="o">=</span> <span class="n">load_multitrace</span><span class="p">(</span>
-                <span class="n">dirname</span><span class="o">=</span><span class="n">prev_stage_path</span><span class="p">,</span> <span class="n">varnames</span><span class="o">=</span><span class="n">varnames</span><span class="p">,</span> <span class="n">backend</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">backend</span><span class="p">)</span>
+                <span class="n">dirname</span><span class="o">=</span><span class="n">prev_stage_path</span><span class="p">,</span>
+                <span class="n">varnames</span><span class="o">=</span><span class="n">varnames</span><span class="p">,</span>
+                <span class="n">backend</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">backend</span><span class="p">)</span>
 
             <span class="n">step</span><span class="o">.</span><span class="n">population</span><span class="p">,</span> <span class="n">step</span><span class="o">.</span><span class="n">array_population</span><span class="p">,</span> <span class="n">step</span><span class="o">.</span><span class="n">likelihoods</span> <span class="o">=</span> \
                 <span class="n">step</span><span class="o">.</span><span class="n">select_end_points</span><span class="p">(</span><span class="n">mtrace</span><span class="p">)</span>
@@ -1230,8 +1266,8 @@
 <span class="sd">        problem mode that has been solved (&#39;geometry&#39;, &#39;static&#39;, &#39;kinematic&#39;)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">stage_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">project_dir</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="s1">&#39;stage_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">stage_number</span><span class="p">,</span>
-        <span class="n">sample_p_outname</span><span class="p">)</span>
+    <span class="n">stage_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+        <span class="n">project_dir</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="s1">&#39;stage_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">stage_number</span><span class="p">,</span> <span class="n">sample_p_outname</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">load_objects</span><span class="p">(</span><span class="n">stage_path</span><span class="p">)</span></div>
 
 

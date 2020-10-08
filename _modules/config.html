@@ -151,10 +151,10 @@
 <span class="s1">    &#39;&#39;&#39;</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
 
 <span class="n">source_catalog</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">source_class</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">source_class</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
-<span class="n">source_names</span><span class="p">,</span> <span class="n">source_classes</span><span class="p">)}</span>
+    <span class="n">source_names</span><span class="p">,</span> <span class="n">source_classes</span><span class="p">)}</span>
 
 <span class="n">stf_catalog</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">stf_class</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">stf_class</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
-<span class="n">stf_names</span><span class="p">,</span> <span class="n">stf_classes</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">4</span><span class="p">])}</span>
+    <span class="n">stf_names</span><span class="p">,</span> <span class="n">stf_classes</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">4</span><span class="p">])}</span>
 
 <span class="n">interseismic_vars</span> <span class="o">=</span> <span class="p">[</span>
     <span class="s1">&#39;east_shift&#39;</span><span class="p">,</span> <span class="s1">&#39;north_shift&#39;</span><span class="p">,</span> <span class="s1">&#39;strike&#39;</span><span class="p">,</span> <span class="s1">&#39;dip&#39;</span><span class="p">,</span> <span class="s1">&#39;length&#39;</span><span class="p">,</span>
@@ -168,7 +168,7 @@
 
 <span class="n">kinematic_dist_vars</span> <span class="o">=</span> <span class="n">static_dist_vars</span> <span class="o">+</span> <span class="n">partial_kinematic_vars</span> <span class="o">+</span> <span class="n">hypo_vars</span>
 <span class="n">transd_vars_dist</span> <span class="o">=</span> <span class="n">partial_kinematic_vars</span> <span class="o">+</span> <span class="n">static_dist_vars</span> <span class="o">+</span> \
-<span class="n">voronoi_locations</span>
+    <span class="n">voronoi_locations</span>
 <span class="n">dist_vars</span> <span class="o">=</span> <span class="n">static_dist_vars</span> <span class="o">+</span> <span class="n">partial_kinematic_vars</span>
 
 <span class="n">interseismic_catalog</span> <span class="o">=</span> <span class="p">{</span>
@@ -221,7 +221,7 @@
     <span class="n">mnd</span><span class="o">=</span><span class="n">moffdiag</span><span class="p">,</span>
     <span class="n">med</span><span class="o">=</span><span class="n">moffdiag</span><span class="p">,</span>
 
-    <span class="n">u</span><span class="o">=</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">3.</span> <span class="o">/</span> <span class="mf">4.</span> <span class="o">*</span> <span class="n">num</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
+    <span class="n">w</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">3.</span> <span class="o">/</span> <span class="mf">8.</span> <span class="o">*</span> <span class="n">num</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mf">3.</span> <span class="o">/</span> <span class="mf">8.</span> <span class="o">*</span> <span class="n">num</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
     <span class="n">v</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">1.</span> <span class="o">/</span> <span class="mi">3</span><span class="p">,</span> <span class="mf">1.</span> <span class="o">/</span> <span class="mf">3.</span><span class="p">),</span>
     <span class="n">kappa</span><span class="o">=</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">num</span><span class="o">.</span><span class="n">pi</span><span class="p">),</span>
     <span class="n">sigma</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="n">num</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mf">2.</span><span class="p">,</span> <span class="n">num</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mf">2.</span><span class="p">),</span>
@@ -253,7 +253,7 @@
     <span class="n">bl_amplitude</span><span class="o">=</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">),</span>
     <span class="n">locking_depth</span><span class="o">=</span><span class="p">(</span><span class="mf">1.</span><span class="p">,</span> <span class="mf">10.</span><span class="p">),</span>
 
-    <span class="n">hypers</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">20.</span><span class="p">,</span> <span class="mf">20.</span><span class="p">),</span>
+    <span class="n">hypers</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">5.</span><span class="p">,</span> <span class="mf">8.</span><span class="p">),</span>
     <span class="n">ramp</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">0.005</span><span class="p">,</span> <span class="mf">0.005</span><span class="p">),</span>
     <span class="n">offset</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.05</span><span class="p">),</span>
     <span class="n">lat</span><span class="o">=</span><span class="p">(</span><span class="mf">30.</span><span class="p">,</span> <span class="mf">30.5</span><span class="p">),</span>
@@ -271,11 +271,13 @@
 <span class="n">geodetic_data_name</span> <span class="o">=</span> <span class="s1">&#39;geodetic_data.pkl&#39;</span>
 <span class="n">seismic_data_name</span> <span class="o">=</span> <span class="s1">&#39;seismic_data.pkl&#39;</span>
 
+
 <span class="k">def</span> <span class="nf">multi_event_seismic_data_name</span><span class="p">(</span><span class="n">nevent</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
     <span class="k">if</span> <span class="n">nevent</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">seismic_data_name</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">return</span> <span class="s1">&#39;seismic_data_subevent_</span><span class="si">{}</span><span class="s1">.pkl&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">nevent</span><span class="p">)</span>
+
 
 <span class="n">linear_gf_dir_name</span> <span class="o">=</span> <span class="s1">&#39;linear_gfs&#39;</span>
 <span class="n">results_dir_name</span> <span class="o">=</span> <span class="s1">&#39;results&#39;</span>
@@ -289,6 +291,7 @@
 <span class="n">km</span> <span class="o">=</span> <span class="mf">1000.</span>
 
 
+<span class="n">_quantity_choices</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;displacement&#39;</span><span class="p">,</span> <span class="s1">&#39;velocity&#39;</span><span class="p">]</span>
 <span class="n">_interpolation_choices</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;nearest_neighbor&#39;</span><span class="p">,</span> <span class="s1">&#39;multilinear&#39;</span><span class="p">]</span>
 <span class="n">_structure_choices</span> <span class="o">=</span> <span class="n">available_noise_structures</span><span class="p">()</span>
 <span class="n">_mode_choices</span> <span class="o">=</span> <span class="p">[</span><span class="n">geometry_mode_str</span><span class="p">,</span> <span class="n">ffi_mode_str</span><span class="p">]</span>
@@ -509,8 +512,8 @@
     <span class="n">resolution_thresh</span> <span class="o">=</span> <span class="n">Float</span><span class="o">.</span><span class="n">T</span><span class="p">(</span>
         <span class="n">default</span><span class="o">=</span><span class="mf">0.95</span><span class="p">,</span>
         <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Resolution threshold discretization continues until all patches &#39;</span>
-             <span class="s1">&#39;are below this threshold. The lower the finer the discretization. &#39;</span>
-             <span class="s1">&#39;Reasonable between: [0.95, 0.99]&#39;</span><span class="p">)</span>
+             <span class="s1">&#39;are below this threshold. The lower the finer the &#39;</span>
+             <span class="s1">&#39;discretization. Reasonable between: [0.95, 0.99]&#39;</span><span class="p">)</span>
     <span class="n">depth_penalty</span> <span class="o">=</span> <span class="n">Float</span><span class="o">.</span><span class="n">T</span><span class="p">(</span>
         <span class="n">default</span><span class="o">=</span><span class="mf">3.5</span><span class="p">,</span>
         <span class="n">help</span><span class="o">=</span><span class="s1">&#39;The higher the number the more penalty on the deeper &#39;</span>
@@ -632,8 +635,15 @@
         <span class="n">String</span><span class="o">.</span><span class="n">T</span><span class="p">(),</span>
         <span class="n">default</span><span class="o">=</span><span class="p">[],</span>
         <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Station name for stations to be thrown out.&#39;</span><span class="p">)</span>
+    <span class="n">quantity</span> <span class="o">=</span> <span class="n">StringChoice</span><span class="o">.</span><span class="n">T</span><span class="p">(</span>
+        <span class="n">choices</span><span class="o">=</span><span class="n">_quantity_choices</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="s1">&#39;displacement&#39;</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Quantity of synthetics to be computed.&#39;</span><span class="p">)</span>
     <span class="n">channels</span> <span class="o">=</span> <span class="n">List</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">String</span><span class="o">.</span><span class="n">T</span><span class="p">(),</span> <span class="n">default</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Z&#39;</span><span class="p">])</span>
-    <span class="n">filterer</span> <span class="o">=</span> <span class="n">FilterBase</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">Filter</span><span class="o">.</span><span class="n">D</span><span class="p">())</span>
+    <span class="n">filterer</span> <span class="o">=</span> <span class="n">List</span><span class="o">.</span><span class="n">T</span><span class="p">(</span>
+        <span class="n">FilterBase</span><span class="o">.</span><span class="n">T</span><span class="p">(</span>
+            <span class="n">default</span><span class="o">=</span><span class="n">Filter</span><span class="o">.</span><span class="n">D</span><span class="p">()),</span>
+        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;List of Filters that are applied in the order of the list.&#39;</span><span class="p">)</span>
     <span class="n">distances</span> <span class="o">=</span> <span class="n">Tuple</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">Float</span><span class="o">.</span><span class="n">T</span><span class="p">(),</span> <span class="n">default</span><span class="o">=</span><span class="p">(</span><span class="mf">30.</span><span class="p">,</span> <span class="mf">90.</span><span class="p">))</span>
     <span class="n">interpolation</span> <span class="o">=</span> <span class="n">StringChoice</span><span class="o">.</span><span class="n">T</span><span class="p">(</span>
         <span class="n">choices</span><span class="o">=</span><span class="n">_interpolation_choices</span><span class="p">,</span>

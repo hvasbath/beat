@@ -404,7 +404,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">arrival_taper</span> <span class="o">=</span> <span class="n">arrival_taper</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">arrival_times</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">arrival_times</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">wavename</span> <span class="o">=</span> <span class="n">wavename</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">filterer</span> <span class="o">=</span> <span class="n">filterer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filterer</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">filterer</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">pre_stack_cut</span> <span class="o">=</span> <span class="n">pre_stack_cut</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">station_corrections</span> <span class="o">=</span> <span class="n">station_corrections</span>
 
@@ -500,7 +500,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">sample_rate</span> <span class="o">=</span> <span class="n">sample_rate</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">traces</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">traces</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">arrival_taper</span> <span class="o">=</span> <span class="n">arrival_taper</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">filterer</span> <span class="o">=</span> <span class="n">filterer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filterer</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">filterer</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">make_node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">inputs</span><span class="p">):</span>
         <span class="n">inlist</span> <span class="o">=</span> <span class="p">[]</span>

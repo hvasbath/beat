@@ -94,7 +94,7 @@ Below are a series of commands that might be able to get you up and running usin
 </pre></div>
 </div>
 <p>Download and install several required packages:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">conda</span> <span class="n">install</span> <span class="o">-</span><span class="n">n</span> <span class="n">beat</span> <span class="n">libgfortran</span> <span class="n">openblas</span> <span class="n">theano</span> <span class="n">pygpu</span> <span class="n">openmpi</span> <span class="n">pandas</span><span class="o">=</span><span class="mf">0.24</span><span class="o">.</span><span class="mi">2</span> <span class="n">numpy</span><span class="o">=</span><span class="mf">1.17</span><span class="o">.</span><span class="mi">1</span> <span class="n">openmpi</span>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">conda</span> <span class="n">install</span> <span class="o">-</span><span class="n">n</span> <span class="n">beat</span> <span class="n">libgfortran</span> <span class="n">openblas</span> <span class="n">theano</span> <span class="n">pygpu</span> <span class="n">openmpi</span> <span class="n">pandas</span> <span class="n">numpy</span> <span class="n">openmpi</span>
 </pre></div>
 </div>
 <p>Configure theano to find your libraries by creating a file “.theanorc” in your home directory containing:</p>
@@ -107,9 +107,6 @@ Below are a series of commands that might be able to get you up and running usin
 <span class="p">[</span><span class="k">global</span><span class="p">]</span>
 <span class="n">device</span> <span class="o">=</span> <span class="n">cpu</span>
 <span class="n">floatX</span> <span class="o">=</span> <span class="n">float64</span>
-
-<span class="p">[</span><span class="n">lib</span><span class="p">]</span>
-<span class="n">amdlibm</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># if applicable set True here (also see detailed instructions)</span>
 </pre></div>
 </div>
 <p>For testing if numpy and theano installations worked fine:</p>

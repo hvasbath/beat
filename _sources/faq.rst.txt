@@ -51,4 +51,12 @@ Unfortunately, some incompatibility arose from beta to version 1.0. Finite fault
 
     beat build_gfs $project_folder --mode=ffi --force --datatypes=$datatypes
 
+| **7. Cannot connect to display while working remotely**
 
+X forwarding needs to be activated in the ssh config! For linux:
+
+1. vi /etc/ssh/ssh_config
+2. set "X11Forwarding" to "yes", save and close 
+3. in the shell run::
+
+    systemctl restart sshd   # could require sudo rights

@@ -77,7 +77,7 @@
           <div class="body" role="main">
             
   <h1>Source code for pyrocko.gf.meta</h1><div class="highlight"><pre>
-<span></span><span class="c1"># https://pyrocko.org - GPLv3</span>
+<span></span><span class="c1"># http://pyrocko.org - GPLv3</span>
 <span class="c1">#</span>
 <span class="c1"># The Pyrocko Developers, 21st Century</span>
 <span class="c1"># ---|P------/S----------~Lg----------</span>
@@ -99,6 +99,7 @@
 <span class="kn">from</span> <span class="nn">pyrocko.model</span> <span class="k">import</span> <span class="n">Location</span><span class="p">,</span> <span class="n">gnss</span>
 
 <span class="kn">from</span> <span class="nn">pyrocko</span> <span class="k">import</span> <span class="n">cake</span><span class="p">,</span> <span class="n">orthodrome</span><span class="p">,</span> <span class="n">spit</span><span class="p">,</span> <span class="n">moment_tensor</span><span class="p">,</span> <span class="n">trace</span>
+<span class="kn">from</span> <span class="nn">pyrocko.util</span> <span class="k">import</span> <span class="n">num_full</span>
 
 <span class="kn">from</span> <span class="nn">.error</span> <span class="k">import</span> <span class="n">StoreError</span>
 
@@ -384,6 +385,7 @@
 <span class="k">class</span> <span class="nc">QuantityType</span><span class="p">(</span><span class="n">StringChoice</span><span class="p">):</span>
     <span class="n">choices</span> <span class="o">=</span> <span class="p">[</span>
         <span class="s1">&#39;displacement&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;rotation&#39;</span><span class="p">,</span>
         <span class="s1">&#39;velocity&#39;</span><span class="p">,</span>
         <span class="s1">&#39;acceleration&#39;</span><span class="p">,</span>
         <span class="s1">&#39;pressure&#39;</span><span class="p">,</span>
@@ -831,10 +833,6 @@
     <span class="n">north_shifts</span> <span class="o">=</span> <span class="n">Array</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">num</span><span class="o">.</span><span class="n">float</span><span class="p">,</span> <span class="n">optional</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">east_shifts</span> <span class="o">=</span> <span class="n">Array</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">num</span><span class="o">.</span><span class="n">float</span><span class="p">,</span> <span class="n">optional</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">depths</span> <span class="o">=</span> <span class="n">Array</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">num</span><span class="o">.</span><span class="n">float</span><span class="p">)</span>
-    <span class="n">dl</span> <span class="o">=</span> <span class="n">Float</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">optional</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="n">dw</span> <span class="o">=</span> <span class="n">Float</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">optional</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="n">nl</span> <span class="o">=</span> <span class="n">Float</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">optional</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="n">nw</span> <span class="o">=</span> <span class="n">Float</span><span class="o">.</span><span class="n">T</span><span class="p">(</span><span class="n">optional</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">check_scheme</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">scheme</span><span class="p">):</span>
@@ -1017,7 +1015,6 @@
 
         <span class="n">cat</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">concatenate</span>
         <span class="n">times</span> <span class="o">=</span> <span class="n">cat</span><span class="p">([</span><span class="n">s</span><span class="o">.</span><span class="n">times</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sources</span><span class="p">])</span>
-        <span class="nb">print</span><span class="p">(</span><span class="n">times</span><span class="p">)</span>
         <span class="n">depths</span> <span class="o">=</span> <span class="n">cat</span><span class="p">([</span><span class="n">s</span><span class="o">.</span><span class="n">depths</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sources</span><span class="p">])</span>
 
         <span class="k">if</span> <span class="n">same_ref</span><span class="p">:</span>
@@ -2460,7 +2457,7 @@
         <span class="n">receiver_times</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">ireceiver</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nreceivers</span><span class="p">):</span>
             <span class="n">nodes</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span>
-                <span class="n">num</span><span class="o">.</span><span class="n">full</span><span class="p">(</span>
+                <span class="n">num_full</span><span class="p">(</span>
                     <span class="p">(</span><span class="n">nodes_sr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">),</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">coords</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">ireceiver</span><span class="p">]),</span>
                 <span class="n">nodes_sr</span><span class="p">])</span>

@@ -84,7 +84,6 @@
 <span class="kn">from</span> <span class="nn">scipy.linalg</span> <span class="k">import</span> <span class="n">toeplitz</span>
 
 <span class="kn">import</span> <span class="nn">logging</span>
-<span class="kn">import</span> <span class="nn">copy</span>
 
 <span class="kn">from</span> <span class="nn">beat</span> <span class="k">import</span> <span class="n">heart</span>
 <span class="kn">from</span> <span class="nn">beat.utility</span> <span class="k">import</span> <span class="n">ensure_cov_psd</span><span class="p">,</span> <span class="n">running_window_rms</span><span class="p">,</span> <span class="n">list2string</span>
@@ -127,9 +126,10 @@
 
 <span class="sd">    i,j are samples of the seismic trace</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span>
-        <span class="o">-</span><span class="n">num</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">num</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n</span><span class="p">)[:,</span> <span class="n">num</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span> <span class="o">-</span>
-                 <span class="n">num</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n</span><span class="p">)[</span><span class="n">num</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:])</span> <span class="o">*</span> <span class="n">dt</span> <span class="o">/</span> <span class="n">tzero</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">num</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">num</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span>
+        <span class="n">num</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n</span><span class="p">)[:,</span> <span class="n">num</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span> <span class="o">-</span> <span class="n">num</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n</span><span class="p">)[</span><span class="n">num</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:])</span> <span class="o">*</span> <span class="p">(</span>
+        <span class="n">dt</span> <span class="o">/</span> <span class="n">tzero</span><span class="p">))</span>
+
 
 <span class="k">def</span> <span class="nf">identity_data_covariance</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tzero</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -258,7 +258,7 @@
 
     <span class="k">def</span> <span class="nf">get_structure</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">wmap</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">):</span>
 
-        <span class="n">tzero</span> <span class="o">=</span> <span class="mf">1.</span> <span class="o">/</span> <span class="n">wmap</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">filterer</span><span class="o">.</span><span class="n">upper_corner</span>
+        <span class="n">tzero</span> <span class="o">=</span> <span class="mf">1.</span> <span class="o">/</span> <span class="n">wmap</span><span class="o">.</span><span class="n">get_highest_frequency</span><span class="p">()</span>
         <span class="n">dt</span> <span class="o">=</span> <span class="mf">1.</span> <span class="o">/</span> <span class="n">sample_rate</span>
         <span class="n">ataper</span> <span class="o">=</span> <span class="n">wmap</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">arrival_taper</span>
         <span class="n">n</span> <span class="o">=</span> <span class="n">ataper</span><span class="o">.</span><span class="n">nsamples</span><span class="p">(</span><span class="n">sample_rate</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">chop_bounds</span><span class="p">)</span>
@@ -317,19 +317,33 @@
                     <span class="n">target</span><span class="o">=</span><span class="n">target</span><span class="p">,</span>
                     <span class="n">wavename</span><span class="o">=</span><span class="n">wmap</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
 
-            <span class="k">if</span> <span class="n">filterer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">filterer</span><span class="p">:</span>
                 <span class="n">ctrace</span> <span class="o">=</span> <span class="n">tr</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-                <span class="n">ctrace</span><span class="o">.</span><span class="n">bandpass</span><span class="p">(</span>
-                    <span class="n">corner_hp</span><span class="o">=</span><span class="n">filterer</span><span class="o">.</span><span class="n">lower_corner</span><span class="p">,</span>
-                    <span class="n">corner_lp</span><span class="o">=</span><span class="n">filterer</span><span class="o">.</span><span class="n">upper_corner</span><span class="p">,</span>
-                    <span class="n">order</span><span class="o">=</span><span class="n">filterer</span><span class="o">.</span><span class="n">order</span><span class="p">)</span>
+                <span class="c1"># apply all the filters</span>
+                <span class="k">for</span> <span class="n">filt</span> <span class="ow">in</span> <span class="n">filterer</span><span class="p">:</span>
+                    <span class="n">filt</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">ctrace</span><span class="p">)</span>
 
             <span class="n">ctrace</span> <span class="o">=</span> <span class="n">ctrace</span><span class="o">.</span><span class="n">chop</span><span class="p">(</span>
                 <span class="n">tmin</span><span class="o">=</span><span class="n">tr</span><span class="o">.</span><span class="n">tmin</span><span class="p">,</span>
                 <span class="n">tmax</span><span class="o">=</span><span class="n">arrival_time</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_arrival_time</span><span class="p">)</span>
 
-            <span class="n">scaling</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="n">ctrace</span><span class="o">.</span><span class="n">get_ydata</span><span class="p">())</span>
-            <span class="n">scalings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">scaling</span><span class="p">)</span>
+            <span class="n">nslc_id_str</span> <span class="o">=</span> <span class="n">list2string</span><span class="p">(</span><span class="n">ctrace</span><span class="o">.</span><span class="n">nslc_id</span><span class="p">)</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">ctrace</span><span class="o">.</span><span class="n">get_ydata</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s1">&#39;Trace </span><span class="si">%s</span><span class="s1"> contains no pre-P arrival data! Please either &#39;</span>
+                    <span class="s1">&#39;remove/blacklist or make sure data contains times before&#39;</span>
+                    <span class="s1">&#39; the P arrival time!&#39;</span> <span class="o">%</span> <span class="n">nslc_id_str</span><span class="p">)</span>
+
+            <span class="n">scaling</span> <span class="o">=</span> <span class="n">num</span><span class="o">.</span><span class="n">nanvar</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">num</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">scaling</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="s1">&#39;Variance estimate of </span><span class="si">%s</span><span class="s1"> = </span><span class="si">%g</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">nslc_id_str</span><span class="p">,</span> <span class="n">scaling</span><span class="p">))</span>
+                <span class="n">scalings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">scaling</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s1">&#39;Pre P-trace of </span><span class="si">%s</span><span class="s1"> contains Inf or&#39;</span>
+                    <span class="s1">&#39; NaN!&#39;</span> <span class="o">%</span> <span class="n">nslc_id_str</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">scalings</span>
 
@@ -505,8 +519,9 @@
 <span class="sd">        determines tapering around phase Arrival</span>
 <span class="sd">    arrival_time : None or :class:`numpy.NdArray` or float</span>
 <span class="sd">        of phase to apply taper, if None theoretic arrival of ray tracing used</span>
-<span class="sd">    filterer : :class:`heart.Filter`</span>
-<span class="sd">        determines the bandpass-filtering corner frequencies</span>
+<span class="sd">    filterer : list</span>
+<span class="sd">        of :class:`heart.Filter` determining the filtering corner frequencies</span>
+<span class="sd">        of various filters</span>
 <span class="sd">    plot : boolean</span>
 <span class="sd">        open snuffler and browse traces if True</span>
 <span class="sd">    n_jobs : int</span>
