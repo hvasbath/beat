@@ -4075,7 +4075,7 @@ def draw_station_map_gmt(problem, po):
 
     gmtconfig = get_gmt_config(gmtpy, h=h, w=h)
 
-    def draw_time_shifts_stations(gmt, point, wmap, *args):
+    def draw_time_shifts_stations(gmt, point, wmap, dist, *args):
         """
         Draw MAP time-shifts at station locations as colored triangles
         """
@@ -4107,10 +4107,18 @@ def draw_station_map_gmt(problem, po):
             S='t14p',
             *args)
 
+        if dist > 30.:
+            D = 'x1.5c/0c+w6c/0.5c+jMC+h'
+            F = False
+        else:
+            D = 'x5.5c/4.1c+w6c/0.5c+jMC+h'
+            F = '+gwhite'
+
         # add a colorbar
         gmt.psscale(
             B='xa%s +l time shifts [s]' % num.floor(bound),
-            D='x1.5c/0c+w6c/0.5c+jMC+h',
+            D=D,
+            F=F,
             C=cptfilepath)
 
     def draw_events(gmt, events, *args):
@@ -4172,7 +4180,7 @@ def draw_station_map_gmt(problem, po):
 
                 if point:
                     draw_time_shifts_stations(
-                        gmt, point, wmap, *(
+                        gmt, point, wmap, dist, *(
                             '-J%s' % J_location, '-R%s' % R_location))
                 else:
                     gmt.psxy(
@@ -4233,7 +4241,7 @@ def draw_station_map_gmt(problem, po):
 
                 if point:
                     draw_time_shifts_stations(
-                        m.gmt, point, wmap, *m.jxyr)
+                        m.gmt, point, wmap, dist, *m.jxyr)
 
                     for st in wmap.stations:
                         text = '{}.{}'.format(st.network, st.station)
