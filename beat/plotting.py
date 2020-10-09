@@ -266,6 +266,7 @@ def spherical_kde_op(
             'Init new spherical kde samples')
         kde = num.zeros(grid_size)
 
+    logger.info('Drawing lune plot for %i samples ... ' %  lats0.size)
     for cyc in range(cycles):
         cyc_s = cyc * batch_size
         cyc_e = cyc_s + batch_size
@@ -276,6 +277,7 @@ def spherical_kde_op(
             lats=lats, lons=lons,
             lats0=lats0[cyc_s:cyc_e], lons0=lons0[cyc_s:cyc_e], sigma=sigma)
         kde += num.exp(vmf).sum(axis=-1)
+
     return kde, lats, lons
 
 
@@ -4272,6 +4274,7 @@ def draw_lune_plot(problem, po):
 
     stage = load_stage(
         problem, stage_number=po.load_stage, load='trace', chains=[-1])
+    n_mts = len(stage.mtrace)
 
     result_ensemble = {}
     for varname in ['v', 'w']:
@@ -4279,7 +4282,6 @@ def draw_lune_plot(problem, po):
             result_ensemble[varname] = stage.mtrace.get_values(
                 varname, combine=True, squeeze=True).ravel()
         except ValueError:  # if fixed value add that to the ensemble
-            n_mts = len(stage.mtrace)
             rpoint = problem.get_random_point()
             result_ensemble[varname] = num.full_like(
                 num.empty((n_mts), dtype=num.float64), rpoint[varname])
@@ -4290,11 +4292,20 @@ def draw_lune_plot(problem, po):
         'lune_%i_%s_%i.%s' % (
             po.load_stage, po.post_llk, po.nensemble, po.outformat))
 
+    if po.nensemble > 1:
+        logger.info('Plotting selected ensemble as nensemble > 1 ...')
+        selected = num.linspace(
+            0, n_mts, po.nensemble, dtype='int', endpoint=False)
+        v_tape = result_ensemble['v'][selected]
+        w_tape = result_ensemble['w'][selected]
+    else:
+        logger.info('Plotting whole posterior ...')
+        v_tape = result_ensemble['v']
+        w_tape = result_ensemble['w']
+
     if not os.path.exists(outpath) or po.force or po.outformat == 'display':
         logger.info('Drawing Lune plot ...')
-        gmt = lune_plot(            # this explodes for large sample sizes ...
-            v_tape=result_ensemble['v'],
-            w_tape=result_ensemble['w'])
+        gmt = lune_plot(v_tape=v_tape, w_tape=w_tape)
 
         logger.info('saving figure to %s' % outpath)
         gmt.save(outpath, resolution=300, size=10)
@@ -4350,10 +4361,11 @@ def lune_plot(v_tape=None, w_tape=None):
             gmt, v_tape, w_tape, grid_size=(200, 200), R=None, J=None):
 
         def check_fixed(a, varname):
-            if a.std() == 0:
+            if a.std() < 0.2:
                 logger.info(
-                    'Variable "%s" got fixed to %f, adding some jitter to'
-                    ' make kde estimate possible' % (varname, a[0]))
+                    'Spread of variable "%s" is %f, which is below necessary width to '
+                    'estimate a spherical kde, adding some jitter to'
+                    ' make kde estimate possible' % (varname, a.std()))
                 a += num.random.normal(loc=0., scale=0.25, size=a.size)
 
         from beat.sources import v_to_gamma, w_to_delta
