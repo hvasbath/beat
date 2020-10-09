@@ -250,10 +250,10 @@ def vonmises_fisher(lats, lons, lats0, lons0, sigma=1.):
         return x + num.log(1. - num.exp(-2. * x)) - num.log(2.)
 
     # transform to [0-pi, 0-2pi]
-    lats_t = 90. + lats
-    lons_t = 180. + lons
-    lats0_t = 90. + lats0
-    lons0_t = 180. + lons0
+    lats_t = 90. - lats
+    lons_t = num.mod(lons, 360.)
+    lats0_t = 90. - lats0
+    lons0_t = num.mod(lons0, 360.)
 
     x = cartesian_from_polar(
         phi=num.deg2rad(lons_t), theta=num.deg2rad(lats_t))

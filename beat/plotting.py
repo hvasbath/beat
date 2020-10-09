@@ -250,11 +250,32 @@ def spherical_kde_op(
     if lats is not None:
         assert lats.size == lons.size
 
-    vmf = vonmises_fisher(
-        lats=lats, lons=lons,
-        lats0=lats0, lons0=lons0, sigma=sigma)
-    kde = num.exp(logsumexp(vmf, axis=-1)).reshape(   # , b=self.weights)
-        (grid_size[0], grid_size[1]))
+    batch_size = 500
+    cycles, rest = utility.mod_i(lats0.size, batch_size)
+
+    if rest != 0:
+        logger.debug(
+            'Processing rest of spherical kde samples %i' % (rest))
+        vmf = vonmises_fisher(
+            lats=lats, lons=lons,
+            lats0=lats0[-rest:], lons0=lons0[-rest:], sigma=sigma)
+        kde = num.exp(vmf).sum(axis=-1).reshape(   # , b=self.weights)
+            (grid_size[0], grid_size[1]))
+    else:
+        logger.debug(
+            'Init new spherical kde samples')
+        kde = num.zeros(grid_size)
+
+    for cyc in range(cycles):
+        cyc_s = cyc * batch_size
+        cyc_e = cyc_s + batch_size
+        logger.debug(
+            'Looping over spherical kde samples %i - %i' % (cyc_s, cyc_e))
+
+        vmf = vonmises_fisher(
+            lats=lats, lons=lons,
+            lats0=lats0[cyc_s:cyc_e], lons0=lons0[cyc_s:cyc_e], sigma=sigma)
+        kde += num.exp(vmf).sum(axis=-1)
     return kde, lats, lons
 
 
@@ -4264,8 +4285,8 @@ def draw_lune_plot(problem, po):
     if not os.path.exists(outpath) or po.force or po.outformat == 'display':
         logger.info('Drawing Lune plot ...')
         gmt = lune_plot(            # this explodes for large sample sizes ...
-            v_tape=result_ensemble['v'][::3],
-            w_tape=result_ensemble['w'][::3])
+            v_tape=result_ensemble['v'],
+            w_tape=result_ensemble['w'])
 
         logger.info('saving figure to %s' % outpath)
         gmt.save(outpath, resolution=300, size=10)
