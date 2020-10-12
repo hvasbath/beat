@@ -483,8 +483,15 @@ def correlation_plot_hist(
 
             axs[l, k].tick_params(
                 axis='both', direction='in', labelsize=fontsize)
-            axs[l, k].set_xticklabels(axs[l, k].get_xticklabels(), rotation=50)
-            axs[l, k].set_yticklabels(axs[l, k].get_yticklabels(), rotation=50)
+
+            try:    # matplotlib version issue workaround
+                axs[l, k].tick_params(
+                    axis='both', labelrotation=50.)
+            except Exception:
+                axs[l, k].set_xticklabels(
+                    axs[l, k].get_xticklabels(), rotation=50)
+                axs[l, k].set_yticklabels(
+                    axs[l, k].get_yticklabels(), rotation=50)
 
             if utility.is_odd(k):
                 axs[l, k].tick_params(axis='x', pad=label_pad)
