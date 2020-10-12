@@ -192,9 +192,9 @@ def str_duration(t):
 
     t = abs(t)
 
-    if t < 10.0:
+    if t < 60.0:
         return s + '%.2g s' % t
-    elif 10.0 <= t < 3600.:
+    elif 60.0 <= t < 3600.:
         return s + util.time_to_str(t, format='%M:%S min')
     elif 3600. <= t < 24 * 3600.:
         return s + util.time_to_str(t, format='%H:%M h')
@@ -1408,36 +1408,34 @@ def draw_gnss_fits(problem, plot_options):
                 component, po.outformat), resolution=po.dpi)
 
 
-def plot_trace(axes, tr, **kwargs):
-    return axes.plot(tr.get_xdata(), tr.get_ydata(), **kwargs)
-
-
-def plot_taper(axes, t, taper, mode='geometry', **kwargs):
-    y = num.ones(t.size) * 0.9
-    if mode == 'geometry':
-        taper(y, t[0], t[1] - t[0])
-    y2 = num.concatenate((y, -y[::-1]))
-    t2 = num.concatenate((t, t[::-1]))
-    axes.fill(t2, y2, **kwargs)
-
-
-def plot_dtrace(axes, tr, space, mi, ma, **kwargs):
-    t = tr.get_xdata()
-    y = tr.get_ydata()
-    y2 = (num.concatenate((y, num.zeros(y.size))) - mi) / \
-        (ma - mi) * space - (1.0 + space)
-    t2 = num.concatenate((t, t[::-1]))
-    axes.fill(
-        t2, y2,
-        clip_on=False,
-        **kwargs)
-
-
 def seismic_fits(problem, stage, plot_options):
     """
     Modified from grond. Plot synthetic and data waveforms and the misfit for
     the selected posterior model.
     """
+
+    def plot_trace(axes, tr, **kwargs):
+        return axes.plot(tr.get_xdata(), tr.get_ydata(), **kwargs)
+
+    def plot_taper(axes, t, taper, mode='geometry', **kwargs):
+        y = num.ones(t.size) * 0.9
+        if mode == 'geometry':
+            taper(y, t[0], t[1] - t[0])
+        y2 = num.concatenate((y, -y[::-1]))
+        t2 = num.concatenate((t, t[::-1]))
+        axes.fill(t2, y2, **kwargs)
+
+    def plot_dtrace(axes, tr, space, mi, ma, **kwargs):
+        t = tr.get_xdata()
+        y = tr.get_ydata()
+        y2 = (num.concatenate((y, num.zeros(y.size))) - mi) / \
+            (ma - mi) * space - (1.0 + space)
+        t2 = num.concatenate((t, t[::-1]))
+        axes.fill(
+            t2, y2,
+            clip_on=False,
+            **kwargs)
+
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
     composite = problem.composites['seismic']
@@ -1486,7 +1484,6 @@ def seismic_fits(problem, stage, plot_options):
 
     bvar_reductions = composite.get_variance_reductions(
         best_point, weights=composite.weights, results=bresults)
-    print(bvar_reductions)
 
     try:
         composite.point2sources(best_point)
@@ -1512,7 +1509,7 @@ def seismic_fits(problem, stage, plot_options):
         target_var_reductions.append(
             bvar_reductions[nslc_id_str])
 
-        dtraces.append(bresults[i].processed_res)
+        dtraces.append(copy.deepcopy(bresults[i].processed_res))
         if plot_options.nensemble > 1:
             for results, var_reductions in zip(
                     ens_results, ens_var_reductions):
@@ -1530,7 +1527,6 @@ def seismic_fits(problem, stage, plot_options):
 
 #    trace_minmaxs = trace.minmax(all_syn_trs, skey)
     dminmaxs = trace.minmax(dtraces, skey)
-    print(dminmaxs)
     for tr in dtraces:
         if tr:
             dmin, dmax = dminmaxs[skey(tr)]
@@ -1670,7 +1666,6 @@ def seismic_fits(problem, stage, plot_options):
 
                 if po.nensemble > 1:
                     xmin, xmax = trace.minmaxtime(traces, key=skey)[key]
-                    extent = [xmin, xmax, ymin, ymax]
                     fuzzy_waveforms(
                         axes, traces, linewidth=7, zorder=0,
                         grid_size=(500, 500), alpha=1.0)
@@ -1743,7 +1738,7 @@ def seismic_fits(problem, stage, plot_options):
 
                 for tmark in tmarks:
                     axes2.plot(
-                        [tmark, tmark], [-0.9, 0.1], color=tap_color_annot)
+                        [tmark, tmark], [-1.1, 0.1], color=tap_color_annot)
 
                 for tmark, text, ha, va in [
                         (tmarks[0],
@@ -1757,7 +1752,7 @@ def seismic_fits(problem, stage, plot_options):
 
                     axes2.annotate(
                         text,
-                        xy=(tmark, -0.9),
+                        xy=(tmark, -1.2),
                         xycoords='data',
                         xytext=(
                             fontsize * 0.4 * [-1, 1][ha == 'left'],
@@ -1784,12 +1779,24 @@ def seismic_fits(problem, stage, plot_options):
                     '\n'.join(infos),
                     xy=(0., 1.),
                     xycoords='axes fraction',
-                    xytext=(2., 2.),
+                    xytext=(1., 1.),
                     textcoords='offset points',
                     ha='left',
                     va='top',
                     fontsize=fontsize,
                     fontstyle='normal', zorder=10)
+
+                axes.annotate(
+                    '%0.3g' % -absmax,
+                    xycoords='data',
+                    xy=(tmarks[0], -absmax),
+                    xytext=(1., 1.),
+                    textcoords='offset points',
+                    ha='left',
+                    va='center',
+                    fontsize=fontsize - 3,
+                    color=obs_color,
+                    fontstyle='normal')
 
                 axes2.set_zorder(10)
 
