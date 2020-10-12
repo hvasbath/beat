@@ -87,6 +87,9 @@ hypo_vars = ['nucleation_strike', 'nucleation_dip', 'time']
 partial_kinematic_vars = ['durations', 'velocities']
 voronoi_locations = ['voronoi_strike', 'voronoi_dip']
 
+mt_components = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
+dc_components = ['strike1', 'strike2', 'dip1', 'dip2', 'rake1', 'rake2']
+
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars + hypo_vars
 transd_vars_dist = partial_kinematic_vars + static_dist_vars + \
     voronoi_locations

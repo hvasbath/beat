@@ -45,7 +45,8 @@ from pymc3.model import modelcontext
 from pymc3.step_methods.arraystep import BlockedStep
 from pyrocko import util
 
-from beat.config import sample_p_outname, transd_vars_dist
+from beat.config import (sample_p_outname, transd_vars_dist, mt_components,
+                         dc_components)
 from beat.covariance import calc_sample_covariance
 from beat.utility import load_objects, dump_objects, \
     ListArrayOrdering, ListToArrayBijection, list2string
@@ -54,8 +55,8 @@ logger = logging.getLogger('backend')
 
 
 derived_variables_mapping = {
-    'MTQTSource': ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med'],
-    'MTSource': ['strike1', 'strike2', 'dip1', 'dip2', 'rake1', 'rake2'],
+    'MTQTSource': mt_components + dc_components,
+    'MTSource': dc_components,
 }
 
 

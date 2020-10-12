@@ -977,25 +977,24 @@ def command_summarize(args):
                         derived = []
                         for source in composite.sources:
                             ldicts.append(source.scaled_m6_dict)
-                            mt = MomentTensor.from_values(source.scaled_m6)
-                            derived.append(hstack(mt.both_strike_dip_rake()))
 
                         jpoint = utility.join_points(ldicts)
                         point.update(jpoint)
                         del jpoint, ldicts
 
-                    elif isinstance(source, MTQTSource):
-                        composite.point2sources(point)
-                        derived = []
+                    composite.point2sources(point)
+                    derived = []
+                    if hasattr(source, 'get_derived_parameters'):
                         for source in composite.sources:
-                            derived.append(source.m6 / source.moment)
-
-                    else:
-                        derived = []
+                            derived.append(source.get_derived_parameters())
 
                     lpoint = problem.model.lijection.d2l(point)
                     if derived:
-                        lpoint.extend(split(vstack(derived), 6, axis=1))
+                        lpoint.extend(
+                            split(
+                                vstack(derived),
+                                source.nderived_parameters,
+                                axis=1))
 
                     # TODO: in PT with large buffer sizes somehow memory leak
                     rtrace.write(lpoint, draw=chain)
