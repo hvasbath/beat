@@ -4354,12 +4354,12 @@ def lune_plot(v_tape=None, w_tape=None):
             gmt, v_tape, w_tape, grid_size=(200, 200), R=None, J=None):
 
         def check_fixed(a, varname):
-            if a.std() < 0.2:
+            if a.std() < 0.1:
                 logger.info(
                     'Spread of variable "%s" is %f, which is below necessary width to '
                     'estimate a spherical kde, adding some jitter to'
                     ' make kde estimate possible' % (varname, a.std()))
-                a += num.random.normal(loc=0., scale=0.25, size=a.size)
+                a += num.random.normal(loc=0., scale=0.05, size=a.size)
 
         from beat.sources import v_to_gamma, w_to_delta
 
@@ -4415,7 +4415,7 @@ def lune_plot(v_tape=None, w_tape=None):
     gmt = gmtpy.GMT(config=gmtconfig)
 
     draw_lune_kde(
-        gmt, v_tape=v_tape, w_tape=w_tape, grid_size=(300, 300), R=R, J=J)
+        gmt, v_tape=v_tape, w_tape=w_tape, grid_size=(701, 301), R=R, J=J)
     gmt.psbasemap(R=R, J=J, B=B)
     draw_lune_arcs(gmt, R=R, J=J)
     draw_lune_points(gmt, R=R, J=J)
