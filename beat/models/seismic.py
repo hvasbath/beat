@@ -512,7 +512,7 @@ class SeismicComposite(Composite):
 
         assert len(weights) == len(self.datasets)
 
-        logger.info('Calculating variance reduction for solution ...')
+        logger.debug('Calculating variance reduction for solution ...')
         counter = utility.Counter()
         hp_specific = self.config.dataset_specific_residual_noise_estimation
         var_reds = OrderedDict()
@@ -536,7 +536,7 @@ class SeismicComposite(Composite):
             nenner = data.T.dot(inv_cov).dot(data)
             var_red = 1 - (zaehler / nenner)
 
-            nslc_id = utility.list2string(result.processed_obs.nslc_id)
+            nslc_id = utility.list2string(data_trc.nslc_id)
             logger.debug(
                 'Variance reduction for %s is %f' % (nslc_id, var_red))
 

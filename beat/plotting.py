@@ -668,12 +668,15 @@ def plot_scene(ax, target, data, scattersize, colim,
         edgecolors='none', vmin=-colim, vmax=colim, **kwargs)
 
 
-def format_axes(ax, remove=['right', 'top', 'left']):
+def format_axes(
+        ax, remove=['right', 'top', 'left'], linewidth=None, visible=False):
     """
     Removes box top, left and right.
     """
     for rm in remove:
-        ax.spines[rm].set_visible(False)
+        ax.spines[rm].set_visible(visible)
+        if linewidth is not None:
+            ax.spines[rm].set_linewidth(linewidth)
 
 
 def scale_axes(axis, scale, offset=0.):
@@ -1435,6 +1438,8 @@ def seismic_fits(problem, stage, plot_options):
     Modified from grond. Plot synthetic and data waveforms and the misfit for
     the selected posterior model.
     """
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
     composite = problem.composites['seismic']
 
     fontsize = 8
@@ -1450,6 +1455,8 @@ def seismic_fits(problem, stage, plot_options):
     else:
         best_point = po.reference
 
+    composite.analyse_noise(best_point, chop_bounds=['a', 'd'])
+    composite.update_weights(best_point)
     if plot_options.nensemble > 1:
         from tqdm import tqdm
         logger.info(
@@ -1459,11 +1466,15 @@ def seismic_fits(problem, stage, plot_options):
         idxs = num.floor(num.arange(0, nchains, csteps)).astype('int32')
         ens_results = []
         points = []
+        ens_var_reductions = []
         for idx in tqdm(idxs):
             point = stage.mtrace.point(idx=idx)
             points.append(point)
             results = composite.assemble_results(point)
             ens_results.append(results)
+            ens_var_reductions.append(
+                composite.get_variance_reductions(
+                    point, weights=composite.weights, results=results))
 
     if best_point:
         bresults = composite.assemble_results(
@@ -1472,6 +1483,10 @@ def seismic_fits(problem, stage, plot_options):
         # get dummy results for data
         bresults = composite.assemble_results(point)
         best_point = point
+
+    bvar_reductions = composite.get_variance_reductions(
+        best_point, weights=composite.weights, results=bresults)
+    print(bvar_reductions)
 
     try:
         composite.point2sources(best_point)
@@ -1484,29 +1499,38 @@ def seismic_fits(problem, stage, plot_options):
     logger.info('Plotting waveforms ...')
     target_to_results = {}
     all_syn_trs_target = {}
+    all_var_reductions = {}
     dtraces = []
     for target in composite.targets:
         target_results = []
         target_synths = []
+        target_var_reductions = []
         i = target_index[target]
+        nslc_id_str = utility.list2string(target.codes)
         target_results.append(bresults[i])
         target_synths.append(bresults[i].processed_syn)  # TODO
+        target_var_reductions.append(
+            bvar_reductions[nslc_id_str])
 
         dtraces.append(bresults[i].processed_res)
         if plot_options.nensemble > 1:
-            for results in ens_results:
+            for results, var_reductions in zip(
+                    ens_results, ens_var_reductions):
                 # put all results per target here not only single 
                 target_results.append(results[i])
                 target_synths.append(results[i].processed_syn)
+                target_var_reductions.append(
+                    var_reductions[nslc_id_str])
 
         target_to_results[target] = target_results
         all_syn_trs_target[target] = target_synths
+        all_var_reductions[target] = num.array(target_var_reductions) * 100.
 
     skey = lambda tr: tr.channel
 
 #    trace_minmaxs = trace.minmax(all_syn_trs, skey)
     dminmaxs = trace.minmax(dtraces, skey)
-
+    print(dminmaxs)
     for tr in dtraces:
         if tr:
             dmin, dmax = dminmaxs[skey(tr)]
@@ -1681,7 +1705,6 @@ def seismic_fits(problem, stage, plot_options):
                             axes, result.processed_syn,
                             color=syn_color, lw=0.5, zorder=5)
 
-
                 plot_trace(
                     axes, result.processed_obs,
                     color=obs_color, lw=0.5, zorder=5)
@@ -1692,6 +1715,31 @@ def seismic_fits(problem, stage, plot_options):
                 tmarks = [
                     result.processed_obs.tmin,
                     result.processed_obs.tmax]
+
+                # plot variance reductions
+                if po.nensemble > 1:
+                    in_ax = inset_axes(
+                        axes, width="100%", height="100%",
+                        bbox_to_anchor=(0.9, .8, .2, .2),
+                        bbox_transform=axes.transAxes, loc=2, borderpad=0)
+                    histplot_op(
+                        in_ax, pmp.utils.make_2d(all_var_reductions[target]),
+                        alpha=0.4, color='orange', tstd=0.)
+                    format_axes(in_ax)
+                    linewidth = 0.5
+                    format_axes(
+                        in_ax, remove=['bottom'], visible=True,
+                        linewidth=linewidth)
+                    in_ax.axvline(
+                        x=bvar_reductions[
+                            utility.list2string(target.codes)] * 100.,
+                        color='red', lw=linewidth)
+                    in_ax.tick_params(
+                        axis='both', direction='in', labelsize=5,
+                        width=linewidth)
+                    in_ax.get_yaxis().set_visible(False)
+                    xticker = tick.MaxNLocator(nbins=2)
+                    in_ax.get_xaxis().set_major_locator(xticker)
 
                 for tmark in tmarks:
                     axes2.plot(
@@ -2268,7 +2316,7 @@ def draw_hudson(problem, po):
 
 def histplot_op(
         ax, data, reference=None, alpha=.35, color=None, bins=None,
-        ntickmarks=5, tstd=None, qlist=[0.01, 99.99], kwargs={}):
+        tstd=None, qlist=[0.01, 99.99], kwargs={}):
     """
     Modified from pymc3. Additional color argument.
     """
@@ -2310,7 +2358,6 @@ def histplot_op(
             rightb = num.maximum(rightb, right)
 
         ax.set_xlim(leftb, rightb)
-        xax = ax.get_xaxis()
 
 
 def unify_tick_intervals(axs, varnames, ntickmarks_max=5, axis='x'):
@@ -2643,8 +2690,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
                     axs[rowi, coli].set_xlabel(title, fontsize=fontsize)
                     axs[rowi, coli].grid(grid)
-                    axs[rowi, coli].set_yticks([])
-                    axs[rowi, coli].set_yticklabels([])
+                    axs[rowi, coli].get_yaxis().set_visible(False)
                     format_axes(axs[rowi, coli])
                     axs[rowi, coli].tick_params(axis='x', labelsize=fontsize)
     #                axs[rowi, coli].set_ylabel("Frequency")
