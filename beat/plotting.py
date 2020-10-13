@@ -1793,6 +1793,7 @@ def seismic_fits(problem, stage, plot_options):
                     mode=composite._mode, fc='None', ec=tap_color_edge,
                     zorder=4, alpha=0.6)
 
+                time_shift_color = scolor('aluminium3')
                 obs_color = scolor('aluminium5')
                 syn_color = scolor('scarletred2')
                 misfit_color = scolor('scarletred2')
@@ -1848,10 +1849,10 @@ def seismic_fits(problem, stage, plot_options):
                             data=pmp.utils.make_2d(all_time_shifts[target]),
                             best_data=btime_shifts[itarget],
                             bbox_to_anchor=(-0.0985, .26, .2, .2),
-                            cmap=plt.cm.get_cmap('seismic'),
-                            cbounds=time_shift_bounds,
-                            color=None,
-                            alpha=1.)
+                     #       cmap=plt.cm.get_cmap('seismic'),
+                     #       cbounds=time_shift_bounds,
+                            color=time_shift_color,
+                            alpha=0.7)
                         in_ax.set_xlim(*time_shift_bounds)
                 else:
                     sidebar_ybounds = [-1.2, -1.2]
