@@ -543,7 +543,6 @@ class MTQTSource(gf.SourceWithMagnitude):
         """
         scaled_m6 = self.m6 / self.moment
         mt = mtm.MomentTensor.from_values(scaled_m6)
-        print((scaled_m6, mt.both_strike_dip_rake()))
         return num.hstack((scaled_m6, num.hstack(mt.both_strike_dip_rake())))
 
     @property
