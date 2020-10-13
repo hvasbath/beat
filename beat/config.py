@@ -212,7 +212,7 @@ summary_name = 'summary.txt'
 km = 1000.
 
 
-_quantity_choices = ['displacement', 'velocity']
+_quantity_choices = ['displacement', 'velocity', 'acceleration']
 _interpolation_choices = ['nearest_neighbor', 'multilinear']
 _structure_choices = available_noise_structures()
 _mode_choices = [geometry_mode_str, ffi_mode_str]
