@@ -514,7 +514,7 @@ class MTQTSource(gf.SourceWithMagnitude):
             **self._dparams_base_repeated(times))
 
     def pyrocko_moment_tensor(self):
-        return mtm.MomentTensor(m=mtm.symmat6(*self.m6_astuple) * self.moment)
+        return mtm.MomentTensor(m=self.m9)
 
     def pyrocko_event(self, **kwargs):
         mt = self.pyrocko_moment_tensor()
@@ -537,13 +537,17 @@ class MTQTSource(gf.SourceWithMagnitude):
         d.update(kwargs)
         return super(MTQTSource, cls).from_pyrocko_event(ev, **d)
 
-    def get_derived_parameters(self):
+    def get_derived_parameters(self, ref_source=None):
         """
         Returns array with mt components and dc component conversions
         """
         scaled_m6 = self.m6 / self.moment
         mt = mtm.MomentTensor.from_values(scaled_m6)
-        return num.hstack((scaled_m6, num.hstack(mt.both_strike_dip_rake())))
+        sdrs = mt.both_strike_dip_rake()
+        if ref_source:
+            ref_mt = ref_source.pyrocko_moment_tensor()
+            sdrs = mtm.order_like(sdrs, ref_mt.both_strike_dip_rake())
+        return num.hstack((scaled_m6, num.hstack(sdrs)))
 
     @property
     def nderived_parameters(self):
@@ -611,6 +615,10 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
         return m6
 
     @property
+    def scaled_m6_astuple(self):
+        return tuple(self.scaled_m6.ravel().tolist())
+
+    @property
     def scaled_m6_dict(self):
         keys = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
         return {k: m for k, m in zip(keys, self.scaled_m6.tolist())}
@@ -636,7 +644,8 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
             **self._dparams_base_repeated(times))
 
     def pyrocko_moment_tensor(self):
-        return mtm.MomentTensor(m=mtm.symmat6(*self.m6_astuple) * self.moment)
+        return mtm.MomentTensor(
+            m=mtm.symmat6(*self.scaled_m6_astuple) * self.moment)
 
     def pyrocko_event(self, **kwargs):
         mt = self.pyrocko_moment_tensor()
@@ -656,9 +665,13 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
         d.update(kwargs)
         return super(MTSourceWithMagnitude, cls).from_pyrocko_event(ev, **d)
 
-    def get_derived_parameters(self):
-        mt = mtm.MomentTensor.from_values(self.scaled_m6)
-        return num.hstack(mt.both_strike_dip_rake())
+    def get_derived_parameters(self, ref_source=None):
+        mt = self.pyrocko_moment_tensor()
+        sdrs = mt.both_strike_dip_rake()
+        if ref_source:
+            ref_mt = ref_source.pyrocko_moment_tensor()
+            sdrs = mtm.order_like(sdrs, ref_mt.both_strike_dip_rake())
+        return num.hstack(sdrs)
 
     @property
     def nderived_parameters(self):

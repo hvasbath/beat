@@ -311,7 +311,7 @@ class Filter(FilterBase):
         default=4,
         help='order of filter, the higher the steeper')
     stepwise = Bool.T(
-        default=False,
+        default=True,
         help='If set to true the bandpass filter is done it two'
              ' consecutive steps, first high-pass then low-pass.')
 

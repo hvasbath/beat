@@ -958,15 +958,18 @@ def command_summarize(args):
             rtrace.setup(
                 draws=draws, chain=-1, overwrite=True)
 
-            if hasattr(problem, 'sources'):
-                source = problem.sources[0]
-            else:
-                source = None
-
             if 'seismic' in problem.config.problem_config.datatypes:
                 composite = problem.composites['seismic']
             else:
                 composite = problem.composites['geodetic']
+
+            if hasattr(problem, 'sources'):
+                source = problem.sources[0]
+                tpoint = problem.config.problem_config.get_test_point()
+                composite.point2sources(tpoint)
+                ref_sources = copy.deepcopy(composite.sources)
+            else:
+                source = None
 
             for chain in chains:
                 for idx in idxs:
@@ -985,8 +988,9 @@ def command_summarize(args):
                     composite.point2sources(point)
                     derived = []
                     if hasattr(source, 'get_derived_parameters'):
-                        for source in composite.sources:
-                            derived.append(source.get_derived_parameters())
+                        for i, source in enumerate(composite.sources):
+                            derived.append(
+                                source.get_derived_parameters(ref_sources[i]))
 
                     lpoint = problem.model.lijection.d2l(point)
                     if derived:
