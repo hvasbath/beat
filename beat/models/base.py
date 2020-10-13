@@ -137,13 +137,29 @@ class Composite(object):
 
         Returns
         -------
-        list of arrays of standardized residuals,
-        following order of self.datasets
+        None
         """
         logger.warning(
             'Standardized residuals '
             'not implemented for %s composite!' % self.name)
         return None
+
+    def get_variance_reductions(self, point):
+        """
+        Parameters
+        ----------
+        point : dict
+            with parameters to point in solution space to calculate variance
+            reductions
+
+        Returns
+        -------
+        None
+        """
+        logger.warning(
+            'Variance reductions '
+            'not implemented for %s composite!' % self.name)
+        return {}
 
 
 def sample(step, problem):

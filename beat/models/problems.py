@@ -454,6 +454,26 @@ class Problem(object):
             if comp_name in self.composites:
                 self.composites[comp_name].apply(weights)
 
+    def get_variance_reductions(self, point):
+        """
+        Get composite variance reductions (VRs) with values from given point.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters, for which the VRs are calculated
+        """
+        vrs = {}
+        for composite in self.composites.values():
+            if hasattr(composite, 'get_variance_reductions'):
+                logger.info(
+                    'Calculating variance reductions for %s' % composite.name)
+                vr = composite.get_variance_reductions(point)
+                print(vr)
+                vrs.update(vr)
+                print(vr)
+        return vrs
+
     def point2sources(self, point):
         """
         Update composite sources(in place) with values from given point.

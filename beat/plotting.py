@@ -168,6 +168,20 @@ class PlotOptions(Object):
         help='Number of draws from the PPD to display fuzzy results.')
 
 
+def str_unit(quantity):
+    """
+    Return string representation of waveform unit.
+    """
+    if quantity == 'displacement':
+        return '$m$'
+    elif quantity == 'velocity':
+        return '$m/s$'
+    elif quantity == 'acceleration':
+        return '$m/s^2$'
+    else:
+        raise ValueError('Quantity %s not supported!' % quantity)
+
+
 def str_dist(dist):
     """
     Return string representation of distance.
@@ -192,9 +206,9 @@ def str_duration(t):
 
     t = abs(t)
 
-    if t < 10.0:
+    if t < 60.0:
         return s + '%.2g s' % t
-    elif 10.0 <= t < 3600.:
+    elif 60.0 <= t < 3600.:
         return s + util.time_to_str(t, format='%M:%S min')
     elif 3600. <= t < 24 * 3600.:
         return s + util.time_to_str(t, format='%H:%M h')
@@ -691,12 +705,15 @@ def plot_scene(ax, target, data, scattersize, colim,
         edgecolors='none', vmin=-colim, vmax=colim, **kwargs)
 
 
-def format_axes(ax, remove=['right', 'top', 'left']):
+def format_axes(
+        ax, remove=['right', 'top', 'left'], linewidth=None, visible=False):
     """
     Removes box top, left and right.
     """
     for rm in remove:
-        ax.spines[rm].set_visible(False)
+        ax.spines[rm].set_visible(visible)
+        if linewidth is not None:
+            ax.spines[rm].set_linewidth(linewidth)
 
 
 def scale_axes(axis, scale, offset=0.):
@@ -1428,29 +1445,15 @@ def draw_gnss_fits(problem, plot_options):
                 component, po.outformat), resolution=po.dpi)
 
 
-def plot_trace(axes, tr, **kwargs):
-    return axes.plot(tr.get_xdata(), tr.get_ydata(), **kwargs)
-
-
-def plot_taper(axes, t, taper, mode='geometry', **kwargs):
-    y = num.ones(t.size) * 0.9
-    if mode == 'geometry':
-        taper(y, t[0], t[1] - t[0])
-    y2 = num.concatenate((y, -y[::-1]))
-    t2 = num.concatenate((t, t[::-1]))
-    axes.fill(t2, y2, **kwargs)
-
-
-def plot_dtrace(axes, tr, space, mi, ma, **kwargs):
-    t = tr.get_xdata()
-    y = tr.get_ydata()
-    y2 = (num.concatenate((y, num.zeros(y.size))) - mi) / \
-        (ma - mi) * space - (1.0 + space)
-    t2 = num.concatenate((t, t[::-1]))
-    axes.fill(
-        t2, y2,
-        clip_on=False,
-        **kwargs)
+def extract_time_shifts(point, wmap):
+    try:
+        time_shifts = point[wmap.time_shifts_id][
+            wmap.station_correction_idxs]
+    except KeyError:
+        raise ValueError(
+            'Sampling results do not contain time-shifts for wmap'
+            ' %s!' % wmap.time_shifts_id)
+    return time_shifts
 
 
 def seismic_fits(problem, stage, plot_options):
@@ -1458,6 +1461,59 @@ def seismic_fits(problem, stage, plot_options):
     Modified from grond. Plot synthetic and data waveforms and the misfit for
     the selected posterior model.
     """
+
+    def plot_trace(axes, tr, **kwargs):
+        return axes.plot(tr.get_xdata(), tr.get_ydata(), **kwargs)
+
+    def plot_taper(axes, t, taper, mode='geometry', **kwargs):
+        y = num.ones(t.size) * 0.9
+        if mode == 'geometry':
+            taper(y, t[0], t[1] - t[0])
+        y2 = num.concatenate((y, -y[::-1]))
+        t2 = num.concatenate((t, t[::-1]))
+        axes.fill(t2, y2, **kwargs)
+
+    def plot_dtrace(axes, tr, space, mi, ma, **kwargs):
+        t = tr.get_xdata()
+        y = tr.get_ydata()
+        y2 = (num.concatenate((y, num.zeros(y.size))) - mi) / \
+            (ma - mi) * space - (1.0 + space)
+        t2 = num.concatenate((t, t[::-1]))
+        axes.fill(
+            t2, y2,
+            clip_on=False,
+            **kwargs)
+
+    def plot_inset_hist(
+            axes, data, best_data, bbox_to_anchor,
+            cmap=None, cbounds=None, color='orange', alpha=0.4):
+
+        in_ax = inset_axes(
+            axes, width="100%", height="100%",
+            bbox_to_anchor=bbox_to_anchor,
+            bbox_transform=axes.transAxes, loc=2, borderpad=0)
+        histplot_op(
+            in_ax, data,
+            alpha=alpha, color=color, cmap=cmap, cbounds=cbounds, tstd=0.)
+
+        format_axes(in_ax)
+        linewidth = 0.5
+        format_axes(
+            in_ax, remove=['bottom'], visible=True,
+            linewidth=linewidth)
+        in_ax.axvline(
+            x=best_data,
+            color='red', lw=linewidth)
+        in_ax.tick_params(
+            axis='both', direction='in', labelsize=5,
+            width=linewidth)
+        in_ax.get_yaxis().set_visible(False)
+        xticker = tick.MaxNLocator(nbins=2)
+        in_ax.get_xaxis().set_major_locator(xticker)
+        return in_ax
+
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
     composite = problem.composites['seismic']
 
     fontsize = 8
@@ -1473,6 +1529,8 @@ def seismic_fits(problem, stage, plot_options):
     else:
         best_point = po.reference
 
+    composite.analyse_noise(best_point, chop_bounds=['a', 'd'])
+    composite.update_weights(best_point)
     if plot_options.nensemble > 1:
         from tqdm import tqdm
         logger.info(
@@ -1482,11 +1540,15 @@ def seismic_fits(problem, stage, plot_options):
         idxs = num.floor(num.arange(0, nchains, csteps)).astype('int32')
         ens_results = []
         points = []
+        ens_var_reductions = []
         for idx in tqdm(idxs):
             point = stage.mtrace.point(idx=idx)
             points.append(point)
             results = composite.assemble_results(point)
             ens_results.append(results)
+            ens_var_reductions.append(
+                composite.get_variance_reductions(
+                    point, weights=composite.weights, results=results))
 
     if best_point:
         bresults = composite.assemble_results(
@@ -1496,6 +1558,9 @@ def seismic_fits(problem, stage, plot_options):
         bresults = composite.assemble_results(point)
         best_point = point
 
+    bvar_reductions = composite.get_variance_reductions(
+        best_point, weights=composite.weights, results=bresults)
+
     try:
         composite.point2sources(best_point)
         source = composite.sources[0]
@@ -1504,32 +1569,78 @@ def seismic_fits(problem, stage, plot_options):
         source = composite.config.gf_config.reference_sources[0]
         source.time = composite.event.time
 
-    logger.info('Plotting waveforms ...')
+    # collecting results for targets
+    logger.info('Mapping results to targets ...')
     target_to_results = {}
     all_syn_trs_target = {}
+    all_var_reductions = {}
     dtraces = []
+
     for target in composite.targets:
         target_results = []
         target_synths = []
-        i = target_index[target]
-        target_results.append(bresults[i])
-        target_synths.append(bresults[i].processed_syn)  # TODO
+        target_var_reductions = []
 
-        dtraces.append(bresults[i].processed_res)
+        i = target_index[target]
+
+        nslc_id_str = utility.list2string(target.codes)
+        target_results.append(bresults[i])
+        target_synths.append(bresults[i].processed_syn)
+        target_var_reductions.append(
+            bvar_reductions[nslc_id_str])
+
+        dtraces.append(copy.deepcopy(bresults[i].processed_res))
         if plot_options.nensemble > 1:
-            for results in ens_results:
-                # put all results per target here not only single 
+            for results, var_reductions in zip(
+                    ens_results, ens_var_reductions):
+                # put all results per target here not only single
                 target_results.append(results[i])
                 target_synths.append(results[i].processed_syn)
+                target_var_reductions.append(
+                    var_reductions[nslc_id_str])
 
         target_to_results[target] = target_results
         all_syn_trs_target[target] = target_synths
+        all_var_reductions[target] = num.array(target_var_reductions) * 100.
+
+    # collecting time-shifts:
+    station_corr = composite.config.station_corrections
+    if station_corr:
+        tshifts = problem.config.problem_config.hierarchicals['time_shift']
+        time_shift_bounds = [tshifts.lower, tshifts.upper]
+
+        logger.info('Collecting time-shifts ...')
+        ens_time_shifts = []
+        for point in points:
+            comp_time_shifts = []
+            for wmap in composite.wavemaps:
+                comp_time_shifts.append(
+                    extract_time_shifts(point, wmap))
+
+            ens_time_shifts.append(
+                num.hstack(comp_time_shifts))
+
+        btime_shifts = num.hstack(
+            [extract_time_shifts(best_point, wmap)
+                for wmap in composite.wavemaps])
+
+        logger.info('Mapping time-shifts to targets ...')
+        all_time_shifts = {}
+        for target in composite.targets:
+            target_time_shifts = []
+            i = target_index[target]
+            target_time_shifts.append(btime_shifts[i])
+
+            if plot_options.nensemble > 1:
+                for time_shifts in ens_time_shifts:
+                    target_time_shifts.append(time_shifts[i])
+
+            all_time_shifts[target] = num.array(target_time_shifts)
 
     skey = lambda tr: tr.channel
 
 #    trace_minmaxs = trace.minmax(all_syn_trs, skey)
     dminmaxs = trace.minmax(dtraces, skey)
-
     for tr in dtraces:
         if tr:
             dmin, dmax = dminmaxs[skey(tr)]
@@ -1543,7 +1654,7 @@ def seismic_fits(problem, stage, plot_options):
     cgs = cg_to_targets.keys()
 
     figs = []
-
+    logger.info('Plotting waveforms ...')
     for cg in cgs:
         targets = cg_to_targets[cg]
 
@@ -1669,7 +1780,6 @@ def seismic_fits(problem, stage, plot_options):
 
                 if po.nensemble > 1:
                     xmin, xmax = trace.minmaxtime(traces, key=skey)[key]
-                    extent = [xmin, xmax, ymin, ymax]
                     fuzzy_waveforms(
                         axes, traces, linewidth=7, zorder=0,
                         grid_size=(500, 500), alpha=1.0)
@@ -1704,7 +1814,6 @@ def seismic_fits(problem, stage, plot_options):
                             axes, result.processed_syn,
                             color=syn_color, lw=0.5, zorder=5)
 
-
                 plot_trace(
                     axes, result.processed_obs,
                     color=obs_color, lw=0.5, zorder=5)
@@ -1715,24 +1824,57 @@ def seismic_fits(problem, stage, plot_options):
                 tmarks = [
                     result.processed_obs.tmin,
                     result.processed_obs.tmax]
+                tmark_fontsize = fontsize - 1
 
-                for tmark in tmarks:
+                # plot variance reductions
+                if po.nensemble > 1:
+                    nslc_id_str = utility.list2string(target.codes)
+                    logger.debug(
+                        'Plotting variance reductions for %s' % nslc_id_str)
+                    in_ax = plot_inset_hist(
+                        axes,
+                        data=pmp.utils.make_2d(all_var_reductions[target]),
+                        best_data=bvar_reductions[nslc_id_str] * 100.,
+                        bbox_to_anchor=(0.9, .75, .2, .2))
+                    in_ax.set_title('VR [%]', fontsize=5)
+
+                if station_corr:
+                    sidebar_ybounds = [-0.9, -1,3]
+                    ytmarks = [-1.3, -1.3]
+                    hor_alignment = 'center'
+                    if po.nensemble > 1:
+                        in_ax = plot_inset_hist(
+                            axes,
+                            data=pmp.utils.make_2d(all_time_shifts[target]),
+                            best_data=btime_shifts[itarget],
+                            bbox_to_anchor=(-0.0985, .26, .2, .2),
+                            cmap=plt.cm.get_cmap('seismic'),
+                            cbounds=time_shift_bounds,
+                            color=None,
+                            alpha=1.)
+                        in_ax.set_xlim(*time_shift_bounds)
+                else:
+                    sidebar_ybounds = [-1.2, -1.2]
+                    ytmarks = [-1.2, -1.2]
+                    hor_alignment = 'left'
+
+                for tmark, ybound in zip(tmarks, sidebar_ybounds):
                     axes2.plot(
-                        [tmark, tmark], [-0.9, 0.1], color=tap_color_annot)
+                        [tmark, tmark], [ybound, 0.1], color=tap_color_annot)
 
-                for tmark, text, ha, va in [
-                        (tmarks[0],
+                for xtmark, ytmark, text, ha, va in [
+                        (tmarks[0], ytmarks[0],
                          '$\,$ ' + str_duration(tmarks[0] - source.time),
-                         'left',
+                         hor_alignment,
                          'bottom'),
-                        (tmarks[1],
+                        (tmarks[1], ytmarks[1],
                          '$\Delta$ ' + str_duration(tmarks[1] - tmarks[0]),
                          'right',
                          'bottom')]:
 
                     axes2.annotate(
                         text,
-                        xy=(tmark, -0.9),
+                        xy=(xtmark, ytmark),
                         xycoords='data',
                         xytext=(
                             fontsize * 0.4 * [-1, 1][ha == 'left'],
@@ -1741,7 +1883,7 @@ def seismic_fits(problem, stage, plot_options):
                         ha=ha,
                         va=va,
                         color=tap_color_annot,
-                        fontsize=fontsize, zorder=10)
+                        fontsize=tmark_fontsize, zorder=10)
 
                 scale_string = None
 
@@ -1759,12 +1901,25 @@ def seismic_fits(problem, stage, plot_options):
                     '\n'.join(infos),
                     xy=(0., 1.),
                     xycoords='axes fraction',
-                    xytext=(2., 2.),
+                    xytext=(1., 1.),
                     textcoords='offset points',
                     ha='left',
                     va='top',
                     fontsize=fontsize,
                     fontstyle='normal', zorder=10)
+
+                # annotate axis amplitude
+                axes.annotate(
+                    '%0.3g %s -' % (-absmax, str_unit(target.quantity)),
+                    xycoords='data',
+                    xy=(tmarks[1], -absmax),
+                    xytext=(1., 1.),
+                    textcoords='offset points',
+                    ha='right',
+                    va='center',
+                    fontsize=fontsize - 3,
+                    color=obs_color,
+                    fontstyle='normal')
 
                 axes2.set_zorder(10)
 
@@ -2290,11 +2445,24 @@ def draw_hudson(problem, po):
 
 
 def histplot_op(
-        ax, data, reference=None, alpha=.35, color=None, bins=None,
-        ntickmarks=5, tstd=None, qlist=[0.01, 99.99], kwargs={}):
+        ax, data, reference=None, alpha=.35, color=None, cmap=None, bins=None,
+        tstd=None, qlist=[0.01, 99.99], cbounds=None, kwargs={}):
     """
     Modified from pymc3. Additional color argument.
     """
+    if color is not None and cmap is not None:
+        logger.debug('Using color for histogram edgecolor ...')
+
+    if cmap is not None:
+        from matplotlib.colors import Colormap
+        if not isinstance(cmap, Colormap):
+            raise TypeError(
+                'The colormap needs to be a valid matplotlib colormap!')
+
+        histtype = 'bar'
+    else:
+        histtype = 'stepfilled'
+
     for i in range(data.shape[1]):
         d = data[:, i]
         quants = quantiles(d, qlist=qlist)
@@ -2319,10 +2487,21 @@ def histplot_op(
         else:
             kwargs['density'] = True
 
-        ax.hist(
+        n, outbins, patches = ax.hist(
             d, bins=bins, stacked=True, alpha=alpha,
-            align='left', histtype='stepfilled', color=color, edgecolor=color,
+            align='left', histtype=histtype, color=color, edgecolor=color,
             **kwargs)
+
+        if cmap:
+            bin_centers = 0.5 * (outbins[:-1] + outbins[1:])
+            if cbounds is None:
+                col = bin_centers - min(bin_centers)
+                col /= max(col)
+            else:
+                col = (bin_centers - cbounds[0]) / (cbounds[1] - cbounds[0])
+
+            for c, p in zip(col, patches):
+                plt.setp(p, 'facecolor', cmap(c))
 
         left, right = ax.get_xlim()
         leftb = mind - tstd
@@ -2333,7 +2512,6 @@ def histplot_op(
             rightb = num.maximum(rightb, right)
 
         ax.set_xlim(leftb, rightb)
-        xax = ax.get_xaxis()
 
 
 def unify_tick_intervals(axs, varnames, ntickmarks_max=5, axis='x'):
@@ -2666,8 +2844,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
 
                     axs[rowi, coli].set_xlabel(title, fontsize=fontsize)
                     axs[rowi, coli].grid(grid)
-                    axs[rowi, coli].set_yticks([])
-                    axs[rowi, coli].set_yticklabels([])
+                    axs[rowi, coli].get_yaxis().set_visible(False)
                     format_axes(axs[rowi, coli])
                     axs[rowi, coli].tick_params(axis='x', labelsize=fontsize)
     #                axs[rowi, coli].set_ylabel("Frequency")
@@ -4081,13 +4258,7 @@ def draw_station_map_gmt(problem, po):
         """
         Draw MAP time-shifts at station locations as colored triangles
         """
-        try:
-            time_shifts = point[wmap.time_shifts_id][
-                wmap.station_correction_idxs]
-        except KeyError:
-            raise ValueError(
-                'Sampling results do not contain time-shifts for wmap'
-                ' %s!' % wmap.time_shifts_id)
+        time_shifts = extract_time_shifts(point, wmap)
 
         cptfilepath = '/tmp/tempfile.cpt'
         miny = time_shifts.min()

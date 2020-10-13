@@ -148,7 +148,7 @@ class SeismicComposite(Composite):
         self.engine.close_cashed_stores()
         return self.__dict__.copy()
 
-    def analyse_noise(self, tpoint=None):
+    def analyse_noise(self, tpoint=None, chop_bounds=None):
         """
         Analyse seismic noise in datatraces and set
         data-covariance matrixes accordingly.
@@ -167,7 +167,8 @@ class SeismicComposite(Composite):
 
             cov_ds_seismic = self.noise_analyser.get_data_covariances(
                 wmap=wmap, results=wmap_results,
-                sample_rate=self.config.gf_config.sample_rate)
+                sample_rate=self.config.gf_config.sample_rate,
+                chop_bounds=chop_bounds)
 
             for j, trc in enumerate(wmap.datasets):
                 if trc.covariance is None:
@@ -176,8 +177,9 @@ class SeismicComposite(Composite):
                     trc.covariance.data = cov_ds_seismic[j]
 
                 if int(trc.covariance.data.sum()) == trc.data_len():
-                    logger.warning('Data covariance is identity matrix!'
-                                ' Please double check!!!')
+                    logger.warning(
+                        'Data covariance is identity matrix!'
+                        ' Please double check!!!')
 
     def init_hierarchicals(self, problem_config):
         """
@@ -289,6 +291,7 @@ class SeismicComposite(Composite):
         """
         Initialise shared weights in wavemaps.
         """
+        logger.info('Initialising weights ...')
         for wmap in self.wavemaps:
             weights = []
             for j, trc in enumerate(wmap.datasets):
@@ -344,7 +347,7 @@ class SeismicComposite(Composite):
 
     @property
     def weights(self):
-        if self._weights is None:
+        if self._weights is None or len(self._weights) == 0:
             ws = []
             for wmap in self.wavemaps:
                 if wmap.weights:
@@ -452,13 +455,13 @@ class SeismicComposite(Composite):
         Parameters
         ----------
         point : dict
-            with parameters to point in solution space to calculate standardized
-            residuals for
+            with parameters to point in solution space to calculate
+            standardized residuals
 
         Returns
         -------
-        list of arrays of standardized residuals,
-        following order of self.datasets
+        dict of arrays of standardized residuals,
+            keys are nslc_ids
         """
         results = self.assemble_results(
             point, order='list', chop_bounds=['b', 'c'])
@@ -476,9 +479,70 @@ class SeismicComposite(Composite):
 
             choli = num.linalg.inv(
                 data_trc.covariance.chol * num.exp(hp) / 2.)
-            stdz_res[data_trc.nslc_id] = choli.dot(result.processed_res.get_ydata())
+            stdz_res[data_trc.nslc_id] = choli.dot(
+                result.processed_res.get_ydata())
 
         return stdz_res
+
+    def get_variance_reductions(
+            self, point, results=None, weights=None, chop_bounds=['a', 'd']):
+        """
+        Parameters
+        ----------
+        point : dict
+            with parameters to point in solution space to calculate
+            variance reductions
+
+        Returns
+        -------
+        dict of floats,
+            keys are nslc_ids
+        """
+
+        if results is None:
+            results = self.assemble_results(
+                point, order='list', chop_bounds=chop_bounds)
+
+        assert len(results) == len(self.datasets)
+
+        if weights is None:
+            self.analyse_noise(point, chop_bounds=chop_bounds)
+            self.update_weights(point)
+            weights = self.weights
+
+        assert len(weights) == len(self.datasets)
+
+        logger.debug('Calculating variance reduction for solution ...')
+        counter = utility.Counter()
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
+        var_reds = OrderedDict()
+
+        for data_trc, weight, result in zip(
+                self.datasets, weights, results):
+
+            hp_name = get_hyper_name(data_trc)
+            if hp_specific:
+                hp = point[hp_name][counter(hp_name)]
+            else:
+                hp = point[hp_name]
+
+            hpval = (1 / num.exp(hp * 2))
+
+            inv_cov = hpval * weight.get_value()
+            data = result.processed_obs.get_ydata()
+            residual = result.processed_res.get_ydata()
+
+            zaehler = residual.T.dot(inv_cov).dot(residual)
+            nenner = data.T.dot(inv_cov).dot(data)
+            var_red = 1 - (zaehler / nenner)
+
+            nslc_id = utility.list2string(data_trc.nslc_id)
+            logger.debug(
+                'Variance reduction for %s is %f' % (nslc_id, var_red))
+
+            var_reds[nslc_id] = var_red
+
+        return var_reds
 
 
 class SeismicGeometryComposite(SeismicComposite):
@@ -763,7 +827,6 @@ class SeismicGeometryComposite(SeismicComposite):
         sc = self.config
 
         self.point2sources(point)
-
 
         # update data covariances in case model dependend non-toeplitz
         if self.config.noise_estimator.structure == 'non-toeplitz':

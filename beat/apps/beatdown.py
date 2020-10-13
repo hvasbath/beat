@@ -310,11 +310,11 @@ def main():
 
     parser.add_option(
         '--out-units',
-        choices=['M', 'M/S'],
+        choices=['M', 'M/S', 'M/S**2'],
         dest='output_units',
         default='M',
         help='set output units to displacement "M" (default),'
-             ' or velocity "M/S"')
+             ' velocity "M/S" or acceleration "M/S**2"')
 
     parser.add_option(
         '--padding-factor',
