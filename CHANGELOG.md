@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 **General**
-- Wavemap attribute "quantity" to sample velocity or displacement waveforms
+- Wavemap attribute "quantity" to sample acceleration, velocity or displacement waveforms
 
 **Finite Fault**
 - discretization options for the fault into patches:
@@ -37,10 +37,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 **Plotting**
 - slip_distribution allows for variable patch-size
 - plot gnss_fits for horizontal and vertical GNSS components 
-- waveform misfits with plot_projection =individual allows to get individual source contributions for geometry mode
+- waveform misfits:
+  + with plot_projection =individual allows to get individual source contributions for geometry mode
+  + added time-shift histograms if these were sampled
+  + added variance reduction histograms
+  + added amplitude scales
 - new station map with GMT, allows time shift plotting
 - FFI exports geometry object for fast and easy interactive inspection in pyrocko.sparrow
-- Lune plot for Moment Tensors (Tape and Tape 2012)
+- Lune plot for Moment Tensors (Tape and Tape 2012, 2015)
 
 ### Fixed
 - extended support for GNSS data import from globk (GAMMIT)
@@ -53,6 +57,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - laplacian has now configuration arguments for functional form, nearest neighbor as previously now only for single fault
 - moved beat command level export to dataset composites export method
 - MTQTSource input argument u removed in favor of w
+- filterer attribute of Wavemap is now list of filters, allows chaining of filters
 
 ## [v.1.0.0]  18.06.2019
 Initial release:
