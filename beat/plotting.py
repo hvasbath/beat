@@ -1478,9 +1478,12 @@ def seismic_fits(problem, stage, plot_options):
         format_axes(
             in_ax, remove=['bottom'], visible=True,
             linewidth=linewidth)
-        in_ax.axvline(
-            x=best_data,
-            color='red', lw=linewidth)
+
+        if best_data:
+            in_ax.axvline(
+                x=best_data,
+                color='red', lw=linewidth)
+
         in_ax.tick_params(
             axis='both', direction='in', labelsize=5,
             width=linewidth)
@@ -1506,6 +1509,18 @@ def seismic_fits(problem, stage, plot_options):
     else:
         best_point = po.reference
 
+    if best_point:
+        bresults = composite.assemble_results(
+            best_point, outmode='tapered_data')   # for source individual contributions
+        synth_plot_flag = True
+    else:
+        # get dummy results for data
+        logger.warning(
+            'Got "None" post_llk, still loading MAP for VR calculation')
+        best_point = get_result_point(stage, problem.config, 'max')
+        bresults = composite.assemble_results(best_point)
+        synth_plot_flag = False
+
     composite.analyse_noise(best_point, chop_bounds=['a', 'd'])
     composite.update_weights(best_point)
     if plot_options.nensemble > 1:
@@ -1526,14 +1541,6 @@ def seismic_fits(problem, stage, plot_options):
             ens_var_reductions.append(
                 composite.get_variance_reductions(
                     point, weights=composite.weights, results=results))
-
-    if best_point:
-        bresults = composite.assemble_results(
-            best_point, outmode='tapered_data')   # for source individual contributions
-    else:
-        # get dummy results for data
-        bresults = composite.assemble_results(point)
-        best_point = point
 
     bvar_reductions = composite.get_variance_reductions(
         best_point, weights=composite.weights, results=bresults)
@@ -1778,7 +1785,7 @@ def seismic_fits(problem, stage, plot_options):
                 syn_color = scolor('scarletred2')
                 misfit_color = scolor('scarletred2')
 
-                if best_point:
+                if synth_plot_flag:
                     # only draw if highlighted point exists
                     plot_dtrace(
                         axes2, dtrace, space, 0., 1.,
@@ -1812,10 +1819,16 @@ def seismic_fits(problem, stage, plot_options):
                     nslc_id_str = utility.list2string(target.codes)
                     logger.debug(
                         'Plotting variance reductions for %s' % nslc_id_str)
+
+                    if synth_plot_flag:
+                        best_data = bvar_reductions[nslc_id_str] * 100.
+                    else:       # for None post_llk
+                        best_data = None
+
                     in_ax = plot_inset_hist(
                         axes,
                         data=pmp.utils.make_2d(all_var_reductions[target]),
-                        best_data=bvar_reductions[nslc_id_str] * 100.,
+                        best_data=best_data,
                         bbox_to_anchor=(0.9, .75, .2, .2))
                     in_ax.set_title('VR [%]', fontsize=5)
 
@@ -1823,11 +1836,17 @@ def seismic_fits(problem, stage, plot_options):
                     sidebar_ybounds = [-0.9, -1,3]
                     ytmarks = [-1.3, -1.3]
                     hor_alignment = 'center'
+
+                    if synth_plot_flag:
+                        best_data = btime_shifts[itarget]
+                    else:       # for None post_llk
+                        best_data = None
+
                     if po.nensemble > 1:
                         in_ax = plot_inset_hist(
                             axes,
                             data=pmp.utils.make_2d(all_time_shifts[target]),
-                            best_data=btime_shifts[itarget],
+                            best_data=best_data,
                             bbox_to_anchor=(-0.0985, .26, .2, .2),
                             cmap=plt.cm.get_cmap('seismic'),
                             cbounds=time_shift_bounds,
