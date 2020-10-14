@@ -1641,6 +1641,8 @@ def seismic_fits(problem, stage, plot_options):
         nx = int(math.ceil(math.sqrt(nframes)))
         ny = (nframes - 1) // nx + 1
 
+        logger.debug('nx %i, ny %i' % (nx, ny))
+        
         nxmax = 4
         nymax = 4
 
@@ -1719,10 +1721,12 @@ def seismic_fits(problem, stage, plot_options):
 
                     figs.append(figures[iyy, ixx])
 
+                logger.debug('iyy %i, ixx %i' % (iyy, ixx))
+                logger.debug('iy %i, ix %i' % (iy, ix))
                 fig = figures[iyy, ixx]
 
                 target = frame_to_target[iy, ix]
-
+                print(target.codes)
                 # get min max of all traces
                 key = target.codes[3]
                 amin, amax = trace.minmax(
@@ -1734,7 +1738,7 @@ def seismic_fits(problem, stage, plot_options):
                 ny_this = nymax  # min(ny, nymax)
                 nx_this = nxmax  # min(nx, nxmax)
                 i_this = (iy % ny_this) * nx_this + (ix % nx_this) + 1
-
+                logger.debug('i_this %i' % i_this)
                 axes2 = fig.add_subplot(ny_this, nx_this, i_this)
 
                 space = 0.5
