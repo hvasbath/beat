@@ -1922,7 +1922,7 @@ def load_config(project_dir, mode):
     except IOError:
         raise IOError('Cannot load config, file %s'
                       ' does not exist!' % config_fn)
-    except ArgumentError:
+    except(ArgumentError, TypeError):
         raise ConfigNeedsUpdatingError()
 
     config.problem_config.validate_all()
