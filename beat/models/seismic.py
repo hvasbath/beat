@@ -148,14 +148,14 @@ class SeismicComposite(Composite):
         self.engine.close_cashed_stores()
         return self.__dict__.copy()
 
-    def analyse_noise(self, tpoint=None, chop_bounds=None):
+    def analyse_noise(self, tpoint=None, chop_bounds=['b', 'c']):
         """
         Analyse seismic noise in datatraces and set
         data-covariance matrixes accordingly.
         """
         if self.config.noise_estimator.structure == 'non-toeplitz':
             results = self.assemble_results(
-                tpoint, order='wmap', chop_bounds=['b', 'c'])
+                tpoint, order='wmap', chop_bounds=chop_bounds)
         else:
             results = [None] * len(self.wavemaps)
 
@@ -230,7 +230,8 @@ class SeismicComposite(Composite):
             nhierarchs = 0
 
     def export(self, point, results_path, stage_number,
-               fix_output=False, force=False, update=False):
+               fix_output=False, force=False, update=False,
+               chop_bounds=['b', 'c']):
         """
         Save results for given point to result path.
         """
@@ -253,7 +254,7 @@ class SeismicComposite(Composite):
         from pyrocko import io
 
         # synthetics and data
-        results = self.assemble_results(point, chop_bounds=['b', 'c'])
+        results = self.assemble_results(point, chop_bounds=chop_bounds)
         for traces, attribute in heart.results_for_export(
                 results=results, datatype='seismic'):
 
@@ -276,7 +277,7 @@ class SeismicComposite(Composite):
                         'last 5 characters!)')
 
         # export stdz residuals
-        self.analyse_noise(point)
+        self.analyse_noise(point, chop_bounds=chop_bounds)
         if update:
             logger.info('Saving velocity model covariance matrixes...')
             self.update_weights(point)
@@ -657,7 +658,7 @@ class SeismicGeometryComposite(SeismicComposite):
         wlogpts = []
 
         self.init_hierarchicals(problem_config)
-        self.analyse_noise(tpoint)
+        self.analyse_noise(tpoint, chop_bounds=['b', 'c'])
         self.init_weights()
         if self.config.station_corrections:
             logger.info(
@@ -811,7 +812,8 @@ class SeismicGeometryComposite(SeismicComposite):
 
         return synths, obs
 
-    def update_weights(self, point, n_jobs=1, plot=False):
+    def update_weights(
+            self, point, n_jobs=1, plot=False, chop_bounds=['b', 'c']):
         """
         Updates weighting matrixes (in place) with respect to the point in the
         solution space.
@@ -831,7 +833,7 @@ class SeismicGeometryComposite(SeismicComposite):
         # update data covariances in case model dependend non-toeplitz
         if self.config.noise_estimator.structure == 'non-toeplitz':
             logger.info('Updating data-covariances ...')
-            self.analyse_noise(point)
+            self.analyse_noise(point, chop_bounds=chop_bounds)
 
         crust_inds = range(*sc.gf_config.n_variations)
         thresh = 5
@@ -874,6 +876,7 @@ class SeismicGeometryComposite(SeismicComposite):
                             arrival_taper=wc.arrival_taper,
                             arrival_time=arrival_times[tidx],
                             filterer=wc.filterer,
+                            chop_bounds=chop_bounds,
                             plot=plot, n_jobs=n_jobs)
                         cov_pv = utility.ensure_cov_psd(cov_pv)
 
@@ -1031,7 +1034,7 @@ class SeismicDistributerComposite(SeismicComposite):
         t2 = time()
         wlogpts = []
 
-        self.analyse_noise(tpoint)
+        self.analyse_noise(tpoint, chop_bounds=['b', 'c'])
         for gfs in self.gfs.values():
             gfs.init_optimization()
 

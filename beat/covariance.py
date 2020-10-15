@@ -429,7 +429,7 @@ def model_prediction_sensitivity(engine, *args, **kwargs):
 
 def seismic_cov_velocity_models(
         engine, sources, targets, arrival_taper, arrival_time,
-        wavename, filterer, plot=False, n_jobs=1):
+        wavename, filterer, plot=False, n_jobs=1, chop_bounds=['b', 'c']):
     '''
     Calculate model prediction uncertainty matrix with respect to uncertainties
     in the velocity model for station and channel.
@@ -473,7 +473,7 @@ def seismic_cov_velocity_models(
         pre_stack_cut=True,
         plot=plot,
         outmode='array',
-        chop_bounds=['b', 'c'])
+        chop_bounds=chop_bounds)
 
     t1 = time()
     logger.debug('Trace generation time %f' % (t1 - t0))
