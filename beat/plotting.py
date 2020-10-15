@@ -21,7 +21,7 @@ import matplotlib.ticker as tick
 
 from scipy.stats import kde
 import numpy as num
-from pyrocko.guts import (Object, String, Dict, List,
+from pyrocko.guts import (Object, String, Dict, List, Tuple,
                           Bool, Int, load, StringChoice)
 from pyrocko import util, trace
 from pyrocko import cake_plot as cp
@@ -166,6 +166,13 @@ class PlotOptions(Object):
     nensemble = Int.T(
         default=1,
         help='Number of draws from the PPD to display fuzzy results.')
+
+
+class FrameToTarget(Object):
+
+    frame_to_target = Dict.T(
+        String.T(),
+        Tuple.T(4, String.T()))
 
 
 def str_unit(quantity):
@@ -1630,12 +1637,21 @@ def seismic_fits(problem, stage, plot_options):
             dmin, dmax = dminmaxs[skey(tr)]
             tr.ydata /= max(abs(dmin), abs(dmax))
 
-    cg_to_targets = utility.gather(
-        composite.targets,
-        lambda t: t.codes[3],
-        filter=lambda t: t in target_to_results)
+    frame_to_target_path = os.path.join(
+        problem.outfolder, 'frame_to_target.yaml')
+    logging.debug('Looking for %s mapping ...' % frame_to_target_path)
+    if os.path.exists(frame_to_target_path):
+        cgs = ['']
+        cg_to_targets = {'': composite.targets}
+        custom_map = True
+    else:
+        cg_to_targets = utility.gather(
+            composite.targets,
+            lambda t: t.codes[3],
+            filter=lambda t: t in target_to_results)
 
-    cgs = cg_to_targets.keys()
+        cgs = cg_to_targets.keys()
+        custom_map = False
 
     figs = []
     logger.info('Plotting waveforms ...')
@@ -1649,7 +1665,7 @@ def seismic_fits(problem, stage, plot_options):
         ny = (nframes - 1) // nx + 1
 
         logger.debug('nx %i, ny %i' % (nx, ny))
-        
+
         nxmax = 4
         nymax = 4
 
@@ -1697,14 +1713,28 @@ def seismic_fits(problem, stage, plot_options):
 
         distmax = num.max(dists)
 
-        availmask = num.ones(dists.shape[1], dtype=num.bool)
-        frame_to_target = {}
-        for itarget, target in enumerate(targets_sorted):
-            iframe = num.argmin(
-                num.where(availmask, dists[itarget], distmax + 1.))
-            availmask[iframe] = False
-            iy, ix = num.unravel_index(iframe, (ny, nx))
-            frame_to_target[iy, ix] = target
+        if custom_map:
+            ftt = load(filename=frame_to_target_path)
+            frame_to_target = {}
+            codes_to_targets = utility.gather(
+                targets,
+                lambda t: t.codes,
+                filter=lambda t: t in target_to_results)
+            for k, v in ftt.frame_to_target.items():
+                iy, ix = k.split(',')
+                frame_to_target[int(iy), int(ix)] = codes_to_targets[v][0]
+        else:
+            availmask = num.ones(dists.shape[1], dtype=num.bool)
+            frame_to_target = {}
+            for itarget, target in enumerate(targets_sorted):
+                iframe = num.argmin(
+                    num.where(availmask, dists[itarget], distmax + 1.))
+                availmask[iframe] = False
+                iy, ix = num.unravel_index(iframe, (ny, nx))
+                frame_to_target[iy, ix] = target
+
+        # potentially overwrite frame_to_target dict here for custom
+        # arrangement of targets
 
         figures = {}
         for iy in range(ny):
@@ -1733,7 +1763,7 @@ def seismic_fits(problem, stage, plot_options):
                 fig = figures[iyy, ixx]
 
                 target = frame_to_target[iy, ix]
-                print(target.codes)
+
                 # get min max of all traces
                 key = target.codes[3]
                 amin, amax = trace.minmax(
@@ -1923,12 +1953,13 @@ def seismic_fits(problem, stage, plot_options):
 
                 axes2.set_zorder(10)
 
-        for (iyy, ixx), fig in figures.items():
-            title = '.'.join(x for x in cg if x)
-            if len(figures) > 1:
-                title += ' (%i/%i, %i/%i)' % (iyy + 1, nyy, ixx + 1, nxx)
+        if not custom_map:     # skip drawing in case of custom mapping
+            for (iyy, ixx), fig in figures.items():
+                title = '.'.join(x for x in cg if x)
+                if len(figures) > 1:
+                    title += ' (%i/%i, %i/%i)' % (iyy + 1, nyy, ixx + 1, nxx)
 
-            fig.suptitle(title, fontsize=fontsize_title)
+                fig.suptitle(title, fontsize=fontsize_title)
 
     return figs
 
