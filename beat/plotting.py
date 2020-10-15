@@ -1522,7 +1522,7 @@ def seismic_fits(problem, stage, plot_options):
         synth_plot_flag = False
 
     composite.analyse_noise(best_point, chop_bounds=['a', 'd'])
-    composite.update_weights(best_point)
+    composite.update_weights(best_point, chop_bounds=['a', 'd'])
     if plot_options.nensemble > 1:
         from tqdm import tqdm
         logger.info(
