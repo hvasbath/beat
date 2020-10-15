@@ -1509,20 +1509,31 @@ def seismic_fits(problem, stage, plot_options):
     else:
         best_point = po.reference
 
-    if best_point:
+    try:
+        composite.point2sources(best_point)
+        source = composite.sources[0]
+        chop_bounds = ['a', 'd']
+    except AttributeError:
+        logger.info('FFI waveform fit, using reference source ...')
+        source = composite.config.gf_config.reference_sources[0]
+        source.time = composite.event.time
+        chop_bounds = ['b', 'c']
+
+    if best_point:  # for source individual contributions
         bresults = composite.assemble_results(
-            best_point, outmode='tapered_data')   # for source individual contributions
+            best_point, outmode='tapered_data', chop_bounds=chop_bounds)
         synth_plot_flag = True
     else:
         # get dummy results for data
         logger.warning(
             'Got "None" post_llk, still loading MAP for VR calculation')
         best_point = get_result_point(stage, problem.config, 'max')
-        bresults = composite.assemble_results(best_point)
+        bresults = composite.assemble_results(
+            best_point, chop_bounds=chop_bounds)
         synth_plot_flag = False
 
-    composite.analyse_noise(best_point, chop_bounds=['a', 'd'])
-    composite.update_weights(best_point, chop_bounds=['a', 'd'])
+    composite.analyse_noise(best_point, chop_bounds=chop_bounds)
+    composite.update_weights(best_point, chop_bounds=chop_bounds)
     if plot_options.nensemble > 1:
         from tqdm import tqdm
         logger.info(
@@ -1536,22 +1547,17 @@ def seismic_fits(problem, stage, plot_options):
         for idx in tqdm(idxs):
             point = stage.mtrace.point(idx=idx)
             points.append(point)
-            results = composite.assemble_results(point)
+            results = composite.assemble_results(
+                point, chop_bounds=chop_bounds)
             ens_results.append(results)
             ens_var_reductions.append(
                 composite.get_variance_reductions(
-                    point, weights=composite.weights, results=results))
+                    point, weights=composite.weights,
+                    results=results, chop_bounds=chop_bounds))
 
     bvar_reductions = composite.get_variance_reductions(
-        best_point, weights=composite.weights, results=bresults)
-
-    try:
-        composite.point2sources(best_point)
-        source = composite.sources[0]
-    except AttributeError:
-        logger.info('FFI waveform fit, using reference source ...')
-        source = composite.config.gf_config.reference_sources[0]
-        source.time = composite.event.time
+        best_point, weights=composite.weights,
+        results=bresults, chop_bounds=chop_bounds)
 
     # collecting results for targets
     logger.info('Mapping results to targets ...')

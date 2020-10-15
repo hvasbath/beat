@@ -280,7 +280,7 @@ class SeismicComposite(Composite):
         self.analyse_noise(point, chop_bounds=chop_bounds)
         if update:
             logger.info('Saving velocity model covariance matrixes...')
-            self.update_weights(point)
+            self.update_weights(point, chop_bounds=chop_bounds)
             for wmap in self.wavemaps:
                 save_covs(wmap, 'pred_v')
 
@@ -451,7 +451,7 @@ class SeismicComposite(Composite):
             _llk = num.asarray([num.dot(tmp, tmp)])
             self._llks[k].set_value(_llk)
 
-    def get_standardized_residuals(self, point):
+    def get_standardized_residuals(self, point, chop_bounds=['b', 'c']):
         """
         Parameters
         ----------
@@ -465,8 +465,8 @@ class SeismicComposite(Composite):
             keys are nslc_ids
         """
         results = self.assemble_results(
-            point, order='list', chop_bounds=['b', 'c'])
-        self.update_weights(point)
+            point, order='list', chop_bounds=chop_bounds)
+        self.update_weights(point, chop_bounds=chop_bounds)
 
         counter = utility.Counter()
         hp_specific = self.config.dataset_specific_residual_noise_estimation
@@ -508,7 +508,7 @@ class SeismicComposite(Composite):
 
         if weights is None:
             self.analyse_noise(point, chop_bounds=chop_bounds)
-            self.update_weights(point)
+            self.update_weights(point, chop_bounds=chop_bounds)
             weights = self.weights
 
         assert len(weights) == len(self.datasets)
@@ -642,6 +642,8 @@ class SeismicGeometryComposite(SeismicComposite):
         -------
         posterior_llk : :class:`theano.tensor.Tensor`
         """
+        chop_bounds=['b', 'c']  # we want llk calculation only between b c
+
         hp_specific = self.config.dataset_specific_residual_noise_estimation
         tpoint = problem_config.get_test_point()
 
@@ -658,7 +660,7 @@ class SeismicGeometryComposite(SeismicComposite):
         wlogpts = []
 
         self.init_hierarchicals(problem_config)
-        self.analyse_noise(tpoint, chop_bounds=['b', 'c'])
+        self.analyse_noise(tpoint, chop_bounds=chop_bounds)
         self.init_weights()
         if self.config.station_corrections:
             logger.info(
@@ -678,7 +680,8 @@ class SeismicGeometryComposite(SeismicComposite):
             wmap.prepare_data(
                 source=self.events[wc.event_idx],
                 engine=self.engine,
-                outmode='array')
+                outmode='array',
+                chop_bounds=chop_bounds)
 
             logger.info(
                 'Initializing synthesizer for "%s"' % wmap._mapid)
@@ -953,7 +956,8 @@ class SeismicDistributerComposite(SeismicComposite):
                 wmap.prepare_data(
                     source=self.events[wmap.config.event_idx],
                     engine=self.engine,
-                    outmode='array')
+                    outmode='array',
+                    chop_bounds=['b', 'c'])
 
     def load_fault_geometry(self):
         """
@@ -1016,6 +1020,9 @@ class SeismicDistributerComposite(SeismicComposite):
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
 
+        # no a, d taper bounds as GF library saved between b c
+        chop_bounds=['b', 'c']
+
         logger.info("Loading %s Green's Functions" % self.name)
         self.load_gfs(
             crust_inds=[self.config.gf_config.reference_model_idx],
@@ -1034,7 +1041,7 @@ class SeismicDistributerComposite(SeismicComposite):
         t2 = time()
         wlogpts = []
 
-        self.analyse_noise(tpoint, chop_bounds=['b', 'c'])
+        self.analyse_noise(tpoint, chop_bounds=chop_bounds)
         for gfs in self.gfs.values():
             gfs.init_optimization()
 
@@ -1101,7 +1108,8 @@ class SeismicDistributerComposite(SeismicComposite):
             wmap.prepare_data(
                 source=self.events[wc.event_idx],
                 engine=self.engine,
-                outmode='array')
+                outmode='array',
+                chop_bounds=chop_bounds)
 
             for var in self.slip_varnames:
                 logger.debug('Stacking %s variable' % var)
@@ -1256,7 +1264,8 @@ class SeismicDistributerComposite(SeismicComposite):
 
         return synth_traces, obs_traces
 
-    def update_weights(self, point, n_jobs=1, plot=False):
+    def update_weights(
+            self, point, n_jobs=1, plot=False, chop_bounds=['b', 'c']):
         """
         Updates weighting matrixes (in place) with respect to the point in the
         solution space.
@@ -1270,4 +1279,4 @@ class SeismicDistributerComposite(SeismicComposite):
         # update data covariances in case model dependend non-toeplitz
         if self.config.noise_estimator.structure == 'non-toeplitz':
             logger.info('Updating data-covariances ...')
-            self.analyse_noise(point)
+            self.analyse_noise(point, chop_bounds=chop_bounds)
