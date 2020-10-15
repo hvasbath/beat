@@ -811,7 +811,8 @@ class SeismicGeometryComposite(SeismicComposite):
 
         return synths, obs
 
-    def update_weights(self, point, n_jobs=1, plot=False):
+    def update_weights(
+            self, point, n_jobs=1, plot=False, chop_bounds=['b', 'c']):
         """
         Updates weighting matrixes (in place) with respect to the point in the
         solution space.
@@ -831,7 +832,7 @@ class SeismicGeometryComposite(SeismicComposite):
         # update data covariances in case model dependend non-toeplitz
         if self.config.noise_estimator.structure == 'non-toeplitz':
             logger.info('Updating data-covariances ...')
-            self.analyse_noise(point)
+            self.analyse_noise(point, chop_bounds=chop_bounds)
 
         crust_inds = range(*sc.gf_config.n_variations)
         thresh = 5
@@ -874,6 +875,7 @@ class SeismicGeometryComposite(SeismicComposite):
                             arrival_taper=wc.arrival_taper,
                             arrival_time=arrival_times[tidx],
                             filterer=wc.filterer,
+                            chop_bounds=chop_bounds,
                             plot=plot, n_jobs=n_jobs)
                         cov_pv = utility.ensure_cov_psd(cov_pv)
 
