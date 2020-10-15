@@ -499,19 +499,26 @@ class SeismicComposite(Composite):
         dict of floats,
             keys are nslc_ids
         """
-
         if results is None:
             results = self.assemble_results(
                 point, order='list', chop_bounds=chop_bounds)
 
-        assert len(results) == len(self.datasets)
+        ndatasets = len(self.datasets)
+
+        assert len(results) == ndatasets
 
         if weights is None:
             self.analyse_noise(point, chop_bounds=chop_bounds)
             self.update_weights(point, chop_bounds=chop_bounds)
             weights = self.weights
 
-        assert len(weights) == len(self.datasets)
+        nweights = len(weights)
+        assert nweights == ndatasets
+
+        logger.debug(
+            'n weights %i , n datasets %i' % (nweights, ndatasets))
+
+        assert nweights == ndatasets
 
         logger.debug('Calculating variance reduction for solution ...')
         counter = utility.Counter()
@@ -1275,6 +1282,8 @@ class SeismicDistributerComposite(SeismicComposite):
         point : dict
             with numpy array-like items and variable name keys
         """
+        if not self.weights:
+            self.init_weights()
 
         # update data covariances in case model dependend non-toeplitz
         if self.config.noise_estimator.structure == 'non-toeplitz':
