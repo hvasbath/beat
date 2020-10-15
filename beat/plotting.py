@@ -1733,7 +1733,7 @@ def seismic_fits(problem, stage, plot_options):
                 fig = figures[iyy, ixx]
 
                 target = frame_to_target[iy, ix]
-                print(target.codes)
+
                 # get min max of all traces
                 key = target.codes[3]
                 amin, amax = trace.minmax(
