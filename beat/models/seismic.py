@@ -521,20 +521,10 @@ class SeismicComposite(Composite):
         assert nweights == ndatasets
 
         logger.debug('Calculating variance reduction for solution ...')
-        counter = utility.Counter()
-        hp_specific = self.config.dataset_specific_residual_noise_estimation
-        var_reds = OrderedDict()
 
+        var_reds = OrderedDict()
         for data_trc, weight, result in zip(
                 self.datasets, weights, results):
-
-            hp_name = get_hyper_name(data_trc)
-            if hp_specific:
-                hp = point[hp_name][counter(hp_name)]
-            else:
-                hp = point[hp_name]
-
-            hpval = (1 / num.exp(hp * 2))
 
             ichol = weight.get_value()
             data = result.processed_obs.get_ydata()
