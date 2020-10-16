@@ -529,17 +529,28 @@ class SeismicComposite(Composite):
 
             hpval = (1 / num.exp(hp * 2))
 
-            inv_cov = hpval * weight.get_value()
+            ichol = weight.get_value()
             data = result.processed_obs.get_ydata()
             residual = result.processed_res.get_ydata()
 
-            zaehler = residual.T.dot(inv_cov).dot(residual)
-            nenner = data.T.dot(inv_cov).dot(data)
-            var_red = 1 - (zaehler / nenner)
+            tmp_nom = residual.T.dot(ichol)
+            tmp_denom = data.T.dot(ichol)
+
+            nom = num.dot(tmp_nom, tmp_nom)
+            denom = num.dot(tmp_denom, tmp_denom)
+            logger.debug('nom %f, denom %f' % (float(nom), float(denom)))
+            var_red = 1 - (nom / denom)
 
             nslc_id = utility.list2string(data_trc.nslc_id)
             logger.debug(
                 'Variance reduction for %s is %f' % (nslc_id, var_red))
+
+            if 0:
+                from matplotlib import pyplot as plt
+                fig, ax = plt.subplots(1, 1)
+                im = ax.imshow(ichol)
+                plt.colorbar(im)
+                plt.show()
 
             var_reds[nslc_id] = var_red
 
