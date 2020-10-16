@@ -526,15 +526,14 @@ class SeismicComposite(Composite):
         for data_trc, weight, result in zip(
                 self.datasets, weights, results):
 
-            ichol = weight.get_value()
+            icov = data_trc.covariance.inverse
+
             data = result.processed_obs.get_ydata()
             residual = result.processed_res.get_ydata()
 
-            tmp_nom = residual.T.dot(ichol)
-            tmp_denom = data.T.dot(ichol)
+            nom = residual.T.dot(icov).dot(residual)
+            denom = data.T.dot(icov).dot(data)
 
-            nom = num.dot(tmp_nom, tmp_nom)
-            denom = num.dot(tmp_denom, tmp_denom)
             logger.debug('nom %f, denom %f' % (float(nom), float(denom)))
             var_red = 1 - (nom / denom)
 
@@ -545,7 +544,7 @@ class SeismicComposite(Composite):
             if 0:
                 from matplotlib import pyplot as plt
                 fig, ax = plt.subplots(1, 1)
-                im = ax.imshow(ichol)
+                im = ax.imshow(data_trc.covariance.data)
                 plt.colorbar(im)
                 plt.show()
 
