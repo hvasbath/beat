@@ -499,47 +499,54 @@ class SeismicComposite(Composite):
         dict of floats,
             keys are nslc_ids
         """
-
         if results is None:
             results = self.assemble_results(
                 point, order='list', chop_bounds=chop_bounds)
 
-        assert len(results) == len(self.datasets)
+        ndatasets = len(self.datasets)
+
+        assert len(results) == ndatasets
 
         if weights is None:
             self.analyse_noise(point, chop_bounds=chop_bounds)
             self.update_weights(point, chop_bounds=chop_bounds)
             weights = self.weights
 
-        assert len(weights) == len(self.datasets)
+        nweights = len(weights)
+        assert nweights == ndatasets
+
+        logger.debug(
+            'n weights %i , n datasets %i' % (nweights, ndatasets))
+
+        assert nweights == ndatasets
 
         logger.debug('Calculating variance reduction for solution ...')
-        counter = utility.Counter()
-        hp_specific = self.config.dataset_specific_residual_noise_estimation
-        var_reds = OrderedDict()
 
+        var_reds = OrderedDict()
         for data_trc, weight, result in zip(
                 self.datasets, weights, results):
 
-            hp_name = get_hyper_name(data_trc)
-            if hp_specific:
-                hp = point[hp_name][counter(hp_name)]
-            else:
-                hp = point[hp_name]
+            icov = data_trc.covariance.inverse
 
-            hpval = (1 / num.exp(hp * 2))
-
-            inv_cov = hpval * weight.get_value()
             data = result.processed_obs.get_ydata()
             residual = result.processed_res.get_ydata()
 
-            zaehler = residual.T.dot(inv_cov).dot(residual)
-            nenner = data.T.dot(inv_cov).dot(data)
-            var_red = 1 - (zaehler / nenner)
+            nom = residual.T.dot(icov).dot(residual)
+            denom = data.T.dot(icov).dot(data)
+
+            logger.debug('nom %f, denom %f' % (float(nom), float(denom)))
+            var_red = 1 - (nom / denom)
 
             nslc_id = utility.list2string(data_trc.nslc_id)
             logger.debug(
                 'Variance reduction for %s is %f' % (nslc_id, var_red))
+
+            if 0:
+                from matplotlib import pyplot as plt
+                fig, ax = plt.subplots(1, 1)
+                im = ax.imshow(data_trc.covariance.data)
+                plt.colorbar(im)
+                plt.show()
 
             var_reds[nslc_id] = var_red
 
@@ -1275,6 +1282,8 @@ class SeismicDistributerComposite(SeismicComposite):
         point : dict
             with numpy array-like items and variable name keys
         """
+        if not self.weights:
+            self.init_weights()
 
         # update data covariances in case model dependend non-toeplitz
         if self.config.noise_estimator.structure == 'non-toeplitz':
