@@ -19,6 +19,8 @@ from matplotlib.collections import PatchCollection
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.ticker as tick
 
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
 from scipy.stats import kde
 import numpy as num
 from pyrocko.guts import (Object, String, Dict, List,
@@ -946,6 +948,38 @@ def get_latlon_ratio(lat, lon):
     dlat_meters = otd.distance_accurate50m(lat, lon, lat - 1., lon)
     dlon_meters = otd.distance_accurate50m(lat, lon, lat, lon -1.)
     return dlat_meters / dlon_meters
+
+
+def plot_inset_hist(
+        axes, data, best_data, bbox_to_anchor,
+        cmap=None, cbounds=None, color='orange', alpha=0.4):
+
+    in_ax = inset_axes(
+        axes, width="100%", height="100%",
+        bbox_to_anchor=bbox_to_anchor,
+        bbox_transform=axes.transAxes, loc=2, borderpad=0)
+    histplot_op(
+        in_ax, data,
+        alpha=alpha, color=color, cmap=cmap, cbounds=cbounds, tstd=0.)
+
+    format_axes(in_ax)
+    linewidth = 0.5
+    format_axes(
+        in_ax, remove=['bottom'], visible=True,
+        linewidth=linewidth)
+
+    if best_data:
+        in_ax.axvline(
+            x=best_data,
+            color='red', lw=linewidth)
+
+    in_ax.tick_params(
+        axis='both', direction='in', labelsize=5,
+        width=linewidth)
+    in_ax.get_yaxis().set_visible(False)
+    xticker = tick.MaxNLocator(nbins=2)
+    in_ax.get_xaxis().set_major_locator(xticker)
+    return in_ax
 
 
 def scene_fits(problem, stage, plot_options):
