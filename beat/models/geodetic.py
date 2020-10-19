@@ -381,6 +381,70 @@ class GeodeticComposite(Composite):
             _llk = num.asarray([num.dot(tmp, tmp)])
             self._llks[l].set_value(_llk)
 
+    def get_variance_reductions(
+            self, point, results=None, weights=None):
+        """
+        Parameters
+        ----------
+        point : dict
+            with parameters to point in solution space to calculate
+            variance reductions
+
+        Returns
+        -------
+        dict of floats,
+            keys are nslc_ids
+        """
+        if results is None:
+            results = self.assemble_results(point)
+
+        ndatasets = len(self.datasets)
+
+        assert len(results) == ndatasets
+
+        if weights is None:
+            self.update_weights(point)
+            weights = self.weights
+
+        nweights = len(weights)
+        assert nweights == ndatasets
+
+        logger.debug(
+            'n weights %i , n datasets %i' % (nweights, ndatasets))
+
+        assert nweights == ndatasets
+
+        logger.debug('Calculating variance reduction for solution ...')
+
+        var_reds = OrderedDict()
+        for dataset, weight, result in zip(
+                self.datasets, weights, results):
+
+            icov = dataset.covariance.inverse
+
+            data = result.processed_obs
+            residual = result.processed_res
+
+            nom = residual.T.dot(icov).dot(residual)
+            denom = data.T.dot(icov).dot(data)
+
+            logger.debug('nom %f, denom %f' % (float(nom), float(denom)))
+            var_red = 1 - (nom / denom)
+
+            nslc_id = utility.list2string(data_trc.nslc_id)
+            logger.debug(
+                'Variance reduction for %s is %f' % (nslc_id, var_red))
+
+            if 0:
+                from matplotlib import pyplot as plt
+                fig, ax = plt.subplots(1, 1)
+                im = ax.imshow(data_trc.covariance.data)
+                plt.colorbar(im)
+                plt.show()
+
+            var_reds[nslc_id] = var_red
+
+        return var_reds
 
 class GeodeticSourceComposite(GeodeticComposite):
     """
