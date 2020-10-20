@@ -1199,6 +1199,11 @@ def command_build_gfs(args):
             help='Start actual GF calculations. If not set only'
                  ' configuration files are being created')
 
+        parser.add_option(
+            '--plot', dest='plot', action='store_true',
+            help='Plot fault discretization after fault patch'
+                 ' discretization optimization.')
+
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
     project_dir = get_project_directory(
@@ -1383,7 +1388,7 @@ def command_build_gfs(args):
                                 event=c.event,
                                 force=options.force,
                                 nworkers=gf.nworkers,
-                                plot=True)
+                                plot=options.plot)
                             logger.info(
                                 'Storing optimized discretized fault'
                                 ' geometry to: %s' % faultpath)
