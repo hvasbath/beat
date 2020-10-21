@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 **General**
 - Wavemap attribute "quantity" to sample acceleration, velocity or displacement waveforms
+- added export method to geodetic composite to enable GNSS and SAR data / results export to CSV, YAML
 
 **Finite Fault**
 - discretization options for the fault into patches:
@@ -53,7 +54,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - MTQTSource magnitude scaling
 
 ### Changed
-- fit_ramp option at the geoedetic_config is now an Hierarchical Correction
+- fit_ramp option at the geodetic_config is now an Hierarchical Correction
 - laplacian has now configuration arguments for functional form, nearest neighbor as previously now only for single fault
 - moved beat command level export to dataset composites export method
 - MTQTSource input argument u removed in favor of w
