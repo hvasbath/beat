@@ -201,10 +201,18 @@ class GeodeticComposite(Composite):
                fix_output=False, force=False, update=False):
 
         from pyrocko.guts import dump
+        from kite.scene import Scene, UserIOWarning
+        from beat.plotting import map_displacement_grid
 
         gc = self.config
 
         results = self.assemble_results(point)
+
+        def get_filename(attr, ending='csv'):
+            return os.path.join(
+                results_path, '{}_{}_{}.{}'.format(
+                    os.path.splitext(dataset.name)[0],
+                    attr, stage_number, ending))
 
         # export for gnss
         for typ, config in gc.types.items():
@@ -239,16 +247,32 @@ class GeodeticComposite(Composite):
                 logger.info('Exporting SAR data ...')
                 for dataset, result in zip(self.datasets, results):
                     if dataset.typ == 'SAR':
+                        try:
+                            scene_path = os.path.join(
+                                config.datadir, dataset.name)
+                            logger.info(
+                                'Loading full resolution kite scene: %s' %
+                                scene_path)
+                            scene = Scene.load(scene_path)
+                        except UserIOWarning:
+                            logger.warning(
+                                'Full resolution data could not be'
+                                ' loaded! Skipping ...')
+                            continue
+
                         for attr in ['processed_obs',
                                      'processed_syn', 'processed_res']:
-                            filename = os.path.join(
-                                results_path, '{}_{}_{}.csv'.format(
-                                    os.path.splitext(dataset.name)[0],
-                                    attr, stage_number))
+
+                            filename = get_filename(attr, ending='csv')
                             displacements = getattr(result, attr)
                             dataset.export_to_csv(filename, displacements)
                             logger.info('Stored CSV file to: %s' % filename)
 
+                            filename = get_filename(attr, ending='yml')
+                            vals = map_displacement_grid(displacements, scene)
+                            scene.displacement = vals
+                            scene.save(filename)
+                            logger.info('Stored kite scene to: %s' % filename)
 
     def init_hierarchicals(self, problem_config):
         """
