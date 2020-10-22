@@ -9,8 +9,8 @@ import copy
 from beat import utility
 from beat.models import Stage, load_stage
 from beat.sampler.metropolis import get_trace_stats
-from beat.heart import init_seismic_targets, init_geodetic_targets, \
-                       physical_bounds
+from beat.heart import (init_seismic_targets, init_geodetic_targets,
+                        physical_bounds)
 from beat.config import ffi_mode_str, geometry_mode_str, dist_vars
 
 from matplotlib import pyplot as plt
@@ -130,7 +130,6 @@ def hypername(varname):
         return 'h_'
 
 
-
 class PlotOptions(Object):
     post_llk = String.T(
         default='max',
@@ -245,7 +244,6 @@ def kde2plot(x, y, grid=200, ax=None, **kwargs):
 def spherical_kde_op(
         lats0, lons0, lats=None, lons=None, grid_size=(200, 200), sigma=None):
 
-    from scipy.special import logsumexp
     from beat.models.distributions import vonmises_fisher, vonmises_std
 
     if sigma is None:
@@ -280,7 +278,7 @@ def spherical_kde_op(
             'Init new spherical kde samples')
         kde = num.zeros(grid_size)
 
-    logger.info('Drawing lune plot for %i samples ... ' %  lats0.size)
+    logger.info('Drawing lune plot for %i samples ... ' % lats0.size)
     for cyc in range(cycles):
         cyc_s = cyc * batch_size
         cyc_e = cyc_s + batch_size
@@ -534,7 +532,8 @@ def correlation_plot_hist(
                 axs[l, k].tick_params(axis='x', pad=label_pad)
 
         axs[l, k].set_xlabel(
-            v_namea + '\n ' + plot_units[hypername(v_namea)], fontsize=fontsize)
+            v_namea + '\n ' + plot_units[hypername(v_namea)],
+            fontsize=fontsize)
 
     if unify:
         varnames_repeat_x = [
@@ -752,7 +751,8 @@ def gnss_fits(problem, stage, plot_options):
 
     campaigns = ds_config.load_data(campaign=True)
     if not campaigns:
-        raise ImportError('Did not fing GNSS data under %s' % ds_config.datadir)
+        raise ImportError(
+            'Did not fing GNSS data under %s' % ds_config.datadir)
 
     if len(campaigns) > 1:
         logger.warning(
@@ -798,9 +798,9 @@ def gnss_fits(problem, stage, plot_options):
 
     if po.plot_projection == 'latlon':
         event = problem.config.event
-        locations = campaign.stations # + [event]
-        #print(locations)
-        #lat, lon = otd.geographic_midpoint_locations(locations)
+        locations = campaign.stations  # + [event]
+        # print(locations)
+        # lat, lon = otd.geographic_midpoint_locations(locations)
 
         coords = num.array([loc.effective_latlon for loc in locations])
         lat, lon = num.mean(num.vstack([coords.min(0), coords.max(0)]), axis=0)
@@ -1094,7 +1094,7 @@ def scene_fits(problem, stage, plot_options):
 
         for p in polygons:
             if (p.is_land() or p.is_antarctic_grounding_line() or
-               p.is_island_in_lake()):
+                    p.is_island_in_lake()):
 
                 if scene.frame.isMeter():
                     ys, xs = otd.latlon_to_ne_numpy(
@@ -1241,7 +1241,7 @@ def scene_fits(problem, stage, plot_options):
             sources[0].lat, sources[0].lon,
             num.array([llN, urN]), num.array([llE, urE]))
 
-        #result = dataset_to_result[dataset]
+        # result = dataset_to_result[dataset]
         tidx = dataset_index[dataset]
 
         figidx, rowidx = utility.mod_i(tidx, ndmax)
@@ -1678,7 +1678,7 @@ def seismic_fits(problem, stage, plot_options):
         ny = (nframes - 1) // nx + 1
 
         logger.debug('nx %i, ny %i' % (nx, ny))
-        
+
         nxmax = 4
         nymax = 4
 
@@ -1803,7 +1803,7 @@ def seismic_fits(problem, stage, plot_options):
 
                 tap_color_annot = (0.35, 0.35, 0.25)
                 tap_color_edge = (0.85, 0.85, 0.80)
-                #tap_color_fill = (0.95, 0.95, 0.90)
+                # tap_color_fill = (0.95, 0.95, 0.90)
 
                 plot_taper(
                     axes2, result.processed_obs.get_xdata(), result.taper,
@@ -1863,7 +1863,7 @@ def seismic_fits(problem, stage, plot_options):
                     in_ax.set_title('VR [%]', fontsize=5)
 
                 if station_corr:
-                    sidebar_ybounds = [-0.9, -1,3]
+                    sidebar_ybounds = [-0.9, -1.3]
                     ytmarks = [-1.3, -1.3]
                     hor_alignment = 'center'
 
@@ -1878,8 +1878,8 @@ def seismic_fits(problem, stage, plot_options):
                             data=pmp.utils.make_2d(all_time_shifts[target]),
                             best_data=best_data,
                             bbox_to_anchor=(-0.0985, .26, .2, .2),
-                     #       cmap=plt.cm.get_cmap('seismic'),
-                     #       cbounds=time_shift_bounds,
+                            # cmap=plt.cm.get_cmap('seismic'),
+                            # cbounds=time_shift_bounds,
                             color=time_shift_color,
                             alpha=0.7)
                         in_ax.set_xlim(*time_shift_bounds)
@@ -2188,14 +2188,15 @@ def fuzzy_mt_decomposition(
         lines.append(
             (label, m6s, color))
 
-    magnitude_full_max = max( m6s.mean(axis=0)[-1] for (_, m6s, _) in lines)
+    magnitude_full_max = max(m6s.mean(axis=0)[-1] for (_, m6s, _) in lines)
 
     for xpos, label in [
-        (0., 'Full'),
-        (2., 'Isotropic'),
-        (4., 'Deviatoric'),
-        (6., 'CLVD'),
-        (8., 'DC')]:
+            (0., 'Full'),
+            (2., 'Isotropic'),
+            (4., 'Deviatoric'),
+            (6., 'CLVD'),
+            (8., 'DC')]:
+
         axes.annotate(
             label,
             xy=(1 + xpos, nlines_max),
@@ -2225,11 +2226,11 @@ def fuzzy_mt_decomposition(
             fontsize=fontsize)
 
         for xpos, decomp, ops in [
-            (0., tots, '-'),
-            (2., isos, '='),
-            (4., devs, '='),
-            (6., clvds, '+'),
-            (8., dcs, None)]:
+                (0., tots, '-'),
+                (2., isos, '='),
+                (4., devs, '='),
+                (6., clvds, '+'),
+                (8., dcs, None)]:
 
             ratios = num.array([comp[1] for comp in decomp])
             ratio = ratios.mean()
@@ -2248,7 +2249,8 @@ def fuzzy_mt_decomposition(
                         mt_parts, axes, best_mt=None, **kwargs)
 
                     if ratios_diff > 0.:
-                        label = '{:03.1f}-{:03.1f}%'.format(ratios_qu[2.5], ratios_qu[97.5])
+                        label = '{:03.1f}-{:03.1f}%'.format(
+                            ratios_qu[2.5], ratios_qu[97.5])
                     else:
                         label = '{:03.1f}%'.format(ratios_qu[2.5])
 
@@ -2322,7 +2324,8 @@ def draw_fuzzy_mt_decomposition(problem, po):
     if po.load_stage is None:
         po.load_stage = -1
 
-    m6s, _, llk_str = extract_mt_components(problem, po, include_magnitude=True)
+    m6s, _, llk_str = extract_mt_components(
+        problem, po, include_magnitude=True)
 
     outpath = os.path.join(
         problem.outfolder,
@@ -2587,8 +2590,7 @@ def unify_tick_intervals(axs, varnames, ntickmarks_max=5, axis='x'):
         if max_range_frac > min_range:
             logger.debug(
                 'Range difference between min and max for %s is large!'
-                ' Extending min_range to %f' % (
-                setname, max_range_frac))
+                ' Extending min_range to %f' % (setname, max_range_frac))
             unities[setname] = [max_range_frac, max_range]
 
     return unities
@@ -2841,8 +2843,8 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     elif plot_style == 'hist':
                         histplot_op(
                             axs[rowi, coli], e, reference=reference,
-                            bins=varbin, alpha=alpha, color=pcolor, qlist=qlist,
-                            kwargs=kwargs)
+                            bins=varbin, alpha=alpha, color=pcolor,
+                            qlist=qlist, kwargs=kwargs)
                     else:
                         raise NotImplementedError(
                             'Plot style "%s" not implemented' % plot_style)
@@ -2995,7 +2997,7 @@ def draw_posteriors(problem, plot_options):
     else:
         sc = problem.config.sampler_config
         varnames = problem.varnames + problem.hypernames + \
-                   problem.hierarchicalnames + ['like']
+            problem.hierarchicalnames + ['like']
 
     if len(po.varnames) > 0:
         varnames = po.varnames
@@ -3111,7 +3113,8 @@ def draw_correlation_hist(problem, plot_options):
 
     transform = select_transform(sc=sc, n_steps=draws)
 
-    stage = load_stage(problem, stage_number=po.load_stage, load='trace', chains=[-1])
+    stage = load_stage(
+        problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
     if sc.name == 'Metropolis' and po.post_llk != 'all':
         chains = select_metropolis_chains(problem, stage.mtrace, po.post_llk)
@@ -3338,7 +3341,7 @@ def draw_earthmodels(problem, plot_options):
 
 
 def fuzzy_waveforms(
-        ax, traces, linewidth, zorder=0, extent=None, 
+        ax, traces, linewidth, zorder=0, extent=None,
         grid_size=(500, 500), cmap=None, alpha=0.6):
     """
     Fuzzy waveforms
@@ -3359,8 +3362,9 @@ def fuzzy_waveforms(
 
         ncolors = 256
         cmap = LinearSegmentedColormap.from_list(
-            'dummy', ['white', scolor('chocolate2'), scolor('scarletred2')], N=ncolors)
-        #cmap = plt.cm.gist_earth_r
+            'dummy', ['white', scolor('chocolate2'), scolor('scarletred2')],
+            N=ncolors)
+        # cmap = plt.cm.gist_earth_r
 
     if extent is None:
         key = traces[0].channel
@@ -3386,8 +3390,8 @@ def fuzzy_waveforms(
             linewidth=linewidth)
 
     # increase contrast reduce high intense values
-    #truncate = len(traces) / 2
-    #grid[grid > truncate] = truncate
+    # truncate = len(traces) / 2
+    # grid[grid > truncate] = truncate
     ax.imshow(
         grid, extent=extent, origin='lower', cmap=cmap, aspect='auto',
         alpha=alpha, zorder=zorder)
@@ -3484,7 +3488,7 @@ def fault_slip_distribution(
             quiver_legend_length = num.ceil(
                 num.max(slips * normalisation) * 10.) / 10.
 
-            #ax.quiverkey(
+            # ax.quiverkey(
             #    quivers, 0.9, 0.8, quiver_legend_length,
             #    '{} [m]'.format(quiver_legend_length), labelpos='E',
             #    coordinates='figure')
@@ -3582,11 +3586,14 @@ def fault_slip_distribution(
         patch_idxs = fault.get_patch_indexes(ns)
 
         pa_col = draw_patches(
-            ax, fault, subfault_idx=ns, patch_values=reference_slip[patch_idxs],
+            ax, fault,
+            subfault_idx=ns,
+            patch_values=reference_slip[patch_idxs],
             cmap=slip_colormap(100), alpha=0.65)
 
         # patch central locations
-        centers = fault.get_subfault_patch_attributes(ns, attributes=['center'])
+        centers = fault.get_subfault_patch_attributes(
+            ns, attributes=['center'])
         rot_centers = rotate_coords_plane_normal(centers, ext_source)[:, 1::-1]
 
         xgr, ygr = rot_centers.T
@@ -3619,7 +3626,7 @@ def fault_slip_distribution(
                         index=ns, vector=velocities[i, :])
                     sts = fault.get_subfault_starttimes(
                         ns, veloc_ns, nuc_dip_idx[ns], nuc_strike_idx[ns])
-                    
+
                     contours = dummy_ax.contour(xgr, ygr, sts)
                     rupture_fronts.append(contours.allsegs)
 
@@ -3737,7 +3744,8 @@ def draw_slip_dist(problem, po):
 
     transform = select_transform(sc=sc, n_steps=draws)
 
-    stage = load_stage(problem, stage_number=po.load_stage, load='trace', chains=[-1])
+    stage = load_stage(
+        problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
     if not po.reference:
         reference = problem.config.problem_config.get_test_point()
@@ -3771,7 +3779,8 @@ def draw_slip_dist(problem, po):
                 fig.savefig(outpath + '_%i.%s' % (i, po.outformat), dpi=po.dpi)
 
 
-def _weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=num.inf, cmin=0, cmax=num.inf):
+def _weighted_line(
+        r0, c0, r1, c1, w, rmin=0, rmax=num.inf, cmin=0, cmax=num.inf):
     """
     Draw weighted lines into array
     Modiefied from:
@@ -3940,7 +3949,8 @@ def draw_line_on_array(
         r1 = yidxs[i]
         try:
             rr, cc, w = _weighted_line(
-                r0=r0, c0=c0, r1=r1, c1=c1, w=linewidth, rmax=ynstep - 1, cmax=xnstep - 1)
+                r0=r0, c0=c0, r1=r1, c1=c1, w=linewidth,
+                rmax=ynstep - 1, cmax=xnstep - 1)
             new_grid[rr, cc] = w.astype(grid.dtype)
         except ValueError:
             # line start and end fall in the same grid point cant be drawn
@@ -4144,8 +4154,10 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
 
 
     def set_axes_equal(ax, axes='xyz'):
-        '''Make axes of 3D plot have equal scale so that spheres appear as spheres,
-        cubes as cubes, etc..  This is one possible solution to Matplotlib's
+        '''
+        Make axes of 3D plot have equal scale so that spheres appear as
+        spheres, cubes as cubes, etc.. 
+        This is one possible solution to Matplotlib's
         ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
 
         Input
@@ -4205,9 +4217,11 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
 
     if datasets:
         for dataset in datasets:
-            #print(dataset.east_shifts, dataset.north_shifts)
+            # print(dataset.east_shifts, dataset.north_shifts)
             ax.scatter(
-                dataset.east_shifts, dataset.north_shifts, dataset.coords5[:, 4],
+                dataset.east_shifts,
+                dataset.north_shifts,
+                dataset.coords5[:, 4],
                 s=10, alpha=0.6, marker='o', color='black')
 
     scale = {'scale': 1. / km}
@@ -4351,7 +4365,7 @@ def draw_station_map_gmt(problem, po):
             st_lats = [station.lat for station in wmap.stations]
 
             if dist > 30:
-                dist = dist * 1.05 # add interval to have bound
+                dist = dist * 1.05  # add interval to have bound
                 logger.info(
                     'Using equidistant azimuthal projection for'
                     ' teleseismic setup of wavemap %s.' % wmap._mapid)
@@ -4363,7 +4377,7 @@ def draw_station_map_gmt(problem, po):
                 gmt.psbasemap(
                     R=R_location,
                     J='S0/-90/90/%i' % w,
-                    B='xa%sf%s' % (bin_width*2, bin_width))
+                    B='xa%sf%s' % (bin_width * 2, bin_width))
                 gmt.pscoast(
                     R='g',
                     J='E%s/%s/%s/%i' % (event.lon, event.lat, dist, w),
@@ -4564,8 +4578,8 @@ def lune_plot(v_tape=None, w_tape=None):
         def check_fixed(a, varname):
             if a.std() < 0.1:
                 logger.info(
-                    'Spread of variable "%s" is %f, which is below necessary width to '
-                    'estimate a spherical kde, adding some jitter to'
+                    'Spread of variable "%s" is %f, which is below necessary'
+                    ' width to estimate a spherical kde, adding some jitter to'
                     ' make kde estimate possible' % (varname, a.std()))
                 a += num.random.normal(loc=0., scale=0.05, size=a.size)
 
