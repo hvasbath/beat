@@ -845,6 +845,7 @@ def command_summarize(args):
     from pymc3 import summary
     from numpy import hstack, vstack, split
     from pyrocko.moment_tensor import MomentTensor
+    from pyrocko.gf import RectangularSource
 
     command_str = 'summarize'
 
@@ -983,17 +984,33 @@ def command_summarize(args):
                         del jpoint, ldicts
 
                     derived = []
+
+                    # BEAT sources
                     if hasattr(source, 'get_derived_parameters'):
                         composite.point2sources(point)
                         for source in composite.sources:
-                            derived.append(source.get_derived_parameters())
+                            print(source)
+                            derived.append(
+                                source.get_derived_parameters())
+                            nderived = source.nderived_parameters
+                    else:   # pyrocko Rectangular source
+                        if isinstance(source, RectangularSource):
+                            target = composite.targets[0]
+                            store = composite.engine.get_store(target.store_id)
+                            for source in composite.sources:
+                                source.magnitude = None
+                                print(source)
+                                derived.append(source.get_magnitude(
+                                    store=store, target=target))
+
+                            nderived = 1
 
                     lpoint = problem.model.lijection.d2l(point)
                     if derived:
                         lpoint.extend(
                             split(
                                 vstack(derived),
-                                source.nderived_parameters,
+                                nderived,
                                 axis=1))
 
                     # TODO: in PT with large buffer sizes somehow memory leak
