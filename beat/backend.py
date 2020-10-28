@@ -57,6 +57,7 @@ logger = logging.getLogger('backend')
 derived_variables_mapping = {
     'MTQTSource': mt_components + dc_components,
     'MTSource': dc_components,
+    'RectangularSource': ['magnitude'],
 }
 
 
