@@ -1623,15 +1623,16 @@ def seismic_fits(problem, stage, plot_options):
         time_shift_bounds = [tshifts.lower, tshifts.upper]
 
         logger.info('Collecting time-shifts ...')
-        ens_time_shifts = []
-        for point in points:
-            comp_time_shifts = []
-            for wmap in composite.wavemaps:
-                comp_time_shifts.append(
-                    extract_time_shifts(point, wmap))
+        if plot_options.nensemble > 1:
+            ens_time_shifts = []
+            for point in points:
+                comp_time_shifts = []
+                for wmap in composite.wavemaps:
+                    comp_time_shifts.append(
+                        extract_time_shifts(point, wmap))
 
-            ens_time_shifts.append(
-                num.hstack(comp_time_shifts))
+                ens_time_shifts.append(
+                    num.hstack(comp_time_shifts))
 
         btime_shifts = num.hstack(
             [extract_time_shifts(best_point, wmap)
