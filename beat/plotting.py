@@ -939,6 +939,15 @@ def map_displacement_grid(displacements, scene):
     return arr
 
 
+def get_latlon_ratio(lat, lon):
+    """
+    Get latlon ratio at given location 
+    """
+    dlat_meters = otd.distance_accurate50m(lat, lon, lat - 1., lon)
+    dlon_meters = otd.distance_accurate50m(lat, lon, lat, lon -1.)
+    return dlat_meters / dlon_meters
+
+
 def scene_fits(problem, stage, plot_options):
     """
     Plot geodetic data, synthetics and residuals.
@@ -1026,6 +1035,7 @@ def scene_fits(problem, stage, plot_options):
 
     def axis_config(axes, source, scene, po):
 
+        latlon_ratio = get_latlon_ratio(source.lat, source.lon)
         for i, ax in enumerate(axes):
             if po.plot_projection == 'latlon':
                 ystr = 'Latitude [deg]'
@@ -1044,7 +1054,7 @@ def scene_fits(problem, stage, plot_options):
                 ystr = 'Distance [km]'
                 xstr = 'Distance [km]'
                 if scene.frame.isDegree():
-                    scale_x = {'scale': otd.d2m / km}
+                    scale_x = {'scale': otd.d2m / km / latlon_ratio}
                     scale_y = {'scale': otd.d2m / km}
                 else:
                     scale_x = {'scale': 1. / km}
