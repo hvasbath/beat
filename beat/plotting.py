@@ -1043,9 +1043,11 @@ def scene_fits(problem, stage, plot_options):
                 if scene.frame.isDegree():
                     scale_x = {'scale': 1.}
                     scale_y = {'scale': 1.}
+                    ax.set_aspect(latlon_ratio)
                 else:
                     scale_x = {'scale': otd.m2d}
                     scale_y = {'scale': otd.m2d}
+                    ax.set_aspect('equal')
 
                 scale_x['offset'] = source.lon
                 scale_y['offset'] = source.lat
@@ -1056,25 +1058,28 @@ def scene_fits(problem, stage, plot_options):
                 if scene.frame.isDegree():
                     scale_x = {'scale': otd.d2m / km / latlon_ratio}
                     scale_y = {'scale': otd.d2m / km}
+                    ax.set_aspect(latlon_ratio)
                 else:
                     scale_x = {'scale': 1. / km}
                     scale_y = {'scale': 1. / km}
+                    ax.set_aspect('equal')
             else:
                 raise TypeError(
                     'Plot projection %s not available' % po.plot_projection)
 
-            ticker = tick.MaxNLocator(nbins=3)
-            ax.get_xaxis().set_major_locator(ticker)
-            ax.get_yaxis().set_major_locator(ticker)
+            ax.xaxis.set_major_locator(tick.MaxNLocator(nbins=3))
+            ax.yaxis.set_major_locator(tick.MaxNLocator(nbins=3))
 
             if i == 0:
                 ax.set_ylabel(ystr, fontsize=fontsize)
                 ax.set_xlabel(xstr, fontsize=fontsize)
                 ax.set_yticklabels(ax.get_yticklabels(), rotation=90)
 
+            ax.scale_x = scale_x
+            ax.scale_y = scale_y
+
             scale_axes(ax.get_xaxis(), **scale_x)
             scale_axes(ax.get_yaxis(), **scale_y)
-            ax.set_aspect('equal')
 
             if i > 0:
                 ax.set_yticklabels([])

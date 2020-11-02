@@ -982,9 +982,9 @@ def command_summarize(args):
                         point.update(jpoint)
                         del jpoint, ldicts
 
-                    composite.point2sources(point)
                     derived = []
                     if hasattr(source, 'get_derived_parameters'):
+                        composite.point2sources(point)
                         for source in composite.sources:
                             derived.append(source.get_derived_parameters())
 
