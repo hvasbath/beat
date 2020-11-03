@@ -32,6 +32,8 @@ from pyrocko.gf import LocalEngine
 
 from pyrocko.guts import load, dump, Dict
 
+from tqdm import tqdm
+
 
 logger = logging.getLogger('beat')
 
@@ -959,17 +961,26 @@ def command_summarize(args):
             rtrace.setup(
                 draws=draws, chain=-1, overwrite=True)
 
-            if hasattr(problem, 'sources'):
-                source = problem.sources[0]
-            else:
-                source = None
-
             if 'seismic' in problem.config.problem_config.datatypes:
                 composite = problem.composites['seismic']
+                datatype = 'seismic'
             else:
                 composite = problem.composites['geodetic']
+                datatype = 'geodetic'
 
-            for chain in chains:
+            target = composite.targets[0]
+            if hasattr(composite, 'sources'):
+                source = problem.sources[0]
+                store = composite.engine.get_store(target.store_id)
+            else:
+                from beat.ffi import FaultGeometry
+                source = composite.load_fault_geometry()
+                engine = LocalEngine(
+                    store_superdirs=[
+                        composite.config.gf_config.store_superdir])
+                store = engine.get_store(target.store_id)
+
+            for chain in tqdm(chains):
                 for idx in idxs:
                     point = stage.mtrace.point(idx=idx, chain=chain)
                     if isinstance(source, MTSourceWithMagnitude):
@@ -989,20 +1000,26 @@ def command_summarize(args):
                     if hasattr(source, 'get_derived_parameters'):
                         composite.point2sources(point)
                         for source in composite.sources:
-                            print(source)
                             derived.append(
                                 source.get_derived_parameters())
                             nderived = source.nderived_parameters
-                    else:   # pyrocko Rectangular source
+                    else:
+                        # pyrocko Rectangular source
                         if isinstance(source, RectangularSource):
-                            target = composite.targets[0]
-                            store = composite.engine.get_store(target.store_id)
+                            composite.point2sources(point)
                             for source in composite.sources:
                                 source.magnitude = None
-                                print(source)
-                                derived.append(source.get_magnitude(
-                                    store=store, target=target))
+                                derived.append(
+                                    source.get_magnitude(
+                                        store=store, target=target))
 
+                            nderived = 1
+                        # FFI
+                        elif isinstance(source, FaultGeometry):
+                            derived.append(
+                                source.get_magnitude(
+                                    point=point, store=store,
+                                    target=target, datatype=datatype))
                             nderived = 1
 
                     lpoint = problem.model.lijection.d2l(point)

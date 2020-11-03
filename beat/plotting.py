@@ -1358,7 +1358,7 @@ def scene_fits(problem, stage, plot_options):
                 data=pmp.utils.make_2d(all_var_reductions[dataset.name]),
                 best_data=bvar_reductions[dataset.name] * 100.,
                 linewidth=1.,
-                bbox_to_anchor=(0.8, .75, .195, .25),
+                bbox_to_anchor=(0.75, .775, .25, .225),
                 labelsize=6)
 
             format_axes(

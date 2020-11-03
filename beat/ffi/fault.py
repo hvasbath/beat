@@ -11,6 +11,7 @@ from .base import get_backend, geo_construct_gf_linear_patches
 
 from pyrocko.gf.seismosizer import Cloneable
 from pyrocko.orthodrome import latlon_to_ne_numpy, ne_to_latlon
+from pyrocko.moment_tensor import moment_to_magnitude
 
 import copy
 from logging import getLogger
@@ -255,6 +256,36 @@ total number of patches: %i ''' % (
             moments.append(rs.get_moment(target=target, store=store))
 
         return moments
+
+    def get_moment(self, point, store=None, target=None, datatype='geodetic'):
+        """
+        Get total moment of the fault.
+        """
+        moments = []
+        for index in range(self.nsubfaults):
+            uparr = self.vector2subfault(index, point['uparr'])
+            try:
+                uperp = self.vector2subfault(index, point['uperp'])
+            except KeyError:
+                uperp = num.zeros_like(uparr)
+
+            slips = num.sqrt(uparr ** 2 + uperp ** 2)
+
+            sf_moments = self.get_subfault_patch_moments(
+                index=index, slips=slips, store=store,
+                target=target, datatype=datatype)
+            moments.extend(sf_moments)
+
+        return num.array(moments).sum()
+
+    def get_magnitude(
+            self, point, store=None, target=None, datatype='geodetic'):
+        """
+        Get total moment magnitude after Hanks and Kanamori 1979
+        """
+        return moment_to_magnitude(
+            self.get_moment(
+                point, store=store, target=target, datatype=datatype))
 
     def get_subfault_patch_stfs(
             self, index, durations, starttimes,
