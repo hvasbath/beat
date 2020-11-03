@@ -951,7 +951,7 @@ def get_latlon_ratio(lat, lon):
 
 
 def plot_inset_hist(
-        axes, data, best_data, bbox_to_anchor,
+        axes, data, best_data, bbox_to_anchor, linewidth=0.5, labelsize=5,
         cmap=None, cbounds=None, color='orange', alpha=0.4):
 
     in_ax = inset_axes(
@@ -963,7 +963,6 @@ def plot_inset_hist(
         alpha=alpha, color=color, cmap=cmap, cbounds=cbounds, tstd=0.)
 
     format_axes(in_ax)
-    linewidth = 0.5
     format_axes(
         in_ax, remove=['bottom'], visible=True,
         linewidth=linewidth)
@@ -974,11 +973,11 @@ def plot_inset_hist(
             color='red', lw=linewidth)
 
     in_ax.tick_params(
-        axis='both', direction='in', labelsize=5,
+        axis='both', direction='in', labelsize=labelsize,
         width=linewidth)
-    in_ax.get_yaxis().set_visible(False)
+    in_ax.yaxis.set_visible(False)
     xticker = tick.MaxNLocator(nbins=2)
-    in_ax.get_xaxis().set_major_locator(xticker)
+    in_ax.xaxis.set_major_locator(xticker)
     return in_ax
 
 
@@ -1025,15 +1024,18 @@ def scene_fits(problem, stage, plot_options):
         if mode != ffi_mode_str:
             composite.point2sources(po.reference)
             ref_sources = copy.deepcopy(composite.sources)
-        point = po.reference
+        bpoint = po.reference
     else:
-        point = get_result_point(stage, problem.config, po.post_llk)
+        bpoint = get_result_point(stage, problem.config, po.post_llk)
 
-    results_tmp = composite.assemble_results(point)
+    bresults_tmp = composite.assemble_results(bpoint)
+    bvar_reductions = composite.get_variance_reductions(
+        bpoint, weights=composite.weights, results=bresults_tmp)
+
     dataset_to_result = {}
-    for dataset, result in zip(composite.datasets, results_tmp):
+    for dataset, bresult in zip(composite.datasets, bresults_tmp):
         if dataset.typ == 'SAR':
-            dataset_to_result[dataset] = result
+            dataset_to_result[dataset] = bresult
 
     results = dataset_to_result.values()
     dataset_index = dict(
@@ -1044,6 +1046,35 @@ def scene_fits(problem, stage, plot_options):
     factors = num.ones(fullfig).tolist()
     if restfig:
         factors.append(float(restfig) / ndmax)
+
+    if po.nensemble > 1:
+        from tqdm import tqdm
+        logger.info(
+            'Collecting ensemble of %i '
+            'synthetic displacements ...' % po.nensemble)
+        nchains = len(stage.mtrace)
+        csteps = float(nchains) / po.nensemble
+        idxs = num.floor(num.arange(0, nchains, csteps)).astype('int32')
+        ens_results = []
+        points = []
+        ens_var_reductions = []
+        for idx in tqdm(idxs):
+            point = stage.mtrace.point(idx=idx)
+            points.append(point)
+            results = composite.assemble_results(point)
+            ens_results.append(results)
+            ens_var_reductions.append(
+                composite.get_variance_reductions(
+                    point, weights=composite.weights, results=results))
+
+        all_var_reductions = {}
+        for dataset in dataset_to_result.keys():
+            target_var_reds = []
+            target_var_reds.append(bvar_reductions[dataset.name])
+            for var_reds in ens_var_reductions:
+                target_var_reds.append(var_reds[dataset.name])
+
+            all_var_reductions[dataset.name] = num.array(target_var_reds) * 100.
 
     figures = []
     axes = []
@@ -1321,6 +1352,20 @@ def scene_fits(problem, stage, plot_options):
             draw_coastlines(
                 ax, lon, lat, event, scene, po)
 
+        if po.nensemble > 1:
+            in_ax = plot_inset_hist(
+                axs[2],
+                data=pmp.utils.make_2d(all_var_reductions[dataset.name]),
+                best_data=bvar_reductions[dataset.name] * 100.,
+                linewidth=1.,
+                bbox_to_anchor=(0.8, .75, .195, .25),
+                labelsize=6)
+
+            format_axes(
+                in_ax, remove=['left', 'bottom'], visible=True,
+                linewidth=0.75)
+            in_ax.set_xlabel('VR [%]', fontsize=fontsize - 3)
+
         fontdict = {
             'fontsize': fontsize,
             'fontweight': 'bold',
@@ -1426,8 +1471,8 @@ def draw_scene_fits(problem, plot_options):
 
     outpath = os.path.join(
         problem.config.project_dir,
-        mode, po.figure_dir, 'scenes_%s_%s_%s' % (
-            stage.number, llk_str, po.plot_projection))
+        mode, po.figure_dir, 'scenes_%s_%s_%s_%i' % (
+            stage.number, llk_str, po.plot_projection, po.nensemble))
 
     if not os.path.exists(outpath) or po.force:
         figs = scene_fits(problem, stage, po)
@@ -1445,7 +1490,8 @@ def draw_scene_fits(problem, plot_options):
                     opdf.savefig(fig)
         else:
             for i, fig in enumerate(figs):
-                fig.savefig(outpath + '_%i.%s' % (i, po.outformat), dpi=po.dpi)
+                fig.savefig(
+                    '%s_%i.%s' % (outpath, i, po.outformat), dpi=po.dpi)
 
 
 def draw_gnss_fits(problem, plot_options):

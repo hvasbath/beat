@@ -2,6 +2,7 @@ from logging import getLogger
 import os
 import copy
 from time import time
+from collections import OrderedDict
 
 import numpy as num
 
@@ -431,9 +432,8 @@ class GeodeticComposite(Composite):
             logger.debug('nom %f, denom %f' % (float(nom), float(denom)))
             var_red = 1 - (nom / denom)
 
-            nslc_id = utility.list2string(data_trc.nslc_id)
             logger.debug(
-                'Variance reduction for %s is %f' % (nslc_id, var_red))
+                'Variance reduction for %s is %f' % (dataset.name, var_red))
 
             if 0:
                 from matplotlib import pyplot as plt
@@ -442,7 +442,7 @@ class GeodeticComposite(Composite):
                 plt.colorbar(im)
                 plt.show()
 
-            var_reds[nslc_id] = var_red
+            var_reds[dataset.name] = var_red
 
         return var_reds
 
