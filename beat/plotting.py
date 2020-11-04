@@ -1187,7 +1187,7 @@ def scene_fits(problem, stage, plot_options):
 
                 ax.plot(xs, ys, '-k', linewidth=0.5)
 
-    def addArrow(ax, scene):
+    def add_arrow(ax, scene):
         phi = num.nanmean(scene.phi)
         los_dx = num.cos(phi + num.pi) * .0625
         los_dy = num.sin(phi + num.pi) * .0625
@@ -1436,7 +1436,7 @@ def scene_fits(problem, stage, plot_options):
             cbr.set_label(cblabel, fontsize=fontsize)
 
         axis_config(axes[figidx][rowidx, :], event, scene, po)
-        addArrow(axes[figidx][rowidx, 0], scene)
+        add_arrow(axes[figidx][rowidx, 0], scene)
 
         del scene
         gc.collect()
