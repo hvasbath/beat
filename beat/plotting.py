@@ -1523,11 +1523,12 @@ def seismic_fits(problem, stage, plot_options):
                 color='red', lw=linewidth)
 
         in_ax.tick_params(
-            axis='both', direction='in', labelsize=5,
-            width=linewidth)
-        in_ax.get_yaxis().set_visible(False)
+            axis='both', direction='in', labelsize=5, width=linewidth)
+        in_ax.tick_params(top=False)
+
+        in_ax.yaxis.set_visible(False)
         xticker = tick.MaxNLocator(nbins=2)
-        in_ax.get_xaxis().set_major_locator(xticker)
+        in_ax.xaxis.set_major_locator(xticker)
         return in_ax
 
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
