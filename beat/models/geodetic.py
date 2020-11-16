@@ -229,19 +229,24 @@ class GeodeticComposite(Composite):
                 if isinstance(data, heart.DiffIFG):
                     for hierarchical_name in data.plane_names():
 
+                        hierarchical_keys = utility.list2string(
+                            hierarchicals.keys())
                         if not self.config.fit_plane and \
                                 hierarchical_name in hierarchicals:
                             raise ConfigInconsistentError(
                                 'Plane removal disabled, but they are defined'
                                 ' in the problem configuration'
-                                ' (hierarchicals)!')
+                                ' (hierarchicals)! \n'
+                                ' Got: %s' % hierarchical_keys)
 
                         if self.config.fit_plane and \
                                 hierarchical_name not in hierarchicals:
                             raise ConfigInconsistentError(
                                 'Plane corrections enabled, but they are'
                                 ' not defined in the problem configuration!'
-                                ' (hierarchicals)')
+                                ' (hierarchicals). Looking for: %s \n'
+                                ' Got: %s' % (
+                                    hierarchical_name, hierarchical_keys))
 
                         param = hierarchicals[hierarchical_name]
                         if not num.array_equal(
