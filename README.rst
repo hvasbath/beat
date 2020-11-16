@@ -76,7 +76,8 @@ like to see implemented.
 
 Support
 =======
-For substantial issues please use the "issues" tab here in the repository.
+For substantial issues please use and check the "issues" tab here in the repository.
+For common issues please check out the BEAT FAQ `here <https://hvasbath.github.io/beat/faq.html>`__ .
 For smaller issues or short clarifications there is a support chat `here <https://hive.pyrocko.org/pyrocko-support/channels/beat>`__ . This is provided by the pyrocko project and is accessible after a short account creation.
 
 Finally, there is the option to write an email to:
