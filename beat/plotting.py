@@ -1792,6 +1792,8 @@ def seismic_fits(problem, stage, plot_options):
                 nx_this = nxmax  # min(nx, nxmax)
                 i_this = (iy % ny_this) * nx_this + (ix % nx_this) + 1
                 logger.debug('i_this %i' % i_this)
+                logger.debug('Station {}'.format(
+                    utility.list2string(target.codes)))
                 axes2 = fig.add_subplot(ny_this, nx_this, i_this)
 
                 space = 0.5
@@ -1803,7 +1805,14 @@ def seismic_fits(problem, stage, plot_options):
                 axes.set_axis_off()
 
                 ymin, ymax = - absmax * 1.33 * space_factor, absmax * 1.33
-                axes.set_ylim(ymin, ymax)
+                try:
+                    axes.set_ylim(ymin, ymax)
+                except ValueError:
+                    logger.debug(
+                        'These traces contain NaN or Inf open in snuffler?')
+                    input('Press enter! Otherwise Ctrl + C')
+                    from pyrocko.trace import snuffle
+                    snuffle(all_syn_trs_target[target])
 
                 itarget = target_index[target]
                 result = bresults[itarget]
