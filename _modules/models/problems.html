@@ -533,6 +533,26 @@
             <span class="k">if</span> <span class="n">comp_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="p">[</span><span class="n">comp_name</span><span class="p">]</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">weights</span><span class="p">)</span>
 
+    <span class="k">def</span> <span class="nf">get_variance_reductions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">point</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get composite variance reductions (VRs) with values from given point.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        point : :func:`pymc3.Point`</span>
+<span class="sd">            Dictionary with model parameters, for which the VRs are calculated</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">vrs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">composite</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">composites</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">composite</span><span class="p">,</span> <span class="s1">&#39;get_variance_reductions&#39;</span><span class="p">):</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                    <span class="s1">&#39;Calculating variance reductions for </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">composite</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                <span class="n">vr</span> <span class="o">=</span> <span class="n">composite</span><span class="o">.</span><span class="n">get_variance_reductions</span><span class="p">(</span><span class="n">point</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">vr</span><span class="p">)</span>
+                <span class="n">vrs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">vr</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">vr</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">vrs</span>
+
     <span class="k">def</span> <span class="nf">point2sources</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">point</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Update composite sources(in place) with values from given point.</span>

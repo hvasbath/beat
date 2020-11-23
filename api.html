@@ -421,7 +421,7 @@ filtering.</p>
 <dl class="gattribute">
 <dt id="heart.Filter.stepwise">
 <em class="property">♦ </em><code class="descname">stepwise</code><a class="headerlink" href="#heart.Filter.stepwise" title="Permalink to this definition">¶</a></dt>
-<dd><p><code class="docutils literal"><span class="pre">bool</span></code>, <em>default:</em> <code class="docutils literal"><span class="pre">False</span></code></p>
+<dd><p><code class="docutils literal"><span class="pre">bool</span></code>, <em>default:</em> <code class="docutils literal"><span class="pre">True</span></code></p>
 <p>If set to true the bandpass filter is done it two consecutive steps, first high-pass then low-pass.</p>
 </dd></dl>
 
@@ -556,7 +556,7 @@ Make synthetics generation more efficient.</p>
 <dl class="gattribute">
 <dt id="heart.GeodeticResult.point">
 <em class="property">♦ </em><code class="descname">point</code><a class="headerlink" href="#heart.GeodeticResult.point" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#heart.ResultPoint" title="heart.ResultPoint"><code class="xref py py-class docutils literal"><span class="pre">ResultPoint</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;heart.ResultPoint</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc998109668&gt;</span></code></p>
+<dd><p><a class="reference internal" href="#heart.ResultPoint" title="heart.ResultPoint"><code class="xref py py-class docutils literal"><span class="pre">ResultPoint</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;heart.ResultPoint</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f695ccddf60&gt;</span></code></p>
 </dd></dl>
 
 <dl class="gattribute">
@@ -743,6 +743,13 @@ Make synthetics generation more efficient.</p>
 <p>Point in Solution space for which result is produced.</p>
 </dd></dl>
 
+<dl class="gattribute">
+<dt id="heart.ResultPoint.variance_reductions">
+<em class="property">♦ </em><code class="descname">variance_reductions</code><a class="headerlink" href="#heart.ResultPoint.variance_reductions" title="Permalink to this definition">¶</a></dt>
+<dd><p><code class="docutils literal"><span class="pre">dict</span></code> of <code class="docutils literal"><span class="pre">float</span></code> objects, <em>optional</em>, <em>default:</em> <code class="docutils literal"><span class="pre">{}</span></code></p>
+<p>Variance reductions for each dataset.</p>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="class">
@@ -786,7 +793,7 @@ Make synthetics generation more efficient.</p>
 <dl class="gattribute">
 <dt id="heart.SeismicResult.point">
 <em class="property">♦ </em><code class="descname">point</code><a class="headerlink" href="#heart.SeismicResult.point" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#heart.ResultPoint" title="heart.ResultPoint"><code class="xref py py-class docutils literal"><span class="pre">ResultPoint</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;heart.ResultPoint</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc9980f5ba8&gt;</span></code></p>
+<dd><p><a class="reference internal" href="#heart.ResultPoint" title="heart.ResultPoint"><code class="xref py py-class docutils literal"><span class="pre">ResultPoint</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;heart.ResultPoint</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f695ccd14e0&gt;</span></code></p>
 </dd></dl>
 
 <dl class="gattribute">
@@ -1639,7 +1646,7 @@ generation, optimization algorithm and the data being used.</p>
 <dl class="gattribute">
 <dt id="config.BEATconfig.problem_config">
 <em class="property">♦ </em><code class="descname">problem_config</code><a class="headerlink" href="#config.BEATconfig.problem_config" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#config.ProblemConfig" title="config.ProblemConfig"><code class="xref py py-class docutils literal"><span class="pre">ProblemConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.ProblemConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc978d57dd8&gt;</span></code></p>
+<dd><p><a class="reference internal" href="#config.ProblemConfig" title="config.ProblemConfig"><code class="xref py py-class docutils literal"><span class="pre">ProblemConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.ProblemConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693daaa1d0&gt;</span></code></p>
 </dd></dl>
 
 <dl class="gattribute">
@@ -1657,13 +1664,13 @@ generation, optimization algorithm and the data being used.</p>
 <dl class="gattribute">
 <dt id="config.BEATconfig.sampler_config">
 <em class="property">♦ </em><code class="descname">sampler_config</code><a class="headerlink" href="#config.BEATconfig.sampler_config" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#config.SamplerConfig" title="config.SamplerConfig"><code class="xref py py-class docutils literal"><span class="pre">SamplerConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.SamplerConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc978d57dd8&gt;</span></code></p>
+<dd><p><a class="reference internal" href="#config.SamplerConfig" title="config.SamplerConfig"><code class="xref py py-class docutils literal"><span class="pre">SamplerConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.SamplerConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693daaa1d0&gt;</span></code></p>
 </dd></dl>
 
 <dl class="gattribute">
 <dt id="config.BEATconfig.hyper_sampler_config">
 <em class="property">♦ </em><code class="descname">hyper_sampler_config</code><a class="headerlink" href="#config.BEATconfig.hyper_sampler_config" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#config.SamplerConfig" title="config.SamplerConfig"><code class="xref py py-class docutils literal"><span class="pre">SamplerConfig</span></code></a>, <em>optional</em>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.SamplerConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc978d57da0&gt;</span></code></p>
+<dd><p><a class="reference internal" href="#config.SamplerConfig" title="config.SamplerConfig"><code class="xref py py-class docutils literal"><span class="pre">SamplerConfig</span></code></a>, <em>optional</em>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.SamplerConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693daaa198&gt;</span></code></p>
 </dd></dl>
 
 <dl class="method">
@@ -1761,7 +1768,7 @@ hierarchical parameters.</p>
 <dt id="config.FFIConfig.regularization">
 <em class="property">♦ </em><code class="descname">regularization</code><a class="headerlink" href="#config.FFIConfig.regularization" title="Permalink to this definition">¶</a></dt>
 <dd><p><code class="xref py py-class docutils literal"><span class="pre">builtins.str</span></code> (<code class="xref py py-class docutils literal"><span class="pre">pyrocko.guts.StringChoice</span></code>), <em>default:</em> <code class="docutils literal"><span class="pre">'none'</span></code></p>
-<p>Flag for regularization in distributed slip-optimization. Choices: laplacian, none</p>
+<p>Flag for regularization in distributed slip-optimization. Choices: “laplacian”, “none”</p>
 </dd></dl>
 
 <dl class="gattribute">
@@ -1775,7 +1782,7 @@ hierarchical parameters.</p>
 <dt id="config.FFIConfig.initialization">
 <em class="property">♦ </em><code class="descname">initialization</code><a class="headerlink" href="#config.FFIConfig.initialization" title="Permalink to this definition">¶</a></dt>
 <dd><p><code class="xref py py-class docutils literal"><span class="pre">builtins.str</span></code> (<code class="xref py py-class docutils literal"><span class="pre">pyrocko.guts.StringChoice</span></code>), <em>default:</em> <code class="docutils literal"><span class="pre">'random'</span></code></p>
-<p>Initialization of chain starting points, default: random. Choices: random, lsq</p>
+<p>Initialization of chain starting points, default: random. Choices: “random”, “lsq”</p>
 </dd></dl>
 
 <dl class="gattribute">
@@ -1841,7 +1848,7 @@ hierarchical parameters.</p>
 <dl class="gattribute">
 <dt id="config.GFLibaryConfig.event">
 <em class="property">♦ </em><code class="descname">event</code><a class="headerlink" href="#config.GFLibaryConfig.event" title="Permalink to this definition">¶</a></dt>
-<dd><p><code class="xref py py-class docutils literal"><span class="pre">pyrocko.model.event.Event</span></code>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;pyrocko.model.event.Event</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc978d57390&gt;</span></code></p>
+<dd><p><code class="xref py py-class docutils literal"><span class="pre">pyrocko.model.event.Event</span></code>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;pyrocko.model.event.Event</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693db21748&gt;</span></code></p>
 </dd></dl>
 
 <dl class="gattribute">
@@ -1885,7 +1892,7 @@ hierarchical parameters.</p>
 <dl class="gattribute">
 <dt id="config.GeodeticConfig.types">
 <em class="property">♦ </em><code class="descname">types</code><a class="headerlink" href="#config.GeodeticConfig.types" title="Permalink to this definition">¶</a></dt>
-<dd><p><code class="docutils literal"><span class="pre">dict</span></code> of <a class="reference internal" href="#config.DatasetConfig" title="config.DatasetConfig"><code class="xref py py-class docutils literal"><span class="pre">DatasetConfig</span></code></a> objects, <em>default:</em> <code class="docutils literal"><span class="pre">{'SAR':</span> <span class="pre">&lt;config.SARDatasetConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc978d449e8&gt;,</span> <span class="pre">'GNSS':</span> <span class="pre">&lt;config.GNSSDatasetConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc978d44a20&gt;}</span></code></p>
+<dd><p><code class="docutils literal"><span class="pre">dict</span></code> of <a class="reference internal" href="#config.DatasetConfig" title="config.DatasetConfig"><code class="xref py py-class docutils literal"><span class="pre">DatasetConfig</span></code></a> objects, <em>default:</em> <code class="docutils literal"><span class="pre">{'SAR':</span> <span class="pre">&lt;config.SARDatasetConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693db0dda0&gt;,</span> <span class="pre">'GNSS':</span> <span class="pre">&lt;config.GNSSDatasetConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693db0ddd8&gt;}</span></code></p>
 <p>Types of geodetic data, i.e. SAR, GNSS, with their configs</p>
 </dd></dl>
 
@@ -1900,13 +1907,13 @@ hierarchical parameters.</p>
 <dt id="config.GeodeticConfig.interpolation">
 <em class="property">♦ </em><code class="descname">interpolation</code><a class="headerlink" href="#config.GeodeticConfig.interpolation" title="Permalink to this definition">¶</a></dt>
 <dd><p><code class="xref py py-class docutils literal"><span class="pre">builtins.str</span></code> (<code class="xref py py-class docutils literal"><span class="pre">pyrocko.guts.StringChoice</span></code>), <em>default:</em> <code class="docutils literal"><span class="pre">'multilinear'</span></code></p>
-<p>GF interpolation scheme during synthetics generation. Choices: nearest_neighbor, multilinear</p>
+<p>GF interpolation scheme during synthetics generation. Choices: “nearest_neighbor”, “multilinear”</p>
 </dd></dl>
 
 <dl class="gattribute">
 <dt id="config.GeodeticConfig.corrections_config">
 <em class="property">♦ </em><code class="descname">corrections_config</code><a class="headerlink" href="#config.GeodeticConfig.corrections_config" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#config.GeodeticCorrectionsConfig" title="config.GeodeticCorrectionsConfig"><code class="xref py py-class docutils literal"><span class="pre">GeodeticCorrectionsConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.GeodeticCorrectionsConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc978d44a20&gt;</span></code></p>
+<dd><p><a class="reference internal" href="#config.GeodeticCorrectionsConfig" title="config.GeodeticCorrectionsConfig"><code class="xref py py-class docutils literal"><span class="pre">GeodeticCorrectionsConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.GeodeticCorrectionsConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693db0ddd8&gt;</span></code></p>
 <p>Config for additional corrections to apply to geodetic datasets.</p>
 </dd></dl>
 
@@ -1920,7 +1927,7 @@ hierarchical parameters.</p>
 <dl class="gattribute">
 <dt id="config.GeodeticConfig.gf_config">
 <em class="property">♦ </em><code class="descname">gf_config</code><a class="headerlink" href="#config.GeodeticConfig.gf_config" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#config.GFConfig" title="config.GFConfig"><code class="xref py py-class docutils literal"><span class="pre">GFConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.GeodeticGFConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc978d44a20&gt;</span></code></p>
+<dd><p><a class="reference internal" href="#config.GFConfig" title="config.GFConfig"><code class="xref py py-class docutils literal"><span class="pre">GFConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.GeodeticGFConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693db0ddd8&gt;</span></code></p>
 </dd></dl>
 
 </dd></dl>
@@ -1932,13 +1939,13 @@ hierarchical parameters.</p>
 <dl class="gattribute">
 <dt id="config.GeodeticCorrectionsConfig.euler_pole">
 <em class="property">♦ </em><code class="descname">euler_pole</code><a class="headerlink" href="#config.GeodeticCorrectionsConfig.euler_pole" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#config.EulerPoleConfig" title="config.EulerPoleConfig"><code class="xref py py-class docutils literal"><span class="pre">EulerPoleConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.EulerPoleConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc978d44080&gt;</span></code></p>
+<dd><p><a class="reference internal" href="#config.EulerPoleConfig" title="config.EulerPoleConfig"><code class="xref py py-class docutils literal"><span class="pre">EulerPoleConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.EulerPoleConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693db0d438&gt;</span></code></p>
 </dd></dl>
 
 <dl class="gattribute">
 <dt id="config.GeodeticCorrectionsConfig.ramp">
 <em class="property">♦ </em><code class="descname">ramp</code><a class="headerlink" href="#config.GeodeticCorrectionsConfig.ramp" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#config.RampConfig" title="config.RampConfig"><code class="xref py py-class docutils literal"><span class="pre">RampConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.RampConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc978d440f0&gt;</span></code></p>
+<dd><p><a class="reference internal" href="#config.RampConfig" title="config.RampConfig"><code class="xref py py-class docutils literal"><span class="pre">RampConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.RampConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693db0d4a8&gt;</span></code></p>
 </dd></dl>
 
 </dd></dl>
@@ -2016,7 +2023,7 @@ hierarchical parameters.</p>
 <dt id="config.LaplacianRegularizationConfig.correlation_function">
 <em class="property">♦ </em><code class="descname">correlation_function</code><a class="headerlink" href="#config.LaplacianRegularizationConfig.correlation_function" title="Permalink to this definition">¶</a></dt>
 <dd><p><code class="xref py py-class docutils literal"><span class="pre">builtins.str</span></code> (<code class="xref py py-class docutils literal"><span class="pre">pyrocko.guts.StringChoice</span></code>), <em>default:</em> <code class="docutils literal"><span class="pre">'nearest_neighbor'</span></code></p>
-<p>Determines the correlation function for smoothing across patches. Choices: nearest_neighbor, gaussian, exponential</p>
+<p>Determines the correlation function for smoothing across patches. Choices: “nearest_neighbor”, “gaussian”, “exponential”</p>
 </dd></dl>
 
 </dd></dl>
@@ -2043,13 +2050,13 @@ hierarchical parameters.</p>
 <dt id="config.LinearGFConfig.discretization">
 <em class="property">♦ </em><code class="descname">discretization</code><a class="headerlink" href="#config.LinearGFConfig.discretization" title="Permalink to this definition">¶</a></dt>
 <dd><p><code class="xref py py-class docutils literal"><span class="pre">builtins.str</span></code> (<code class="xref py py-class docutils literal"><span class="pre">pyrocko.guts.StringChoice</span></code>), <em>default:</em> <code class="docutils literal"><span class="pre">'uniform'</span></code></p>
-<p>Flag for discretization of finite sources into patches. Choices: uniform, resolution</p>
+<p>Flag for discretization of finite sources into patches. Choices: “uniform”, “resolution”</p>
 </dd></dl>
 
 <dl class="gattribute">
 <dt id="config.LinearGFConfig.discretization_config">
 <em class="property">♦ </em><code class="descname">discretization_config</code><a class="headerlink" href="#config.LinearGFConfig.discretization_config" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#config.DiscretizationConfig" title="config.DiscretizationConfig"><code class="xref py py-class docutils literal"><span class="pre">DiscretizationConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.UniformDiscretizationConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc978daaeb8&gt;</span></code></p>
+<dd><p><a class="reference internal" href="#config.DiscretizationConfig" title="config.DiscretizationConfig"><code class="xref py py-class docutils literal"><span class="pre">DiscretizationConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.UniformDiscretizationConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693daff2b0&gt;</span></code></p>
 <p>Discretization configuration that allows customization.</p>
 </dd></dl>
 
@@ -2270,7 +2277,7 @@ created.</p>
 <dt id="config.ProblemConfig.mode">
 <em class="property">♦ </em><code class="descname">mode</code><a class="headerlink" href="#config.ProblemConfig.mode" title="Permalink to this definition">¶</a></dt>
 <dd><p><code class="xref py py-class docutils literal"><span class="pre">builtins.str</span></code> (<code class="xref py py-class docutils literal"><span class="pre">pyrocko.guts.StringChoice</span></code>), <em>default:</em> <code class="docutils literal"><span class="pre">'geometry'</span></code></p>
-<p>Problem to solve. Choices: geometry, ffi</p>
+<p>Problem to solve. Choices: “geometry”, “ffi”</p>
 </dd></dl>
 
 <dl class="gattribute">
@@ -2591,14 +2598,14 @@ Geophysical Journal International, 185(1):529-538</td></tr>
 <dt id="config.SamplerConfig.name">
 <em class="property">♦ </em><code class="descname">name</code><a class="headerlink" href="#config.SamplerConfig.name" title="Permalink to this definition">¶</a></dt>
 <dd><p><code class="xref py py-class docutils literal"><span class="pre">builtins.str</span></code> (<code class="xref py py-class docutils literal"><span class="pre">pyrocko.guts.StringChoice</span></code>), <em>default:</em> <code class="docutils literal"><span class="pre">'SMC'</span></code></p>
-<p>Sampler to use for sampling the solution space. Choices: PT, SMC, Metropolis</p>
+<p>Sampler to use for sampling the solution space. Choices: “PT”, “SMC”, “Metropolis”</p>
 </dd></dl>
 
 <dl class="gattribute">
 <dt id="config.SamplerConfig.backend">
 <em class="property">♦ </em><code class="descname">backend</code><a class="headerlink" href="#config.SamplerConfig.backend" title="Permalink to this definition">¶</a></dt>
 <dd><p><code class="xref py py-class docutils literal"><span class="pre">builtins.str</span></code> (<code class="xref py py-class docutils literal"><span class="pre">pyrocko.guts.StringChoice</span></code>), <em>default:</em> <code class="docutils literal"><span class="pre">'csv'</span></code></p>
-<p>File type to store output traces. Binary is fast, csv is good for easy sample inspection. Choices: csv, bin. Default: csv</p>
+<p>File type to store output traces. Binary is fast, csv is good for easy sample inspection. Choices: “csv”, “bin”. Default: csv</p>
 </dd></dl>
 
 <dl class="gattribute">
@@ -2625,7 +2632,7 @@ Geophysical Journal International, 185(1):529-538</td></tr>
 <dl class="gattribute">
 <dt id="config.SamplerConfig.parameters">
 <em class="property">♦ </em><code class="descname">parameters</code><a class="headerlink" href="#config.SamplerConfig.parameters" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#config.SamplerParameters" title="config.SamplerParameters"><code class="xref py py-class docutils literal"><span class="pre">SamplerParameters</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.SMCConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc978d57160&gt;</span></code></p>
+<dd><p><a class="reference internal" href="#config.SamplerParameters" title="config.SamplerParameters"><code class="xref py py-class docutils literal"><span class="pre">SamplerParameters</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.SMCConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693db21518&gt;</span></code></p>
 <p>Sampler dependend Parameters</p>
 </dd></dl>
 
@@ -2678,7 +2685,7 @@ Geophysical Journal International, 185(1):529-538</td></tr>
 <dl class="gattribute">
 <dt id="config.SeismicConfig.noise_estimator">
 <em class="property">♦ </em><code class="descname">noise_estimator</code><a class="headerlink" href="#config.SeismicConfig.noise_estimator" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#config.SeismicNoiseAnalyserConfig" title="config.SeismicNoiseAnalyserConfig"><code class="xref py py-class docutils literal"><span class="pre">SeismicNoiseAnalyserConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.SeismicNoiseAnalyserConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc978db9b38&gt;</span></code></p>
+<dd><p><a class="reference internal" href="#config.SeismicNoiseAnalyserConfig" title="config.SeismicNoiseAnalyserConfig"><code class="xref py py-class docutils literal"><span class="pre">SeismicNoiseAnalyserConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.SeismicNoiseAnalyserConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693daffef0&gt;</span></code></p>
 <p>Determines the structure of the data-covariance matrix.</p>
 </dd></dl>
 
@@ -2719,7 +2726,7 @@ Geophysical Journal International, 185(1):529-538</td></tr>
 <dl class="gattribute">
 <dt id="config.SeismicConfig.gf_config">
 <em class="property">♦ </em><code class="descname">gf_config</code><a class="headerlink" href="#config.SeismicConfig.gf_config" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#config.GFConfig" title="config.GFConfig"><code class="xref py py-class docutils literal"><span class="pre">GFConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.SeismicGFConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc978db9b70&gt;</span></code></p>
+<dd><p><a class="reference internal" href="#config.GFConfig" title="config.GFConfig"><code class="xref py py-class docutils literal"><span class="pre">GFConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.SeismicGFConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693dafff28&gt;</span></code></p>
 </dd></dl>
 
 <dl class="method">
@@ -2771,7 +2778,7 @@ Geophysical Journal International, 185(1):529-538</td></tr>
 <dl class="gattribute">
 <dt id="config.SeismicGFLibraryConfig.wave_config">
 <em class="property">♦ </em><code class="descname">wave_config</code><a class="headerlink" href="#config.SeismicGFLibraryConfig.wave_config" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#config.WaveformFitConfig" title="config.WaveformFitConfig"><code class="xref py py-class docutils literal"><span class="pre">WaveformFitConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.WaveformFitConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc978d577f0&gt;</span></code></p>
+<dd><p><a class="reference internal" href="#config.WaveformFitConfig" title="config.WaveformFitConfig"><code class="xref py py-class docutils literal"><span class="pre">WaveformFitConfig</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;config.WaveformFitConfig</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693db21ba8&gt;</span></code></p>
 </dd></dl>
 
 <dl class="gattribute">
@@ -2847,7 +2854,7 @@ Geophysical Journal International, 185(1):529-538</td></tr>
 <dt id="config.SeismicNoiseAnalyserConfig.structure">
 <em class="property">♦ </em><code class="descname">structure</code><a class="headerlink" href="#config.SeismicNoiseAnalyserConfig.structure" title="Permalink to this definition">¶</a></dt>
 <dd><p><code class="xref py py-class docutils literal"><span class="pre">builtins.str</span></code> (<code class="xref py py-class docutils literal"><span class="pre">pyrocko.guts.StringChoice</span></code>), <em>default:</em> <code class="docutils literal"><span class="pre">'variance'</span></code></p>
-<p>Determines data-covariance matrix structure. Choices: variance, exponential, import, non-toeplitz</p>
+<p>Determines data-covariance matrix structure. Choices: “variance”, “exponential”, “import”, “non-toeplitz”</p>
 </dd></dl>
 
 <dl class="gattribute">
@@ -2941,13 +2948,13 @@ a specific type of waveform and calculate the misfit.</p>
 <dt id="config.WaveformFitConfig.interpolation">
 <em class="property">♦ </em><code class="descname">interpolation</code><a class="headerlink" href="#config.WaveformFitConfig.interpolation" title="Permalink to this definition">¶</a></dt>
 <dd><p><code class="xref py py-class docutils literal"><span class="pre">builtins.str</span></code> (<code class="xref py py-class docutils literal"><span class="pre">pyrocko.guts.StringChoice</span></code>), <em>default:</em> <code class="docutils literal"><span class="pre">'multilinear'</span></code></p>
-<p>GF interpolation sceme. Choices: nearest_neighbor, multilinear</p>
+<p>GF interpolation sceme. Choices: “nearest_neighbor”, “multilinear”</p>
 </dd></dl>
 
 <dl class="gattribute">
 <dt id="config.WaveformFitConfig.arrival_taper">
 <em class="property">♦ </em><code class="descname">arrival_taper</code><a class="headerlink" href="#config.WaveformFitConfig.arrival_taper" title="Permalink to this definition">¶</a></dt>
-<dd><p><code class="xref py py-class docutils literal"><span class="pre">pyrocko.trace.Taper</span></code>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;beat.heart.ArrivalTaper</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc978db9630&gt;</span></code></p>
+<dd><p><code class="xref py py-class docutils literal"><span class="pre">pyrocko.trace.Taper</span></code>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;beat.heart.ArrivalTaper</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693daff9e8&gt;</span></code></p>
 <p>Taper a,b/c,d time [s] before/after wave arrival</p>
 </dd></dl>
 
@@ -3649,8 +3656,8 @@ according to the acceptance rate over the last tune_interval:</p>
 
 </div>
 </div>
-<div class="section" id="module-ffi">
-<span id="the-ffi-module"></span><h2>The <a class="reference internal" href="#module-ffi" title="ffi"><code class="xref py py-mod docutils literal"><span class="pre">ffi</span></code></a> Module<a class="headerlink" href="#module-ffi" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="the-ffi-module">
+<h2>The <code class="xref py py-mod docutils literal"><span class="pre">ffi</span></code> Module<a class="headerlink" href="#the-ffi-module" title="Permalink to this headline">¶</a></h2>
 </div>
 <div class="section" id="module-parallel">
 <span id="the-parallel-module"></span><h2>The <a class="reference internal" href="#module-parallel" title="parallel"><code class="xref py py-mod docutils literal"><span class="pre">parallel</span></code></a> Module<a class="headerlink" href="#module-parallel" title="Permalink to this headline">¶</a></h2>
@@ -3875,461 +3882,8 @@ these objects are different for each task.</li>
 </dd></dl>
 
 </div>
-<div class="section" id="module-backend">
-<span id="the-backend-module"></span><h2>The <a class="reference internal" href="#module-backend" title="backend"><code class="xref py py-mod docutils literal"><span class="pre">backend</span></code></a> Module<a class="headerlink" href="#module-backend" title="Permalink to this headline">¶</a></h2>
-<p>Text file trace backend modified from pymc3 to work efficiently with
-SMC</p>
-<p>Store sampling values as CSV files.</p>
-<div class="section" id="file-format">
-<h3>File format<a class="headerlink" href="#file-format" title="Permalink to this headline">¶</a></h3>
-<p>Sampling values for each chain are saved in a separate file (under a
-directory specified by the <cite>dir_path</cite> argument).  The rows correspond to
-sampling iterations.  The column names consist of variable names and
-index labels.  For example, the heading</p>
-<blockquote>
-<div>x,y__0_0,y__0_1,y__1_0,y__1_1,y__2_0,y__2_1</div></blockquote>
-<p>represents two variables, x and y, where x is a scalar and y has a
-shape of (3, 2).</p>
-<dl class="class">
-<dt id="backend.ArrayStepSharedLLK">
-<em class="property">class </em><code class="descclassname">backend.</code><code class="descname">ArrayStepSharedLLK</code><span class="sig-paren">(</span><em>vars</em>, <em>out_vars</em>, <em>shared</em>, <em>blocked=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#ArrayStepSharedLLK"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.ArrayStepSharedLLK" title="Permalink to this definition">¶</a></dt>
-<dd><p>Modified ArrayStepShared To handle returned larger point including the
-likelihood values.
-Takes additionally a list of output vars including the likelihoods.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>vars</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.9)"><em>list</em></a>) – variables to be sampled</li>
-<li><strong>out_vars</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.9)"><em>list</em></a>) – variables to be stored in the traces</li>
-<li><strong>shared</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><em>dict</em></a>) – theano variable -&gt; shared variables</li>
-<li><strong>blocked</strong> (<em>boolen</em>) – (default True)</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="class">
-<dt id="backend.BaseChain">
-<em class="property">class </em><code class="descclassname">backend.</code><code class="descname">BaseChain</code><span class="sig-paren">(</span><em>model=None</em>, <em>vars=None</em>, <em>buffer_size=5000</em>, <em>buffer_thinning=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#BaseChain"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.BaseChain" title="Permalink to this definition">¶</a></dt>
-<dd><p>Base chain object, independent of file or memory output.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>model</strong> (<em>Model</em>) – If None, the model is taken from the <cite>with</cite> context.</li>
-<li><strong>vars</strong> (<em>list of variables</em>) – Sampling values will be stored for these variables. If None,
-<cite>model.unobserved_RVs</cite> is used.</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-<dl class="method">
-<dt id="backend.BaseChain.buffer_write">
-<code class="descname">buffer_write</code><span class="sig-paren">(</span><em>lpoint</em>, <em>draw</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#BaseChain.buffer_write"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.BaseChain.buffer_write" title="Permalink to this definition">¶</a></dt>
-<dd><p>Write sampling results into buffer.
-If buffer is full trow an error.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="backend.BaseChain.get_sample_covariance">
-<code class="descname">get_sample_covariance</code><span class="sig-paren">(</span><em>step</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#BaseChain.get_sample_covariance"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.BaseChain.get_sample_covariance" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return sample Covariance matrix from buffer.</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="class">
-<dt id="backend.FileChain">
-<em class="property">class </em><code class="descclassname">backend.</code><code class="descname">FileChain</code><span class="sig-paren">(</span><em>dir_path=''</em>, <em>model=None</em>, <em>vars=None</em>, <em>buffer_size=5000</em>, <em>buffer_thinning=1</em>, <em>progressbar=False</em>, <em>k=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#FileChain"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.FileChain" title="Permalink to this definition">¶</a></dt>
-<dd><p>Base class for a trace written to a file with buffer functionality and
-rogressbar. Buffer is a list of tuples of lpoints and a draw index. Inheriting classes
-must define the methods: ‘_write_data_to_file’ and ‘_load_df’</p>
-<dl class="method">
-<dt id="backend.FileChain.clear_data">
-<code class="descname">clear_data</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#FileChain.clear_data"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.FileChain.clear_data" title="Permalink to this definition">¶</a></dt>
-<dd><p>Clear the data loaded from file.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="backend.FileChain.write">
-<code class="descname">write</code><span class="sig-paren">(</span><em>lpoint</em>, <em>draw</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#FileChain.write"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.FileChain.write" title="Permalink to this definition">¶</a></dt>
-<dd><p>Write sampling results into buffer.
-If buffer is full write samples to file.</p>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="class">
-<dt id="backend.MemoryChain">
-<em class="property">class </em><code class="descclassname">backend.</code><code class="descname">MemoryChain</code><span class="sig-paren">(</span><em>buffer_size=5000</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#MemoryChain"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.MemoryChain" title="Permalink to this definition">¶</a></dt>
-<dd><p>Slim memory trace object. Keeps points in a list in memory.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>draws</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – Number of samples</li>
-<li><strong>chain</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – Chain number</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="class">
-<dt id="backend.NumpyChain">
-<em class="property">class </em><code class="descclassname">backend.</code><code class="descname">NumpyChain</code><span class="sig-paren">(</span><em>dir_path</em>, <em>model=None</em>, <em>vars=None</em>, <em>buffer_size=5000</em>, <em>progressbar=False</em>, <em>k=None</em>, <em>buffer_thinning=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#NumpyChain"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.NumpyChain" title="Permalink to this definition">¶</a></dt>
-<dd><p>Numpy binary trace object based on ‘.bin’ files. Fast in reading and
-writing. Bad for debugging.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>dir_path</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – Name of directory to store text files</li>
-<li><strong>model</strong> (<em>Model</em>) – If None, the model is taken from the <cite>with</cite> context.</li>
-<li><strong>vars</strong> (<em>list of variables</em>) – Sampling values will be stored for these variables. If None,
-<cite>model.unobserved_RVs</cite> is used.</li>
-<li><strong>buffer_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – this is the number of samples after which the buffer is written to disk
-or if the chain end is reached</li>
-<li><strong>buffer_thinning</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – every nth sample of the buffer is written to disk</li>
-<li><strong>progressbar</strong> (<em>boolean</em>) – flag if a progressbar is active, if not a logmessage is printed
-everytime the buffer is written to disk</li>
-<li><strong>k</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a><em>, </em><em>optional</em>) – if given dont use shape from testpoint as size of transd variables</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-<dl class="method">
-<dt id="backend.NumpyChain.construct_data_structure">
-<code class="descname">construct_data_structure</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#NumpyChain.construct_data_structure"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.NumpyChain.construct_data_structure" title="Permalink to this definition">¶</a></dt>
-<dd><p>Create a dtype to store the data based on varnames in a numpy array.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"></td>
-</tr>
-<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">A numpy.dtype</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="backend.NumpyChain.point">
-<code class="descname">point</code><span class="sig-paren">(</span><em>idx</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#NumpyChain.point"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.NumpyChain.point" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get point of current chain with variables names as keys.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>idx</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – Index of the nth step of the chain</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"></td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">dictionary of point values</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="backend.NumpyChain.setup">
-<code class="descname">setup</code><span class="sig-paren">(</span><em>draws</em>, <em>chain</em>, <em>overwrite=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#NumpyChain.setup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.NumpyChain.setup" title="Permalink to this definition">¶</a></dt>
-<dd><p>Perform chain-specific setup. Creates file with header.
-If exist not overwritten again unless flag is set.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>draws</strong> (<em>int.</em>) – Expected number of draws</li>
-<li><strong>chain</strong> – int. Chain number</li>
-<li><strong>overwrite</strong> – Bool (optional). True(default) if file need to be overwrite,
-false otherwise.</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="class">
-<dt id="backend.TextChain">
-<em class="property">class </em><code class="descclassname">backend.</code><code class="descname">TextChain</code><span class="sig-paren">(</span><em>dir_path</em>, <em>model=None</em>, <em>vars=None</em>, <em>buffer_size=5000</em>, <em>buffer_thinning=1</em>, <em>progressbar=False</em>, <em>k=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#TextChain"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.TextChain" title="Permalink to this definition">¶</a></dt>
-<dd><p>Text trace object based on ‘.csv’ files. Slow in reading and writing.
-Good for debugging.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>dir_path</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – Name of directory to store text files</li>
-<li><strong>model</strong> (<em>Model</em>) – If None, the model is taken from the <cite>with</cite> context.</li>
-<li><strong>vars</strong> (<em>list of variables</em>) – Sampling values will be stored for these variables. If None,
-<cite>model.unobserved_RVs</cite> is used.</li>
-<li><strong>buffer_size</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – this is the number of samples after which the buffer is written to disk
-or if the chain end is reached</li>
-<li><strong>buffer_thinning</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – every nth sample of the buffer is written to disk</li>
-<li><strong>progressbar</strong> (<em>boolean</em>) – flag if a progressbar is active, if not a logmessage is printed
-everytime the buffer is written to disk</li>
-<li><strong>k</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a><em>, </em><em>optional</em>) – if given dont use shape from testpoint as size of transd variables</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-<dl class="method">
-<dt id="backend.TextChain.get_values">
-<code class="descname">get_values</code><span class="sig-paren">(</span><em>varname</em>, <em>burn=0</em>, <em>thin=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#TextChain.get_values"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.TextChain.get_values" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get values from trace.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>varname</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – Variable name for which values are to be retrieved.</li>
-<li><strong>burn</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – Burn-in samples from trace. This is the number of samples to be
-thrown out from the start of the trace</li>
-<li><strong>thin</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – Nuber of thinning samples. Throw out every ‘thin’ sample of the
-trace.</li>
-</ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"></p>
-</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><code class="xref py py-class docutils literal"><span class="pre">numpy.array</span></code></p>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="backend.TextChain.point">
-<code class="descname">point</code><span class="sig-paren">(</span><em>idx</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#TextChain.point"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.TextChain.point" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get point of current chain with variables names as keys.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>idx</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – Index of the nth step of the chain</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"></td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">dictionary of point values</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="backend.TextChain.setup">
-<code class="descname">setup</code><span class="sig-paren">(</span><em>draws</em>, <em>chain</em>, <em>overwrite=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#TextChain.setup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.TextChain.setup" title="Permalink to this definition">¶</a></dt>
-<dd><p>Perform chain-specific setup.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>draws</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – Expected number of draws</li>
-<li><strong>chain</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – Chain number</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="class">
-<dt id="backend.TransDTextChain">
-<em class="property">class </em><code class="descclassname">backend.</code><code class="descname">TransDTextChain</code><span class="sig-paren">(</span><em>name</em>, <em>model=None</em>, <em>vars=None</em>, <em>buffer_size=5000</em>, <em>progressbar=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#TransDTextChain"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.TransDTextChain" title="Permalink to this definition">¶</a></dt>
-<dd><p>Result Trace object for trans-d problems.
-Manages several TextChains one for each dimension.</p>
-<dl class="method">
-<dt id="backend.TransDTextChain.point">
-<code class="descname">point</code><span class="sig-paren">(</span><em>idx</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#TransDTextChain.point"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.TransDTextChain.point" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get point of current chain with variables names as keys.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>idx</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – Index of the nth step of the chain</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><strong>dict</strong></td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">of point values</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="function">
-<dt id="backend.check_multitrace">
-<code class="descclassname">backend.</code><code class="descname">check_multitrace</code><span class="sig-paren">(</span><em>mtrace</em>, <em>draws</em>, <em>n_chains</em>, <em>buffer_thinning=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#check_multitrace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.check_multitrace" title="Permalink to this definition">¶</a></dt>
-<dd><p>Check multitrace for incomplete sampling and return indexes from chains
-that need to be resampled.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>mtrace</strong> (<code class="xref py py-class docutils literal"><span class="pre">pymc3.backend.base.MultiTrace</span></code>) – Multitrace object containing the sampling traces</li>
-<li><strong>draws</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – Number of steps (i.e. chain length for each Markov Chain)</li>
-<li><strong>n_chains</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – Number of Markov Chains</li>
-</ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"></p>
-</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">list of indexes for chains that need to be resampled</p>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="function">
-<dt id="backend.concatenate_traces">
-<code class="descclassname">backend.</code><code class="descname">concatenate_traces</code><span class="sig-paren">(</span><em>mtraces</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#concatenate_traces"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.concatenate_traces" title="Permalink to this definition">¶</a></dt>
-<dd><p>Concatenate a List of MultiTraces with same chain indexes.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="backend.extract_bounds_from_summary">
-<code class="descclassname">backend.</code><code class="descname">extract_bounds_from_summary</code><span class="sig-paren">(</span><em>summary</em>, <em>varname</em>, <em>shape</em>, <em>roundto=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#extract_bounds_from_summary"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.extract_bounds_from_summary" title="Permalink to this definition">¶</a></dt>
-<dd><p>Extract lower and upper bound of random variable.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"></td>
-</tr>
-<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">list of num.Ndarray</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="function">
-<dt id="backend.extract_variables_from_df">
-<code class="descclassname">backend.</code><code class="descname">extract_variables_from_df</code><span class="sig-paren">(</span><em>dataframe</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#extract_variables_from_df"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.extract_variables_from_df" title="Permalink to this definition">¶</a></dt>
-<dd><p>Extract random variables and their shapes from the pymc3-pandas data-frame</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>dataframe</strong> (<code class="xref py py-class docutils literal"><span class="pre">pandas.DataFrame</span></code>) – </td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><ul class="simple">
-<li><strong>flat_names</strong> (<em>dict</em>) – with variable-names and respective flat-name indexes to data-frame</li>
-<li><strong>var_shapes</strong> (<em>dict</em>) – with variable names and shapes</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="function">
-<dt id="backend.get_highest_sampled_stage">
-<code class="descclassname">backend.</code><code class="descname">get_highest_sampled_stage</code><span class="sig-paren">(</span><em>homedir</em>, <em>return_final=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#get_highest_sampled_stage"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.get_highest_sampled_stage" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return stage number of stage that has been sampled before the final stage.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>homedir</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – Directory to the sampled stage results</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><strong>stage number</strong></td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)">int</a></td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="function">
-<dt id="backend.load_multitrace">
-<code class="descclassname">backend.</code><code class="descname">load_multitrace</code><span class="sig-paren">(</span><em>dirname</em>, <em>varnames=[]</em>, <em>chains=None</em>, <em>backend='csv'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#load_multitrace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.load_multitrace" title="Permalink to this definition">¶</a></dt>
-<dd><p>Load TextChain database.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>dirname</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – Name of directory with files (one per chain)</li>
-<li><strong>varnames</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.9)"><em>list</em></a>) – of strings with variable names</li>
-<li><strong>chains</strong> (<em>list optional</em>) – </li>
-</ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"></p>
-</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">A <code class="xref py py-class docutils literal"><span class="pre">pymc3.backend.base.MultiTrace</span></code> instance</p>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="function">
-<dt id="backend.load_sampler_params">
-<code class="descclassname">backend.</code><code class="descname">load_sampler_params</code><span class="sig-paren">(</span><em>project_dir</em>, <em>stage_number</em>, <em>mode</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#load_sampler_params"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.load_sampler_params" title="Permalink to this definition">¶</a></dt>
-<dd><p>Load saved parameters from given ATMIP stage.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>project_dir</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – absolute path to directory of BEAT project</li>
-<li><strong>number</strong> (<em>stage</em>) – of stage number or ‘final’ for last stage</li>
-<li><strong>mode</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – problem mode that has been solved (‘geometry’, ‘static’, ‘kinematic’)</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="function">
-<dt id="backend.thin_buffer">
-<code class="descclassname">backend.</code><code class="descname">thin_buffer</code><span class="sig-paren">(</span><em>buffer</em>, <em>buffer_thinning</em>, <em>ensure_last=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/backend.html#thin_buffer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#backend.thin_buffer" title="Permalink to this definition">¶</a></dt>
-<dd><p>Reduce a list of objects by a given value.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>buffer</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.9)"><em>list</em></a>) – of objects to be thinned</li>
-<li><strong>buffer_thinning</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.9)"><em>int</em></a>) – every nth object in list is returned</li>
-<li><strong>ensure_last</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.9)"><em>bool</em></a>) – enable to ensure that last object in list is returned</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-</div>
+<div class="section" id="the-backend-module">
+<h2>The <code class="xref py py-mod docutils literal"><span class="pre">backend</span></code> Module<a class="headerlink" href="#the-backend-module" title="Permalink to this headline">¶</a></h2>
 </div>
 <div class="section" id="module-models">
 <span id="the-models-module"></span><h2>The <a class="reference internal" href="#module-models" title="models"><code class="xref py py-mod docutils literal"><span class="pre">models</span></code></a> Module<a class="headerlink" href="#module-models" title="Permalink to this headline">¶</a></h2>
@@ -4411,306 +3965,11 @@ boundaries, as well as the sampler parameters.</td>
 </dd></dl>
 
 </div>
-<div class="section" id="module-models.seismic">
-<span id="seismic"></span><h3><code class="xref py py-mod docutils literal"><span class="pre">seismic</span></code><a class="headerlink" href="#module-models.seismic" title="Permalink to this headline">¶</a></h3>
-<dl class="class">
-<dt id="models.seismic.SeismicGeometryComposite">
-<em class="property">class </em><code class="descclassname">models.seismic.</code><code class="descname">SeismicGeometryComposite</code><span class="sig-paren">(</span><em>sc</em>, <em>project_dir</em>, <em>sources</em>, <em>events</em>, <em>hypers=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/models/seismic.html#SeismicGeometryComposite"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#models.seismic.SeismicGeometryComposite" title="Permalink to this definition">¶</a></dt>
-<dd><p>Comprises how to solve the non-linear seismic forward model.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>sc</strong> (<a class="reference internal" href="#config.SeismicConfig" title="config.SeismicConfig"><code class="xref py py-class docutils literal"><span class="pre">config.SeismicConfig</span></code></a>) – configuration object containing seismic setup parameters</li>
-<li><strong>project_dir</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.9)"><em>str</em></a>) – directory of the model project, where to find the data</li>
-<li><strong>sources</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.9)"><em>list</em></a>) – of <code class="xref py py-class docutils literal"><span class="pre">pyrocko.gf.seismosizer.Source</span></code></li>
-<li><strong>events</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.9)"><em>list</em></a>) – of <code class="xref py py-class docutils literal"><span class="pre">pyrocko.model.Event</span></code>
-contains information of reference event(s), coordinates of reference
-point(s) and source time(s)</li>
-<li><strong>hypers</strong> (<em>boolean</em>) – if true initialise object for hyper parameter optimization</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-<dl class="method">
-<dt id="models.seismic.SeismicGeometryComposite.get_formula">
-<code class="descname">get_formula</code><span class="sig-paren">(</span><em>input_rvs</em>, <em>fixed_rvs</em>, <em>hyperparams</em>, <em>problem_config</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/models/seismic.html#SeismicGeometryComposite.get_formula"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#models.seismic.SeismicGeometryComposite.get_formula" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get seismic likelihood formula for the model built. Has to be called
-within a with model context.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>input_rvs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.9)"><em>list</em></a>) – of <code class="xref py py-class docutils literal"><span class="pre">pymc3.distribution.Distribution</span></code> of source parameters</li>
-<li><strong>fixed_rvs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><em>dict</em></a>) – of <code class="xref py py-class docutils literal"><span class="pre">numpy.array</span></code></li>
-<li><strong>hyperparams</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><em>dict</em></a>) – of <code class="xref py py-class docutils literal"><span class="pre">pymc3.distribution.Distribution</span></code></li>
-<li><strong>problem_config</strong> (<a class="reference internal" href="#config.ProblemConfig" title="config.ProblemConfig"><code class="xref py py-class docutils literal"><span class="pre">config.ProblemConfig</span></code></a>) – </li>
-</ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>posterior_llk</strong></p>
-</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><code class="xref py py-class docutils literal"><span class="pre">theano.tensor.Tensor</span></code></p>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="models.seismic.SeismicGeometryComposite.get_synthetics">
-<code class="descname">get_synthetics</code><span class="sig-paren">(</span><em>point</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/models/seismic.html#SeismicGeometryComposite.get_synthetics"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#models.seismic.SeismicGeometryComposite.get_synthetics" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get synthetics for given point in solution space.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>point</strong> (<code class="xref py py-func docutils literal"><span class="pre">pymc3.Point()</span></code>) – Dictionary with model parameters</li>
-<li><strong>especially to change output of seismic forward model</strong> (<em>kwargs</em>) – outmode = ‘traces’/ ‘array’ / ‘data’</li>
-</ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>default</strong></p>
-</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">array of synthetics for all targets</p>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="models.seismic.SeismicGeometryComposite.point2sources">
-<code class="descname">point2sources</code><span class="sig-paren">(</span><em>point</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/models/seismic.html#SeismicGeometryComposite.point2sources"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#models.seismic.SeismicGeometryComposite.point2sources" title="Permalink to this definition">¶</a></dt>
-<dd><p>Updates the composite source(s) (in place) with the point values.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>point</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><em>dict</em></a>) – with random variables from solution space</li>
-<li><strong>input_depth</strong> (<a class="reference external" href="https://docs.python.org/3/library/string.html#module-string" title="(in Python v3.9)"><em>string</em></a>) – may be either ‘top’- input coordinates are transformed to center
-‘center’ - input coordinates are not transformed</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="models.seismic.SeismicGeometryComposite.update_weights">
-<code class="descname">update_weights</code><span class="sig-paren">(</span><em>point</em>, <em>n_jobs=1</em>, <em>plot=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/models/seismic.html#SeismicGeometryComposite.update_weights"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#models.seismic.SeismicGeometryComposite.update_weights" title="Permalink to this definition">¶</a></dt>
-<dd><p>Updates weighting matrixes (in place) with respect to the point in the
-solution space.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>point</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><em>dict</em></a>) – with numpy array-like items and variable name keys</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="class">
-<dt id="models.seismic.SeismicDistributerComposite">
-<em class="property">class </em><code class="descclassname">models.seismic.</code><code class="descname">SeismicDistributerComposite</code><span class="sig-paren">(</span><em>sc</em>, <em>project_dir</em>, <em>events</em>, <em>hypers=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/models/seismic.html#SeismicDistributerComposite"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#models.seismic.SeismicDistributerComposite" title="Permalink to this definition">¶</a></dt>
-<dd><p>Comprises how to solve the seismic (kinematic) linear forward model.
-Distributed slip</p>
-<dl class="method">
-<dt id="models.seismic.SeismicDistributerComposite.get_synthetics">
-<code class="descname">get_synthetics</code><span class="sig-paren">(</span><em>point</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/models/seismic.html#SeismicDistributerComposite.get_synthetics"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#models.seismic.SeismicDistributerComposite.get_synthetics" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get synthetics for given point in solution space.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>point</strong> (<code class="xref py py-func docutils literal"><span class="pre">pymc3.Point()</span></code>) – Dictionary with model parameters</li>
-<li><strong>especially to change output of the forward model</strong> (<em>kwargs</em>) – </li>
-</ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"></p>
-</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">list with <a class="reference internal" href="#heart.SeismicDataset" title="heart.SeismicDataset"><code class="xref py py-class docutils literal"><span class="pre">heart.SeismicDataset</span></code></a> synthetics for each target</p>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="models.seismic.SeismicDistributerComposite.load_fault_geometry">
-<code class="descname">load_fault_geometry</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/models/seismic.html#SeismicDistributerComposite.load_fault_geometry"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#models.seismic.SeismicDistributerComposite.load_fault_geometry" title="Permalink to this definition">¶</a></dt>
-<dd><p>Load fault-geometry, i.e. discretized patches.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"></td>
-</tr>
-<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><code class="xref py py-class docutils literal"><span class="pre">heart.FaultGeometry</span></code></td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="models.seismic.SeismicDistributerComposite.load_gfs">
-<code class="descname">load_gfs</code><span class="sig-paren">(</span><em>crust_inds=None</em>, <em>make_shared=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/models/seismic.html#SeismicDistributerComposite.load_gfs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#models.seismic.SeismicDistributerComposite.load_gfs" title="Permalink to this definition">¶</a></dt>
-<dd><p>Load Greens Function matrixes for each variable to be inverted for.
-Updates gfs and gf_names attributes.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>crust_inds</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.9)"><em>list</em></a>) – of int to indexes of Green’s Functions</li>
-<li><strong>make_shared</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.9)"><em>bool</em></a>) – if True transforms gfs to <code class="xref py py-class docutils literal"><span class="pre">theano.shared</span></code> variables</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="models.seismic.SeismicDistributerComposite.update_weights">
-<code class="descname">update_weights</code><span class="sig-paren">(</span><em>point</em>, <em>n_jobs=1</em>, <em>plot=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/models/seismic.html#SeismicDistributerComposite.update_weights"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#models.seismic.SeismicDistributerComposite.update_weights" title="Permalink to this definition">¶</a></dt>
-<dd><p>Updates weighting matrixes (in place) with respect to the point in the
-solution space.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>point</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><em>dict</em></a>) – with numpy array-like items and variable name keys</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-</dd></dl>
-
+<div class="section" id="seismic">
+<h3><code class="xref py py-mod docutils literal"><span class="pre">seismic</span></code><a class="headerlink" href="#seismic" title="Permalink to this headline">¶</a></h3>
 </div>
-<div class="section" id="module-models.geodetic">
-<span id="geodetic"></span><h3><code class="xref py py-mod docutils literal"><span class="pre">geodetic</span></code><a class="headerlink" href="#module-models.geodetic" title="Permalink to this headline">¶</a></h3>
-<dl class="class">
-<dt id="models.geodetic.GeodeticDistributerComposite">
-<em class="property">class </em><code class="descclassname">models.geodetic.</code><code class="descname">GeodeticDistributerComposite</code><span class="sig-paren">(</span><em>gc</em>, <em>project_dir</em>, <em>events</em>, <em>hypers=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/models/geodetic.html#GeodeticDistributerComposite"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#models.geodetic.GeodeticDistributerComposite" title="Permalink to this definition">¶</a></dt>
-<dd><p>Comprises how to solve the geodetic (static) linear forward model.
-Distributed slip</p>
-<dl class="method">
-<dt id="models.geodetic.GeodeticDistributerComposite.get_formula">
-<code class="descname">get_formula</code><span class="sig-paren">(</span><em>input_rvs</em>, <em>fixed_rvs</em>, <em>hyperparams</em>, <em>problem_config</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/models/geodetic.html#GeodeticDistributerComposite.get_formula"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#models.geodetic.GeodeticDistributerComposite.get_formula" title="Permalink to this definition">¶</a></dt>
-<dd><p>Formulation of the distribution problem for the model built. Has to be
-called within a with-model-context.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>input_rvs</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.9)"><em>list</em></a>) – of <code class="xref py py-class docutils literal"><span class="pre">pymc3.distribution.Distribution</span></code></li>
-<li><strong>hyperparams</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><em>dict</em></a>) – of <code class="xref py py-class docutils literal"><span class="pre">pymc3.distribution.Distribution</span></code></li>
-</ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>llk</strong> – log-likelihood for the distributed slip</p>
-</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><code class="xref py py-class docutils literal"><span class="pre">theano.tensor.Tensor</span></code></p>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="models.geodetic.GeodeticDistributerComposite.get_synthetics">
-<code class="descname">get_synthetics</code><span class="sig-paren">(</span><em>point</em>, <em>outmode='data'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/models/geodetic.html#GeodeticDistributerComposite.get_synthetics"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#models.geodetic.GeodeticDistributerComposite.get_synthetics" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get synthetics for given point in solution space.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>point</strong> (<code class="xref py py-func docutils literal"><span class="pre">pymc3.Point()</span></code>) – Dictionary with model parameters</li>
-<li><strong>especially to change output of the forward model</strong> (<em>kwargs</em>) – </li>
-</ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"></p>
-</td>
-</tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">list with <a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v1.19)"><code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code></a> synthetics for each target</p>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="models.geodetic.GeodeticDistributerComposite.load_fault_geometry">
-<code class="descname">load_fault_geometry</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/models/geodetic.html#GeodeticDistributerComposite.load_fault_geometry"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#models.geodetic.GeodeticDistributerComposite.load_fault_geometry" title="Permalink to this definition">¶</a></dt>
-<dd><p>Load fault-geometry, i.e. discretized patches.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"></td>
-</tr>
-<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><code class="xref py py-class docutils literal"><span class="pre">heart.FaultGeometry</span></code></td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="models.geodetic.GeodeticDistributerComposite.load_gfs">
-<code class="descname">load_gfs</code><span class="sig-paren">(</span><em>crust_inds=None</em>, <em>make_shared=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/models/geodetic.html#GeodeticDistributerComposite.load_gfs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#models.geodetic.GeodeticDistributerComposite.load_gfs" title="Permalink to this definition">¶</a></dt>
-<dd><p>Load Greens Function matrixes for each variable to be inverted for.
-Updates gfs and gf_names attributes.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>crust_inds</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.9)"><em>list</em></a>) – of int to indexes of Green’s Functions</li>
-<li><strong>make_shared</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.9)"><em>bool</em></a>) – if True transforms gfs to <code class="xref py py-class docutils literal"><span class="pre">theano.shared</span></code> variables</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="models.geodetic.GeodeticDistributerComposite.update_weights">
-<code class="descname">update_weights</code><span class="sig-paren">(</span><em>point</em>, <em>n_jobs=1</em>, <em>plot=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/models/geodetic.html#GeodeticDistributerComposite.update_weights"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#models.geodetic.GeodeticDistributerComposite.update_weights" title="Permalink to this definition">¶</a></dt>
-<dd><p>Updates weighting matrixes (in place) with respect to the point in the
-solution space.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>point</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.9)"><em>dict</em></a>) – with numpy array-like items and variable name keys</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-</dd></dl>
-
+<div class="section" id="geodetic">
+<h3><code class="xref py py-mod docutils literal"><span class="pre">geodetic</span></code><a class="headerlink" href="#geodetic" title="Permalink to this headline">¶</a></h3>
 </div>
 </div>
 <div class="section" id="module-psgrn">
@@ -4901,7 +4160,7 @@ library and may be removed from the beat repository in the future.</p>
 <dl class="gattribute">
 <dt id="pscmp.PsCmpConfig.observation">
 <em class="property">♦ </em><code class="descname">observation</code><a class="headerlink" href="#pscmp.PsCmpConfig.observation" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#pscmp.PsCmpObservation" title="pscmp.PsCmpObservation"><code class="xref py py-class docutils literal"><span class="pre">PsCmpObservation</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;pscmp.PsCmpScatter</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc976043da0&gt;</span></code></p>
+<dd><p><a class="reference internal" href="#pscmp.PsCmpObservation" title="pscmp.PsCmpObservation"><code class="xref py py-class docutils literal"><span class="pre">PsCmpObservation</span></code></a>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;pscmp.PsCmpScatter</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693bd373c8&gt;</span></code></p>
 </dd></dl>
 
 <dl class="gattribute">
@@ -4931,7 +4190,7 @@ library and may be removed from the beat repository in the future.</p>
 <dl class="gattribute">
 <dt id="pscmp.PsCmpConfig.rectangular_source_patches">
 <em class="property">♦ </em><code class="descname">rectangular_source_patches</code><a class="headerlink" href="#pscmp.PsCmpConfig.rectangular_source_patches" title="Permalink to this definition">¶</a></dt>
-<dd><p><code class="docutils literal"><span class="pre">list</span></code> of <code class="xref py py-class docutils literal"><span class="pre">pyrocko.guts.Any</span></code> objects, <em>default:</em> <code class="docutils literal"><span class="pre">[&lt;pscmp.PsCmpRectangularSource</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc976043e10&gt;]</span></code></p>
+<dd><p><code class="docutils literal"><span class="pre">list</span></code> of <code class="xref py py-class docutils literal"><span class="pre">pyrocko.guts.Any</span></code> objects, <em>default:</em> <code class="docutils literal"><span class="pre">[&lt;pscmp.PsCmpRectangularSource</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693bd37438&gt;]</span></code></p>
 </dd></dl>
 
 </dd></dl>
@@ -4955,7 +4214,7 @@ library and may be removed from the beat repository in the future.</p>
 <dl class="gattribute">
 <dt id="pscmp.PsCmpConfigFull.coulomb_master_field">
 <em class="property">♦ </em><code class="descname">coulomb_master_field</code><a class="headerlink" href="#pscmp.PsCmpConfigFull.coulomb_master_field" title="Permalink to this definition">¶</a></dt>
-<dd><p><a class="reference internal" href="#pscmp.PsCmpCoulombStress" title="pscmp.PsCmpCoulombStress"><code class="xref py py-class docutils literal"><span class="pre">PsCmpCoulombStress</span></code></a>, <em>optional</em>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;pscmp.PsCmpCoulombStressMasterFault</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7fc97604c400&gt;</span></code></p>
+<dd><p><a class="reference internal" href="#pscmp.PsCmpCoulombStress" title="pscmp.PsCmpCoulombStress"><code class="xref py py-class docutils literal"><span class="pre">PsCmpCoulombStress</span></code></a>, <em>optional</em>, <em>default:</em> <code class="docutils literal"><span class="pre">&lt;pscmp.PsCmpCoulombStressMasterFault</span> <span class="pre">object</span> <span class="pre">at</span> <span class="pre">0x7f693bd379e8&gt;</span></code></p>
 </dd></dl>
 
 <dl class="gattribute">
@@ -5341,7 +4600,7 @@ matrix</li>
 
 <dl class="function">
 <dt id="covariance.seismic_cov_velocity_models">
-<code class="descclassname">covariance.</code><code class="descname">seismic_cov_velocity_models</code><span class="sig-paren">(</span><em>engine</em>, <em>sources</em>, <em>targets</em>, <em>arrival_taper</em>, <em>arrival_time</em>, <em>wavename</em>, <em>filterer</em>, <em>plot=False</em>, <em>n_jobs=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/covariance.html#seismic_cov_velocity_models"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#covariance.seismic_cov_velocity_models" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">covariance.</code><code class="descname">seismic_cov_velocity_models</code><span class="sig-paren">(</span><em>engine, sources, targets, arrival_taper, arrival_time, wavename, filterer, plot=False, n_jobs=1, chop_bounds=['b', 'c']</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/covariance.html#seismic_cov_velocity_models"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#covariance.seismic_cov_velocity_models" title="Permalink to this definition">¶</a></dt>
 <dd><p>Calculate model prediction uncertainty matrix with respect to uncertainties
 in the velocity model for station and channel.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -5393,7 +4652,7 @@ reference event(s) from catalog</li>
 </table>
 <dl class="method">
 <dt id="covariance.SeismicNoiseAnalyser.get_data_covariances">
-<code class="descname">get_data_covariances</code><span class="sig-paren">(</span><em>wmap</em>, <em>sample_rate</em>, <em>results=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/covariance.html#SeismicNoiseAnalyser.get_data_covariances"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#covariance.SeismicNoiseAnalyser.get_data_covariances" title="Permalink to this definition">¶</a></dt>
+<code class="descname">get_data_covariances</code><span class="sig-paren">(</span><em>wmap</em>, <em>sample_rate</em>, <em>results=None</em>, <em>chop_bounds=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/covariance.html#SeismicNoiseAnalyser.get_data_covariances"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#covariance.SeismicNoiseAnalyser.get_data_covariances" title="Permalink to this definition">¶</a></dt>
 <dd><p>Estimated data covariances of seismic traces</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -7018,7 +6277,7 @@ have common axis increments</li>
 
 <dl class="function">
 <dt id="plotting.histplot_op">
-<code class="descclassname">plotting.</code><code class="descname">histplot_op</code><span class="sig-paren">(</span><em>ax, data, reference=None, alpha=0.35, color=None, bins=None, ntickmarks=5, tstd=None, qlist=[0.01, 99.99], kwargs={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/plotting.html#histplot_op"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#plotting.histplot_op" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">plotting.</code><code class="descname">histplot_op</code><span class="sig-paren">(</span><em>ax, data, reference=None, alpha=0.35, color=None, cmap=None, bins=None, tstd=None, qlist=[0.01, 99.99], cbounds=None, kwargs={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/plotting.html#histplot_op"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#plotting.histplot_op" title="Permalink to this definition">¶</a></dt>
 <dd><p>Modified from pymc3. Additional color argument.</p>
 </dd></dl>
 
@@ -7188,16 +6447,13 @@ Updates channels of stations in place!</p>
 <li class="toctree-l3"><a class="reference internal" href="#module-sampler.pt"><code class="docutils literal"><span class="pre">pt</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#module-ffi">The <code class="docutils literal"><span class="pre">ffi</span></code> Module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-ffi-module">The <code class="docutils literal"><span class="pre">ffi</span></code> Module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-parallel">The <code class="docutils literal"><span class="pre">parallel</span></code> Module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-backend">The <code class="docutils literal"><span class="pre">backend</span></code> Module</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#file-format">File format</a></li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="#the-backend-module">The <code class="docutils literal"><span class="pre">backend</span></code> Module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-models">The <code class="docutils literal"><span class="pre">models</span></code> Module</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#module-models.problems"><code class="docutils literal"><span class="pre">problems</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-models.seismic"><code class="docutils literal"><span class="pre">seismic</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-models.geodetic"><code class="docutils literal"><span class="pre">geodetic</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#seismic"><code class="docutils literal"><span class="pre">seismic</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#geodetic"><code class="docutils literal"><span class="pre">geodetic</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#module-psgrn">The <code class="docutils literal"><span class="pre">psgrn</span></code> Module</a></li>

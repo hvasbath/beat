@@ -166,6 +166,9 @@
 <span class="n">partial_kinematic_vars</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;durations&#39;</span><span class="p">,</span> <span class="s1">&#39;velocities&#39;</span><span class="p">]</span>
 <span class="n">voronoi_locations</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;voronoi_strike&#39;</span><span class="p">,</span> <span class="s1">&#39;voronoi_dip&#39;</span><span class="p">]</span>
 
+<span class="n">mt_components</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;mnn&#39;</span><span class="p">,</span> <span class="s1">&#39;mee&#39;</span><span class="p">,</span> <span class="s1">&#39;mdd&#39;</span><span class="p">,</span> <span class="s1">&#39;mne&#39;</span><span class="p">,</span> <span class="s1">&#39;mnd&#39;</span><span class="p">,</span> <span class="s1">&#39;med&#39;</span><span class="p">]</span>
+<span class="n">dc_components</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;strike1&#39;</span><span class="p">,</span> <span class="s1">&#39;dip1&#39;</span><span class="p">,</span> <span class="s1">&#39;rake1&#39;</span><span class="p">,</span> <span class="s1">&#39;strike2&#39;</span><span class="p">,</span> <span class="s1">&#39;dip2&#39;</span><span class="p">,</span> <span class="s1">&#39;rake2&#39;</span><span class="p">]</span>
+
 <span class="n">kinematic_dist_vars</span> <span class="o">=</span> <span class="n">static_dist_vars</span> <span class="o">+</span> <span class="n">partial_kinematic_vars</span> <span class="o">+</span> <span class="n">hypo_vars</span>
 <span class="n">transd_vars_dist</span> <span class="o">=</span> <span class="n">partial_kinematic_vars</span> <span class="o">+</span> <span class="n">static_dist_vars</span> <span class="o">+</span> \
     <span class="n">voronoi_locations</span>
@@ -291,7 +294,7 @@
 <span class="n">km</span> <span class="o">=</span> <span class="mf">1000.</span>
 
 
-<span class="n">_quantity_choices</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;displacement&#39;</span><span class="p">,</span> <span class="s1">&#39;velocity&#39;</span><span class="p">]</span>
+<span class="n">_quantity_choices</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;displacement&#39;</span><span class="p">,</span> <span class="s1">&#39;velocity&#39;</span><span class="p">,</span> <span class="s1">&#39;acceleration&#39;</span><span class="p">]</span>
 <span class="n">_interpolation_choices</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;nearest_neighbor&#39;</span><span class="p">,</span> <span class="s1">&#39;multilinear&#39;</span><span class="p">]</span>
 <span class="n">_structure_choices</span> <span class="o">=</span> <span class="n">available_noise_structures</span><span class="p">()</span>
 <span class="n">_mode_choices</span> <span class="o">=</span> <span class="p">[</span><span class="n">geometry_mode_str</span><span class="p">,</span> <span class="n">ffi_mode_str</span><span class="p">]</span>
@@ -1998,7 +2001,7 @@
     <span class="k">except</span> <span class="ne">IOError</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">IOError</span><span class="p">(</span><span class="s1">&#39;Cannot load config, file </span><span class="si">%s</span><span class="s1">&#39;</span>
                       <span class="s1">&#39; does not exist!&#39;</span> <span class="o">%</span> <span class="n">config_fn</span><span class="p">)</span>
-    <span class="k">except</span> <span class="n">ArgumentError</span><span class="p">:</span>
+    <span class="k">except</span><span class="p">(</span><span class="n">ArgumentError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
         <span class="k">raise</span> <span class="n">ConfigNeedsUpdatingError</span><span class="p">()</span>
 
     <span class="n">config</span><span class="o">.</span><span class="n">problem_config</span><span class="o">.</span><span class="n">validate_all</span><span class="p">()</span>

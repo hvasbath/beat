@@ -256,12 +256,15 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">structure</span> <span class="o">=</span> <span class="n">structure</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">chop_bounds</span> <span class="o">=</span> <span class="n">chop_bounds</span>
 
-    <span class="k">def</span> <span class="nf">get_structure</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">wmap</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">get_structure</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">wmap</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">,</span> <span class="n">chop_bounds</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="n">chop_bounds</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">chop_bounds</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">chop_bounds</span>
 
         <span class="n">tzero</span> <span class="o">=</span> <span class="mf">1.</span> <span class="o">/</span> <span class="n">wmap</span><span class="o">.</span><span class="n">get_highest_frequency</span><span class="p">()</span>
         <span class="n">dt</span> <span class="o">=</span> <span class="mf">1.</span> <span class="o">/</span> <span class="n">sample_rate</span>
         <span class="n">ataper</span> <span class="o">=</span> <span class="n">wmap</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">arrival_taper</span>
-        <span class="n">n</span> <span class="o">=</span> <span class="n">ataper</span><span class="o">.</span><span class="n">nsamples</span><span class="p">(</span><span class="n">sample_rate</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">chop_bounds</span><span class="p">)</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">ataper</span><span class="o">.</span><span class="n">nsamples</span><span class="p">(</span><span class="n">sample_rate</span><span class="p">,</span> <span class="n">chop_bounds</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">NoiseStructureCatalog</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">structure</span><span class="p">](</span><span class="n">n</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">tzero</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">do_import</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">wmap</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">):</span>
@@ -347,7 +350,8 @@
 
         <span class="k">return</span> <span class="n">scalings</span>
 
-<div class="viewcode-block" id="SeismicNoiseAnalyser.get_data_covariances"><a class="viewcode-back" href="../api.html#covariance.SeismicNoiseAnalyser.get_data_covariances">[docs]</a>    <span class="k">def</span> <span class="nf">get_data_covariances</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">wmap</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">,</span> <span class="n">results</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="SeismicNoiseAnalyser.get_data_covariances"><a class="viewcode-back" href="../api.html#covariance.SeismicNoiseAnalyser.get_data_covariances">[docs]</a>    <span class="k">def</span> <span class="nf">get_data_covariances</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">wmap</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">,</span> <span class="n">results</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">chop_bounds</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Estimated data covariances of seismic traces</span>
 
@@ -362,7 +366,9 @@
 <span class="sd">        -------</span>
 <span class="sd">        :class:`numpy.ndarray`</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">covariance_structure</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_structure</span><span class="p">(</span><span class="n">wmap</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">)</span>
+
+        <span class="n">covariance_structure</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_structure</span><span class="p">(</span>
+            <span class="n">wmap</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">,</span> <span class="n">chop_bounds</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">structure</span> <span class="o">==</span> <span class="s1">&#39;import&#39;</span><span class="p">:</span>
             <span class="n">scalings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">do_import</span><span class="p">(</span><span class="n">wmap</span><span class="p">,</span> <span class="n">sample_rate</span><span class="p">)</span>
@@ -502,7 +508,7 @@
 
 <div class="viewcode-block" id="seismic_cov_velocity_models"><a class="viewcode-back" href="../api.html#covariance.seismic_cov_velocity_models">[docs]</a><span class="k">def</span> <span class="nf">seismic_cov_velocity_models</span><span class="p">(</span>
         <span class="n">engine</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">arrival_taper</span><span class="p">,</span> <span class="n">arrival_time</span><span class="p">,</span>
-        <span class="n">wavename</span><span class="p">,</span> <span class="n">filterer</span><span class="p">,</span> <span class="n">plot</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">wavename</span><span class="p">,</span> <span class="n">filterer</span><span class="p">,</span> <span class="n">plot</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">n_jobs</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">chop_bounds</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;b&#39;</span><span class="p">,</span> <span class="s1">&#39;c&#39;</span><span class="p">]):</span>
     <span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">    Calculate model prediction uncertainty matrix with respect to uncertainties</span>
 <span class="sd">    in the velocity model for station and channel.</span>
@@ -546,7 +552,7 @@
         <span class="n">pre_stack_cut</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
         <span class="n">plot</span><span class="o">=</span><span class="n">plot</span><span class="p">,</span>
         <span class="n">outmode</span><span class="o">=</span><span class="s1">&#39;array&#39;</span><span class="p">,</span>
-        <span class="n">chop_bounds</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;b&#39;</span><span class="p">,</span> <span class="s1">&#39;c&#39;</span><span class="p">])</span>
+        <span class="n">chop_bounds</span><span class="o">=</span><span class="n">chop_bounds</span><span class="p">)</span>
 
     <span class="n">t1</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Trace generation time </span><span class="si">%f</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">t1</span> <span class="o">-</span> <span class="n">t0</span><span class="p">))</span>

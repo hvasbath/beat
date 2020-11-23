@@ -390,7 +390,7 @@
         <span class="n">default</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
         <span class="n">help</span><span class="o">=</span><span class="s1">&#39;order of filter, the higher the steeper&#39;</span><span class="p">)</span>
     <span class="n">stepwise</span> <span class="o">=</span> <span class="n">Bool</span><span class="o">.</span><span class="n">T</span><span class="p">(</span>
-        <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
         <span class="n">help</span><span class="o">=</span><span class="s1">&#39;If set to true the bandpass filter is done it two&#39;</span>
              <span class="s1">&#39; consecutive steps, first high-pass then low-pass.&#39;</span><span class="p">)</span>
 
@@ -467,7 +467,13 @@
             <span class="n">serialize_as</span><span class="o">=</span><span class="s1">&#39;list&#39;</span><span class="p">,</span>
             <span class="n">dtype</span><span class="o">=</span><span class="n">tconfig</span><span class="o">.</span><span class="n">floatX</span><span class="p">),</span>
         <span class="n">default</span><span class="o">=</span><span class="p">{},</span>
-        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Point in Solution space for which result is produced.&#39;</span><span class="p">)</span></div>
+        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Point in Solution space for which result is produced.&#39;</span><span class="p">)</span>
+    <span class="n">variance_reductions</span> <span class="o">=</span> <span class="n">Dict</span><span class="o">.</span><span class="n">T</span><span class="p">(</span>
+        <span class="n">String</span><span class="o">.</span><span class="n">T</span><span class="p">(),</span>
+        <span class="n">Float</span><span class="o">.</span><span class="n">T</span><span class="p">(),</span>
+        <span class="n">default</span><span class="o">=</span><span class="p">{},</span>
+        <span class="n">optional</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Variance reductions for each dataset.&#39;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="SeismicResult"><a class="viewcode-back" href="../api.html#heart.SeismicResult">[docs]</a><span class="k">class</span> <span class="nc">SeismicResult</span><span class="p">(</span><span class="n">Object</span><span class="p">):</span>
@@ -497,8 +503,9 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">processed_res</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">tr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">processed_obs</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-        <span class="n">tr</span><span class="o">.</span><span class="n">set_ydata</span><span class="p">(</span><span class="n">tr</span><span class="o">.</span><span class="n">get_ydata</span><span class="p">()</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">processed_syn</span><span class="o">.</span><span class="n">ydata</span><span class="p">)</span>
+        <span class="n">tr</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">processed_obs</span><span class="p">)</span>
+        <span class="n">tr</span><span class="o">.</span><span class="n">set_ydata</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">processed_obs</span><span class="o">.</span><span class="n">get_ydata</span><span class="p">()</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">processed_syn</span><span class="o">.</span><span class="n">get_ydata</span><span class="p">())</span>
         <span class="k">return</span> <span class="n">tr</span></div>
 
 
