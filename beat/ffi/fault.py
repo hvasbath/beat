@@ -809,7 +809,8 @@ def write_fault_to_pscmp(filename, fault, point=None, force=False):
         with open(filename, 'wb') as fh:
             header = (
                 '# BEAT version %s complex fault geometry \n'
-                'for use with PSCMP from Wang et al. 2008\n' % info.version)
+                '# for use with PSCMP from Wang et al. 2008\n'
+                '#-----------------------------------------\n' % info.version)
             fh.write(header.encode('ascii'))
             fh.write(get_template(fault.nsubfaults).encode('ascii'))
 
