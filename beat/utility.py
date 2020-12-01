@@ -1429,6 +1429,18 @@ def positions2idxs(
         cell_size / 2.)) / cell_size).astype(dtype)
 
 
+def rotate_coords_plane_normal(coords, sf):
+
+    coords -= sf.bottom_left / km
+
+    rots = get_rotation_matrix()
+    rotz = coords.dot(rots['z'](d2r * -sf.strike))
+    roty = rotz.dot(rots['y'](d2r * -sf.dip))
+
+    roty[:, 0] *= - 1.
+    return roty
+
+
 def time_method(loop=10000):
     def timer_decorator(func):
         @wraps(func)

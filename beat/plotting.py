@@ -3521,17 +3521,6 @@ def fault_slip_distribution(
 
         return quivers, normalisation
 
-    def rotate_coords_plane_normal(coords, sf):
-
-        coords -= sf.bottom_left / km
-
-        rots = utility.get_rotation_matrix()
-        rotz = coords.dot(rots['z'](mt.d2r * -sf.strike))
-        roty = rotz.dot(rots['y'](mt.d2r * -sf.dip))
-
-        roty[:, 0] *= - 1.
-        return roty
-
     def draw_patches(ax, fault, subfault_idx, patch_values, cmap, alpha):
 
         lls = fault.get_subfault_patch_attributes(
@@ -3541,7 +3530,7 @@ def fault_slip_distribution(
         sf = fault.get_subfault(subfault_idx)
 
         # subtract reference fault lower left and rotate
-        rot_lls = rotate_coords_plane_normal(lls, sf)[:, 1::-1]
+        rot_lls = utility.rotate_coords_plane_normal(lls, sf)[:, 1::-1]
 
         d_patches = []
         for ll, width, length in zip(rot_lls, widths, lengths):
@@ -3620,7 +3609,8 @@ def fault_slip_distribution(
         # patch central locations
         centers = fault.get_subfault_patch_attributes(
             ns, attributes=['center'])
-        rot_centers = rotate_coords_plane_normal(centers, ext_source)[:, 1::-1]
+        rot_centers = utility.rotate_coords_plane_normal(
+            centers, ext_source)[:, 1::-1]
 
         xgr, ygr = rot_centers.T
         if 'seismic' in fault.datatypes:

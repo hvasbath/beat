@@ -1,5 +1,7 @@
-from beat.utility import list2string, positions2idxs, kmtypes, split_off_list, \
-                         Counter, mod_i
+from beat.utility import (
+    list2string, positions2idxs, kmtypes, split_off_list,
+    Counter, mod_i, rotate_coords_plane_normal)
+
 from beat.fast_sweeping import fast_sweep
 from beat.heart import velocities_from_pole
 
@@ -12,6 +14,7 @@ from .base import get_backend, geo_construct_gf_linear_patches
 from pyrocko.gf.seismosizer import Cloneable
 from pyrocko.orthodrome import latlon_to_ne_numpy, ne_to_latlon
 
+import os
 import copy
 from logging import getLogger
 from collections import namedtuple, OrderedDict
@@ -27,12 +30,17 @@ from matplotlib import pyplot as plt
 logger = getLogger('ffi.fault')
 
 
+d2r = num.pi / 180.
+r2d = 180. / num.pi
+
+
 __all__ = [
     'FaultGeometry',
     'FaultOrdering',
     'discretize_sources',
     'get_division_mapping',
-    'optimize_discretization']
+    'optimize_discretization',
+    'write_fault_to_pscmp']
 
 
 slip_directions = {
@@ -702,6 +710,144 @@ total number of patches: %i ''' % (
     @property
     def is_discretized(self):
         return True if self.npatches else False
+
+
+def write_fault_to_pscmp(filename, fault, point=None, force=False):
+    """
+    Dump the fault geometry to ascii file according to the pscmp format.
+    """
+    from beat import info
+
+    if fault.needs_optimization:
+        raise TypeError(
+            'PSCMP only supports uniform discretized rectangular sources, '
+            'cannot dump irregularly discretized sources')
+
+    if not fault.is_discretized:
+        raise TypeError('Fault needs to be discretized for export!')
+
+    def sf_to_string(index, subfault, np_strike, np_dip, time_days=0.):
+        ul_lat, ul_lon = sf.outline('latlon')[3, :]
+        return '{}    {} {} {} {} {} {} {} {} {} {}\n'.format(
+            index + 1,
+            ul_lat, ul_lon, sf.depth, sf.length / km, sf.width / km,
+            sf.strike, sf.dip, np_strike, np_dip, time_days)
+
+    def get_template(nsubfaults):
+        return """
+#===============================================================================
+# RECTANGULAR SUBFAULTS
+# =====================
+# 1. number of subfaults (<= NSMAX in pscglob.h), latitude [deg] and east
+#    longitude [deg] of the regional reference point as  origin of the Cartesian
+#    coordinate system: ns, lat0, lon0
+#
+# 2. parameters for the 1. rectangular subfault: geographic coordinates
+#    (O_lat, O_lon) [deg] and O_depth [km] of the local reference point on
+#    the present fault plane, length (along strike) [km] and width (along down
+#    dip) [km], strike [deg], dip [deg], number of equi-size fault
+#    patches along the strike (np_st) and along the dip (np_di) (total number of
+#    fault patches = np_st x np_di), and the start time of the rupture; the
+#    following data lines describe the slip distribution on the present sub-
+#    fault:
+#
+#    pos_s[km]  pos_d[km]  slip_along_strike[m]  slip_along_dip[m]  opening[m]
+#
+#    where (pos_s,pos_d) defines the position of the center of each patch in
+#    the local coordinate system with the origin at the reference point:
+#    pos_s = distance along the length (positive in the strike direction)
+#    pos_d = distance along the width (positive in the down-dip direction)
+#
+#
+# 3. ... for the 2. subfault ...
+# ...
+#                   N
+#                  /
+#                 /| strike
+#                +------------------------
+#                |\        p .            \ W
+#                :-\      i .              \ i
+#                |  \    l .                \ d
+#                :90 \  S .                  \ t
+#                |-dip\  .                    \ h
+#                :     \. | rake               \
+#                Z      -------------------------
+#                              L e n g t h
+#
+#    Note that a point inflation can be simulated by three point openning
+#    faults (each causes a third part of the volume of the point inflation)
+#    with orientation orthogonal to each other. the results obtained should
+#    be multiplied by a scaling factor 3(1-nu)/(1+nu), where nu is the Poisson
+#    ratio at the source. The scaling factor is the ratio of the seismic
+#    moment (energy) of an inflation source to that of a tensile source inducing
+#    a plate openning with the same volume change.
+#===============================================================================
+# n_faults
+#-------------------------------------------------------------------------------
+%i
+#-------------------------------------------------------------------------------
+# n   O_lat   O_lon    O_depth length  width strike dip   np_st np_di start_time
+# [-] [deg]   [deg]    [km]    [km]     [km] [deg]  [deg] [-]   [-]   [day]
+#     pos_s   pos_d    slp_stk slp_dip open
+#     [km]    [km]     [m]     [m]     [m]
+#-------------------------------------------------------------------------------
+""" % nsubfaults
+
+    # get slip components from result point
+    uparr = point['uparr']
+    try:
+        uperp = point['uperp']
+    except KeyError:
+        logger.info('No uperp component in solution setting to zero!')
+        uperp = num.zeros_like(uparr)
+
+    # open file and write header
+    if not os.path.exists(filename) or force:
+        logger.info(
+            'Writing fault geometry to pscmp formatted text'
+            ' under: \n %s' % filename)
+        with open(filename, 'wb') as fh:
+            header = (
+                '# BEAT version %s complex fault geometry \n'
+                'for use with PSCMP from Wang et al. 2008\n' % info.version)
+            fh.write(header.encode('ascii'))
+            fh.write(get_template(fault.nsubfaults).encode('ascii'))
+
+    else:
+        raise IOError(
+            'File %s exists! Please use --force to overwrite!' % filename)
+
+    # assemble fault geometry
+    for index, sf in enumerate(fault.iter_subfaults()):
+        npw, npl = fault.ordering.get_subfault_discretization(index)
+        subfault_string = sf_to_string(index, sf, np_strike=npl, np_dip=npw)
+
+        # write subfault info
+        with open(filename, mode="a+") as fh:
+            fh.write(subfault_string)
+
+        centers = fault.get_subfault_patch_attributes(
+            index, attributes=['center'])
+        rot_centers = rotate_coords_plane_normal(centers, sf)[:, 1::-1]
+        rot_centers[:, 1] -= sf.width / km
+        rot_centers[:, 1] *= -1.
+
+        uparr_sf = fault.vector2subfault(index, uparr)
+        uperp_sf = fault.vector2subfault(index, uperp)
+
+        angles = num.arctan2(-uperp_sf, uparr_sf) * r2d + sf.rake
+        slips = num.sqrt(uparr_sf ** 2 + uperp_sf ** 2)
+
+        strike_slips = num.atleast_2d(num.cos(angles * d2r)) * slips
+        dip_slips = num.atleast_2d(num.sin(angles * d2r)) * slips
+        opening = num.zeros_like(dip_slips)
+
+        outarray = num.hstack(
+            [rot_centers, strike_slips.T, dip_slips.T, opening.T])
+
+        # write patch info
+        with open(filename, mode="a+") as fh:
+            num.savetxt(fh, outarray)
 
 
 class FaultOrdering(object):
