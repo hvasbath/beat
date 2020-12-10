@@ -1199,7 +1199,7 @@ def scene_fits(problem, stage, plot_options):
                     linewidth=1.0)
             else:
                 ax.plot(
-                    fe[:, 0], fn[:, 1], marker='*',
+                    fe, fn, marker='*',
                     markersize=10, color=color, **kwargs)
 
     def cbtick(x):
