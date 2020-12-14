@@ -2730,6 +2730,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     fontsize = 10
     ntickmarks_max = kwargs.pop('ntickmarks_max', 3)
     scale_factor = kwargs.pop('scale_factor', 2 / 3)
+    lines_color = kwargs.pop('lines_color', 'k')
 
     num.set_printoptions(precision=3)
 
@@ -2910,7 +2911,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     if lines:
                         try:
                             axs[rowi, coli].axvline(
-                                x=lines[v], color="k", lw=1.)
+                                x=lines[v], color=lines_color, lw=1.)
                         except KeyError:
                             pass
 

@@ -300,7 +300,8 @@ class SeismicNoiseAnalyser(object):
 
         cov_ds = []
         for scaling in scalings:
-            cov_ds.append(scaling * covariance_structure)
+            cov_d = ensure_cov_psd(scaling * covariance_structure)
+            cov_ds.append(cov_d)
 
         return cov_ds
 
