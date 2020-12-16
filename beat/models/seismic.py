@@ -878,6 +878,7 @@ class SeismicGeometryComposite(SeismicComposite):
                             crust_inds=crust_inds,
                             reference_location=sc.gf_config.reference_location)
 
+                        t0 = time()
                         cov_pv = cov.seismic_cov_velocity_models(
                             engine=self.engine,
                             sources=self.sources,
@@ -888,6 +889,10 @@ class SeismicGeometryComposite(SeismicComposite):
                             filterer=wc.filterer,
                             chop_bounds=chop_bounds,
                             plot=plot, n_jobs=n_jobs)
+                        t1 = time()
+                        logger.debug(
+                            '%s: Calculate weight time %f' % (
+                                station.station, (t1 - t0)))
                         cov_pv = utility.ensure_cov_psd(cov_pv)
 
                         self.engine.close_cashed_stores()
@@ -895,16 +900,19 @@ class SeismicGeometryComposite(SeismicComposite):
                         dataset = wmap.datasets[tidx]
                         dataset.covariance.pred_v = cov_pv
 
-                        t0 = time()
-                        choli = dataset.covariance.chol_inverse
-                        t1 = time()
-                        logger.debug('Calculate weight time %f' % (t1 - t0))
-                        wmap.weights[tidx].set_value(choli)
-                        dataset.covariance.update_slog_pdet()
         else:
             logger.info(
                 'Not updating seismic velocity model-covariances because '
                 'number of model variations is too low! < %i' % thresh)
+
+        for wmap in self.wavemaps:
+            logger.info('Updating weights of wavemap %s' % wmap._mapid)
+            for i, dataset in enumerate(wmap.datasets):
+                choli = dataset.covariance.chol_inverse
+
+                # update shared variables
+                dataset.covariance.update_slog_pdet()
+                wmap.weights[i].set_value(choli)
 
 
 class SeismicDistributerComposite(SeismicComposite):
