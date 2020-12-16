@@ -1,5 +1,6 @@
 import numpy as num
 from beat.covariance import non_toeplitz_covariance
+from beat.heart import Covariance
 from pyrocko import util
 from matplotlib import pyplot as plt
 import unittest
@@ -7,6 +8,8 @@ import logging
 from beat.models import load_model
 from time import time
 
+
+num.random.seed(10)
 
 logger = logging.getLogger('test_covariance')
 
@@ -29,6 +32,47 @@ class TestUtility(unittest.TestCase):
         axs[1].plot(d)
         plt.colorbar(im)
         plt.show()
+
+    def test_covariance_chol_inverse(self):
+
+        n = 10
+        a = num.random.rand(n ** 2).reshape(n, n)
+        C_d = a.T.dot(a) + num.eye(n) * 0.3
+
+        cov = Covariance(data=C_d)
+        chol_ur = cov.chol_inverse
+        inverse_from_chol_qr = chol_ur.T.dot(chol_ur)
+
+        if 1:
+            from matplotlib import pyplot as plt
+            fig, axs = plt.subplots(3, 2)
+            axs[0, 0].imshow(inverse_from_chol_qr)
+            axs[0, 0].set_title('Inverse from QR cholesky')
+            axs[0, 1].imshow(cov.inverse)
+            axs[0, 1].set_title('Inverse from matrix inversion')
+
+            I_diff = inverse_from_chol_qr - cov.inverse
+            print(cov.inverse)
+            print('Idiff minmax', I_diff.min(), I_diff.max())
+            axs[1, 0].imshow(I_diff)
+            axs[1, 0].set_title('Difference')
+            # plt.colorbar(im2)
+
+            I_div = num.log(num.abs(inverse_from_chol_qr / cov.inverse))
+            print('minmax', I_div.min(), I_div.max())
+            axs[1, 1].imshow(I_div)
+            axs[1, 1].set_title('Ratio')
+
+            axs[2, 0].imshow(cov.chol)
+            axs[2, 0].set_title('Cholesky factor of cov')
+
+            axs[2, 1].imshow(cov.chol_inverse)
+            axs[2, 1].set_title('QR Cholesky factor equivalent to chol(C⁻1)')
+
+            plt.show()
+
+        num.testing.assert_allclose(
+            inverse_from_chol_qr, cov.inverse, rtol=0., atol=1e-6)
 
     def test_linear_velmod_covariance(self):
         print('Warning!: Needs specific project_directory!')

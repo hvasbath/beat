@@ -185,47 +185,31 @@ class Covariance(Object):
     @property
     def chol_inverse(self):
         """
-        Cholesky decomposition of the Inverse of the Covariance matrix of
-        ALL uncertainty covariance
-        matrices. To be used as weight in the optimization.
+        Cholesky factor, upper right of the Inverse of the Covariance matrix of
+        sum of ALL uncertainty covariance matrices.
+        To be used as weight in the optimization.
+
+        Notes
+        -----
+        Uses QR factorization on the inverse of the upper right Cholesky
+        decomposed covariance matrix to obtain a proxy for the Cholesky
+        decomposition of the inverse of the covariance matrix in case the
+        inverse of the covariance matrix is not positive definite.
+
+        From:
+        https://math.stackexchange.com/questions/3838462/cholesky-factors-of-covariance-and-precision-matrix/3842840#3842840
 
         Returns
         -------
-        lower triangle of the cholesky decomposition
+        upper triangle of the cholesky decomposition
         """
-        if 0:
+        try:
             return num.linalg.cholesky(
                 self.inverse).T.astype(tconfig.floatX)
-        else:
+        except num.linalg.LinAlgError:
             inverse_chol = num.linalg.inv(self.chol.T)
-            chol_num = num.linalg.cholesky(self.p_total + self.data)
-            print('numpy chol', chol_num)
-            q, r = num.linalg.qr(inverse_chol.T)
-            inverse_from_chol_qr = r.T.dot(r)
-            inverse_from_chol = inverse_chol
-
-            if 0:
-                from matplotlib import pyplot as plt
-                fig, axs = plt.subplots(3, 2)
-                im = axs[0, 0].imshow(num.log(inverse_from_chol_qr))
-                im2 = axs[0, 1].imshow(num.log(self.inverse))
-                #plt.colorbar(im2)
-                I_diff = inverse_from_chol_qr - self.inverse
-                print(self.inverse)
-                print('minmax', I_diff.min(), I_diff.max())
-                im2 = axs[1, 0].imshow(I_diff)
-                plt.colorbar(im2)
-                I_div = num.log(num.abs(inverse_from_chol_qr / self.inverse))
-                print('minmax', I_div.min(), I_div.max())
-                im2 = axs[1, 1].imshow(I_div)
-                im2 = axs[2, 0].imshow(self.chol)
-                im2 = axs[2, 1].imshow(r)
-                print('scipy chol, r', self.chol, r)
-                #plt.colorbar(im2)
-                plt.show()
- #           num.testing.assert_allclose(
- #               inverse_from_chol_qr, self.inverse, rtol=0., atol=1e-6)
-            return r.T
+            _, chol_ur = num.linalg.qr(inverse_chol.T)
+            return chol_ur.astype(tconfig.floatX)    # return upper right
 
     @property
     def log_pdet(self):
