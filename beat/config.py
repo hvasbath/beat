@@ -993,6 +993,16 @@ class FFIConfig(ModeConfig):
         Object.__init__(self, **kwargs)
 
 
+def get_parameter(variable, nvars=1, lower=1, upper=2):
+    return Parameter(
+        name=variable,
+        lower=num.full(shape=(nvars,), fill_value=lower, dtype=tconfig.floatX),
+        upper=num.full(shape=(nvars,), fill_value=upper, dtype=tconfig.floatX),
+        testvalue=num.full(
+            shape=(nvars,),
+            fill_value=(lower + (upper / 5.)), dtype=tconfig.floatX))
+
+
 class ProblemConfig(Object):
     """
     Config for optimization problem to setup.
@@ -1075,27 +1085,25 @@ class ProblemConfig(Object):
 
             lower = default_bounds[variable][0]
             upper = default_bounds[variable][1]
-            self.priors[variable] = \
-                Parameter(
-                    name=variable,
-                    lower=num.ones(
-                        nvars,
-                        dtype=tconfig.floatX) * lower,
-                    upper=num.ones(
-                        nvars,
-                        dtype=tconfig.floatX) * upper,
-                    testvalue=num.ones(
-                        nvars,
-                        dtype=tconfig.floatX) * (lower + (upper / 5.)))
+            self.priors[variable] = get_parameter(
+                variable, nvars, lower, upper)
 
-    def set_vars(self, bounds_dict, attribute='priors'):
+    def set_vars(self, bounds_dict, attribute='priors', init=False):
         """
         Set variable bounds to given bounds.
         """
         for variable, bounds in bounds_dict.items():
             upd_dict = getattr(self, attribute)
-            if variable in list(upd_dict.keys()):
-                param = upd_dict[variable]
+            if variable in list(upd_dict.keys()) or init:
+                if init:
+                    logger.info('Initialising new variable "%s" in %s' % (
+                        variable, attribute))
+                    param = get_parameter(
+                        variable, nvars=len(bounds[0]))
+                    upd_dict[variable] = param
+                else:
+                    param = upd_dict[variable]
+
                 param.lower = num.atleast_1d(bounds[0])
                 param.upper = num.atleast_1d(bounds[1])
                 param.testvalue = num.atleast_1d(num.mean(bounds, axis=0))

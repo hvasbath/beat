@@ -358,6 +358,13 @@ def command_import(args):
                  (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
+            '--import_to_mode', dest='import_to_mode',
+            choices=mode_choices,
+            default=ffi_mode_str,
+            help='The mode to import estimation results to; %s Default: "%s"' %
+                 (list2string(mode_choices), ffi_mode_str))
+
+        parser.add_option(
             '--force', dest='force', action='store_true',
             help='Overwrite existing files')
 
@@ -463,17 +470,18 @@ def command_import(args):
                 logger.info('%s exists! Use --force to overwrite!' %
                             geodetic_outpath)
 
-    else:
+    else:   # import results
         from pandas import read_csv
         logger.info(
-            'Attempting to load results with mode %s from directory:'
-            ' %s' % (options.mode, options.results))
-        c = bconfig.load_config(project_dir, 'ffi')
-        
+            'Attempting to load results with mode %s to %s_config.yaml'
+            ' from directory: %s' % (
+                options.mode, options.import_to_mode, options.results))
+        c = bconfig.load_config(project_dir, options.import_to_mode)
+
         _, ending = os.path.splitext(options.results)
 
         if not ending:
-            # load results from geometry optimization
+            # load results from mode optimization
             problem = load_model(
                 options.results, options.mode, hypers=False, build=False)
             source_params = list(problem.config.problem_config.priors.keys())
@@ -487,6 +495,9 @@ def command_import(args):
                 load='trace', chains=[-1])
 
             point = plotting.get_result_point(stage, problem.config, 'max')
+            summarydf = read_csv(
+                pjoin(problem.outfolder, 'summary.txt'), sep='\s+')
+
         else:
             # load kite model
             from kite import sandbox_scene
@@ -509,6 +520,7 @@ def command_import(args):
                 'Successfully imported kite model to ffi source geometry!')
             sys.exit(1)
 
+        # import geodetic hierarchicals
         if 'geodetic' in options.datatypes:
             gc = problem.composites['geodetic']
             if c.geodetic_config.corrections_config.has_enabled_corrections:
@@ -531,34 +543,81 @@ def command_import(args):
                 c.problem_config.set_vars(
                     new_bounds, attribute='hierarchicals')
 
-        if options.mode == geometry_mode_str:
-            n_sources = problem.config.problem_config.n_sources
-            logger.info('Importing non-linear source geometry results!')
+        if 'seismic' in options.datatypes:
+            sc = problem.composites['seismic']
+            if c.seismic_config.station_corrections:
+                logger.info('Importing station corrections ...')
+                new_bounds = OrderedDict()
+                for wmap in sc.wavemaps:
+                    param = wmap.time_shifts_id
 
-            for param in list(point.keys()):
-                if param not in source_params:
-                    point.pop(param)
+                    new_bounds[param] = extract_bounds_from_summary(
+                        summarydf, varname=param,
+                        shape=(wmap.hypersize,), roundto=0)
 
-            point = utility.adjust_point_units(point)
-            source_points = utility.split_point(point)
+                c.problem_config.set_vars(
+                    new_bounds, attribute='hierarchicals', init=True)
 
-            reference_sources = bconfig.init_reference_sources(
-                source_points, n_sources, c.problem_config.source_type,
-                c.problem_config.stf_type, event=c.event)
+        if options.import_to_mode == ffi_mode_str:
+            if options.mode == geometry_mode_str:
+                n_sources = problem.config.problem_config.n_sources
+                logger.info('Importing non-linear source geometry results!')
 
-            if 'geodetic' in options.datatypes:
-                c.geodetic_config.gf_config.reference_sources = \
-                    reference_sources
-            if 'seismic' in options.datatypes:
-                c.seismic_config.gf_config.reference_sources = \
-                    reference_sources
+                for param in list(point.keys()):
+                    if param not in source_params:
+                        point.pop(param)
 
-            if 'seismic' in problem.config.problem_config.datatypes:
-                summarydf = read_csv(
-                    pjoin(problem.outfolder, 'summary.txt'), sep='\s+')
+                point = utility.adjust_point_units(point)
+                source_points = utility.split_point(point)
+
+                reference_sources = bconfig.init_reference_sources(
+                    source_points, n_sources, c.problem_config.source_type,
+                    c.problem_config.stf_type, event=c.event)
+
+                if 'geodetic' in options.datatypes:
+                    c.geodetic_config.gf_config.reference_sources = \
+                        reference_sources
+                if 'seismic' in options.datatypes:
+                    c.seismic_config.gf_config.reference_sources = \
+                        reference_sources
+
+                if 'seismic' in problem.config.problem_config.datatypes:
+
+                    new_bounds = {}
+                    for param in ['time']:
+                        new_bounds[param] = extract_bounds_from_summary(
+                            summarydf, varname=param,
+                            shape=(n_sources,), roundto=0)
+
+                    c.problem_config.set_vars(
+                        new_bounds, attribute='priors')
+
+            elif options.mode == ffi_mode_str:
+                npatches = problem.config.problem_config.mode_config.npatches
+                logger.info(
+                    'Importing linear static distributed slip results!')
 
                 new_bounds = {}
-                for param in ['time']:
+                for param in source_params:
+                    new_bounds[param] = extract_bounds_from_summary(
+                        summarydf, varname=param, shape=(npatches,), roundto=1)
+
+                c.problem_config.set_vars(
+                    new_bounds, attribute='priors')
+
+        elif options.import_to_mode == geometry_mode_str:
+            if options.mode == geometry_mode_str:
+                n_sources = problem.config.problem_config.n_sources
+                logger.info('Importing non-linear source geometry results!')
+
+                new_source_params = set(list(c.problem_config.priors.keys()))
+                old_source_params = set(source_params)
+
+                common_source_params = list(
+                    new_source_params.intersection(old_source_params))
+
+                new_bounds = {}
+                for param in common_source_params:
                     new_bounds[param] = extract_bounds_from_summary(
                         summarydf, varname=param,
                         shape=(n_sources,), roundto=0)
@@ -566,20 +625,10 @@ def command_import(args):
                 c.problem_config.set_vars(
                     new_bounds, attribute='priors')
 
-        elif options.mode == ffi_mode_str:
-            npatches = problem.config.problem_config.mode_config.npatches
-            logger.info('Importing linear static distributed slip results!')
-
-            summarydf = read_csv(
-                pjoin(problem.outfolder, 'summary.txt'), sep='\s+')
-
-            new_bounds = {}
-            for param in source_params:
-                new_bounds[param] = extract_bounds_from_summary(
-                    summarydf, varname=param, shape=(npatches,), roundto=1)
-
-            c.problem_config.set_vars(
-                new_bounds, attribute='priors')
+            elif options.mode == ffi_mode_str:
+                logger.error(
+                    'Cannot import results from %s mode to %s mode!' % (
+                        options.mode, options.import_to_mode))
 
         bconfig.dump_config(c)
         logger.info('Successfully updated config file!')

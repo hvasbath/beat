@@ -1281,4 +1281,3 @@ def extract_bounds_from_summary(summary, varname, shape, roundto=None):
         bounds.append(values)
 
     return bounds
-
