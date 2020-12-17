@@ -185,49 +185,73 @@ class SeismicComposite(Composite):
         """
         Initialise random variables for temporal station corrections.
         """
+        hierarchicals = problem_config.hierarchicals
         self._hierarchicalnames = []
         if not self.config.station_corrections and \
-                self.correction_name in problem_config.hierarchicals:
-                raise ConfigInconsistentError(
-                    'Station corrections disabled, but they are defined'
-                    ' in the problem configuration!')
+                self.correction_name in hierarchicals:
+            raise ConfigInconsistentError(
+                'Station corrections disabled, but they are defined'
+                ' in the problem configuration!')
 
         if self.config.station_corrections and \
-                self.correction_name not in problem_config.hierarchicals:
-                raise ConfigInconsistentError(
-                    'Station corrections enabled, but they are not defined'
-                    ' in the problem configuration!')
+                self.correction_name not in hierarchicals:
+            raise ConfigInconsistentError(
+                'Station corrections enabled, but they are not defined'
+                ' in the problem configuration!')
 
-        if self.correction_name in problem_config.hierarchicals:
+        if self.correction_name in hierarchicals:
             logger.info(
                 'Estimating time shift for each station and waveform map...')
             for wmap in self.wavemaps:
+                hierarchical_name = wmap.time_shifts_id
                 nhierarchs = len(wmap.get_station_names())
 
                 logger.info(
                     'For %s with %i shifts' % (
-                        wmap.time_shifts_id, nhierarchs))
-                param = problem_config.hierarchicals[self.correction_name]
-                kwargs = dict(
-                    name=wmap.time_shifts_id,
-                    shape=nhierarchs,
-                    lower=num.repeat(param.lower, nhierarchs),
-                    upper=num.repeat(param.upper, nhierarchs),
-                    testval=num.repeat(param.testvalue, nhierarchs),
-                    transform=None,
-                    dtype=tconfig.floatX)
+                        hierarchical_name, nhierarchs))
 
-                try:
-                    station_corrs_rv = Uniform(**kwargs)
-                    self._hierarchicalnames.append(wmap.time_shifts_id)
+                if hierarchical_name in hierarchicals:
+                    logger.info(
+                        'Using wavemap specific imported:'
+                        ' %s ' % hierarchical_name)
+                    param = hierarchicals[hierarchical_name]
+                else:
+                    logger.info('Using global %s' % self.correction_name)
+                    param = problem_config.hierarchicals[self.correction_name]
+                    param.lower = num.repeat(param.lower, nhierarchs)
+                    param.upper = num.repeat(param.upper, nhierarchs)
+                    param.testvalue = num.repeat(param.testvalue, nhierarchs)
 
-                except TypeError:
-                    kwargs.pop('name')
-                    station_corrs_rv = Uniform.dist(**kwargs)
+                if hierarchical_name not in self.hierarchicals:
+                    if not num.array_equal(
+                            param.lower, param.upper):
+                        kwargs = dict(
+                            name=hierarchical_name,
+                            shape=param.dimension,
+                            lower=param.lower,
+                            upper=param.upper,
+                            testval=param.testvalue,
+                            transform=None,
+                            dtype=tconfig.floatX)
 
-                self.hierarchicals[wmap.time_shifts_id] = station_corrs_rv
-        else:
-            nhierarchs = 0
+                        try:
+                            self.hierarchicals[
+                                hierarchical_name] = Uniform(**kwargs)
+                        except TypeError:
+                            kwargs.pop('name')
+                            self.hierarchicals[hierarchical_name] = \
+                                Uniform.dist(**kwargs)
+
+                        self._hierarchicalnames.append(
+                            hierarchical_name)
+                    else:
+                        logger.info(
+                            'not solving for %s, got fixed at %s' % (
+                                param.name,
+                                utility.list2string(
+                                    param.lower.flatten())))
+                        self.hierarchicals[
+                            hierarchical_name] = param.lower
 
     def export(self, point, results_path, stage_number,
                fix_output=False, force=False, update=False,

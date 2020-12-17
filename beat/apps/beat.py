@@ -473,7 +473,7 @@ def command_import(args):
     else:   # import results
         from pandas import read_csv
         logger.info(
-            'Attempting to load results with mode %s to %s_config.yaml'
+            'Attempting to load results with mode %s to config_%s.yaml'
             ' from directory: %s' % (
                 options.mode, options.import_to_mode, options.results))
         c = bconfig.load_config(project_dir, options.import_to_mode)

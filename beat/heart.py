@@ -570,12 +570,14 @@ class Parameter(Object):
             candidate = self.name.split('_')[-1]
             if candidate in supported_vars:
                 name = candidate
-            elif self.name[0:2] != 'h_':
+            elif self.name[0:2] == 'h_':
+                name = 'hypers'
+            elif self.name[0:11] == 'time_shifts':
+                name = 'time_shift'
+            else:
                 raise TypeError(
                     'The parameter "%s" cannot'
                     ' be optimized for!' % self.name)
-            else:
-                name = 'hypers'
         else:
             name = self.name
 
