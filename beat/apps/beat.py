@@ -358,10 +358,11 @@ def command_import(args):
                  (list2string(mode_choices), geometry_mode_str))
 
         parser.add_option(
-            '--import_to_mode', dest='import_to_mode',
+            '--import_from_mode', dest='import_from_mode',
             choices=mode_choices,
             default=ffi_mode_str,
-            help='The mode to import estimation results to; %s Default: "%s"' %
+            help='The mode to import estimation results'
+                 ' from; %s Default: "%s"' %
                  (list2string(mode_choices), ffi_mode_str))
 
         parser.add_option(
@@ -475,15 +476,16 @@ def command_import(args):
         logger.info(
             'Attempting to load results with mode %s to config_%s.yaml'
             ' from directory: %s' % (
-                options.mode, options.import_to_mode, options.results))
-        c = bconfig.load_config(project_dir, options.import_to_mode)
+                options.import_from_mode, options.mode, options.results))
+        c = bconfig.load_config(project_dir, options.mode)
 
         _, ending = os.path.splitext(options.results)
 
         if not ending:
             # load results from mode optimization
             problem = load_model(
-                options.results, options.mode, hypers=False, build=False)
+                options.results, options.import_from_mode,
+                hypers=False, build=False)
             source_params = list(problem.config.problem_config.priors.keys())
 
             stage = Stage(
@@ -521,7 +523,12 @@ def command_import(args):
             sys.exit(1)
 
         # import geodetic hierarchicals
+        logger.info(
+            'Importing hierarchicals for '
+            'datatypes: %s ' % list2string(options.datatypes))
+        logger.info('---------------------------------------------\n')
         if 'geodetic' in options.datatypes:
+            logger.info('Geodetic datatype listed-importing ...')
             gc = problem.composites['geodetic']
             if c.geodetic_config.corrections_config.has_enabled_corrections:
 
@@ -542,8 +549,14 @@ def command_import(args):
 
                 c.problem_config.set_vars(
                     new_bounds, attribute='hierarchicals')
+            else:
+                logger.info(
+                    'No geodetic corrections enabled, nothing to import!')
+        else:
+            logger.info('geodetic datatype not listed-not importing ...')
 
         if 'seismic' in options.datatypes:
+            logger.info('seismic datatype listed-importing ...')
             sc = problem.composites['seismic']
             if c.seismic_config.station_corrections:
                 logger.info('Importing station corrections ...')
@@ -558,8 +571,14 @@ def command_import(args):
                 c.problem_config.set_vars(
                     new_bounds, attribute='hierarchicals', init=True)
 
-        if options.import_to_mode == ffi_mode_str:
-            if options.mode == geometry_mode_str:
+            else:
+                logger.info(
+                    'No station_corrections enabled, nothing to import.')
+        else:
+            logger.info('seismic datatype not listed-not importing ...')
+
+        if options.mode == ffi_mode_str:
+            if options.import_from_mode == geometry_mode_str:
                 n_sources = problem.config.problem_config.n_sources
                 logger.info('Importing non-linear source geometry results!')
 
@@ -592,7 +611,7 @@ def command_import(args):
                     c.problem_config.set_vars(
                         new_bounds, attribute='priors')
 
-            elif options.mode == ffi_mode_str:
+            elif options.import_from_mode == ffi_mode_str:
                 npatches = problem.config.problem_config.mode_config.npatches
                 logger.info(
                     'Importing linear static distributed slip results!')
@@ -605,8 +624,8 @@ def command_import(args):
                 c.problem_config.set_vars(
                     new_bounds, attribute='priors')
 
-        elif options.import_to_mode == geometry_mode_str:
-            if options.mode == geometry_mode_str:
+        elif options.mode == geometry_mode_str:
+            if options.import_from_mode == geometry_mode_str:
                 n_sources = problem.config.problem_config.n_sources
                 logger.info('Importing non-linear source geometry results!')
 
@@ -625,10 +644,11 @@ def command_import(args):
                 c.problem_config.set_vars(
                     new_bounds, attribute='priors')
 
-            elif options.mode == ffi_mode_str:
-                logger.error(
-                    'Cannot import results from %s mode to %s mode!' % (
-                        options.mode, options.import_to_mode))
+            elif options.import_from_mode == ffi_mode_str:
+                err_str = 'Cannot import results from %s mode to %s mode!' % (
+                    options.import_from_mode, options.mode)
+                logger.error(err_str)
+                raise TypeError(err_str)
 
         bconfig.dump_config(c)
         logger.info('Successfully updated config file!')
