@@ -26,7 +26,7 @@ _beat_options()
     declare -A arg_subsub
     arg_subsub["init"]="--min_mag --datatypes --source_type --n_sources --sampler --hyper_sampler --use_custom --individual_gfs $_std"
     arg_subsub["build_gfs"]="--datatypes --force --execute $_std"
-    arg_subsub["import"]="--results --datatypes --geodetic_format --seismic_format --force $_std"
+    arg_subsub["import"]="--results --datatypes --geodetic_format --seismic_format --force --import_from_mode $_std"
     arg_subsub["update"]="--parameters --diff $_std"
     arg_subsub["sample"]="--hypers $_std"
     arg_subsub["summarize"]="--stage_number --force $_std"
