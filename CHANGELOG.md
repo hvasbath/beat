@@ -59,6 +59,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - moved beat command level export to dataset composites export method
 - MTQTSource input argument u removed in favor of w
 - filterer attribute of Wavemap is now list of filters, allows chaining of filters
+- beat import mode now cleanly referrs to the current project directory not anymore to the results directory to be imported from
+- beat import got additional --import_from_mode to choose the mode of the results to import from (was previously mode)
 
 ## [v.1.0.0]  18.06.2019
 Initial release:
