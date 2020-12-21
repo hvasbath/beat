@@ -1106,7 +1106,10 @@ class ProblemConfig(Object):
 
                 param.lower = num.atleast_1d(bounds[0])
                 param.upper = num.atleast_1d(bounds[1])
-                param.testvalue = num.atleast_1d(num.mean(bounds, axis=0))
+                try:
+                    param.testvalue = num.atleast_1d(bounds[2])
+                except IndexError:
+                    param.testvalue = num.atleast_1d(num.mean(bounds, axis=0))
             else:
                 logger.warning(
                     'Prior for variable %s does not exist!'

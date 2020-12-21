@@ -569,6 +569,7 @@ def command_import(args):
                     new_bounds[param] = extract_bounds_from_summary(
                         summarydf, varname=param,
                         shape=(wmap.hypersize,), roundto=0)
+                    new_bounds[param].append(point[param])
 
                 c.problem_config.set_vars(
                     new_bounds, attribute='hierarchicals', init=True)
@@ -609,6 +610,7 @@ def command_import(args):
                         new_bounds[param] = extract_bounds_from_summary(
                             summarydf, varname=param,
                             shape=(n_sources,), roundto=0)
+                        new_bounds[param].append(point[param])
 
                     c.problem_config.set_vars(
                         new_bounds, attribute='priors')
@@ -622,6 +624,7 @@ def command_import(args):
                 for param in source_params:
                     new_bounds[param] = extract_bounds_from_summary(
                         summarydf, varname=param, shape=(npatches,), roundto=1)
+                    new_bounds[param].append(point[param])
 
                 c.problem_config.set_vars(
                     new_bounds, attribute='priors')
@@ -642,6 +645,7 @@ def command_import(args):
                     new_bounds[param] = extract_bounds_from_summary(
                         summarydf, varname=param,
                         shape=(n_sources,), roundto=0)
+                    new_bounds[param].append(point[param])
 
                 c.problem_config.set_vars(
                     new_bounds, attribute='priors')
