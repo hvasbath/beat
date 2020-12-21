@@ -1,6 +1,6 @@
 from beat.utility import (
     list2string, positions2idxs, kmtypes, split_off_list,
-    Counter, mod_i, rotate_coords_plane_normal)
+    Counter, mod_i, rotate_coords_plane_normal, split_point, update_source)
 
 from beat.fast_sweeping import fast_sweep
 from beat.heart import velocities_from_pole
@@ -241,14 +241,15 @@ total number of patches: %i ''' % (
         return patches
 
     def get_subfault_patch_moments(
-            self, index, slips, store=None, target=None, datatype='seismic'):
+            self, index, slips=None, store=None, target=None,
+            datatype='seismic'):
         """
         Get the seismic moments on each Patch of the complex fault
 
         Parameters
         ----------
         slips : list or array-like
-            of slips on each fault patch
+            of slips on each fault patch, if not provided uses in-place values
         store : string
             greens function store to use for velocity model extraction
         target : :class:`pyrocko.gf.targets.Target`
@@ -259,13 +260,19 @@ total number of patches: %i ''' % (
 
         moments = []
         for i, rs in enumerate(
-                self.get_subfault_patches(index=index, datatype=datatype)):
-            rs.update(slip=slips[i])
-            moments.append(rs.get_moment(target=target, store=store))
+                self.get_subfault_patches(
+                    index=index, datatype=datatype, component='uparr')):
+            if slips is not None:
+                rs.update(slip=slips[i])
+
+            pm = rs.get_moment(target=target, store=store)
+            print(i, pm, rs)
+            moments.append(pm)
 
         return moments
 
-    def get_moment(self, point, store=None, target=None, datatype='geodetic'):
+    def get_moment(
+            self, point=None, store=None, target=None, datatype='geodetic'):
         """
         Get total moment of the fault.
         """
@@ -287,13 +294,13 @@ total number of patches: %i ''' % (
         return num.array(moments).sum()
 
     def get_magnitude(
-            self, point, store=None, target=None, datatype='geodetic'):
+            self, point=None, store=None, target=None, datatype='geodetic'):
         """
         Get total moment magnitude after Hanks and Kanamori 1979
         """
         return moment_to_magnitude(
             self.get_moment(
-                point, store=store, target=target, datatype=datatype))
+                point=point, store=store, target=target, datatype=datatype))
 
     def get_subfault_patch_stfs(
             self, index, durations, starttimes,
@@ -551,6 +558,66 @@ total number of patches: %i ''' % (
 
         return self.get_subfault_starttimes(
             index, velocities, nuc_dip_idx, nuc_strike_idx) + time
+
+    def point2sources(self, point, events=[]):
+        """
+        Return source objects (patches) updated by parameters from point.
+
+        Parameters
+        ----------
+        point : dict
+            of numpy arrays of random variables
+        events : list
+            of :class:`pyrocko.model.Event, their times are reference times
+            for the subfault patch times, should have either length of 1 or
+            length equal to nsubfaults
+        """
+        nevents = len(events)
+        if nevents:
+            assert nevents == 1 or nevents == self.nsubfaults
+
+        if 'durations' in point:
+            datatype = 'seismic'
+        else:
+            datatype = 'geodetic'
+
+        sources = []
+        for index in range(self.nsubfaults):
+            sf = self.get_subfault(
+                index, datatype=datatype, component='uparr')
+            sf_patches = self.get_subfault_patches(
+                index, datatype=datatype, component='uparr')
+
+            uparr = self.vector2subfault(index, point['uparr'])
+            try:
+                uperp = self.vector2subfault(index, point['uperp'])
+            except KeyError:
+                uperp = num.zeros_like(uparr)
+
+            slips = num.sqrt(uparr ** 2 + uperp ** 2)
+            rakes = num.arctan2(-uperp, uparr) * r2d + sf.rake
+
+            sf_point = {'slip': slips, 'rake': rakes}
+            try:
+                durations = point['durations']
+                starttimes = self.point2starttimes(point, index=index)
+                if nevents > 1:
+                    starttimes += events[index].time
+                else:
+                    starttimes += events[0].time
+
+                sf_point.update({'time': starttimes, 'duration': durations})
+            except KeyError:
+                pass
+
+            patch_points = split_point(sf_point)
+            assert len(patch_points) == len(sf_patches)
+            for patch, point in zip(sf_patches, patch_points):
+                update_source(patch, **point)
+
+            sources.extend(sf_patches)
+
+        return sources
 
     def get_subfault_starttimes(
             self, index, rupture_velocities, nuc_dip_idx, nuc_strike_idx):

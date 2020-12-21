@@ -1032,31 +1032,24 @@ def command_summarize(args):
 
             if 'seismic' in problem.config.problem_config.datatypes:
                 composite = problem.composites['seismic']
-                datatype = 'seismic'
             else:
                 composite = problem.composites['geodetic']
-                datatype = 'geodetic'
 
             target = composite.targets[0]
             if hasattr(composite, 'sources'):
                 source = problem.sources[0]
+                sources = composite.sources
                 store = composite.engine.get_store(target.store_id)
-            else:
-                from beat.ffi import FaultGeometry
-                source = composite.load_fault_geometry()
-                engine = LocalEngine(
-                    store_superdirs=[
-                        composite.config.gf_config.store_superdir])
-                store = engine.get_store(target.store_id)
 
             for chain in tqdm(chains):
                 for idx in idxs:
                     point = stage.mtrace.point(idx=idx, chain=chain)
+                    composite.point2sources(point)
+                    # normalize MT source, TODO put into get_derived_params
                     if isinstance(source, MTSourceWithMagnitude):
-                        composite.point2sources(point)
                         ldicts = []
                         derived = []
-                        for source in composite.sources:
+                        for source in sources:
                             ldicts.append(source.scaled_m6_dict)
 
                         jpoint = utility.join_points(ldicts)
@@ -1064,31 +1057,22 @@ def command_summarize(args):
                         del jpoint, ldicts
 
                     derived = []
-
                     # BEAT sources
                     if hasattr(source, 'get_derived_parameters'):
-                        composite.point2sources(point)
-                        for source in composite.sources:
+                        for source in sources:
                             derived.append(
-                                source.get_derived_parameters())
+                                source.get_derived_parameters(
+                                    store=store, target=target))
                             nderived = source.nderived_parameters
                     else:
-                        # pyrocko Rectangular source
+                        # pyrocko Rectangular source, TODO use BEAT RS ...
                         if isinstance(source, RectangularSource):
-                            composite.point2sources(point)
-                            for source in composite.sources:
+                            for source in sources:
                                 source.magnitude = None
                                 derived.append(
                                     source.get_magnitude(
                                         store=store, target=target))
 
-                            nderived = 1
-                        # FFI
-                        elif isinstance(source, FaultGeometry):
-                            derived.append(
-                                source.get_magnitude(
-                                    point=point, store=store,
-                                    target=target, datatype=datatype))
                             nderived = 1
 
                     lpoint = problem.model.lijection.d2l(point)

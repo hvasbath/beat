@@ -738,6 +738,8 @@ class GeodeticDistributerComposite(GeodeticComposite):
         self.gfpath = os.path.join(
             project_dir, self._mode, bconfig.linear_gf_dir_name)
 
+        self.fault = None
+
     def get_gflibrary_key(self, crust_ind, wavename, component):
         return '%i_%s_%s' % (crust_ind, wavename, component)
 
@@ -796,6 +798,27 @@ class GeodeticDistributerComposite(GeodeticComposite):
                 os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
         except Exception:
             raise FaultGeometryNotFoundError()
+
+    def point2sources(self, point):
+        """
+        Returns the fault source patche(s) with the point values updated.
+
+        Parameters
+        ----------
+        point : dict
+            with random variables from solution space
+        """
+        tpoint = copy.deepcopy(point)
+
+        if self.nevents == 1:
+            events = [self.event]       # single event
+        else:
+            events = self.events     # multi event
+
+        if self.fault is None:
+           self.fault = self.load_fault_geometry()
+
+        return self.fault.point2sources(tpoint, events=events)
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
         """

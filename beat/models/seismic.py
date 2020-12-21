@@ -620,9 +620,6 @@ class SeismicGeometryComposite(SeismicComposite):
         ----------
         point : dict
             with random variables from solution space
-        input_depth : string
-            may be either 'top'- input coordinates are transformed to center
-            'center' - input coordinates are not transformed
         """
         tpoint = copy.deepcopy(point)
         tpoint = utility.adjust_point_units(tpoint)
@@ -1011,6 +1008,24 @@ class SeismicDistributerComposite(SeismicComposite):
                 os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
         except Exception:
             raise FaultGeometryNotFoundError()
+
+    def point2sources(self, point):
+        """
+        Returns the fault source patche(s) with the point values updated.
+
+        Parameters
+        ----------
+        point : dict
+            with random variables from solution space
+        """
+        tpoint = copy.deepcopy(point)
+
+        if self.nevents == 1:
+            events = [self.event]       # single event
+        else:
+            events = self.events     # multi event
+
+        return self.fault.point2sources(tpoint, events=events)
 
     def get_gflibrary_key(self, crust_ind, wavename, component):
         return '%i_%s_%s' % (crust_ind, wavename, component)
