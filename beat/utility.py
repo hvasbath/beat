@@ -516,7 +516,8 @@ def downsample_trace(data_trace, deltat=None, snap=False):
     return tr
 
 
-def weed_stations(stations, event, distances=(30., 90.)):
+def weed_stations(
+        stations, event, distances=(30., 90.), remove_duplicate=False):
     """
     Weed stations, that are not within the given distance range(min, max) to
     a reference event.
@@ -539,13 +540,22 @@ def weed_stations(stations, event, distances=(30., 90.)):
     weeded_stations = []
     logger.debug(
         'Valid distance range: [%f, %f]!' % (distances[0], distances[1]))
+    check_duplicate = []
     for station in stations:
         distance = orthodrome.distance_accurate50m(event, station) * m2d
         logger.debug(
             'Distance of station %s: %f [deg]' % (station.station, distance))
         if distance >= distances[0] and distance <= distances[1]:
             logger.debug('Inside defined distance range!')
-            weeded_stations.append(station)
+            ns_str = '{}.{}'.format(station.network, station.station)
+            if ns_str in check_duplicate and remove_duplicate:
+                logger.warning(
+                    'Station %s already in wavemap! Multiple '
+                    'locations not supported yet! '
+                    'Discarding duplicate ...' % ns_str)
+            else:
+                weeded_stations.append(station)
+                check_duplicate.append(ns_str)
         else:
             logger.debug('Outside defined distance range!')
 

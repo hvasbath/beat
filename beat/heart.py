@@ -2309,7 +2309,7 @@ class WaveformMapping(object):
             self.stations, blacklist)
 
         self.stations = utility.weed_stations(
-            self.stations, event, distances=distances)
+            self.stations, event, distances=distances, remove_duplicate=True)
 
         if self.n_data > 0:
             self.datasets = utility.weed_data_traces(
@@ -2361,7 +2361,6 @@ class WaveformMapping(object):
         else:
             logger.info('Consistent number of '
                         'datasets and targets in %s wavemap!' % self._mapid)
-
 
     def update_interpolation(self, method):
         for target in self.targets:
