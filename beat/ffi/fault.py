@@ -825,10 +825,10 @@ def write_fault_to_pscmp(filename, fault, point=None, force=False):
         raise TypeError('Fault needs to be discretized for export!')
 
     def sf_to_string(index, subfault, np_strike, np_dip, time_days=0.):
-        ul_lat, ul_lon = sf.outline('latlon')[3, :]
+        ul_lat, ul_lon = sf.outline('latlon')[0, :]
         return '{}    {} {} {} {} {} {} {} {} {} {}\n'.format(
             index + 1,
-            ul_lat, ul_lon, sf.depth, sf.length / km, sf.width / km,
+            ul_lat, ul_lon, sf.depth / km, sf.length / km, sf.width / km,
             sf.strike, sf.dip, np_strike, np_dip, time_days)
 
     def get_template(nsubfaults):
