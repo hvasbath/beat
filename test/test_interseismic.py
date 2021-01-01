@@ -2,7 +2,8 @@ import numpy as num
 from numpy.testing import assert_allclose
 
 from beat import interseismic, pscmp
-from beat.heart import ReferenceLocation
+from beat.heart import \
+    ReferenceLocation, velocities_from_pole, velocities_from_strain_rate_tensor
 
 import logging
 import os
@@ -172,11 +173,11 @@ class TestInterseismic(unittest.TestCase):
             [-40.33431624537931, 27.59254158624030, 0.]) / km
         v2_ref = num.array(
             [35.47707891158412, -27.93047805570016, 0.]) / km
-        v1 = interseismic.velocities_from_pole(
+        v1 = velocities_from_pole(
             37., -123., 48.7, -78.2, 0.78).ravel()
         from time import time
         t2 = time()
-        v2 = interseismic.velocities_from_pole(
+        v2 = velocities_from_pole(
             34.75, -116.5, 48.7, -78.2, -0.78).ravel()
         t3 = time()
         assert_allclose(v1, v1_ref, atol=1e-3, rtol=0.)
@@ -184,13 +185,34 @@ class TestInterseismic(unittest.TestCase):
 
         logger.info('One point %f' % (t3-t2))
         t0 = time()
-        v3 = interseismic.velocities_from_pole(
+        v3 = velocities_from_pole(
             [37., 37.1], [-123., -125.5], 48.7, -78.2, 0.78)
         t1 = time()
 
         logger.info('Two points %f' % (t1 - t0))
         assert v3.shape == (2, 3)
         assert_allclose(v3[0, :], v1_ref, atol=1e-3, rtol=0.)
+
+    def test_velocities_from_strain_rate_tensor(self):
+
+        lats_vec = num.linspace(37., 37.5, 10)
+        lons_vec = num.linspace(-122., -120., 20)
+        eps_xx = 58.  # nanostrain South Bay Block from Jolivet et al. 2015
+        eps_yy = - 115.
+        eps_xy = - 58.
+        rotation = 9.5     # mm/ ( yr * km)
+
+        lons, lats = meshgrid(lons_vec, lats_vec)
+        print(lats, lons)
+
+        v_x, v_y = velocities_from_strain_rate_tensor(
+            lats, lons, eps_xx, eps_yy, eps_xy, rotation)
+
+        from matplotlib import pyplot as plt
+
+        fig, axs = plt.subplots(1, 1, 1)
+        axs.quiver(lons, lats, v_x, v_y)
+        plt.show()
 
 
 if __name__ == '__main__':

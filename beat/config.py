@@ -744,6 +744,27 @@ class EulerPoleConfig(CorrectionConfig):
         return EulerPoleCorrection(self)
 
 
+class InternalStrainRateConfig(CorrectionConfig):
+
+    @property
+    def _suffixes(self):
+        return ['strain_xx', 'strain_yy', 'strain_xy', 'rotation']
+
+    @property
+    def feature(self):
+        return 'Internal Strain Rate'
+
+    def get_hierarchical_names(self, name=None):
+        # TODO include number for multiple Euler Poles?
+        return [
+            '{}'.format(suffix) for suffix in self.get_suffixes()]
+
+    def init_correction(self):
+        from beat.models.corrections import InternalStrainRateCorrection
+        self.check_consistency()
+        return InternalStrainRateCorrection(self)
+
+
 class RampConfig(CorrectionConfig):
 
     @property

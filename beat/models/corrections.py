@@ -143,3 +143,9 @@ class EulerPoleCorrection(Correction):
             if self.blacklist.size > 0:
                 vels[self.blacklist] = 0.
             return (vels * self.los_vector).sum(axis=1)
+
+
+class InternalStrainRateCorrection(Correction):
+
+    def get_required_coordinate_names(self):
+        return ['lons', 'lats']

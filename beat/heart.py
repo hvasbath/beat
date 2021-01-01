@@ -3286,6 +3286,18 @@ def velocities_from_pole(
     return num.einsum('ijk->ik', T * vels_cartesian.T).T
 
 
+def velocities_from_strain_rate_tensor(
+        lats, lons, eps_xx, eps_yy, eps_xy, rotation):
+
+    D = num.array([
+        [eps_xx, 0.5 * (eps_xy + rotation)],
+        [0.5 * (eps_xy - rotation), eps_yy]])
+
+    lonlats = num.atleast_2d(num.vstack([lons, lats]).T)
+    print(D)
+    return D.dot(lonlats)
+
+
 def get_ramp_displacement(locx, locy, azimuth_ramp, range_ramp, offset):
     """
     Get synthetic residual plane in azimuth and range direction of the
