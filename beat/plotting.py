@@ -1061,11 +1061,11 @@ def scene_fits(problem, stage, plot_options):
         for idx in tqdm(idxs):
             point = stage.mtrace.point(idx=idx)
             points.append(point)
-            results = composite.assemble_results(point)
-            ens_results.append(results)
+            e_results = composite.assemble_results(point)
+            ens_results.append(e_results)
             ens_var_reductions.append(
                 composite.get_variance_reductions(
-                    point, weights=composite.weights, results=results))
+                    point, weights=composite.weights, results=e_results))
 
         all_var_reductions = {}
         for dataset in dataset_to_result.keys():
