@@ -3293,9 +3293,15 @@ def velocities_from_strain_rate_tensor(
         [eps_xx, 0.5 * (eps_xy + rotation)],
         [0.5 * (eps_xy - rotation), eps_yy]])
 
-    lonlats = num.atleast_2d(num.vstack([lons, lats]).T)
+
+    mid_lat, mid_lon = orthodrome.geographic_midpoint(lats, lons)
+
+    norths, easts = orthodrome.latlon_to_ne_numpy(mid_lat, mid_lon, lats, lons)
+
+    ens = num.atleast_2d(num.vstack([easts, norths])) / km
+    print(ens)
     print(D)
-    return D.dot(lonlats)
+    return D.dot(ens)
 
 
 def get_ramp_displacement(locx, locy, azimuth_ramp, range_ramp, offset):

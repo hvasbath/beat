@@ -37,8 +37,8 @@ class TestInterseismic(unittest.TestCase):
         return os.path.join(store_superdir, 'psgrn_green_%i' % crust_ind)
 
     def _get_synthetic_data(self):
-        lon = num.linspace(10.5, 13.5, 100.)
-        lat = num.linspace(44.0, 46.0, 100.)
+        lon = num.linspace(10.5, 13.5, 100)
+        lat = num.linspace(44.0, 46.0, 100)
 
         Lon, Lat = num.meshgrid(lon, lat)
         reference = ReferenceLocation(
@@ -195,22 +195,26 @@ class TestInterseismic(unittest.TestCase):
 
     def test_velocities_from_strain_rate_tensor(self):
 
-        lats_vec = num.linspace(37., 37.5, 10)
-        lons_vec = num.linspace(-122., -120., 20)
-        eps_xx = 58.  # nanostrain South Bay Block from Jolivet et al. 2015
-        eps_yy = - 115.
-        eps_xy = - 58.
-        rotation = 9.5     # mm/ ( yr * km)
+        nanostrain = 1e-9
+        lats_vec = num.linspace(37., 37.5, 5)
+        lons_vec = num.linspace(-122., -121., 5)
+        eps_xx = 58. * nanostrain  # nanostrain South Bay Block from Jolivet et al. 2015
+        eps_yy = - 115. * nanostrain
+        eps_xy = - 58. * nanostrain
+        rotation = 0. / 1000.   # mm/ ( yr * km)
 
-        lons, lats = meshgrid(lons_vec, lats_vec)
+        lons, lats = num.meshgrid(lons_vec, lats_vec)
         print(lats, lons)
 
         v_x, v_y = velocities_from_strain_rate_tensor(
-            lats, lons, eps_xx, eps_yy, eps_xy, rotation)
+            lats.ravel(), lons.ravel(), eps_xx, eps_yy, eps_xy, rotation)
 
+        print('v x v y', v_x, v_y)
+
+        print('vmagn', num.sqrt(v_x ** 2 + v_y ** 2))
         from matplotlib import pyplot as plt
 
-        fig, axs = plt.subplots(1, 1, 1)
+        fig, axs = plt.subplots(1, 1)
         axs.quiver(lons, lats, v_x, v_y)
         plt.show()
 
