@@ -1044,6 +1044,8 @@ def command_summarize(args):
                 source = problem.sources[0]
                 sources = composite.sources
                 store = composite.engine.get_store(target.store_id)
+            else:
+                source = composite.fault
 
             for chain in tqdm(chains):
                 for idx in idxs:
@@ -1068,16 +1070,20 @@ def command_summarize(args):
                                 source.get_derived_parameters(
                                     store=store, target=target))
                             nderived = source.nderived_parameters
-                    else:
-                        # pyrocko Rectangular source, TODO use BEAT RS ...
-                        if isinstance(source, RectangularSource):
-                            for source in sources:
-                                source.magnitude = None
-                                derived.append(
-                                    source.get_magnitude(
-                                        store=store, target=target))
 
-                            nderived = 1
+                    # pyrocko Rectangular source, TODO use BEAT RS ...
+                    elif isinstance(source, RectangularSource):
+                        for source in sources:
+                            source.magnitude = None
+                            derived.append(
+                                source.get_magnitude(
+                                    store=store, target=target))
+
+                        nderived = 1
+
+                    # FFI
+                    else:
+                        pass
 
                     lpoint = problem.model.lijection.d2l(point)
                     if derived:
