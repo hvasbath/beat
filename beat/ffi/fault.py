@@ -600,7 +600,7 @@ total number of patches: %i ''' % (
             sf_point = {'slip': slips, 'rake': rakes}
             try:
                 durations = point['durations']
-                starttimes = self.point2starttimes(point, index=index)
+                starttimes = self.point2starttimes(point, index=index).ravel()
                 if nevents > 1:
                     starttimes += events[index].time
                 else:
