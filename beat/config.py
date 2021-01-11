@@ -696,10 +696,6 @@ class CorrectionConfig(Object):
         String.T(),
         default=[],
         help='Datasets to include in the correction.')
-    station_blacklist = List.T(
-        String.T(),
-        default=[],
-        help='GNSS station names to apply no correction.')
     enabled = Bool.T(
         default=False,
         help='Flag to enable Correction.')
@@ -723,7 +719,19 @@ class CorrectionConfig(Object):
                 'filled!' % self.feature)
 
 
-class EulerPoleConfig(CorrectionConfig):
+class GNSSCorrectionConfig(CorrectionConfig):
+
+    station_blacklist = List.T(
+        String.T(),
+        default=[],
+        help='GNSS station names to apply no correction.')
+    station_whitelist = List.T(
+        String.T(),
+        default=[],
+        help='GNSS station names to apply the correction.')
+
+
+class EulerPoleConfig(GNSSCorrectionConfig):
 
     @property
     def _suffixes(self):
@@ -744,15 +752,15 @@ class EulerPoleConfig(CorrectionConfig):
         return EulerPoleCorrection(self)
 
 
-class InternalStrainRateConfig(CorrectionConfig):
+class StrainRateConfig(GNSSCorrectionConfig):
 
     @property
     def _suffixes(self):
-        return ['strain_xx', 'strain_yy', 'strain_xy', 'rotation']
+        return ['eps_xx', 'eps_yy', 'eps_xy', 'rotation']
 
     @property
     def feature(self):
-        return 'Internal Strain Rate'
+        return 'Strain Rate'
 
     def get_hierarchical_names(self, name=None):
         # TODO include number for multiple Euler Poles?
@@ -760,9 +768,9 @@ class InternalStrainRateConfig(CorrectionConfig):
             '{}'.format(suffix) for suffix in self.get_suffixes()]
 
     def init_correction(self):
-        from beat.models.corrections import InternalStrainRateCorrection
+        from beat.models.corrections import StrainRateCorrection
         self.check_consistency()
-        return InternalStrainRateCorrection(self)
+        return StrainRateCorrection(self)
 
 
 class RampConfig(CorrectionConfig):

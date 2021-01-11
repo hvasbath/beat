@@ -201,15 +201,13 @@ class TestInterseismic(unittest.TestCase):
         eps_xx = 58. * nanostrain  # nanostrain South Bay Block from Jolivet et al. 2015
         eps_yy = - 115. * nanostrain
         eps_xy = - 58. * nanostrain
-        rotation = 0. / 1000.   # mm/ ( yr * km)
+        rotation = 1009.5 * nanostrain  # mm/ ( yr * km)
 
         lons, lats = num.meshgrid(lons_vec, lats_vec)
         print(lats, lons)
 
-        v_x, v_y = velocities_from_strain_rate_tensor(
-            lats.ravel(), lons.ravel(), eps_xx, eps_yy, eps_xy, rotation)
-
-        print('v x v y', v_x, v_y)
+        v_x, v_y, v_z = velocities_from_strain_rate_tensor(
+            lats.ravel(), lons.ravel(), eps_xx, eps_yy, eps_xy, rotation).T
 
         print('vmagn', num.sqrt(v_x ** 2 + v_y ** 2))
         from matplotlib import pyplot as plt
@@ -217,6 +215,7 @@ class TestInterseismic(unittest.TestCase):
         fig, axs = plt.subplots(1, 1)
         axs.quiver(lons, lats, v_x, v_y)
         plt.show()
+        print(v_z)
 
 
 if __name__ == '__main__':

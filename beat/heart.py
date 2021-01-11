@@ -773,11 +773,11 @@ class GeodeticDataset(gf.meta.MultiLocation):
                 locx = getattr(self, locx_name)
                 locy = getattr(self, locy_name)
 
-                blacklist = self.get_blacklist(corr_conf)
+                data_mask = self.get_data_mask(corr_conf)
 
                 corr.setup_correction(
                     locy=locy, locx=locx, los_vector=self.los_vector,
-                    blacklist=blacklist,
+                    data_mask=data_mask,
                     dataset_name=self.name)
                 self.corrections.append(corr)
                 self.has_correction = True
@@ -907,16 +907,27 @@ class GNSSCompoundComponent(GeodeticDataset):
 
         return scene
 
-    def get_blacklist(self, corr_config):
+    def get_data_mask(self, corr_config):
         s2idx = self.station_name_index_mapping()
+
+        if len(corr_config.station_whitelist) > 0 and \
+                len(corr_config.station_blacklist) > 0:
+            raise ValueError('Either White or Blacklist can be defined!')
+
         station_blacklist_idxs = []
-        for code in corr_config.station_blacklist:
-            try:
-                station_blacklist_idxs.append(s2idx[code])
-            except KeyError:
-                logger.warning(
-                    'Blacklisted station %s not in dataset,'
-                    ' skipping ...' % code)
+        if corr_config.station_blacklist:
+            for code in corr_config.station_blacklist:
+                try:
+                    station_blacklist_idxs.append(s2idx[code])
+                except KeyError:
+                    logger.warning(
+                        'Blacklisted station %s not in dataset,'
+                        ' skipping ...' % code)
+
+        elif corr_config.station_whitelist:
+            for station_name in s2idx.keys():
+                if station_name not in corr_config.station_whitelist:
+                    station_blacklist_idxs.append(s2idx[station_name])
 
         logger.info(
             'Stations with idxs %s got blacklisted!' %
@@ -1147,9 +1158,9 @@ class DiffIFG(IFG):
             mask=mask)
         return cls(**d)
 
-    def get_blacklist(self, corr_conf):
+    def get_data_mask(self, corr_conf):
         """
-        Extracts mask from kite scene and returns blacklist indexes-
+        Extracts mask from kite scene and returns mask indexes-
         maybe during import?!!!
         """
         if corr_conf.feature == 'Euler Pole':
@@ -3229,7 +3240,7 @@ def taper_filter_traces(
 
 
 def velocities_from_pole(
-        lats, lons, plat, plon, omega, earth_shape='ellipsoid'):
+        lats, lons, pole_lat, pole_lon, omega, earth_shape='ellipsoid'):
     """
     Return horizontal velocities at input locations for rotation around
     given Euler pole
@@ -3266,7 +3277,7 @@ def velocities_from_pole(
     npoints = lats.size
     if earth_shape == 'sphere':
         latlons = num.atleast_2d(num.vstack([lats, lons]).T)
-        platlons = num.hstack([plat, plon])
+        platlons = num.hstack([pole_lat, pole_lon])
         xyz_points = orthodrome.latlon_to_xyz(latlons)
         xyz_pole = orthodrome.latlon_to_xyz(platlons)
 
@@ -3274,7 +3285,7 @@ def velocities_from_pole(
         xyz = orthodrome.geodetic_to_ecef(lats, lons, num.zeros_like(lats))
         xyz_points = num.atleast_2d(num.vstack(xyz).T) / r_earth
         xyz_pole = num.hstack(
-            orthodrome.geodetic_to_ecef(plat, plon, 0.)) / r_earth
+            orthodrome.geodetic_to_ecef(pole_lat, pole_lon, 0.)) / r_earth
 
     omega_rad_yr = omega * 1e-6 * d2r * r_earth
     xyz_poles = num.tile(xyz_pole, npoints).reshape(npoints, 3)
@@ -3287,21 +3298,50 @@ def velocities_from_pole(
 
 
 def velocities_from_strain_rate_tensor(
-        lats, lons, eps_xx, eps_yy, eps_xy, rotation):
+        lats, lons, eps_xx=0., eps_yy=0., eps_xy=0., rotation=0.):
+    """
+    Get velocities [m] from 2d area strain rate tensor.
+
+    Geographic coordinates are reprojected internally wrt. the centroid of the
+    input locations.
+
+    Parameters
+    ----------
+    lats : array-like :class:`numpy.ndarray
+        geographic latitudes in [deg]
+    lons : array-like :class:`numpy.ndarray
+        geographic longitudes in [deg]
+    eps_xx : float
+        component of the 2d area strain-rate tensor [nanostrain]
+    eps_yy : float
+        component of the 2d area strain-rate tensor [nanostrain]
+    eps_xy : float
+        component of the 2d area strain-rate tensor [nanostrain]
+    rotation : float
+        clockwise rotation rate around the centroid of input locations
+
+    Returns
+    -------
+    v_xyz: 2d array-like :class:`numpy.ndarray
+        Deformation rate in [m] in x - East, y - North, z - Up Direction
+    """
 
     D = num.array([
         [eps_xx, 0.5 * (eps_xy + rotation)],
         [0.5 * (eps_xy - rotation), eps_yy]])
 
-
     mid_lat, mid_lon = orthodrome.geographic_midpoint(lats, lons)
 
     norths, easts = orthodrome.latlon_to_ne_numpy(mid_lat, mid_lon, lats, lons)
 
-    ens = num.atleast_2d(num.vstack([easts, norths])) / km
-    print(ens)
-    print(D)
-    return D.dot(ens)
+    ens = num.atleast_2d(num.vstack([easts, norths]))
+
+    v_x, v_y = D.dot(ens)
+
+    v_xyz = num.zeros((lats.size, 3))
+    v_xyz[:, 0] = v_x
+    v_xyz[:, 1] = v_y
+    return v_xyz
 
 
 def get_ramp_displacement(locx, locy, azimuth_ramp, range_ramp, offset):

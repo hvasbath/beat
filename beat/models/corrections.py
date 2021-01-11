@@ -2,17 +2,25 @@ from pyrocko import orthodrome
 from theano import shared
 from theano import config as tconfig
 
-from beat.theanof import EulerPole
-from beat.heart import velocities_from_pole, get_ramp_displacement
+from beat.theanof import EulerPole, StrainRateTensor
+from beat.heart import (velocities_from_pole, get_ramp_displacement,
+                        velocities_from_strain_rate_tensor)
 
 from collections import OrderedDict
 import logging
+
+from numpy import array, zeros
 
 
 logger = logging.getLogger('models.corrections')
 
 km = 1000.
 d2r = orthodrome.d2r
+
+
+def get_specific_point_rvs(point, varnames, attributes):
+    return {attr: point[varname]
+            for varname, attr in zip(varnames, attributes)}
 
 
 class Correction(object):
@@ -49,7 +57,7 @@ class RampCorrection(Correction):
             locy.astype(tconfig.floatX) / km, name='localy', borrow=True)
 
         self.correction_names = self.config.get_hierarchical_names(
-                    name=dataset_name)
+            name=dataset_name)
 
     def get_displacements(self, hierarchicals, point=None):
         """
@@ -59,29 +67,29 @@ class RampCorrection(Correction):
             raise ValueError(
                 'Requested correction, but is not setup or configured!')
 
-        azimuth_ramp_name, range_ramp_name, offset_name = self.correction_names
         if not point:
             locx = self.slocx
             locy = self.slocy
-            azimuth_ramp = hierarchicals[azimuth_ramp_name]
-            range_ramp = hierarchicals[range_ramp_name]
-            offset = hierarchicals[offset_name]
+
+            kwargs = get_specific_point_rvs(
+                hierarchicals,
+                varnames=self.correction_names,
+                attributes=self.config.get_suffixes())
         else:
             locx = self.east_shifts / km
             locy = self.north_shifts / km
             try:
-                azimuth_ramp = point[azimuth_ramp_name]
-                range_ramp = point[range_ramp_name]
-                offset = point[offset_name]
-            except KeyError:
-                azimuth_ramp = hierarchicals[azimuth_ramp_name]
-                range_ramp = hierarchicals[range_ramp_name]
-                offset = hierarchicals[offset_name]
+                kwargs = get_specific_point_rvs(
+                    point,
+                    varnames=self.correction_names,
+                    attributes=self.config.get_suffixes())
+            except KeyError:    # fixed variables
+                kwargs = get_specific_point_rvs(
+                    hierarchicals,
+                    varnames=self.correction_names,
+                    attributes=self.config.get_suffixes())
 
-        ramp = get_ramp_displacement(
-            locx=locx, locy=locy,
-            azimuth_ramp=azimuth_ramp, range_ramp=range_ramp, offset=offset)
-        return ramp
+        return get_ramp_displacement(locx, locy, **kwargs)
 
 
 class EulerPoleCorrection(Correction):
@@ -90,17 +98,17 @@ class EulerPoleCorrection(Correction):
         return ['lons', 'lats']
 
     def setup_correction(
-            self, locy, locx, los_vector, blacklist, dataset_name):
+            self, locy, locx, los_vector, data_mask, dataset_name):
 
         self.los_vector = los_vector
         self.lats = locy
         self.lons = locx
         self.correction_names = self.config.get_hierarchical_names(
             name=dataset_name)
-        self.blacklist = blacklist
+        self.data_mask = data_mask
 
         self.euler_pole = EulerPole(
-            self.lats, self.lons, blacklist)
+            self.lats, self.lons, data_mask)
 
         self.slos_vector = shared(
             self.los_vector.astype(tconfig.floatX), name='los', borrow=True)
@@ -113,7 +121,6 @@ class EulerPoleCorrection(Correction):
             raise ValueError(
                 'Requested correction, but is not setup or configured!')
 
-        pole_lat_name, pole_lon_name, rotation_vel_name = self.correction_names
         if not point:   # theano instance for get_formula
             inputs = OrderedDict()
             for corr_name in self.correction_names:
@@ -122,30 +129,93 @@ class EulerPoleCorrection(Correction):
             vels = self.euler_pole(inputs)
             return (vels * self.slos_vector).sum(axis=1)
         else:       # numpy instance else
-            locx = self.lats
-            locy = self.lons
-
             try:
-                pole_lat = point[pole_lat_name]
-                pole_lon = point[pole_lon_name]
-                omega = point[rotation_vel_name]
+                kwargs = get_specific_point_rvs(
+                    point,
+                    varnames=self.correction_names,
+                    attributes=self.config.get_suffixes())
             except KeyError:
                 if len(hierarchicals) == 0:
                     raise ValueError(
                         'No hierarchical parameters initialized,'
                         'but requested! Please check init!')
 
-                pole_lat = hierarchicals[pole_lat_name]
-                pole_lon = hierarchicals[pole_lon_name]
-                omega = hierarchicals[rotation_vel_name]
+                kwargs = get_specific_point_rvs(
+                    hierarchicals,
+                    varnames=self.correction_names,
+                    attributes=self.config.get_suffixes())
 
-            vels = velocities_from_pole(locx, locy, pole_lat, pole_lon, omega)
+            vels = velocities_from_pole(self.lats, self.lons, **kwargs)
             if self.blacklist.size > 0:
                 vels[self.blacklist] = 0.
             return (vels * self.los_vector).sum(axis=1)
 
 
-class InternalStrainRateCorrection(Correction):
+class StrainRateCorrection(Correction):
 
     def get_required_coordinate_names(self):
         return ['lons', 'lats']
+
+    def setup_correction(
+            self, locy, locx, los_vector, data_mask, dataset_name):
+
+        self.los_vector = los_vector
+        self.lats = locy
+        self.lons = locx
+        self.correction_names = self.config.get_hierarchical_names(
+            name=dataset_name)
+        self.data_mask = data_mask
+
+        self.strain_rate_tensor = StrainRateTensor(
+            self.lats, self.lons, data_mask)
+
+        self.slos_vector = shared(
+            self.los_vector.astype(tconfig.floatX), name='los', borrow=True)
+
+    def get_displacements(self, hierarchicals, point=None):
+        """
+        Get synthetic correction velocity due to Euler pole rotation.
+        """
+        if not self.correction_names:
+            raise ValueError(
+                'Requested correction, but is not setup or configured!')
+
+        if not point:   # theano instance for get_formula
+            inputs = OrderedDict()
+            for corr_name in self.correction_names:
+                inputs[corr_name] = hierarchicals[corr_name]
+
+            vels = self.strain_rate_tensor(inputs)
+            return (vels * self.slos_vector).sum(axis=1)
+        else:       # numpy instance else
+            try:
+                kwargs = get_specific_point_rvs(
+                    point,
+                    varnames=self.correction_names,
+                    attributes=self.config.get_suffixes())
+
+            except KeyError:
+                if len(hierarchicals) == 0:
+                    raise ValueError(
+                        'No hierarchical parameters initialized,'
+                        'but requested! Please check init!')
+
+                kwargs = get_specific_point_rvs(
+                    hierarchicals,
+                    varnames=self.correction_names,
+                    attributes=self.config.get_suffixes())
+
+        valid = array(self.station_idxs)
+
+        v_xyz = velocities_from_strain_rate_tensor(
+            array(self.lats)[valid],
+            array(self.lons)[valid],
+            **kwargs)
+
+        if valid.size > 0:
+            vels = zeros((self.lats.size, 3))
+            vels[valid, :] = v_xyz
+        else:
+            vels = v_xyz
+
+        return (vels * self.los_vector).sum(axis=1)
