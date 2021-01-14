@@ -145,6 +145,11 @@ default_bounds = dict(
     mnd=moffdiag,
     med=moffdiag,
 
+    exx=(-200., 200.),
+    eyy=(-200., 200.),
+    exy=(-200., 200.),
+    rotation=(-200., 200.),
+
     w=(-3. / 8. * num.pi, 3. / 8. * num.pi),
     v=(-1. / 3, 1. / 3.),
     kappa=(0., 2 * num.pi),
@@ -730,6 +735,10 @@ class GNSSCorrectionConfig(CorrectionConfig):
         default=[],
         help='GNSS station names to apply the correction.')
 
+    def get_hierarchical_names(self, name=None, number=0):
+        return [
+            '{}_{}'.format(number, suffix) for suffix in self.get_suffixes()]
+
 
 class EulerPoleConfig(GNSSCorrectionConfig):
 
@@ -741,11 +750,6 @@ class EulerPoleConfig(GNSSCorrectionConfig):
     def feature(self):
         return 'Euler Pole'
 
-    def get_hierarchical_names(self, name=None):
-        # TODO include number for multiple Euler Poles?
-        return [
-            '{}'.format(suffix) for suffix in self.get_suffixes()]
-
     def init_correction(self):
         from beat.models.corrections import EulerPoleCorrection
         self.check_consistency()
@@ -756,16 +760,11 @@ class StrainRateConfig(GNSSCorrectionConfig):
 
     @property
     def _suffixes(self):
-        return ['eps_xx', 'eps_yy', 'eps_xy', 'rotation']
+        return ['exx', 'eyy', 'exy', 'rotation']
 
     @property
     def feature(self):
         return 'Strain Rate'
-
-    def get_hierarchical_names(self, name=None):
-        # TODO include number for multiple Euler Poles?
-        return [
-            '{}'.format(suffix) for suffix in self.get_suffixes()]
 
     def init_correction(self):
         from beat.models.corrections import StrainRateCorrection
@@ -783,7 +782,7 @@ class RampConfig(CorrectionConfig):
     def feature(self):
         return 'Ramps'
 
-    def get_hierarchical_names(self, name):
+    def get_hierarchical_names(self, name, number=0):
         return ['{}_{}'.format(name, suffix) for suffix in self.get_suffixes()
                 if name in self.dataset_names]
 
@@ -797,11 +796,23 @@ class GeodeticCorrectionsConfig(Object):
     """
     Config for corrections to geodetic datasets.
     """
-    euler_pole = EulerPoleConfig.T(default=EulerPoleConfig.D())
+    euler_poles = List.T(
+        EulerPoleConfig.T(),
+        default=[EulerPoleConfig.D()])
     ramp = RampConfig.T(default=RampConfig.D())
+    strain_rates = List.T(
+        StrainRateConfig.T(), default=[StrainRateConfig.D()])
 
     def iter_corrections(self):
-        return [self.euler_pole, self.ramp]
+        out_corr = [self.ramp]
+
+        for euler_pole_conf in self.euler_poles:
+            out_corr.append(euler_pole_conf)
+
+        for strain_conf in self.strain_rates:
+            out_corr.append(strain_conf)
+
+        return out_corr
 
     @property
     def has_enabled_corrections(self):

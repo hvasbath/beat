@@ -56,6 +56,7 @@ u_v = '$[m^3]$'
 u_s = '$[s]$'
 u_rad = '$[rad]$'
 u_hyp = ''
+u_nanostrain = 'nstrain'
 
 plot_units = {
     'east_shift': u_km,
@@ -101,6 +102,11 @@ plot_units = {
     'mnd': u_nm,
     'med': u_nm,
     'magnitude': u_hyp,
+
+    'eps_xx': u_nanostrain,
+    'eps_yy': u_nanostrain,
+    'eps_xy': u_nanostrain,
+    'rotation': u_nanostrain,
 
     'pole_lat': u_deg,
     'pole_lon': u_deg,

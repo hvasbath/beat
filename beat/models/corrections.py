@@ -46,7 +46,7 @@ class RampCorrection(Correction):
         return ['east_shifts', 'north_shifts']
 
     def setup_correction(
-            self, locy, locx, los_vector, blacklist, dataset_name):
+            self, locy, locx, los_vector, data_mask, dataset_name):
 
         self.east_shifts = locx
         self.north_shifts = locy
@@ -146,8 +146,8 @@ class EulerPoleCorrection(Correction):
                     attributes=self.config.get_suffixes())
 
             vels = velocities_from_pole(self.lats, self.lons, **kwargs)
-            if self.blacklist.size > 0:
-                vels[self.blacklist] = 0.
+            if self.data_mask.size > 0:
+                vels[self.data_mask] = 0.
             return (vels * self.los_vector).sum(axis=1)
 
 
@@ -205,7 +205,7 @@ class StrainRateCorrection(Correction):
                     varnames=self.correction_names,
                     attributes=self.config.get_suffixes())
 
-        valid = array(self.station_idxs)
+        valid = array(self.strain_rate_tensor.station_idxs)
 
         v_xyz = velocities_from_strain_rate_tensor(
             array(self.lats)[valid],

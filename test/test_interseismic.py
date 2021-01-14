@@ -198,10 +198,10 @@ class TestInterseismic(unittest.TestCase):
         nanostrain = 1e-9
         lats_vec = num.linspace(37., 37.5, 5)
         lons_vec = num.linspace(-122., -121., 5)
-        eps_xx = 58. * nanostrain  # nanostrain South Bay Block from Jolivet et al. 2015
-        eps_yy = - 115. * nanostrain
-        eps_xy = - 58. * nanostrain
-        rotation = 1009.5 * nanostrain  # mm/ ( yr * km)
+        eps_xx = 0.  # nanostrain South Bay Block from Jolivet et al. 2015
+        eps_yy = 58 #- 115.
+        eps_xy = 0 #- 58.
+        rotation = 0  #1009.5  # mm/ ( yr * km)
 
         lons, lats = num.meshgrid(lons_vec, lats_vec)
         print(lats, lons)

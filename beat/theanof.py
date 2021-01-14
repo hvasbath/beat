@@ -624,7 +624,7 @@ class StrainRateTensor(theano.Op):
 
         station_idxs = [
             station_idx for station_idx in range(
-                self.lats.size) if station_idx not in data_mask]
+                self.ndata) if station_idx not in data_mask]
 
         self.station_idxs = tuple(station_idxs)
 
@@ -653,9 +653,9 @@ class StrainRateTensor(theano.Op):
         point = {vname: i for vname, i in zip(self.varnames, inputs)}
         point.update(self.fixed_values)
 
-        eps_xx = point['eps_xx']    # tensor params
-        eps_yy = point['eps_yy']
-        eps_xy = point['eps_xy']
+        exx = point['exx']    # tensor params
+        eyy = point['eyy']
+        exy = point['exy']
         rotation = point['rotation']
 
         valid = num.array(self.station_idxs)
@@ -663,9 +663,9 @@ class StrainRateTensor(theano.Op):
         v_xyz = heart.velocities_from_strain_rate_tensor(
             num.array(self.lats)[valid],
             num.array(self.lons)[valid],
-            eps_xx=eps_xx,
-            eps_yy=eps_yy,
-            eps_xy=eps_xy,
+            exx=exx,
+            eyy=eyy,
+            exy=exy,
             rotation=rotation)
 
         v_xyz_all = num.zeros((self.ndata, 3))

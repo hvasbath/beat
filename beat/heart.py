@@ -36,6 +36,8 @@ km = 1000.
 d2r = num.pi / 180.
 r2d = 180. / num.pi
 near_field_threshold = 9.  # [deg] below that surface waves are calculated
+nanostrain = 1e-9
+
 
 lambda_sensors = {
     'Envisat': 0.056,       # needs updating- no ressource file
@@ -494,6 +496,11 @@ physical_bounds = dict(
     mne=(-1., 1.),
     mnd=(-1., 1.),
     med=(-1., 1.),
+
+    exx=(-500., 500.),
+    eyy=(-500., 500.),
+    exy=(-500., 500.),
+    rotation=(-500., 500.),
 
     w=(-3. / 8. * num.pi, 3. / 8. * num.pi),
     v=(-1. / 3, 1. / 3.),
@@ -3298,7 +3305,7 @@ def velocities_from_pole(
 
 
 def velocities_from_strain_rate_tensor(
-        lats, lons, eps_xx=0., eps_yy=0., eps_xy=0., rotation=0.):
+        lats, lons, exx=0., eyy=0., exy=0., rotation=0.):
     """
     Get velocities [m] from 2d area strain rate tensor.
 
@@ -3311,11 +3318,11 @@ def velocities_from_strain_rate_tensor(
         geographic latitudes in [deg]
     lons : array-like :class:`numpy.ndarray
         geographic longitudes in [deg]
-    eps_xx : float
-        component of the 2d area strain-rate tensor [nanostrain]
-    eps_yy : float
-        component of the 2d area strain-rate tensor [nanostrain]
-    eps_xy : float
+    exx : float
+        component of the 2d area strain-rate tensor [nanostrain] x-North
+    eyy : float
+        component of the 2d area strain-rate tensor [nanostrain] y-East
+    exy : float
         component of the 2d area strain-rate tensor [nanostrain]
     rotation : float
         clockwise rotation rate around the centroid of input locations
@@ -3327,16 +3334,15 @@ def velocities_from_strain_rate_tensor(
     """
 
     D = num.array([
-        [eps_xx, 0.5 * (eps_xy + rotation)],
-        [0.5 * (eps_xy - rotation), eps_yy]])
+        [float(exx), 0.5 * float(exy + rotation)],
+        [0.5 * float(exy - rotation), float(eyy)]]) * nanostrain
 
     mid_lat, mid_lon = orthodrome.geographic_midpoint(lats, lons)
-
     norths, easts = orthodrome.latlon_to_ne_numpy(mid_lat, mid_lon, lats, lons)
 
-    ens = num.atleast_2d(num.vstack([easts, norths]))
+    nes = num.atleast_2d(num.vstack([norths, easts]))
 
-    v_x, v_y = D.dot(ens)
+    v_x, v_y = D.dot(nes)
 
     v_xyz = num.zeros((lats.size, 3))
     v_xyz[:, 0] = v_x
