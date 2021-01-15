@@ -46,7 +46,7 @@ class RampCorrection(Correction):
         return ['east_shifts', 'north_shifts']
 
     def setup_correction(
-            self, locy, locx, los_vector, data_mask, dataset_name):
+            self, locy, locx, los_vector, data_mask, dataset_name, number=0):
 
         self.east_shifts = locx
         self.north_shifts = locy
@@ -57,7 +57,7 @@ class RampCorrection(Correction):
             locy.astype(tconfig.floatX) / km, name='localy', borrow=True)
 
         self.correction_names = self.config.get_hierarchical_names(
-            name=dataset_name)
+            name=dataset_name, number=number)
 
     def get_displacements(self, hierarchicals, point=None):
         """
@@ -98,13 +98,13 @@ class EulerPoleCorrection(Correction):
         return ['lons', 'lats']
 
     def setup_correction(
-            self, locy, locx, los_vector, data_mask, dataset_name):
+            self, locy, locx, los_vector, data_mask, dataset_name, number=0):
 
         self.los_vector = los_vector
         self.lats = locy
         self.lons = locx
         self.correction_names = self.config.get_hierarchical_names(
-            name=dataset_name)
+            name=dataset_name, number=number)
         self.data_mask = data_mask
 
         self.euler_pole = EulerPole(
@@ -157,13 +157,14 @@ class StrainRateCorrection(Correction):
         return ['lons', 'lats']
 
     def setup_correction(
-            self, locy, locx, los_vector, data_mask, dataset_name):
+            self, locy, locx, los_vector,
+            data_mask, dataset_name, number=0):
 
         self.los_vector = los_vector
         self.lats = locy
         self.lons = locx
         self.correction_names = self.config.get_hierarchical_names(
-            name=dataset_name)
+            name=dataset_name, number=number)
         self.data_mask = data_mask
 
         self.strain_rate_tensor = StrainRateTensor(

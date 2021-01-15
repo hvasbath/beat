@@ -769,7 +769,7 @@ class GeodeticDataset(gf.meta.MultiLocation):
         """
         self.corrections = []
         self.update_local_coords(event)
-        for corr_conf in correction_configs:
+        for number, corr_conf in enumerate(correction_configs):
             corr = corr_conf.init_correction()
             if self.name in corr_conf.dataset_names and corr_conf.enabled:
                 logger.info(
@@ -785,7 +785,7 @@ class GeodeticDataset(gf.meta.MultiLocation):
                 corr.setup_correction(
                     locy=locy, locx=locx, los_vector=self.los_vector,
                     data_mask=data_mask,
-                    dataset_name=self.name)
+                    dataset_name=self.name, number=number)
                 self.corrections.append(corr)
                 self.has_correction = True
             else:

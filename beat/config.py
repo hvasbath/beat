@@ -921,12 +921,13 @@ class GeodeticConfig(Object):
     def get_hierarchical_names(self, datasets=None):
 
         out_names = []
-        for corr_conf in self.corrections_config.iter_corrections():
+        for number, corr_conf in enumerate(
+                self.corrections_config.iter_corrections()):
             if corr_conf.enabled:
                 for dataset in datasets:
                     if dataset.name in corr_conf.dataset_names:
                         hiernames = corr_conf.get_hierarchical_names(
-                            name=dataset.name)
+                            name=dataset.name, number=number)
 
                         out_names.extend(hiernames)
 

@@ -619,7 +619,7 @@ class StrainRateTensor(theano.Op):
 
         self.lats = tuple(lats)
         self.lons = tuple(lons)
-        self.data_mask = data_mask
+        self.data_mask = tuple(data_mask)
         self.ndata = len(self.lats)
 
         station_idxs = [
