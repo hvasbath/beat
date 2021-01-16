@@ -4879,13 +4879,16 @@ plots_catalog = {
 
 
 common_plots = [
-    'stage_posteriors',
-    'velocity_models']
+    'stage_posteriors',]
 
 
 seismic_plots = [
     'station_map',
-    'waveform_fits']
+    'waveform_fits',
+    'fuzzy_mt_decomp',
+    'hudson',
+    'lune',
+    'fuzzy_beachball']
 
 
 geodetic_plots = [
@@ -4895,9 +4898,7 @@ geodetic_plots = [
 
 geometry_plots = [
     'correlation_hist',
-    'hudson',
-    'lune',
-    'fuzzy_beachball']
+    'velocity_models']
 
 
 ffi_plots = [

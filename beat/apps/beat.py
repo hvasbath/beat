@@ -1615,8 +1615,10 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
     util.ensuredir(figure_path)
 
     for plot in plotnames:
-        plotting.plots_catalog[plot](problem, po)
-
+        try:
+            plotting.plots_catalog[plot](problem, po)
+        except(TypeError, plotting.ModeError) as err:
+            logger.warning('Could not plot %s got Error: %s' % (plot, err))
 
 def command_check(args):
 
