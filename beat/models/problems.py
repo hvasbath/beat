@@ -464,14 +464,24 @@ class Problem(object):
             Dictionary with model parameters, for which the VRs are calculated
         """
         vrs = {}
+        kwargs = {}
+        pconfig = self.config.problem_config
         for composite in self.composites.values():
             if hasattr(composite, 'get_variance_reductions'):
                 logger.info(
                     'Calculating variance reductions for %s' % composite.name)
-                vr = composite.get_variance_reductions(point)
-                print(vr)
-                vrs.update(vr)
-                print(vr)
+                if composite.name == 'seismic':
+                    if pconfig.mode == bconfig.ffi_mode_str:
+                        chop_bounds = ['b', 'c']
+                    elif pconfig.mode == bconfig.geometry_mode_str:
+                        chop_bounds = ['a', 'd']
+                    else:
+                        raise ValueError(
+                            'Invalid problem_config mode! %s' % pconfig.mode)
+                    kwargs['chop_bounds'] = chop_bounds
+
+            vr = composite.get_variance_reductions(point, **kwargs)
+            vrs.update(vr)
         return vrs
 
     def point2sources(self, point):
