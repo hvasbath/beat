@@ -4578,6 +4578,143 @@ def draw_station_map_gmt(problem, po):
             logger.info('Plot exists! Use --force to overwrite!')
 
 
+def draw_3d_slip_distribution(problem, po):
+
+    if po.outformat == 'svg':
+        raise NotImplementedError('SVG format is not supported for this plot!')
+
+    mode = problem.config.problem_config.mode
+
+    if mode != ffi_mode_str:
+        raise ModeError(
+            'Wrong optimization mode: %s! This plot '
+            'variant is only valid for "%s" mode' % (mode, ffi_mode_str))
+
+    if po.load_stage is None:
+        po.load_stage = -1
+
+    stage = load_stage(
+        problem, stage_number=po.load_stage, load='trace', chains=[-1])
+    # n_mts = len(stage.mtrace)
+
+    # result_ensemble = {}
+    # for varname in ['v', 'w']:
+    #     try:
+    #         result_ensemble[varname] = stage.mtrace.get_values(
+    #             varname, combine=True, squeeze=True).ravel()
+    #     except ValueError:  # if fixed value add that to the ensemble
+    #         rpoint = problem.get_random_point()
+    #         result_ensemble[varname] = num.full_like(
+    #             num.empty((n_mts), dtype=num.float64), rpoint[varname])
+
+    point = get_result_point(stage, problem.config, po.post_llk)
+
+    datatype, gc = list(problem.composites.items())[0]
+
+    fault = gc.load_fault_geometry()
+
+    outpath = os.path.join(
+        problem.outfolder,
+        po.figure_dir,
+        '3d_slip_distribution_%i_%s_%i.%s' % (
+            po.load_stage, po.post_llk, po.nensemble, po.outformat))
+
+    if po.plot_projection in ['local', 'latlon']:
+        perspective = '135/30'
+    else:
+        perspective = po.plot_projection
+
+    if not os.path.exists(outpath) or po.force or po.outformat == 'display':
+        logger.info('Drawing 3d slip-distribution plot ...')
+        gmt = slip_distribution_3d_gmt(fault, point, perspective)
+
+        logger.info('saving figure to %s' % outpath)
+        gmt.save(outpath, resolution=300, size=10)
+    else:
+        logger.info('Plot exists! Use --force to overwrite!')
+
+
+def slip_distribution_3d_gmt(fault, point, perspective='135/30'):
+
+    from pyrocko import gmtpy
+
+    if len(gmtpy.detect_gmt_installations()) < 1:
+        raise gmtpy.GmtPyError(
+            'GMT needs to be installed for station_map plot!')
+
+    font_size = 12
+    font = '1'
+    bin_width = 15  # major grid and tick increment in [deg]
+    h = 25  # outsize in cm
+    w = 20
+
+    gmtconfig = get_gmt_config(gmtpy, h=h, w=h)
+
+    gmt = gmtpy.GMT(config=gmtconfig)
+
+    sf_lonlats = num.vstack(
+        [sf.outline(cs='lonlat') for sf in fault.iter_subfaults()])
+
+    sf_xyzs = num.vstack(
+        [sf.outline(cs='xyz') for sf in fault.iter_subfaults()])
+    print(sf_xyzs.shape)
+    _, _, max_depth = sf_xyzs.max(axis=0) / km
+
+    lon_min, lat_min = sf_lonlats.min(axis=0)
+    lon_max, lat_max = sf_lonlats.max(axis=0)
+
+    R = utility.list2string(
+        [lon_min, lon_max, lat_min, lat_max, 0, max_depth], '/')
+    Jg = '-JM%i' % w
+    Jz = '-JZ%g' % h
+    J = [Jg, Jz]
+
+    print(R, J)
+    for idx in range(fault.nsubfaults):
+        for i, source in enumerate(fault.get_subfault_patches(idx)):
+            lonlats = source.outline(cs='lonlat')
+            xyzs = source.outline(cs='xyz') / km
+            in_rows = num.hstack((lonlats, num.atleast_2d(xyzs[:, 2]).T))
+
+            color = (num.array(mpl_graph_color(i)) * 255).tolist()
+            color_str = utility.list2string(color, '/')
+
+            gmt.psxyz(
+                in_rows=in_rows,
+                R=R,
+                L='+p0.1p,%s' % color_str,
+                W='0.1p,black',
+                G=color_str,
+                p=perspective,
+                *J)
+
+
+    cptfilepath = '/tmp/tempfile.cpt'
+    gmt.makecpt(
+        C='white,yellow,orange,red,magenta,violet',
+        Z=True, D=True,
+        T='%f/%f' % (0, 0.1),
+        out_filename=cptfilepath, suppress_defaults=True)
+
+    # add a colorbar
+    D = 'x1.5c/0c+w6c/0.5c+jMC+h'
+    F = False
+
+    gmt.psscale(
+        B='xa%s +l slip [m]' % num.floor(1),
+        D=D,
+        F=F,
+        C=cptfilepath,
+        finish=True)
+#                    t=70)
+            # gmt.psxyz(
+             #   in_rows=in_rows[0:2],
+             #   W='1p,black',
+             #   *m.jxyr)
+
+    return gmt
+
+
 def draw_lune_plot(problem, po):
 
     if po.outformat == 'svg':
@@ -4870,6 +5007,7 @@ plots_catalog = {
     'gnss_fits': draw_gnss_fits,
     'velocity_models': draw_earthmodels,
     'slip_distribution': draw_slip_dist,
+    'slip_distribution_3d': draw_3d_slip_distribution,
     'hudson': draw_hudson,
     'lune': draw_lune_plot,
     'fuzzy_beachball': draw_fuzzy_beachball,
