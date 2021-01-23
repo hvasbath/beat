@@ -537,7 +537,7 @@ class MTQTSource(gf.SourceWithMagnitude):
         d.update(kwargs)
         return super(MTQTSource, cls).from_pyrocko_event(ev, **d)
 
-    def get_derived_parameters(self):
+    def get_derived_parameters(self, store=None, target=None):
         """
         Returns array with mt components and dc component conversions
         """
@@ -656,7 +656,7 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
         d.update(kwargs)
         return super(MTSourceWithMagnitude, cls).from_pyrocko_event(ev, **d)
 
-    def get_derived_parameters(self):
+    def get_derived_parameters(self, store=None, target=None):
         mt = mtm.MomentTensor.from_values(self.scaled_m6)
         return num.hstack(mt.both_strike_dip_rake())
 
