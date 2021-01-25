@@ -10,7 +10,7 @@ from beat import utility
 from beat.models import Stage, load_stage
 from beat.sampler.metropolis import get_trace_stats
 from beat.heart import (init_seismic_targets, init_geodetic_targets,
-                        physical_bounds)
+                        physical_bounds, StrainRateTensor)
 from beat.config import ffi_mode_str, geometry_mode_str, dist_vars
 
 from matplotlib import pyplot as plt
@@ -740,6 +740,11 @@ def set_anchor(sources, anchor):
         source.anchor = anchor
 
 
+def get_gmt_colorstring_from_mpl(i):
+    color = (num.array(mpl_graph_color(i)) * 255).tolist()
+    return utility.list2string(color, '/')
+
+
 def gnss_fits(problem, stage, plot_options):
 
     from pyrocko import automap
@@ -930,6 +935,27 @@ def gnss_fits(problem, stage, plot_options):
                     S='c%fp' % float(source.magnitude * source_scale_factor),
                     t=70,
                     *m.jxyr)
+
+        if dataset:
+            # plot strain rate tensor
+            from beat.models import corrections
+            for i, corr in enumerate(dataset.corrections):
+
+                if isinstance(corr, corrections.StrainRateCorrection):
+                    lats, lons = corr.get_station_coordinates()
+                    mid_lat, mid_lon = otd.geographic_midpoint(lats, lons)
+                    corr_point = corr.get_point_rvs(point)
+                    srt = StrainRateTensor.from_point(corr_point)
+                    in_rows = [(
+                        mid_lon, mid_lat, srt.eps1, srt.eps2, srt.azimuth)]
+
+                    color_str = get_gmt_colorstring_from_mpl(i)
+                    m.gmt.psvelo(
+                        in_rows=in_rows,
+                        S='x%f' % offset_scale,
+                        A='9p+g%s+p1p' % color_str,
+                        W=color_str,
+                        *m.jxyr)
 
         figs.append(m)
 
@@ -4676,8 +4702,7 @@ def slip_distribution_3d_gmt(fault, point, perspective='135/30'):
             xyzs = source.outline(cs='xyz') / km
             in_rows = num.hstack((lonlats, num.atleast_2d(xyzs[:, 2]).T))
 
-            color = (num.array(mpl_graph_color(i)) * 255).tolist()
-            color_str = utility.list2string(color, '/')
+            color_str = get_gmt_colorstring_from_mpl(i)
 
             gmt.psxyz(
                 in_rows=in_rows,

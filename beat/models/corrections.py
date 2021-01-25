@@ -39,6 +39,12 @@ class Correction(object):
             self, locy, locx, los_vector, blacklist, correction_names):
         raise NotImplementedError('Needs implementation in subclass!')
 
+    def get_point_rvs(self, point):
+        return get_specific_point_rvs(
+            point,
+            varnames=self.correction_names,
+            attributes=self.config.get_suffixes())
+
 
 class RampCorrection(Correction):
 
@@ -71,23 +77,14 @@ class RampCorrection(Correction):
             locx = self.slocx
             locy = self.slocy
 
-            kwargs = get_specific_point_rvs(
-                hierarchicals,
-                varnames=self.correction_names,
-                attributes=self.config.get_suffixes())
+            kwargs = self.get_point_rvs(hierarchicals)
         else:
             locx = self.east_shifts / km
             locy = self.north_shifts / km
             try:
-                kwargs = get_specific_point_rvs(
-                    point,
-                    varnames=self.correction_names,
-                    attributes=self.config.get_suffixes())
+                kwargs = self.get_point_rvs(point)
             except KeyError:    # fixed variables
-                kwargs = get_specific_point_rvs(
-                    hierarchicals,
-                    varnames=self.correction_names,
-                    attributes=self.config.get_suffixes())
+                kwargs = self.get_point_rvs(hierarchicals)
 
         return get_ramp_displacement(locx, locy, **kwargs)
 
@@ -130,20 +127,14 @@ class EulerPoleCorrection(Correction):
             return (vels * self.slos_vector).sum(axis=1)
         else:       # numpy instance else
             try:
-                kwargs = get_specific_point_rvs(
-                    point,
-                    varnames=self.correction_names,
-                    attributes=self.config.get_suffixes())
+                kwargs = self.get_point_rvs(point)
             except KeyError:
                 if len(hierarchicals) == 0:
                     raise ValueError(
                         'No hierarchical parameters initialized,'
                         'but requested! Please check init!')
 
-                kwargs = get_specific_point_rvs(
-                    hierarchicals,
-                    varnames=self.correction_names,
-                    attributes=self.config.get_suffixes())
+                kwargs = self.get_point_rvs(hierarchicals)
 
             vels = velocities_from_pole(self.lats, self.lons, **kwargs)
             if self.data_mask.size > 0:
@@ -173,6 +164,15 @@ class StrainRateCorrection(Correction):
         self.slos_vector = shared(
             self.los_vector.astype(tconfig.floatX), name='los', borrow=True)
 
+    def get_station_indexes(self):
+        return array(self.strain_rate_tensor.station_idxs)
+
+    def get_station_coordinates(self, indexes=None):
+        if indexes is None:
+            indexes = self.get_station_indexes()
+
+        return array(self.lats)[indexes], array(self.lons)[indexes]
+
     def get_displacements(self, hierarchicals, point=None):
         """
         Get synthetic correction velocity due to Euler pole rotation.
@@ -190,10 +190,7 @@ class StrainRateCorrection(Correction):
             return (vels * self.slos_vector).sum(axis=1)
         else:       # numpy instance else
             try:
-                kwargs = get_specific_point_rvs(
-                    point,
-                    varnames=self.correction_names,
-                    attributes=self.config.get_suffixes())
+                kwargs = self.get_point_rvs(point)
 
             except KeyError:
                 if len(hierarchicals) == 0:
@@ -201,16 +198,14 @@ class StrainRateCorrection(Correction):
                         'No hierarchical parameters initialized,'
                         'but requested! Please check init!')
 
-                kwargs = get_specific_point_rvs(
-                    hierarchicals,
-                    varnames=self.correction_names,
-                    attributes=self.config.get_suffixes())
+                kwargs = self.get_point_rvs(hierarchicals)
 
-        valid = array(self.strain_rate_tensor.station_idxs)
+        valid = self.get_station_indexes()
+        lats, lons = self.get_station_coordinates(valid)
 
         v_xyz = velocities_from_strain_rate_tensor(
-            array(self.lats)[valid],
-            array(self.lons)[valid],
+            lats,
+            lons,
             **kwargs)
 
         if valid.size > 0:

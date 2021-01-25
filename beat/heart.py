@@ -3304,6 +3304,52 @@ def velocities_from_pole(
     return num.einsum('ijk->ik', T * vels_cartesian.T).T
 
 
+class StrainRateTensor(Object):
+
+    exx = Float.T(default=10)
+    eyy = Float.T(default=0)
+    exy = Float.T(default=0)
+    rotation = Float.T(default=0)
+
+    def from_point(point):
+        kwargs = {varname: float(rv) for varname, rv in point.items()}
+        return StrainRateTensor(**kwargs)
+
+    @property
+    def m4(self):
+        return num.array([
+            [self.exx, 0.5 * (self.exy + self.rotation)],
+            [0.5 * (self.exy - self.rotation), self.eyy]])
+
+    @property
+    def shear_strain_rate(self):
+        return float(
+            0.5 * num.sqrt((self.exx - self.eyy) ** 2 + 4 * self.exy ** 2))
+
+    @property
+    def eps1(self):
+        """
+        Maximum extension eigenvalue of strain rate tensor, extension positive.
+        """
+        return float(self.exx + self.shear_strain_rate)
+
+    @property
+    def eps2(self):
+        """
+        Maximum compression eigenvalue of strain rate tensor,
+        extension positive.
+        """
+        return float(self.exx - self.shear_strain_rate)
+
+    @property
+    def azimuth(self):
+        """
+        Direction of eps2 compared towards North [deg].
+        """
+        return float(
+            0.5 * r2d * num.arctan(2 * self.exy / (self.exx - self.exy)))
+
+
 def velocities_from_strain_rate_tensor(
         lats, lons, exx=0., eyy=0., exy=0., rotation=0.):
     """
