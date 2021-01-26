@@ -1089,9 +1089,9 @@ def command_summarize(args):
                     if derived:
                         lpoint.extend(
                             split(
-                                vstack(derived),
+                                vstack(derived).T,
                                 nderived,
-                                axis=1))
+                                axis=0))
 
                     # TODO: in PT with large buffer sizes somehow memory leak
                     rtrace.write(lpoint, draw=chain)
