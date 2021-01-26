@@ -3331,7 +3331,7 @@ class StrainRateTensor(Object):
         """
         Maximum extension eigenvalue of strain rate tensor, extension positive.
         """
-        return float(self.exx + self.shear_strain_rate)
+        return float(0.5 * (self.exx + self.eyy) + self.shear_strain_rate)
 
     @property
     def eps2(self):
@@ -3339,7 +3339,7 @@ class StrainRateTensor(Object):
         Maximum compression eigenvalue of strain rate tensor,
         extension positive.
         """
-        return float(self.exx - self.shear_strain_rate)
+        return float(0.5 * (self.exx + self.eyy) - self.shear_strain_rate)
 
     @property
     def azimuth(self):
