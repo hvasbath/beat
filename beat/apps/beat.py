@@ -24,7 +24,7 @@ from beat.sampler.smc import sample_factor_final_stage
 
 from beat.sources import MTSourceWithMagnitude, MTQTSource
 from beat.utility import list2string
-from numpy import atleast_2d, floor
+from numpy import atleast_2d, floor, array, zeros
 
 from pyrocko import model, util
 from pyrocko.trace import snuffle
@@ -918,7 +918,7 @@ def result_check(mtrace, min_length):
 def command_summarize(args):
 
     from pymc3 import summary
-    from numpy import hstack, vstack, split
+    from numpy import hstack, vstack, split, ravel
     from pyrocko.moment_tensor import MomentTensor
     from pyrocko.gf import RectangularSource
 
@@ -1088,10 +1088,11 @@ def command_summarize(args):
                     lpoint = problem.model.lijection.d2l(point)
                     if derived:
                         lpoint.extend(
-                            split(
-                                vstack(derived).T,
-                                nderived,
-                                axis=0))
+                            map(ravel,
+                                split(
+                                    vstack(derived).T,
+                                    nderived,
+                                    axis=0)))
 
                     # TODO: in PT with large buffer sizes somehow memory leak
                     rtrace.write(lpoint, draw=chain)
@@ -1237,7 +1238,6 @@ def command_build_gfs(args):
 
     elif options.mode == ffi_mode_str:
         from beat import ffi
-        import numpy as num
 
         slip_varnames = c.problem_config.get_slip_variables()
         rvs, fixed_rvs = c.problem_config.get_random_variables()
@@ -1291,11 +1291,11 @@ def command_build_gfs(args):
                     nucleation_dips.append(ext_source.width / km)
                     nucleation_strikes.append(ext_source.length / km)
 
-                nucl_start = num.zeros(fault.nsubfaults)
+                nucl_start = zeros(fault.nsubfaults)
                 new_bounds = {
                     'nucleation_strike': (
-                        nucl_start, num.array(nucleation_strikes)),
-                    'nucleation_dip': (nucl_start, num.array(nucleation_dips))
+                        nucl_start, array(nucleation_strikes)),
+                    'nucleation_dip': (nucl_start, array(nucleation_dips))
                 }
 
                 c.problem_config.set_vars(new_bounds)
