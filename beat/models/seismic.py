@@ -217,7 +217,8 @@ class SeismicComposite(Composite):
                     param = hierarchicals[hierarchical_name]
                 else:
                     logger.info('Using global %s' % self.correction_name)
-                    param = problem_config.hierarchicals[self.correction_name]
+                    param = copy.deepcopy(
+                        problem_config.hierarchicals[self.correction_name])
                     param.lower = num.repeat(param.lower, nhierarchs)
                     param.upper = num.repeat(param.upper, nhierarchs)
                     param.testvalue = num.repeat(param.testvalue, nhierarchs)
