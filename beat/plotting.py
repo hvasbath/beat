@@ -1019,6 +1019,7 @@ def scene_fits(problem, stage, plot_options):
     """
     from pyrocko.dataset import gshhg
     from kite.scene import Scene, UserIOWarning
+    from beat.colormap import roma_colormap
     import gc
 
     try:
@@ -1034,7 +1035,9 @@ def scene_fits(problem, stage, plot_options):
     fontsize_title = 12
     ndmax = 3
     nxmax = 3
-    cmap = plt.cm.jet
+    # cmap = plt.cm.jet
+    # cmap = roma_colormap(256)
+    cmap = plt.cm.RdYlBu
 
     po = plot_options
 
