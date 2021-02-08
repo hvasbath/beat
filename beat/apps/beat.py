@@ -1500,7 +1500,7 @@ def command_plot(args):
         parser.add_option(
             '--plot_projection',
             dest='plot_projection',
-            choices=['latlon', 'local', 'individual'],
+            #choices=['latlon', 'local', 'individual'],
             default='local',
             help='Output projection of the plot; "latlon" or "local"'
                  'Default: "local"')
@@ -1614,10 +1614,13 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
     figure_path = pjoin(problem.outfolder, po.figure_dir)
     util.ensuredir(figure_path)
 
+    from beat.parallel import exception_tracer
     for plot in plotnames:
         try:
-            plotting.plots_catalog[plot](problem, po)
-        except(TypeError, plotting.ModeError) as err:
+            exception_tracer(plotting.plots_catalog[plot](problem, po))
+        except Exception as err:
+            pass
+        # except(TypeError, plotting.ModeError) as err:
             logger.warning('Could not plot %s got Error: %s' % (plot, err))
 
 def command_check(args):
