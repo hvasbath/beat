@@ -2,7 +2,8 @@ import numpy as num
 from numpy.testing import assert_allclose
 
 from beat import interseismic, pscmp
-from beat.heart import ReferenceLocation
+from beat.heart import \
+    ReferenceLocation, velocities_from_pole, velocities_from_strain_rate_tensor
 
 import logging
 import os
@@ -36,8 +37,8 @@ class TestInterseismic(unittest.TestCase):
         return os.path.join(store_superdir, 'psgrn_green_%i' % crust_ind)
 
     def _get_synthetic_data(self):
-        lon = num.linspace(10.5, 13.5, 100.)
-        lat = num.linspace(44.0, 46.0, 100.)
+        lon = num.linspace(10.5, 13.5, 100)
+        lat = num.linspace(44.0, 46.0, 100)
 
         Lon, Lat = num.meshgrid(lon, lat)
         reference = ReferenceLocation(
@@ -172,11 +173,11 @@ class TestInterseismic(unittest.TestCase):
             [-40.33431624537931, 27.59254158624030, 0.]) / km
         v2_ref = num.array(
             [35.47707891158412, -27.93047805570016, 0.]) / km
-        v1 = interseismic.velocities_from_pole(
+        v1 = velocities_from_pole(
             37., -123., 48.7, -78.2, 0.78).ravel()
         from time import time
         t2 = time()
-        v2 = interseismic.velocities_from_pole(
+        v2 = velocities_from_pole(
             34.75, -116.5, 48.7, -78.2, -0.78).ravel()
         t3 = time()
         assert_allclose(v1, v1_ref, atol=1e-3, rtol=0.)
@@ -184,13 +185,37 @@ class TestInterseismic(unittest.TestCase):
 
         logger.info('One point %f' % (t3-t2))
         t0 = time()
-        v3 = interseismic.velocities_from_pole(
+        v3 = velocities_from_pole(
             [37., 37.1], [-123., -125.5], 48.7, -78.2, 0.78)
         t1 = time()
 
         logger.info('Two points %f' % (t1 - t0))
         assert v3.shape == (2, 3)
         assert_allclose(v3[0, :], v1_ref, atol=1e-3, rtol=0.)
+
+    def test_velocities_from_strain_rate_tensor(self):
+
+        nanostrain = 1e-9
+        lats_vec = num.linspace(37., 37.5, 5)
+        lons_vec = num.linspace(-122., -121., 5)
+        eps_xx = 0.  # nanostrain South Bay Block from Jolivet et al. 2015
+        eps_yy = 58 #- 115.
+        eps_xy = 0 #- 58.
+        rotation = 0  #1009.5  # mm/ ( yr * km)
+
+        lons, lats = num.meshgrid(lons_vec, lats_vec)
+        print(lats, lons)
+
+        v_x, v_y, v_z = velocities_from_strain_rate_tensor(
+            lats.ravel(), lons.ravel(), eps_xx, eps_yy, eps_xy, rotation).T
+
+        print('vmagn', num.sqrt(v_x ** 2 + v_y ** 2))
+        from matplotlib import pyplot as plt
+
+        fig, axs = plt.subplots(1, 1)
+        axs.quiver(lons, lats, v_x, v_y)
+        plt.show()
+        print(v_z)
 
 
 if __name__ == '__main__':

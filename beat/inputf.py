@@ -122,6 +122,7 @@ def load_kite_scenes(datadir, names):
     for k in names:
         filepath = os.path.join(datadir, k)
         try:
+            logger.info('Loading scene: %s' % k)
             sc = Scene.load(filepath)
             diffgs.append(heart.DiffIFG.from_kite_scene(sc))
 

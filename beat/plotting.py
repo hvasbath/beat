@@ -10,7 +10,7 @@ from beat import utility
 from beat.models import Stage, load_stage
 from beat.sampler.metropolis import get_trace_stats
 from beat.heart import (init_seismic_targets, init_geodetic_targets,
-                        physical_bounds)
+                        physical_bounds, StrainRateTensor)
 from beat.config import ffi_mode_str, geometry_mode_str, dist_vars
 
 from matplotlib import pyplot as plt
@@ -56,6 +56,7 @@ u_v = '$[m^3]$'
 u_s = '$[s]$'
 u_rad = '$[rad]$'
 u_hyp = ''
+u_nanostrain = 'nstrain'
 
 plot_units = {
     'east_shift': u_km,
@@ -101,6 +102,11 @@ plot_units = {
     'mnd': u_nm,
     'med': u_nm,
     'magnitude': u_hyp,
+
+    'eps_xx': u_nanostrain,
+    'eps_yy': u_nanostrain,
+    'eps_xy': u_nanostrain,
+    'rotation': u_nanostrain,
 
     'pole_lat': u_deg,
     'pole_lon': u_deg,
@@ -734,6 +740,11 @@ def set_anchor(sources, anchor):
         source.anchor = anchor
 
 
+def get_gmt_colorstring_from_mpl(i):
+    color = (num.array(mpl_graph_color(i)) * 255).tolist()
+    return utility.list2string(color, '/')
+
+
 def gnss_fits(problem, stage, plot_options):
 
     from pyrocko import automap
@@ -925,6 +936,27 @@ def gnss_fits(problem, stage, plot_options):
                     t=70,
                     *m.jxyr)
 
+        if dataset:
+            # plot strain rate tensor
+            from beat.models import corrections
+            for i, corr in enumerate(dataset.corrections):
+
+                if isinstance(corr, corrections.StrainRateCorrection):
+                    lats, lons = corr.get_station_coordinates()
+                    mid_lat, mid_lon = otd.geographic_midpoint(lats, lons)
+                    corr_point = corr.get_point_rvs(point)
+                    srt = StrainRateTensor.from_point(corr_point)
+                    in_rows = [(
+                        mid_lon, mid_lat, srt.eps1, srt.eps2, srt.azimuth)]
+
+                    color_str = get_gmt_colorstring_from_mpl(i)
+                    m.gmt.psvelo(
+                        in_rows=in_rows,
+                        S='x%f' % offset_scale,
+                        A='9p+g%s+p1p' % color_str,
+                        W=color_str,
+                        *m.jxyr)
+
         figs.append(m)
 
     return figs
@@ -987,6 +1019,7 @@ def scene_fits(problem, stage, plot_options):
     """
     from pyrocko.dataset import gshhg
     from kite.scene import Scene, UserIOWarning
+    from beat.colormap import roma_colormap
     import gc
 
     try:
@@ -1002,7 +1035,9 @@ def scene_fits(problem, stage, plot_options):
     fontsize_title = 12
     ndmax = 3
     nxmax = 3
-    cmap = plt.cm.jet
+    # cmap = plt.cm.jet
+    # cmap = roma_colormap(256)
+    cmap = plt.cm.RdYlBu
 
     po = plot_options
 
@@ -4572,6 +4607,169 @@ def draw_station_map_gmt(problem, po):
             logger.info('Plot exists! Use --force to overwrite!')
 
 
+def draw_3d_slip_distribution(problem, po):
+
+    if po.outformat == 'svg':
+        raise NotImplementedError('SVG format is not supported for this plot!')
+
+    mode = problem.config.problem_config.mode
+
+    if mode != ffi_mode_str:
+        raise ModeError(
+            'Wrong optimization mode: %s! This plot '
+            'variant is only valid for "%s" mode' % (mode, ffi_mode_str))
+
+    if po.load_stage is None:
+        po.load_stage = -1
+
+    stage = load_stage(
+        problem, stage_number=po.load_stage, load='trace', chains=[-1])
+
+    if not po.reference:
+        reference = problem.config.problem_config.get_test_point()
+        res_point = get_result_point(stage, problem.config, po.post_llk)
+        reference.update(res_point)
+        llk_str = po.post_llk
+        mtrace = stage.mtrace
+    else:
+        reference = po.reference
+        llk_str = 'ref'
+        mtrace = None
+
+    datatype, gc = list(problem.composites.items())[0]
+
+    fault = gc.load_fault_geometry()
+
+    outpath = os.path.join(
+        problem.outfolder,
+        po.figure_dir,
+        '3d_slip_distribution_%i_%s_%i.%s' % (
+            po.load_stage, llk_str, po.nensemble, po.outformat))
+
+    if po.plot_projection in ['local', 'latlon']:
+        perspective = '135/30'
+    else:
+        perspective = po.plot_projection
+
+    if not os.path.exists(outpath) or po.force or po.outformat == 'display':
+        logger.info('Drawing 3d slip-distribution plot ...')
+        gmt = slip_distribution_3d_gmt(fault, reference, mtrace, perspective)
+
+        logger.info('saving figure to %s' % outpath)
+        gmt.save(outpath, resolution=300, size=10)
+    else:
+        logger.info('Plot exists! Use --force to overwrite!')
+
+
+def slip_distribution_3d_gmt(fault, reference, mtrace=None, perspective='135/30'):
+
+    from pyrocko import gmtpy
+
+    if len(gmtpy.detect_gmt_installations()) < 1:
+        raise gmtpy.GmtPyError(
+            'GMT needs to be installed for station_map plot!')
+
+    font_size = 12
+    font = '1'
+    bin_width = 1  # major grid and tick increment in [deg]
+    h = 15  # outsize in cm
+    w = 20
+
+    p = 'z%s/0' % perspective
+
+    gmtconfig = get_gmt_config(gmtpy, h=h, w=h)
+
+    gmt = gmtpy.GMT(config=gmtconfig)
+
+    sf_lonlats = num.vstack(
+        [sf.outline(cs='lonlat') for sf in fault.iter_subfaults()])
+
+    sf_xyzs = num.vstack(
+        [sf.outline(cs='xyz') for sf in fault.iter_subfaults()])
+    _, _, max_depth = sf_xyzs.max(axis=0) / km
+
+    lon_min, lat_min = sf_lonlats.min(axis=0)
+    lon_max, lat_max = sf_lonlats.max(axis=0)
+
+    lon_tolerance = 0.2
+    lat_tolerance = 0.3
+
+    R = utility.list2string(
+        [lon_min - lon_tolerance,
+         lon_max + lon_tolerance,
+         lat_min - lat_tolerance,
+         lat_max + lat_tolerance,
+         -max_depth, 0], '/')
+    Jg = '-JM%gc' % 10
+    Jz = '-JZ%gc' % 4
+    J = [Jg, Jz]
+    B = ['-Bxa%i' % bin_width, '-Bya%i' % bin_width, '-Bza10+Ldepth [km]']
+    args = J + B
+
+    gmt.psbasemap(
+        R=R,
+        p=p,
+        *args)
+    gmt.pscoast(
+        R=R,
+        D='a',
+        G='darkgrey',
+        p=p,
+        *J)
+
+    reference_slips = num.sqrt(
+        reference['uperp'] ** 2 + reference['uparr'] ** 2)
+
+    autos = AutoScaler(snap='on', approx_ticks=3)
+
+    cmin, cmax, cinc = autos.make_scale(
+        (0, reference_slips.max()), override_mode='min-max')
+
+    cptfilepath = '/tmp/tempfile.cpt'
+    gmt.makecpt(
+        C='white,yellow,orange,red,magenta,violet',
+        Z=True, D=True,
+        T='%f/%f' % (cmin, cmax),
+        out_filename=cptfilepath, suppress_defaults=True)
+
+    tmp_patch_fname = '/tmp/temp_patch.txt'
+    for idx in range(fault.nsubfaults):
+        slips = fault.vector2subfault(index=idx, vector=reference_slips)
+        for i, source in enumerate(fault.get_subfault_patches(idx)):
+            lonlats = source.outline(cs='lonlat')
+            xyzs = source.outline(cs='xyz') / km
+            depths = xyzs[:, 2] * -1.  # make depths negative
+            in_rows = num.hstack((lonlats, num.atleast_2d(depths).T))
+
+            num.savetxt(
+                tmp_patch_fname,
+                in_rows,
+                header='> -Z%f' % slips[i],
+                comments='')
+
+            gmt.psxyz(
+                tmp_patch_fname,
+                R=R,
+                C=cptfilepath,
+                L=True,
+                W='0.1p',
+                p=p,
+                *J)
+
+    # add a colorbar
+    D = 'x1.5c/0c+w6c/0.5c+jMC+h'
+    F = False
+
+    gmt.psscale(
+        B='xa%f +l slip [m]' % cinc,
+        D=D,
+        F=F,
+        C=cptfilepath,
+        finish=True)
+
+    return gmt
+
+
 def draw_lune_plot(problem, po):
 
     if po.outformat == 'svg':
@@ -4864,6 +5062,7 @@ plots_catalog = {
     'gnss_fits': draw_gnss_fits,
     'velocity_models': draw_earthmodels,
     'slip_distribution': draw_slip_dist,
+    'slip_distribution_3d': draw_3d_slip_distribution,
     'hudson': draw_hudson,
     'lune': draw_lune_plot,
     'fuzzy_beachball': draw_fuzzy_beachball,
@@ -4873,13 +5072,16 @@ plots_catalog = {
 
 
 common_plots = [
-    'stage_posteriors',
-    'velocity_models']
+    'stage_posteriors',]
 
 
 seismic_plots = [
     'station_map',
-    'waveform_fits']
+    'waveform_fits',
+    'fuzzy_mt_decomp',
+    'hudson',
+    'lune',
+    'fuzzy_beachball']
 
 
 geodetic_plots = [
@@ -4889,9 +5091,7 @@ geodetic_plots = [
 
 geometry_plots = [
     'correlation_hist',
-    'hudson',
-    'lune',
-    'fuzzy_beachball']
+    'velocity_models']
 
 
 ffi_plots = [

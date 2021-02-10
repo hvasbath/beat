@@ -283,7 +283,8 @@ class GeodeticComposite(Composite):
         """
         hierarchicals = problem_config.hierarchicals
         self._hierarchicalnames = []
-        for corr in self.config.corrections_config.iter_corrections():
+        for number, corr in enumerate(
+                self.config.corrections_config.iter_corrections()):
             logger.info(
                 'Evaluating config for %s corrections '
                 'for datasets...' % corr.feature)
@@ -291,7 +292,7 @@ class GeodeticComposite(Composite):
                 for data in self.datasets:
                     if data.name in corr.dataset_names:
                         hierarchical_names = corr.get_hierarchical_names(
-                            name=data.name)
+                            name=data.name, number=number)
                     else:
                         hierarchical_names = []
 

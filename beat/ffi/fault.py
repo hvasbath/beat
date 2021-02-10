@@ -612,6 +612,7 @@ total number of patches: %i ''' % (
 
             patch_points = split_point(sf_point)
             assert len(patch_points) == len(sf_patches)
+
             for patch, patch_point in zip(sf_patches, patch_points):
                 update_source(patch, **patch_point)
 

@@ -544,16 +544,18 @@ class EulerPole(theano.Op):
         of Latitudes [deg] of points to be rotated
     lons : float, vector
         of Longitudes [deg] of points to be rotated
+    data_mask : bool, vector
+        of indexes to points to be masked
     """
 
-    __props__ = ('lats', 'lons', 'blacklist')
+    __props__ = ('lats', 'lons', 'data_mask')
 
     def __init__(
-            self, lats, lons, blacklist):
+            self, lats, lons, data_mask):
 
         self.lats = tuple(lats)
         self.lons = tuple(lons)
-        self.blacklist = tuple(blacklist)
+        self.data_mask = tuple(data_mask)
 
     def make_node(self, inputs):
         inlist = []
@@ -587,10 +589,88 @@ class EulerPole(theano.Op):
             num.array(self.lats), num.array(self.lons),
             pole_lat, pole_lon, omega)
 
-        if self.blacklist:
-            velocities[num.array(self.blacklist), :] = 0.
+        if self.data_mask:
+            velocities[num.array(self.data_mask), :] = 0.
 
         z[0] = velocities
 
     def infer_shape(self, node, input_shapes):
         return [(len(self.lats), 3)]
+
+
+class StrainRateTensor(theano.Op):
+    """
+    TheanoOp for internal block deformation through 2d area strain rate tensor.
+
+    Parameters
+    ----------
+    lats : float, vector
+        of Latitudes [deg] of points to be strained
+    lons : float, vector
+        of Longitudes [deg] of points to be strained
+    data_mask : bool, vector
+        of indexes to points to be masked
+    """
+
+    __props__ = ('lats', 'lons', 'data_mask')
+
+    def __init__(
+            self, lats, lons, data_mask):
+
+        self.lats = tuple(lats)
+        self.lons = tuple(lons)
+        self.data_mask = tuple(data_mask)
+        self.ndata = len(self.lats)
+
+        station_idxs = [
+            station_idx for station_idx in range(
+                self.ndata) if station_idx not in data_mask]
+
+        self.station_idxs = tuple(station_idxs)
+
+    def make_node(self, inputs):
+        inlist = []
+
+        self.fixed_values = OrderedDict()
+        self.varnames = []
+
+        for k, v in inputs.items():
+            varname = k.split('_')[-1]   # split of dataset naming
+            if isinstance(v, FreeRV):
+                self.varnames.append(varname)
+                inlist.append(tt.as_tensor_variable(v))
+            else:
+                self.fixed_values[varname] = v
+
+        outv = tt.as_tensor_variable(num.zeros((2, 2)))
+        outlist = [outv.type()]
+        return theano.Apply(self, inlist, outlist)
+
+    def perform(self, node, inputs, output):
+
+        z = output[0]
+
+        point = {vname: i for vname, i in zip(self.varnames, inputs)}
+        point.update(self.fixed_values)
+
+        exx = point['exx']    # tensor params
+        eyy = point['eyy']
+        exy = point['exy']
+        rotation = point['rotation']
+
+        valid = num.array(self.station_idxs)
+
+        v_xyz = heart.velocities_from_strain_rate_tensor(
+            num.array(self.lats)[valid],
+            num.array(self.lons)[valid],
+            exx=exx,
+            eyy=eyy,
+            exy=exy,
+            rotation=rotation)
+
+        v_xyz_all = num.zeros((self.ndata, 3))
+        v_xyz_all[valid, :] = v_xyz
+        z[0] = v_xyz_all
+
+    def infer_shape(self, node, input_shapes):
+        return [(self.ndata, 3)]

@@ -36,6 +36,8 @@ km = 1000.
 d2r = num.pi / 180.
 r2d = 180. / num.pi
 near_field_threshold = 9.  # [deg] below that surface waves are calculated
+nanostrain = 1e-9
+
 
 lambda_sensors = {
     'Envisat': 0.056,       # needs updating- no ressource file
@@ -495,6 +497,11 @@ physical_bounds = dict(
     mnd=(-1., 1.),
     med=(-1., 1.),
 
+    exx=(-500., 500.),
+    eyy=(-500., 500.),
+    exy=(-500., 500.),
+    rotation=(-500., 500.),
+
     w=(-3. / 8. * num.pi, 3. / 8. * num.pi),
     v=(-1. / 3, 1. / 3.),
     kappa=(0., 2 * num.pi),
@@ -762,7 +769,7 @@ class GeodeticDataset(gf.meta.MultiLocation):
         """
         self.corrections = []
         self.update_local_coords(event)
-        for corr_conf in correction_configs:
+        for number, corr_conf in enumerate(correction_configs):
             corr = corr_conf.init_correction()
             if self.name in corr_conf.dataset_names and corr_conf.enabled:
                 logger.info(
@@ -773,12 +780,12 @@ class GeodeticDataset(gf.meta.MultiLocation):
                 locx = getattr(self, locx_name)
                 locy = getattr(self, locy_name)
 
-                blacklist = self.get_blacklist(corr_conf)
+                data_mask = self.get_data_mask(corr_conf)
 
                 corr.setup_correction(
                     locy=locy, locx=locx, los_vector=self.los_vector,
-                    blacklist=blacklist,
-                    dataset_name=self.name)
+                    data_mask=data_mask,
+                    dataset_name=self.name, number=number)
                 self.corrections.append(corr)
                 self.has_correction = True
             else:
@@ -907,16 +914,27 @@ class GNSSCompoundComponent(GeodeticDataset):
 
         return scene
 
-    def get_blacklist(self, corr_config):
+    def get_data_mask(self, corr_config):
         s2idx = self.station_name_index_mapping()
+
+        if len(corr_config.station_whitelist) > 0 and \
+                len(corr_config.station_blacklist) > 0:
+            raise ValueError('Either White or Blacklist can be defined!')
+
         station_blacklist_idxs = []
-        for code in corr_config.station_blacklist:
-            try:
-                station_blacklist_idxs.append(s2idx[code])
-            except KeyError:
-                logger.warning(
-                    'Blacklisted station %s not in dataset,'
-                    ' skipping ...' % code)
+        if corr_config.station_blacklist:
+            for code in corr_config.station_blacklist:
+                try:
+                    station_blacklist_idxs.append(s2idx[code])
+                except KeyError:
+                    logger.warning(
+                        'Blacklisted station %s not in dataset,'
+                        ' skipping ...' % code)
+
+        elif corr_config.station_whitelist:
+            for station_name in s2idx.keys():
+                if station_name not in corr_config.station_whitelist:
+                    station_blacklist_idxs.append(s2idx[station_name])
 
         logger.info(
             'Stations with idxs %s got blacklisted!' %
@@ -1147,9 +1165,9 @@ class DiffIFG(IFG):
             mask=mask)
         return cls(**d)
 
-    def get_blacklist(self, corr_conf):
+    def get_data_mask(self, corr_conf):
         """
-        Extracts mask from kite scene and returns blacklist indexes-
+        Extracts mask from kite scene and returns mask indexes-
         maybe during import?!!!
         """
         if corr_conf.feature == 'Euler Pole':
@@ -3229,7 +3247,7 @@ def taper_filter_traces(
 
 
 def velocities_from_pole(
-        lats, lons, plat, plon, omega, earth_shape='ellipsoid'):
+        lats, lons, pole_lat, pole_lon, omega, earth_shape='ellipsoid'):
     """
     Return horizontal velocities at input locations for rotation around
     given Euler pole
@@ -3266,7 +3284,7 @@ def velocities_from_pole(
     npoints = lats.size
     if earth_shape == 'sphere':
         latlons = num.atleast_2d(num.vstack([lats, lons]).T)
-        platlons = num.hstack([plat, plon])
+        platlons = num.hstack([pole_lat, pole_lon])
         xyz_points = orthodrome.latlon_to_xyz(latlons)
         xyz_pole = orthodrome.latlon_to_xyz(platlons)
 
@@ -3274,7 +3292,7 @@ def velocities_from_pole(
         xyz = orthodrome.geodetic_to_ecef(lats, lons, num.zeros_like(lats))
         xyz_points = num.atleast_2d(num.vstack(xyz).T) / r_earth
         xyz_pole = num.hstack(
-            orthodrome.geodetic_to_ecef(plat, plon, 0.)) / r_earth
+            orthodrome.geodetic_to_ecef(pole_lat, pole_lon, 0.)) / r_earth
 
     omega_rad_yr = omega * 1e-6 * d2r * r_earth
     xyz_poles = num.tile(xyz_pole, npoints).reshape(npoints, 3)
@@ -3284,6 +3302,98 @@ def velocities_from_pole(
 
     T = cartesian_to_local(lats, lons)
     return num.einsum('ijk->ik', T * vels_cartesian.T).T
+
+
+class StrainRateTensor(Object):
+
+    exx = Float.T(default=10)
+    eyy = Float.T(default=0)
+    exy = Float.T(default=0)
+    rotation = Float.T(default=0)
+
+    def from_point(point):
+        kwargs = {varname: float(rv) for varname, rv in point.items()}
+        return StrainRateTensor(**kwargs)
+
+    @property
+    def m4(self):
+        return num.array([
+            [self.exx, 0.5 * (self.exy + self.rotation)],
+            [0.5 * (self.exy - self.rotation), self.eyy]])
+
+    @property
+    def shear_strain_rate(self):
+        return float(
+            0.5 * num.sqrt((self.exx - self.eyy) ** 2 + 4 * self.exy ** 2))
+
+    @property
+    def eps1(self):
+        """
+        Maximum extension eigenvalue of strain rate tensor, extension positive.
+        """
+        return float(0.5 * (self.exx + self.eyy) + self.shear_strain_rate)
+
+    @property
+    def eps2(self):
+        """
+        Maximum compression eigenvalue of strain rate tensor,
+        extension positive.
+        """
+        return float(0.5 * (self.exx + self.eyy) - self.shear_strain_rate)
+
+    @property
+    def azimuth(self):
+        """
+        Direction of eps2 compared towards North [deg].
+        """
+        return float(
+            0.5 * r2d * num.arctan(2 * self.exy / (self.exx - self.exy)))
+
+
+def velocities_from_strain_rate_tensor(
+        lats, lons, exx=0., eyy=0., exy=0., rotation=0.):
+    """
+    Get velocities [m] from 2d area strain rate tensor.
+
+    Geographic coordinates are reprojected internally wrt. the centroid of the
+    input locations.
+
+    Parameters
+    ----------
+    lats : array-like :class:`numpy.ndarray
+        geographic latitudes in [deg]
+    lons : array-like :class:`numpy.ndarray
+        geographic longitudes in [deg]
+    exx : float
+        component of the 2d area strain-rate tensor [nanostrain] x-North
+    eyy : float
+        component of the 2d area strain-rate tensor [nanostrain] y-East
+    exy : float
+        component of the 2d area strain-rate tensor [nanostrain]
+    rotation : float
+        clockwise rotation rate around the centroid of input locations
+
+    Returns
+    -------
+    v_xyz: 2d array-like :class:`numpy.ndarray
+        Deformation rate in [m] in x - East, y - North, z - Up Direction
+    """
+
+    D = num.array([
+        [float(exx), 0.5 * float(exy + rotation)],
+        [0.5 * float(exy - rotation), float(eyy)]]) * nanostrain
+
+    mid_lat, mid_lon = orthodrome.geographic_midpoint(lats, lons)
+    norths, easts = orthodrome.latlon_to_ne_numpy(mid_lat, mid_lon, lats, lons)
+
+    nes = num.atleast_2d(num.vstack([norths, easts]))
+
+    v_x, v_y = D.dot(nes)
+
+    v_xyz = num.zeros((lats.size, 3))
+    v_xyz[:, 0] = v_x
+    v_xyz[:, 1] = v_y
+    return v_xyz
 
 
 def get_ramp_displacement(locx, locy, azimuth_ramp, range_ramp, offset):

@@ -145,6 +145,11 @@ default_bounds = dict(
     mnd=moffdiag,
     med=moffdiag,
 
+    exx=(-200., 200.),
+    eyy=(-200., 200.),
+    exy=(-200., 200.),
+    rotation=(-200., 200.),
+
     w=(-3. / 8. * num.pi, 3. / 8. * num.pi),
     v=(-1. / 3, 1. / 3.),
     kappa=(0., 2 * num.pi),
@@ -696,10 +701,6 @@ class CorrectionConfig(Object):
         String.T(),
         default=[],
         help='Datasets to include in the correction.')
-    station_blacklist = List.T(
-        String.T(),
-        default=[],
-        help='GNSS station names to apply no correction.')
     enabled = Bool.T(
         default=False,
         help='Flag to enable Correction.')
@@ -723,7 +724,23 @@ class CorrectionConfig(Object):
                 'filled!' % self.feature)
 
 
-class EulerPoleConfig(CorrectionConfig):
+class GNSSCorrectionConfig(CorrectionConfig):
+
+    station_blacklist = List.T(
+        String.T(),
+        default=[],
+        help='GNSS station names to apply no correction.')
+    station_whitelist = List.T(
+        String.T(),
+        default=[],
+        help='GNSS station names to apply the correction.')
+
+    def get_hierarchical_names(self, name=None, number=0):
+        return [
+            '{}_{}'.format(number, suffix) for suffix in self.get_suffixes()]
+
+
+class EulerPoleConfig(GNSSCorrectionConfig):
 
     @property
     def _suffixes(self):
@@ -733,15 +750,26 @@ class EulerPoleConfig(CorrectionConfig):
     def feature(self):
         return 'Euler Pole'
 
-    def get_hierarchical_names(self, name=None):
-        # TODO include number for multiple Euler Poles?
-        return [
-            '{}'.format(suffix) for suffix in self.get_suffixes()]
-
     def init_correction(self):
         from beat.models.corrections import EulerPoleCorrection
         self.check_consistency()
         return EulerPoleCorrection(self)
+
+
+class StrainRateConfig(GNSSCorrectionConfig):
+
+    @property
+    def _suffixes(self):
+        return ['exx', 'eyy', 'exy', 'rotation']
+
+    @property
+    def feature(self):
+        return 'Strain Rate'
+
+    def init_correction(self):
+        from beat.models.corrections import StrainRateCorrection
+        self.check_consistency()
+        return StrainRateCorrection(self)
 
 
 class RampConfig(CorrectionConfig):
@@ -754,7 +782,7 @@ class RampConfig(CorrectionConfig):
     def feature(self):
         return 'Ramps'
 
-    def get_hierarchical_names(self, name):
+    def get_hierarchical_names(self, name, number=0):
         return ['{}_{}'.format(name, suffix) for suffix in self.get_suffixes()
                 if name in self.dataset_names]
 
@@ -768,11 +796,23 @@ class GeodeticCorrectionsConfig(Object):
     """
     Config for corrections to geodetic datasets.
     """
-    euler_pole = EulerPoleConfig.T(default=EulerPoleConfig.D())
+    euler_poles = List.T(
+        EulerPoleConfig.T(),
+        default=[EulerPoleConfig.D()])
     ramp = RampConfig.T(default=RampConfig.D())
+    strain_rates = List.T(
+        StrainRateConfig.T(), default=[StrainRateConfig.D()])
 
     def iter_corrections(self):
-        return [self.euler_pole, self.ramp]
+        out_corr = [self.ramp]
+
+        for euler_pole_conf in self.euler_poles:
+            out_corr.append(euler_pole_conf)
+
+        for strain_conf in self.strain_rates:
+            out_corr.append(strain_conf)
+
+        return out_corr
 
     @property
     def has_enabled_corrections(self):
@@ -881,12 +921,13 @@ class GeodeticConfig(Object):
     def get_hierarchical_names(self, datasets=None):
 
         out_names = []
-        for corr_conf in self.corrections_config.iter_corrections():
+        for number, corr_conf in enumerate(
+                self.corrections_config.iter_corrections()):
             if corr_conf.enabled:
                 for dataset in datasets:
                     if dataset.name in corr_conf.dataset_names:
                         hiernames = corr_conf.get_hierarchical_names(
-                            name=dataset.name)
+                            name=dataset.name, number=number)
 
                         out_names.extend(hiernames)
 
