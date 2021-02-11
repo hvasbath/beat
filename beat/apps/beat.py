@@ -15,7 +15,7 @@ from optparse import OptionParser
 
 from beat import heart, utility, inputf, plotting, config as bconfig
 from beat.info import version
-from beat.config import ffi_mode_str, geometry_mode_str
+from beat.config import ffi_mode_str, geometry_mode_str, dist_vars
 from beat.models import load_model, Stage, estimate_hypers, sample
 from beat.backend import backend_catalog, extract_bounds_from_summary, \
                          thin_buffer
@@ -581,8 +581,8 @@ def command_import(args):
             logger.info('seismic datatype not listed-not importing ...')
 
         if options.mode == ffi_mode_str:
+            n_sources = problem.config.problem_config.n_sources
             if options.import_from_mode == geometry_mode_str:
-                n_sources = problem.config.problem_config.n_sources
                 logger.info('Importing non-linear source geometry results!')
 
                 for param in list(point.keys()):
@@ -616,14 +616,19 @@ def command_import(args):
                         new_bounds, attribute='priors')
 
             elif options.import_from_mode == ffi_mode_str:
-                npatches = problem.config.problem_config.mode_config.npatches
+                n_patches = problem.config.problem_config.mode_config.npatches
                 logger.info(
-                    'Importing linear static distributed slip results!')
+                    'Importing distributed slip results!')
 
                 new_bounds = {}
                 for param in source_params:
+                    if param in dist_vars:
+                        shape = (n_patches,)
+                    else:
+                        shape = (n_sources,)
+
                     new_bounds[param] = extract_bounds_from_summary(
-                        summarydf, varname=param, shape=(npatches,), roundto=1)
+                        summarydf, varname=param, shape=shape, roundto=1)
                     new_bounds[param].append(point[param])
 
                 c.problem_config.set_vars(
@@ -642,6 +647,7 @@ def command_import(args):
 
                 new_bounds = {}
                 for param in common_source_params:
+
                     new_bounds[param] = extract_bounds_from_summary(
                         summarydf, varname=param,
                         shape=(n_sources,), roundto=0)
