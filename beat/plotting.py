@@ -1037,7 +1037,7 @@ def scene_fits(problem, stage, plot_options):
     nxmax = 3
     # cmap = plt.cm.jet
     # cmap = roma_colormap(256)
-    cmap = plt.cm.RdYlBu
+    cmap = plt.cm.RdYlBu_r
 
     po = plot_options
 
@@ -1224,6 +1224,10 @@ def scene_fits(problem, stage, plot_options):
 
     def add_arrow(ax, scene):
         phi = num.nanmean(scene.phi)
+        theta = num.nanmean(scene.theta)
+        if theta == 0.:     # MAI / az offsets
+            phi -= num.pi
+
         los_dx = num.cos(phi + num.pi) * .0625
         los_dy = num.sin(phi + num.pi) * .0625
 
@@ -1233,14 +1237,15 @@ def scene_fits(problem, stage, plot_options):
         anchor_x = .9 if los_dx < 0 else .1
         anchor_y = .85 if los_dx < 0 else .975
 
-        az_arrow = FancyArrow(
-            x=anchor_x - az_dx, y=anchor_y - az_dy,
-            dx=az_dx, dy=az_dy,
-            head_width=.025,
-            alpha=.5, fc='k',
-            head_starts_at_zero=False,
-            length_includes_head=True,
-            transform=ax.transAxes)
+        if theta > 0.:     # MAI / az offsets
+            az_arrow = FancyArrow(
+                x=anchor_x - az_dx, y=anchor_y - az_dy,
+                dx=az_dx, dy=az_dy,
+                head_width=.025,
+                alpha=.5, fc='k',
+                head_starts_at_zero=False,
+                length_includes_head=True,
+                transform=ax.transAxes)
 
         los_arrow = FancyArrow(
             x=anchor_x - az_dx / 2, y=anchor_y - az_dy / 2,
