@@ -1246,6 +1246,7 @@ def scene_fits(problem, stage, plot_options):
                 head_starts_at_zero=False,
                 length_includes_head=True,
                 transform=ax.transAxes)
+            ax.add_artist(az_arrow)
 
         los_arrow = FancyArrow(
             x=anchor_x - az_dx / 2, y=anchor_y - az_dy / 2,
@@ -1256,7 +1257,6 @@ def scene_fits(problem, stage, plot_options):
             length_includes_head=True,
             transform=ax.transAxes)
 
-        ax.add_artist(az_arrow)
         ax.add_artist(los_arrow)
 
     def draw_leaves(ax, scene, offset_e=0, offset_n=0):
