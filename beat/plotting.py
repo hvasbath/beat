@@ -1540,7 +1540,7 @@ def draw_gnss_fits(problem, plot_options):
         raise TypeError('No geodetic composite defined in the problem!')
 
     if 'GNSS' not in problem.config.geodetic_config.types:
-        raise TypeError('There is no SAR data in the problem setup!')
+        raise TypeError('There is no GNSS data in the problem setup!')
 
     logger.info('Drawing GNSS misfits ...')
 

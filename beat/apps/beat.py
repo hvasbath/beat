@@ -951,6 +951,10 @@ def command_summarize(args):
             help='Overwrite existing files')
 
         parser.add_option(
+            '--calc_derived', dest='calc_derived', action='store_true',
+            help='Calculate derived variables (e.g. alternative MT params)')
+
+        parser.add_option(
             '--stage_number',
             dest='stage_number',
             type='int',
@@ -1035,8 +1039,11 @@ def command_summarize(args):
                 stage_path, model=problem.model, buffer_size=sc.buffer_size,
                 progressbar=False)
             pc = problem.config.problem_config
-            rtrace.add_derived_variables(
-                pc.source_type, n_sources=pc.n_sources)
+
+            if options.calc_derived:
+                rtrace.add_derived_variables(
+                    pc.source_type, n_sources=pc.n_sources)
+
             rtrace.setup(
                 draws=draws, chain=-1, overwrite=True)
 
@@ -1060,7 +1067,6 @@ def command_summarize(args):
                     # normalize MT source, TODO put into get_derived_params
                     if isinstance(source, MTSourceWithMagnitude):
                         ldicts = []
-                        derived = []
                         for source in sources:
                             ldicts.append(source.scaled_m6_dict)
 
@@ -1069,27 +1075,30 @@ def command_summarize(args):
                         del jpoint, ldicts
 
                     derived = []
-                    # BEAT sources
-                    if hasattr(source, 'get_derived_parameters'):
-                        for source in sources:
-                            derived.append(
-                                source.get_derived_parameters(
-                                    store=store, target=target))
-                            nderived = source.nderived_parameters
+                    # BEAT sources calculate derived params
+                    if options.calc_derived:
+                        if hasattr(source, 'get_derived_parameters'):
+                            for source in sources:
+                                derived.append(
+                                    source.get_derived_parameters(
+                                        store=store, target=target))
+                                nderived = source.nderived_parameters
 
-                    # pyrocko Rectangular source, TODO use BEAT RS ...
-                    elif isinstance(source, RectangularSource):
-                        for source in sources:
-                            source.magnitude = None
+                        # pyrocko Rectangular source, TODO use BEAT RS ...
+                        elif isinstance(source, RectangularSource):
+                            for source in sources:
+                                source.magnitude = None
+                                derived.append(
+                                    source.get_magnitude(
+                                        store=store, target=target))
+
+                            nderived = 1
+
+                        # FFI
+                        else:
                             derived.append(
                                 source.get_magnitude(
-                                    store=store, target=target))
-
-                        nderived = 1
-
-                    # FFI
-                    else:
-                        pass
+                                    point=point, store=store, target=target))
 
                     lpoint = problem.model.lijection.d2l(point)
                     if derived:
