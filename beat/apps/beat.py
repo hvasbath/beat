@@ -1058,7 +1058,10 @@ def command_summarize(args):
                 sources = composite.sources
                 store = composite.engine.get_store(target.store_id)
             else:
-                source = composite.fault
+                source = composite.load_fault_geometry()
+                engine = LocalEngine(
+                    store_superdirs=[composite.config.gf_config.store_superdir])
+                store = engine.get_store(target.store_id)
 
             for chain in tqdm(chains):
                 for idx in idxs:
@@ -1099,6 +1102,7 @@ def command_summarize(args):
                             derived.append(
                                 source.get_magnitude(
                                     point=point, store=store, target=target))
+                            nderived = 1
 
                     lpoint = problem.model.lijection.d2l(point)
                     if derived:

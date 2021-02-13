@@ -266,7 +266,6 @@ total number of patches: %i ''' % (
                 rs.update(slip=slips[i])
 
             pm = rs.get_moment(target=target, store=store)
-            print(i, pm, rs)
             moments.append(pm)
 
         return moments
