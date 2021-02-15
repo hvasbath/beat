@@ -1249,7 +1249,8 @@ def extract_variables_from_df(dataframe):
     return flat_names, var_shapes
 
 
-def extract_bounds_from_summary(summary, varname, shape, roundto=None):
+def extract_bounds_from_summary(
+        summary, varname, shape, roundto=None, alpha=0.01):
     """
     Extract lower and upper bound of random variable.
 
@@ -1262,8 +1263,8 @@ def extract_bounds_from_summary(summary, varname, shape, roundto=None):
         return value
 
     indexes = ttab.create_flat_names(varname, shape)
-    lower_quant = 'hpd_2.5'
-    upper_quant = 'hpd_97.5'
+    lower_quant = 'hpd_{0:g}'.format(100 * alpha / 2),
+    upper_quant = 'hpd_{0:g}'.format(100 * (1 - alpha / 2))
 
     bounds = []
     for quant in [lower_quant, upper_quant]:
