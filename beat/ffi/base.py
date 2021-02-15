@@ -1058,9 +1058,19 @@ def seis_construct_gf_linear(
     st_maxs = []
     for idx, sf in enumerate(fault.iter_subfaults()):
         npw, npl = fault.ordering.get_subfault_discretization(idx)
+        if velocities_prior.lower.size == 1:
+            rupture_velocities = velocities_prior.lower.repeat(npw * npl)
+        else:
+            try:
+                rupture_velocities = fault.vector2subfault(
+                    idx, velocities_prior.lower)
+            except(IndexError):
+                raise ValueError(
+                    'Velocities need to be of size either npatches or 1')
+
         start_times = fault.get_subfault_starttimes(
             index=idx,
-            rupture_velocities=velocities_prior.lower.repeat(npw * npl),
+            rupture_velocities=rupture_velocities,
             nuc_dip_idx=0, nuc_strike_idx=0)
         if time_shift is not None:
             shift_times_min = time_shift.lower.min()
