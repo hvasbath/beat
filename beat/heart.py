@@ -600,8 +600,9 @@ class Parameter(Object):
                 if self.testvalue[i] > self.upper[i] or \
                         self.testvalue[i] < self.lower[i]:
                     raise ValueError(
-                        'The testvalue of parameter "%s" has to'
-                        ' be within the upper and lower bounds' % self.name)
+                        'The testvalue of parameter "%s" at index "%i" has to'
+                        ' be within the upper and lower bounds, please adjust!'
+                        % (self.name, i))
 
                 if self.upper[i] > phys_b[1] or \
                         self.lower[i] < phys_b[0]:
