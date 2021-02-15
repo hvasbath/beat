@@ -1145,7 +1145,7 @@ def command_summarize(args):
 
         if not os.path.exists(summary_file) or options.force:
             logger.info('Writing summary to %s' % summary_file)
-            df = summary(rtrace, alpha=0.1)
+            df = summary(rtrace, alpha=0.01)
             with open(summary_file, 'w') as outfile:
                 df.to_string(outfile)
         else:
