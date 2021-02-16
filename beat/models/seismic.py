@@ -1337,3 +1337,12 @@ class SeismicDistributerComposite(SeismicComposite):
         if self.config.noise_estimator.structure == 'non-toeplitz':
             logger.info('Updating data-covariances ...')
             self.analyse_noise(point, chop_bounds=chop_bounds)
+
+        for wmap in self.wavemaps:
+            logger.info('Updating weights of wavemap %s' % wmap._mapid)
+            for i, dataset in enumerate(wmap.datasets):
+                choli = dataset.covariance.chol_inverse
+
+                # update shared variables
+                dataset.covariance.update_slog_pdet()
+                wmap.weights[i].set_value(choli)
