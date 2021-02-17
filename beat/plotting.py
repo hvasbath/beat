@@ -940,7 +940,7 @@ def gnss_fits(problem, stage, plot_options):
 
         if dataset:
             # plot strain rate tensor
-            if dataset.has_corrections:
+            if dataset.has_correction:
                 for i, corr in enumerate(dataset.corrections):
 
                     if isinstance(corr, StrainRateCorrection):
