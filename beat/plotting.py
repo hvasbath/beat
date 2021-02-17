@@ -8,6 +8,8 @@ import copy
 
 from beat import utility
 from beat.models import Stage, load_stage
+from beat.models.corrections import StrainRateCorrection
+
 from beat.sampler.metropolis import get_trace_stats
 from beat.heart import (init_seismic_targets, init_geodetic_targets,
                         physical_bounds, StrainRateTensor)
@@ -938,24 +940,24 @@ def gnss_fits(problem, stage, plot_options):
 
         if dataset:
             # plot strain rate tensor
-            from beat.models import corrections
-            for i, corr in enumerate(dataset.corrections):
+            if dataset.has_corrections:
+                for i, corr in enumerate(dataset.corrections):
 
-                if isinstance(corr, corrections.StrainRateCorrection):
-                    lats, lons = corr.get_station_coordinates()
-                    mid_lat, mid_lon = otd.geographic_midpoint(lats, lons)
-                    corr_point = corr.get_point_rvs(point)
-                    srt = StrainRateTensor.from_point(corr_point)
-                    in_rows = [(
-                        mid_lon, mid_lat, srt.eps1, srt.eps2, srt.azimuth)]
+                    if isinstance(corr, StrainRateCorrection):
+                        lats, lons = corr.get_station_coordinates()
+                        mid_lat, mid_lon = otd.geographic_midpoint(lats, lons)
+                        corr_point = corr.get_point_rvs(point)
+                        srt = StrainRateTensor.from_point(corr_point)
+                        in_rows = [(
+                            mid_lon, mid_lat, srt.eps1, srt.eps2, srt.azimuth)]
 
-                    color_str = get_gmt_colorstring_from_mpl(i)
-                    m.gmt.psvelo(
-                        in_rows=in_rows,
-                        S='x%f' % offset_scale,
-                        A='9p+g%s+p1p' % color_str,
-                        W=color_str,
-                        *m.jxyr)
+                        color_str = get_gmt_colorstring_from_mpl(i)
+                        m.gmt.psvelo(
+                            in_rows=in_rows,
+                            S='x%f' % offset_scale,
+                            A='9p+g%s+p1p' % color_str,
+                            W=color_str,
+                            *m.jxyr)
 
         figs.append(m)
 
