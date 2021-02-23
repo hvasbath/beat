@@ -46,7 +46,7 @@ km = 1000.
 __all__ = [
     'PlotOptions', 'correlation_plot', 'correlation_plot_hist',
     'get_result_point', 'seismic_fits', 'scene_fits', 'traceplot',
-    'select_transform', 'histplot_op']
+    'histplot_op']
 
 u_nm = '$[Nm]$'
 u_km = '$[km]$'
@@ -353,9 +353,18 @@ def correlation_plot(
 
     d = dict()
     for var in varnames:
-        d[var] = transform(
+        vals = transform(
             mtrace.get_values(
                 var, combine=True, squeeze=True))
+
+        _, nvar_elements = vals.shape
+
+        if nvar_elements > 1:
+            raise ValueError(
+                'Correlation plot can only be displayed for variables '
+                ' with size 1! %s is %i! ' % (var, nvar_elements))
+
+        d[var] = vals
 
     for k in range(nvar - 1):
         a = d[varnames[k]]
@@ -456,9 +465,18 @@ def correlation_plot_hist(
     d = dict()
 
     for var in varnames:
-        d[var] = transform(
+        vals = transform(
             mtrace.get_values(
                 var, chains=chains, combine=True, squeeze=True))
+
+        _, nvar_elements = vals.shape
+
+        if nvar_elements > 1:
+            raise ValueError(
+                'Correlation plot can only be displayed for variables '
+                ' with size 1! %s is %i! ' % (var, nvar_elements))
+
+        d[var] = vals
 
     hist_ylims = []
     for k in range(nvar):
@@ -637,28 +655,14 @@ def get_result_point(stage, config, point_llk='max'):
     dict
     """
     if point_llk != 'None':
-        sampler_name = config.sampler_config.name
-        if sampler_name == 'Metropolis':
-            if stage.step is None:
-                raise AttributeError(
-                    'Loading Metropolis results requires'
-                    ' sampler parameters to be loaded!')
+        llk = stage.mtrace.get_values(
+            varname='like',
+            combine=True)
 
-            sc = config.sampler_config.parameters
-            pdict, _ = get_trace_stats(
-                stage.mtrace, stage.step, sc.burn, sc.thin)
-            point = pdict[point_llk]
-        elif sampler_name == 'SMC' or sampler_name == 'PT':
-            llk = stage.mtrace.get_values(
-                varname='like',
-                combine=True)
+        posterior_idxs = utility.get_fit_indexes(llk)
 
-            posterior_idxs = utility.get_fit_indexes(llk)
+        point = stage.mtrace.point(idx=posterior_idxs[point_llk])
 
-            point = stage.mtrace.point(idx=posterior_idxs[point_llk])
-        else:
-            raise NotImplementedError(
-                'Sampler "%s" is not supported!' % config.sampler_config.name)
     else:
         point = None
 
@@ -3065,66 +3069,6 @@ def get_matplotlib_version():
     return float(mplversion[0]), float(mplversion[2:])
 
 
-def select_transform(sc, n_steps=None):
-    """
-    Select transform function to be applied after loading the sampling results.
-
-    Parameters
-    ----------
-    sc : :class:`config.SamplerConfig`
-        Name of the sampler that has been used in sampling the posterior pdf
-    n_steps : int
-        Number of chains to select last samples of each trace.
-
-    Returns
-    -------
-    func : instance
-    """
-
-    pa = sc.parameters
-
-    def last_sample(x):
-        return x[(n_steps - 1)::n_steps]
-
-    def burn_sample(x):
-        if n_steps == 1:
-            return x
-        else:
-            nchains = x.shape[0] // n_steps
-            xout = []
-            for i in range(nchains):
-                nstart = int((n_steps * i) + (n_steps * pa.burn))
-                nend = int(n_steps * (i + 1) - 1)
-                xout.append(x[nstart:nend:pa.thin])
-
-            return num.vstack(xout)
-
-    def standard(x):
-        return x
-
-    if n_steps is None:
-        return standard
-
-    if sc.name == 'SMC':
-        return last_sample
-    elif sc.name == 'Metropolis' or sc.name == 'PT':
-        return burn_sample
-
-
-def select_metropolis_chains(problem, mtrace, post_llk):
-    """
-    Select chains from Multitrace
-    """
-    draws = len(mtrace)
-
-    llks = num.array([mtrace.point(
-        draws - 1, chain)[
-            problem._like_name] for chain in mtrace.chains])
-
-    chain_idxs = utility.get_fit_indexes(llks)
-    return chain_idxs[post_llk]
-
-
 def draw_posteriors(problem, plot_options):
     """
     Identify which stage is the last complete stage and plot posteriors.
@@ -3155,15 +3099,6 @@ def draw_posteriors(problem, plot_options):
     figs = []
 
     for s in list_indexes:
-        if s == 0:
-            draws = 1
-        elif s == -1 and not hypers and sc.name == 'Metropolis':
-            draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
-        else:
-            draws = None
-
-        transform = select_transform(sc=sc, n_steps=draws)
-
         if po.source_idxs:
             sidxs = utility.list2string(po.source_idxs, fill='_')
         else:
@@ -3181,14 +3116,6 @@ def draw_posteriors(problem, plot_options):
                 model=problem.model, stage_number=s,
                 load='trace', chains=[-1])
 
-            if sc.name == 'Metropolis' and po.post_llk != 'all':
-                chains = select_metropolis_chains(
-                    problem, stage.mtrace, po.post_llk)
-                logger.info('plotting result: %s of Metropolis chain %i' % (
-                    po.post_llk, chains))
-            else:
-                chains = None
-
             prior_bounds = {}
             prior_bounds.update(**pc.hyperparameters)
             prior_bounds.update(**pc.hierarchicals)
@@ -3197,8 +3124,7 @@ def draw_posteriors(problem, plot_options):
             fig, _, _ = traceplot(
                 stage.mtrace,
                 varnames=varnames,
-                transform=transform,
-                chains=chains,
+                chains=None,
                 combined=True,
                 source_idxs=po.source_idxs,
                 plot_style='hist',
@@ -3255,22 +3181,8 @@ def draw_correlation_hist(problem, plot_options):
         raise TypeError('Need at least two parameters to compare!'
                         'Found only %i variables! ' % len(varnames))
 
-    if po.load_stage is None and not hypers and sc.name == 'Metropolis':
-        draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
-    else:
-        draws = None
-
-    transform = select_transform(sc=sc, n_steps=draws)
-
     stage = load_stage(
         problem, stage_number=po.load_stage, load='trace', chains=[-1])
-
-    if sc.name == 'Metropolis' and po.post_llk != 'all':
-        chains = select_metropolis_chains(problem, stage.mtrace, po.post_llk)
-        logger.info('plotting result: %s of Metropolis chain %i' % (
-            po.post_llk, chains))
-    else:
-        chains = None
 
     if not po.reference:
         reference = get_result_point(stage, problem.config, po.post_llk)
@@ -3287,9 +3199,8 @@ def draw_correlation_hist(problem, plot_options):
         fig, axs = correlation_plot_hist(
             mtrace=stage.mtrace,
             varnames=varnames,
-            transform=transform,
             cmap=plt.cm.gist_earth_r,
-            chains=chains,
+            chains=None,
             point=reference,
             point_size=6,
             point_color='red')
@@ -3876,12 +3787,6 @@ def draw_slip_dist(problem, po):
     fault = gc.load_fault_geometry()
 
     sc = problem.config.sampler_config
-    if po.load_stage is None and sc.name == 'Metropolis':
-        draws = sc.parameters.n_steps * (sc.parameters.n_stages - 1) + 1
-    else:
-        draws = None
-
-    transform = select_transform(sc=sc, n_steps=draws)
 
     stage = load_stage(
         problem, stage_number=po.load_stage, load='trace', chains=[-1])
@@ -3898,8 +3803,7 @@ def draw_slip_dist(problem, po):
         mtrace = None
 
     figs, axs = fault_slip_distribution(
-        fault, mtrace, transform=transform,
-        reference=reference, nensemble=po.nensemble)
+        fault, mtrace, reference=reference, nensemble=po.nensemble)
 
     if po.outformat == 'display':
         plt.show()

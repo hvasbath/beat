@@ -129,7 +129,8 @@ class Metropolis(backend.ArrayStepSharedLLK):
         # create initial population
         self.population = []
         self.array_population = num.zeros(n_chains)
-        logger.info('Creating initial population for {} chains ...'.format(self.n_chains))
+        logger.info('Creating initial population for {}'
+                    ' chains ...'.format(self.n_chains))
         for i in range(self.n_chains):
             self.population.append(
                 Point({v.name: v.random() for v in vars}, model=model))
@@ -212,7 +213,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
                 self.logp_forw(q)
                 t1 = time()
                 tps[i] = t1 - t0
-            self._tps =  tps.mean()
+            self._tps = tps.mean()
         return self._tps
 
     def astep(self, q0):
@@ -288,7 +289,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
                         self.chain_index, self.stage_sample))
 
                     tempered_llk_ratio = self.beta * (
-                            lp[self._llk_index] - l0[self._llk_index])
+                        lp[self._llk_index] - l0[self._llk_index])
                     q_new, accepted = metrop_select(
                         tempered_llk_ratio, q, q0)
 
@@ -378,7 +379,7 @@ def get_final_stage(homepath, n_stages, model):
 
 
 def metropolis_sample(
-        n_steps=10000, homepath=None, start=None, backend='csv',
+        n_steps=10000, homepath=None, start=None,
         progressbar=False, rm_flag=False, buffer_size=5000, buffer_thinning=1,
         step=None, model=None, n_jobs=1, update=None, burn=0.5, thin=2):
     """
@@ -386,7 +387,7 @@ def metropolis_sample(
     """
 
     # hardcoded stage here as there are no stages
-    stage = 1
+    stage = -1
     model = modelcontext(model)
     step.n_steps = int(n_steps)
 
@@ -413,9 +414,9 @@ def metropolis_sample(
 
     if not any(
             step.likelihood_name in var.name for var in model.deterministics):
-            raise Exception('Model (deterministic) variables need to contain '
-                            'a variable %s '
-                            'as defined in `step`.' % step.likelihood_name)
+        raise Exception(
+            'Model (deterministic) variables need to contain '
+            'a variable %s as defined in `step`.' % step.likelihood_name)
 
     stage_handler = backend.SampleStage(homepath, backend=step.backend)
 
@@ -424,7 +425,7 @@ def metropolis_sample(
     chains, step, update = init_stage(
         stage_handler=stage_handler,
         step=step,
-        stage=0,   # needs zero otherwise tries to load stage_0 results
+        stage=stage,   # needs zero otherwise tries to load stage_0 results
         progressbar=progressbar,
         update=update,
         model=model,
@@ -455,7 +456,7 @@ def metropolis_sample(
 
         if step.proposal_name == 'MultivariateNormal':
             pdict, step.covariance = get_trace_stats(
-                mtrace, step, burn, thin)
+                mtrace, step, burn, thin, n_jobs)
 
             step.proposal_dist = choose_proposal(
                 step.proposal_name, scale=step.covariance)
@@ -470,16 +471,11 @@ def metropolis_sample(
         elif update is not None and stage == 0:
             update.engine.close_cashed_stores()
 
-        step.chain_previous_lpoint = step.get_chain_previous_lpoint(mtrace)
-
         outparam_list = [step.get_sampler_state(), update]
         stage_handler.dump_atmip_params(step.stage, outparam_list)
 
-        # get_final_stage(homepath, n_stages, model=model)
-        return stage_handler.load_multitrace(step.stage, model=model)
 
-
-def get_trace_stats(mtrace, step, burn=0.5, thin=2):
+def get_trace_stats(mtrace, step, burn=0.5, thin=2, n_jobs=1):
     """
     Get mean value of trace variables and return point.
 
@@ -501,7 +497,7 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2):
     n_steps = len(mtrace)
 
     array_population = num.zeros(
-        (step.n_jobs * int(
+        (n_jobs * int(
             num.ceil(n_steps * (1 - burn) / thin)),
             step.ordering.size))
 

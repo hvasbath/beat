@@ -440,7 +440,7 @@ class TextChain(FileChain):
         cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
 
         if os.path.exists(self.filename) and not overwrite:
-            logger.debug('Found existing trace, appending!')
+            logger.info('Found existing trace, appending!')
         else:
             self.count = 0
 
@@ -649,8 +649,9 @@ class NumpyChain(FileChain):
             self.dir_path, 'chain-{}.bin'.format(chain))
         self.__data_structure = self.construct_data_structure()
         if os.path.exists(self.filename) and not overwrite:
-            logger.debug('Found existing trace, appending!')
+            logger.info('Found existing trace, appending!')
         else:
+            logger.info('Setup new "bin" trace for chain %i' % chain)
             self.count = 0
             data_type = OrderedDict()
             with open(self.filename, 'wb') as fh:
@@ -1039,8 +1040,9 @@ class SampleStage(object):
                 return check_multitrace(
                     mtrace, draws=draws, n_chains=step.n_chains,
                     buffer_thinning=buffer_thinning)
-
-        logger.info('Init new trace!')
+        else:
+            logger.info('Found no sampling results under %s ' % stage_path)
+            logger.info('Init new trace!')
         return None
 
 

@@ -148,20 +148,12 @@ class Problem(object):
                         sc.parameters.n_jobs))
 
                 t1 = time.time()
-                if hypers:
-                    step = sampler.Metropolis(
-                        n_chains=sc.parameters.n_chains,
-                        likelihood_name=self._like_name,
-                        tune_interval=sc.parameters.tune_interval,
-                        proposal_name=sc.parameters.proposal_dist,
-                        backend=sc.backend)
-                else:
-                    step = sampler.Metropolis(
-                        n_chains=sc.parameters.n_chains,
-                        tune_interval=sc.parameters.tune_interval,
-                        likelihood_name=self._like_name,
-                        proposal_name=sc.parameters.proposal_dist,
-                        backend=sc.backend)
+                step = sampler.Metropolis(
+                    n_chains=sc.parameters.n_chains,
+                    likelihood_name=self._like_name,
+                    tune_interval=sc.parameters.tune_interval,
+                    proposal_name=sc.parameters.proposal_dist,
+                    backend=sc.backend)
                 t2 = time.time()
                 logger.info('Compilation time: %f' % (t2 - t1))
 

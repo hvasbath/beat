@@ -132,8 +132,8 @@ class Composite(object):
         Parameters
         ----------
         point : dict
-            with parameters to point in solution space to calculate standardized
-            residuals for
+            with parameters to point in solution space to calculate
+            standardized residuals for
 
         Returns
         -------
@@ -344,7 +344,8 @@ class Stage(object):
     updates = None
     mtrace = None
 
-    def __init__(self, handler=None, homepath=None, stage_number=-1, backend='csv'):
+    def __init__(
+            self, handler=None, homepath=None, stage_number=-1, backend='csv'):
 
         if handler is not None:
             self.handler = handler

@@ -865,8 +865,7 @@ def command_clone(args):
             c.problem_config.hyperparameters[hyper] = old_hypers[hyper]
 
         if options.sampler:
-            c.sampler_config.name = options.sampler
-            c.sampler_config.set_parameters()
+            c.sampler_config = bconfig.SamplerConfig(name=options.sampler)
 
         c.regularize()
         c.validate()
@@ -1030,6 +1029,14 @@ def command_summarize(args):
                     sc_params.thin)
                 chains = [0]
                 draws = len(idxs)
+            elif sampler_name == 'Metropolis':
+                result_check(stage.mtrace, min_length=1)
+                idxs = range(
+                    int(floor(sc_params.n_steps * sc_params.burn)),
+                    sc_params.n_steps,
+                    sc_params.thin)
+                chains = stage.mtrace.chains
+                draws =  sc_params.n_chains * len(idxs)
             else:
                 raise NotImplementedError(
                     'Summarize function still needs to be implemented '
