@@ -568,14 +568,18 @@ def init_stage(
             step.stage = stage
             draws = 1
         else:
-            sampler_state, updates = stage_handler.load_sampler_params(stage)
-            step.apply_sampler_state(sampler_state)
-
             draws = step.n_steps
+            try:
+                sampler_state, updates = \
+                    stage_handler.load_sampler_params(stage)
+                step.apply_sampler_state(sampler_state)
 
-            if update is not None:
-                logger.info('Applying reloaded weight matrixes ...')
-                update.apply(updates)
+                if update is not None:
+                    logger.info('Applying reloaded weight matrixes ...')
+                    update.apply(updates)
+            except ValueError:
+                logger.info(
+                    'Found no existing sample directories! Skipping loading!')
 
         stage_handler.clean_directory(stage, None, rm_flag)
 
