@@ -513,6 +513,7 @@ physical_bounds = dict(
     slip=(0., 150.),
     nucleation_x=(-1., 1.),
     nucleation_y=(-1., 1.),
+    opening_fraction=(-1., 1.),
     magnitude=(-5., 10.),
 
     time=(-300., 300.),

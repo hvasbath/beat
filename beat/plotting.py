@@ -81,6 +81,7 @@ plot_units = {
     'volume_change': u_v,
     'diameter': u_km,
     'slip': u_m,
+    'opening_fraction': u_hyp,
     'azimuth': u_deg,
     'bl_azimuth': u_deg,
     'amplitude': u_nm,

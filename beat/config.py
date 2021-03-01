@@ -136,6 +136,7 @@ default_bounds = dict(
     slip=(0.1, 8.),
     nucleation_x=(-1., 1.),
     nucleation_y=(-1., 1.),
+    opening_fraction=(0., 0.),
 
     magnitude=(4., 7.),
     mnn=mdiag,
