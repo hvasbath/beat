@@ -561,7 +561,7 @@ total number of patches: %i ''' % (
             rv = self.vector2subfault(index, point[varname])
         except KeyError:
             rv = num.zeros(self.npatches)
-            logger.info(
+            logger.debug(
                 'Variable %s is not contained in point returning'
                 ' zeros!' % varname)
 
