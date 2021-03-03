@@ -651,7 +651,7 @@ class NumpyChain(FileChain):
         if os.path.exists(self.filename) and not overwrite:
             logger.info('Found existing trace, appending!')
         else:
-            logger.info('Setup new "bin" trace for chain %i' % chain)
+            logger.debug('Setup new "bin" trace for chain %i' % chain)
             self.count = 0
             data_type = OrderedDict()
             with open(self.filename, 'wb') as fh:

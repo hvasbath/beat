@@ -1312,7 +1312,7 @@ def command_build_gfs(args):
                 nucleation_dips = []
                 for i in range(fault.nsubfaults):
                     ext_source = fault.get_subfault(
-                        i, datatype=options.datatypes[0], component='uparr')
+                        i, datatype=options.datatypes[0])
 
                     nucleation_dips.append(ext_source.width / km)
                     nucleation_strikes.append(ext_source.length / km)
@@ -1644,9 +1644,9 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
     for plot in plotnames:
         try:
             exception_tracer(plotting.plots_catalog[plot](problem, po))
-        except Exception as err:
-            pass
-        # except(TypeError, plotting.ModeError) as err:
+        #except Exception as err:
+        #    pass
+        except(TypeError, plotting.ModeError) as err:
             logger.warning('Could not plot %s got Error: %s' % (plot, err))
 
 def command_check(args):

@@ -191,7 +191,7 @@ def sample(step, problem):
         elif pc.mode_config.initialization == 'lsq':
             from tqdm import tqdm
 
-            logger.info('Least-squares-solution including "uparr" only.\n')
+            logger.info('Least-squares-solution \n')
             if 'seismic' in pc.datatypes:
                 logger.warning(
                     'Least-squares initialization is not'

@@ -95,6 +95,7 @@ plot_units = {
     'time_shift': u_s,
     'uperp': u_m,
     'uparr': u_m,
+    'utens': u_m,
     'durations': u_s,
     'velocities': u_km_s,
 
@@ -3622,7 +3623,9 @@ def fault_slip_distribution(
     fontsize = 12
 
     reference_slip = num.sqrt(
-        reference['uperp'] ** 2 + reference['uparr'] ** 2)
+        reference['uperp'] ** 2 +
+        reference['uparr'] ** 2 +
+        reference['utens'] ** 2)
 
     figs = []
     axs = []
@@ -3632,7 +3635,11 @@ def fault_slip_distribution(
 
         # alphas = alpha * num.ones(np_h * np_w, dtype='int8')
 
-        ext_source = fault.get_subfault(ns, component='uparr')
+        try:
+            ext_source = fault.get_subfault(ns, component='uparr')
+        except TypeError:
+            ext_source = fault.get_subfault(ns, component='utens')
+
         patch_idxs = fault.get_patch_indexes(ns)
 
         pa_col = draw_patches(
@@ -3721,17 +3728,28 @@ def fault_slip_distribution(
                 mtrace, 'uparr', reference)[:, patch_idxs]
             uperp = get_values_from_trace(
                 mtrace, 'uperp', reference)[:, patch_idxs]
+            utens = get_values_from_trace(
+                mtrace, 'utens', reference)[:, patch_idxs]
 
             uparrmean = uparr.mean(axis=0)
             uperpmean = uperp.mean(axis=0)
+            utensmean = utens.mean(axis=0)
 
-            quivers, normalisation = draw_quivers(
-                ax, uperpmean, uparrmean, xgr, ygr,
-                ext_source.rake, color='grey',
+            if uparrmean.sum() != 0.:
+                logger.info('Found slip shear components!')
+                quivers, normalisation = draw_quivers(
+                    ax, uperpmean, uparrmean, xgr, ygr,
+                    ext_source.rake, color='grey',
                 draw_legend=False)
-
-            uparrstd = uparr.std(axis=0) / normalisation
-            uperpstd = uperp.std(axis=0) / normalisation
+                uparrstd = uparr.std(axis=0) / normalisation
+                uperpstd = uperp.std(axis=0) / normalisation
+            elif utensmean.sum() != 0:
+                logger.info(
+                    'Found tensile slip components! Not drawing quivers!'
+                    ' Circle radius shows standard deviations!')
+                uperpstd = uparrstd = utens.std(axis=0)
+                normalisation = utens.max()
+                quivers = None
 
             slipvecrotmat = mt.euler_to_matrix(
                 0.0, 0.0, ext_source.rake * mt.d2r)
@@ -3745,8 +3763,11 @@ def fault_slip_distribution(
                     [ellipse_x, ellipse_y, num.zeros_like(ellipse_x)]).T
                 rot_ellipse = ellipse.dot(slipvecrotmat)
 
-                xcoords = xgr.ravel()[i] + rot_ellipse[:, 0] + quivers.U[i]
-                ycoords = ygr.ravel()[i] + rot_ellipse[:, 1] + quivers.V[i]
+                xcoords = xgr.ravel()[i] + rot_ellipse[:, 0]
+                ycoords = ygr.ravel()[i] + rot_ellipse[:, 1]
+                if quivers is not None:
+                    xcoords += quivers.U[i]
+                    ycoords += quivers.V[i]
                 ax.plot(xcoords, ycoords, '-k', linewidth=0.5, zorder=2)
         else:
             normalisation = None
@@ -3754,11 +3775,12 @@ def fault_slip_distribution(
         uperp = reference['uperp'][patch_idxs]
         uparr = reference['uparr'][patch_idxs]
 
-        logger.info('Drawing slip vectors ...')
-        draw_quivers(
-            ax, uperp, uparr,
-            xgr, ygr, ext_source.rake, color='black', draw_legend=True,
-            normalisation=normalisation, zorder=3)
+        if uparr.mean() != 0.:
+            logger.info('Drawing slip vectors ...')
+            draw_quivers(
+                ax, uperp, uparr,
+                xgr, ygr, ext_source.rake, color='black', draw_legend=True,
+                normalisation=normalisation, zorder=3)
 
         draw_colorbar(fig, ax, pa_col, labeltext='slip [m]')
         format_axes(ax, remove=['top', 'right'])
@@ -4630,7 +4652,9 @@ def slip_distribution_3d_gmt(fault, reference, mtrace=None, perspective='135/30'
         *J)
 
     reference_slips = num.sqrt(
-        reference['uperp'] ** 2 + reference['uparr'] ** 2)
+        reference['uperp'] ** 2 +
+        reference['uparr'] ** 2 +
+        reference['utens'] ** 2)
 
     autos = AutoScaler(snap='on', approx_ticks=3)
 
