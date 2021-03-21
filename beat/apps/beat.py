@@ -647,11 +647,15 @@ def command_import(args):
 
                 new_bounds = {}
                 for param in common_source_params:
-
-                    new_bounds[param] = extract_bounds_from_summary(
-                        summarydf, varname=param,
-                        shape=(n_sources,), roundto=0)
-                    new_bounds[param].append(point[param])
+                    try:
+                        new_bounds[param] = extract_bounds_from_summary(
+                            summarydf, varname=param,
+                            shape=(n_sources,), roundto=0)
+                        new_bounds[param].append(point[param])
+                    except KeyError:
+                        logger.info(
+                            'Parameter {} was fixed, not importing '
+                            '...'.format(param))
 
                 c.problem_config.set_vars(
                     new_bounds, attribute='priors')
