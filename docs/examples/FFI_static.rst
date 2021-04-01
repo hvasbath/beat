@@ -62,7 +62,7 @@ The fault geometry needs to be defined in the *geodetic.gf_config.reference_sour
 
 The values shown above are parts of the MAP solution from the optimization from Example 3. The results can been imported through the import command specifiying the --results option. We want to import the results from the *Laquila* project_directory from an optimization in *geometry* mode and we want to update the *geodetic* part of the *config_ffi.yaml*::
 
-  beat import Laquila --results=Laquila --mode='geometry' --datatypes=geodetic
+  beat import Laquila --results=Laquila --mode='ffi' --datatypes=geodetic --import_from_mode=geometry
 
 Of course, these values could be edited manually to whatever the user deems reasonable.
 

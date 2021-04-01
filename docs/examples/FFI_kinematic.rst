@@ -26,7 +26,7 @@ Import results
 In this step we want to import the results from the previous two optimizations to the configuration file.
 Firstly, we want to import the results from Example 3(geometry optimization). But this time also the *seismic_config* is updated::
 
-  beat import Laquila_kinematic --results=Laquila --mode=geometry --datatypes=geodetic,seismic
+  beat import Laquila_kinematic --results=Laquila --mode=ffi --datatypes=geodetic,seismic --import_from_mode=geometry
 
 Now as we have two datatypes there are two *reference_sources* arguments in the config_ffi.yaml, one under *geodetic_config.gf_config* and another under *seismic_config.gf_config*. However, as you can see by the *yaml* coding (**id001**) these two are referring to the same object::
 
@@ -74,7 +74,7 @@ Editing the *reference_sources* this way ensures consistent geometry for all dat
 Now please make sure that also the arguments *patch_widths* and *patch_lengths* as well as the *extension_widths* and *extension_lengths* are consistent!
 The discretization at this point could be changed of course. However, this would then not allow to import the results from Example 4(ffi optimization), which we want to do next::
 
-  beat import Laquila_kinematic --results=Laquila --mode=ffi --datatypes=geodetic,seismic
+  beat import Laquila_kinematic --results=Laquila --mode=ffi --datatypes=geodetic,seismic --import_from_mode=ffi
 
 You will notice now that the lower and upper bounds of the slip parameters *uparr* and *uperp* have been updated. Each sub-patch has indiviudal bounds where the index in the array refers to the patch number in the geometry and discretization figure shown in Example 4. As a short recap here again.
 
