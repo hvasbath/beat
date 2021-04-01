@@ -5,7 +5,7 @@
 SPHINXOPTS    =
 SPHINXBUILD   = sphinx-build
 PAPER         =
-BUILDDIR      = ../../beat_pages
+BUILDDIR      = build
 PDFBUILDDIR   = /tmp
 PDF           = manual.pdf
 
@@ -58,6 +58,9 @@ clean:
 	#rm .git/index
 	#git clean -fdx
 	#touch $(BUILDDIR)/html/.nojekyll
+	rm -rf $(BUILDDIR)/*
+
+
 
 .PHONY: html
 html:
