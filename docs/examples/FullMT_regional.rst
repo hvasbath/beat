@@ -78,7 +78,8 @@ The seismic phases for which the GFs are going to be calculated are defined unde
         name: any_P
         blacklist: []
         channels: [Z]
-        filterer: !beat.heart.Filter
+        filterer:
+        - !beat.heart.Filter
           lower_corner: 0.01
           upper_corner: 0.1
           order: 3
@@ -97,7 +98,8 @@ In this case the GFs are going to be calculated for the P body waves. We can add
         name: slowest
         blacklist: []
         channels: [Z]
-        filterer: !beat.heart.Filter
+        filterer:
+        - !beat.heart.Filter
           lower_corner: 0.001
           upper_corner: 0.1
           order: 4
@@ -123,7 +125,8 @@ Your seismic_config within the $project_directory/config_geometry.yaml should lo
         name: any_P
         blacklist: []
         channels: [Z]
-        filterer: !beat.heart.Filter
+        filterer:
+        - !beat.heart.Filter
           lower_corner: 0.01
           upper_corner: 0.1
           order: 3
@@ -139,7 +142,8 @@ Your seismic_config within the $project_directory/config_geometry.yaml should lo
         name: slowest
         blacklist: []
         channels: [Z]
-        filterer: !beat.heart.Filter
+        filterer:
+        - !beat.heart.Filter
           lower_corner: 0.001
           upper_corner: 0.1
           order: 4

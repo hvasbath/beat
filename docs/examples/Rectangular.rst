@@ -151,7 +151,8 @@ The seismic phases for which the GFs are going to be calculated are defined unde
         name: any_P
         blacklist: []
         channels: [Z]
-        filterer: !beat.heart.Filter
+        filterer:
+        - !beat.heart.Filter
           lower_corner: 0.01
           upper_corner: 0.1
           order: 3

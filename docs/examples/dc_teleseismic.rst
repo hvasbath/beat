@@ -118,7 +118,8 @@ The seismic phases (in this example only the P phase), their bandpass-filter and
     preprocess_data: true
     name: any_P
     channels: [Z]
-    filterer: !beat.heart.Filter
+    filterer: 
+    - !beat.heart.Filter
       lower_corner: 0.01
       upper_corner: 0.2
       order: 4

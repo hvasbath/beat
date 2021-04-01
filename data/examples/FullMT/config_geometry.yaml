@@ -133,7 +133,8 @@ seismic_config: !beat.SeismicConfig
     preprocess_data: true
     name: any_P
     channels: [Z]
-    filterer: !beat.heart.Filter
+    filterer:
+    - !beat.heart.Filter
       lower_corner: 0.01
       upper_corner: 0.1
       order: 3
