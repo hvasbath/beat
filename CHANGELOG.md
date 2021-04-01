@@ -4,7 +4,12 @@ All notable changes to BEAT will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [unreleased]
+## [1.1.0] tbd April 2021
+
+### General
+
+Documentation moved to https://pyrocko.org/beat and is made version dependend.
+E.g. https://pyrocko.org/beat/v1.0 to view older documentation versions.
 
 ### Added
 **General**
