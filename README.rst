@@ -8,7 +8,7 @@ Bayesian Earthquake Analysis Tool
 Based on pyrocko, theano and pymc3
 
 Documentation (under construction) can be found here:
-https://hvasbath.github.io/beat/
+https://pyrocko.org/beat/
 
 The first version 1.0 of BEAT is released!
 

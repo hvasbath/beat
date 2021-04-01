@@ -3361,9 +3361,9 @@ def velocities_from_strain_rate_tensor(
 
     Parameters
     ----------
-    lats : array-like :class:`numpy.ndarray
+    lats : array-like :class:`numpy.ndarray`
         geographic latitudes in [deg]
-    lons : array-like :class:`numpy.ndarray
+    lons : array-like :class:`numpy.ndarray`
         geographic longitudes in [deg]
     exx : float
         component of the 2d area strain-rate tensor [nanostrain] x-North
@@ -3376,7 +3376,7 @@ def velocities_from_strain_rate_tensor(
 
     Returns
     -------
-    v_xyz: 2d array-like :class:`numpy.ndarray
+    v_xyz: 2d array-like :class:`numpy.ndarray`
         Deformation rate in [m] in x - East, y - North, z - Up Direction
     """
 
