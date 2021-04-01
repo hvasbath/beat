@@ -96,7 +96,7 @@ The next command starts the calculation of the linear Green's Function matrixes 
 
   beat build_gfs Laquila --datatypes=geodetic --mode=ffi --execute
 
-.. note:: The slip components are not dip-slip and strike-slip, but rake-parallel (uparr in *config_ffi.yaml* priors) and rake-perpendicular (uperp in *config_ffi.yaml* priors) wrt to *reference_fault(s)* rake angle(s). This is following the convention of [Minson2013]_.
+.. note:: The slip components are not dip-slip and strike-slip, but rake-parallel (**uparr** in *config_ffi.yaml* priors) and rake-perpendicular (**uperp** in *config_ffi.yaml* priors) wrt to *reference_fault(s)* rake angle(s). This is following the convention of [Minson2013]_. In addition to that there is the component **utens**, which is normal to the previously mentioned components and would be needed to simulate tensile opening or closing. We ignore that here as we want to model a shear-dislocation.
 
 This will create two files for each GF *library* in the **$linear_gfs** directory:
  - *geodetic_uparr_static_0.traces.npy* a numpy array containing the linear GFs
@@ -143,6 +143,12 @@ Under the *problem_config* we find the parameters that we need to adjust::
           lower: [-0.3]
           upper: [4.0]
           testvalue: [0.5]
+        utens: !beat.heart.Parameter
+          name: utens
+          form: Uniform
+          lower: [0.0]
+          upper: [0.0]
+          testvalue: [0.0]
       hierarchicals:
         Laquila_ascxn_offset: !beat.heart.Parameter
           name: Laquila_ascxn_offset
