@@ -760,13 +760,18 @@ class DistributionOptimizer(Problem):
                 'available with laplacian regularization!')
 
         lc = self.composites['laplacian']
-        slip_varnames = ['uparr']
+        slip_varnames_candidates = ['uparr', 'utens']
 
-        for var in slip_varnames:
-            if var not in self.varnames:
-                raise ValueError(
-                    'Distributed slip is only available for "uparr",'
-                    ' which was fixed in the setup!')
+        slip_varnames = []
+        for var in slip_varnames_candidates:
+            if var in self.varnames:
+                slip_varnames.append(var)
+
+        if len(slip_varnames) == 0.:
+            raise ValueError(
+                'LSQ distributed slip solution is only available for %s,'
+                ' which were fixed in the setup!' % list2string(
+                    slip_varnames_candidates))
 
         Gs = []
         ds = []

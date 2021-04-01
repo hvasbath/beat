@@ -47,7 +47,7 @@ __all__ = [
 slip_directions = {
     'uparr': {'slip': 1., 'rake': 0.},
     'uperp': {'slip': 1., 'rake': -90.},
-    'utensile': {'slip': 0., 'rake': 0., 'opening': 1.}}
+    'utens': {'slip': 1., 'rake': 0., 'opening_fraction': 1.}}
 
 
 PatchMap = namedtuple(
@@ -277,13 +277,11 @@ total number of patches: %i ''' % (
         """
         moments = []
         for index in range(self.nsubfaults):
-            uparr = self.vector2subfault(index, point['uparr'])
-            try:
-                uperp = self.vector2subfault(index, point['uperp'])
-            except KeyError:
-                uperp = num.zeros_like(uparr)
+            slips = num.zeros(self.npatches)
+            for comp in self.components:
+                slips += self.var_from_point(index, point, comp) ** 2
 
-            slips = num.sqrt(uparr ** 2 + uperp ** 2)
+            slips = num.sqrt(slips)
 
             sf_moments = self.get_subfault_patch_moments(
                 index=index, slips=slips, store=store,
@@ -354,8 +352,8 @@ total number of patches: %i ''' % (
     def get_subfault_moment_rate_function(self, index, point, target, store):
 
         deltat = store.config.deltat
-        uparr = self.vector2subfault(index, point['uparr'])
-        uperp = self.vector2subfault(index, point['uperp'])
+        uparr = self.var_from_point(index, point, comp='uparr')
+        uperp = self.var_from_point(index, point, comp='uperp')
         slips = num.sqrt(uparr ** 2 + uperp ** 2)
         starttimes = self.point2starttimes(point, index=index).ravel()
         tmin = num.floor((starttimes.min() / deltat)) * deltat 
@@ -558,6 +556,17 @@ total number of patches: %i ''' % (
         return self.get_subfault_starttimes(
             index, velocities, nuc_dip_idx, nuc_strike_idx) + time
 
+    def var_from_point(self, index, point, varname):
+        try:
+            rv = self.vector2subfault(index, point[varname])
+        except KeyError:
+            rv = num.zeros(self.npatches)
+            logger.debug(
+                'Variable %s is not contained in point returning'
+                ' zeros!' % varname)
+
+        return rv
+
     def point2sources(self, point, events=[]):
         """
         Return source objects (patches) updated by parameters from point.
@@ -582,21 +591,36 @@ total number of patches: %i ''' % (
 
         sources = []
         for index in range(self.nsubfaults):
-            sf = self.get_subfault(
-                index, datatype=datatype, component='uparr')
-            sf_patches = self.get_subfault_patches(
-                index, datatype=datatype, component='uparr')
-
-            uparr = self.vector2subfault(index, point['uparr'])
             try:
-                uperp = self.vector2subfault(index, point['uperp'])
-            except KeyError:
-                uperp = num.zeros_like(uparr)
+                sf = self.get_subfault(
+                    index, datatype=datatype, component='uparr')
+                component = 'uparr'
+            except TypeError:
+                sf = self.get_subfault(
+                    index, datatype=datatype, component='utens')
+                component = 'utens'
 
-            slips = num.sqrt(uparr ** 2 + uperp ** 2)
-            rakes = num.arctan2(-uperp, uparr) * r2d + sf.rake
+            sf_patches = self.get_subfault_patches(
+                index, datatype=datatype, component=component)
 
-            sf_point = {'slip': slips, 'rake': rakes}
+            ucomps = {}
+            for comp in slip_directions.keys():
+                ucomps[comp] = self.var_from_point(index, point, comp)
+
+            slips = num.zeros(self.npatches)
+            for comp in self.components:
+                slips += ucomps[comp] ** 2
+
+            slips = num.sqrt(slips)
+            rakes = num.arctan2(
+                -ucomps['uperp'], ucomps['uparr']) * r2d + sf.rake
+            opening_fractions = ucomps['utens'] / slips
+
+            sf_point = {
+                'slip': slips,
+                'rake': rakes,
+                'opening_fraction': opening_fractions}
+
             try:
                 durations = point['durations']
                 starttimes = self.point2starttimes(point, index=index).ravel()

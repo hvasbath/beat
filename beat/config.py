@@ -81,7 +81,7 @@ interseismic_vars = [
     'east_shift', 'north_shift', 'strike', 'dip', 'length',
     'locking_depth'] + block_vars
 
-static_dist_vars = ['uparr', 'uperp']
+static_dist_vars = ['uparr', 'uperp', 'utens']
 
 hypo_vars = ['nucleation_strike', 'nucleation_dip', 'time']
 partial_kinematic_vars = ['durations', 'velocities']
@@ -136,6 +136,7 @@ default_bounds = dict(
     slip=(0.1, 8.),
     nucleation_x=(-1., 1.),
     nucleation_y=(-1., 1.),
+    opening_fraction=(0., 0.),
 
     magnitude=(4., 7.),
     mnn=mdiag,
@@ -172,6 +173,7 @@ default_bounds = dict(
     durations=(0.5, 29.5),
     uparr=(-0.05, 6.),
     uperp=(-0.3, 4.),
+    utens=(0., 0.),
     nucleation_strike=(0., 10.),
     nucleation_dip=(0., 7.),
     velocities=(0.5, 4.2),

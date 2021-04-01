@@ -203,7 +203,8 @@ class RectangularSource(gf.RectangularSource):
                     depth=float(sub_top[2]),
                     strike=self.strike, dip=self.dip, rake=self.rake,
                     length=length, width=width, stf=self.stf,
-                    time=self.time, slip=self.slip, anchor='top')
+                    time=self.time, slip=self.slip, anchor='top',
+                    opening_fraction=self.opening_fraction)
 
                 patches.append(patch)
 

@@ -790,6 +790,7 @@ def _process_patch_geodetic(
 
     logger.debug('Patch Number %i', patchidx)
     logger.debug('Calculating synthetics ...')
+
     disp = heart.geo_synthetics(
         engine=engine,
         targets=targets,
@@ -881,10 +882,10 @@ def geo_construct_gf_linear(
 
             shared_gflibrary = RawArray('d', gfs.size)
 
+            patches = fault.get_all_patches('geodetic', component=var)
             work = [
                 (engine, gfs, targets, patch, patchidx, los_vectors, odws)
-                for patchidx, patch in enumerate(
-                    fault.get_all_patches('geodetic', component=var))]
+                for patchidx, patch in enumerate(patches)]
 
             p = parallel.paripool(
                 _process_patch_geodetic, work,
