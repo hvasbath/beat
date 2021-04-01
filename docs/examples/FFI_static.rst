@@ -77,7 +77,7 @@ Once we decided for the discretization and the reference fault values we can cre
 This will create a directory (**$linear_gfs**): *Laquila/ffi/linear_gfs* where the fault geometry is saved as a pickle file 'fault_geometry.pkl'.
 We can inspect the geometry of the resulting extended discretized fault wrt. the reference fault with::
 
-  beat check Laquila --what=geometry --mode=ffi
+  beat check Laquila --what=discretization --mode=ffi
 
 This will open an interactive 3d plot of the fault geometry, which looks along the lines of
 
