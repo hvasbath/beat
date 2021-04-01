@@ -110,7 +110,8 @@ We can adjust all these setting under the *wavemaps* listed in the *seismic_conf
     blacklist: []
     name: any_P
     channels: [Z]
-    filterer: !beat.heart.Filter
+    filterer:
+    - !beat.heart.Filter
       lower_corner: 0.001
       upper_corner: 0.5
       order: 4
