@@ -16,6 +16,10 @@ E.g. https://pyrocko.org/beat/v1.0 to view older documentation versions.
 - Wavemap attribute "quantity" to sample acceleration, velocity or displacement waveforms
 - added export method to geodetic composite to enable GNSS and SAR data / results export to CSV, YAML
 
+**Tensile Dislocations**
+- added the opening_fraction argument to the RectangularSource to allow to model tensile opening/closing
+- for geometry mode, as well as ffi mode to estimate distributed opening / closing
+
 **Finite Fault**
 - discretization options for the fault into patches:
   + uniform
