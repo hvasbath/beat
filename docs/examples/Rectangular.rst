@@ -4,7 +4,7 @@ Example 3: Rectangular source
 In this example we will explore the parameter space of a Rectangular Source [Okada1985]_ for the L'aquila 2009 earthquake.
 It is up to the user to decide, which data is going to be used in the optimization, teleseismic waveforms and/or geodetic data.
 
-The geodetic data consists of two static displacements data sets from the 06.04.2009 Mw6.3 L'Aquila earthquake. The data are InSAR displacement maps from ascending
+The geodetic `data <https://github.com/braunfuss/laquila_kite_container>`__ consists of two static displacements data sets from the 06.04.2009 Mw6.3 L'Aquila earthquake. The data are InSAR displacement maps from ascending
 and descending orbits.
 The data has been pre-processed with `kite <https://github.com/pyrocko/kite>`__. For details on the use and data display we refer to the tutorial on the website.
 
@@ -344,7 +344,7 @@ Summarize and plotting
 The SMC sampler has several stages that would need to be summarized if their results is meant to be plotted.
 To summarize only a specific stage please add the 'stage_number' option, e.g. the final stage -1::
 
-    beat summarize FullMT --stage_number=-1
+    beat summarize Laquila --stage_number=-1
 
 .. note::
     Only for SMC:
@@ -386,7 +386,7 @@ Here h_SAR are the noise scaling parameters for the two InSAR scenes and h_any_P
 
 For a correlation plot of the parameter marginals please run::
 
-  beat plot LaquilaJointPonlyUPDATE correlation_hist --format=png --varnames=east_shift,north_shift,depth,length,width,strike,dip,rake,slip
+  beat plot Laquila correlation_hist --format=png --varnames=east_shift,north_shift,depth,length,width,strike,dip,rake,slip
 
 
 .. image:: ../_static/example3/Laquila_corr_hist_-1_max.png

@@ -1,0 +1,157 @@
+--- !beat.BEATconfig
+name: Fernandina
+date: dummy
+event: !pf.Event
+  time: 1970-01-01 00:00:00
+  duration: 1.0
+  lat: -0.37
+  lon: -91.55
+  depth: 5000.  
+project_dir: /home/vasyurhm/BEATS/Fernandina
+problem_config: !beat.ProblemConfig
+  mode: geometry
+  source_type: RectangularSource
+  stf_type: HalfSinusoid
+  decimation_factors:
+    geodetic: 2
+  n_sources: 1
+  datatypes: [geodetic]
+  hyperparameters:
+    h_SAR: !beat.heart.Parameter
+      name: h_SAR
+      form: Uniform
+      lower: [-1.0]
+      upper: [4.0]
+      testvalue: [1.]
+  priors:
+    depth: !beat.heart.Parameter
+      name: depth
+      form: Uniform
+      lower: [0.0]
+      upper: [9.0]
+      testvalue: [1.0]
+    dip: !beat.heart.Parameter
+      name: dip
+      form: Uniform
+      lower: [0.0]
+      upper: [80.0]
+      testvalue: [20.0]
+    east_shift: !beat.heart.Parameter
+      name: east_shift
+      form: Uniform
+      lower: [-5.0]
+      upper: [5.0]
+      testvalue: [0.0]
+    length: !beat.heart.Parameter
+      name: length
+      form: Uniform
+      lower: [0.1]
+      upper: [10.0]
+      testvalue: [5.0]
+    north_shift: !beat.heart.Parameter
+      name: north_shift
+      form: Uniform
+      lower: [-5.0]
+      upper: [5.0]
+      testvalue: [-0.0]
+    opening_fraction: !beat.heart.Parameter
+      name: opening_fraction
+      form: Uniform
+      lower: [1.0]
+      upper: [1.0]
+      testvalue: [1.0]
+    rake: !beat.heart.Parameter
+      name: rake
+      form: Uniform
+      lower: [0.0]
+      upper: [0.0]
+      testvalue: [0.0]
+    slip: !beat.heart.Parameter
+      name: slip
+      form: Uniform
+      lower: [0.01]
+      upper: [1.0]
+      testvalue: [0.1]
+    strike: !beat.heart.Parameter
+      name: strike
+      form: Uniform
+      lower: [0.0]
+      upper: [370.0]
+      testvalue: [36.0]
+    width: !beat.heart.Parameter
+      name: width
+      form: Uniform
+      lower: [0.1]
+      upper: [8.0]
+      testvalue: [4.0]
+geodetic_config: !beat.GeodeticConfig
+  types:
+    SAR: !beat.SARDatasetConfig
+      datadir: /home/vasyurhm/BEATS/Fernandina/data
+      names: ['S1_dsc']
+  calc_data_cov: true
+  interpolation: multilinear
+  corrections_config: !beat.GeodeticCorrectionsConfig
+    euler_poles:
+    - !beat.EulerPoleConfig
+      enabled: false
+    ramp: !beat.RampConfig
+      enabled: false
+    strain_rates:
+    - !beat.StrainRateConfig
+      enabled: false
+  dataset_specific_residual_noise_estimation: false
+  gf_config: !beat.GeodeticGFConfig
+    store_superdir: /home/vasyurhm/BEATS/GF/Fernandina
+    reference_model_idx: 0
+    n_variations: [0, 1]
+    earth_model_name: ak135-f-average.m
+    nworkers: 4
+    use_crust2: true
+    replace_water: true
+    source_depth_min: 0.0
+    source_depth_max: 20.0
+    source_depth_spacing: 0.25
+    source_distance_radius: 100.0
+    source_distance_spacing: 0.25
+    error_depth: 0.1
+    error_velocities: 0.1
+    depth_limit_variation: 600.0
+    code: psgrn
+    sample_rate: 1.1574074074074073e-05
+    sampling_interval: 1.0
+    medium_depth_spacing: 1.0
+    medium_distance_spacing: 10.0
+sampler_config: !beat.SamplerConfig
+  name: SMC
+  backend: bin
+  progressbar: true
+  buffer_size: 5000
+  buffer_thinning: 5
+  parameters: !beat.SMCConfig
+    tune_interval: 50
+    check_bnd: true
+    rm_flag: false
+    n_jobs: 4
+    n_steps: 300
+    n_chains: 40
+    coef_variation: 1.0
+    stage: 7
+    proposal_dist: MultivariateCauchy
+    update_covariances: false
+hyper_sampler_config: !beat.SamplerConfig
+  name: Metropolis
+  backend: csv
+  progressbar: true
+  buffer_size: 5000
+  buffer_thinning: 1
+  parameters: !beat.MetropolisConfig
+    tune_interval: 50
+    proposal_dist: Normal
+    check_bnd: true
+    rm_flag: false
+    n_jobs: 1
+    n_steps: 25000
+    n_chains: 20
+    thin: 2
+    burn: 0.5
