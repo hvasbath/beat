@@ -549,6 +549,21 @@ physical_bounds = dict(
     omega=(-10., 10.))
 
 
+def list_repeat(arr, repeat=1):
+
+    if isinstance(repeat, list):
+        if len(repeat) != arr.size:
+            raise ValueError('Inconsistent requested dimensions!')
+        else:
+            out_values = []
+            for i, re in enumerate(repeat):
+                out_values.append(num.repeat(arr, re))
+
+            return num.hstack(out_values)
+    else:
+        return num.tile(arr, repeat)
+
+
 class Parameter(Object):
     """
     Optimization parameter determines the bounds of the search space.
@@ -617,30 +632,38 @@ class Parameter(Object):
             raise ValueError(
                 'Parameter bounds for "%s" have to be defined!' % self.name)
 
-    def random(self, dimension=None):
+    def get_upper(self, repeat=1):
+        return list_repeat(self.upper, repeat)
+
+    def get_lower(self, repeat=1):
+        return list_repeat(self.lower, repeat)
+
+    def get_testvalue(self, repeat=1):
+        return list_repeat(self.testvalue, repeat)
+
+    def random(self, shape=None):
         """
         Create random samples within the parameter bounds.
 
         Parameters
         ----------
-        dimensions : int
-            number of draws from distribution
+        shape : int or list
+            of int number of draws from distribution
 
         Returns
         -------
         :class:`numpy.ndarray` of size (n, m)
         """
-        if dimension is None:
-            dimension = self.dimension
+        if shape is None:
+            shape = self.dimension
 
         try:
-            return (self.upper - self.lower) * num.random.rand(
-                dimension) + self.lower
+            return (self.get_upper(shape) - self.get_lower(shape)) * \
+                num.random.rand(num.sum(shape)) + self.get_lower(shape)
         except ValueError:
             raise ValueError(
-                'Either use number of patches input vector size for'
-                ' variable {} or only [1]]! Now the size is {}!'.format(
-                    self.name, self.lower.size))
+                'Value inconsistency shapes: {} parameter '
+                'dimension {}'.format(shape, self.dimension))
 
     @property
     def dimension(self):

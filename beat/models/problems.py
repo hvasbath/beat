@@ -305,8 +305,8 @@ class Problem(object):
 
         if 'priors' in include:
             for param in pc.priors.values():
-                dimension = bconfig.get_parameter_shape(param, pc)
-                point[param.name] = param.random(dimension=dimension)
+                shape = pc.get_parameter_shape(param)
+                point[param.name] = param.random(shape)
 
         if 'hypers' in include:
             if len(self.hyperparams) == 0:
