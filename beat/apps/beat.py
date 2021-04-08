@@ -1308,6 +1308,7 @@ def command_build_gfs(args):
                 varnames=varnames,
                 sources=gf.reference_sources,
                 datatypes=c.problem_config.datatypes)
+            mode_c = c.problem_config.mode_config
 
             if gf.discretization == 'uniform':
                 logger.info(
@@ -1315,7 +1316,8 @@ def command_build_gfs(args):
                 logger.info('%s' % fault.__str__())
 
                 c.problem_config.n_sources = fault.nsubfaults
-                c.problem_config.mode_config.npatches = fault.npatches
+                mode_c.npatches = fault.npatches
+                mode_c.subfault_npatches = fault.subfault_npatches
 
                 nucleation_strikes = []
                 nucleation_dips = []
@@ -1397,7 +1399,8 @@ def command_build_gfs(args):
                                 'Fault discretization optimization done! '
                                 'Updating problem_config...')
                             logger.info('%s' % fault.__str__())
-                            c.problem_config.mode_config.npatches = fault.npatches
+                            mode_c.npatches = fault.npatches
+                            mode_c.subfault_npatches = fault.subfault_npatches
                             bconfig.dump_config(c)
 
                         ffi.geo_construct_gf_linear(

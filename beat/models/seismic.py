@@ -1149,7 +1149,9 @@ class SeismicDistributerComposite(SeismicComposite):
                         self.fault.npatches)).reshape(
                             (wmap.n_t, self.fault.npatches))
             else:
-                starttimes = starttimes0
+                logger.info('No station corrections ...')
+                starttimes = tt.tile(starttimes0, wmap.n_t).reshape(
+                    (wmap.n_t, self.fault.npatches))
 
             targetidxs = shared(
                 num.atleast_2d(num.arange(wmap.n_t)).T, borrow=True)
@@ -1243,18 +1245,26 @@ class SeismicDistributerComposite(SeismicComposite):
         obs_traces = []
         for wmap in self.wavemaps:
             wc = wmap.config
+
+            starttimes = num.tile(
+                starttimes0, wmap.n_t).reshape(
+                wmap.n_t, self.fault.npatches)
+
             # station corrections
             if self.config.station_corrections:
                 logger.debug(
-                    'Applying station corrections for wmap {}'.format(wmap.name))
-                starttimes = (
-                    num.tile(starttimes0, wmap.n_t) -
-                    num.repeat(point[wmap.time_shifts_id][
-                        wmap.station_correction_idxs],
-                        self.fault.npatches)).reshape(
-                            wmap.n_t, self.fault.npatches)
-            else:
-                starttimes = starttimes0
+                    'Applying station corrections '
+                    'for wmap {}'.format(wmap.name))
+                try:
+                    corrections = point[wmap.time_shifts_id]
+                except KeyError:  # got reference point from config
+                    corrections = float(point[self.correction_name]) * \
+                        num.ones(wmap.n_t)
+
+                starttimes -= num.repeat(
+                    corrections[wmap.station_correction_idxs],
+                    self.fault.npatches).reshape(
+                        wmap.n_t, self.fault.npatches)
 
             # TODO check targetidxs if station blacklisted!?
             targetidxs = num.atleast_2d(num.arange(wmap.n_t)).T

@@ -1021,9 +1021,17 @@ class FFIConfig(ModeConfig):
     npatches = Int.T(
         default=None,
         optional=True,
-        help = 'Number of patches on full fault. Should not be edited manually!'
-               ' Please edit indirectly through patch_widths and patch_lengths'
-               ' parameters!')
+        help='Number of patches on full fault. Must not be edited manually!'
+             ' Please edit indirectly through patch_widths and patch_lengths'
+             ' parameters!')
+    subfault_npatches = List.T(
+        Int.T(),
+        default=[],
+        optional=True,
+        help='Number of patches on each sub-fault.'
+             ' Must not be edited manually!'
+             ' Please edit indirectly through patch_widths and patch_lengths'
+             ' parameters!')
 
     def __init__(self, **kwargs):
 
@@ -1230,14 +1238,14 @@ class ProblemConfig(Object):
         for param in self.priors.values():
             if not num.array_equal(param.lower, param.upper):
 
-                shape = get_parameter_shape(param, self)
+                shape = self.get_parameter_shape(param)
 
                 kwargs = dict(
                     name=param.name,
-                    shape=shape,
-                    lower=param.lower,
-                    upper=param.upper,
-                    testval=param.testvalue,
+                    shape=num.sum(shape),
+                    lower=param.get_lower(shape),
+                    upper=param.get_upper(shape),
+                    testval=param.get_testvalue(shape),
                     transform=None,
                     dtype=tconfig.floatX)
                 try:
@@ -1344,36 +1352,34 @@ class ProblemConfig(Object):
         """
         test_point = {}
         for varname, var in self.priors.items():
-            shape = get_parameter_shape(var, self)
-            if shape == var.dimension:
-                test_point[varname] = var.testvalue
-            else:
-                test_point[varname] = num.full(shape, var.testvalue[0])
+            shape = self.get_parameter_shape(var)
+            test_point[varname] = var.get_testvalue(shape)
 
         for varname, var in self.hyperparameters.items():
-            test_point[varname] = var.testvalue
+            test_point[varname] = var.get_testvalue()
 
         for varname, var in self.hierarchicals.items():
-            test_point[varname] = var.testvalue
+            test_point[varname] = var.get_testvalue()
 
         return test_point
 
+    def get_parameter_shape(self, param):
+        if self.mode == ffi_mode_str:
+            if param.name in hypo_vars:
+                shape = self.n_sources
+            elif param.name not in hypo_vars and self.mode_config.npatches:
+                shape = self.mode_config.subfault_npatches
+                if len(shape) == 0:
+                    shape = self.mode_config.npatches
+            else:
+                shape = param.dimension
 
-def get_parameter_shape(param, pc):
-    if pc.mode == ffi_mode_str:
-        if param.name in hypo_vars:
-            shape = pc.n_sources
-        elif param.name not in hypo_vars and pc.mode_config.npatches:
-            shape = pc.mode_config.npatches
-        else:
+        elif self.mode == geometry_mode_str:
             shape = param.dimension
+        else:
+            raise TypeError('Mode not implemeneted: %s' % self.mode)
 
-    elif pc.mode == geometry_mode_str:
-        shape = param.dimension
-    else:
-        raise TypeError('Mode not implemeneted: %s' % pc.mode)
-
-    return shape
+        return shape
 
 
 class SamplerParameters(Object):
@@ -1510,8 +1516,7 @@ class SamplerConfig(Object):
         default='SMC',
         choices=_sampler_choices,
         help='Sampler to use for sampling the solution space. '
-             'Choices: %s' % utility.list2string(_sampler_choices)
-             )
+             'Choices: %s' % utility.list2string(_sampler_choices))
     backend = StringChoice.T(
         default='csv',
         choices=_backend_choices,
