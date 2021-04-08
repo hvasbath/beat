@@ -553,11 +553,13 @@ def list_repeat(arr, repeat=1):
 
     if isinstance(repeat, list):
         if len(repeat) != arr.size:
-            raise ValueError('Inconsistent requested dimensions!')
+            raise ValueError(
+                'Inconsistent requested dimensions! '
+                'repeat: {}, {} array size'.format(repeat, arr.size))
         else:
             out_values = []
             for i, re in enumerate(repeat):
-                out_values.append(num.repeat(arr, re))
+                out_values.append(num.repeat(arr[i], re))
 
             return num.hstack(out_values)
     else:
@@ -633,13 +635,22 @@ class Parameter(Object):
                 'Parameter bounds for "%s" have to be defined!' % self.name)
 
     def get_upper(self, repeat=1):
-        return list_repeat(self.upper, repeat)
+        if self.upper.size != num.sum(repeat):
+            return list_repeat(self.upper, repeat)
+        else:
+            return self.upper
 
     def get_lower(self, repeat=1):
-        return list_repeat(self.lower, repeat)
+        if self.lower.size != num.sum(repeat):
+            return list_repeat(self.lower, repeat)
+        else:
+            return self.lower
 
     def get_testvalue(self, repeat=1):
-        return list_repeat(self.testvalue, repeat)
+        if self.testvalue.size != num.sum(repeat):
+            return list_repeat(self.testvalue, repeat)
+        else:
+            return self.testvalue
 
     def random(self, shape=None):
         """
@@ -657,9 +668,10 @@ class Parameter(Object):
         if shape is None:
             shape = self.dimension
 
+        lower = self.get_lower(shape)
+        rands = num.random.rand(num.sum(shape))
         try:
-            return (self.get_upper(shape) - self.get_lower(shape)) * \
-                num.random.rand(num.sum(shape)) + self.get_lower(shape)
+            return (self.get_upper(shape) - lower) * rands + lower
         except ValueError:
             raise ValueError(
                 'Value inconsistency shapes: {} parameter '

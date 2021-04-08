@@ -680,6 +680,7 @@ filename: %s''' % (
             cd = backend.concatenate(
                 [d_st_ceil_rt_ceil, d_st_floor_rt_ceil,
                  d_st_ceil_rt_floor, d_st_floor_rt_floor], axis=1).T  # T
+            print(s_st_ceil_rt_ceil.shape, s_st_floor_rt_ceil.shape, s_st_ceil_rt_floor.shape, s_st_floor_rt_floor.shape)
             cslips = backend.concatenate(
                 [s_st_ceil_rt_ceil, s_st_floor_rt_ceil,
                  s_st_ceil_rt_floor, s_st_floor_rt_floor], axis=1)   #
@@ -1058,16 +1059,13 @@ def seis_construct_gf_linear(
     st_mins = []
     st_maxs = []
     for idx, sf in enumerate(fault.iter_subfaults()):
-        npw, npl = fault.ordering.get_subfault_discretization(idx)
-        if velocities_prior.lower.size == 1:
-            rupture_velocities = velocities_prior.lower.repeat(npw * npl)
-        else:
-            try:
-                rupture_velocities = fault.vector2subfault(
-                    idx, velocities_prior.lower)
-            except(IndexError):
-                raise ValueError(
-                    'Velocities need to be of size either npatches or 1')
+        try:
+            rupture_velocities = fault.vector2subfault(
+                idx, velocities_prior.get_lower(fault.subfault_npatches))
+        except(IndexError):
+            raise ValueError(
+                'Velocities need to be of size either'
+                ' npatches or number of fault segments')
 
         start_times = fault.get_subfault_starttimes(
             index=idx,
@@ -1091,15 +1089,13 @@ def seis_construct_gf_linear(
             starttime_sampling) + 1)
     starttimes = starttimeidxs * starttime_sampling
 
-    ndurations = error_not_whole((
-        (durations_prior.upper.max() -
-         durations_prior.lower.min()) / duration_sampling),
+    durations_max = durations_prior.get_upper(fault.subfault_npatches).max()
+    durations_min = durations_prior.get_lower(fault.subfault_npatches).min()
+    ndurations = error_not_whole(
+        ((durations_max - durations_min) / duration_sampling),
         errstr='ndurations') + 1
 
-    durations = num.linspace(
-        durations_prior.lower.min(),
-        durations_prior.upper.max(),
-        ndurations)
+    durations = num.linspace(durations_min, durations_max, ndurations)
 
     logger.info(
         'Calculating GFs for starttimes: %s \n durations: %s' %

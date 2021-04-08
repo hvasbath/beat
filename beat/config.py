@@ -1353,12 +1353,7 @@ class ProblemConfig(Object):
         test_point = {}
         for varname, var in self.priors.items():
             shape = self.get_parameter_shape(var)
-            if isinstance(list, shape):
-                test_point[varname] = var.get_testvalue(shape)
-            elif shape == var.dimension:
-                test_point[varname] = var.get_testvalue()
-            else:
-                raise ValueError('Inconsistent shape of prior variabels!')
+            test_point[varname] = var.get_testvalue(shape)
 
         for varname, var in self.hyperparameters.items():
             test_point[varname] = var.get_testvalue()
@@ -1374,6 +1369,8 @@ class ProblemConfig(Object):
                 shape = self.n_sources
             elif param.name not in hypo_vars and self.mode_config.npatches:
                 shape = self.mode_config.subfault_npatches
+                if len(shape) == 0:
+                    shape = self.mode_config.npatches
             else:
                 shape = param.dimension
 
