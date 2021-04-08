@@ -34,6 +34,7 @@ E.g. https://pyrocko.org/beat/v1.0 to view older documentation versions.
   + geodetic data
   + seismic data with nucleation point for each subfault
 - allow for station corrections
+- subfault wise, prior bounds definition
 - easier fault geometry setup:
   + beat check --what=geometry allows to pipe fault setup into Talpa for GUI interactive fault editing
   + beat import --results=saved_geometry.yaml --mode=ffi imports the saved_geometry.yaml to the beat config_ffi
