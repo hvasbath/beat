@@ -615,6 +615,8 @@ filename: %s''' % (
 
         Parameters
         ----------
+        starttimes: numpy or theano tensor
+            size (ntargets, npatches) to be able to account for time-shifts!
 
         Returns
         -------
@@ -633,10 +635,6 @@ filename: %s''' % (
 
         self._check_mode_init(self._mode)
         backend = get_backend(self._mode)
-
-        if starttimes.size == npatches:
-            starttimes = backend.tile(
-                starttimes, self.ntargets).reshape((self.ntargets, npatches))
 
         durationidxs, rt_factors = self.durations2idxs(
             durations, interpolation=interpolation)
@@ -680,7 +678,6 @@ filename: %s''' % (
             cd = backend.concatenate(
                 [d_st_ceil_rt_ceil, d_st_floor_rt_ceil,
                  d_st_ceil_rt_floor, d_st_floor_rt_floor], axis=1).T  # T
-            print(s_st_ceil_rt_ceil.shape, s_st_floor_rt_ceil.shape, s_st_ceil_rt_floor.shape, s_st_floor_rt_floor.shape)
             cslips = backend.concatenate(
                 [s_st_ceil_rt_ceil, s_st_floor_rt_ceil,
                  s_st_ceil_rt_floor, s_st_floor_rt_floor], axis=1)   #
