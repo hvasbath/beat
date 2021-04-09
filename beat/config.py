@@ -279,7 +279,7 @@ class GFConfig(Object):
              'Important for the calculation of the model prediction covariance'
              ' matrix with respect to uncertainties in the velocity model.')
     earth_model_name = String.T(
-        default='ak135-f-average.m',
+        default='ak135-f-continental.f',
         help='Name of the reference earthmodel, see '
              'pyrocko.cake.builtin_models() for alternatives.')
     nworkers = Int.T(
