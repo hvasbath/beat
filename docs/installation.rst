@@ -379,10 +379,10 @@ For configuration and compilation please follow the descriptions provided in eac
 
 Seismic synthetics
 
-* `QSEIS <https://github.com/pyrocko/fomosto-qseis>`__
-* `QSSP <https://github.com/pyrocko/fomosto-qssp>`__
+* `QSEIS <https://git.pyrocko.org/pyrocko/fomosto-qseis/>`__
+* `QSSP <https://git.pyrocko.org/pyrocko/fomosto-qssp/>`__
 
 
 Geodetic synthetics
 
-* `PSGRN_PSCMP <https://github.com/pyrocko/fomosto-psgrn-pscmp>`__
+* `PSGRN_PSCMP <https://git.pyrocko.org/pyrocko/fomosto-psgrn-pscmp>`__
