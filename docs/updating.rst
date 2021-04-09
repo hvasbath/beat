@@ -14,12 +14,12 @@ Testing development features
 ----------------------------
 
 New features are developed and implemented using git branches. These features can be tested and installed
-with following commands::
+with following commands in the beat main directory ::
 
-  # get feature data from online repository
-  git fetch origin feature_branch_name
-  # create branch "feature_branch_name" locally
-  git checkout -b feature_branch_name
+  # get feature branch from online repository and create local branch
+  git fetch origin feature_branch_name:feature_branch_name
+  # switch to branch "feature_branch_name" locally
+  git checkout feature_branch_name
   git pull origin feature_branch_name
   sudo python setup.py install
 
