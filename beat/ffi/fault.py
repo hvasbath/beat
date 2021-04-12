@@ -1341,7 +1341,7 @@ def backslip2coupling(point, fault, event):
 
 def optimize_discretization(
         config, fault, datasets, varnames, crust_ind,
-        engine, targets, event, force, nworkers, plot=False, debug=False):
+        engine, targets, event, force, nworkers, debug=False):
     """
     Resolution based discretization of the fault surfaces based on:
     Atzori & Antonioli 2011:
@@ -1689,9 +1689,4 @@ def optimize_discretization(
 
     logger.info('Finished resolution based fault discretization.')
     logger.info('Quality index for this discretization: %f' % R.mean())
-
-    if plot:
-        source_geometry(
-            fault, list(fault.iter_subfaults()), event=event,
-            values=R, title='Resolution', datasets=datasets)
     return fault, R

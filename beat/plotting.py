@@ -4304,6 +4304,8 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
     if show:
         plt.show()
 
+    return fig, ax
+
 
 def get_gmt_config(gmtpy, h=20., w=20.):
 

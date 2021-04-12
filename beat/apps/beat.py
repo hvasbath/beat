@@ -1389,8 +1389,29 @@ def command_build_gfs(args):
                                 targets=targets,
                                 event=c.event,
                                 force=options.force,
-                                nworkers=gf.nworkers,
-                                plot=options.plot)
+                                nworkers=gf.nworkers)
+
+                            if options.plot:
+
+                                from beat.plotting import source_geometry
+                                fig, ax = source_geometry(
+                                    fault, list(fault.iter_subfaults()),
+                                    event=c.event, values=R,
+                                    title='Resolution',
+                                    datasets=datasets, show=False)
+
+                                outformat = 'pdf'
+                                outpath = pjoin(
+                                    c.project_dir, options.mode, 'figures',
+                                    'patch_resolutions_eps_%g.%s' % (
+                                        gf.discretization_config.epsilon,
+                                        outformat))
+                                logger.info(
+                                    'Plotting patch resolution '
+                                    'to %s' % outpath)
+                                fig.savefig(
+                                    outpath, format=outformat, dpi=300)
+
                             logger.info(
                                 'Storing optimized discretized fault'
                                 ' geometry to: %s' % faultpath)
