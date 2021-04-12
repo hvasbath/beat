@@ -13,6 +13,15 @@ Checkout the changelog https://github.com/hvasbath/beat/blob/master/CHANGELOG.md
 Documentation of the current version moved to the pyrocko server can be found here:
 https://pyrocko.org/beat/
 
+**HELP wanted!** 
+
+The new release contains a lot of undocumented features a list of these can be found here:
+https://github.com/hvasbath/beat/issues/69
+However, as this project is mostly the work of a single author it is becoming increasingly difficult to also
+write extended pages of tutorials that take days and days of writing. However, as this work is not acknowledged by the
+current academic system, I had to decide for a delayed release of the documentation, whenever it will
+be available provided by someone.
+
 The legacy documentation of beat v1.0. can be found under: https://hvasbath.github.io/beat/
 
 License 
