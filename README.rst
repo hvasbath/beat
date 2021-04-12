@@ -7,10 +7,13 @@ Bayesian Earthquake Analysis Tool
 
 Based on pyrocko, theano and pymc3
 
-Documentation (under construction) can be found here:
+A new version 1.1.0 is released adding support for multi-segmented fault setups and tensile dislocations.
+Checkout the changelog https://github.com/hvasbath/beat/blob/master/CHANGELOG.md for all the details.
+
+Documentation of the current version moved to the pyrocko server can be found here:
 https://pyrocko.org/beat/
 
-The first version 1.0 of BEAT is released!
+The legacy documentation of beat v1.0. can be found under: https://hvasbath.github.io/beat/
 
 License 
 =======
