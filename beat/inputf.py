@@ -429,7 +429,13 @@ def rotate_traces_and_stations(datatraces, stations, event):
         projections = station.guess_projections_to_rtu(
             out_channels=('R', 'T', 'Z'))
 
-        traces = station2traces[station.station]
+        try:
+            traces = station2traces[station.station]
+        except(KeyError):
+            logger.warning(
+                'Did not find data traces for station "%s"' % stations.station)
+            continue
+
         ntraces = len(traces)
         if ntraces < 3:
             logger.warn('Only found %i component(s) for station %s' % (

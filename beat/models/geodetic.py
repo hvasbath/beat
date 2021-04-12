@@ -298,6 +298,7 @@ class GeodeticComposite(Composite):
 
                     for hierarchical_name in hierarchical_names:
                         if not corr.enabled and hierarchical_name in hierarchicals:
+
                             raise ConfigInconsistentError(
                                 '%s %s disabled, but they are defined'
                                 ' in the problem configuration'
