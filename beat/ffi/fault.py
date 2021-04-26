@@ -277,7 +277,7 @@ total number of patches: %i ''' % (
         """
         moments = []
         for index in range(self.nsubfaults):
-            slips = num.zeros(self.npatches)
+            slips = num.zeros(self.subfault_npatches[index])
             for comp in self.components:
                 slips += self.var_from_point(index, point, comp) ** 2
 
@@ -560,7 +560,7 @@ total number of patches: %i ''' % (
         try:
             rv = self.vector2subfault(index, point[varname])
         except KeyError:
-            rv = num.zeros(self.npatches)
+            rv = num.zeros(self.subfault_npatches[index])
             logger.debug(
                 'Variable %s is not contained in point returning'
                 ' zeros!' % varname)
@@ -607,7 +607,7 @@ total number of patches: %i ''' % (
             for comp in slip_directions.keys():
                 ucomps[comp] = self.var_from_point(index, point, comp)
 
-            slips = num.zeros(self.npatches)
+            slips = num.zeros(self.subfault_npatches[index])
             for comp in self.components:
                 slips += ucomps[comp] ** 2
 
