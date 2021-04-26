@@ -24,17 +24,17 @@ GNSS
 ====
 The supported format for GNSS data is an ASCII file of the following format::
 
-    #SUMMARY VELOCITY ESTIMATES FROM GLOBK 
-    # Long.     Lat.        E & N Rate      E & N Adj.        E & N +-        RHO      H Rate   H adj.    +-  SITE 
-    # (deg)    (deg)          (mm/yr)       (mm/yr)          (mm/yr)                   (mm/yr) 
-       30.43646   40.69154   -14.98   -2.12  -14.98   -2.12    1.34    1.62 -0.042     -2.16   -2.16    5.77 DOGG_FRM
-       30.40741   40.70456   -13.92    2.11  -13.92    2.11    1.98    2.44 -0.012      6.71    6.71    8.91 CATT_FRM
-       30.38343   40.79282    -5.43   -4.25   -5.43   -4.25    1.35    1.67 -0.013     -5.34   -5.34    5.97 COOW_FRM
+  #SUMMARY VELOCITY ESTIMATES FROM GLOBK 
+  # Long.  Lat.   E & N Rate      E & N Adj.      E & N   +-    RHO    H Rate   H adj.  +-   SITE 
+  # (deg)  (deg)  (mm/yr)         (mm/yr)         (mm/yr)              (mm/yr) 
+   30.4    40.6   -14.98   -2.12  -14.98   -2.12  1.34    1.62 -0.042  -2.16   -2.16    5.77 DOGG_FRM
+   31.6    42.7   -13.92    2.11  -13.92    2.11  1.98    2.44 -0.012   6.71    6.71    8.91 CATT_FRM
+   32.5    41.5    -5.43   -4.25   -5.43   -4.25  1.35    1.67 -0.013  -5.34   -5.34    5.97 COOW_FRM
 
-From that file the following columns are imported: Longitude, Latitude, velocity east component, velocity north component, velocity vertical component, standard-deviaion east component, standard-deviaion north component, standard-deviaion vertical component,
+From that file the following columns are imported: Longitude, Latitude, velocity east component, velocity north component, velocity vertical component, standard-deviaion east component, standard-deviaion north component, standard-deviaion vertical component and site label, which is composed of the station name and the network name.
 The units for the location and the measurements are [decimal deg] and [mm/yr], respectively.
 
-.. note:: This is the native GAMMIT-GLOBK output file.
+.. note:: This is the native GAMMIT-GLOBK output file, and the number of header-lines (first three commented lines) is important. In case some of those lines are missing the first entries might be skipped during import!
 
 seismic data
 ^^^^^^^^^^^^
