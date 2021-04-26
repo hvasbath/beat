@@ -1401,8 +1401,11 @@ def command_build_gfs(args):
                                     datasets=datasets, show=False)
 
                                 outformat = 'pdf'
+                                figure_path = pjoin(
+                                    c.project_dir, options.mode, 'figures')
+                                util.ensuredir(figure_path)
                                 outpath = pjoin(
-                                    c.project_dir, options.mode, 'figures',
+                                    figure_path,
                                     'patch_resolutions_eps_%g.%s' % (
                                         gf.discretization_config.epsilon,
                                         outformat))
