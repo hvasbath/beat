@@ -3622,10 +3622,12 @@ def fault_slip_distribution(
     from beat.colormap import slip_colormap
     fontsize = 12
 
-    reference_slip = num.sqrt(
-        reference['uperp'] ** 2 +
-        reference['uparr'] ** 2 +
-        reference['utens'] ** 2)
+    reference_slip = num.zeros(fault.npatches)
+    for comp in fault.components:
+        reference_slip += fault.var_from_point(
+            index=None, point=reference, varname=comp)
+
+    reference_slip = num.sqrt(reference_slip)
 
     figs = []
     axs = []
@@ -4597,7 +4599,8 @@ def draw_3d_slip_distribution(problem, po):
         logger.info('Plot exists! Use --force to overwrite!')
 
 
-def slip_distribution_3d_gmt(fault, reference, mtrace=None, perspective='135/30'):
+def slip_distribution_3d_gmt(
+        fault, reference, mtrace=None, perspective='135/30'):
 
     from pyrocko import gmtpy
 
@@ -4653,10 +4656,12 @@ def slip_distribution_3d_gmt(fault, reference, mtrace=None, perspective='135/30'
         p=p,
         *J)
 
-    reference_slips = num.sqrt(
-        reference['uperp'] ** 2 +
-        reference['uparr'] ** 2 +
-        reference['utens'] ** 2)
+    reference_slips = num.zeros(fault.npatches)
+    for comp in fault.components:
+        reference_slips += fault.var_from_point(
+            index=None, point=reference, varname=comp)
+
+    reference_slips = num.sqrt(reference_slips)
 
     autos = AutoScaler(snap='on', approx_ticks=3)
 

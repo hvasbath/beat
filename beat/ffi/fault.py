@@ -556,16 +556,20 @@ total number of patches: %i ''' % (
         return self.get_subfault_starttimes(
             index, velocities, nuc_dip_idx, nuc_strike_idx) + time
 
-    def var_from_point(self, index, point, varname):
+    def var_from_point(self, index=None, point={}, varname=None):
+
         try:
-            rv = self.vector2subfault(index, point[varname])
+            rv = point[varname]
         except KeyError:
-            rv = num.zeros(self.subfault_npatches[index])
+            rv = num.zeros(self.npatches)
             logger.debug(
                 'Variable %s is not contained in point returning'
                 ' zeros!' % varname)
 
-        return rv
+        if index is not None:
+            return self.vector2subfault(index, rv)
+        else:
+            return rv
 
     def point2sources(self, point, events=[]):
         """
