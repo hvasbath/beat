@@ -1027,20 +1027,28 @@ def command_summarize(args):
                 chains = stage.mtrace.chains
             elif sampler_name == 'PT':
                 result_check(stage.mtrace, min_length=1)
-                idxs = range(
+                unthinned_idxs = list(range(
                     int(floor(sc_params.n_samples * sc_params.burn)),
                     sc_params.n_samples,
-                    sc_params.thin)
+                    sc_params.thin))
+                idxs = range(len(thin_buffer(
+                    unthinned_idxs, sc.buffer_thinning, ensure_last=True)))
+
                 chains = [0]
                 draws = len(idxs)
             elif sampler_name == 'Metropolis':
                 result_check(stage.mtrace, min_length=1)
-                idxs = range(
-                    int(floor(sc_params.n_steps * sc_params.burn)),
-                    sc_params.n_steps,
-                    sc_params.thin)
+
+                unburned_idxs = thin_buffer(
+                    list(range(sc_params.n_steps)),
+                    sc.buffer_thinning, ensure_last=True)
+
+                n_ubidxs = len(unburned_idxs)
+                idxs = range(len(unburned_idxs[
+                    int(floor(n_ubidxs * sc_params.burn))::sc_params.thin]))
+
                 chains = stage.mtrace.chains
-                draws =  sc_params.n_chains * len(idxs)
+                draws = sc_params.n_chains * len(idxs)
             else:
                 raise NotImplementedError(
                     'Summarize function still needs to be implemented '

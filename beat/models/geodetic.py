@@ -68,7 +68,6 @@ class GeodeticComposite(Composite):
             project_dir, bconfig.geodetic_data_name)
 
         self.datasets = utility.load_objects(geodetic_data_path)
-
         logger.info('Number of geodetic datasets: %i ' % self.n_t)
 
         # init geodetic targets

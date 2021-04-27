@@ -115,7 +115,6 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
         # needed to use the same parallel implementation function as for SMC
         self.resampling_indexes = num.arange(n_chains)
-
         self.n_chains = n_chains
 
         self.likelihood_name = likelihood_name

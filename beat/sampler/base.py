@@ -563,6 +563,9 @@ def init_stage(
     Examine starting point of sampling, reload stages and initialise steps.
     """
     with model:
+        # optionally clean stage before parameter loading
+        stage_handler.clean_directory(stage, None, rm_flag)
+
         if stage == 0:
             # continue or start initial stage
             step.stage = stage
@@ -580,8 +583,6 @@ def init_stage(
             except ValueError:
                 logger.info(
                     'Found no existing sample directories! Skipping loading!')
-
-        stage_handler.clean_directory(stage, None, rm_flag)
 
         varnames = [var.name for var in model.unobserved_RVs]
         chains = stage_handler.recover_existing_results(
