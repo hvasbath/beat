@@ -32,14 +32,14 @@ Please change to your &beat_models_path with::
 
 Calculate Greens Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
-We need to calculate a Greens function (GF) store, as done in `Example 1 <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__
+We need to calculate a Greens function (GF) store, as done in `Example 1 <https://pyrocko.org/beat/docs/current/examples/FullMT_regional.html#calculate-greens-functions>`__
 the regional Full Moment Tensor example.
 Depending on the datatypes you selected earlier you will have to calculate the Greens Functions for both or either datatypes.
 
 Geodetic
 ========
 In this case we will calculate a Greens Function store that holds static displacements. For this we will make use of the PSGRN/PSCMP [Wang2008]_ backend.
-You will need to install the respective executables if not done yet! Please follow this `link <https://hvasbath.github.io/beat/installation.html#greens-functions>`__ to do so.
+You will need to install the respective executables if not done yet! Please follow this `link <https://pyrocko.org/beat/docs/current/installation.html#greens-functions>`__ to do so.
 
 Please open $project_directory/config_geometry.yaml with any text editor (e.g. vi) and search for: store_superdir.
 The path specified here needs to be replaced with the path to where the GFs are supposed to be stored on your computer.
@@ -71,7 +71,7 @@ In the $project_path/config_geometry.yaml under geodetic_config we find the gf_c
    medium_depth_spacing: 1.0
    medium_distance_spacing: 1.0
 
-To get a short explanation for each parameter please see the API modules `here <https://hvasbath.github.io/beat/api.html#config.NonlinearGFConfig>`__.
+To get a short explanation for each parameter please see the API modules `here <https://pyrocko.org/beat/docs/current/api.html#config.NonlinearGFConfig>`__.
 
 The variable 'store_superdir' needs to contain an **absolute path** to your $project_directory/.
 You can also change the number of cores available to your system with the variable 'nworkers' to speed up the calculation of the GFs.
@@ -164,7 +164,7 @@ The seismic phases for which the GFs are going to be calculated are defined unde
           c: 250.0
           d: 270.0
 
-In this case the GFs are going to be calculated for the P body waves as can be seen by the "name" parameter "any_P". How to calculate GFs also for S or surface waves is discussed in `Example 1 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#calculate-greens-functions>`__.
+In this case the GFs are going to be calculated for the P body waves as can be seen by the "name" parameter "any_P". How to calculate GFs also for S or surface waves is discussed in `Example 1 <https://pyrocko.org/beat/docs/current/examples/FullMT_regional.html#calculate-greens-functions>`__.
 
 The specifications for the Green's Functions are fine now and we can start the setup with::
 

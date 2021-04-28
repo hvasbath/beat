@@ -3,8 +3,8 @@ Example 5: Kinematic finite-fault estimation
 --------------------------------------------
 
 It is a requirement to have Example 3 and 4 completed in order to follow the instructions and commands given in this Example.
-The data is the exact same from `Example 2 <https://hvasbath.github.io/beat/examples/Rectangular.html#>`__, where the overall geometry of the fault plane was estimated.
-In `Example 4 <https://hvasbath.github.io/beat/examples/FFI_static.html#>`__ we solved for variable slip on the optimum fault geometry from Example 3 by using static InSAR data.
+The data is the exact same from `Example 3 <https://pyrocko.org/beat/docs/current/examples/Rectangular.html>`__, where the overall geometry of the fault plane was estimated.
+In `Example 4 <https://pyrocko.org/beat/docs/current/examples/FFI_static.html>`__ we solved for variable slip on the optimum fault geometry from Example 3 by using static InSAR data.
 We will use the posterior marginals from Example 4 and use them as priors in this Example. Here we will determine a kinematic variable slip distribution including rupture propagation for the L'Aquila 2009 earthquake by using static InSAR data **jointly** with teleseismic displacement waveforms.
 
 Please make sure that you are one level above the Laquila project folder (created earlier).::
@@ -87,7 +87,7 @@ Calculate Green's Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Elementary GFs
 ==============
-Now the Green's Functions store(s) have to be calculated again for the **geometry** problem with higher resolutions. Please remember `Example 3 <https://hvasbath.github.io/beat/examples/Rectangular.html#calculate-greens-functions>`__. There the optimization was run using Green's Functions depth and distance sampling of 4km with 0.5Hz sampling. This may be accurate enough for the *geometry* type of optimization, however, for a finite fault optimization the aim is to resolve details of the rupture propagation and the slip distribution. So the setup parameters of the **geometry** Green's Functions would need to be changed to higher resolution. In this case we want to use wavelengths of up to 0.5Hz ergo a depth and distance sampling of 1 km and 2Hz sample rate may be precise enough. Of course, these parameters depend on the problem setup and have to be adjusted individually for each problem! So please open the *Laquila/config_geometry.yaml* and edit the parameters accordingly.
+Now the Green's Functions store(s) have to be calculated again for the **geometry** problem with higher resolutions. Please remember `Example 3 <https://pyrocko.org/beat/docs/current/examples/Rectangular.html#calculate-greens-functions>`__. There the optimization was run using Green's Functions depth and distance sampling of 4km with 0.5Hz sampling. This may be accurate enough for the *geometry* type of optimization, however, for a finite fault optimization the aim is to resolve details of the rupture propagation and the slip distribution. So the setup parameters of the **geometry** Green's Functions would need to be changed to higher resolution. In this case we want to use wavelengths of up to 0.5Hz ergo a depth and distance sampling of 1 km and 2Hz sample rate may be precise enough. Of course, these parameters depend on the problem setup and have to be adjusted individually for each problem! So please open the *Laquila/config_geometry.yaml* and edit the parameters accordingly.
 Running this calculation will take a long time depending on the number of CPUs at hand. (With 25 CPUs the calculation took approximately 15Hrs)::
 
   beat build_gfs Laquila --datatypes='seismic' --execute
@@ -220,7 +220,7 @@ Here we see the slip parallel traces for patch 0, at starttime (t0) of -1s (afte
 
 Sample the solution space
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-Please refer to the 'Sample the solution space section' of `Example 3 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#sample-the-solution-space>`__ Example for a more detailed description of the sampling and associated parameters.
+Please refer to the 'Sample the solution space section' of `Example 3 <https://pyrocko.org/beat/docs/current/examples/FullMT_regional.html#sample-the-solution-space>`__ Example for a more detailed description of the sampling and associated parameters.
 
 Firstly, we only optimize for the noise scaling or hyperparameters (HPs) including the laplacian smoothing weight::
 

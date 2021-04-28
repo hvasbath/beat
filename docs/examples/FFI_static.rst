@@ -3,7 +3,7 @@ Example 4: Static finite-fault estimation
 -----------------------------------------
 
 In this example we will determine a variable slip distribution for the L'aquila 2009 earthquake by using static InSAR data.
-The data is the exact same from `Example 3 <https://hvasbath.github.io/beat/examples/Rectangular.html#>`__, where the overall geometry of the fault plane was estimated.
+The data is the exact same from `Example 3 <https://pyrocko.org/beat/docs/current/examples/Rectangular.html#>`__, where the overall geometry of the fault plane was estimated.
 It is a requirement to have Example 3 completed in order to follow the instructions and commands given in this example.
 
 Please make sure that you are one level above the Laquila project folder (created earlier).::
@@ -19,7 +19,7 @@ The following command will create a configuration file for the *ffi* mode called
 
 It will load the *config_geometry.yaml* and port arguments that have been specified before to ensure consistency and will only use *geodetic* data.
 
-The main differences in the two configuration files are in the *geodetic_config.gf_config* and the *problem_config*. You may want to have a first glance at the new config. The general structure is the same and the argument names are chosen to give the user an initial idea what these are for. A short explanation for each argument is again given in the module API `here <https://hvasbath.github.io/beat/api.html#module-config>`__, where you can use the search function of your browser to find the argument of interest.
+The main differences in the two configuration files are in the *geodetic_config.gf_config* and the *problem_config*. You may want to have a first glance at the new config. The general structure is the same and the argument names are chosen to give the user an initial idea what these are for. A short explanation for each argument is again given in the module API `here <https://pyrocko.org/beat/docs/current/api.html#config.NonlinearGFConfig>`__, where you can use the search function of your browser to find the argument of interest.
 
 
 Calculate Greens Functions
@@ -211,7 +211,7 @@ Once happy with the displayed changes the changes will be applied to the file wi
 
 Sample the solution space
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-Please refer to the 'Sample the solution space section' of `example 3 <https://hvasbath.github.io/beat/examples/FullMT_regional.html#sample-the-solution-space>`__ example for a more detailed description of the sampling and associated parameters.
+Please refer to the 'Sample the solution space section' of `example 3 <https://pyrocko.org/beat/docs/current/examples/FullMT_regional.html#sample-the-solution-space>`__ example for a more detailed description of the sampling and associated parameters.
 
 Firstly, we only optimize for the noise scaling or hyperparameters (HPs) including the laplacian smoothing weight::
 

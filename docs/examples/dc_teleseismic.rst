@@ -14,7 +14,7 @@ please edit the 'model path' (referred to as $beat_models now on) to your prefer
 This will create a BEAT project directory named 'Laquila_dc' with a configuration file (config_geometry.yaml) and
 real example data (seismic_data.pkl). This directory is going to be referred to as '$project_directory' in the following.
 
-We assume that the reader is familiar with the setup of `Example 1 <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__ beforehand.
+We assume that the reader is familiar with the setup of `Example 1 <https://pyrocko.org/beat/docs/current/examples/FullMT_regional.html#calculate-greens-functions>`__ beforehand.
 
 
 Download Greens Functions
@@ -33,7 +33,7 @@ Please make sure that the store_superdir attribute under seismic_config.gf_confi
 
   store_superdir: $GF_path
 
-Alternatively, we could also calculate the Greens function (GF) store ourselves, as done in `Example 1 <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__
+Alternatively, we could also calculate the Greens function (GF) store ourselves, as done in `Example 1 <https://pyrocko.org/beat/docs/current/examples/FullMT_regional.html#calculate-greens-functions>`__
 the regional Full Moment Tensor example. Please note that creating such a store is computationally expensive.
 
 How to convert Green's Mill store to beat format

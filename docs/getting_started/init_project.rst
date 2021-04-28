@@ -243,3 +243,45 @@ Each BEAT config consists of some general information, from information collecte
 
 Most of the edits likely will be made in the ProblemConfig, particularly in the priors of the source parameters. For now only uniform priors are available. To change the bounds of the priors simply type other values into the 'upper' and 'lower' fields of each source parameter. Note: The test parameter needs to be within these bounds!
 To fix one or the other parameter in the optimizations the upper and lower bounds as well as the test value need to be set equal.
+
+
+Initialize modeling project of an unlisted earthquake
+-----------------------------------------------------
+*Contributed by Carlos Herrera*
+
+To create a customizable moment tensor project for an earthquake not included in any moment tensor
+catalog, run::
+
+    beat init newEQ --datatypes='seismic' --mode='geometry' --source_type='MTSource' --waveforms='any_P, any_S, slowest' --use_custom
+
+This creates the folder “newEQ” with a *config_geometry.yaml* file inside. Some parameters should be
+manually edited and filled up. These are some suggested initial changes in the configuration file:
+
+ * **event: !pf.Event**: In this block, add manually the following earthquake parameters: lat, lon and time;
+   optionally: depth, name, magnitude, and region.
+ * **hyperparameters** and **seismic_config: !beat.SeismicConfig**: The *beat init* command in
+   the example includes three types of waves for the modelling, which can be adjusted in the
+   blocks under **waveforms: !beat.WaveformFitConfig**. By default, the vertical channel (Z) is used for the wave types.
+   But radial (R) and transverse (T) channels can also be manually added. Also, the modeling can be done in either
+   displacement (default) or velocity - please adjust the *quantity* argument accordingly.
+   In this section, the source-station distance range (*distances*) is in degrees.
+   Make sure the range does not extend beyond the limits of the chosen Green’s functions for modeling.
+ * **gf_config: !beat.SeismicGFConfig**: This block is related to Green’s functions parameters. In
+   this case, *beat init* was specified to use the option of custom Green’s functions, which need to be
+   calculated just once.:
+
+  1) Depending on the distances used for the project (regional or teleseismic), download and install
+     independently the `QSEIS <https://git.pyrocko.org/pyrocko/fomosto-qseis/>`__ code and/or the `QSSP <https://git.pyrocko.org/pyrocko/fomosto-qssp/>`__ code.
+  2) Edit the Green’s functions parameters in this block and then calculate the Green’s functions.
+     General instructions and suggestions can be found `here <https://pyrocko.org/beat/docs/current/getting_started/custom_gf_store.html>`__.
+
+ * **sampler_config: !beat.SamplerConfig** and **hyper_sampler_config: !beat.SamplerConfig**: Parameters 
+   in these blocks are related to the sampling method and can be edited depending on
+   the user needs. In terms of calculation performance, the “bin” backend is considerably faster
+   than “csv” (see `sampling backends <https://pyrocko.org/beat/docs/current/getting_started/backends.html>`__).
+   Also, the *progressbar* can be optionally set to “false” for an additional performance improvement.
+
+Waveform data for this modeling project can be downloaded using **beatdown**. Data can be selected by
+using the earthquake’s origin time, location, and station distance range (check: **beatdown --help** ). A
+simple example is found `here <https://pyrocko.org/beat/docs/current/getting_started/import_data.html>`__.
+After considering these initial suggestions, follow the `tutorial <https://pyrocko.org/beat/docs/current/examples/FullMT_regional.html>`__ for detailed model parameter descriptions and instructions to run the estimation.

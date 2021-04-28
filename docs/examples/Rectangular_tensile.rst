@@ -63,7 +63,7 @@ In the $project_path/config_geometry.yaml under geodetic_config we find the gf_c
     medium_depth_spacing: 1.0
     medium_distance_spacing: 10.0
 
-To get a short explanation for each parameter please see the API modules `here <https://hvasbath.github.io/beat/api.html#config.NonlinearGFConfig>`__.
+To get a short explanation for each parameter please see the API modules `here <https://pyrocko.org/beat/docs/current/api.html#config.NonlinearGFConfig>`__.
 
 The variable 'store_superdir' needs to contain an **absolute path** to your $project_directory/.
 You can also change the number of cores available to your system with the variable 'nworkers' to speed up the calculation of the GFs.
