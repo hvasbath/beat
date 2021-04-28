@@ -3087,10 +3087,8 @@ def draw_posteriors(problem, plot_options):
     list_indexes = stage.handler.get_stage_indexes(po.load_stage)
 
     if hypers:
-        sc = problem.config.hyper_sampler_config
         varnames = problem.hypernames + ['like']
     else:
-        sc = problem.config.sampler_config
         varnames = problem.varnames + problem.hypernames + \
             problem.hierarchicalnames + ['like']
 
@@ -3168,10 +3166,8 @@ def draw_correlation_hist(problem, plot_options):
     hypers = utility.check_hyper_flag(problem)
 
     if hypers:
-        sc = problem.config.hyper_sampler_config
         varnames = problem.hypernames
     else:
-        sc = problem.config.sampler_config
         varnames = list(problem.varnames) + problem.hypernames + ['like']
 
     if len(po.varnames) > 0:
@@ -3578,7 +3574,7 @@ def fault_slip_distribution(
         pad = sf.length / km * 0.05
 
         xlim = [lower[0] - pad, lower[0] + sf.length / km + pad]
-        ylim = [lower[1]- pad, lower[1] + sf.width / km + pad]
+        ylim = [lower[1] - pad, lower[1] + sf.width / km + pad]
 
         ax.set_xlim(*xlim)
         ax.set_ylim(*ylim)
@@ -3610,24 +3606,20 @@ def fault_slip_distribution(
         cb.update_ticks()
         ax.set_aspect('equal', adjustable='box')
 
-    def get_values_from_trace(mtrace, varname, reference):
+    def get_values_from_trace(mtrace, fault, varname, reference):
         try:
             u = transform(
                 mtrace.get_values(
                     varname, combine=True, squeeze=True))
         except(ValueError, KeyError):
-            u = num.atleast_2d(reference[varname])
+            u = num.atleast_2d(fault.var_from_point(
+                index=None, point=reference, varname=varname))
         return u
 
     from beat.colormap import slip_colormap
     fontsize = 12
 
-    reference_slip = num.zeros(fault.npatches)
-    for comp in fault.components:
-        reference_slip += fault.var_from_point(
-            index=None, point=reference, varname=comp)
-
-    reference_slip = num.sqrt(reference_slip)
+    reference_slip = fault.get_total_slip(index=None, point=reference)
 
     figs = []
     axs = []
@@ -3727,11 +3719,11 @@ def fault_slip_distribution(
             logger.info('Drawing quantiles ...')
 
             uparr = get_values_from_trace(
-                mtrace, 'uparr', reference)[:, patch_idxs]
+                mtrace, fault, 'uparr', reference)[:, patch_idxs]
             uperp = get_values_from_trace(
-                mtrace, 'uperp', reference)[:, patch_idxs]
+                mtrace, fault, 'uperp', reference)[:, patch_idxs]
             utens = get_values_from_trace(
-                mtrace, 'utens', reference)[:, patch_idxs]
+                mtrace, fault, 'utens', reference)[:, patch_idxs]
 
             uparrmean = uparr.mean(axis=0)
             uperpmean = uperp.mean(axis=0)
@@ -3742,7 +3734,7 @@ def fault_slip_distribution(
                 quivers, normalisation = draw_quivers(
                     ax, uperpmean, uparrmean, xgr, ygr,
                     ext_source.rake, color='grey',
-                draw_legend=False)
+                    draw_legend=False)
                 uparrstd = uparr.std(axis=0) / normalisation
                 uperpstd = uperp.std(axis=0) / normalisation
             elif utensmean.sum() != 0:
@@ -3810,8 +3802,6 @@ def draw_slip_dist(problem, po):
     datatype, gc = list(problem.composites.items())[0]
 
     fault = gc.load_fault_geometry()
-
-    sc = problem.config.sampler_config
 
     stage = load_stage(
         problem, stage_number=po.load_stage, load='trace', chains=[-1])
@@ -4224,7 +4214,7 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
     def set_axes_equal(ax, axes='xyz'):
         '''
         Make axes of 3D plot have equal scale so that spheres appear as
-        spheres, cubes as cubes, etc.. 
+        spheres, cubes as cubes, etc..
         This is one possible solution to Matplotlib's
         ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
 
@@ -4241,7 +4231,6 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
         origin = num.mean(limits, axis=1)
         radius = 0.5 * num.max(num.abs(limits[:, 1] - limits[:, 0]))
         set_axes_radius(ax, origin, radius, axes=axes)
-
 
     fig = plt.figure(figsize=mpl_papersize('a4', 'landscape'))
     ax = fig.add_subplot(111, projection='3d')
@@ -4656,12 +4645,7 @@ def slip_distribution_3d_gmt(
         p=p,
         *J)
 
-    reference_slips = num.zeros(fault.npatches)
-    for comp in fault.components:
-        reference_slips += fault.var_from_point(
-            index=None, point=reference, varname=comp)
-
-    reference_slips = num.sqrt(reference_slips)
+    reference_slips = fault.get_total_slip(index=None, point=reference)
 
     autos = AutoScaler(snap='on', approx_ticks=3)
 

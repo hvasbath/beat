@@ -277,11 +277,7 @@ total number of patches: %i ''' % (
         """
         moments = []
         for index in range(self.nsubfaults):
-            slips = num.zeros(self.subfault_npatches[index])
-            for comp in self.components:
-                slips += self.var_from_point(index, point, comp) ** 2
-
-            slips = num.sqrt(slips)
+            slips = self.get_total_slip(index, point)
 
             sf_moments = self.get_subfault_patch_moments(
                 index=index, slips=slips, store=store,
@@ -298,6 +294,25 @@ total number of patches: %i ''' % (
         return moment_to_magnitude(
             self.get_moment(
                 point=point, store=store, target=target, datatype=datatype))
+
+    def get_total_slip(self, index=None, point={}, components=None):
+        """
+        Get total slip on patches summed over components.
+        """
+        if components is None:
+            components = self.components
+
+        if index is None:
+            npatches = self.npatches
+        else:
+            npatches = self.subfault_npatches[index]
+
+        slips = num.zeros(npatches)
+        for comp in components:
+            slips += self.var_from_point(
+                index=index, point=point, varname=comp) ** 2
+
+        return num.sqrt(slips)
 
     def get_subfault_patch_stfs(
             self, index, durations, starttimes,
@@ -352,11 +367,10 @@ total number of patches: %i ''' % (
     def get_subfault_moment_rate_function(self, index, point, target, store):
 
         deltat = store.config.deltat
-        uparr = self.var_from_point(index, point, comp='uparr')
-        uperp = self.var_from_point(index, point, comp='uperp')
-        slips = num.sqrt(uparr ** 2 + uperp ** 2)
+        slips = self.get_total_slip(
+            index, point, components=['uparr', 'uperp'])
         starttimes = self.point2starttimes(point, index=index).ravel()
-        tmin = num.floor((starttimes.min() / deltat)) * deltat 
+        tmin = num.floor((starttimes.min() / deltat)) * deltat
         tmax = (num.ceil(
             (starttimes.max() + point['durations'].max()) / deltat) + 1) * \
             deltat
@@ -433,11 +447,7 @@ total number of patches: %i ''' % (
 
             return num.vstack(verts)
 
-        slips = num.zeros(self.npatches)
-        for comp in self.components:
-            slips += point[comp] ** 2
-
-        slips = num.sqrt(slips)
+        slips = self.get_total_slip(index=None, point=point)
 
         if datatype == 'seismic':
             durations = point['durations']
@@ -451,7 +461,7 @@ total number of patches: %i ''' % (
             starttimes = num.hstack(sts)
             tmax = (num.ceil(
                 (starttimes.max() + durations.max()) / deltat) + 1) * \
-                   deltat
+                deltat
             tmin = num.floor(starttimes.min() / deltat) * deltat
 
             srf_times = num.arange(tmin, tmax, deltat)
@@ -611,11 +621,7 @@ total number of patches: %i ''' % (
             for comp in slip_directions.keys():
                 ucomps[comp] = self.var_from_point(index, point, comp)
 
-            slips = num.zeros(self.subfault_npatches[index])
-            for comp in self.components:
-                slips += ucomps[comp] ** 2
-
-            slips = num.sqrt(slips)
+            slips = self.get_total_slip(index, point)
             rakes = num.arctan2(
                 -ucomps['uperp'], ucomps['uparr']) * r2d + sf.rake
             opening_fractions = ucomps['utens'] / slips
