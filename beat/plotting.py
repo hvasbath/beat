@@ -4298,16 +4298,16 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
     return fig, ax
 
 
-def get_gmt_config(gmtpy, h=20., w=20.):
+def get_gmt_config(gmtpy, fontsize=14, h=20., w=20.):
 
     if gmtpy.is_gmt5(version='newest'):
         gmtconfig = {
             'MAP_GRID_PEN_PRIMARY': '0.1p',
             'MAP_GRID_PEN_SECONDARY': '0.1p',
             'MAP_FRAME_TYPE': 'fancy',
-            'FONT_ANNOT_PRIMARY': '14p,Helvetica,black',
-            'FONT_ANNOT_SECONDARY': '14p,Helvetica,black',
-            'FONT_LABEL': '14p,Helvetica,black',
+            'FONT_ANNOT_PRIMARY': '%ip,Helvetica,black' % fontsize,
+            'FONT_ANNOT_SECONDARY': '%ip,Helvetica,black' % fontsize,
+            'FONT_LABEL': '%ip,Helvetica,black' % fontsize,
             'FORMAT_GEO_MAP': 'D',
             'GMT_TRIANGULATE': 'Watson',
             'PS_MEDIA': 'Custom_%ix%i' % (w * gmtpy.cm, h * gmtpy.cm),
@@ -4320,7 +4320,7 @@ def get_gmt_config(gmtpy, h=20., w=20.):
             'ANNOT_FONT_SIZE_PRIMARY': '12p',
             'PLOT_DEGREE_FORMAT': 'D',
             'GRID_PEN_SECONDARY': '0.01p',
-            'FONT_LABEL': '14p,Helvetica,black',
+            'FONT_LABEL': '%ip,Helvetica,black' % fontsize,
             'PS_MEDIA': 'Custom_%ix%i' % (w * gmtpy.cm, h * gmtpy.cm),
         }
     return gmtconfig
@@ -4563,24 +4563,52 @@ def draw_3d_slip_distribution(problem, po):
         llk_str = 'ref'
         mtrace = None
 
-    datatype, gc = list(problem.composites.items())[0]
+    datatype, cconf = list(problem.composites.items())[0]
 
-    fault = gc.load_fault_geometry()
-
-    outpath = os.path.join(
-        problem.outfolder,
-        po.figure_dir,
-        '3d_slip_distribution_%i_%s_%i.%s' % (
-            po.load_stage, llk_str, po.nensemble, po.outformat))
+    fault = cconf.load_fault_geometry()
 
     if po.plot_projection in ['local', 'latlon']:
         perspective = '135/30'
     else:
         perspective = po.plot_projection
 
+    gc = problem.config.geodetic_config
+    if gc:
+        for corr in gc.corrections_config.euler_poles:
+            if corr.enabled:
+                logger.info(
+                    'Found Euler pole correction assuming interseismic '
+                    'slip-rates ...')
+                slip_units = 'm/yr'
+            else:
+                logger.info(
+                    'Did not find Euler pole correction-assuming '
+                    'co-seismic slip ...')
+                slip_units = 'm'
+
+    if len(po.varnames) == 0:
+        varnames = None
+    else:
+        varnames = po.varnames
+
+    if len(po.varnames) == 1:
+        slip_label = po.varnames[0]
+    else:
+        slip_label = 'slip'
+
+    outpath = os.path.join(
+        problem.outfolder,
+        po.figure_dir,
+        '3d_%s_distribution_%i_%s_%i.%s' % (
+            slip_label, po.load_stage, llk_str,
+            po.nensemble, po.outformat))
+
     if not os.path.exists(outpath) or po.force or po.outformat == 'display':
         logger.info('Drawing 3d slip-distribution plot ...')
-        gmt = slip_distribution_3d_gmt(fault, reference, mtrace, perspective)
+
+        gmt = slip_distribution_3d_gmt(
+            fault, reference, mtrace, perspective,
+            slip_units, slip_label, varnames)
 
         logger.info('saving figure to %s' % outpath)
         gmt.save(outpath, resolution=300, size=10)
@@ -4589,7 +4617,8 @@ def draw_3d_slip_distribution(problem, po):
 
 
 def slip_distribution_3d_gmt(
-        fault, reference, mtrace=None, perspective='135/30'):
+        fault, reference, mtrace=None, perspective='135/30', slip_units='m',
+        slip_label='slip', varnames=None):
 
     from pyrocko import gmtpy
 
@@ -4601,11 +4630,15 @@ def slip_distribution_3d_gmt(
     font = '1'
     bin_width = 1  # major grid and tick increment in [deg]
     h = 15  # outsize in cm
-    w = 20
+    w = 22
 
     p = 'z%s/0' % perspective
 
-    gmtconfig = get_gmt_config(gmtpy, h=h, w=h)
+    gmtconfig = get_gmt_config(gmtpy, h=h, w=w, fontsize=11)
+
+    gmtconfig['MAP_FRAME_TYPE'] = 'plain'
+    gmtconfig['MAP_SCALE_HEIGHT'] = '11p'
+    #gmtconfig.pop('PS_MEDIA')
 
     gmt = gmtpy.GMT(config=gmtconfig)
 
@@ -4628,10 +4661,11 @@ def slip_distribution_3d_gmt(
          lat_min - lat_tolerance,
          lat_max + lat_tolerance,
          -max_depth, 0], '/')
-    Jg = '-JM%gc' % 10
-    Jz = '-JZ%gc' % 4
+    Jg = '-JM%gc' % 18
+    Jz = '-JZ%gc' % 6
     J = [Jg, Jz]
-    B = ['-Bxa%i' % bin_width, '-Bya%i' % bin_width, '-Bza10+Ldepth [km]']
+    B = ['-Bxa%i' % bin_width, '-Bya%i' % bin_width,
+         '-Bza10+Ldepth [km]', '-BwNEsZ']
     args = J + B
 
     gmt.psbasemap(
@@ -4641,11 +4675,13 @@ def slip_distribution_3d_gmt(
     gmt.pscoast(
         R=R,
         D='a',
-        G='darkgrey',
+        G='lightgrey',
+        S='lightblue',
         p=p,
         *J)
 
-    reference_slips = fault.get_total_slip(index=None, point=reference)
+    reference_slips = fault.get_total_slip(
+        index=None, point=reference, components=varnames)
 
     autos = AutoScaler(snap='on', approx_ticks=3)
 
@@ -4654,8 +4690,8 @@ def slip_distribution_3d_gmt(
 
     cptfilepath = '/tmp/tempfile.cpt'
     gmt.makecpt(
-        C='white,yellow,orange,red,magenta,violet',
-        Z=True, D=True,
+        C='hot',
+        I='c',
         T='%f/%f' % (cmin, cmax),
         out_filename=cptfilepath, suppress_defaults=True)
 
@@ -4684,11 +4720,19 @@ def slip_distribution_3d_gmt(
                 *J)
 
     # add a colorbar
-    D = 'x1.5c/0c+w6c/0.5c+jMC+h'
+
+    azimuth, elev_angle = perspective.split('/')
+
+    if float(azimuth) < 180:
+        ypos = 0
+    else:
+        ypos = 10
+
+    D = 'x1.5c/%ic+w6c/0.5c+jMC+h' % ypos
     F = False
 
     gmt.psscale(
-        B='xa%f +l slip [m]' % cinc,
+        B='xa%f +l %s [%s]' % (cinc, slip_label, slip_units),
         D=D,
         F=F,
         C=cptfilepath,
