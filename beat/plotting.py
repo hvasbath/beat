@@ -1391,7 +1391,7 @@ def scene_fits(problem, stage, plot_options):
                 map_displacement_grid(datavec, scene),
                 extent=im_extent, cmap=cmap,
                 vmin=vmin, vmax=vmax,
-                origin='lower'))
+                origin='lower', interpolation='nearest'))
 
             ax.set_xlim(llE, urE)
             ax.set_ylim(llN, urN)
