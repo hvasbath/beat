@@ -8,6 +8,7 @@ os.environ["OMP_NUM_THREADS"] = nthreads
 os.environ["NUMEXPR_NUM_THREADS"] = nthreads
 os.environ["OPENBLAS_NUM_THREADS"] = nthreads
 os.environ["MKL_NUM_THREADS"] = nthreads
+os.environ["VECLIB_MAXIMUM_THREADS"] = nthreads
 
 import logging
 import sys
