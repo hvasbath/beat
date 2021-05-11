@@ -3,7 +3,11 @@ import os
 from os.path import join as pjoin
 
 # disable internal blas parallelisation as we parallelise over chains
-os.environ["OMP_NUM_THREADS"] = "1"
+nthreads = "1"
+os.environ["OMP_NUM_THREADS"] = nthreads
+os.environ["NUMEXPR_NUM_THREADS"] = nthreads
+os.environ["OPENBLAS_NUM_THREADS"] = nthreads
+os.environ["MKL_NUM_THREADS"] = nthreads
 
 import logging
 import sys
