@@ -2520,7 +2520,12 @@ class WaveformMapping(object):
             if isinstance(filt, Filter):
                 highest_fs.append(filt.upper_corner)
 
-        return num.max(highest_fs)
+        if len(highest_fs) > 0:
+            return num.max(highest_fs)
+        else:
+            raise ValueError(
+                'No Filterer objects configured for wavemap %s'
+                'Cannot return upper corner frequency!' % self._mapid)
 
     @property
     def shared_data_array(self):
