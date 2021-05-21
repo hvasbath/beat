@@ -3804,12 +3804,12 @@ def draw_slip_dist(problem, po):
     fault = gc.load_fault_geometry()
 
     if not po.reference:
+        stage = load_stage(
+            problem, stage_number=po.load_stage, load='trace', chains=[-1])
         reference = problem.config.problem_config.get_test_point()
         res_point = get_result_point(stage, problem.config, po.post_llk)
         reference.update(res_point)
         llk_str = po.post_llk
-        stage = load_stage(
-            problem, stage_number=po.load_stage, load='trace', chains=[-1])
         mtrace = stage.mtrace
         stage_number = stage.number
     else:
