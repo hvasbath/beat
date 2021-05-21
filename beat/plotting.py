@@ -3803,19 +3803,20 @@ def draw_slip_dist(problem, po):
 
     fault = gc.load_fault_geometry()
 
-    stage = load_stage(
-        problem, stage_number=po.load_stage, load='trace', chains=[-1])
-
     if not po.reference:
         reference = problem.config.problem_config.get_test_point()
         res_point = get_result_point(stage, problem.config, po.post_llk)
         reference.update(res_point)
         llk_str = po.post_llk
+        stage = load_stage(
+            problem, stage_number=po.load_stage, load='trace', chains=[-1])
         mtrace = stage.mtrace
+        stage_number = stage.number
     else:
         reference = po.reference
         llk_str = 'ref'
         mtrace = None
+        stage_number = -1
 
     figs, axs = fault_slip_distribution(
         fault, mtrace, reference=reference, nensemble=po.nensemble)
@@ -3825,7 +3826,7 @@ def draw_slip_dist(problem, po):
     else:
         outpath = os.path.join(
             problem.outfolder, po.figure_dir,
-            'slip_dist_%i_%s_%i' % (stage.number, llk_str, po.nensemble))
+            'slip_dist_%i_%s_%i' % (stage_number, llk_str, po.nensemble))
 
         logger.info('Storing slip-distribution to: %s' % outpath)
         if po.outformat == 'pdf':

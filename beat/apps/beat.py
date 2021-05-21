@@ -1612,6 +1612,8 @@ def command_plot(args):
             action='store_true',
             help='Build models during problem loading.')
 
+    import traceback
+
     plots_avail = plotting.available_plots()
 
     details = '''Available <plot types> are: %s or "all". Multiple plots can be
@@ -1689,14 +1691,16 @@ selected giving a comma seperated list.''' % list2string(plots_avail)
     figure_path = pjoin(problem.outfolder, po.figure_dir)
     util.ensuredir(figure_path)
 
-    from beat.parallel import exception_tracer
     for plot in plotnames:
         try:
-            exception_tracer(plotting.plots_catalog[plot](problem, po))
+            plotting.plots_catalog[plot](problem, po)
         #except Exception as err:
         #    pass
         except(TypeError, plotting.ModeError) as err:
-            logger.warning('Could not plot %s got Error: %s' % (plot, err))
+
+            logger.warning('Could not plot %s got Error: %s \n %s' % (
+                plot, err, traceback.format_exc()))
+
 
 def command_check(args):
 

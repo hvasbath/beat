@@ -732,7 +732,7 @@ total number of patches: %i ''' % (
                 centers * km, correlation_function)
 
     def get_subfault_patch_attributes(
-            self, index, datatype='geodetic', component=None, attributes=['']):
+            self, index, datatype=None, component=None, attributes=['']):
         """
         Returns list of arrays of requested attributes.
         If attributes have several fields they are concatenated to 2d arrays
