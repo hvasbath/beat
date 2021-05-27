@@ -981,9 +981,64 @@ def map_displacement_grid(displacements, scene):
     return arr
 
 
+def shaded_displacements(
+        displacement, shad_data,
+        cmap='RdBu', shad_lim=(.4, .98), tick_step=0.01,
+        contrast=1., mask=None, data_limits=(-0.5, 0.5)):
+    """
+    Map color data (displacement) on shaded relief.
+    """
+
+    from scipy.ndimage import convolve as im_conv
+    from matplotlib.cm import ScalarMappable
+    # Light source from somewhere above - psychologically the best choice
+    # from upper left
+    ramp = num.array([[1, 0], [0, -1.]]) * contrast
+
+    # convolution of two 2D arrays
+    shad = im_conv(shad_data * km, ramp.T)
+    shad *= -1.
+
+    # if there are strong artifical edges in the data, shades get
+    # dominated by them. Cutting off the largest and smallest 2% of
+    # shades helps
+    percentile2 = num.quantile(shad, 0.02)
+    percentile98 = num.quantile(shad, 0.98)
+    shad[shad > percentile98] = percentile98
+    shad[shad < percentile2] = percentile2
+
+    # normalize shading
+    shad -= num.nanmin(shad)
+    shad /= num.nanmax(shad)
+
+    if mask is not None:
+        shad[mask] = num.nan
+
+    # reduce range to balance gray color
+    shad *= shad_lim[1] - shad_lim[0]
+    shad += shad_lim[0]
+
+    # create ticks for plotting - real values for the labels
+    # and their position in normed data for the ticks
+    if data_limits is None:
+        data_max = num.nanmax(num.abs(displacement))
+        data_limits = (-data_max, data_max)
+    displ_min, displ_max = data_limits
+
+    # Combine color and shading
+    color_map = ScalarMappable(cmap=cmap)
+    color_map.set_clim(displ_min, displ_max)
+
+    rgb_map = color_map.to_rgba(displacement)
+    rgb_map[num.isnan(displacement)] = 1.
+    rgb_map *= shad[:, :, num.newaxis]
+
+    return rgb_map
+
+
 def get_latlon_ratio(lat, lon):
     """
-    Get latlon ratio at given location 
+    Get latlon ratio at given location
     """
     dlat_meters = otd.distance_accurate50m(lat, lon, lat - 1., lon)
     dlon_meters = otd.distance_accurate50m(lat, lon, lat, lon -1.)
@@ -1089,6 +1144,17 @@ def scene_fits(problem, stage, plot_options):
     factors = num.ones(fullfig).tolist()
     if restfig:
         factors.append(float(restfig) / ndmax)
+
+    topo_plot_thresh = 300
+    if plot_options.nensemble > topo_plot_thresh:
+        logger.info(
+            'Plotting shaded relief as nensemble > %i.' % topo_plot_thresh)
+        show_topo = True
+    else:
+        logger.info(
+            'Not plotting shaded relief for nensemble < %i.' % (
+                topo_plot_thresh + 1))
+        show_topo = False
 
     if po.nensemble > 1:
         from tqdm import tqdm
@@ -1387,11 +1453,22 @@ def scene_fits(problem, stage, plot_options):
                 vmin = -colims[tidx]
                 vmax = colims[tidx]
 
-            imgs.append(ax.imshow(
-                map_displacement_grid(datavec, scene),
-                extent=im_extent, cmap=cmap,
-                vmin=vmin, vmax=vmax,
-                origin='lower', interpolation='nearest'))
+            data = map_displacement_grid(datavec, scene)
+
+            if show_topo:
+                elevation = scene.get_elevation()
+                elevation_mask = num.where(elevation == 0., True, False)
+
+                data = shaded_displacements(
+                    data, elevation, cmap,
+                    shad_lim=(0.4, .99), contrast=1., mask=elevation_mask,
+                    data_limits=(vmin, vmax))
+
+            imgs.append(
+                ax.imshow(
+                    data, extent=im_extent, cmap=cmap,
+                    vmin=vmin, vmax=vmax,
+                    origin='lower', interpolation='nearest'))
 
             ax.set_xlim(llE, urE)
             ax.set_ylim(llN, urN)
