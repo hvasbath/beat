@@ -4431,11 +4431,10 @@ def draw_data_stations(gmt, stations, data, dist, data_cpt=None, *args):
     gmt.psxy(
         in_columns=(st_lons, st_lats, data.tolist()),
         C=data_cpt,
-        S='t14p',
         *args)
 
     if dist > 30.:
-        D = 'x1.5c/0c+w6c/0.5c+jMC+h'
+        D = 'x1.25c/0c+w6c/0.5c+jMC+h'
         F = False
     else:
         D = 'x5.5c/4.1c+w6c/0.5c+jMC+h'
@@ -4513,7 +4512,7 @@ def gmt_station_map_azimuthal(
     if data is not None:
         draw_data_stations(
             gmt, stations, data, max_distance, data_cpt, *(
-                '-J%s' % J_location, '-R%s' % R_location))
+                '-J%s' % J_location, '-R%s' % R_location, '-St14p'))
     else:
         st_lons = [station.lon for station in stations]
         st_lats = [station.lat for station in stations]
@@ -4590,7 +4589,7 @@ def draw_station_map_gmt(problem, po):
     event = problem.config.event
 
     gmtconfig = get_gmt_config(gmtpy, h=h, w=h)
-
+    gmtconfig['MAP_LABEL_OFFSET'] = '4p'
     for wmap in sc.wavemaps:
         outpath = os.path.join(
             problem.outfolder, po.figure_dir, 'station_map_%s_%i_%s.%s' % (
@@ -4641,9 +4640,10 @@ def draw_station_map_gmt(problem, po):
                     gmt_config=gmtconfig)
 
                 if time_shifts:
+                    sargs = m.jxyr + ['-St14p']
                     draw_data_stations(
                         m.gmt, wmap.stations, time_shifts, dist,
-                        data_cpt=None, *m.jxyr)
+                        data_cpt=None, *sargs)
 
                     for st in wmap.stations:
                         text = '{}.{}'.format(st.network, st.station)
