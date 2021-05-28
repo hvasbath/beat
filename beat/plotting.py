@@ -4586,7 +4586,6 @@ def draw_station_map_gmt(problem, po):
     event = problem.config.event
 
     gmtconfig = get_gmt_config(gmtpy, h=h, w=h)
-    gmt = gmtpy.GMT(config=gmtconfig)
 
     for wmap in sc.wavemaps:
         outpath = os.path.join(
@@ -4606,6 +4605,7 @@ def draw_station_map_gmt(problem, po):
                     'Using equidistant azimuthal projection for'
                     ' teleseismic setup of wavemap %s.' % wmap._mapid)
 
+                gmt = gmtpy.GMT(config=gmtconfig)
                 gmt_station_map_azimuthal(
                     gmt, wmap.stations, event,
                     data=time_shifts, max_distance=dist, width=w,
