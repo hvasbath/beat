@@ -4576,8 +4576,8 @@ def draw_station_map_gmt(problem, po):
         value_string = '0'
         if len(po.varnames) > 0:
             raise ValueError(
-                'Requested variable %s is not supported for plotting!'
-                'Supported: %s' % ts)
+                'Requested variables %s is not supported for plotting!'
+                'Supported: %s' % (utility.list2string(po.varnames), ts))
 
     fontsize = 12
     font = '1'
