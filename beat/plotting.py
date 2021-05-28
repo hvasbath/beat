@@ -34,6 +34,7 @@ from pyrocko import orthodrome as otd
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.cake_plot import light
 from pyrocko.plot import beachball, nice_value, AutoScaler
+from pyrocko import gmtpy
 
 import pyrocko.moment_tensor as mt
 from pyrocko.plot import mpl_papersize, mpl_init, mpl_graph_color, mpl_margins
@@ -758,8 +759,8 @@ def gnss_fits(problem, stage, plot_options):
     from pyrocko import automap
     from pyrocko.model import gnss
 
-    if len(automap.gmtpy.detect_gmt_installations()) < 1:
-        raise automap.gmtpy.GmtPyError(
+    if len(gmtpy.detect_gmt_installations()) < 1:
+        raise gmtpy.GmtPyError(
             'GMT needs to be installed for GNSS plot!')
 
     gc = problem.config.geodetic_config
@@ -4404,9 +4405,156 @@ def get_gmt_config(gmtpy, fontsize=14, h=20., w=20.):
     return gmtconfig
 
 
-def draw_station_map_gmt(problem, po):
+def draw_data_stations(gmt, stations, data, dist, data_cpt=None, *args):
+    """
+    Draw MAP time-shifts at station locations as colored triangles
+    """
 
-    from pyrocko import gmtpy
+    if data_cpt is None:
+        data_cpt = '/tmp/tempfile.cpt'
+        miny = data.min()
+        maxy = data.max()
+        bound = num.ceil(max(num.abs(miny), maxy))
+
+        gmt.makecpt(
+            C='blue,white,red',
+            Z=True,
+            T='%g/%g' % (-bound, bound),
+            out_filename=data_cpt, suppress_defaults=True)
+
+    for i, station in enumerate(stations):
+        logger.debug('%s, %f' % (station.station, data[i]))
+
+    st_lons = [station.lon for station in stations]
+    st_lats = [station.lat for station in stations]
+
+    gmt.psxy(
+        in_columns=(st_lons, st_lats, data.tolist()),
+        C=data_cpt,
+        S='t14p',
+        *args)
+
+    if dist > 30.:
+        D = 'x1.5c/0c+w6c/0.5c+jMC+h'
+        F = False
+    else:
+        D = 'x5.5c/4.1c+w6c/0.5c+jMC+h'
+        F = '+gwhite'
+
+    # add a colorbar
+    gmt.psscale(
+        B='xa%s +l time shifts [s]' % num.floor(bound),
+        D=D,
+        F=F,
+        C=data_cpt)
+
+
+def draw_events(gmt, events, *args, **kwargs):
+
+    ev_lons = [ev.lon for ev in events]
+    ev_lats = [ev.lat for ev in events]
+
+    gmt.psxy(
+        in_columns=(ev_lons, ev_lats),
+        *args, **kwargs)
+
+
+def gmt_station_map_azimuthal(
+        gmt, stations, event, data_cpt=None,
+        data=None, max_distance=90, width=20, bin_width=15,
+        fontsize=12, font='1'):
+    """
+    Azimuth equidistant station map, if data given stations are colored
+    accordingly
+
+    Parameters
+    ----------
+    gmt : :class:`pyrocko.plot.gmtpy.GMT`
+    stations : list
+        of :class:`pyrocko.model.station.Station`
+    event : :class:`pyrocko.model.event.Event`
+    data_cpt : str
+        path to gmt '*.cpt' file for coloring
+    data : :class:`numoy.NdArray`
+        1d vector length of stations to color stations
+    max_distance : float
+        maximum distance [deg] of event to map bound
+    width : float
+        plot width [cm]
+    bin_width : float
+        grid spacing [deg] for distance/ azimuth grid
+    fontsize : int
+        font-size in points for station labels
+    font : str
+        GMT font specification (number or name)
+    """
+
+    max_distance = max_distance * 1.05  # add interval to have bound
+
+    J_basemap = 'E0/-90/%s/%i' % (max_distance, width)
+    J_location = 'E%s/%s/%s/%i' % (event.lon, event.lat, max_distance, width)
+    R_location = '0/360/-90/0'
+
+    gmt.psbasemap(
+        R=R_location,
+        J='S0/-90/90/%i' % width,
+        B='xa%sf%s' % (bin_width * 2, bin_width))
+    gmt.pscoast(
+        R='g',
+        J=J_location,
+        D='c',
+        G='darkgrey')
+
+    # plotting equal distance circles
+    bargs = ['-Bxg%f' % bin_width, '-Byg%f' % (2 * bin_width)]
+    gmt.psbasemap(
+        R='g', J=J_basemap, *bargs)
+
+    if data is not None:
+        draw_data_stations(
+            gmt, data, max_distance, data_cpt, *(
+                '-J%s' % J_location, '-R%s' % R_location))
+    else:
+        st_lons = [station.lon for station in stations]
+        st_lats = [station.lat for station in stations]
+
+        gmt.psxy(
+            R=R_location,
+            J=J_location,
+            in_columns=(st_lons, st_lats),
+            G='red',
+            S='t14p')
+
+    rows = []
+    alignment = 'TC'
+    for st in stations:
+        if gmt.is_gmt5():
+            row = (
+                st.lon, st.lat,
+                '%i,%s,%s' % (fontsize, font, 'black'),
+                alignment,
+                '{}.{}'.format(st.network, st.station))
+            farg = ['-F+f+j']
+        else:
+            raise gmtpy.GmtPyError('Only GMT version 5.x supported!')
+
+        rows.append(row)
+
+    gmt.pstext(
+        in_rows=rows,
+        R=R_location,
+        J=J_location,
+        N=True, *farg)
+
+    draw_events(
+        gmt, [event], *('-J%s' % J_location, '-R%s' % R_location),
+        **dict(G='orange', S='a14p'))
+
+
+def draw_station_map_gmt(problem, po):
+    """
+    Draws distance dependend for teleseismic vs regional/local setups
+    """
 
     if len(gmtpy.detect_gmt_installations()) < 1:
         raise gmtpy.GmtPyError(
@@ -4427,68 +4575,18 @@ def draw_station_map_gmt(problem, po):
         point = None
         value_string = '0'
 
-    font_size = 12
+    fontsize = 12
     font = '1'
     bin_width = 15  # major grid and tick increment in [deg]
     h = 20  # outsize in cm
     w = h - 5
 
-    gmtconfig = get_gmt_config(gmtpy, h=h, w=h)
-
-    def draw_time_shifts_stations(gmt, point, wmap, dist, *args):
-        """
-        Draw MAP time-shifts at station locations as colored triangles
-        """
-        time_shifts = extract_time_shifts(point, wmap)
-
-        cptfilepath = '/tmp/tempfile.cpt'
-        miny = time_shifts.min()
-        maxy = time_shifts.max()
-        bound = num.ceil(max(num.abs(miny), maxy))
-
-        gmt.makecpt(
-            C='blue,white,red',
-            Z=True,
-            T='%g/%g' % (-bound, bound),
-            out_filename=cptfilepath, suppress_defaults=True)
-
-        for i, station in enumerate(wmap.stations):
-            logger.debug('%s, %f' % (station.station, time_shifts[i]))
-
-        gmt.psxy(
-            in_columns=(st_lons, st_lats, time_shifts.tolist()),
-            C=cptfilepath,
-            S='t14p',
-            *args)
-
-        if dist > 30.:
-            D = 'x1.5c/0c+w6c/0.5c+jMC+h'
-            F = False
-        else:
-            D = 'x5.5c/4.1c+w6c/0.5c+jMC+h'
-            F = '+gwhite'
-
-        # add a colorbar
-        gmt.psscale(
-            B='xa%s +l time shifts [s]' % num.floor(bound),
-            D=D,
-            F=F,
-            C=cptfilepath)
-
-    def draw_events(gmt, events, *args):
-
-        ev_lons = [ev.lon for ev in events]
-        ev_lats = [ev.lat for ev in events]
-
-        gmt.psxy(
-            in_columns=(ev_lons, ev_lats),
-            G='yellow',
-            S='a14p',
-            *args)
-
     logger.info('Drawing Station Map ...')
     sc = problem.composites['seismic']
     event = problem.config.event
+
+    gmtconfig = get_gmt_config(gmtpy, h=h, w=h)
+    gmt = gmtpy.GMT(config=gmtconfig)
 
     for wmap in sc.wavemaps:
         outpath = os.path.join(
@@ -4498,76 +4596,21 @@ def draw_station_map_gmt(problem, po):
         dist = max(wmap.config.distances)
         if not os.path.exists(outpath) or po.force:
 
-            st_lons = [station.lon for station in wmap.stations]
-            st_lats = [station.lat for station in wmap.stations]
+            if point:
+                time_shifts = extract_time_shifts(point, wmap)
+            else:
+                time_shifts = None
 
             if dist > 30:
-                dist = dist * 1.05  # add interval to have bound
                 logger.info(
                     'Using equidistant azimuthal projection for'
                     ' teleseismic setup of wavemap %s.' % wmap._mapid)
-                J_basemap = 'E0/-90/%s/%i' % (dist, w)
-                J_location = 'E%s/%s/%s/%i' % (event.lon, event.lat, dist, w)
-                R_location = '0/360/-90/0'
 
-                gmt = gmtpy.GMT(config=gmtconfig)
-                gmt.psbasemap(
-                    R=R_location,
-                    J='S0/-90/90/%i' % w,
-                    B='xa%sf%s' % (bin_width * 2, bin_width))
-                gmt.pscoast(
-                    R='g',
-                    J='E%s/%s/%s/%i' % (event.lon, event.lat, dist, w),
-                    D='c',
-                    G='darkgrey')
-                gmt.psbasemap(
-                    R='g',
-                    J=J_basemap,
-                    B='xg%s' % bin_width)
-                gmt.psbasemap(
-                    R='g',
-                    J=J_basemap,
-                    B='yg%s' % (2 * bin_width))
-
-                draw_events(
-                    gmt, [event], *('-J%s' % J_location, '-R%s' % R_location))
-
-                if point:
-                    draw_time_shifts_stations(
-                        gmt, point, wmap, dist, *(
-                            '-J%s' % J_location, '-R%s' % R_location))
-                else:
-                    gmt.psxy(
-                        R=R_location,
-                        J=J_location,
-                        in_columns=(st_lons, st_lats),
-                        G='red',
-                        S='t14p')
-
-                rows = []
-                alignment = 'TC'
-                for st in wmap.stations:
-                    if gmt.is_gmt5():
-                        row = (
-                            st.lon, st.lat,
-                            '%i,%s,%s' % (font_size, font, 'black'),
-                            alignment,
-                            '{}.{}'.format(st.network, st.station))
-                        farg = ['-F+f+j']
-                    else:
-                        row = (
-                            st.lon, st.lat,
-                            font_size, 0, font, alignment,
-                            '{}.{}'.format(st.network, st.station))
-                        farg = []
-
-                    rows.append(row)
-
-                gmt.pstext(
-                    in_rows=rows,
-                    R=R_location,
-                    J=J_location,
-                    N=True, *farg)
+                gmt_station_map_azimuthal(
+                    gmt, wmap.stations, event,
+                    data=time_shifts, max_distance=dist, width=w,
+                    bin_width=bin_width,
+                    fontsize=fontsize, font=font)
 
                 gmt.save(outpath, resolution=po.dpi, size=w)
 
@@ -4593,9 +4636,11 @@ def draw_station_map_gmt(problem, po):
                     show_plates=False,
                     gmt_config=gmtconfig)
 
-                if point:
-                    draw_time_shifts_stations(
-                        m.gmt, point, wmap, dist, *m.jxyr)
+                if time_shifts:
+
+                    draw_data_stations(
+                        m.gmt, wmap.stations, time_shifts, dist,
+                        data_cpt=None, *m.jxyr)
 
                     for st in wmap.stations:
                         text = '{}.{}'.format(st.network, st.station)
@@ -4604,7 +4649,8 @@ def draw_station_map_gmt(problem, po):
                     m.add_stations(
                         wmap.stations, psxy_style=dict(S='t14p', G='red'))
 
-                draw_events(m.gmt, [event], *m.jxyr)
+                draw_events(
+                    m.gmt, [event], *m.jxyr, **dict(G='yellow', S='a14p'))
                 m.save(outpath, resolution=po.dpi, oversample=2., size=w)
 
             logger.info('saving figure to %s' % outpath)
@@ -4697,8 +4743,6 @@ def draw_3d_slip_distribution(problem, po):
 def slip_distribution_3d_gmt(
         fault, reference, mtrace=None, perspective='135/30', slip_units='m',
         slip_label='slip', varnames=None):
-
-    from pyrocko import gmtpy
 
     if len(gmtpy.detect_gmt_installations()) < 1:
         raise gmtpy.GmtPyError(
@@ -4873,8 +4917,6 @@ def draw_lune_plot(problem, po):
 
 
 def lune_plot(v_tape=None, w_tape=None):
-
-    from pyrocko import gmtpy
 
     if len(gmtpy.detect_gmt_installations()) < 1:
         raise gmtpy.GmtPyError(
