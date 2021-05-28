@@ -4512,7 +4512,7 @@ def gmt_station_map_azimuthal(
 
     if data is not None:
         draw_data_stations(
-            gmt, data, max_distance, data_cpt, *(
+            gmt, stations, data, max_distance, data_cpt, *(
                 '-J%s' % J_location, '-R%s' % R_location))
     else:
         st_lons = [station.lon for station in stations]
@@ -4641,7 +4641,6 @@ def draw_station_map_gmt(problem, po):
                     gmt_config=gmtconfig)
 
                 if time_shifts:
-
                     draw_data_stations(
                         m.gmt, wmap.stations, time_shifts, dist,
                         data_cpt=None, *m.jxyr)
