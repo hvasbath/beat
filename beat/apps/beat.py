@@ -1476,11 +1476,12 @@ def command_build_gfs(args):
                         logger.info('crust_ind %i' % crust_ind)
                         sc.gf_config.reference_model_idx = crust_ind
 
-                        for wc in sc.waveforms:
+                        for i, wc in enumerate(sc.waveforms):
                             wmap = heart.init_wavemap(
                                 waveformfit_config=wc,
                                 datahandler=datahandler,
-                                event=c.event)
+                                event=c.event,
+                                mapnumber=i)
 
                             ffi.seis_construct_gf_linear(
                                 engine=engine,

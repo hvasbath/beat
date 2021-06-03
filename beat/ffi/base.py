@@ -780,7 +780,7 @@ filename: %s''' % (
     def filename(self):
         return get_gf_prefix(
             self.config.datatype, self.config.component,
-            self.config.wave_config.name, self.config.crust_ind)
+            self.config._mapid, self.config.crust_ind)
 
 
 def _process_patch_geodetic(
@@ -1106,7 +1106,6 @@ def seis_construct_gf_linear(
 
     for var in varnames:
         logger.info('For slip component: %s' % var)
-
         gfl_config = SeismicGFLibraryConfig(
             component=var,
             datatype='seismic',
@@ -1118,7 +1117,8 @@ def seis_construct_gf_linear(
             wave_config=wavemap.config,
             dimensions=(ntargets, npatches, ndurations, nstarttimes, nsamples),
             starttime_min=float(starttimes.min()),
-            duration_min=float(durations.min()))
+            duration_min=float(durations.min()),
+            mapnumber=wavemap.mapnumber)
 
         gfs = SeismicGFLibrary(config=gfl_config)
 

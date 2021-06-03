@@ -989,7 +989,7 @@ class SeismicDistributerComposite(SeismicComposite):
 
             for wmap in self.wavemaps:
                 logger.info(
-                    'Preparing data of "%s" for optimization' % wmap.name)
+                    'Preparing data of "%s" for optimization' % wmap._mapid)
                 wmap.prepare_data(
                     source=self.events[wmap.config.event_idx],
                     engine=self.engine,
@@ -1055,19 +1055,35 @@ class SeismicDistributerComposite(SeismicComposite):
                 for var in self.slip_varnames:
                     gflib_name = get_gf_prefix(
                         datatype=self.name, component=var,
-                        wavename=wmap.config.name, crust_ind=crust_ind)
+                        wavename=wmap._mapid, crust_ind=crust_ind)
                     gfpath = os.path.join(
-                        self.gfpath, gflib_name)
+                        self.gfpath, gflib_name + '.yaml')
+
+                    if not os.path.exists(gfpath):
+                        filename = get_gf_prefix(
+                            datatype=self.name, component=var,
+                            wavename=wmap.config.name, crust_ind=crust_ind)
+                        logger.warning(
+                            'Seismic GFLibrary %s does not exist, '
+                            'trying to load with old naming: %s' % (
+                                gflib_name, filename))
+                        gfpath = os.path.join(
+                            self.gfpath, filename + '.yaml')
+
+                    else:
+                        logger.info(
+                            'Loading SeismicGFLibrary %s ' % gflib_name)
+                        filename = gflib_name
 
                     gfs = load_gf_library(
-                        directory=self.gfpath, filename=gflib_name)
+                        directory=self.gfpath, filename=filename)
 
                     if make_shared:
                         gfs.init_optimization()
 
                     key = self.get_gflibrary_key(
                         crust_ind=crust_ind,
-                        wavename=wmap.config.name,
+                        wavename=wmap._mapid,
                         component=var)
 
                     self.gf_names[key] = gfpath
@@ -1171,7 +1187,9 @@ class SeismicDistributerComposite(SeismicComposite):
             for var in self.slip_varnames:
                 logger.debug('Stacking %s variable' % var)
                 key = self.get_gflibrary_key(
-                    crust_ind=ref_idx, wavename=wmap.name, component=var)
+                    crust_ind=ref_idx, wavename=wmap._mapid, component=var)
+                logger.debug('GF Library key %s' % key)
+
                 synthetics += self.gfs[key].stack_all(
                     targetidxs=targetidxs,
                     starttimes=starttimes,
@@ -1254,7 +1272,7 @@ class SeismicDistributerComposite(SeismicComposite):
             if self.config.station_corrections:
                 logger.debug(
                     'Applying station corrections '
-                    'for wmap {}'.format(wmap.name))
+                    'for wmap {}'.format(wmap._mapid))
                 try:
                     corrections = point[wmap.time_shifts_id]
                 except KeyError:  # got reference point from config
@@ -1273,8 +1291,9 @@ class SeismicDistributerComposite(SeismicComposite):
                     self.config.gf_config.sample_rate)))
             for var in self.slip_varnames:
                 key = self.get_gflibrary_key(
-                    crust_ind=ref_idx, wavename=wmap.name, component=var)
+                    crust_ind=ref_idx, wavename=wmap._mapid, component=var)
                 try:
+                    logger.debug('Accessing GF Library key %s' % key)
                     gflibrary = self.gfs[key]
                 except KeyError:
                     raise KeyError(
@@ -1292,7 +1311,7 @@ class SeismicDistributerComposite(SeismicComposite):
                     interpolation=wc.interpolation)
                 t1=time()
                 logger.debug(
-                    '{} seconds to stack {}'.format((t1 - t0), wmap.name))
+                    '{} seconds to stack {}'.format((t1 - t0), wmap._mapid))
 
             wmap_synthetics = []
             for i, target in enumerate(wmap.targets):

@@ -1580,6 +1580,15 @@ class SeismicGFLibraryConfig(GFLibaryConfig):
     duration_min = Float.T(default=0.1)
     dimensions = Tuple.T(5, Int.T(), default=(0, 0, 0, 0, 0))
     datatype = String.T(default='seismic')
+    mapnumber = Int.T(default=None, optional=True)
+
+    @property
+    def _mapid(self):
+        if hasattr(self, 'mapnumber'):
+            if self.mapnumber is not None:
+                return '_'.join((self.wave_config.name, str(self.mapnumber)))
+        else:
+            return self.wave_config.name
 
 
 datatype_catalog = {
