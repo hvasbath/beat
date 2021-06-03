@@ -4257,7 +4257,6 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
     """
 
     from mpl_toolkits.mplot3d import Axes3D
-    from beat.utility import RS_center
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
     alpha = 0.7
 
@@ -4265,7 +4264,8 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
         source.anchor = 'top'
         shift_ne = otd.latlon_to_ne(
             refloc.lat, refloc.lon, source.lat, source.lon)
-        coords = source.outline()
+        coords = source.outline()   # (N, E, Z)
+
         coords[:, 0:2] += shift_ne
         ax.plot(
             coords[:, 1], coords[:, 0], coords[:, 2] * -1.,
@@ -4273,10 +4273,12 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
         ax.plot(
             coords[0:2, 1], coords[0:2, 0], coords[0:2, 2] * -1.,
             '-k', linewidth=2, alpha=alpha)
-        center = RS_center(source)
-        center[0:2] += shift_ne
+        center = source.center   # (E, N, Z)
+
+        center[0] += shift_ne[1]
+        center[1] += shift_ne[0]
         ax.scatter(
-            center[1], center[0], center[2] * -1,
+            center[0], center[1], center[2] * -1,
             marker='o', s=20, color=color, alpha=alpha)
 
     def set_axes_radius(ax, origin, radius, axes=['xyz']):
