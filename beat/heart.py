@@ -442,8 +442,18 @@ class SeismicResult(Object):
     @property
     def processed_res(self):
         tr = copy.deepcopy(self.processed_obs)
-        tr.set_ydata(
-            self.processed_obs.get_ydata() - self.processed_syn.get_ydata())
+        syn_tmin = self.processed_syn.tmin
+        if tr.tmin == syn_tmin:
+            tr.set_ydata(
+                self.processed_obs.get_ydata() - self.processed_syn.get_ydata())
+        else:
+            logger.warning(
+                'Observed and synthetic result traces for %s '
+                'have different tmin values! '
+                'obs: %g syn: %g, difference: %f. '
+                'Residual may be invalid!' % (
+                    utility.list2string(tr.nslc_id),
+                    tr.tmin, syn_tmin, tr.tmin - syn_tmin))
         return tr
 
 
