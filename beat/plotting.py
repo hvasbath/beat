@@ -4405,16 +4405,18 @@ def get_gmt_config(gmtpy, fontsize=14, h=20., w=20.):
     return gmtconfig
 
 
-def draw_data_stations(gmt, stations, data, dist, data_cpt=None, *args):
+def draw_data_stations(
+        gmt, stations, data, dist, data_cpt=None,
+        scale_label=None, *args):
     """
     Draw MAP time-shifts at station locations as colored triangles
     """
+    miny = data.min()
+    maxy = data.max()
+    bound = num.ceil(max(num.abs(miny), maxy))
 
     if data_cpt is None:
         data_cpt = '/tmp/tempfile.cpt'
-        miny = data.min()
-        maxy = data.max()
-        bound = num.ceil(max(num.abs(miny), maxy))
 
         gmt.makecpt(
             C='blue,white,red',
@@ -4434,18 +4436,21 @@ def draw_data_stations(gmt, stations, data, dist, data_cpt=None, *args):
         *args)
 
     if dist > 30.:
-        D = 'x1.25c/0c+w6c/0.5c+jMC+h'
+        D = 'x1.25c/0c+w5c/0.5c+jMC+h'
         F = False
     else:
-        D = 'x5.5c/4.1c+w6c/0.5c+jMC+h'
+        D = 'x5.5c/4.1c+w5c/0.5c+jMC+h'
         F = '+gwhite'
 
-    # add a colorbar
-    gmt.psscale(
-        B='xa%s +l time shifts [s]' % num.floor(bound),
-        D=D,
-        F=F,
-        C=data_cpt)
+    if scale_label:
+        # add a colorbar
+        gmt.psscale(
+            B='xa%s +l %s' % (num.floor(bound), scale_label),
+            D=D,
+            F=F,
+            C=data_cpt)
+    else:
+        logger.info('Not plotting scale as "scale_label" is None')
 
 
 def draw_events(gmt, events, *args, **kwargs):
@@ -4461,7 +4466,7 @@ def draw_events(gmt, events, *args, **kwargs):
 def gmt_station_map_azimuthal(
         gmt, stations, event, data_cpt=None,
         data=None, max_distance=90, width=20, bin_width=15,
-        fontsize=12, font='1'):
+        fontsize=12, font='1', plot_names=True, scale_label='time-shifts [s]'):
     """
     Azimuth equidistant station map, if data given stations are colored
     accordingly
@@ -4511,7 +4516,7 @@ def gmt_station_map_azimuthal(
 
     if data is not None:
         draw_data_stations(
-            gmt, stations, data, max_distance, data_cpt, *(
+            gmt, stations, data, max_distance, data_cpt, scale_label, *(
                 '-J%s' % J_location, '-R%s' % R_location, '-St14p'))
     else:
         st_lons = [station.lon for station in stations]
@@ -4524,26 +4529,27 @@ def gmt_station_map_azimuthal(
             G='red',
             S='t14p')
 
-    rows = []
-    alignment = 'TC'
-    for st in stations:
-        if gmt.is_gmt5():
-            row = (
-                st.lon, st.lat,
-                '%i,%s,%s' % (fontsize, font, 'black'),
-                alignment,
-                '{}.{}'.format(st.network, st.station))
-            farg = ['-F+f+j']
-        else:
-            raise gmtpy.GmtPyError('Only GMT version 5.x supported!')
+    if plot_names:
+        rows = []
+        alignment = 'TC'
+        for st in stations:
+            if gmt.is_gmt5():
+                row = (
+                    st.lon, st.lat,
+                    '%i,%s,%s' % (fontsize, font, 'black'),
+                    alignment,
+                    '{}.{}'.format(st.network, st.station))
+                farg = ['-F+f+j']
+            else:
+                raise gmtpy.GmtPyError('Only GMT version 5.x supported!')
 
-        rows.append(row)
+            rows.append(row)
 
-    gmt.pstext(
-        in_rows=rows,
-        R=R_location,
-        J=J_location,
-        N=True, *farg)
+        gmt.pstext(
+            in_rows=rows,
+            R=R_location,
+            J=J_location,
+            N=True, *farg)
 
     draw_events(
         gmt, [event], *('-J%s' % J_location, '-R%s' % R_location),
@@ -4643,7 +4649,7 @@ def draw_station_map_gmt(problem, po):
                     sargs = m.jxyr + ['-St14p']
                     draw_data_stations(
                         m.gmt, wmap.stations, time_shifts, dist,
-                        data_cpt=None, *sargs)
+                        data_cpt=None, scale_label='time shifts [s]', *sargs)
 
                     for st in wmap.stations:
                         text = '{}.{}'.format(st.network, st.station)
