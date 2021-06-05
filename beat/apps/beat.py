@@ -1090,9 +1090,9 @@ def command_summarize(args):
             for chain in tqdm(chains):
                 for idx in idxs:
                     point = stage.mtrace.point(idx=idx, chain=chain)
-                    composite.point2sources(point)
                     # normalize MT source, TODO put into get_derived_params
                     if isinstance(source, MTSourceWithMagnitude):
+                        composite.point2sources(point)
                         ldicts = []
                         for source in sources:
                             ldicts.append(source.scaled_m6_dict)
@@ -1104,6 +1104,7 @@ def command_summarize(args):
                     derived = []
                     # BEAT sources calculate derived params
                     if options.calc_derived:
+                        composite.point2sources(point)
                         if hasattr(source, 'get_derived_parameters'):
                             for source in sources:
                                 derived.append(
