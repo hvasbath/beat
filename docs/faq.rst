@@ -38,7 +38,13 @@ ValueError: Specified more workers that sample in the posterior "8", than there 
 This means that the geodetic (static) Green's Function store does not cover the full depth-distance range of the source- receiver pairs.
 Please make sure that these ranges are wide enough in depths and distances!
 
-| **6. Upgrading BEAT from beta**
+| **6. pyrocko.gf.meta.OutOfBounds: out of bounds**
+
+This means that the seismic Green's Function store does not cover the full depth-distance range of the source- receiver pairs. Please make sure that these ranges are wide enough in depths and distances!
+It also may occur when waveform-arrivals have been requested through the configuration at a time
+window where synthetics havent been calculated. E.g. S-waves 'any_S' are configured, but the GF store has not been computed including them. 
+
+| **7. Upgrading BEAT from beta**
 
 Unfortunately, some incompatibility arose from beta to version 1.0. Finite fault projects that have been sampled and created using the beta version will need to undergo some manual changes by the user to be loadable under version 1.0.
 
@@ -51,7 +57,7 @@ Unfortunately, some incompatibility arose from beta to version 1.0. Finite fault
 
     beat build_gfs $project_folder --mode=ffi --force --datatypes=$datatypes
 
-| **7. Cannot connect to display while working remotely**
+| **8. Cannot connect to display while working remotely**
 
 X forwarding needs to be activated in the ssh config! For linux:
 
