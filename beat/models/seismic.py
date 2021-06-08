@@ -1171,6 +1171,7 @@ class SeismicDistributerComposite(SeismicComposite):
 
             targetidxs = shared(
                 num.atleast_2d(num.arange(wmap.n_t)).T, borrow=True)
+
             logger.debug('Stacking %s phase ...' % wc.name)
             synthetics = tt.zeros(
                 (wmap.n_t, wc.arrival_taper.nsamples(
@@ -1222,6 +1223,7 @@ class SeismicDistributerComposite(SeismicComposite):
         point : :func:`pymc3.Point`
             Dictionary with model parameters
         kwargs especially to change output of the forward model
+            outmode: stacked_traces/ tapered_data/ array
 
         Returns
         -------
@@ -1229,6 +1231,10 @@ class SeismicDistributerComposite(SeismicComposite):
         """
 
         outmode = kwargs.pop('outmode', 'stacked_traces')
+        patchidxs = kwargs.pop('patchidxs', None)
+
+        if patchidxs is None:
+            patchidxs = num.arange(self.fault.npatches, dtype='int')
 
         # GF library cut in between [b, c] no [a,d] possible
         chop_bounds = ['b', 'c']
@@ -1286,6 +1292,7 @@ class SeismicDistributerComposite(SeismicComposite):
 
             # TODO check targetidxs if station blacklisted!?
             targetidxs = num.atleast_2d(num.arange(wmap.n_t)).T
+
             synthetics = num.zeros(
                 (wmap.n_t, wc.arrival_taper.nsamples(
                     self.config.gf_config.sample_rate)))
@@ -1305,29 +1312,38 @@ class SeismicDistributerComposite(SeismicComposite):
                 t0=time()
                 synthetics += gflibrary.stack_all(
                     targetidxs=targetidxs,
-                    starttimes=starttimes,
-                    durations=tpoint['durations'],
-                    slips=tpoint[var],
+                    starttimes=starttimes[:, patchidxs],
+                    durations=tpoint['durations'][patchidxs],
+                    slips=tpoint[var][patchidxs],
+                    patchidxs=patchidxs,
                     interpolation=wc.interpolation)
                 t1=time()
                 logger.debug(
                     '{} seconds to stack {}'.format((t1 - t0), wmap._mapid))
 
             wmap_synthetics = []
-            for i, target in enumerate(wmap.targets):
-                tr = Trace(
-                    ydata=synthetics[i, :],
-                    tmin=float(
-                        gflibrary.reference_times[i]),
-                    deltat=gflibrary.deltat)
+            if outmode != 'array':
+                for i, target in enumerate(wmap.targets):
+                    tr = Trace(
+                        ydata=synthetics[i, :],
+                        tmin=float(
+                            gflibrary.reference_times[i]),
+                        deltat=gflibrary.deltat)
 
-                tr.set_codes(*target.codes)
+                    tr.set_codes(*target.codes)
 
-                if outmode == 'tapered_data':
-                    # TODO subfault individual synthetics (use patchidxs arg)
-                    tr = [tr]
+                    if outmode == 'tapered_data':
+                        # TODO subfault individual synthetics (use patchidxs arg)
+                        tr = [tr]
 
-                wmap_synthetics.append(tr)
+                    wmap_synthetics.append(tr)
+
+            elif outmode == 'array':
+                wmap_synthetics.extend(synthetics)
+            else:
+                raise ValueError(
+                    'Supported outmodes: stacked_traces, tapered_data, array! '
+                    'Given outmode: %s !' % outmode)
 
             wmap.prepare_data(
                 source=self.events[wc.event_idx],

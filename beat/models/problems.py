@@ -773,6 +773,16 @@ class DistributionOptimizer(Problem):
                 ' which were fixed in the setup!' % list2string(
                     slip_varnames_candidates))
 
+        npatches = point[slip_varnames[0]].size
+        dzero = num.zeros(npatches, dtype=tconfig.floatX)
+        # set perp slip variables to zero
+        if 'uperp' in self.varnames:
+            point['uperp'] = dzero
+
+        # set slip variables that are inverted for to one
+        for inv_var in slip_varnames:
+            point[inv_var] = num.ones(npatches, dtype=tconfig.floatX)
+
         Gs = []
         ds = []
         for datatype, composite in self.composites.items():
@@ -781,7 +791,7 @@ class DistributionOptimizer(Problem):
                 keys = [composite.get_gflibrary_key(
                     crust_ind=crust_ind, wavename='static', component=var)
                     for var in slip_varnames]
-                Gs.extend([composite.gfs[key]._gfmatrix for key in keys])
+                Gs.extend([composite.gfs[key]._gfmatrix.T for key in keys])
 
                 # removing hierarchicals from data
                 displacements = []
@@ -793,15 +803,22 @@ class DistributionOptimizer(Problem):
                 ds.extend(displacements)
 
             elif datatype == 'seismic':
-                if False:
-                    for wmap in composite.wavemaps:
-                        keys = [composite.get_gflibrary_key(
-                            crust_ind=crust_ind,
-                            wavename=wmap.name, component=var)
-                            for var in slip_varnames]
-                        Gs.extend(
-                            [composite.gfs[key]._gfmatrix for key in keys])
-                        ds.append(wmap._prepared_data)
+
+                targets_gfs = [[] for i in range(composite.n_t)]
+                for pidx in range(npatches):
+                    Gseis, dseis = composite.get_synthetics(
+                        point, outmode='array',
+                        patchidxs=num.array([pidx], dtype='int'))
+
+                    for i, gseis in enumerate(Gseis):
+                        targets_gfs[i].append(num.atleast_2d(gseis).T)
+
+                else:
+                    # concatenate all the patch gfs target wise
+                    gseis_p = list(map(num.hstack, targets_gfs))
+                    Gs.extend(gseis_p)
+
+                ds.extend(dseis)
 
         if len(Gs) == 0:
             raise ValueError(
@@ -812,26 +829,25 @@ class DistributionOptimizer(Problem):
         D = num.vstack([lc.smoothing_op for sv in slip_varnames]) * \
             point[bconfig.hyper_name_laplacian] ** 2.
 
-        dzero = num.zeros(D.shape[1], dtype=tconfig.floatX)
-        A = num.hstack([G, D])
-        d = num.hstack(ds + [dzero])
+        A = num.vstack([G, D])
+        d = num.hstack(ds + [dzero for var in slip_varnames])
 
         # m, rmse, rankA, singularsA =  num.linalg.lstsq(A.T, d, rcond=None)
-        m, res = nnls(A.T, d)
+        m, res = nnls(A, d)
         npatches = self.config.problem_config.mode_config.npatches
         for i, var in enumerate(slip_varnames):
             point[var] = m[i * npatches: (i + 1) * npatches]
 
         if plot:
             from beat.plotting import source_geometry
-            gc = self.composites['geodetic']
+            datatype = self.config.problem_config.datatypes[0]
+            gc = self.composites[datatype]
             fault = gc.load_fault_geometry()
             source_geometry(
                 fault, list(fault.iter_subfaults()), event=gc.event,
                 values=point[slip_varnames[0]],
-                title='slip [m]', datasets=gc.datasets)
+                title='slip [m]')  # datasets=gc.datasets
 
-        point['uperp'] = dzero
         return point
 
 
