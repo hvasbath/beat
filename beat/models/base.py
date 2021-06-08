@@ -189,13 +189,9 @@ def sample(step, problem):
             logger.info('Random starting point.\n')
             start = None
         elif pc.mode_config.initialization == 'lsq':
+            logger.info('Least-squares-solution \n')
             from tqdm import tqdm
 
-            logger.info('Least-squares-solution \n')
-            if 'seismic' in pc.datatypes:
-                logger.warning(
-                    'Least-squares initialization is not'
-                    ' supported (yet) for seismic data, only!')
             start = []
             for i in tqdm(range(step.n_chains)):
                 point = problem.get_random_point()
