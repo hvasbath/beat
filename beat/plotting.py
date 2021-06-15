@@ -4589,7 +4589,7 @@ def draw_station_map_gmt(problem, po):
     fontsize = 12
     font = '1'
     bin_width = 15  # major grid and tick increment in [deg]
-    h = 20  # outsize in cm
+    h = 15  # outsize in cm
     w = h - 5
 
     logger.info('Drawing Station Map ...')
