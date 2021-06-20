@@ -4900,11 +4900,20 @@ def draw_lune_plot(problem, po):
             result_ensemble[varname] = num.full_like(
                 num.empty((n_mts), dtype=num.float64), rpoint[varname])
 
+    if po.reference:
+        reference_v_tape = po.reference['v']
+        reference_w_tape = po.reference['w']
+        llk_str = 'ref'
+    else:
+        reference_v_tape = None
+        reference_w_tape = None
+        llk_str = po.post_llk
+
     outpath = os.path.join(
         problem.outfolder,
         po.figure_dir,
         'lune_%i_%s_%i.%s' % (
-            po.load_stage, po.post_llk, po.nensemble, po.outformat))
+            po.load_stage, llk_str, po.nensemble, po.outformat))
 
     if po.nensemble > 1:
         logger.info('Plotting selected ensemble as nensemble > 1 ...')
@@ -4919,7 +4928,10 @@ def draw_lune_plot(problem, po):
 
     if not os.path.exists(outpath) or po.force or po.outformat == 'display':
         logger.info('Drawing Lune plot ...')
-        gmt = lune_plot(v_tape=v_tape, w_tape=w_tape)
+        gmt = lune_plot(
+            v_tape=v_tape, w_tape=w_tape,
+            reference_v_tape=reference_v_tape,
+            reference_w_tape=reference_w_tape)
 
         logger.info('saving figure to %s' % outpath)
         gmt.save(outpath, resolution=300, size=10)
@@ -4927,7 +4939,11 @@ def draw_lune_plot(problem, po):
         logger.info('Plot exists! Use --force to overwrite!')
 
 
-def lune_plot(v_tape=None, w_tape=None):
+def lune_plot(
+        v_tape=None, w_tape=None,
+        reference_v_tape=None, reference_w_tape=None):
+
+    from beat.sources import v_to_gamma, w_to_delta
 
     if len(gmtpy.detect_gmt_installations()) < 1:
         raise gmtpy.GmtPyError(
@@ -4980,8 +4996,6 @@ def lune_plot(v_tape=None, w_tape=None):
                     ' make kde estimate possible' % (varname, a.std()))
                 a += num.random.normal(loc=0., scale=0.05, size=a.size)
 
-        from beat.sources import v_to_gamma, w_to_delta
-
         gamma = num.rad2deg(v_to_gamma(v_tape))   # lune longitude [rad]
         delta = num.rad2deg(w_to_delta(w_tape))   # lune latitude [rad]
 
@@ -5020,6 +5034,17 @@ def lune_plot(v_tape=None, w_tape=None):
         #    R=R, J=J, I=True, N=True, A=True, C=cptfilepath)
         # -Ctmp_$out.cpt -I -N -A- -O -K >> $ps
 
+    def draw_reference_lune(gmt, R, J, reference_v_tape, reference_w_tape):
+
+        gamma = num.rad2deg(
+            v_to_gamma(reference_v_tape))  # lune longitude [rad]
+        delta = num.rad2deg(
+            w_to_delta(reference_w_tape))   # lune latitude [rad]
+
+        gmt.psxy(
+            in_rows=[(float(gamma), float(delta))],
+            N=True, G='blue', W='1p,black', S='p3p', R=R, J=J)
+
     h = 20.
     w = h / 1.9
 
@@ -5038,6 +5063,13 @@ def lune_plot(v_tape=None, w_tape=None):
     gmt.psbasemap(R=R, J=J, B=B)
     draw_lune_arcs(gmt, R=R, J=J)
     draw_lune_points(gmt, R=R, J=J)
+
+    if reference_v_tape is not None:
+        draw_reference_lune(
+            gmt, R=R, J=J,
+            reference_v_tape=reference_v_tape,
+            reference_w_tape=reference_w_tape)
+
     return gmt
 
 
