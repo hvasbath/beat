@@ -4,6 +4,13 @@ All notable changes to BEAT will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.2.0] tbd
+
+### Added
+**FFI**
+- chain initialisation with lsq solution for seismic data
+
+
 ## [1.1.0] 12th April 2021
 
 ### General
