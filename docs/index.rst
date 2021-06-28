@@ -16,11 +16,16 @@ Citing BEAT
 The development of BEAT lead to several publications that describe theory and methods in detail.
 If your work results in an publication where you used BEAT we kindly ask you to consider citing the BEAT software package and the related article(s). Doing so is essential for maintaining and further developing the software.
 
-.. [VasyuraBathke2020] Vasyura-Bathke, Hannes; Dettmer, Jan; Steinberg, Andreas; Heimann, Sebastian; Isken, Marius; Zielke, Olaf; Mai, Paul Martin; Sudhaus, Henriette; Jónsson, Sigurjón: **The Bayesian Earthquake Analysis Tool**. Seismological Research Letters. https://doi.org/10.1785/0220190075
+.. [VasyuraBathke2020] Vasyura-Bathke, Hannes; Dettmer, Jan; Steinberg, Andreas; Heimann, Sebastian; Isken, Marius; Zielke, Olaf; Mai, Paul Martin; Sudhaus, Henriette; Jónsson, Sigurjón (2020): **The Bayesian Earthquake Analysis Tool**. Seismological Research Letters. https://doi.org/10.1785/0220190075
 
 .. [VasyuraBathke2019] Vasyura-Bathke, Hannes; Dettmer, Jan; Steinberg, Andreas; Heimann, Sebastian; Isken, Marius; Zielke, Olaf; Mai, Paul Martin; Sudhaus, Henriette; Jónsson, Sigurjón (2019): **BEAT - Bayesian Earthquake Analysis Tool**. V. 1.0. GFZ Data Services. http://doi.org/10.5880/fidgeo.2019.024
 
 .. [Heimann2019] Heimann, Sebastian; Vasyura-Bathke, Hannes; Sudhaus, Henriette; Isken, Marius; Kriegerowski, Marius; Steinberg, Andreas; Dahm, Torsten: 2019. **A Python framework for efficient use of pre-computed Green’s functions in seismological and other physical forward and inverse source problems.** Solid Earth, 2019, 10(6):1921–1935. https://doi.org/10.5194/se-10-1921-2019
+
+
+Using BEAT
+----------
+A list of publications implementing BEAT can be found `here <https://pyrocko.org/beat/docs/current/community_references.html>`__ .
 
 
 Introduction
@@ -56,6 +61,7 @@ Contents:
    examples/index
    faq
    api
+   community_references
 
 Indices and tables
 ==================
