@@ -19,7 +19,7 @@ from beat import config as bconfig
 from beat import heart, covariance as cov
 from beat.models.base import \
     ConfigInconsistentError, Composite, FaultGeometryNotFoundError
-from beat.models.distributions import multivariate_normal_chol, get_hyper_name
+from beat.models.distributions import multivariate_normal_chol, get_hyper_name, polarity_llk
 
 from pymc3 import Uniform, Deterministic
 from collections import OrderedDict
@@ -936,7 +936,55 @@ class SeismicGeometryComposite(SeismicComposite):
                 dataset.covariance.update_slog_pdet()
                 wmap.weights[i].set_value(choli)
 
+##Mahdi
+class SeismicPolarityComposite(Composite):
 
+    def __init__(self, polc, project_dir, sources, events, hypers=False):
+        super(SeismicPolarityComposite, self).__init__(events)
+        
+        self.name = 'polarity'
+        self._like_name = 'pol_like'
+        self.synthesizers = {}
+        self.sources = sources    
+        self.config = polc
+        self.sigma = 0.16
+        self.gamma = 0.0
+        self.targets = []
+        self.data_handlers = []
+        for i in range(self.nevents):
+            seismic_data_path = os.path.join(project_dir, 
+                                             bconfig.multi_event_seismic_data_name(i))
+            self.data_handlers.append(heart.pol_datahandler(polarity_config=polc,
+                                                            seismic_data_path=seismic_data_path))
+
+    def point2sources(self, point):
+        return None
+    def export():
+        return None
+    def assemble_results():
+        return None
+    def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
+
+        self.input_rvs = input_rvs
+        self.fixed_rvs = fixed_rvs
+        self.input_rvs.update(fixed_rvs)
+        
+        plogpts = []
+        for i in range(len(self.data_handlers)):
+            data = self.data_handlers[i]
+            data.prepare_data(self.sources[i])
+            sources = [self.sources[i]]
+            self.synthesizers[i] = theanof.PolSynthesizer(sources, data._targets.values())
+            llk = polarity_llk(data.amplitudes, self.synthesizers[i](self.input_rvs), self.gamma, self.sigma)           ## Gamma, sigma
+            # synthetics[i] = heart.syn_polarity(self.sources[i], data._targets.values())
+            # plogpts.append(heart.polarity_llk(data.amplitudes, synthetics[i], 0.0 , 0.16))
+            plogpts.append(llk)
+        llks = Deterministic(self._like_name, tt.concatenate((plogpts)))
+        return llks.sum()
+    def get_synthetics(self, source, targets):
+        
+        return None
+##
 class SeismicDistributerComposite(SeismicComposite):
     """
     Comprises how to solve the seismic (kinematic) linear forward model.

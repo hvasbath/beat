@@ -99,6 +99,10 @@ interseismic_catalog = {
     'geodetic': interseismic_vars}
 
 geometry_catalog = {
+##Mahdi
+    'polarity': source_catalog,
+##
+
     'geodetic': source_catalog,
     'seismic': source_catalog}
 
@@ -231,7 +235,7 @@ _correlation_function_choices = ['nearest_neighbor', 'gaussian', 'exponential']
 _discretization_choices = ['uniform', 'resolution']
 _initialization_choices = ['random', 'lsq']
 _backend_choices = ['csv', 'bin']
-_datatype_choices = ['geodetic', 'seismic']
+_datatype_choices = ['geodetic', 'seismic', 'polarity']         ##Mahdi
 _sampler_choices = ['PT', 'SMC', 'Metropolis']
 
 
@@ -696,6 +700,25 @@ class SeismicConfig(Object):
         for wavename in wavenames:
             self.waveforms.append(WaveformFitConfig(name=wavename))
 
+##Mahdi
+class PolarityConfig(Object):
+    st_polarity = List.T(default=[])
+    vmdir = String.T(default='./', 
+                     optional=True,
+                     help="If not given, velocity model from Green's function will be extract")
+    # def __init__(self, st_polarity, vmdir=[]):
+        # if not vmdir:
+        
+    def get_hypernames(self):
+        return []
+    def obspol(self):
+        obs_ampl = num.zeros(len(self.st_polarity))
+        station = [None] * obs_ampl.size
+        for i, st_pol in enumerate(self.st_polarity):
+            obs_ampl[i] = float(st_pol.split(" ")[-1])
+            station[i] = st_pol.split(" ")[0]
+        return num.array(station), obs_ampl
+##
 
 class CorrectionConfig(Object):
 
@@ -1592,6 +1615,8 @@ class SeismicGFLibraryConfig(GFLibaryConfig):
 
 
 datatype_catalog = {
+    ##Mahdi
+    'polarity': PolarityConfig,
     'geodetic': GeodeticConfig,
     'seismic': SeismicConfig}
 
@@ -1618,6 +1643,9 @@ class BEATconfig(Object, Cloneable):
         default=None, optional=True)
     seismic_config = SeismicConfig.T(
         default=None, optional=True)
+    ##Mahdi
+    polarity_config = PolarityConfig.T(default=None, optional=True)
+    ##
     sampler_config = SamplerConfig.T(default=SamplerConfig.D())
     hyper_sampler_config = SamplerConfig.T(
         default=SamplerConfig.D(),
@@ -1849,7 +1877,13 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                 c.seismic_config.gf_config.replace_water = False
         else:
             c.seismic_config = None
+        ##Mahdi
+        if 'polarity' in datatypes:
+            c.polarity_config = PolarityConfig()
 
+        else:
+            c.polarity_config = None
+        ##
     elif mode == ffi_mode_str:
 
         if source_type != 'RectangularSource':

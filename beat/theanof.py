@@ -409,7 +409,41 @@ class SeisSynthesizer(theano.Op):
         ncol = int(num.ceil(
             store.config.sample_rate * self.arrival_taper.duration()))
         return [(nrow, ncol), (nrow,)]
+##Mahdi
+class PolSynthesizer(theano.Op):
+    
+    __props__ = ('sources', 'targets')
 
+    def __init__(self, sources, targets):
+        self.sources = tuple(sources)
+        self.targets = tuple(targets)
+        self.nobs = len(targets) * len(sources)
+
+    def __getstate__(self):
+        self.engine.close_cashed_stores()
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+    def make_node(self, inputs):
+        inlist = []
+        for i in inputs.values():
+            inlist.append(tt.as_tensor_variable(i))
+
+        out = tt.as_tensor_variable(num.zeros((2,2)))
+        outlist = [out.type()]
+        return theano.Apply(self, inlist, outlist)
+
+    def perform(self, node, inputs, output):
+        synths = output[0]
+
+        synths[0] = heart.syn_polarity(self.sources, self.targets)
+
+    def infer_shape(self, node, input_shapes):
+        return [(self.nobs,2)]
+
+###
 
 class SeisDataChopper(theano.Op):
     """

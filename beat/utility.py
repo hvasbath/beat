@@ -374,7 +374,10 @@ def weed_input_rvs(input_rvs, mode, datatype):
                 'nucleation_y'] + burian
         elif datatype == 'seismic':
             tobeweeded = ['opening'] + burian
-
+##Mahdi
+        elif datatype == 'polarity':
+            tobeweeded = []
+##
     elif mode == 'interseismic':
         if datatype == 'geodetic':
             tobeweeded = burian

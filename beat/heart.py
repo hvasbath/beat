@@ -1235,6 +1235,53 @@ class GeodeticResult(Object):
     processed_res = Array.T(shape=(None,), dtype=num.float, optional=True)
     llk = Float.T(default=0., optional=True)
 
+##Mahdi
+class PolarityTarget(gf.meta.Receiver):
+    '''
+    A seismogram computation request for a single component, including
+    its post-processing parmeters.
+    '''
+
+    codes = Tuple.T(
+        4, String.T(), default=('', 'STA', '', 'Z'),
+        help='network, station, location and channel codes to be set on '
+             'the response trace.')
+
+    elevation = Float.T(
+        default=0.0,
+        help='station surface elevation in [m]')
+
+    vmodel = gf.meta.StringID.T(
+        optional=True,
+        help='ID of Green\'s function store to use for the computation. '
+             'If not given, the processor may use a system default.')
+
+    azimuth = Float.T(
+        optional=True,
+        help='azimuth of sensor component in [deg], clockwise from north. '
+             'If not given, it is guessed from the channel code.')
+    distance = Float.T(
+        optional=True,
+        help='azimuth of sensor component in [deg], clockwise from north. '
+             'If not given, it is guessed from the channel code.')
+    takeoff_angle = Float.T(
+        optional=True,
+        help='azimuth of sensor component in [deg], clockwise from north. '
+             'If not given, it is guessed from the channel code.')
+
+def init_polarity_targets(stations, polarityconfig):
+    D2R = num.pi / 180.0
+    crust_ind = 0
+    obs_stations = polarityconfig.obspol()[0]
+    targets = []
+    for i, station in enumerate(stations):
+        if station.get_channel('Z') and station.station in obs_stations:
+            targets.append(PolarityTarget(
+                            codes=(station.network, station.station,'%i' % crust_ind, 'Z'),  # n, s, l, c
+                            lat=station.lat, lon=station.lon, azimuth=station.azimuth*D2R, distance=station.dist_deg,
+                            elevation=float(station.elevation), vmodel=polarityconfig.vmdir))
+    return targets
+##
 
 def init_seismic_targets(
         stations, earth_model_name='ak135-f-average.m', channels=['T', 'Z'],
@@ -2254,7 +2301,32 @@ def get_phase_arrival_time(engine, source, target, wavename=None, snap=True):
         deltat = 1. / store.config.sample_rate
         atime = trace.t2ind(atime, deltat, snap=round) * deltat
     return atime
-
+##Mahdi
+def get_takeoff_angle(source, target):
+    
+    D2R = num.pi / 180.0
+    # try:
+    #     mod = target.vmodel.earthmodel_1d
+    # except:
+    mod = cake.load_model(target.vmodel)
+    
+    if mod.discontinuity('moho').name:
+        definition = 'p,P,p\\,P\\,Pv_(cmb)p'
+    else:
+        definition = 'p,P,p\\,P\\'
+    
+    dist = target.distance_to(source)
+    
+    phases = gf.TPDef(id='any_P', definition=definition)
+    
+    # Calculate arrivals
+    rays = mod.arrivals(
+        phases=phases.phases,
+        distances=[dist*cake.m2d],
+        zstart=source.depth,
+        zstop=target.depth)
+    return rays[0].takeoff_angle() * D2R
+##
 
 def get_phase_taperer(
         engine, source, wavename, target, arrival_taper, arrival_time=num.nan):
@@ -2746,6 +2818,31 @@ class DataWaveformCollection(object):
             channels=channels,
             deltat=self._deltat)
 
+##Mahdi
+class DataPolarityCollection(object):
+    
+    def __init__(self, observed_stations, observed_amps):
+        self.stations = num.array(observed_stations)
+        self.amplitudes = observed_amps
+        self._targets = OrderedDict()
+        self._target2index = None
+        self._station2index = None
+
+    @property
+    def n_t(self):
+        return len(self._targets.keys())
+
+    def add_targets(self, targets, replace=False, force=False):
+        DataWaveformCollection.add_targets(self, targets, replace=False, force=False)
+    def sorting(self):
+        amplitudes_inorder = num.zeros(self.n_t)
+        for i, target in enumerate(self._targets):
+            amplitudes_inorder[i] = self.amplitudes[target[1] == self.stations]
+        self.amplitudes = amplitudes_inorder
+    def prepare_data(self, source):
+        for i, target in enumerate(self._targets):
+            self._targets[target].takeoff_angle = get_takeoff_angle(source, self._targets[target])   
+##
 
 def concatenate_datasets(datasets):
     """
@@ -2780,6 +2877,16 @@ def concatenate_datasets(datasets):
     los_vectors = Bij.f3map(_lv_list).astype(tconfig.floatX)
     return datasets, los_vectors, odws, Bij
 
+##Mahdi
+def pol_datahandler(polarity_config, seismic_data_path):
+    stations = utility.load_objects(seismic_data_path)[0]
+    targets = init_polarity_targets(stations, polarity_config)
+    obs_sts, obs_amps = polarity_config.obspol()
+    datahandler = DataPolarityCollection(obs_sts, obs_amps)
+    datahandler.add_targets(targets)
+    datahandler.sorting()
+    return datahandler
+##
 
 def init_datahandler(
         seismic_config, seismic_data_path='./', responses_path=None):
@@ -3145,6 +3252,43 @@ def seis_synthetics(
     else:
         raise TypeError('Outmode %s not supported!' % outmode)
 
+##Mahdi
+
+def GAMMA(takeoffangles, azimuths):
+    return num.array([num.sin(takeoffangles)*num.cos(azimuths),
+                        num.sin(takeoffangles)*num.sin(azimuths),
+                        num.cos(takeoffangles)])
+# def p_amplitude(moment, GAMMAS):
+#     GAMMAS = GAMMAS.reshape(GAMMAS.size,1)
+#     temp = num.diag(GAMMAS.T.dot(moment).dot(GAMMAS))
+#     return temp
+
+def syn_polarity(sources, targets):  
+    toas = num.array([tr.takeoff_angle for tr in targets])
+    azis = num.array([tr.azimuth for tr in targets])
+    gamma_co = GAMMA(toas, azis)
+    pols = gamma_co.T.dot(sources[0].m9).dot(gamma_co).copy()
+    pols[pols>=0] = 1
+    pols[pols<0] = -1
+    
+    
+    # from theano import tensor as tt
+    # pred_pol = tt.zeros(len(sources)*len(targets))
+    # for source in sources:
+    #     for i, tr in enumerate(targets):
+    #         gamma_co = GAMMA(tr.takeoff_angle, tr.azimuth)
+    #         tmp1 = gamma_co.T.dot(sources[0].m9).dot(gamma_co)
+    #         if tmp1 == 0:                
+    #             tmp2 =  1
+    # pols = []
+    # for source in sources:
+    #     pols.append(p_amplitude(source.m9, gamma_co).copy())
+    # pols = pred_pol.copy()
+    # pols[pols>0] = 1
+    # pols[pols<0] = -1
+    return pols
+    
+##
 
 def geo_synthetics(
         engine, targets, sources, outmode='stacked_array', plot=False,
