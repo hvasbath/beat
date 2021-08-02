@@ -682,6 +682,24 @@ def join_points(ldicts):
     return jpoint
 
 
+def check_point_keys(point, phrase):
+    """
+    Searches point keys for a phrase, returns list of keys with the phrase.
+    """
+    from fnmatch import fnmatch
+
+    keys = list(point.keys())
+
+    contains = False
+    contained_keys = []
+    for k in keys:
+        if fnmatch(k, phrase):
+            contains = True
+            contained_keys.append(k)
+
+    return contains, contained_keys
+
+
 def update_source(source, **point):
     """
     Update source keeping stf and source params seperate.

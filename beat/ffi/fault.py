@@ -1,6 +1,7 @@
 from beat.utility import (
     list2string, positions2idxs, kmtypes, split_off_list,
-    Counter, mod_i, rotate_coords_plane_normal, split_point, update_source)
+    Counter, mod_i, rotate_coords_plane_normal, split_point, update_source,
+    check_point_keys)
 
 from beat.fast_sweeping import fast_sweep
 from beat.heart import velocities_from_pole
@@ -41,7 +42,8 @@ __all__ = [
     'discretize_sources',
     'get_division_mapping',
     'optimize_discretization',
-    'write_fault_to_pscmp']
+    'write_fault_to_pscmp',
+    'backslip2coupling']
 
 
 slip_directions = {
@@ -488,7 +490,8 @@ total number of patches: %i ''' % (
             srf_times = num.zeros(1)
             sub_headers = []
 
-            if 'pole_lat' in point:
+            has_pole, _ = check_point_keys(point, phrase='*_pole_lat')
+            if has_pole:
                 logger.info(
                     'Found Euler pole in point also exporting coupling ...!')
                 coupling = backslip2coupling(
@@ -1317,11 +1320,21 @@ def backslip2coupling(point, fault, event):
     except KeyError:
         raise ValueError('Parallel slip component not in result point!')
 
-    try:
-        plat = point['pole_lat']
-        plon = point['pole_lon']
-        omega = point['omega']
-    except KeyError:
+    has_pole, pole_lat_keys = check_point_keys(point, phrase='*_pole_lat')
+    has_pole, pole_lon_keys = check_point_keys(point, phrase='*_pole_lon')
+    has_pole, omega_keys = check_point_keys(point, phrase='*_omega')
+
+    npoles = len(pole_lon_keys)
+    if has_pole:
+        if npoles > 1:
+            logger.warning(
+                'Found %i poles in result point! '
+                'Returning coupling only for first pole!' % npoles)
+
+        plat = point[pole_lat_keys[0]]
+        plon = point[pole_lon_keys[0]]
+        omega = point[omega_keys[0]]
+    else:
         raise ValueError('Euler Pole not in result point!')
 
     subfault_idxs = list(range(fault.nsubfaults))
@@ -1339,7 +1352,7 @@ def backslip2coupling(point, fault, event):
 
     euler_velocities_xyz = velocities_from_pole(
         lats=lats, lons=lons,
-        plat=plat, plon=plon, omega=omega, earth_shape='ellipsoid')
+        pole_lat=plat, pole_lon=plon, omega=omega, earth_shape='ellipsoid')
     vels_along_strike = num.abs(
         (euler_velocities_xyz * strikevectors).sum(axis=1))
 

@@ -642,29 +642,16 @@ def plot_log_cov(cov_mat):
     plt.show()
 
 
-def get_result_point(stage, config, point_llk='max'):
-    """
-    Return point of a given stage result.
+def get_result_point(mtrace, point_llk='max'):
 
-    Parameters
-    ----------
-    stage : :class:`models.Stage`
-    config : :class:`config.BEATConfig`
-    point_llk : str
-        with specified llk(max, mean, min).
-
-    Returns
-    -------
-    dict
-    """
     if point_llk != 'None':
-        llk = stage.mtrace.get_values(
+        llk = mtrace.get_values(
             varname='like',
             combine=True)
 
         posterior_idxs = utility.get_fit_indexes(llk)
 
-        point = stage.mtrace.point(idx=posterior_idxs[point_llk])
+        point = mtrace.point(idx=posterior_idxs[point_llk])
 
     else:
         point = None
@@ -809,7 +796,7 @@ def gnss_fits(problem, stage, plot_options):
             ref_sources = copy.deepcopy(composite.sources)
         point = po.reference
     else:
-        point = get_result_point(stage, problem.config, po.post_llk)
+        point = get_result_point(stage.mtrace, po.post_llk)
 
     results = composite.assemble_results(point)
 
@@ -1125,7 +1112,7 @@ def scene_fits(problem, stage, plot_options):
             ref_sources = copy.deepcopy(composite.sources)
         bpoint = po.reference
     else:
-        bpoint = get_result_point(stage, problem.config, po.post_llk)
+        bpoint = get_result_point(stage.mtrace, po.post_llk)
 
     bresults_tmp = composite.assemble_results(bpoint)
     bvar_reductions = composite.get_variance_reductions(
@@ -1750,7 +1737,7 @@ def seismic_fits(problem, stage, plot_options):
     po = plot_options
 
     if not po.reference:
-        best_point = get_result_point(stage, problem.config, po.post_llk)
+        best_point = get_result_point(stage.mtrace, po.post_llk)
     else:
         best_point = po.reference
 
@@ -1772,7 +1759,7 @@ def seismic_fits(problem, stage, plot_options):
         # get dummy results for data
         logger.warning(
             'Got "None" post_llk, still loading MAP for VR calculation')
-        best_point = get_result_point(stage, problem.config, 'max')
+        best_point = get_result_point(stage.mtrace, 'max')
         bresults = composite.assemble_results(
             best_point, chop_bounds=chop_bounds)
         synth_plot_flag = False
@@ -2305,7 +2292,7 @@ def extract_mt_components(problem, po, include_magnitude=False):
         else:
             logger.info('Drawing full ensemble ...')
 
-        point = get_result_point(stage, problem.config, po.post_llk)
+        point = get_result_point(stage.mtrace, po.post_llk)
         best_mt = point2array(point, varnames=varnames, rpoint=rpoint)
     else:
         llk_str = 'ref'
@@ -3261,7 +3248,7 @@ def draw_correlation_hist(problem, plot_options):
         problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
     if not po.reference:
-        reference = get_result_point(stage, problem.config, po.post_llk)
+        reference = get_result_point(stage.mtrace, po.post_llk)
         llk_str = po.post_llk
     else:
         reference = po.reference
@@ -3885,7 +3872,7 @@ def draw_slip_dist(problem, po):
         stage = load_stage(
             problem, stage_number=po.load_stage, load='trace', chains=[-1])
         reference = problem.config.problem_config.get_test_point()
-        res_point = get_result_point(stage, problem.config, po.post_llk)
+        res_point = get_result_point(stage.mtrace, po.post_llk)
         reference.update(res_point)
         llk_str = po.post_llk
         mtrace = stage.mtrace
@@ -4168,7 +4155,7 @@ def draw_moment_rate(problem, po):
         problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
     if not po.reference:
-        reference = get_result_point(stage, problem.config, po.post_llk)
+        reference = get_result_point(stage.mtrace, po.post_llk)
         llk_str = po.post_llk
         mtrace = stage.mtrace
     else:
@@ -4576,7 +4563,7 @@ def draw_station_map_gmt(problem, po):
         stage = load_stage(
             problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
-        point = get_result_point(stage, problem.config, po.post_llk)
+        point = get_result_point(stage.mtrace, po.post_llk)
         value_string = '%i' % po.load_stage
     else:
         point = None
@@ -4689,7 +4676,7 @@ def draw_3d_slip_distribution(problem, po):
 
     if not po.reference:
         reference = problem.config.problem_config.get_test_point()
-        res_point = get_result_point(stage, problem.config, po.post_llk)
+        res_point = get_result_point(stage.mtrace, po.post_llk)
         reference.update(res_point)
         llk_str = po.post_llk
         mtrace = stage.mtrace
@@ -4711,10 +4698,18 @@ def draw_3d_slip_distribution(problem, po):
     if gc:
         for corr in gc.corrections_config.euler_poles:
             if corr.enabled:
-                logger.info(
-                    'Found Euler pole correction assuming interseismic '
-                    'slip-rates ...')
-                slip_units = 'm/yr'
+                if po.varnames[0] == 'coupling':
+                    from beat.ffi import backslip2coupling
+                    logger.info('Plotting coupling ...!')
+                    reference['coupling'] = backslip2coupling(
+                        point=reference, fault=fault,
+                        event=problem.config.event)
+                    slip_units = '%'
+                else:
+                    logger.info(
+                        'Found Euler pole correction assuming interseismic '
+                        'slip-rates ...')
+                    slip_units = 'm/yr'
             else:
                 logger.info(
                     'Did not find Euler pole correction-assuming '
@@ -4753,27 +4748,29 @@ def draw_3d_slip_distribution(problem, po):
 
 def slip_distribution_3d_gmt(
         fault, reference, mtrace=None, perspective='135/30', slip_units='m',
-        slip_label='slip', varnames=None):
+        slip_label='slip', varnames=None, gmt=None, bin_width=1,
+        cptfilepath=None, transparency=0):
 
     if len(gmtpy.detect_gmt_installations()) < 1:
         raise gmtpy.GmtPyError(
             'GMT needs to be installed for station_map plot!')
 
-    font_size = 12
-    font = '1'
-    bin_width = 1  # major grid and tick increment in [deg]
-    h = 15  # outsize in cm
-    w = 22
-
     p = 'z%s/0' % perspective
+    # bin_width = 1  # major grid and tick increment in [deg]
 
-    gmtconfig = get_gmt_config(gmtpy, h=h, w=w, fontsize=11)
+    if gmt is None:
+        font_size = 12
+        font = '1'
+        h = 15  # outsize in cm
+        w = 22
 
-    gmtconfig['MAP_FRAME_TYPE'] = 'plain'
-    gmtconfig['MAP_SCALE_HEIGHT'] = '11p'
-    #gmtconfig.pop('PS_MEDIA')
+        gmtconfig = get_gmt_config(gmtpy, h=h, w=w, fontsize=11)
 
-    gmt = gmtpy.GMT(config=gmtconfig)
+        gmtconfig['MAP_FRAME_TYPE'] = 'plain'
+        gmtconfig['MAP_SCALE_HEIGHT'] = '11p'
+        #gmtconfig.pop('PS_MEDIA')
+
+        gmt = gmtpy.GMT(config=gmtconfig)
 
     sf_lonlats = num.vstack(
         [sf.outline(cs='lonlat') for sf in fault.iter_subfaults()])
@@ -4785,8 +4782,8 @@ def slip_distribution_3d_gmt(
     lon_min, lat_min = sf_lonlats.min(axis=0)
     lon_max, lat_max = sf_lonlats.max(axis=0)
 
-    lon_tolerance = 0.2
-    lat_tolerance = 0.3
+    lon_tolerance = (lon_max - lon_min) * 0.1
+    lat_tolerance = (lat_max - lat_min) * 0.1
 
     R = utility.list2string(
         [lon_min - lon_tolerance,
@@ -4794,7 +4791,7 @@ def slip_distribution_3d_gmt(
          lat_min - lat_tolerance,
          lat_max + lat_tolerance,
          -max_depth, 0], '/')
-    Jg = '-JM%gc' % 18
+    Jg = '-JM%gc' % 12
     Jz = '-JZ%gc' % 6
     J = [Jg, Jz]
     B = ['-Bxa%i' % bin_width, '-Bya%i' % bin_width,
@@ -4813,20 +4810,24 @@ def slip_distribution_3d_gmt(
         p=p,
         *J)
 
-    reference_slips = fault.get_total_slip(
-        index=None, point=reference, components=varnames)
+    if slip_label == 'coupling':
+        reference_slips = reference['coupling'] * 100 # in percent
+    else:
+        reference_slips = fault.get_total_slip(
+            index=None, point=reference, components=varnames)
 
     autos = AutoScaler(snap='on', approx_ticks=3)
 
     cmin, cmax, cinc = autos.make_scale(
         (0, reference_slips.max()), override_mode='min-max')
 
-    cptfilepath = '/tmp/tempfile.cpt'
-    gmt.makecpt(
-        C='hot',
-        I='c',
-        T='%f/%f' % (cmin, cmax),
-        out_filename=cptfilepath, suppress_defaults=True)
+    if cptfilepath is None:
+        cptfilepath = '/tmp/tempfile.cpt'
+        gmt.makecpt(
+            C='hot',
+            I='c',
+            T='%f/%f' % (cmin, cmax),
+            out_filename=cptfilepath, suppress_defaults=True)
 
     tmp_patch_fname = '/tmp/temp_patch.txt'
     for idx in range(fault.nsubfaults):
@@ -4848,6 +4849,7 @@ def slip_distribution_3d_gmt(
                 R=R,
                 C=cptfilepath,
                 L=True,
+                t=transparency,
                 W='0.1p',
                 p=p,
                 *J)
