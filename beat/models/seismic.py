@@ -4,6 +4,7 @@ import copy
 from time import time
 
 import numpy as num
+from pyrocko.io.ims import DataType
 
 from theano import shared
 from theano import config as tconfig
@@ -951,18 +952,146 @@ class SeismicPolarityComposite(Composite):
         self.gamma = 0.0
         self.targets = []
         self.data_handlers = []
+        self.polmaps = []
         for i in range(self.nevents):
             seismic_data_path = os.path.join(project_dir, 
                                              bconfig.multi_event_seismic_data_name(i))
             self.data_handlers.append(heart.pol_datahandler(polarity_config=polc,
                                                             seismic_data_path=seismic_data_path))
+            self.polmaps.append(heart.init_polmap(polc, self.data_handlers[i], self.events[i], i))
+
+    def get_hypersize(self, hp_name):
+        """
+        Return size of the hyperparameter
+
+        Parameters
+        ----------
+        hp_name: str
+            of hyperparameter name
+
+        Returns
+        -------
+        int
+        """
+        return 1
 
     def point2sources(self, point):
-        return None
-    def export():
-        return None
-    def assemble_results():
-        return None
+        tpoint = copy.deepcopy(point)
+        tpoint = utility.adjust_point_units(tpoint)
+
+        hps = self.config.get_hypernames()
+        for hyper in hps:
+            if hyper in tpoint:
+                tpoint.pop(hyper)
+
+        source_params = list(self.sources[0].keys()) + list(self.sources[0].stf.keys())
+
+        for param in list(tpoint.keys()):
+            if param not in source_params:
+                tpoint.pop(param)
+        
+        if self.nevents == 1:
+            tpoint['time'] += self.event.time       # single event
+        else:
+            for i, event in enumerate(self.events):     # multi event
+                tpoint['time'][i] += event.time
+
+        source_points = utility.split_point(tpoint)
+
+        for i, source in enumerate(self.sources):
+            utility.update_source(source, **source_points[i])
+
+    def get_all_station_names(self):
+        """
+        Returns list of station names in the order of wavemaps.
+        """
+        us = []
+        for pmap in self.polmaps:
+            us.extend(pmap.get_station_names())
+
+        return us
+
+    def get_unique_station_names(self):
+        """
+        Return unique station names from all wavemaps
+        """
+        return utility.unique_list(self.get_all_station_names())
+
+    # @property
+    # def datasets(self):
+    #     if self._datasets is None:
+    #         ds = []
+    #         for pmap in self.polmaps:
+    #             ds.extend(pmap.datasets)
+
+    #         self._datasets = ds
+    #     return self._datasets
+
+    # @property
+    # def targets(self):
+    #     if self._targets is None:
+    #         ts = []
+    #         for pmap in self.polmaps:
+    #             ts.extend(pmap.targets)
+
+    #         self._targets = ts
+    #     return self._targets
+                
+    def export(self, point, results_path, stage_number, fix_output=False, force=False, update=False):
+        results = self.assemble_results(point)
+        for pols, attribute in heart.results_for_export(results=results, datatype='polarity'):
+            filename = '%s_%i.bin' % (attribute, stage_number)
+            output = os.path.join(results_path, filename)
+            with open(filename, 'a+') as fh:
+                fh.write('{} {} {}'.format(pols, attribute))
+                fh.close()          
+
+    def assemble_results(self, point, order='list'):
+        if point is None:
+            raise ValueError('A point has to be provided!')
+        logger.debug('Assembling seismic waveforms ...')
+        
+        syn_proc_pols, obs_proc_pols = self.get_synthetics(point, order='pmap')
+        results = []
+        for i, pmap in enumerate(self.polmaps):
+            pmap_results = []
+            for j, obs_pol in enumerate(obs_proc_pols[i]):
+                source_contribution = syn_proc_pols[i][j]
+                pmap_results.append(heart.PolarityResult(point=point, processed_obs=obs_pol,
+                                                         source_contributions=source_contribution))
+            if order == 'list':
+                results.extend(pmap_results)
+
+            elif order == 'wmap':
+                results.append(pmap_results)
+
+            else:
+                raise ValueError('Order "%s" is not supported' % order)
+                
+        return results
+        
+    def get_synthetics(self, point, **kwargs):
+
+        order = kwargs.pop('order', 'list')
+        self.point2sources(point)
+        polc = self.config
+        synths = []
+        obs = [None] * len(self.polmaps)
+        for i, pmap in enumerate(self.polmaps):
+            pmap.prepare_data(self.sources[i])
+            synthetics = heart.pol_synthetics([self.sources[i]], pmap.targets.values())
+            if order == 'list':
+                synths.extend(synthetics)
+                obs.extend(pmap.amp_to_pol())
+
+            elif order == 'pmap':
+                synths.append(synthetics)
+                obs.append(pmap.amp_to_pol())
+            else:
+                raise ValueError('Order "%s" is not supported' % order)
+
+        return synths, obs
+
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
 
         self.input_rvs = input_rvs
@@ -970,20 +1099,30 @@ class SeismicPolarityComposite(Composite):
         self.input_rvs.update(fixed_rvs)
         
         plogpts = []
-        for i in range(len(self.data_handlers)):
-            data = self.data_handlers[i]
-            data.prepare_data(self.sources[i])
-            sources = [self.sources[i]]
-            self.synthesizers[i] = theanof.PolSynthesizer(sources, data._targets.values())
-            llk = polarity_llk(data.amplitudes, self.synthesizers[i](self.input_rvs), self.gamma, self.sigma)           ## Gamma, sigma
-            # synthetics[i] = heart.syn_polarity(self.sources[i], data._targets.values())
-            # plogpts.append(heart.polarity_llk(data.amplitudes, synthetics[i], 0.0 , 0.16))
+        for i, pmap in enumerate(self.polmaps):
+            pmap.prepare_data(self.sources[i])
+            self.synthesizers[i] = theanof.PolSynthesizer([self.sources[i]], pmap.targets)
+            llk = polarity_llk(pmap.datasets, self.synthesizers[i](self.input_rvs), self.gamma, self.sigma)           ## Gamma, sigma
             plogpts.append(llk)
         llks = Deterministic(self._like_name, tt.concatenate((plogpts)))
         return llks.sum()
-    def get_synthetics(self, source, targets):
-        
-        return None
+# def update_llks(self, point):
+    #     """
+    #     Update posterior likelihoods of the composite with respect to one point
+    #     in the solution space.
+
+    #     Parameters
+    #     ----------
+    #     point : dict
+    #         with numpy array-like items and variable name keys
+    #     """
+    #     results = self.assemble_results(point, chop_bounds=['b', 'c'])
+    #     for k, result in enumerate(results):
+    #         choli = self.datasets[k].covariance.chol_inverse
+    #         tmp = choli.dot(result.processed_res.ydata)
+    #         _llk = num.asarray([num.dot(tmp, tmp)])
+    #         self._llks[k].set_value(_llk)
+
 ##
 class SeismicDistributerComposite(SeismicComposite):
     """

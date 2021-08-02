@@ -703,21 +703,42 @@ class SeismicConfig(Object):
 ##Mahdi
 class PolarityConfig(Object):
     st_polarity = List.T(default=[])
-    vmdir = String.T(default='./', 
+    name = String.T(default='pwfarrival', 
                      optional=True,
                      help="If not given, velocity model from Green's function will be extract")
-    # def __init__(self, st_polarity, vmdir=[]):
-        # if not vmdir:
-        
+
+    channels = List.T(default=['Z'], 
+                     optional=True,
+                     help="If not given, velocity model from Green's function will be extract")
+
+    store = String.T(default='./', 
+                     optional=True,
+                     help="If not given, velocity model from Green's function will be extract")
+    
+    def __init__(self, name, channels, st_polarity, store=['./']):
+        self.name = name
+        self.channels = channels
+        self.st_polarity = st_polarity
+        self.store = store
+    
     def get_hypernames(self):
-        return []
-    def obspol(self):
+        hids = []
+        name = self.name.split("wfarrival")[0].upper()
+        hypername = '_'.join(('h_any', name, str(0), 'Z'))
+        hids.append(hypername)
+        return hids
+
+    def get_obsdata(self):
         obs_ampl = num.zeros(len(self.st_polarity))
-        station = [None] * obs_ampl.size
         for i, st_pol in enumerate(self.st_polarity):
             obs_ampl[i] = float(st_pol.split(" ")[-1])
-            station[i] = st_pol.split(" ")[0]
-        return num.array(station), obs_ampl
+        return obs_ampl
+    def get_obsst(self):
+        station_name = [None] * len(self.st_polarity)
+        for i, st_pol in enumerate(self.st_polarity):
+            station_name[i] = st_pol.split(" ")[0]
+        return station_name
+        
 ##
 
 class CorrectionConfig(Object):

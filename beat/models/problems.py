@@ -49,7 +49,7 @@ class InconsistentNumberHyperparametersError(Exception):
 
 
 geometry_composite_catalog = {
-    'polarity': seismic.PolarityComposite,      ##Mahdi
+    'polarity': seismic.SeismicPolarityComposite,      ##Mahdi
     'seismic': seismic.SeismicGeometryComposite,
     'geodetic': geodetic.GeodeticGeometryComposite}
 

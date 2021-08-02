@@ -455,8 +455,22 @@ class SeismicResult(Object):
                     utility.list2string(tr.nslc_id),
                     tr.tmin, syn_tmin, tr.tmin - syn_tmin))
         return tr
-
-
+##Mahdi
+class PolarityResult(object):
+    point = ResultPoint.T(default=ResultPoint.D())
+    processed_obs = Array.T(optional=True)
+    llk = Float.T(default=0.0, optional=True)
+    source_contributions = List.T(Array.T(), help='Synthetics of source infdividual contributions.')
+    
+    @property
+    def processed_syn(self):
+        if self.source_contributions is not None:
+            syn0 = num.zeros_like(1)
+            for pol in self.source_contributions:
+                syn0 += pol
+        return syn0
+    
+##            
 def results_for_export(results, datatype=None, attributes=None):
 
     if attributes is None:
@@ -465,6 +479,8 @@ def results_for_export(results, datatype=None, attributes=None):
                 'Either datatype or attributes need to be defined!')
         elif datatype == 'geodetic' or datatype == 'seismic':
             attributes = ['processed_obs', 'processed_syn', 'processed_res']
+        elif datatype == 'polarity':            ##Mahdi
+            attributes = ['processed_obs', 'processed_syn']
         else:
             raise NotImplementedError(
                 'datatype %s not implemented!' % datatype)
@@ -1251,7 +1267,7 @@ class PolarityTarget(gf.meta.Receiver):
         default=0.0,
         help='station surface elevation in [m]')
 
-    vmodel = gf.meta.StringID.T(
+    store_id = gf.meta.StringID.T(
         optional=True,
         help='ID of Green\'s function store to use for the computation. '
              'If not given, the processor may use a system default.')
@@ -1262,24 +1278,22 @@ class PolarityTarget(gf.meta.Receiver):
              'If not given, it is guessed from the channel code.')
     distance = Float.T(
         optional=True,
-        help='azimuth of sensor component in [deg], clockwise from north. '
-             'If not given, it is guessed from the channel code.')
+        help='epicentral distance of sensor in [deg].')
     takeoff_angle = Float.T(
         optional=True,
-        help='azimuth of sensor component in [deg], clockwise from north. '
-             'If not given, it is guessed from the channel code.')
+        help='take-off angle of ray exicted from source with respect to disatnce & source depth recorded by sensor in [rad].'
+             "It's pyrocko based, and it is an upward ray when > 90.")
 
 def init_polarity_targets(stations, polarityconfig):
-    D2R = num.pi / 180.0
     crust_ind = 0
-    obs_stations = polarityconfig.obspol()[0]
+    obs_stations = polarityconfig.get_obsst()
     targets = []
     for i, station in enumerate(stations):
         if station.get_channel('Z') and station.station in obs_stations:
             targets.append(PolarityTarget(
                             codes=(station.network, station.station,'%i' % crust_ind, 'Z'),  # n, s, l, c
-                            lat=station.lat, lon=station.lon, azimuth=station.azimuth*D2R, distance=station.dist_deg,
-                            elevation=float(station.elevation), vmodel=polarityconfig.vmdir))
+                            lat=station.lat, lon=station.lon, azimuth=station.azimuth*d2r, distance=station.dist_deg,
+                            elevation=float(station.elevation), store_id=polarityconfig.store))
     return targets
 ##
 
@@ -2303,29 +2317,22 @@ def get_phase_arrival_time(engine, source, target, wavename=None, snap=True):
     return atime
 ##Mahdi
 def get_takeoff_angle(source, target):
-    
-    D2R = num.pi / 180.0
-    # try:
-    #     mod = target.vmodel.earthmodel_1d
-    # except:
-    mod = cake.load_model(target.vmodel)
+    mod = cake.load_model(target.store_id)
     
     if mod.discontinuity('moho').name:
         definition = 'p,P,p\\,P\\,Pv_(cmb)p'
     else:
         definition = 'p,P,p\\,P\\'
-    
-    dist = target.distance_to(source)
-    
+
     phases = gf.TPDef(id='any_P', definition=definition)
     
     # Calculate arrivals
     rays = mod.arrivals(
         phases=phases.phases,
-        distances=[dist*cake.m2d],
+        distances=[target.distance],
         zstart=source.depth,
         zstop=target.depth)
-    return rays[0].takeoff_angle() * D2R
+    return rays[0].takeoff_angle() * d2r
 ##
 
 def get_phase_taperer(
@@ -2621,7 +2628,42 @@ class WaveformMapping(object):
                 self._prepared_data,
                 name='%s_data' % self.name, borrow=True)
 
+##Mahdi
+class PolarityMapping(WaveformMapping): 
+    def __init__(self, name, stations, datasets, targets, channels):
+        super(PolarityMapping, self).__init__(name=name, stations=stations, 
+                                              datasets=datasets, targets=targets, 
+                                              channels=channels)
+        self._takeoff_angles = None
+        self._azimuths = None
+        self._dists = None
 
+    def prepare_data(self, source):
+        self._takeoff_angles = num.zeros(len(self.targets))
+        for i, target in enumerate(self.targets):
+            toa = get_takeoff_angle(source, target)
+            self.targets[i].takeoff_angle = toa
+            self._takeoff_angles[i] = toa
+        
+    def get_stations_param(self, parameter):            
+        return [target.parameter for target in self.targets]
+
+    def _update_trace_wavenames(self, wavename=None):
+        """
+        This type of data doesn't have trace_wavenames
+        """
+        pass
+    def _update_station_corrections(self):
+        """
+        This type of data doesn't have station corrections
+        """
+        pass
+    def amp_to_pol(self):
+        pol = copy.deepcopy(self.datasets)
+        pol[pol>=0] = 1
+        pol[pol<0] = -1
+        return pol
+##
 class CollectionError(Exception):
     pass
 
@@ -2818,30 +2860,59 @@ class DataWaveformCollection(object):
             channels=channels,
             deltat=self._deltat)
 
-##Mahdi
-class DataPolarityCollection(object):
+##Mahdi, inherted from DataWaveformCollection
+class DataPolarityCollection(DataWaveformCollection):
     
-    def __init__(self, observed_stations, observed_amps):
-        self.stations = num.array(observed_stations)
-        self.amplitudes = observed_amps
-        self._targets = OrderedDict()
-        self._target2index = None
-        self._station2index = None
+    def __init__(self, stations, polarity):
+        super(DataPolarityCollection, self).__init__(stations=stations)
 
-    @property
-    def n_t(self):
-        return len(self._targets.keys())
+        self.polarity = polarity
+        # self._targets = OrderedDict()
+        # self._raw_datasets = OrderedDict()
 
-    def add_targets(self, targets, replace=False, force=False):
-        DataWaveformCollection.add_targets(self, targets, replace=False, force=False)
-    def sorting(self):
-        amplitudes_inorder = num.zeros(self.n_t)
-        for i, target in enumerate(self._targets):
-            amplitudes_inorder[i] = self.amplitudes[target[1] == self.stations]
-        self.amplitudes = amplitudes_inorder
-    def prepare_data(self, source):
-        for i, target in enumerate(self._targets):
-            self._targets[target].takeoff_angle = get_takeoff_angle(source, self._targets[target])   
+    def add_datasets(self, polc, replace=False, force=False):
+        if replace:
+            self._datasets = OrderedDict()
+            self._raw_datasets = OrderedDict()
+        obs_stations = num.array(polc.get_obsst())
+        obs_data = num.array(polc.get_obsdata())
+        for target in self._targets:
+            self._raw_datasets[target] = obs_data[target[1] == obs_stations][0]
+        
+    def get_polarity_mapping(self, polarity, channels=['Z']):
+        
+        # self._check_collection(polarity, errormode='not_in')
+        
+        dtargets = utility.gather(self._targets.values(), lambda t: t.codes[3])
+        
+        targets = []
+        for cha in channels:
+            targets.extend(dtargets[cha])
+        
+        datasets = num.zeros(len(targets))
+        discard_targets = []
+        for i, target in enumerate(targets):
+            nslc_id = target.codes
+            try:
+                datasets[i] = self._raw_datasets[nslc_id]
+            except KeyError:
+                logger.warn(
+                    'No data trace for target %s in '
+                    'the collection! Removing target!' % str(nslc_id))
+                discard_targets.append(target)
+        
+        ndata = len(datasets)
+        n_t = len(targets)
+        
+        if ndata != n_t:
+            logger.warn(
+                'Inconsistent number of targets %i '
+                'and datasets %i! in polmap %s init' % (n_t, ndata, polarity))
+        return PolarityMapping(name=polarity, 
+                               stations=copy.deepcopy(self.stations), 
+                               datasets=copy.deepcopy(datasets),
+                               targets=copy.deepcopy(targets), 
+                               channels=['Z'])
 ##
 
 def concatenate_datasets(datasets):
@@ -2881,11 +2952,17 @@ def concatenate_datasets(datasets):
 def pol_datahandler(polarity_config, seismic_data_path):
     stations = utility.load_objects(seismic_data_path)[0]
     targets = init_polarity_targets(stations, polarity_config)
-    obs_sts, obs_amps = polarity_config.obspol()
-    datahandler = DataPolarityCollection(obs_sts, obs_amps)
+    datahandler = DataPolarityCollection(stations, 'pwfarrival')
     datahandler.add_targets(targets)
-    datahandler.sorting()
+    datahandler.add_datasets(polarity_config)
     return datahandler
+
+def init_polmap(pol_config, datahandler, event=None, mapnumber=0):
+    polc = pol_config
+    pmap = datahandler.get_polarity_mapping(polc.name, polc.channels)
+    pmap.config = polc
+    pmap.mapnumber = mapnumber
+    return pmap
 ##
 
 def init_datahandler(
@@ -3254,40 +3331,24 @@ def seis_synthetics(
 
 ##Mahdi
 
-def GAMMA(takeoffangles, azimuths):
+def gamma(takeoffangles, azimuths):
     return num.array([num.sin(takeoffangles)*num.cos(azimuths),
                         num.sin(takeoffangles)*num.sin(azimuths),
                         num.cos(takeoffangles)])
-# def p_amplitude(moment, GAMMAS):
-#     GAMMAS = GAMMAS.reshape(GAMMAS.size,1)
-#     temp = num.diag(GAMMAS.T.dot(moment).dot(GAMMAS))
-#     return temp
 
-def syn_polarity(sources, targets):  
+def pol_synthetics(sources, targets):  
     toas = num.array([tr.takeoff_angle for tr in targets])
     azis = num.array([tr.azimuth for tr in targets])
-    gamma_co = GAMMA(toas, azis)
-    pols = gamma_co.T.dot(sources[0].m9).dot(gamma_co).copy()
+    gamma_co = gamma(toas, azis)
+    pols = num.diag(gamma_co.T.dot(sources[0].m9).dot(gamma_co)).copy().reshape((1, len(toas)))
     pols[pols>=0] = 1
     pols[pols<0] = -1
-    
-    
-    # from theano import tensor as tt
-    # pred_pol = tt.zeros(len(sources)*len(targets))
-    # for source in sources:
-    #     for i, tr in enumerate(targets):
-    #         gamma_co = GAMMA(tr.takeoff_angle, tr.azimuth)
-    #         tmp1 = gamma_co.T.dot(sources[0].m9).dot(gamma_co)
-    #         if tmp1 == 0:                
-    #             tmp2 =  1
-    # pols = []
-    # for source in sources:
-    #     pols.append(p_amplitude(source.m9, gamma_co).copy())
-    # pols = pred_pol.copy()
-    # pols[pols>0] = 1
-    # pols[pols<0] = -1
     return pols
-    
+
+def update_targets(source, targets):
+    for target in targets:
+        target.takeoff_angle = get_takeoff_angle(source[0], target)
+    return targets
 ##
 
 def geo_synthetics(
