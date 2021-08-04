@@ -1257,7 +1257,6 @@ class PolarityTarget(gf.meta.Receiver):
     A seismogram computation request for a single component, including
     its post-processing parmeters.
     '''
-
     codes = Tuple.T(
         4, String.T(), default=('', 'STA', '', 'Z'),
         help='network, station, location and channel codes to be set on '
@@ -1267,7 +1266,7 @@ class PolarityTarget(gf.meta.Receiver):
         default=0.0,
         help='station surface elevation in [m]')
 
-    store_id = gf.meta.StringID.T(
+    vmodel = gf.meta.StringID.T(
         optional=True,
         help='ID of Green\'s function store to use for the computation. '
              'If not given, the processor may use a system default.')
@@ -1283,19 +1282,30 @@ class PolarityTarget(gf.meta.Receiver):
         optional=True,
         help='take-off angle of ray exicted from source with respect to disatnce & source depth recorded by sensor in [rad].'
              "It's pyrocko based, and it is an upward ray when > 90.")
+    
+    def update_target(self, source, velocity_model):
+        if self.vmodel:
+            mod = self.vmodel
+        else:
+            mod = velocity_model
+        if mod.discontinuity('moho').name:
+            definition = 'p,P,p\\,P\\,Pv_(cmb)p'
+        else:
+            definition = 'p,P,p\\,P\\'
 
-def init_polarity_targets(stations, polarityconfig):
-    crust_ind = 0
-    obs_stations = polarityconfig.get_obsst()
-    targets = []
-    for i, station in enumerate(stations):
-        if station.get_channel('Z') and station.station in obs_stations:
-            targets.append(PolarityTarget(
-                            codes=(station.network, station.station,'%i' % crust_ind, 'Z'),  # n, s, l, c
-                            lat=station.lat, lon=station.lon, azimuth=station.azimuth*d2r, distance=station.dist_deg,
-                            elevation=float(station.elevation), store_id=polarityconfig.store))
-    return targets
-##
+        phases = gf.TPDef(id='any_P', definition=definition)
+        dist = self.distance_to(source) * cake.m2d
+        azi = self.azibazi_to(source)[0] * d2r
+
+        rays = mod.arrivals(
+            phases=phases.phases,
+            distances=[dist],
+            zstart=source.depth,
+            zstop=self.depth)
+        self.takeoff_angle = rays[0].takeoff_angle() * d2r
+        self.distance = dist
+        self.azimuth = azi 
+##    
 
 def init_seismic_targets(
         stations, earth_model_name='ak135-f-average.m', channels=['T', 'Z'],
@@ -2316,23 +2326,63 @@ def get_phase_arrival_time(engine, source, target, wavename=None, snap=True):
         atime = trace.t2ind(atime, deltat, snap=round) * deltat
     return atime
 ##Mahdi
-def get_takeoff_angle(source, target):
-    mod = cake.load_model(target.store_id)
+class PolarityDataset(object):
     
-    if mod.discontinuity('moho').name:
-        definition = 'p,P,p\\,P\\,Pv_(cmb)p'
-    else:
-        definition = 'p,P,p\\,P\\'
+        
+    def __init__(self, polarityconfig, data_path):
 
-    phases = gf.TPDef(id='any_P', definition=definition)
+        self.dataset = num.array([])
+        self.targets = []    
+        self.config = polarityconfig
+        self.vmodel = cake.load_model(polarityconfig.velocitymodel)
+
+        stations = utility.load_objects(data_path)[0]
+        station_names = num.array([str(station.split(" ")[0]) for station in polarityconfig.stations_amplitudes])            
+        crust_ind = 0
+        for i, station in enumerate(stations):
+            if station.station in station_names:
+                self.targets.append(PolarityTarget(
+                                codes=(station.network, station.station,'%i' % crust_ind, 'Z'),  # n, s, l, c
+                                lat=station.lat, lon=station.lon, azimuth=station.azimuth*d2r, distance=station.dist_deg,
+                                elevation=float(station.elevation), vmodel=self.vmodel))
+
+        if polarityconfig.binary_input:
+            self.dataset = num.array([station.azimuth for station in stations])
+            ## No need to sort data, BUT NEED A BLACKLIST OF UNDESIRED STATIONS
+        else:
+            ## Need to sort amplitudes based on the targets' order BUT NO NEED TO HAVE A BLACKLIST STATIONS
+            station_amplitudes = num.array([float(amplitude.split(" ")[1]) for amplitude in polarityconfig.stations_amplitudes])                
+            self.dataset = num.array([station_amplitudes[station_names == target.codes[1]] for target in self.targets])
     
-    # Calculate arrivals
-    rays = mod.arrivals(
-        phases=phases.phases,
-        distances=[target.distance],
-        zstart=source.depth,
-        zstop=target.depth)
-    return rays[0].takeoff_angle() * d2r
+    def get_station_names(self):
+        return [target.codes[1] for target in self.targets]
+    
+    def amplitude_to_polarity(self):
+        pol = num.array(self.datasets)
+        pol[pol>=0] = 1
+        pol[pol<0] = -1
+        return pol
+    def ndata(self):
+        return self.dataset.size
+    def prepare_data(self):
+        pass
+    
+    def get_dataset(self):
+        return self.dataset
+
+    def get_targets(self):
+        return self.targets
+   
+    def update_dataset(self, sources):
+        for source in sources:
+            for target in self.targets:
+                target.update_target(source, self.vmodel)
+    
+    def get_takeoffangles(self):
+        return [target.takeoff_angle for target in self.targets]
+
+    def get_azimuths(self):
+        return [target.azimuth for target in self.targets]
 ##
 
 def get_phase_taperer(
@@ -2628,42 +2678,6 @@ class WaveformMapping(object):
                 self._prepared_data,
                 name='%s_data' % self.name, borrow=True)
 
-##Mahdi
-class PolarityMapping(WaveformMapping): 
-    def __init__(self, name, stations, datasets, targets, channels):
-        super(PolarityMapping, self).__init__(name=name, stations=stations, 
-                                              datasets=datasets, targets=targets, 
-                                              channels=channels)
-        self._takeoff_angles = None
-        self._azimuths = None
-        self._dists = None
-
-    def prepare_data(self, source):
-        self._takeoff_angles = num.zeros(len(self.targets))
-        for i, target in enumerate(self.targets):
-            toa = get_takeoff_angle(source, target)
-            self.targets[i].takeoff_angle = toa
-            self._takeoff_angles[i] = toa
-        
-    def get_stations_param(self, parameter):            
-        return [target.parameter for target in self.targets]
-
-    def _update_trace_wavenames(self, wavename=None):
-        """
-        This type of data doesn't have trace_wavenames
-        """
-        pass
-    def _update_station_corrections(self):
-        """
-        This type of data doesn't have station corrections
-        """
-        pass
-    def amp_to_pol(self):
-        pol = copy.deepcopy(self.datasets)
-        pol[pol>=0] = 1
-        pol[pol<0] = -1
-        return pol
-##
 class CollectionError(Exception):
     pass
 
@@ -2860,61 +2874,6 @@ class DataWaveformCollection(object):
             channels=channels,
             deltat=self._deltat)
 
-##Mahdi, inherted from DataWaveformCollection
-class DataPolarityCollection(DataWaveformCollection):
-    
-    def __init__(self, stations, polarity):
-        super(DataPolarityCollection, self).__init__(stations=stations)
-
-        self.polarity = polarity
-        # self._targets = OrderedDict()
-        # self._raw_datasets = OrderedDict()
-
-    def add_datasets(self, polc, replace=False, force=False):
-        if replace:
-            self._datasets = OrderedDict()
-            self._raw_datasets = OrderedDict()
-        obs_stations = num.array(polc.get_obsst())
-        obs_data = num.array(polc.get_obsdata())
-        for target in self._targets:
-            self._raw_datasets[target] = obs_data[target[1] == obs_stations][0]
-        
-    def get_polarity_mapping(self, polarity, channels=['Z']):
-        
-        # self._check_collection(polarity, errormode='not_in')
-        
-        dtargets = utility.gather(self._targets.values(), lambda t: t.codes[3])
-        
-        targets = []
-        for cha in channels:
-            targets.extend(dtargets[cha])
-        
-        datasets = num.zeros(len(targets))
-        discard_targets = []
-        for i, target in enumerate(targets):
-            nslc_id = target.codes
-            try:
-                datasets[i] = self._raw_datasets[nslc_id]
-            except KeyError:
-                logger.warn(
-                    'No data trace for target %s in '
-                    'the collection! Removing target!' % str(nslc_id))
-                discard_targets.append(target)
-        
-        ndata = len(datasets)
-        n_t = len(targets)
-        
-        if ndata != n_t:
-            logger.warn(
-                'Inconsistent number of targets %i '
-                'and datasets %i! in polmap %s init' % (n_t, ndata, polarity))
-        return PolarityMapping(name=polarity, 
-                               stations=copy.deepcopy(self.stations), 
-                               datasets=copy.deepcopy(datasets),
-                               targets=copy.deepcopy(targets), 
-                               channels=['Z'])
-##
-
 def concatenate_datasets(datasets):
     """
     Concatenate datasets to single arrays
@@ -2947,23 +2906,6 @@ def concatenate_datasets(datasets):
     datasets = Bij.l2a(_disp_list).astype(tconfig.floatX)
     los_vectors = Bij.f3map(_lv_list).astype(tconfig.floatX)
     return datasets, los_vectors, odws, Bij
-
-##Mahdi
-def pol_datahandler(polarity_config, seismic_data_path):
-    stations = utility.load_objects(seismic_data_path)[0]
-    targets = init_polarity_targets(stations, polarity_config)
-    datahandler = DataPolarityCollection(stations, 'pwfarrival')
-    datahandler.add_targets(targets)
-    datahandler.add_datasets(polarity_config)
-    return datahandler
-
-def init_polmap(pol_config, datahandler, event=None, mapnumber=0):
-    polc = pol_config
-    pmap = datahandler.get_polarity_mapping(polc.name, polc.channels)
-    pmap.config = polc
-    pmap.mapnumber = mapnumber
-    return pmap
-##
 
 def init_datahandler(
         seismic_config, seismic_data_path='./', responses_path=None):
@@ -3330,25 +3272,19 @@ def seis_synthetics(
         raise TypeError('Outmode %s not supported!' % outmode)
 
 ##Mahdi
-
 def gamma(takeoffangles, azimuths):
-    return num.array([num.sin(takeoffangles)*num.cos(azimuths),
+    return num.matrix([num.sin(takeoffangles)*num.cos(azimuths),
                         num.sin(takeoffangles)*num.sin(azimuths),
                         num.cos(takeoffangles)])
 
 def pol_synthetics(sources, targets):  
-    toas = num.array([tr.takeoff_angle for tr in targets])
-    azis = num.array([tr.azimuth for tr in targets])
-    gamma_co = gamma(toas, azis)
-    pols = num.diag(gamma_co.T.dot(sources[0].m9).dot(gamma_co)).copy().reshape((1, len(toas)))
+    takeoffangles = [target.takeoff_angle for target in targets]
+    azimuths = [target.azimuth for target in targets]
+    gamma_co = gamma(takeoffangles, azimuths)
+    pols = num.array([num.diag(gamma_co.T.dot(sources[0].m9).dot(gamma_co))]).T
     pols[pols>=0] = 1
     pols[pols<0] = -1
     return pols
-
-def update_targets(source, targets):
-    for target in targets:
-        target.takeoff_angle = get_takeoff_angle(source[0], target)
-    return targets
 ##
 
 def geo_synthetics(

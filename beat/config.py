@@ -702,7 +702,7 @@ class SeismicConfig(Object):
 
 ##Mahdi
 class PolarityConfig(Object):
-    st_polarity = List.T(default=[])
+    stations_amplitudes = List.T(default=[])
     name = String.T(default='pwfarrival', 
                      optional=True,
                      help="If not given, velocity model from Green's function will be extract")
@@ -711,33 +711,22 @@ class PolarityConfig(Object):
                      optional=True,
                      help="If not given, velocity model from Green's function will be extract")
 
-    store = String.T(default='./', 
+    velocitymodel = String.T(default='./', 
                      optional=True,
                      help="If not given, velocity model from Green's function will be extract")
-    
-    def __init__(self, name, channels, st_polarity, store=['./']):
-        self.name = name
-        self.channels = channels
-        self.st_polarity = st_polarity
-        self.store = store
-    
+    binary_input = Bool.T(default=False,
+                          optional=True,
+                          help="If data are included in seismic_data.pkl")
+        
     def get_hypernames(self):
         hids = []
         name = self.name.split("wfarrival")[0].upper()
         hypername = '_'.join(('h_any', name, str(0), 'Z'))
         hids.append(hypername)
         return hids
-
-    def get_obsdata(self):
-        obs_ampl = num.zeros(len(self.st_polarity))
-        for i, st_pol in enumerate(self.st_polarity):
-            obs_ampl[i] = float(st_pol.split(" ")[-1])
-        return obs_ampl
-    def get_obsst(self):
-        station_name = [None] * len(self.st_polarity)
-        for i, st_pol in enumerate(self.st_polarity):
-            station_name[i] = st_pol.split(" ")[0]
-        return station_name
+    def get_velocity_model(self):
+        from pyrocko.cake import load_model
+        return load_model(self.store)
         
 ##
 
