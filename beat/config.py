@@ -17,7 +17,7 @@ from pyrocko.cake import load_model
 
 from pyrocko import trace, model, util, gf
 from pyrocko.gf import RectangularSource as PyrockoRS
-from pyrocko.gf.seismosizer import Cloneable, stf_classes
+from pyrocko.gf.seismosizer import Cloneable, LocalEngine, stf_classes
 
 from beat.heart import Filter, FilterBase, ArrivalTaper, Parameter
 from beat.heart import ReferenceLocation
@@ -702,7 +702,7 @@ class SeismicConfig(Object):
 
 ##Mahdi
 class PolarityConfig(Object):
-    stations_amplitudes = List.T(default=[])
+    stations_polarities = List.T(default=[])
     name = String.T(default='pwfarrival', 
                      optional=True,
                      help="If not given, velocity model from Green's function will be extract")
@@ -711,7 +711,7 @@ class PolarityConfig(Object):
                      optional=True,
                      help="If not given, velocity model from Green's function will be extract")
 
-    velocitymodel = String.T(default='./', 
+    store_superdir = String.T(default='./', 
                      optional=True,
                      help="If not given, velocity model from Green's function will be extract")
     binary_input = Bool.T(default=False,
@@ -724,9 +724,9 @@ class PolarityConfig(Object):
         hypername = '_'.join(('h_any', name, str(0), 'Z'))
         hids.append(hypername)
         return hids
-    def get_velocity_model(self):
-        from pyrocko.cake import load_model
-        return load_model(self.store)
+    
+    def get_store(self):
+        return LocalEngine(store_superdirs=[self.store_superdir])
         
 ##
 

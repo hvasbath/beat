@@ -142,9 +142,9 @@ def cumulative_normal(x, s=num.sqrt(2)):
     # Cumulative distribution function for the standard normal distribution
     return 0.5 + 0.5 * tt.erf(x/s)
 
-def polarity_llk(observed_amplitude, pred_polarity, gamma, sigma):
-    PI = gamma + (1-2*gamma)*cumulative_normal(observed_amplitude/sigma)
-    llks = tt.add(tt.mul(tt.log(PI),tt.true_div(tt.add(1,pred_polarity),2)), tt.mul(tt.log(tt.sub(1,PI)),tt.true_div(tt.sub(1,pred_polarity),2)))
+def polarity_llk(observed_polarities, pred_amplitudes, gamma, sigma):
+    tmp = gamma + (1-2*gamma)*cumulative_normal(pred_amplitudes/sigma)
+    llks = tt.add(tt.mul(tt.log(tmp),tt.true_div(tt.add(1,observed_polarities),2)), tt.mul(tt.log(tt.sub(1,tmp)),tt.true_div(tt.sub(1,observed_polarities),2)))
     return llks.sum()
 ###
 

@@ -2314,6 +2314,28 @@ def extract_mt_components(problem, po, include_magnitude=False):
 
     return m6s, best_mt, llk_str
 
+##Mahdi
+def extract_polarity_data(problem, po):
+
+    stage = Stage(homepath=problem.outfolder,
+                  backend=problem.config.sampler_config.backend)
+
+    composite = problem.composites['polarity']
+
+    if not po.reference:
+        stage.load_results(varnames=problem.varnames, model=problem.model, stage_number=po.load_stage, chains=[-1])
+        best_point = get_result_point(stage, problem.config, po.post_llk)
+    else:
+        best_point = po.reference
+
+    observed_polaritydatasets = composite.poldatasets
+    
+    synthetics_polarity, observed_polarity = composite.get_synthetics(best_point, order='poldataset')
+    
+    synthetics_polaritydatasets = composite.poldatasets
+
+    return (synthetics_polaritydatasets,synthetics_polarity), (observed_polaritydatasets)
+##
 
 def draw_fuzzy_beachball(problem, po):
 
@@ -2351,7 +2373,28 @@ def draw_fuzzy_beachball(problem, po):
 
         beachball.plot_fuzzy_beachball_mpl_pixmap(
             m6s, axes, best_mt=best_mt, best_color='red', **kwargs)
-
+        ##Mahdi
+        if 'polarity' in problem.config.problem_config.datatypes:
+            (syn_poldatasets, syn_polarities), (obs_poldatasets) = extract_polarity_data(problem, po)
+            obs_takeoff_angles = [poldataset.get_takeoffangles() for poldataset in obs_poldatasets]
+            obs_azimuths = [poldataset.get_azimuths() for poldataset in obs_poldatasets]
+            for k in range(len(obs_poldatasets)):
+                for i in range(len(obs_azimuths[k])):
+                    # to spherical coordinates, r, theta, phi in radians
+                    # if syn_takeoff_angles[k][i] > num.pi/2:
+                    #     syn_takeoff_angles[k][i] = num.pi - syn_takeoff_angles[k][i]
+                    rtp = num.array([[1.0, obs_takeoff_angles[k][i], num.pi/2-obs_azimuths[k][i]]])
+                    
+                    # to 3D coordinates (x, y, z)
+                    points = beachball.numpy_rtp2xyz(rtp)
+                    
+                    # project to 2D with same projection as used in beachball
+                    x, y = beachball.project(points, projection='lambert').T + kwargs['position']
+                    if obs_poldatasets[k].dataset[i] > 0:
+                        axes.plot(x, y, 'o', ms=5, mew=1.0, mec='white', mfc='white')
+                    elif obs_poldatasets[k].dataset[i] < 0:
+                        axes.plot(x, y, 'o', ms=5, mew=1.0, mec='red', mfc='red')
+        ##
         axes.set_xlim(0., 10.)
         axes.set_ylim(0., 10.)
         axes.set_axis_off()

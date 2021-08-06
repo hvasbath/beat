@@ -948,14 +948,15 @@ class SeismicPolarityComposite(Composite):
         self.sources = sources    
         self.config = polc
         self.sigma = 0.16
-        self.gamma = 0.0
+        self.gamma = 0.01
         self.targets = []
         self.poldatasets = [None] * self.nevents
+        self.engine = LocalEngine(store_superdirs=[polc.store_superdir])
         for i in range(self.nevents):
             seismic_data_path = os.path.join(project_dir, 
                                              bconfig.multi_event_seismic_data_name(i))
-            self.poldatasets[i] = heart.PolarityDataset(polarityconfig = polc, data_path = seismic_data_path)
-            self.poldatasets[i].update_dataset(self.sources)
+            self.poldatasets[i] = heart.PolarityDataset(store=self.engine.get_store(), polarityconfig=polc, data_path=seismic_data_path)
+            self.poldatasets[i].update_targets([self.sources[i]], self.engine)
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
 
@@ -963,15 +964,16 @@ class SeismicPolarityComposite(Composite):
         self.fixed_rvs = fixed_rvs
         self.input_rvs.update(fixed_rvs)
         
+        hp = [hyperparams[hyper] for hyper in self.get_hypernames()][0]
         plogpts = []
         for i, poldataset in enumerate(self.poldatasets):
-            # poldataset.prepare_data(self.sources[i])
-            self.synthesizers[i] = theanof.PolSynthesizer(self.sources, [poldataset])
-            llk = polarity_llk(poldataset.get_dataset(), self.synthesizers[i](self.input_rvs), self.gamma, self.sigma)           ## Gamma, sigma
+            print(self.sources[i])
+            self.synthesizers[i] = theanof.PolSynthesizer(engine=self.engine, sources=[self.sources[i]], poldatasets=[poldataset])
+            llk = polarity_llk(poldataset.get_dataset(), self.synthesizers[i](self.input_rvs), self.gamma, 0.16)
             plogpts.append(llk)
         llks = Deterministic(self._like_name, tt.concatenate((plogpts)))
         return llks.sum()
-
+    
     def get_hypersize(self, hp_name):
         """
         Return size of the hyperparameter
@@ -1042,7 +1044,7 @@ class SeismicPolarityComposite(Composite):
         if point is None:
             raise ValueError('A point has to be provided!')
         logger.debug('Assembling seismic waveforms ...')
-        syn_proc_pols, obs_proc_pols = self.get_synthetics(point, order='pmap')
+        syn_proc_pols, obs_proc_pols = self.get_synthetics(point, order='poldataset')
         results = []
         for i, poldataset in enumerate(self.poldatasets):
             poldataset_results = []
@@ -1053,7 +1055,7 @@ class SeismicPolarityComposite(Composite):
             if order == 'list':
                 results.extend(poldataset_results)
 
-            elif order == 'wmap':
+            elif order == 'poldataset':
                 results.append(poldataset_results)
 
             else:
@@ -1074,22 +1076,20 @@ class SeismicPolarityComposite(Composite):
         obs = [None] * len(self.poldatasets)
         for i, poldataset in enumerate(self.poldatasets):
             if update_required:
-                poldataset.update_dataset(self.sources)
+                poldataset.update_targets(self.sources)
             # poldataset.prepare_data(self.sources[i])
             synthetics = heart.pol_synthetics([self.sources[i]], poldataset.get_targets())
             if order == 'list':
                 synths.extend(synthetics)
-                obs.extend(poldataset.amplitude_to_polarity())
+                obs.extend(poldataset)
 
-            elif order == 'pmap':
+            elif order == 'poldataset':
                 synths.append(synthetics)
-                obs.append(poldataset.amplitude_to_polarity())
+                obs.append(poldataset)
             else:
                 raise ValueError('Order "%s" is not supported' % order)
 
         return synths, obs
-
-
 ##
 class SeismicDistributerComposite(SeismicComposite):
     """

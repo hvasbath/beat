@@ -16,7 +16,8 @@ from beat.fast_sweeping import fast_sweep
 from pymc3.model import FreeRV
 
 import theano.tensor as tt
-import theano, copy
+import theano
+import copy
 
 import numpy as num
 
@@ -413,12 +414,13 @@ class SeisSynthesizer(theano.Op):
 ##Mahdi
 class PolSynthesizer(theano.Op):
     
-    __props__ = ('sources', 'datasets')
+    __props__ = ('engine', 'sources', 'poldatasets')
 
-    def __init__(self, sources, datasets):
+    def __init__(self, engine, sources, poldatasets):
+        self.engine = engine
         self.sources = tuple(sources)
-        self.datasets = tuple(datasets)
-        self.nobs = datasets[0].ndata() * len(sources)
+        self.poldatasets = tuple(poldatasets)
+        self.nobs = poldatasets[0].ndata() * len(sources)
 
     def __getstate__(self):
         self.engine.close_cashed_stores()
@@ -442,19 +444,19 @@ class PolSynthesizer(theano.Op):
         mpoint = utility.adjust_point_units(point)
         source_points = utility.split_point(mpoint)
         sources = copy.deepcopy(self.sources)
-        
+        print(self.sources[0])
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
-            
+        print(sources[0])
         if sources[0].depth != source_points[0]['depth'] or \
            sources[0].east_shift != source_points[0]['east_shift'] or \
            sources[0].north_shift != source_points[0]['north_shift']:
-           self.datasets[0].update_dataset(self.sources)
+           self.poldatasets[0].update_targets(self.sources, self.engine)
         
-        synths[0] = heart.pol_synthetics(self.sources, self.datasets[0].get_targets())
+        synths[0] = heart.pol_synthetics(self.sources, self.poldatasets[0].get_targets())
     
     def infer_shape(self, node, input_shapes):
-        return [(self.nobs,2)]
+        return [(self.nobs,1)]
 ###
 
 class SeisDataChopper(theano.Op):

@@ -1073,6 +1073,8 @@ def command_summarize(args):
 
             if 'seismic' in problem.config.problem_config.datatypes:
                 composite = problem.composites['seismic']
+            elif 'polarity' in problem.config.problem_config.datatypes:
+                composite = problem.composites['polarity']
             else:
                 composite = problem.composites['geodetic']
 
