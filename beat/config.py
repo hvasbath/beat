@@ -701,6 +701,21 @@ class SeismicConfig(Object):
             self.waveforms.append(WaveformFitConfig(name=wavename))
 
 ##Mahdi
+
+class PolarityGFConfig(NonlinearGFConfig):
+
+    reference_location = ReferenceLocation.T(
+    default=None,
+    help="Reference location for the midpoint of the Green's Function "
+            "grid.",
+    optional=True)
+    sample_rate = Float.T(
+    default=1. / (3600. * 24.),
+    help='Sample rate for the Greens Functions. Mainly relevant for'
+            ' viscoelastic modeling. Default: coseismic-one day')
+
+
+
 class PolarityConfig(Object):
     stations_polarities = List.T(default=[])
     name = String.T(default='pwfarrival', 
@@ -711,23 +726,26 @@ class PolarityConfig(Object):
                      optional=True,
                      help="If not given, velocity model from Green's function will be extract")
 
-    store_superdir = String.T(default='./', 
-                     optional=True,
-                     help="If not given, velocity model from Green's function will be extract")
+    gf_config = PolarityGFConfig.T(default=PolarityGFConfig.D(), 
+                                    optional=True,
+                                    help="If not given, velocity model from Green's function will be extract")
     binary_input = Bool.T(default=False,
                           optional=True,
                           help="If data are included in seismic_data.pkl")
-        
+    
     def get_hypernames(self):
         hids = []
         name = self.name.split("wfarrival")[0].upper()
         hypername = '_'.join(('h_any', name, str(0), 'Z'))
         hids.append(hypername)
-        return hids
-    
-    def get_store(self):
-        return LocalEngine(store_superdirs=[self.store_superdir])
-        
+        return hids        
+
+    def get_earthmodel(self):
+        store = LocalEngine(store_superdirs=[self.gf_config.store_superdir]).get_store()
+        return store.config.earthmodel_1d
+    def get_store_id(self):
+        store = LocalEngine(store_superdirs=[self.gf_config.store_superdir]).get_store()
+        return store.config.id
 ##
 
 class CorrectionConfig(Object):
@@ -1890,7 +1908,6 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
         ##Mahdi
         if 'polarity' in datatypes:
             c.polarity_config = PolarityConfig()
-
         else:
             c.polarity_config = None
         ##

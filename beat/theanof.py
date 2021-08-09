@@ -444,10 +444,10 @@ class PolSynthesizer(theano.Op):
         mpoint = utility.adjust_point_units(point)
         source_points = utility.split_point(mpoint)
         sources = copy.deepcopy(self.sources)
-        print(self.sources[0])
+        
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
-        print(sources[0])
+            
         if sources[0].depth != source_points[0]['depth'] or \
            sources[0].east_shift != source_points[0]['east_shift'] or \
            sources[0].north_shift != source_points[0]['north_shift']:

@@ -456,7 +456,7 @@ class SeismicResult(Object):
                     tr.tmin, syn_tmin, tr.tmin - syn_tmin))
         return tr
 ##Mahdi
-class PolarityResult(object):
+class PolarityResult(Object):
     point = ResultPoint.T(default=ResultPoint.D())
     processed_obs = Array.T(optional=True)
     llk = Float.T(default=0.0, optional=True)
@@ -465,7 +465,7 @@ class PolarityResult(object):
     @property
     def processed_syn(self):
         if self.source_contributions is not None:
-            syn0 = num.zeros_like(1)
+            syn0 = num.zeros_like(1, dtype=float)
             for pol in self.source_contributions:
                 syn0 += pol
         return syn0
@@ -1271,14 +1271,14 @@ class PolarityTarget(gf.meta.Receiver):
         help='ID of Green\'s function store to use for the computation. '
              'If not given, the processor may use a system default.')
 
-    azimuth = Float.T(
+    azimuth_rad = Float.T(
         optional=True,
-        help='azimuth of sensor component in [deg], clockwise from north. '
+        help='azimuth of sensor component in [rad], clockwise from north. '
              'If not given, it is guessed from the channel code.')
-    distance = Float.T(
+    distance_deg = Float.T(
         optional=True,
         help='epicentral distance of sensor in [deg].')
-    takeoff_angle = Float.T(
+    take_offangle_rad = Float.T(
         optional=True,
         help='take-off angle of ray exicted from source with respect to disatnce & source depth recorded by sensor in [rad].'
              "It's pyrocko based, and it is an upward ray when > 90.")
@@ -1296,9 +1296,9 @@ class PolarityTarget(gf.meta.Receiver):
             distances=[dist],
             zstart=source.depth,
             zstop=self.depth)
-        self.takeoff_angle = rays[0].takeoff_angle() * d2r
-        self.distance = dist
-        self.azimuth = azi 
+        self.take_offangle_rad = rays[0].takeoff_angle() * d2r
+        self.distance_deg = dist
+        self.azimuth_rad = azi 
 ##    
 
 def init_seismic_targets(
@@ -2323,43 +2323,45 @@ def get_phase_arrival_time(engine, source, target, wavename=None, snap=True):
 arrival_catalog = {'p': ('any_P', 'Z'),
                    'sv':('any_SV', 'ZR'),
                    'sh':('any_SH', 'T')}
-class PolarityDataset(object):
-    
+
+
+class PolarityDataset(object):  
         
-    def __init__(self, store, polarityconfig, data_path):
+    def __init__(self, polarityconfig, data_path):
 
         self.dataset = num.array([])
         self.targets = []    
         self.config = polarityconfig
-        self.store = store
-
         stations = utility.load_objects(data_path)[0]
         station_names = num.array([str(station.split(" ")[0]) for station in polarityconfig.stations_polarities])            
         crust_ind = 0
-        
-        phase = arrival_catalog[polarityconfig.name.split("wfarrival")[0].lower()][0]
-        if phase == 'any_P':
-            if 'moho' in [disc.name for disc in self.store.config.earthmodel_1d.discontinuities()]:
-                definition = 'p,P,p\\,P\\,Pv_(cmb)p'
-            else:
-                definition = 'p,P,p\\,P\\'
-            phases = gf.TPDef(id='any_P', definition=definition)
+
+        if polarityconfig.gf_config.reference_location is None:
+            store_prefixes = [copy.deepcopy(station.station) for station in stations]
+        else:
+            store_prefixes = [ copy.deepcopy(polarityconfig.gf_config.reference_location.station) for station in stations]
+
+        # phase = arrival_catalog[polarityconfig.name.split("wfarrival")[0].lower()][0]
+        # if phase == 'any_P':
+        #     if 'moho' in [disc.name for disc in self.earthmodel_1d.discontinuities()]:
+        #         definition = 'p,P,p\\,P\\,Pv_(cmb)p'
+        #     else:
+        definition = 'p,P,p\\,P\\'
+        phases = gf.TPDef(id='any_P', definition=definition)
+
+        em_name = get_earth_model_prefix(polarityconfig.gf_config.earth_model_name)
 
         for i, station in enumerate(stations):
             if station.station in station_names:
+                store_id = get_store_id(store_prefixes[i], em_name, polarityconfig.gf_config.sample_rate, polarityconfig.gf_config.reference_model_idx)
                 self.targets.append(PolarityTarget(
                                 codes=(station.network, station.station,'%i' % crust_ind, '%s' % polarityconfig.channels),  # n, s, l, c
-                                lat=station.lat, lon=station.lon, azimuth=station.azimuth*d2r, distance=station.dist_deg,
-                                elevation=float(station.elevation), store_id=self.store.config.id, 
-                                phase=phases))
+                                lat=station.lat, lon=station.lon, azimuth_rad=station.azimuth*d2r, distance_deg=station.dist_deg,
+                                elevation=float(station.elevation), phase=phases, store_id=store_id))
 
-        if polarityconfig.binary_input:
-            self.dataset = num.array([station.azimuth for station in stations])
-            ## No need to sort data, BUT NEED A BLACKLIST OF UNDESIRED STATIONS
-        else:
-            ## Need to sort amplitudes based on the targets' order BUT NO NEED TO HAVE A BLACKLIST STATIONS
-            station_polarities = num.array([float(polarity.split(" ")[1]) for polarity in polarityconfig.stations_polarities])                
-            self.dataset = num.array([station_polarities[station_names == target.codes[1]] for target in self.targets])
+        ## Need to sort amplitudes based on the targets' order BUT NO NEED TO HAVE A BLACKLIST STATIONS
+        station_polarities = num.array([float(amplitude.split(" ")[1]) for amplitude in polarityconfig.stations_polarities])                
+        self.dataset = num.array([station_polarities[station_names == target.codes[1]] for target in self.targets])
     
     def get_station_names(self):
         return [target.codes[1] for target in self.targets]
@@ -2379,10 +2381,10 @@ class PolarityDataset(object):
                 target.update_target(source, engine)
     
     def get_takeoffangles(self):
-        return [target.takeoff_angle for target in self.targets]
+        return [target.take_offangle_rad for target in self.targets]
 
     def get_azimuths(self):
-        return [target.azimuth for target in self.targets]
+        return [target.azimuth_rad for target in self.targets]
 ##
 
 def get_phase_taperer(
@@ -3280,12 +3282,10 @@ def gamma(takeoffangles, azimuths):
     return num.array([st*ca, st*sa, ct])
 
 def pol_synthetics(sources, targets):  
-    takeoffangles = [target.takeoff_angle for target in targets]
-    azimuths = [target.azimuth for target in targets]
-    print(takeoffangles)
-    print(azimuths)
+    takeoffangles = [target.take_offangle_rad for target in targets]
+    azimuths = [target.azimuth_rad for target in targets]
     gamma_co = gamma(takeoffangles, azimuths)
-    amps = num.array([num.diag(gamma_co.T.dot(sources[0].m9).dot(gamma_co))]).T
+    amps = num.array([num.diag(gamma_co.T.dot(sources[0].m9/sources[0].moment).dot(gamma_co))]).T
     return amps
 ##
 

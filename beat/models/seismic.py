@@ -951,13 +951,13 @@ class SeismicPolarityComposite(Composite):
         self.gamma = 0.01
         self.targets = []
         self.poldatasets = [None] * self.nevents
-        self.engine = LocalEngine(store_superdirs=[polc.store_superdir])
+        self.engine = LocalEngine(store_superdirs=[polc.gf_config.store_superdir])
         for i in range(self.nevents):
             seismic_data_path = os.path.join(project_dir, 
                                              bconfig.multi_event_seismic_data_name(i))
-            self.poldatasets[i] = heart.PolarityDataset(store=self.engine.get_store(), polarityconfig=polc, data_path=seismic_data_path)
+            self.poldatasets[i] = heart.PolarityDataset(polarityconfig=polc, data_path=seismic_data_path)
             self.poldatasets[i].update_targets([self.sources[i]], self.engine)
-
+        self.targets = self.poldatasets[0].get_targets()
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
 
         self.input_rvs = input_rvs
@@ -967,9 +967,8 @@ class SeismicPolarityComposite(Composite):
         hp = [hyperparams[hyper] for hyper in self.get_hypernames()][0]
         plogpts = []
         for i, poldataset in enumerate(self.poldatasets):
-            print(self.sources[i])
-            self.synthesizers[i] = theanof.PolSynthesizer(engine=self.engine, sources=[self.sources[i]], poldatasets=[poldataset])
-            llk = polarity_llk(poldataset.get_dataset(), self.synthesizers[i](self.input_rvs), self.gamma, 0.16)
+            self.synthesizers[i] = theanof.PolSynthesizer(self.engine, [self.sources[i]], [poldataset])
+            llk = polarity_llk(poldataset.get_dataset(), self.synthesizers[i](self.input_rvs), self.gamma, hp)
             plogpts.append(llk)
         llks = Deterministic(self._like_name, tt.concatenate((plogpts)))
         return llks.sum()
@@ -1037,7 +1036,7 @@ class SeismicPolarityComposite(Composite):
             filename = '%s_%i.bin' % (attribute, stage_number)
             output = os.path.join(results_path, filename)
             with open(output, 'a+') as fh:
-                fh.write('{} {} {}'.format(pols, attribute))
+                fh.write('{} {}\n'.format(pols, attribute))
                 fh.close()          
 
     def assemble_results(self, point, order='list'):
@@ -1073,19 +1072,18 @@ class SeismicPolarityComposite(Composite):
             sources[0].north_shift != self.sources[0].north_shift:
             update_required = True
         synths = []
-        obs = [None] * len(self.poldatasets)
+        obs = []
         for i, poldataset in enumerate(self.poldatasets):
             if update_required:
-                poldataset.update_targets(self.sources)
-            # poldataset.prepare_data(self.sources[i])
+                poldataset.update_targets(self.sources, self.engine)
             synthetics = heart.pol_synthetics([self.sources[i]], poldataset.get_targets())
             if order == 'list':
                 synths.extend(synthetics)
-                obs.extend(poldataset)
+                obs.extend(poldataset.dataset)
 
             elif order == 'poldataset':
                 synths.append(synthetics)
-                obs.append(poldataset)
+                obs.append(poldataset.dataset)
             else:
                 raise ValueError('Order "%s" is not supported' % order)
 
