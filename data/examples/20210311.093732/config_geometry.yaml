@@ -34,29 +34,10 @@ problem_config: !beat.ProblemConfig
   stf_type: Triangular
   n_sources: 1
   datatypes: 
-  - seismic
   - polarity
   hyperparameters:
     h_any_P_0_Z: !beat.heart.Parameter
       name: h_any_P_0_Z
-      form: Uniform
-      lower:
-      - -2.0
-      upper:
-      - 3.0
-      testvalue:
-      - 1.5
-    h_any_P_1_R: !beat.heart.Parameter
-      name: h_any_P_1_R
-      form: Uniform
-      lower:
-      - -2.0
-      upper:
-      - 3.0
-      testvalue:
-      - 1.5
-    h_any_P_2_T: !beat.heart.Parameter
-      name: h_any_P_2_T
       form: Uniform
       lower:
       - -2.0
@@ -165,166 +146,68 @@ problem_config: !beat.ProblemConfig
       - 5.0
       testvalue:
       - 0.0
-seismic_config: !beat.SeismicConfig
-  datadir: ./
-  noise_estimator: !beat.SeismicNoiseAnalyserConfig
-    structure: variance
-    pre_arrival_time: 10.0
-  pre_stack_cut: true
-  station_corrections: true
-  waveforms:
-  - !beat.WaveformFitConfig
-    include: true
-    preprocess_data: true
-    name: any_P
-    blacklist:
-    - BCH1A
-    - MONT3
-    - MONT8
-    - MONT9
-    - MG05
-    - MG08
-    - MG11
-    quantity: velocity
-    channels:
-    - Z
-    filterer:
-    - !beat.heart.Filter
-      lower_corner: 0.07
-      upper_corner: 0.1
-      order: 3
-      stepwise: true
-    - !beat.heart.BandstopFilter
-      lower_corner: 0.12
-      upper_corner: 0.25
-      order: 3
-    distances:
-    - 0.0
-    - 2.0
-    interpolation: multilinear
-    arrival_taper: !beat.heart.ArrivalTaper
-      a: -8.0
-      b: -3.0
-      c: 10.0
-      d: 15.0
-  - !beat.WaveformFitConfig
-    include: true
-    preprocess_data: true
-    name: any_P
-    blacklist:
-    - BCH1A
-    - BCH2A
-    - MG03
-    - MONT2
-    - MONT3
-    - MONT8
-    - MONT9
-    - MONTA
-    - NBC7
-    - MG05
-    - MG08
-    - MG10
-    - MG11
-    quantity: velocity
-    channels:
-    - R
-    filterer:
-    - !beat.heart.Filter
-      lower_corner: 0.07
-      upper_corner: 0.1
-      order: 3
-      stepwise: true
-    - !beat.heart.BandstopFilter
-      lower_corner: 0.12
-      upper_corner: 0.25
-      order: 3
-    distances:
-    - 0.0
-    - 2.0
-    interpolation: multilinear
-    arrival_taper: !beat.heart.ArrivalTaper
-      a: -8.0
-      b: -3.0
-      c: 15.0
-      d: 20.0
-  - !beat.WaveformFitConfig
-    include: true
-    preprocess_data: true
-    name: any_P
-    blacklist:
-    - BCH1A
-    - MONT2
-    - MONT9
-    - MONTA
-    - NBC7
-    - MG05
-    - MG08
-    - MG10
-    - MG11
-    quantity: velocity
-    channels:
-    - T
-    filterer:
-    - !beat.heart.Filter
-      lower_corner: 0.1
-      upper_corner: 0.2
-      order: 3
-      stepwise: true
-    - !beat.heart.BandstopFilter
-      lower_corner: 0.12
-      upper_corner: 0.25
-      order: 3
-    distances:
-    - 0.0
-    - 2.0
-    interpolation: multilinear
-    arrival_taper: !beat.heart.ArrivalTaper
-      a: -8.0
-      b: -3.0
-      c: 10.0
-      d: 15.0
-  dataset_specific_residual_noise_estimation: false
-  gf_config: !beat.SeismicGFConfig
-    store_superdir: ./20210311.093732
-    reference_model_idx: 0
-    n_variations:
-    - 0
-    - 1
-    earth_model_name: local
-    nworkers: 20
-    use_crust2: false
-    replace_water: false
-    custom_velocity_model: |2
-          0.             3.406          2.009          2.215        331.1          147.3
-          1.9            3.406          2.009          2.215        331.1          147.3
-          1.9            5.545          3.295          2.609        286.5          127.5
-          8.             5.545          3.295          2.609        286.5          127.5
-          8.             6.271          3.74           2.781        471.7          210.1
-         21.             6.271          3.74           2.781        471.7          210.1
-         21.             6.407          3.767          2.822        900.           401.6
-         40.             6.407          3.767          2.822        900.           401.6
-    source_depth_min: 0.5
-    source_depth_max: 7.0
-    source_depth_spacing: 0.1
-    source_distance_radius: 222.38
-    source_distance_spacing: 0.5
-    error_depth: 0.1
-    error_velocities: 0.1
-    depth_limit_variation: 600.0
-    reference_location: !beat.heart.ReferenceLocation
-      lat: 55.8921
-      lon: -120.6303
-      depth: 5.0
-      station: KSMMMA
-    code: qseis
-    sample_rate: 10.0
-    rm_gfs: true
 polarity_config: !beat.PolarityConfig
-    st_polarity:
-    - MONTA 1e-7
-    - BCH1A 1e-7
-    - MONT1 4e-9
-    vmdir: /home/mahdi/project/polarity/SLU.nd
+    name: pwfarrival
+    channels: Z
+    stations_polarities:
+    - BCH1A -1.0
+    - BCH2A 1.0
+    - MONT1 1.0
+    - MONT2 1.0
+    - MONT3 1.0
+    - MONT7 -1.0
+    - MONT8 -1.0
+    - MONT9 -1.0
+    - MONTA -1.0
+    - BMTB -1.0
+    - NBC4 1.0
+    - NBC7 -1.0
+    - NBC8 -1.0
+    - BDMTA -1.0
+    - FAIRA 1.0
+    - WTMTA -1.0
+    - MG01 -1.0
+    - MG03 1.0
+    - MG05 1.0
+    - MG07 -1.0
+    - MG08 1.0
+    - MG09 1.0
+    - MG10 -1.0
+    - MG11 -1.0
+    binary_input: False
+    gf_config: !beat.PolarityGFConfig
+      store_superdir: ./20210311.093732
+      reference_model_idx: 0
+      n_variations:
+      - 0
+      - 1
+      earth_model_name: local
+      nworkers: 20
+      use_crust2: false
+      replace_water: false
+      custom_velocity_model: |2
+            0.             3.406          2.009          2.215        331.1          147.3
+            1.9            3.406          2.009          2.215        331.1          147.3
+            1.9            5.545          3.295          2.609        286.5          127.5
+            8.             5.545          3.295          2.609        286.5          127.5
+            8.             6.271          3.74           2.781        471.7          210.1
+          21.             6.271          3.74           2.781        471.7          210.1
+          21.             6.407          3.767          2.822        900.           401.6
+          40.             6.407          3.767          2.822        900.           401.6
+      source_depth_min: 0.5
+      source_depth_max: 7.0
+      source_depth_spacing: 0.1
+      source_distance_radius: 222.38
+      source_distance_spacing: 0.5
+      error_depth: 0.1
+      error_velocities: 0.1
+      depth_limit_variation: 600.0
+      reference_location: !beat.heart.ReferenceLocation
+        lat: 55.8921
+        lon: -120.6303
+        depth: 5.0
+        station: KSMMA
+      sample_rate: 10.0
 sampler_config: !beat.SamplerConfig
   name: SMC
   backend: bin
@@ -335,9 +218,9 @@ sampler_config: !beat.SamplerConfig
     tune_interval: 50
     check_bnd: true
     rm_flag: true
-    n_jobs: 1
-    n_steps: 10
-    n_chains: 10
+    n_jobs: 4
+    n_steps: 30
+    n_chains: 120
     coef_variation: 1.0
     stage: 0
     proposal_dist: MultivariateCauchy

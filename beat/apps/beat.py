@@ -1277,6 +1277,40 @@ def command_build_gfs(args):
                         crust_ind=crust_ind,
                         execute=options.execute,
                         force=options.force)
+
+            elif datatype == 'polarity':
+                polc = c.polarity_config
+                polcf = polc.gf_config
+
+                if polcf.reference_location is None:
+                    logger.info("Creating Green's Function stores individually"
+                                " for each station!")
+                    seismic_data_path = pjoin(
+                        c.project_dir, bconfig.seismic_data_name)
+
+                    stations, _ = utility.load_objects(seismic_data_path)
+                    logger.info(
+                        'Found stations %s' % list2string(
+                            [station.station for station in stations]))
+
+                    stations = polc.refining_stations(stations)
+
+                else:
+                    logger.info(
+                        "Creating one global Green's Function store, which is "
+                        "being used by all stations!")
+                    stations = [polcf.reference_location]
+                    logger.info(
+                        'Store name: %s' % polcf.reference_location.station)
+
+                for crust_ind in range(*polcf.n_variations):
+                    heart.pol_construct_gf(
+                        stations=stations,
+                        event=c.event,
+                        polarity_config=polc,
+                        crust_ind=crust_ind,
+                        force=options.force)
+
             else:
                 raise ValueError('Datatype %s not supported!' % datatype)
 

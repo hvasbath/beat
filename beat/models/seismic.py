@@ -988,6 +988,10 @@ class SeismicPolarityComposite(Composite):
         """
         return 1
 
+    def __getstate__(self):
+        self.engine.close_cashed_stores()
+        return self.__dict__.copy()
+
     def point2sources(self, point):
         tpoint = copy.deepcopy(point)
         tpoint = utility.adjust_point_units(tpoint)

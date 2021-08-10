@@ -1289,16 +1289,18 @@ class PolarityTarget(gf.meta.Receiver):
         store = engine.get_store(self.store_id)
         mod = store.config.earthmodel_1d
         dist = self.distance_to(source) * cake.m2d
-        azi = self.azibazi_to(source)[0] * d2r
 
         rays = mod.arrivals(
             phases=self.phase.phases,
             distances=[dist],
             zstart=source.depth,
             zstop=self.depth)
-        self.take_offangle_rad = rays[0].takeoff_angle() * d2r
+        if len(rays) == 0:
+            self.take_offangle_rad = num.nan
+        else:
+            self.take_offangle_rad = rays[0].takeoff_angle() * d2r
         self.distance_deg = dist
-        self.azimuth_rad = azi 
+        self.azimuth_rad = self.azibazi_to(source)[0] * d2r 
 ##    
 
 def init_seismic_targets(
@@ -2036,6 +2038,82 @@ def seis_construct_gf(
             else:
                 logger.info('Traces exist use force=True to overwrite!')
 
+##Mahdi
+def pol_construct_gf(
+        stations, event, polarity_config, crust_ind=0, execute=False,
+        force=False):
+    """
+    Calculate polarity Greens Functions (GFs) and create a repository 'store'
+    that is being used later on repeatetly to calculate the synthetic
+    waveforms.
+
+    Parameters
+    ----------
+    stations : list
+        of :class:`pyrocko.model.Station`
+        Station object that defines the distance from the event for which the
+        GFs are being calculated
+    event : :class:`pyrocko.model.Event`
+        The event is used as a reference point for all the calculations
+        According to the its location the earth model is being built
+    seismic_config : :class:`config.SeismicConfig`
+    crust_ind : int
+        Index to set to the Greens Function store, 0 is reference store
+        indexes > 0 use reference model and vary its parameters by a Gaussian
+    execute : boolean
+        Flag to execute the calculation, if False just setup tested
+    force : boolean
+        Flag to overwrite existing GF stores
+    """
+
+    polgf = polarity_config.gf_config
+    polgf.code = 'qseis'
+    source_model = get_velocity_model(
+        event, earth_model_name=polgf.earth_model_name, crust_ind=crust_ind,
+        gf_config=polgf, custom_velocity_model=polgf.custom_velocity_model)
+
+    arrivals = polarity_config.get_arrival_names()
+
+    for station in stations:
+        logger.info('Station %s' % station.station)
+        logger.info('---------------------')
+
+        fomosto_config = get_fomosto_baseconfig(polgf, event, station, arrivals, crust_ind)
+
+        store_dir = os.path.join(polgf.store_superdir, fomosto_config.id)
+
+        if not os.path.exists(store_dir) or force:
+            logger.info('Creating Store at %s' % store_dir)
+
+            if len(stations) == 1:
+                custom_velocity_model = polgf.custom_velocity_model
+            else:
+                custom_velocity_model = None
+
+            receiver_model = get_velocity_model(
+                station, earth_model_name=polgf.earth_model_name,
+                crust_ind=crust_ind, gf_config=polgf,
+                custom_velocity_model=custom_velocity_model)
+
+            gf_directory = os.path.join(
+                polgf.store_superdir, 'base_gfs_%i' % crust_ind)
+
+            conf = choose_backend(
+                fomosto_config, polgf.code, source_model, receiver_model,
+                gf_directory)
+
+            fomosto_config.validate()
+            conf.validate()
+
+            gf.Store.create_editables(
+                store_dir,
+                config=fomosto_config,
+                extra={polgf.code: conf},
+                force=force)
+        else:
+            logger.info(
+                'Store %s exists! Use force=True to overwrite!' % store_dir)
+##
 
 def geo_construct_gf(
         event, geodetic_config, crust_ind=0, execute=True, force=False):
@@ -2320,9 +2398,6 @@ def get_phase_arrival_time(engine, source, target, wavename=None, snap=True):
         atime = trace.t2ind(atime, deltat, snap=round) * deltat
     return atime
 ##Mahdi
-arrival_catalog = {'p': ('any_P', 'Z'),
-                   'sv':('any_SV', 'ZR'),
-                   'sh':('any_SH', 'T')}
 
 
 class PolarityDataset(object):  
@@ -2333,21 +2408,20 @@ class PolarityDataset(object):
         self.targets = []    
         self.config = polarityconfig
         stations = utility.load_objects(data_path)[0]
-        station_names = num.array([str(station.split(" ")[0]) for station in polarityconfig.stations_polarities])            
-        crust_ind = 0
+        station_names = polarityconfig.get_station_names()            
 
         if polarityconfig.gf_config.reference_location is None:
             store_prefixes = [copy.deepcopy(station.station) for station in stations]
         else:
             store_prefixes = [ copy.deepcopy(polarityconfig.gf_config.reference_location.station) for station in stations]
 
-        # phase = arrival_catalog[polarityconfig.name.split("wfarrival")[0].lower()][0]
+        arrivals = polarityconfig.get_arrival_names()
         # if phase == 'any_P':
         #     if 'moho' in [disc.name for disc in self.earthmodel_1d.discontinuities()]:
         #         definition = 'p,P,p\\,P\\,Pv_(cmb)p'
         #     else:
         definition = 'p,P,p\\,P\\'
-        phases = gf.TPDef(id='any_P', definition=definition)
+        phases = gf.TPDef(id=arrivals, definition=definition)
 
         em_name = get_earth_model_prefix(polarityconfig.gf_config.earth_model_name)
 
@@ -2355,12 +2429,12 @@ class PolarityDataset(object):
             if station.station in station_names:
                 store_id = get_store_id(store_prefixes[i], em_name, polarityconfig.gf_config.sample_rate, polarityconfig.gf_config.reference_model_idx)
                 self.targets.append(PolarityTarget(
-                                codes=(station.network, station.station,'%i' % crust_ind, '%s' % polarityconfig.channels),  # n, s, l, c
+                                codes=(station.network, station.station,'%i' % polarityconfig.gf_config.reference_model_idx, '%s' % polarityconfig.channels),  # n, s, l, c
                                 lat=station.lat, lon=station.lon, azimuth_rad=station.azimuth*d2r, distance_deg=station.dist_deg,
                                 elevation=float(station.elevation), phase=phases, store_id=store_id))
 
         ## Need to sort amplitudes based on the targets' order BUT NO NEED TO HAVE A BLACKLIST STATIONS
-        station_polarities = num.array([float(amplitude.split(" ")[1]) for amplitude in polarityconfig.stations_polarities])                
+        station_polarities = polarityconfig.get_station_polarities()                
         self.dataset = num.array([station_polarities[station_names == target.codes[1]] for target in self.targets])
     
     def get_station_names(self):
@@ -3281,11 +3355,24 @@ def gamma(takeoffangles, azimuths):
     sa = num.sin(azimuths)
     return num.array([st*ca, st*sa, ct])
 
+def symmat6(a_xx, a_yy, a_zz, a_xy, a_xz, a_yz):
+    '''
+    modified from pyrocko
+    Create symmetric 3x3 matrix from its 6 non-redundant values.
+    '''
+    return num.matrix([[a_xx, a_xy, a_xz],
+                       [a_xy, a_yy, a_yz],
+                       [a_xz, a_yz, a_zz]], dtype=num.float)
+
 def pol_synthetics(sources, targets):  
     takeoffangles = [target.take_offangle_rad for target in targets]
     azimuths = [target.azimuth_rad for target in targets]
     gamma_co = gamma(takeoffangles, azimuths)
-    amps = num.array([num.diag(gamma_co.T.dot(sources[0].m9/sources[0].moment).dot(gamma_co))]).T
+    moment = sources[0].pyrocko_moment_tensor()
+    m9 = moment.m()
+    m0_unscaled = num.sqrt(num.sum(m9.A ** 2)) / num.sqrt(2.)
+    m9 /= m0_unscaled
+    amps = num.array([num.diag(gamma_co.T.dot(m9).dot(gamma_co))]).T
     return amps
 ##
 

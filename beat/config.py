@@ -701,37 +701,27 @@ class SeismicConfig(Object):
             self.waveforms.append(WaveformFitConfig(name=wavename))
 
 ##Mahdi
+arrival_catalog = {'p': ('any_P', 'Z'),
+                   'sv':('any_SV', 'ZR'),
+                   'sh':('any_SH', 'T')}
+
 
 class PolarityGFConfig(NonlinearGFConfig):
 
-    reference_location = ReferenceLocation.T(
-    default=None,
-    help="Reference location for the midpoint of the Green's Function "
-            "grid.",
-    optional=True)
-    sample_rate = Float.T(
-    default=1. / (3600. * 24.),
-    help='Sample rate for the Greens Functions. Mainly relevant for'
-            ' viscoelastic modeling. Default: coseismic-one day')
+    reference_location = ReferenceLocation.T(default=None, help="Reference location for the midpoint of the Green's Function grid.",
+                                                optional=True)
+    sample_rate = Float.T( default=1.,  help='Sample rate for the polarity Greens Functions.')
 
 
 
 class PolarityConfig(Object):
+
+    
+    binary_input = Bool.T(default=False, optional=True, help="If data are included in seismic_data.pkl")     
     stations_polarities = List.T(default=[])
-    name = String.T(default='pwfarrival', 
-                     optional=True,
-                     help="If not given, velocity model from Green's function will be extract")
-
-    channels = List.T(default=['Z'], 
-                     optional=True,
-                     help="If not given, velocity model from Green's function will be extract")
-
-    gf_config = PolarityGFConfig.T(default=PolarityGFConfig.D(), 
-                                    optional=True,
-                                    help="If not given, velocity model from Green's function will be extract")
-    binary_input = Bool.T(default=False,
-                          optional=True,
-                          help="If data are included in seismic_data.pkl")
+    name = String.T(default='pwfarrival', optional=True, help="If not given, velocity model from Green's function will be extract")
+    channels = List.T(default=['Z'], optional=True, help="If not given, velocity model from Green's function will be extract")
+    gf_config = PolarityGFConfig.T(default=PolarityGFConfig.D(), optional=True, help="If not given, velocity model from Green's function will be extract")
     
     def get_hypernames(self):
         hids = []
@@ -743,9 +733,24 @@ class PolarityConfig(Object):
     def get_earthmodel(self):
         store = LocalEngine(store_superdirs=[self.gf_config.store_superdir]).get_store()
         return store.config.earthmodel_1d
+    
     def get_store_id(self):
         store = LocalEngine(store_superdirs=[self.gf_config.store_superdir]).get_store()
         return store.config.id
+    
+    def refining_stations(self, stations):
+        station_names = self.get_station_names()            
+        return [station for station in stations if station.station in station_names]
+
+    def get_station_names(self):
+        return num.array([str(station.split(" ")[0]) for station in self.stations_polarities])            
+
+    def get_station_polarities(self):
+        return num.array([float(amplitude.split(" ")[1]) for amplitude in self.stations_polarities])
+
+    def get_arrival_names(self):
+        return arrival_catalog[self.name.split("wfarrival")[0].lower()][0]
+
 ##
 
 class CorrectionConfig(Object):
