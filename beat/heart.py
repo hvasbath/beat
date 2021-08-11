@@ -3352,8 +3352,10 @@ def velocities_from_pole(
 
     v_vecs = num.cross(xyz_poles, xyz_points)
     vels_cartesian = omega_rad_yr * v_vecs
-
+    print('vc', vels_cartesian.shape)
+    print('lalo', lats.shape, lons.shape)
     T = cartesian_to_local(lats, lons)
+    print('T', T.shape)
     return num.einsum('ijk->ik', T * vels_cartesian.T).T
 
 

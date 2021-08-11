@@ -118,7 +118,9 @@ class EulerPoleCorrection(Correction):
             raise ValueError(
                 'Requested correction, but is not setup or configured!')
 
+        print(hierarchicals, point)
         if not point:   # theano instance for get_formula
+            print('corr theano')
             inputs = OrderedDict()
             for corr_name in self.correction_names:
                 inputs[corr_name] = hierarchicals[corr_name]
@@ -126,6 +128,7 @@ class EulerPoleCorrection(Correction):
             vels = self.euler_pole(inputs)
             return (vels * self.slos_vector).sum(axis=1)
         else:       # numpy instance else
+            print('corr numpy')
             try:
                 kwargs = self.get_point_rvs(point)
             except KeyError:
