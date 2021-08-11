@@ -1295,10 +1295,10 @@ class PolarityTarget(gf.meta.Receiver):
             distances=[dist],
             zstart=source.depth,
             zstop=self.depth)
-        if len(rays) == 0:
-            self.take_offangle_rad = num.nan
-        else:
-            self.take_offangle_rad = rays[0].takeoff_angle() * d2r
+        # if len(rays) == 0:
+        #     self.take_offangle_rad = num.nan
+        # else:
+        self.take_offangle_rad = rays[0].takeoff_angle() * d2r
         self.distance_deg = dist
         self.azimuth_rad = self.azibazi_to(source)[0] * d2r 
 ##    
@@ -3355,21 +3355,13 @@ def gamma(takeoffangles, azimuths):
     sa = num.sin(azimuths)
     return num.array([st*ca, st*sa, ct])
 
-def symmat6(a_xx, a_yy, a_zz, a_xy, a_xz, a_yz):
-    '''
-    modified from pyrocko
-    Create symmetric 3x3 matrix from its 6 non-redundant values.
-    '''
-    return num.matrix([[a_xx, a_xy, a_xz],
-                       [a_xy, a_yy, a_yz],
-                       [a_xz, a_yz, a_zz]], dtype=num.float)
 
 def pol_synthetics(sources, targets):  
     takeoffangles = [target.take_offangle_rad for target in targets]
     azimuths = [target.azimuth_rad for target in targets]
     gamma_co = gamma(takeoffangles, azimuths)
-    moment = sources[0].pyrocko_moment_tensor()
-    m9 = moment.m()
+    moment_tensor = sources[0].pyrocko_moment_tensor()
+    m9 = moment_tensor.m()
     m0_unscaled = num.sqrt(num.sum(m9.A ** 2)) / num.sqrt(2.)
     m9 /= m0_unscaled
     amps = num.array([num.diag(gamma_co.T.dot(m9).dot(gamma_co))]).T

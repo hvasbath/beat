@@ -448,11 +448,14 @@ class PolSynthesizer(theano.Op):
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
             
-        if sources[0].depth != source_points[0]['depth'] or \
-           sources[0].east_shift != source_points[0]['east_shift'] or \
-           sources[0].north_shift != source_points[0]['north_shift']:
-           self.poldatasets[0].update_targets(self.sources, self.engine)
-        
+        if sources[0].depth != source_points[0]['depth'] or sources[0].east_shift != source_points[0]['east_shift'] or sources[0].north_shift != source_points[0]['north_shift']:
+            try:
+                self.poldatasets[0].update_targets(self.sources, self.engine)
+            except IndexError:
+                print("Here")
+                self.sources = sources
+                self.poldatasets[0].update_targets(self.sources, self.engine)
+
         synths[0] = heart.pol_synthetics(self.sources, self.poldatasets[0].get_targets())
     
     def infer_shape(self, node, input_shapes):
