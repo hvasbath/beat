@@ -463,8 +463,6 @@ def correlation_plot_hist(
         else:
             figsize = mpl_papersize('a4', 'landscape')
 
-    
-
     d = dict()
 
     for var in varnames:
@@ -3262,8 +3260,8 @@ def draw_correlation_hist(problem, plot_options):
         llk_str = 'ref'
 
     outpath = os.path.join(
-        problem.outfolder, po.figure_dir, 'corr_hist_%s_%s.%s' % (
-            stage.number, llk_str, po.outformat))
+        problem.outfolder, po.figure_dir, 'corr_hist_%s_%s' % (
+            stage.number, llk_str))
 
     if not os.path.exists(outpath) or po.force:
         figs, _ = correlation_plot_hist(
@@ -3283,7 +3281,7 @@ def draw_correlation_hist(problem, plot_options):
     else:
         logger.info('saving figures to %s' % outpath)
         if po.outformat == 'pdf':
-            with PdfPages(outpath) as opdf:
+            with PdfPages(outpath + '.pdf') as opdf:
                 for fig in figs:
                     opdf.savefig(fig)
         else:
