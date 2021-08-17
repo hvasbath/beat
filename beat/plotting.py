@@ -404,7 +404,8 @@ def correlation_plot_hist(
         mtrace, varnames=None,
         transform=lambda x: x, figsize=None, hist_color='orange', cmap=None,
         grid=50, chains=None, ntickmarks=2, point=None,
-        point_style='.', point_size=4, alpha=0.35, unify=True):
+        point_style='.', point_color='red', point_size=4, alpha=0.35,
+        unify=True):
     """
     Plot 2d marginals (with kernel density estimation) showing the correlations
     of the model parameters. In the main diagonal is shown the parameter
@@ -433,6 +434,8 @@ def correlation_plot_hist(
         to the posteriors e.g. mean of posteriors, true values of a simulation
     point_style : str
         style of marker according to matplotlib conventions
+    point_color : str or tuple of 3
+        color according to matplotlib convention
     point_size : str
         marker size according to matplotlib conventions
     unify: bool
@@ -481,7 +484,7 @@ def correlation_plot_hist(
         for k in range(nvar):
             v_namea = varnames[k]
             a = d[v_namea][:, source_i]
-            pcolor = mpl_graph_color(isource)
+            pcolor = mpl_graph_color(source_i)
 
             for l in range(k, nvar):
                 v_nameb = varnames[l]
@@ -491,7 +494,7 @@ def correlation_plot_hist(
                         if v_namea in point.keys():
                             reference = point[v_namea][source_i]
                             axs[l, k].axvline(
-                                x=reference, color=pcolor,
+                                x=reference, color=point_color,
                                 lw=point_size / 4.)
                         else:
                             reference = None
@@ -523,7 +526,7 @@ def correlation_plot_hist(
                             vb = point[v_nameb][source_i]
                             axs[l, k].plot(
                                 va, vb,
-                                color=pcolor, marker=point_style,
+                                color=point_color, marker=point_style,
                                 markersize=point_size)
 
                             bmin = num.minimum(bmin, vb)
@@ -3603,7 +3606,7 @@ def fault_slip_distribution(
             from beat.models.laplacian import distances
             centers = num.vstack((xgr, ygr)).T
             #interpatch_dists = distances(centers, centers)
-            normalisation = slips.max() #/ interpatch_dists.min()
+            normalisation = slips.max()
 
         slips /= normalisation
 
@@ -3788,11 +3791,24 @@ def fault_slip_distribution(
             contours = ax.contour(
                 xgr, ygr, ref_starttimes,
                 colors='black', linewidths=0.5, alpha=0.9)
-            ax.plot(
+
+            # draw subfault hypocenter
+            dip_idx, strike_idx = fault.fault_locations2idxs(
+                ns, 
+                reference['nucleation_dip'][ns],
                 reference['nucleation_strike'][ns],
-                ext_source.width / km - reference['nucleation_dip'][ns],
+                backend='numpy')
+            psize_strike = fault.ordering.patch_sizes_strike[ns]
+            psize_dip = fault.ordering.patch_sizes_dip[ns]
+            nuc_strike = strike_idx * psize_strike + (psize_strike / 2.)
+            nuc_dip = dip_idx * psize_dip + (psize_dip / 2.)
+            ax.plot(
+                nuc_strike, ext_source.width / km - nuc_dip,
                 marker='*', color='k', markersize=12)
-            plt.clabel(contours, inline=True, fontsize=10)
+
+            # label contourlines
+            plt.clabel(contours, inline=True, fontsize=10,
+                       fmt=tick.FormatStrFormatter('%.1f'))
 
         if mtrace is not None:
             logger.info('Drawing quantiles ...')
@@ -3810,10 +3826,11 @@ def fault_slip_distribution(
 
             if uparrmean.sum() != 0.:
                 logger.info('Found slip shear components!')
+                normalisation = slip_bounds[1] / 3
                 quivers, normalisation = draw_quivers(
                     ax, uperpmean, uparrmean, xgr, ygr,
                     ext_source.rake, color='grey',
-                    draw_legend=False)
+                    draw_legend=False, normalisation=normalisation)
                 uparrstd = uparr.std(axis=0) / normalisation
                 uperpstd = uperp.std(axis=0) / normalisation
             elif utensmean.sum() != 0:
