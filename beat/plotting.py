@@ -404,8 +404,7 @@ def correlation_plot_hist(
         mtrace, varnames=None,
         transform=lambda x: x, figsize=None, hist_color='orange', cmap=None,
         grid=50, chains=None, ntickmarks=2, point=None,
-        point_style='.', point_color='red', point_size=4, alpha=0.35,
-        unify=True):
+        point_style='.', point_size=4, alpha=0.35, unify=True):
     """
     Plot 2d marginals (with kernel density estimation) showing the correlations
     of the model parameters. In the main diagonal is shown the parameter
@@ -434,8 +433,6 @@ def correlation_plot_hist(
         to the posteriors e.g. mean of posteriors, true values of a simulation
     point_style : str
         style of marker according to matplotlib conventions
-    point_color : str or tuple of 3
-        color according to matplotlib convention
     point_size : str
         marker size according to matplotlib conventions
     unify: bool
@@ -484,6 +481,7 @@ def correlation_plot_hist(
         for k in range(nvar):
             v_namea = varnames[k]
             a = d[v_namea][:, source_i]
+            pcolor = mpl_graph_color(isource)
 
             for l in range(k, nvar):
                 v_nameb = varnames[l]
@@ -493,7 +491,7 @@ def correlation_plot_hist(
                         if v_namea in point.keys():
                             reference = point[v_namea][source_i]
                             axs[l, k].axvline(
-                                x=reference, color=point_color,
+                                x=reference, color=pcolor,
                                 lw=point_size / 4.)
                         else:
                             reference = None
@@ -502,7 +500,7 @@ def correlation_plot_hist(
 
                     histplot_op(
                         axs[l, k], pmp.utils.make_2d(a), alpha=alpha,
-                        color='orange', tstd=0., reference=reference)
+                        color=pcolor, tstd=0., reference=reference)
 
                     axs[l, k].get_yaxis().set_visible(False)
                     format_axes(axs[l, k])
@@ -525,7 +523,7 @@ def correlation_plot_hist(
                             vb = point[v_nameb][source_i]
                             axs[l, k].plot(
                                 va, vb,
-                                color=point_color, marker=point_style,
+                                color=pcolor, marker=point_style,
                                 markersize=point_size)
 
                             bmin = num.minimum(bmin, vb)
@@ -3270,8 +3268,7 @@ def draw_correlation_hist(problem, plot_options):
             cmap=plt.cm.gist_earth_r,
             chains=None,
             point=reference,
-            point_size=6,
-            point_color='red')
+            point_size=6)
     else:
         logger.info('correlation plot exists. Use force=True for replotting!')
         return
@@ -3630,7 +3627,8 @@ def fault_slip_distribution(
 
         return quivers, normalisation
 
-    def draw_patches(ax, fault, subfault_idx, patch_values, cmap, alpha):
+    def draw_patches(
+            ax, fault, subfault_idx, patch_values, cmap, alpha, cbounds=None):
 
         lls = fault.get_subfault_patch_attributes(
             subfault_idx, attributes=['bottom_left'])
@@ -3672,6 +3670,9 @@ def fault_slip_distribution(
             d_patches, alpha=alpha, match_original=True, zorder=0)
         pa_col.set(array=patch_values, cmap=cmap)
 
+        if cbounds is not None:
+            pa_col.set_clim(*cbounds)
+
         ax.add_collection(pa_col)
         return pa_col
 
@@ -3697,6 +3698,7 @@ def fault_slip_distribution(
     fontsize = 12
 
     reference_slip = fault.get_total_slip(index=None, point=reference)
+    slip_bounds = [0, reference_slip.max()]
 
     figs = []
     axs = []
@@ -3717,7 +3719,7 @@ def fault_slip_distribution(
             ax, fault,
             subfault_idx=ns,
             patch_values=reference_slip[patch_idxs],
-            cmap=slip_colormap(100), alpha=0.65)
+            cmap=slip_colormap(100), alpha=0.65, cbounds=slip_bounds)
 
         # patch central locations
         centers = fault.get_subfault_patch_attributes(
@@ -4803,10 +4805,10 @@ def slip_distribution_3d_gmt(
          lat_min - lat_tolerance,
          lat_max + lat_tolerance,
          -max_depth, 0], '/')
-    Jg = '-JM%gc' % 12
-    Jz = '-JZ%gc' % 6
+    Jg = '-JM%gc' % 10
+    Jz = '-JZ%gc' % 5
     J = [Jg, Jz]
-    B = ['-Bxa%i' % bin_width, '-Bya%i' % bin_width,
+    B = ['-Bxa%g' % bin_width, '-Bya%g' % bin_width,
          '-Bza10+Ldepth [km]', '-BwNEsZ']
     args = J + B
 
@@ -4817,8 +4819,8 @@ def slip_distribution_3d_gmt(
     gmt.pscoast(
         R=R,
         D='a',
-        G='lightgrey',
-        S='lightblue',
+        G='gray90',
+        S='lightcyan',
         p=p,
         *J)
 
