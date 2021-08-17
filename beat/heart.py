@@ -1285,22 +1285,25 @@ class PolarityTarget(gf.meta.Receiver):
     phase = String.T(default='any_P', optional=True, 
                      help='First arrival of which seismic wave')
     
-    def update_target(self, source, engine):
+    def update_target(self, engine, source, event=None):
+
+        if event != None:
+            dist = self.distance_deg
+            depth = event.depth
+        else:            
+            dist = self.distance_to(source) * cake.m2d
+            self.azimuth_rad = self.azibazi_to(source)[0] * d2r 
+            self.distance_deg = dist
+            depth = source.depth
+
         store = engine.get_store(self.store_id)
         mod = store.config.earthmodel_1d
-        dist = self.distance_to(source) * cake.m2d
-
         rays = mod.arrivals(
             phases=self.phase.phases,
             distances=[dist],
-            zstart=source.depth,
+            zstart=depth,
             zstop=self.depth)
-        # if len(rays) == 0:
-        #     self.take_offangle_rad = num.nan
-        # else:
         self.take_offangle_rad = rays[0].takeoff_angle() * d2r
-        self.distance_deg = dist
-        self.azimuth_rad = self.azibazi_to(source)[0] * d2r 
 ##    
 
 def init_seismic_targets(
@@ -2449,10 +2452,10 @@ class PolarityDataset(object):
     def get_targets(self):
         return self.targets
    
-    def update_targets(self, sources, engine):
+    def update_targets(self, engine, sources, event=None):
         for source in sources:
             for target in self.targets:
-                target.update_target(source, engine)
+                target.update_target(engine, source, event)
     
     def get_takeoffangles(self):
         return [target.take_offangle_rad for target in self.targets]

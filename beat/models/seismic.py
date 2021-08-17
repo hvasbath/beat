@@ -956,7 +956,7 @@ class SeismicPolarityComposite(Composite):
             seismic_data_path = os.path.join(project_dir, 
                                              bconfig.multi_event_seismic_data_name(i))
             self.poldatasets[i] = heart.PolarityDataset(polarityconfig=polc, data_path=seismic_data_path)
-            self.poldatasets[i].update_targets([self.sources[i]], self.engine)
+            self.poldatasets[i].update_targets(self.engine, self.sources[i], self.events[i])
         self.targets = self.poldatasets[0].get_targets()
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
 
@@ -1079,7 +1079,7 @@ class SeismicPolarityComposite(Composite):
         obs = []
         for i, poldataset in enumerate(self.poldatasets):
             if update_required:
-                poldataset.update_targets(self.sources, self.engine)
+                poldataset.update_targets(self.engine, self.sources)
             synthetics = heart.pol_synthetics([self.sources[i]], poldataset.get_targets())
             if order == 'list':
                 synths.extend(synthetics)

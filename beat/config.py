@@ -726,7 +726,7 @@ class PolarityConfig(Object):
     def get_hypernames(self):
         hids = []
         name = self.name.split("wfarrival")[0].upper()
-        hypername = '_'.join(('h_any', name, str(0), 'Z'))
+        hypername = '_'.join(('h_any', name, 'pol', 'Z'))
         hids.append(hypername)
         return hids        
 

@@ -450,11 +450,10 @@ class PolSynthesizer(theano.Op):
             
         if sources[0].depth != source_points[0]['depth'] or sources[0].east_shift != source_points[0]['east_shift'] or sources[0].north_shift != source_points[0]['north_shift']:
             try:
-                self.poldatasets[0].update_targets(self.sources, self.engine)
+                self.poldatasets[0].update_targets(self.engine, self.sources)
             except IndexError:
-                print("Here")
                 self.sources = sources
-                self.poldatasets[0].update_targets(self.sources, self.engine)
+                self.poldatasets[0].update_targets(self.engine, self.sources)
 
         synths[0] = heart.pol_synthetics(self.sources, self.poldatasets[0].get_targets())
     

@@ -2381,7 +2381,7 @@ def draw_fuzzy_beachball(problem, po):
             xp, yp =  x[polarities >= 0], y[polarities >= 0]
             xt, yt =  x[polarities < 0], y[polarities < 0]
             axes.plot(xp, yp, 'o', ms=5, mew=1.0, mec='blue', mfc='white', transform=transform)
-            axes.plot(xt, yt, 'o', ms=5, mew=1.0, mec='red', mfc='red', transform=transform)
+            axes.plot(xt, yt, 'o', ms=5, mew=1.0, mec='blue', mfc='black', transform=transform)
             # axes.legend(['','Compression','Tensile'])
         ##
         axes.set_xlim(0., 10.)
