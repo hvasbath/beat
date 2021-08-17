@@ -479,7 +479,8 @@ def correlation_plot_hist(
 
     figs = []
     axes = []
-    for source_i in nvar_elements:
+    for source_i in range(nvar_elements):
+        logger.info('for variables of source %i ...' % source_i)
         hist_ylims = []
         fig, axs = plt.subplots(nrows=nvar, ncols=nvar, figsize=figsize)
         for k in range(nvar):
@@ -492,7 +493,7 @@ def correlation_plot_hist(
                 if l == k:
                     if point is not None:
                         if v_namea in point.keys():
-                            reference = point[v_namea]
+                            reference = point[v_namea][source_i]
                             axs[l, k].axvline(
                                 x=reference, color=point_color,
                                 lw=point_size / 4.)
@@ -511,7 +512,7 @@ def correlation_plot_hist(
                     xlim = axs[l, k].get_xlim()
                     hist_ylims.append(axs[l, k].get_ylim())
                 else:
-                    b = d[v_nameb]
+                    b = d[v_nameb][:, source_i]
 
                     kde2plot(
                         a, b, grid=grid, ax=axs[l, k],
@@ -522,13 +523,15 @@ def correlation_plot_hist(
 
                     if point is not None:
                         if v_namea and v_nameb in point.keys():
+                            va = point[v_namea][source_i]
+                            vb = point[v_nameb][source_i]
                             axs[l, k].plot(
-                                point[v_namea], point[v_nameb],
+                                va, vb,
                                 color=point_color, marker=point_style,
                                 markersize=point_size)
 
-                            bmin = num.minimum(bmin, point[v_nameb])
-                            bmax = num.maximum(bmax, point[v_nameb])
+                            bmin = num.minimum(bmin, vb)
+                            bmax = num.maximum(bmax, vb)
 
                     yticker = tick.MaxNLocator(nbins=ntickmarks)
                     axs[l, k].set_xticks(xticks)
@@ -3280,7 +3283,7 @@ def draw_correlation_hist(problem, plot_options):
     else:
         logger.info('saving figures to %s' % outpath)
         if po.outformat == 'pdf':
-            with PdfPages(outpath + '.pdf') as opdf:
+            with PdfPages(outpath) as opdf:
                 for fig in figs:
                     opdf.savefig(fig)
         else:
