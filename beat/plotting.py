@@ -474,11 +474,6 @@ def correlation_plot_hist(
 
         _, nvar_elements = vals.shape
 
-        #if nvar_elements > 1:
-        #    raise ValueError(
-        #        'Correlation plot can only be displayed for variables '
-        #        ' with size 1! %s is %i! ' % (var, nvar_elements))
-
         d[var] = vals
 
 
@@ -3227,9 +3222,9 @@ def draw_correlation_hist(problem, plot_options):
     Only feasible for 'geometry' problem.
     """
 
-    if problem.config.problem_config.n_sources > 1:
-        raise NotImplementedError(
-            'correlation_hist plot not working (yet) for n_sources > 1')
+    #if problem.config.problem_config.n_sources > 1:
+    #    raise NotImplementedError(
+    #        'correlation_hist plot not working (yet) for n_sources > 1')
 
     po = plot_options
     mode = problem.config.problem_config.mode
