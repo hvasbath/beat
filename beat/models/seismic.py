@@ -947,7 +947,6 @@ class SeismicPolarityComposite(Composite):
         self.synthesizers = {}
         self.sources = sources    
         self.config = polc
-        self.sigma = 0.16
         self.gamma = 0.01
         self.targets = []
         self.poldatasets = [None] * self.nevents
