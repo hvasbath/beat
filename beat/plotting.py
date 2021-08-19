@@ -44,6 +44,9 @@ logger = logging.getLogger('plotting')
 km = 1000.
 
 
+fontname = 'Helvetica'
+
+
 __all__ = [
     'PlotOptions', 'correlation_plot', 'correlation_plot_hist',
     'get_result_point', 'seismic_fits', 'scene_fits', 'traceplot',
@@ -3660,8 +3663,10 @@ def fault_slip_distribution(
         scale_y = {'scale': 1, 'offset': (-sf.width / km)}
         scale_axes(ax.yaxis, **scale_y)
 
-        ax.set_xlabel('strike-direction [km]', fontsize=fontsize)
-        ax.set_ylabel('dip-direction [km]', fontsize=fontsize)
+        ax.set_xlabel(
+            'strike-direction [km]', fontsize=fontsize, fontname=fontname)
+        ax.set_ylabel(
+            'dip-direction [km]', fontsize=fontsize, fontname=fontname)
 
         xticker = tick.MaxNLocator(nbins=ntickmarks)
         yticker = tick.MaxNLocator(nbins=ntickmarks)
@@ -3682,7 +3687,7 @@ def fault_slip_distribution(
     def draw_colorbar(fig, ax, cb_related, labeltext, ntickmarks=4):
         cbaxes = fig.add_axes([0.88, 0.4, 0.03, 0.3])
         cb = fig.colorbar(cb_related, ax=axs, cax=cbaxes)
-        cb.set_label(labeltext, fontsize=fontsize)
+        cb.set_label(labeltext, fontsize=fontsize, fontname=fontname)
         cb.locator = tick.MaxNLocator(nbins=ntickmarks)
         cb.update_ticks()
         ax.set_aspect('equal', adjustable='box')
@@ -3705,6 +3710,7 @@ def fault_slip_distribution(
 
     figs = []
     axs = []
+
     for ns in range(fault.nsubfaults):
         fig, ax = plt.subplots(
             nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
@@ -3794,7 +3800,7 @@ def fault_slip_distribution(
 
             # draw subfault hypocenter
             dip_idx, strike_idx = fault.fault_locations2idxs(
-                ns, 
+                ns,
                 reference['nucleation_dip'][ns],
                 reference['nucleation_strike'][ns],
                 backend='numpy')
@@ -3807,7 +3813,7 @@ def fault_slip_distribution(
                 marker='*', color='k', markersize=12)
 
             # label contourlines
-            plt.clabel(contours, inline=True, fontsize=10,
+            plt.clabel(contours, inline=True, fontsize=10, fontname=fontname,
                        fmt=tick.FormatStrFormatter('%.1f'))
 
         if mtrace is not None:
@@ -3875,7 +3881,7 @@ def fault_slip_distribution(
         draw_colorbar(fig, ax, pa_col, labeltext='slip [m]')
         format_axes(ax, remove=['top', 'right'])
 
-        fig.tight_layout()
+        # fig.tight_layout()
         figs.append(fig)
         axs.append(ax)
 
@@ -4822,17 +4828,14 @@ def slip_distribution_3d_gmt(
          lat_min - lat_tolerance,
          lat_max + lat_tolerance,
          -max_depth, 0], '/')
-    Jg = '-JM%gc' % 10
-    Jz = '-JZ%gc' % 5
+    Jg = '-JM%fc' % 6
+    Jz = '-JZ%gc' % 3
     J = [Jg, Jz]
-    B = ['-Bxa%g' % bin_width, '-Bya%g' % bin_width,
-         '-Bza10+Ldepth [km]', '-BwNEsZ']
+
+    B = ['-Bxa%gg%g' % (bin_width, bin_width), '-Bya%gg%g' % (bin_width, bin_width),
+         '-Bza10+Ldepth [km]', '-BWNesZ']
     args = J + B
 
-    gmt.psbasemap(
-        R=R,
-        p=p,
-        *args)
     gmt.pscoast(
         R=R,
         D='a',
@@ -4840,6 +4843,11 @@ def slip_distribution_3d_gmt(
         S='lightcyan',
         p=p,
         *J)
+
+    gmt.psbasemap(
+        R=R,
+        p=p,
+        *args)
 
     if slip_label == 'coupling':
         reference_slips = reference['coupling'] * 100 # in percent
