@@ -3634,7 +3634,8 @@ def fault_slip_distribution(
         return quivers, normalisation
 
     def draw_patches(
-            ax, fault, subfault_idx, patch_values, cmap, alpha, cbounds=None):
+            ax, fault, subfault_idx, patch_values, cmap, alpha, cbounds=None,
+            ylim=None):
 
         lls = fault.get_subfault_patch_attributes(
             subfault_idx, attributes=['bottom_left'])
@@ -3654,10 +3655,12 @@ def fault_slip_distribution(
         lower = rot_lls.min(axis=0)
         pad = sf.length / km * 0.05
 
-        xlim = [lower[0] - pad, lower[0] + sf.length / km + pad]
-        ylim = [lower[1] - pad, lower[1] + sf.width / km + pad]
+        #xlim = [lower[0] - pad, lower[0] + sf.length / km + pad]
+        if ylim is None:
+            ylim = [lower[1] - pad, lower[1] + sf.width / km + pad]
 
-        ax.set_xlim(*xlim)
+        ax.aspect(1)
+        #ax.set_xlim(*xlim)
         ax.set_ylim(*ylim)
 
         scale_y = {'scale': 1, 'offset': (-sf.width / km)}
@@ -3711,6 +3714,9 @@ def fault_slip_distribution(
     figs = []
     axs = []
 
+    fwidths_max = num.array(
+        [sf.width / km for sf in fault.iter_subfaults()]).max()
+    ymax = fwidths_max + fwidths_max * 0.03
     for ns in range(fault.nsubfaults):
         fig, ax = plt.subplots(
             nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
@@ -3727,7 +3733,7 @@ def fault_slip_distribution(
         pa_col = draw_patches(
             ax, fault,
             subfault_idx=ns,
-            patch_values=reference_slip[patch_idxs],
+            patch_values=reference_slip[patch_idxs], ylim=[0, ymax],
             cmap=slip_colormap(100), alpha=0.65, cbounds=slip_bounds)
 
         # patch central locations
@@ -3787,7 +3793,7 @@ def fault_slip_distribution(
 
             pa_col2 = draw_patches(
                 ax2, fault, subfault_idx=ns, patch_values=reference_durations,
-                cmap=plt.cm.seismic, alpha=alpha)
+                cmap=plt.cm.seismic, alpha=alpha, ylim=[0, ymax])
 
             draw_colorbar(fig2, ax2, pa_col2, labeltext='durations [s]')
             figs.append(fig2)
