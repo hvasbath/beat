@@ -1,6 +1,8 @@
 from pymc3 import plots as pmp
 from pymc3 import quantiles
 
+from collections import OrderedDict
+
 import math
 import os
 import logging
@@ -1127,7 +1129,7 @@ def scene_fits(problem, stage, plot_options):
     bvar_reductions = composite.get_variance_reductions(
         bpoint, weights=composite.weights, results=bresults_tmp)
 
-    dataset_to_result = {}
+    dataset_to_result = OrderedDict()
     for dataset, bresult in zip(composite.datasets, bresults_tmp):
         if dataset.typ == 'SAR':
             dataset_to_result[dataset] = bresult
@@ -3635,7 +3637,7 @@ def fault_slip_distribution(
 
     def draw_patches(
             ax, fault, subfault_idx, patch_values, cmap, alpha, cbounds=None,
-            ylim=None):
+            xlim=None):
 
         lls = fault.get_subfault_patch_attributes(
             subfault_idx, attributes=['bottom_left'])
@@ -3656,12 +3658,12 @@ def fault_slip_distribution(
         pad = sf.length / km * 0.05
 
         #xlim = [lower[0] - pad, lower[0] + sf.length / km + pad]
-        if ylim is None:
-            ylim = [lower[1] - pad, lower[1] + sf.width / km + pad]
+        if xlim is None:
+            xlim = [lower[1] - pad, lower[1] + sf.width / km + pad]
 
-        ax.aspect(1)
+        ax.set_aspect(1)
         #ax.set_xlim(*xlim)
-        ax.set_ylim(*ylim)
+        ax.set_xlim(*xlim)
 
         scale_y = {'scale': 1, 'offset': (-sf.width / km)}
         scale_axes(ax.yaxis, **scale_y)
@@ -3714,9 +3716,10 @@ def fault_slip_distribution(
     figs = []
     axs = []
 
-    fwidths_max = num.array(
-        [sf.width / km for sf in fault.iter_subfaults()]).max()
-    ymax = fwidths_max + fwidths_max * 0.03
+    flengths_max = num.array(
+        [sf.length / km for sf in fault.iter_subfaults()]).max()
+    pad = flengths_max * 0.03
+    xmax = flengths_max + pad
     for ns in range(fault.nsubfaults):
         fig, ax = plt.subplots(
             nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
@@ -3733,7 +3736,7 @@ def fault_slip_distribution(
         pa_col = draw_patches(
             ax, fault,
             subfault_idx=ns,
-            patch_values=reference_slip[patch_idxs], ylim=[0, ymax],
+            patch_values=reference_slip[patch_idxs], xlim=[-pad, xmax],
             cmap=slip_colormap(100), alpha=0.65, cbounds=slip_bounds)
 
         # patch central locations
@@ -3786,18 +3789,21 @@ def fault_slip_distribution(
                 # alphas = std_durations.min() / std_durations
 
             # rupture durations
-            fig2, ax2 = plt.subplots(
-                nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
+            if False:
+                fig2, ax2 = plt.subplots(
+                    nrows=1, ncols=1,
+                    figsize=mpl_papersize('a5', 'landscape'))
 
-            reference_durations = reference['durations'][patch_idxs]
+                reference_durations = reference['durations'][patch_idxs]
 
-            pa_col2 = draw_patches(
-                ax2, fault, subfault_idx=ns, patch_values=reference_durations,
-                cmap=plt.cm.seismic, alpha=alpha, ylim=[0, ymax])
+                pa_col2 = draw_patches(
+                    ax2, fault, subfault_idx=ns,
+                    patch_values=reference_durations,
+                    cmap=plt.cm.seismic, alpha=alpha, xlim=[-pad, xmax])
 
-            draw_colorbar(fig2, ax2, pa_col2, labeltext='durations [s]')
-            figs.append(fig2)
-            axs.append(ax2)
+                draw_colorbar(fig2, ax2, pa_col2, labeltext='durations [s]')
+                figs.append(fig2)
+                axs.append(ax2)
 
             ref_starttimes = fault.point2starttimes(reference, index=ns)
             contours = ax.contour(
@@ -4169,6 +4175,12 @@ def fuzzy_moment_rate(
     grid[grid > truncate] = truncate
 
     ax.imshow(grid, extent=extent, origin='lower', cmap=cmap, aspect='auto')
+
+    xticker = tick.MaxNLocator(nbins=5)
+    yticker = tick.MaxNLocator(nbins=5)
+    ax.xaxis.set_major_locator(xticker)
+    ax.yaxis.set_major_locator(yticker)
+
     ax.set_xlabel('Time [s]')
     ax.set_ylabel('Moment rate [$Nm / s$]')
 
@@ -4237,7 +4249,7 @@ def draw_moment_rate(problem, po):
 
         if not os.path.exists(outpath) or po.force:
             fig, ax = plt.subplots(
-                nrows=1, ncols=1, figsize=mpl_papersize('a7', 'landscape'))
+                nrows=1, ncols=1, figsize=mpl_papersize('a6', 'landscape'))
             labelpos = mpl_margins(
                 fig, left=5, bottom=4, top=1.5, right=0.5, units=fontsize)
             labelpos(ax, 2., 1.5)
