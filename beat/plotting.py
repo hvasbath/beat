@@ -2368,16 +2368,19 @@ def draw_fuzzy_beachball(problem, po):
             poldataset = obs_poldatasets[0]
             polarities = poldataset.dataset
             for toa, azi in zip(poldataset.get_takeoffangles(), poldataset.get_azimuths()):
-                takeoffangles.append(toa if toa <= num.pi/2 else num.pi - toa)
-                azimuths.append(num.pi/2-azi)
+                if toa >= num.pi/2:
+                    takeoffangles.append(num.pi-toa)
+                    azi += num.pi
+                else:
+                    takeoffangles.append(toa)
+                azimuths.append(azi)
             azimuths = num.array(azimuths).reshape(polarities.shape)
             takeoffangles = num.array(takeoffangles).reshape(polarities.shape)
-            ones = num.ones(azimuths.shape)
-            rtp = num.concatenate((ones, takeoffangles, azimuths), axis=1)
-            points = beachball.numpy_rtp2xyz(rtp)
-            x, y = beachball.project(points).T
-            x = size * x.reshape(polarities.shape) + position[1]
-            y = size * y.reshape(polarities.shape) + position[0]
+            r = size * num.sqrt(2) * num.sin(0.5*takeoffangles)
+            x = r * num.sin(azimuths)
+            y = r * num.cos(azimuths)
+            x = x.reshape(polarities.shape) + position[1]
+            y = y.reshape(polarities.shape) + position[0]
             xp, yp =  x[polarities >= 0], y[polarities >= 0]
             xt, yt =  x[polarities < 0], y[polarities < 0]
             axes.plot(xp, yp, 'o', ms=5, mew=1.0, mec='blue', mfc='white', transform=transform)
