@@ -1291,8 +1291,8 @@ class PolarityTarget(gf.meta.Receiver):
             dist = self.distance_deg
             depth = event.depth
         else:            
-            dist = self.distance_to(source) * cake.m2d
-            self.azimuth_rad = self.azibazi_to(source)[0] * d2r 
+            dist = source.distance_to(self) * cake.m2d
+            self.azimuth_rad = source.azibazi_to(self)[0] * d2r 
             self.distance_deg = dist
             depth = source.depth
 
