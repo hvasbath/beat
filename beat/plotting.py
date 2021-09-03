@@ -3635,7 +3635,7 @@ def fault_slip_distribution(
 
     def draw_patches(
             ax, fault, subfault_idx, patch_values, cmap, alpha, cbounds=None,
-            ylim=None):
+            ylim=None, xlim):
 
         lls = fault.get_subfault_patch_attributes(
             subfault_idx, attributes=['bottom_left'])
@@ -4169,6 +4169,12 @@ def fuzzy_moment_rate(
     grid[grid > truncate] = truncate
 
     ax.imshow(grid, extent=extent, origin='lower', cmap=cmap, aspect='auto')
+
+    xticker = tick.MaxNLocator(nbins=5)
+    yticker = tick.MaxNLocator(nbins=5)
+    ax.xaxis.set_major_locator(xticker)
+    ay.xaxis.set_major_locator(yticker)
+
     ax.set_xlabel('Time [s]')
     ax.set_ylabel('Moment rate [$Nm / s$]')
 
@@ -4237,7 +4243,7 @@ def draw_moment_rate(problem, po):
 
         if not os.path.exists(outpath) or po.force:
             fig, ax = plt.subplots(
-                nrows=1, ncols=1, figsize=mpl_papersize('a7', 'landscape'))
+                nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
             labelpos = mpl_margins(
                 fig, left=5, bottom=4, top=1.5, right=0.5, units=fontsize)
             labelpos(ax, 2., 1.5)
