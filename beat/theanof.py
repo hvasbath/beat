@@ -411,16 +411,15 @@ class SeisSynthesizer(theano.Op):
             store.config.sample_rate * self.arrival_taper.duration()))
         return [(nrow, ncol), (nrow,)]
 
-##Mahdi
+
 class PolSynthesizer(theano.Op):
-    
+
     __props__ = ('engine', 'sources', 'poldatasets')
 
-    def __init__(self, engine, sources, poldatasets):
+    def __init__(self, engine, source, pmap):
         self.engine = engine
-        self.sources = tuple(sources)
-        self.poldatasets = tuple(poldatasets)
-        self.nobs = poldatasets[0].ndata() * len(sources)
+        self.source = source
+        self.pmap = pmap
 
     def __getstate__(self):
         self.engine.close_cashed_stores()
@@ -434,7 +433,8 @@ class PolSynthesizer(theano.Op):
         self.varnames = list(inputs.keys())
         for i in inputs.values():
             inlist.append(tt.as_tensor_variable(i))
-        out = tt.as_tensor_variable(num.zeros((2,2)))
+
+        out = tt.as_tensor_variable(num.zeros((2)))
         outlist = [out.type()]
         return theano.Apply(self, inlist, outlist)
 
@@ -443,23 +443,17 @@ class PolSynthesizer(theano.Op):
         point = {vname: i for vname, i in zip(self.varnames, inputs)}
         mpoint = utility.adjust_point_units(point)
         source_points = utility.split_point(mpoint)
-        sources = copy.deepcopy(self.sources)
-        
-        for i, source in enumerate(self.sources):
-            utility.update_source(source, **source_points[i])
-            
-        if sources[0].depth != source_points[0]['depth'] or sources[0].east_shift != source_points[0]['east_shift'] or sources[0].north_shift != source_points[0]['north_shift']:
-            try:
-                self.poldatasets[0].update_targets(self.engine, self.sources)
-            except IndexError:
-                self.sources = sources
-                self.poldatasets[0].update_targets(self.engine, self.sources)
 
-        synths[0] = heart.pol_synthetics(self.sources, self.poldatasets[0].get_targets())
-    
+        utility.update_source(
+            self.source, **source_points[self.pmap.config.event_idx])
+
+        self.pmap.update_targets(self.engine, self.source)
+
+        synths[0] = heart.pol_synthetics(self.source, self.pmap)
+
     def infer_shape(self, node, input_shapes):
-        return [(self.nobs,1)]
-###
+        return [(self.pmap.n_t, )]
+
 
 class SeisDataChopper(theano.Op):
     """

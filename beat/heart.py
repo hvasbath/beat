@@ -455,13 +455,17 @@ class SeismicResult(Object):
                     utility.list2string(tr.nslc_id),
                     tr.tmin, syn_tmin, tr.tmin - syn_tmin))
         return tr
-##Mahdi
+
+
 class PolarityResult(Object):
+
     point = ResultPoint.T(default=ResultPoint.D())
     processed_obs = Array.T(optional=True)
     llk = Float.T(default=0.0, optional=True)
-    source_contributions = List.T(Array.T(), help='Synthetics of source infdividual contributions.')
-    
+    source_contributions = List.T(
+        Array.T(),
+        help='Synthetics of source individual contributions.')
+
     @property
     def processed_syn(self):
         if self.source_contributions is not None:
@@ -469,8 +473,8 @@ class PolarityResult(Object):
             for pol in self.source_contributions:
                 syn0 += pol
         return syn0
-    
-##            
+
+
 def results_for_export(results, datatype=None, attributes=None):
 
     if attributes is None:
@@ -710,6 +714,61 @@ class Parameter(Object):
     def bound_to_array(self):
         return num.array([self.lower, self.testval, self.upper],
                          dtype=num.float)
+
+
+class PolarityTarget(gf.meta.Receiver):
+    '''
+    A polarity computation request depending on receiver information.
+    '''
+    codes = Tuple.T(
+        4, String.T(), default=('', 'STA', ''),
+        help='network, station and location code')
+    elevation = Float.T(
+        default=0.0,
+        help='station surface elevation in [m]')
+    store_id = gf.meta.StringID.T(
+        optional=True,
+        help='ID of Green\'s function store to use for the computation. '
+             'If not given, the processor may use a system default.')
+    azimuth_rad = Float.T(
+        optional=True,
+        help='azimuth of sensor component in [rad], clockwise from north. '
+             'If not given, it is guessed from the channel code.')
+    distance = Float.T(
+        optional=True,
+        help='epicentral distance of sensor in [m].')
+    takeoff_angle_rad = Float.T(
+        optional=True,
+        help='takeoff-angle of ray emmited from source with respect to'
+             'distance & source depth recorded by sensor in [rad].'
+             'upward ray when > 90.')
+    phase_id = String.T(
+        default='any_P', optional=True,
+        help='First arrival of which seismic wave')
+
+    def update_target(self, engine, source):
+
+        self.azimuth_rad = self.azibazi_to(source)[1] * d2r
+        self.distance = self.distance_to(source)
+        store = engine.get_store(self.store_id)
+
+        try:
+            self.takeoff_angle_rad = store.get_stored_attribute(
+                self.phase_id,
+                'takeoff_angle',
+                (source.depth, self.distance)) * d2r
+
+        except gf.StoreError:
+            logger.warning(
+                'Could not find takeoff-angle table,'
+                ' falling back to cake...')
+            mod = store.config.earthmodel_1d
+            rays = mod.arrivals(
+                phases=self.phase.phases,
+                distances=[self.distance_deg],
+                zstart=source.depth,
+                zstop=self.depth)
+            self.takeoff_angle_rad = rays[0].takeoff_angle() * d2r
 
 
 class DynamicTarget(gf.Target):
@@ -1251,60 +1310,6 @@ class GeodeticResult(Object):
     processed_res = Array.T(shape=(None,), dtype=num.float, optional=True)
     llk = Float.T(default=0., optional=True)
 
-##Mahdi
-class PolarityTarget(gf.meta.Receiver):
-    '''
-    A seismogram computation request for a single component, including
-    its post-processing parmeters.
-    '''
-    codes = Tuple.T(
-        4, String.T(), default=('', 'STA', '', 'Z'),
-        help='network, station, location and channel codes to be set on '
-             'the response trace.')
-
-    elevation = Float.T(
-        default=0.0,
-        help='station surface elevation in [m]')
-
-    store_id = gf.meta.StringID.T(
-        optional=True,
-        help='ID of Green\'s function store to use for the computation. '
-             'If not given, the processor may use a system default.')
-
-    azimuth_rad = Float.T(
-        optional=True,
-        help='azimuth of sensor component in [rad], clockwise from north. '
-             'If not given, it is guessed from the channel code.')
-    distance_deg = Float.T(
-        optional=True,
-        help='epicentral distance of sensor in [deg].')
-    take_offangle_rad = Float.T(
-        optional=True,
-        help='take-off angle of ray exicted from source with respect to disatnce & source depth recorded by sensor in [rad].'
-             "It's pyrocko based, and it is an upward ray when > 90.")
-    phase = String.T(default='any_P', optional=True, 
-                     help='First arrival of which seismic wave')
-    
-    def update_target(self, engine, source, event=None):
-
-        if event != None:
-            dist = self.distance_deg
-            depth = event.depth
-        else:            
-            dist = source.distance_to(self) * cake.m2d
-            self.azimuth_rad = source.azibazi_to(self)[0] * d2r 
-            self.distance_deg = dist
-            depth = source.depth
-
-        store = engine.get_store(self.store_id)
-        mod = store.config.earthmodel_1d
-        rays = mod.arrivals(
-            phases=self.phase.phases,
-            distances=[dist],
-            zstart=depth,
-            zstop=self.depth)
-        self.take_offangle_rad = rays[0].takeoff_angle() * d2r
-##    
 
 def init_seismic_targets(
         stations, earth_model_name='ak135-f-average.m', channels=['T', 'Z'],
@@ -2400,69 +2405,75 @@ def get_phase_arrival_time(engine, source, target, wavename=None, snap=True):
         deltat = 1. / store.config.sample_rate
         atime = trace.t2ind(atime, deltat, snap=round) * deltat
     return atime
-##Mahdi
 
 
-class PolarityDataset(object):  
-        
-    def __init__(self, polarityconfig, data_path):
+class PolarityMapping(object):
 
-        self.dataset = num.array([])
-        self.targets = []    
-        self.config = polarityconfig
+    def __init__(self, config, data_path):
+
+        self.targets = []
+        self.config = config
         stations = utility.load_objects(data_path)[0]
-        station_names = polarityconfig.get_station_names()            
+        station_names = config.get_station_names()
 
-        if polarityconfig.gf_config.reference_location is None:
-            store_prefixes = [copy.deepcopy(station.station) for station in stations]
+        gfc = self.config.gf_config
+        if gfc.reference_location is None:
+            store_prefixes = [
+                copy.deepcopy(station.station) for station in stations]
         else:
-            store_prefixes = [ copy.deepcopy(polarityconfig.gf_config.reference_location.station) for station in stations]
+            store_prefixes = [
+                copy.deepcopy(
+                    gfc.reference_location.station) for station in stations]
 
-        arrivals = polarityconfig.get_arrival_names()
-        # if phase == 'any_P':
-        #     if 'moho' in [disc.name for disc in self.earthmodel_1d.discontinuities()]:
-        #         definition = 'p,P,p\\,P\\,Pv_(cmb)p'
-        #     else:
+        arrivals = config.get_arrival_names()
         definition = 'p,P,p\\,P\\'
         phases = gf.TPDef(id=arrivals, definition=definition)
 
-        em_name = get_earth_model_prefix(polarityconfig.gf_config.earth_model_name)
+        em_name = get_earth_model_prefix(gfc.earth_model_name)
 
         for i, station in enumerate(stations):
             if station.station in station_names:
-                store_id = get_store_id(store_prefixes[i], em_name, polarityconfig.gf_config.sample_rate, polarityconfig.gf_config.reference_model_idx)
-                self.targets.append(PolarityTarget(
-                                codes=(station.network, station.station,'%i' % polarityconfig.gf_config.reference_model_idx, '%s' % polarityconfig.channels),  # n, s, l, c
-                                lat=station.lat, lon=station.lon, azimuth_rad=station.azimuth*d2r, distance_deg=station.dist_deg,
-                                elevation=float(station.elevation), phase=phases, store_id=store_id))
+                store_id = get_store_id(
+                    store_prefixes[i], em_name,
+                    gfc.sample_rate, gfc.reference_model_idx)
+                self.targets.append(
+                    PolarityTarget(
+                        codes=(
+                            station.network,
+                            station.station,
+                            '%i' % gfc.reference_model_idx,
+                            '%s' % self.config.channels),  # n, s, l, c
+                        lat=station.lat, lon=station.lon,
+                        azimuth_rad=station.azimuth * d2r,
+                        distance_deg=station.dist_deg,
+                        elevation=float(station.elevation),
+                        phase=phases, store_id=store_id))
 
-        ## Need to sort amplitudes based on the targets' order BUT NO NEED TO HAVE A BLACKLIST STATIONS
-        station_polarities = polarityconfig.get_station_polarities()                
-        self.dataset = num.array([station_polarities[station_names == target.codes[1]] for target in self.targets])
-    
+        # TODO: data format
+        # Need to sort amplitudes based on the targets'
+        # order BUT NO NEED TO HAVE A BLACKLIST STATIONS
+        station_polarities = config.get_station_polarities()
+        self.dataset = num.array(
+            [station_polarities[station_names == target.codes[1]]
+                for target in self.targets])
+
     def get_station_names(self):
         return [target.codes[1] for target in self.targets]
-    
-    def ndata(self):
-        return self.dataset.size
-    
-    def get_dataset(self):
-        return self.dataset
 
-    def get_targets(self):
-        return self.targets
-   
-    def update_targets(self, engine, sources, event=None):
-        for source in sources:
-            for target in self.targets:
-                target.update_target(engine, source, event)
-    
-    def get_takeoffangles(self):
-        return [target.take_offangle_rad for target in self.targets]
+    @property
+    def n_t(self):
+        return len(self.targets)
+
+    def update_targets(self, engine, source):
+        for target in self.targets:
+            target.update_target(engine, source)
+
+    def get_takeoff_angles(self):
+        return num.array([target.takeoff_angle_rad for target in self.targets])
 
     def get_azimuths(self):
-        return [target.azimuth_rad for target in self.targets]
-##
+        return num.array([target.azimuth_rad for target in self.targets])
+
 
 def get_phase_taperer(
         engine, source, wavename, target, arrival_taper, arrival_time=num.nan):
@@ -3350,26 +3361,26 @@ def seis_synthetics(
     else:
         raise TypeError('Outmode %s not supported!' % outmode)
 
-##Mahdi
-def gamma(takeoffangles, azimuths):
-    st = num.sin(takeoffangles)
-    ct = num.cos(takeoffangles)
+
+def gamma(takeoff_angles, azimuths):
+    st = num.sin(takeoff_angles)
+    ct = num.cos(takeoff_angles)
     ca = num.cos(azimuths)
     sa = num.sin(azimuths)
     return num.array([st*ca, st*sa, ct])
 
 
-def pol_synthetics(sources, targets):  
-    takeoffangles = [target.take_offangle_rad for target in targets]
-    azimuths = [target.azimuth_rad for target in targets]
-    gamma_co = gamma(takeoffangles, azimuths)
-    moment_tensor = sources[0].pyrocko_moment_tensor()
+def pol_synthetics(source, polmap):
+    takeoff_angles = polmap.get_takeoff_angles()
+    azimuths_rad = polmap.get_azimuths()
+    gamma_co = gamma(takeoff_angles, azimuths_rad)
+    moment_tensor = source.pyrocko_moment_tensor()
     m9 = moment_tensor.m()
     m0_unscaled = num.sqrt(num.sum(m9.A ** 2)) / num.sqrt(2.)
     m9 /= m0_unscaled
     amps = num.array([num.diag(gamma_co.T.dot(m9).dot(gamma_co))]).T
     return amps
-##
+
 
 def geo_synthetics(
         engine, targets, sources, outmode='stacked_array', plot=False,

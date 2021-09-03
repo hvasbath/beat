@@ -716,7 +716,12 @@ class PolarityGFConfig(NonlinearGFConfig):
 
 class PolarityConfig(Object):
 
-    
+    # TODO polarity Map
+    event_idx = Int.T(
+        default=0,
+        optional=True,
+        help='Index to event from events list for reference time and data '
+             'extraction. Default is 0 - always use the reference event.')
     binary_input = Bool.T(default=False, optional=True, help="If data are included in seismic_data.pkl")     
     stations_polarities = List.T(default=[])
     name = String.T(default='pwfarrival', optional=True, help="If not given, velocity model from Green's function will be extract")
