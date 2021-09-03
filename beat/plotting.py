@@ -46,9 +46,6 @@ logger = logging.getLogger('plotting')
 km = 1000.
 
 
-fontname = 'Helvetica'
-
-
 __all__ = [
     'PlotOptions', 'correlation_plot', 'correlation_plot_hist',
     'get_result_point', 'seismic_fits', 'scene_fits', 'traceplot',
@@ -3669,9 +3666,9 @@ def fault_slip_distribution(
         scale_axes(ax.yaxis, **scale_y)
 
         ax.set_xlabel(
-            'strike-direction [km]', fontsize=fontsize, fontname=fontname)
+            'strike-direction [km]', fontsize=fontsize)
         ax.set_ylabel(
-            'dip-direction [km]', fontsize=fontsize, fontname=fontname)
+            'dip-direction [km]', fontsize=fontsize)
 
         xticker = tick.MaxNLocator(nbins=ntickmarks)
         yticker = tick.MaxNLocator(nbins=ntickmarks)
@@ -3692,7 +3689,7 @@ def fault_slip_distribution(
     def draw_colorbar(fig, ax, cb_related, labeltext, ntickmarks=4):
         cbaxes = fig.add_axes([0.88, 0.4, 0.03, 0.3])
         cb = fig.colorbar(cb_related, ax=axs, cax=cbaxes)
-        cb.set_label(labeltext, fontsize=fontsize, fontname=fontname)
+        cb.set_label(labeltext, fontsize=fontsize)
         cb.locator = tick.MaxNLocator(nbins=ntickmarks)
         cb.update_ticks()
         ax.set_aspect('equal', adjustable='box')
@@ -3825,7 +3822,7 @@ def fault_slip_distribution(
                 marker='*', color='k', markersize=12)
 
             # label contourlines
-            plt.clabel(contours, inline=True, fontsize=10, fontname=fontname,
+            plt.clabel(contours, inline=True, fontsize=10,
                        fmt=tick.FormatStrFormatter('%.1f'))
 
         if mtrace is not None:
