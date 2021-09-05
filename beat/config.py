@@ -99,10 +99,7 @@ interseismic_catalog = {
     'geodetic': interseismic_vars}
 
 geometry_catalog = {
-##Mahdi
     'polarity': source_catalog,
-##
-
     'geodetic': source_catalog,
     'seismic': source_catalog}
 
@@ -235,7 +232,7 @@ _correlation_function_choices = ['nearest_neighbor', 'gaussian', 'exponential']
 _discretization_choices = ['uniform', 'resolution']
 _initialization_choices = ['random', 'lsq']
 _backend_choices = ['csv', 'bin']
-_datatype_choices = ['geodetic', 'seismic', 'polarity']         ##Mahdi
+_datatype_choices = ['geodetic', 'seismic', 'polarity']
 _sampler_choices = ['PT', 'SMC', 'Metropolis']
 
 
@@ -700,63 +697,81 @@ class SeismicConfig(Object):
         for wavename in wavenames:
             self.waveforms.append(WaveformFitConfig(name=wavename))
 
-##Mahdi
-arrival_catalog = {'p': ('any_P', 'Z'),
-                   'sv':('any_SV', 'ZR'),
-                   'sh':('any_SH', 'T')}
+
+# TODO needed? what for?
+arrival_catalog = {
+    'p': ('any_P', 'Z'),
+    'sv': ('any_SV', 'ZR'),
+    'sh': ('any_SH', 'T')}
 
 
 class PolarityGFConfig(NonlinearGFConfig):
 
-    reference_location = ReferenceLocation.T(default=None, help="Reference location for the midpoint of the Green's Function grid.",
-                                                optional=True)
-    sample_rate = Float.T( default=1.,  help='Sample rate for the polarity Greens Functions.')
-
+    reference_location = ReferenceLocation.T(
+        default=None,
+        help="Reference location for the midpoint of the "
+             "Green's Function 'grid.",
+        optional=True)
+    sample_rate = Float.T(
+        default=1.,
+        help='Sample rate for the polarity Greens Functions.')
 
 
 class PolarityConfig(Object):
-
-    # TODO polarity Map
+    # cleanup
+    # TODO polarity Map - attribute waveforms? --> PolarityFitConfig
     event_idx = Int.T(
         default=0,
         optional=True,
         help='Index to event from events list for reference time and data '
              'extraction. Default is 0 - always use the reference event.')
-    binary_input = Bool.T(default=False, optional=True, help="If data are included in seismic_data.pkl")     
-    stations_polarities = List.T(default=[])
-    name = String.T(default='pwfarrival', optional=True, help="If not given, velocity model from Green's function will be extract")
-    channels = List.T(default=['Z'], optional=True, help="If not given, velocity model from Green's function will be extract")
-    gf_config = PolarityGFConfig.T(default=PolarityGFConfig.D(), optional=True, help="If not given, velocity model from Green's function will be extract")
-    
+    binary_input = Bool.T(
+        default=False,
+        optional=True,
+        help="If data are included in seismic_data.pkl")
+    stations_polarities = List.T(
+        List.T(String.T(), Int.T()),
+        default=['GE.ABCK', 1],
+        help='Manual interface to enter polarity data to config as list '
+             'of entries. Entry format: '
+             '"Network.Station.Location.Channel", 1 / -1')
+    # TODO: related to seismic phase name?
+    name = String.T(
+        default='pwfarrival',
+        optional=True,
+        help="If not given, velocity model from Green's function will be extract")
+    # TODO: needed?
+    channels = List.T(
+        default=['Z'],
+        optional=True,
+        help="If not given, velocity model from Green's function will be extract")
+    gf_config = GFConfig.T(default=PolarityGFConfig.D())
+
     def get_hypernames(self):
         hids = []
         name = self.name.split("wfarrival")[0].upper()
         hypername = '_'.join(('h_any', name, 'pol', 'Z'))
         hids.append(hypername)
-        return hids        
+        return hids
 
-    def get_earthmodel(self):
-        store = LocalEngine(store_superdirs=[self.gf_config.store_superdir]).get_store()
-        return store.config.earthmodel_1d
-    
-    def get_store_id(self):
-        store = LocalEngine(store_superdirs=[self.gf_config.store_superdir]).get_store()
-        return store.config.id
-    
     def refining_stations(self, stations):
-        station_names = self.get_station_names()            
-        return [station for station in stations if station.station in station_names]
+        station_names = self.get_station_names()
+        return [station for station in stations
+                if station.station in station_names]
 
+    # TODO clarify dataset format
     def get_station_names(self):
-        return num.array([str(station.split(" ")[0]) for station in self.stations_polarities])            
+        return [st_pol[0].split('.')[1]
+                for st_pol in self.stations_polarities]
 
     def get_station_polarities(self):
-        return num.array([float(amplitude.split(" ")[1]) for amplitude in self.stations_polarities])
+        return num.array(
+            [float(st_pol[1].split()[1])
+             for st_pol in self.stations_polarities])
 
     def get_arrival_names(self):
         return arrival_catalog[self.name.split("wfarrival")[0].lower()][0]
 
-##
 
 class CorrectionConfig(Object):
 
@@ -1653,7 +1668,6 @@ class SeismicGFLibraryConfig(GFLibaryConfig):
 
 
 datatype_catalog = {
-    ##Mahdi
     'polarity': PolarityConfig,
     'geodetic': GeodeticConfig,
     'seismic': SeismicConfig}
@@ -1672,8 +1686,9 @@ class BEATconfig(Object, Cloneable):
     subevents = List.T(
         model.Event.T(),
         default=[],
-        help='Event objects of other events that are supposed to be estimated'
-             'jointly with the main event. May have large temporal separation.')
+        help='Event objects of other events that are supposed to be estimated '
+             'jointly with the main event. '
+             'May have large temporal separation.')
     project_dir = String.T(default='event/')
 
     problem_config = ProblemConfig.T(default=ProblemConfig.D())
@@ -1681,9 +1696,8 @@ class BEATconfig(Object, Cloneable):
         default=None, optional=True)
     seismic_config = SeismicConfig.T(
         default=None, optional=True)
-    ##Mahdi
-    polarity_config = PolarityConfig.T(default=None, optional=True)
-    ##
+    polarity_config = PolarityConfig.T(
+        default=None, optional=True)
     sampler_config = SamplerConfig.T(default=SamplerConfig.D())
     hyper_sampler_config = SamplerConfig.T(
         default=SamplerConfig.D(),
@@ -1863,6 +1877,28 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
     :class:`BEATconfig`
     """
 
+    def init_dataset_config(config, datatype):
+
+        dconfig = datatype_catalog[datatype]()
+
+        if hasattr(dconfig.gf_config, 'reference_location'):
+            if not individual_gfs:
+                dconfig.gf_config.reference_location = \
+                    ReferenceLocation(lat=10.0, lon=10.0)
+            else:
+                dconfig.gf_config.reference_location = None
+
+        if use_custom:
+            logger.info('use_custom flag set! The velocity model in the'
+                        ' %s GF configuration has to be updated!' % datatype)
+            dconfig.gf_config.custom_velocity_model = \
+                load_model().extract(depth_max=100. * km)
+            dconfig.gf_config.use_crust2 = False
+            dconfig.gf_config.replace_water = False
+
+        config['%s_config' % datatype] = dconfig
+        return config
+
     c = BEATconfig(name=name, date=date)
     c.project_dir = os.path.join(os.path.abspath(main_path), name)
 
@@ -1885,42 +1921,9 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
             c.event = model.Event(duration=1.)
             c.date = 'dummy'
 
-        if 'geodetic' in datatypes:
-            c.geodetic_config = GeodeticConfig()
-            if use_custom:
-                logger.info('use_custom flag set! The velocity model in the'
-                            ' geodetic GF configuration has to be updated!')
-                c.geodetic_config.gf_config.custom_velocity_model = \
-                    load_model().extract(depth_max=100. * km)
-                c.geodetic_config.gf_config.use_crust2 = False
-                c.geodetic_config.gf_config.replace_water = False
-        else:
-            c.geodetic_config = None
+        for datatype in datatypes:
+            init_dataset_config(c, datatype=datatype)
 
-        if 'seismic' in datatypes:
-            c.seismic_config = SeismicConfig(wavenames=waveforms)
-
-            if not individual_gfs:
-                c.seismic_config.gf_config.reference_location = \
-                    ReferenceLocation(lat=10.0, lon=10.0)
-            else:
-                c.seismic_config.gf_config.reference_location = None
-
-            if use_custom:
-                logger.info('use_custom flag set! The velocity model in the'
-                            ' seismic GF configuration has to be updated!')
-                c.seismic_config.gf_config.custom_velocity_model = \
-                    load_model().extract(depth_max=100. * km)
-                c.seismic_config.gf_config.use_crust2 = False
-                c.seismic_config.gf_config.replace_water = False
-        else:
-            c.seismic_config = None
-        ##Mahdi
-        if 'polarity' in datatypes:
-            c.polarity_config = PolarityConfig()
-        else:
-            c.polarity_config = None
-        ##
     elif mode == ffi_mode_str:
 
         if source_type != 'RectangularSource':

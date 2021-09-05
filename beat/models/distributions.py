@@ -137,16 +137,38 @@ def multivariate_normal_chol(
 
     return logpts
 
-##Mahdi
-def cumulative_normal(x, s=num.sqrt(2)):
-    # Cumulative distribution function for the standard normal distribution
-    return 0.5 + 0.5 * tt.erf(x/s)
 
-def polarity_llk(observed_polarities, pred_amplitudes, gamma, sigma):
-    tmp = gamma + (1-2*gamma)*cumulative_normal(pred_amplitudes/sigma)
-    llks = tt.add(tt.mul(tt.log(tmp),tt.true_div(tt.add(1,observed_polarities),2)), tt.mul(tt.log(tt.sub(1,tmp)),tt.true_div(tt.sub(1,observed_polarities),2)))
+def cumulative_normal(x, s=num.sqrt(2)):
+    """
+    Cumulative distribution function for the standard normal distribution
+    """
+    return 0.5 + 0.5 * tt.erf(x / s)
+
+
+def polarity_llk(obs_polarities, syn_amplitudes, gamma, sigma):
+    """
+    Polarity likelihood based on cumulative normal distribution
+
+    Parameters
+    ----------
+    obs_polarities : float or array_like
+        observed polarities of first motions of seismic phase
+    syn_amplitudes : float or array_like
+        synthetic amplitudes of seismic phase
+    gamma : probability of correctness of polarity reading, data-error
+    sigma : modelling error (mostly 1-d velocity model) of amplitudes
+
+    Notes
+    -----
+    Weber, Z., 2018, Probabilistic joint inversion of waveforms and polarity
+        data for double-couple focal mechanisms of local earthquakes,
+        GJI, eq. 6, 7
+    """
+    p_i = gamma + (1 - 2. * gamma) * cumulative_normal(syn_amplitudes / sigma)
+    llks = ((1. + obs_polarities) / 2.) * tt.log(p_i) + \
+           ((1. - obs_polarities) / 2.) * tt.log(1. - p_i)
     return llks.sum()
-###
+
 
 def hyper_normal(datasets, hyperparams, llks, hp_specific=False):
     """

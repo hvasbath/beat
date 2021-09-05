@@ -949,7 +949,7 @@ class SeismicPolarityComposite(Composite):
         self.synthesizers = {}
         self.sources = sources
         self.config = polc
-        self.gamma = 0.01                       # whats that?
+        self.gamma = shared(0.01, name='gamma', borrow=True)
         self.targets = []
 
         # TODO think about dataset class, rather PolMaps?
