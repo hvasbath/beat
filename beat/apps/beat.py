@@ -503,7 +503,7 @@ def command_import(args):
                 model=problem.model, stage_number=-1,
                 load='trace', chains=[-1])
 
-            point = plotting.get_result_point(stage, problem.config, 'max')
+            point = plotting.get_result_point(stage.mtrace, 'max')
             summarydf = read_csv(
                 pjoin(problem.outfolder, 'summary.txt'), sep='\s+')
 
@@ -2039,7 +2039,7 @@ def command_export(args):
             load='trace', chains=[-1])
 
         res_point = plotting.get_result_point(
-            stage, problem.config, point_llk=options.post_llk)
+            stage.mtrace, point_llk=options.post_llk)
         point.update(res_point)
 
         if options.stage_number == -1:
