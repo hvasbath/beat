@@ -501,6 +501,8 @@ def results_for_export(results, datatype=None, attributes=None):
 
 
 sqrt2 = num.sqrt(2.)
+1_sqrt2 = 1. / sqrt2
+
 
 physical_bounds = dict(
     east_shift=(-500., 500.),
@@ -3362,12 +3364,85 @@ def seis_synthetics(
         raise TypeError('Outmode %s not supported!' % outmode)
 
 
-def gamma(takeoff_angles, azimuths):
+def radiation_weights_p(takeoff_angles, azimuths):
+    """
+    Station dependend propagation coefficients for P waves
+
+    Notes
+    -----
+    Pugh et al., A Bayesian method for microseismic source inversion, 2016, GJI
+    Appendix A
+    """
+
     st = num.sin(takeoff_angles)
+    stp2 = st ** 2
+    st2 = num.sin(2 * takeoff_angles)
     ct = num.cos(takeoff_angles)
+
     ca = num.cos(azimuths)
     sa = num.sin(azimuths)
-    return num.array([st*ca, st*sa, ct])
+    sa2 = num.sin(2 * azimuths)
+
+    return num.array(
+        [stp2 * ca ** 2,
+         stp2 * sa ** 2,
+         ct ** 2,
+         1_sqrt * st2 * sa,
+         1_sqrt * st2 * ca,
+         1_sqrt * stp2 * sa2])
+
+
+def radiation_weights_sv(takeoff_angles, azimuths):
+    """
+    Station dependend propagation coefficients for SV waves
+
+    Notes
+    -----
+    Pugh et al., A Bayesian method for microseismic source inversion, 2016, GJI
+    Appendix A
+    """
+
+    st2 = num.sin(2 * takeoff_angles)
+    ct2 = num.cos(2 * takeoff_angles)
+
+    ca = num.cos(azimuths)
+    sa = num.sin(azimuths)
+
+    return num.array(
+        [0.5 * st2 * ca ** 2,
+         0.5 * st2 * sa ** 2,
+         -0.5 * st2,
+         1_sqrt * ct2 * sa,
+         1_sqrt * ct2 * ca,
+         1_sqrt * st2 * ca * sa])
+
+
+def radiation_weights_sh(takeoff_angles, azimuths):
+    """
+    Station dependend propagation coefficients for SV waves
+
+    Notes
+    -----
+    Pugh et al., A Bayesian method for microseismic source inversion, 2016, GJI
+    Appendix A
+    """
+
+    st = num.sin(takeoff_angles)
+    ct = num.cos(takeoff_angles)
+
+    ca = num.cos(azimuths)
+    ca2 = num.cos(2 * azimuths)
+    sa = num.sin(azimuths)
+    sa2 = num.sin(2 * azimuths)
+
+    a1 = 0.5 * st * sa2
+    return num.array(
+        [-a1,
+         a1,
+         0,
+         1_sqrt * ct * ca,
+         -1_sqrt * ct * sa,
+         1_sqrt * st * ca2])
 
 
 def pol_synthetics(source, polmap):

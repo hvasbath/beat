@@ -714,38 +714,95 @@ class PolarityGFConfig(NonlinearGFConfig):
         optional=True)
     sample_rate = Float.T(
         default=1.,
+        optional=True,
         help='Sample rate for the polarity Greens Functions.')
 
 
-class PolarityConfig(Object):
-    # cleanup
-    # TODO polarity Map - attribute waveforms? --> PolarityFitConfig
-    event_idx = Int.T(
-        default=0,
+class PolarityFitConfig(Object):
+
+    name = String.T(
+        default='any_P',
         optional=True,
-        help='Index to event from events list for reference time and data '
-             'extraction. Default is 0 - always use the reference event.')
+        help='Seismic phase name for picked polarities')
+    include = Bool.T(
+        default=True,
+        help='Whether to include this FitConfig to the estimation.')
     binary_input = Bool.T(
         default=False,
         optional=True,
-        help="If data are included in seismic_data.pkl")
+        help='If data are included in seismic_data.pkl')
     stations_polarities = List.T(
         List.T(String.T(), Int.T()),
         default=['GE.ABCK', 1],
         help='Manual interface to enter polarity data to config as list '
              'of entries. Entry format: '
              '"Network.Station.Location.Channel", 1 / -1')
-    # TODO: related to seismic phase name?
-    name = String.T(
-        default='pwfarrival',
-        optional=True,
-        help="If not given, velocity model from Green's function will be extract")
-    # TODO: needed?
+    # TODO: needed? dont think so!
     channels = List.T(
         default=['Z'],
         optional=True,
-        help="If not given, velocity model from Green's function will be extract")
+        help='Channels on which polarities have been picked.')
+    event_idx = Int.T(
+        default=0,
+        optional=True,
+        help='Index to event from events list for reference time and data '
+             'extraction. Default is 0 - always use the reference event.')
+
+
+class PolarityConfig(Object):
+    # cleanup
+    # TODO polarity Map - attribute waveforms? --> PolarityFitConfig
+    datadir = String.T(
+        default='./')
+    waveforms = List.T(
+        PolarityFitConfig.T(default=PolarityFitConfig.D()),
+        help='Polarity mapping for potentially fitting several phases.')
     gf_config = GFConfig.T(default=PolarityGFConfig.D())
+
+    def __init__(self, **kwargs):
+
+        waveforms = 'waveforms'
+        wavenames = kwargs.pop('wavenames', ['any_P'])
+        wavemaps = []
+        if waveforms not in kwargs:
+            for wavename in wavenames:
+                wavemaps.append(PolarityFitConfig(name=wavename))
+
+            kwargs[waveforms] = wavemaps
+
+        mode = kwargs.pop('mode', geometry_mode_str)
+
+        if mode == geometry_mode_str:
+            gf_config = PolarityGFConfig()
+        else:
+            raise NotImplementedError(
+                'Polarity composite is only implemented for "geometry" mode!')
+
+        if 'gf_config' not in kwargs:
+            kwargs['gf_config'] = gf_config
+
+        Object.__init__(self, **kwargs)
+
+    def get_waveform_names(self):
+        return [pc.name for pc in self.waveforms]
+
+    def get_unique_channels(self):
+        cl = [pc.channels for pc in self.waveforms]
+        uc = []
+        for c in cl:
+            uc.extend(c)
+        return list(set(uc))
+
+    def get_hypernames(self):
+        # TODO update according to wavenameconvention
+        hids = []
+        for i, wc in enumerate(self.waveforms):
+            if wc.include:
+                for c in wc.channels:
+                    hypername = '_'.join(('h', wc.name, str(i), c))
+                    hids.append(hypername)
+
+        return hids
 
     def get_hypernames(self):
         hids = []
@@ -754,6 +811,14 @@ class PolarityConfig(Object):
         hids.append(hypername)
         return hids
 
+    def init_waveforms(self, wavenames=['any_P']):
+        """
+        Initialise waveform configurations.
+        """
+        for wavename in wavenames:
+            self.waveforms.append(PolarityFitConfig(name=wavename))
+
+    # TODO cleanup
     def refining_stations(self, stations):
         station_names = self.get_station_names()
         return [station for station in stations
