@@ -1,5 +1,5 @@
 import unittest
-from beat import heart, models
+from beat import models
 import theano.tensor as tt
 from theano import function, shared
 from copy import deepcopy

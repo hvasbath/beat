@@ -501,7 +501,6 @@ def results_for_export(results, datatype=None, attributes=None):
 
 
 sqrt2 = num.sqrt(2.)
-1_sqrt2 = 1. / sqrt2
 
 
 physical_bounds = dict(
@@ -2470,10 +2469,10 @@ class PolarityMapping(object):
         for target in self.targets:
             target.update_target(engine, source)
 
-    def get_takeoff_angles(self):
+    def get_takeoff_angles_rad(self):
         return num.array([target.takeoff_angle_rad for target in self.targets])
 
-    def get_azimuths(self):
+    def get_azimuths_rad(self):
         return num.array([target.azimuth_rad for target in self.targets])
 
 
@@ -3361,7 +3360,7 @@ def seis_synthetics(
         return outstack, tmins
 
     else:
-        raise TypeError('Outmode %s not supported!' % outmode)
+       raise TypeError('Outmode %s not supported!' % outmode)
 
 
 def radiation_weights_p(takeoff_angles, azimuths):
@@ -3375,21 +3374,21 @@ def radiation_weights_p(takeoff_angles, azimuths):
     """
 
     st = num.sin(takeoff_angles)
-    stp2 = st ** 2
-    st2 = num.sin(2 * takeoff_angles)
     ct = num.cos(takeoff_angles)
+    stp2 = st ** 2
+    st2 = 2 * st * ct                  # num.sin(2 * takeoff_angles)
 
     ca = num.cos(azimuths)
     sa = num.sin(azimuths)
-    sa2 = num.sin(2 * azimuths)
+    sa2 = 2 * ca * sa       # num.sin(2 * azimuths)
 
-    return num.array(
-        [stp2 * ca ** 2,
-         stp2 * sa ** 2,
-         ct ** 2,
-         1_sqrt * st2 * sa,
-         1_sqrt * st2 * ca,
-         1_sqrt * stp2 * sa2])
+    return num.array([
+        stp2 * ca ** 2,
+        stp2 * sa ** 2,
+        ct ** 2,
+        stp2 * sa2,
+        st2 * ca,
+        st2 * sa])
 
 
 def radiation_weights_sv(takeoff_angles, azimuths):
@@ -3402,19 +3401,21 @@ def radiation_weights_sv(takeoff_angles, azimuths):
     Appendix A
     """
 
-    st2 = num.sin(2 * takeoff_angles)
+    st = num.sin(takeoff_angles)
+    ct = num.cos(takeoff_angles)
+    sct = st * ct
+
     ct2 = num.cos(2 * takeoff_angles)
 
     ca = num.cos(azimuths)
     sa = num.sin(azimuths)
-
-    return num.array(
-        [0.5 * st2 * ca ** 2,
-         0.5 * st2 * sa ** 2,
-         -0.5 * st2,
-         1_sqrt * ct2 * sa,
-         1_sqrt * ct2 * ca,
-         1_sqrt * st2 * ca * sa])
+    return num.array([
+        sct * ca ** 2,
+        sct * sa ** 2,
+        -sct,
+        2 * sct * sa * ca,
+        ct2 * ca,
+        ct2 * sa])
 
 
 def radiation_weights_sh(takeoff_angles, azimuths):
@@ -3431,30 +3432,123 @@ def radiation_weights_sh(takeoff_angles, azimuths):
     ct = num.cos(takeoff_angles)
 
     ca = num.cos(azimuths)
-    ca2 = num.cos(2 * azimuths)
     sa = num.sin(azimuths)
-    sa2 = num.sin(2 * azimuths)
 
-    a1 = 0.5 * st * sa2
-    return num.array(
-        [-a1,
-         a1,
-         0,
-         1_sqrt * ct * ca,
-         -1_sqrt * ct * sa,
-         1_sqrt * st * ca2])
+    ca2 = num.cos(2 * azimuths)
+    sca = sa * ca
+
+    a1 = st * sca
+    return num.array([
+        -a1,
+        a1,
+        num.zeros_like(st),
+        st * ca2,
+        -ct * sa,
+        ct * ca])
+
+
+def radiation_gamma(takeoff_angles_rad, azimuths_rad):
+    """
+    Radiation weights for seismic P- phase
+
+    Returns
+    -------
+    array-like 3 x n_stations
+    """
+    st = num.sin(takeoff_angles_rad)
+    ct = num.cos(takeoff_angles_rad)
+    ca = num.cos(azimuths_rad)
+    sa = num.sin(azimuths_rad)
+    return num.array([st * ca, st * sa, ct])
+
+
+def radiation_theta(takeoff_angles_rad, azimuths_rad):
+    """
+    Radiation weights for seismic Sv- phase
+
+    Returns
+    -------
+    array-like 3 x n_stations
+    """
+    st = num.sin(takeoff_angles_rad)
+    ct = num.cos(takeoff_angles_rad)
+    sa = num.sin(azimuths_rad)
+    ca = num.cos(azimuths_rad)
+    return num.array([ct * ca, ct * sa, -st])
+
+
+def radiation_phi(azimuths_rad):
+    """
+    Radiation weights for seismic Sh- phase
+
+    Returns
+    -------
+    array-like 3 x n_stations x 3
+    """
+    ca = num.cos(azimuths_rad)
+    sa = num.sin(azimuths_rad)
+    return num.array([-sa, ca, num.zeros_like(ca)])
+
+
+def radiation_matmul(m9, takeoff_angles_rad, azimuths_rad, wavename):
+    """
+    Get wave radiation pattern for given waveform, using matrix multiplication.
+
+    Parameters
+    ----------
+
+    Notes
+    -----
+    Pugh et al., A Bayesian method for microseismic source inversion, 2016, GJI
+    Appendix A
+    """
+    gamma = radiation_gamma(takeoff_angles_rad, azimuths_rad)
+
+    if wavename == 'any_P':
+        return num.diag(gamma.T.dot(m9).dot(gamma))
+    elif wavename == 'any_SV':
+        theta = radiation_theta(takeoff_angles_rad, azimuths_rad)
+        return num.diag(theta.T.dot(m9).dot(gamma))
+    elif wavename == 'any_SH':
+        phi = radiation_phi(azimuths_rad)
+        return num.diag(phi.T.dot(m9).dot(gamma))
+
+
+radiation_function_mapping = {
+    'any_P': radiation_weights_p,
+    'any_SH': radiation_weights_sh,
+    'any_SV': radiation_weights_sv}
+
+
+def radiation(m6, takeoff_angles_rad, azimuths_rad, wavename):
+    """
+    Get wave radiation pattern for given waveform using station propagation
+    coefficients. Numerically more efficient.
+
+    Parameters
+    ----------
+
+    Notes
+    -----
+    Pugh et al., A Bayesian method for microseismic source inversion, 2016, GJI
+    Appendix A
+    """
+
+    rad_weights = radiation_function_mapping[wavename](
+        takeoff_angles_rad, azimuths_rad)
+    return rad_weights.T.dot(m6)
 
 
 def pol_synthetics(source, polmap):
-    takeoff_angles = polmap.get_takeoff_angles()
-    azimuths_rad = polmap.get_azimuths()
-    gamma_co = gamma(takeoff_angles, azimuths_rad)
+    takeoff_angles_rad = polmap.get_takeoff_angles_rad()
+    azimuths_rad = polmap.get_azimuths_rad()
+
     moment_tensor = source.pyrocko_moment_tensor()
     m9 = moment_tensor.m()
     m0_unscaled = num.sqrt(num.sum(m9.A ** 2)) / num.sqrt(2.)
     m9 /= m0_unscaled
-    amps = num.array([num.diag(gamma_co.T.dot(m9).dot(gamma_co))]).T
-    return amps
+    return radiation(
+        m6, takeoff_angles_rad, azimuths_rad, wavename=polmap.name)
 
 
 def geo_synthetics(

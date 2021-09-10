@@ -2324,6 +2324,39 @@ def extract_polarity_data(problem, po):
     return observed_polaritydatasets
 ##
 
+def draw_ray_piercing_points_bb(
+        ax, takeoff_angles_rad, azimuths_rad, polarities,
+        size=1, position=(0, 0), transform=None):
+
+    #for toa, azi in zip(takeoff_angles_rad, azimuths_rad):
+    #    # why is that needed?
+    #    if toa >= num.pi/2:
+    #        takeoffangles.append(num.pi-toa)
+    #        azi += num.pi
+    #    else:
+    #        takeoffangles.append(toa)
+    #
+    #    azimuths.append(azi)
+
+    toa_idx = takeoff_angles_rad >= (num.pi / 2.)
+    takeoff_angles_rad[toa_idx] = num.pi - takeoff_angles_rad[toa_idx]
+    azimuths_rad[toa_idx] += num.pi
+
+    # use project instead?
+    r = size * num.sqrt(2) * num.sin(0.5 * takeoff_angles_rad)
+    x = r * num.sin(azimuths_rad) + position[1]
+    y = r * num.cos(azimuths_rad) + position[0]
+
+    xp, yp = x[polarities >= 0], y[polarities >= 0]
+    xt, yt = x[polarities < 0], y[polarities < 0]
+    ax.plot(
+        xp, yp, 'o',
+        ms=5, mew=1.0, mec='blue', mfc='white', transform=transform)
+    ax.plot(
+        xt, yt, 'o',
+        ms=5, mew=1.0, mec='blue', mfc='black', transform=transform)
+
+
 def draw_fuzzy_beachball(problem, po):
 
     if problem.config.problem_config.n_sources > 1:
@@ -2357,7 +2390,8 @@ def draw_fuzzy_beachball(problem, po):
             po.load_stage, llk_str, po.nensemble, po.outformat))
 
     if not os.path.exists(outpath) or po.force or po.outformat == 'display':
-        transform, position, size = beachball.choose_transform(axes, kwargs['size_units'], kwargs['position'], kwargs['size'])
+        transform, position, size = beachball.choose_transform(
+            axes, kwargs['size_units'], kwargs['position'], kwargs['size'])
         beachball.plot_fuzzy_beachball_mpl_pixmap(
             m6s, axes, best_mt=best_mt, best_color='red', **kwargs)
         ##Mahdi
