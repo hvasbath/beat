@@ -25,6 +25,7 @@ from pyrocko import crust2x2, gf, cake, orthodrome, trace, util
 from pyrocko.cake import GradientLayer
 from pyrocko.fomosto import qseis, qssp
 from pyrocko.model import gnss
+from pyrocko.moment_tensor import to6
 
 # from pyrocko.fomosto import qseis2d
 
@@ -745,7 +746,7 @@ class PolarityTarget(gf.meta.Receiver):
              'upward ray when > 90.')
     phase_id = String.T(
         default='any_P', optional=True,
-        help='First arrival of which seismic wave')
+        help='First arrival of seismic phase')
 
     def update_target(self, engine, source):
 
@@ -765,7 +766,7 @@ class PolarityTarget(gf.meta.Receiver):
                 ' falling back to cake...')
             mod = store.config.earthmodel_1d
             rays = mod.arrivals(
-                phases=self.phase.phases,
+                phases=self.phase_id,
                 distances=[self.distance_deg],
                 zstart=source.depth,
                 zstop=self.depth)
@@ -2427,8 +2428,6 @@ class PolarityMapping(object):
                     gfc.reference_location.station) for station in stations]
 
         arrivals = config.get_arrival_names()
-        definition = 'p,P,p\\,P\\'
-        phases = gf.TPDef(id=arrivals, definition=definition)
 
         em_name = get_earth_model_prefix(gfc.earth_model_name)
 
@@ -2448,7 +2447,7 @@ class PolarityMapping(object):
                         azimuth_rad=station.azimuth * d2r,
                         distance_deg=station.dist_deg,
                         elevation=float(station.elevation),
-                        phase=phases, store_id=store_id))
+                        phase_id=config.name, store_id=store_id))
 
         # TODO: data format
         # Need to sort amplitudes based on the targets'
@@ -2457,6 +2456,8 @@ class PolarityMapping(object):
         self.dataset = num.array(
             [station_polarities[station_names == target.codes[1]]
                 for target in self.targets])
+
+        self._radiation_weights = None
 
     def get_station_names(self):
         return [target.codes[1] for target in self.targets]
@@ -2474,6 +2475,15 @@ class PolarityMapping(object):
 
     def get_azimuths_rad(self):
         return num.array([target.azimuth_rad for target in self.targets])
+
+    def update_radiation_weights(self):
+        self._radiation_weights = radiation_weights(
+            self.get_takeoff_angles_rad(), self.get_azimuths_rad(), self.name)
+
+    def get_radiation_weights(self):
+        if self._radiation_weights is None:
+            self.update_radiation_weights()
+        return self._radiation_weights
 
 
 def get_phase_taperer(
@@ -3520,7 +3530,7 @@ radiation_function_mapping = {
     'any_SV': radiation_weights_sv}
 
 
-def radiation(m6, takeoff_angles_rad, azimuths_rad, wavename):
+def radiation_weights(takeoff_angles_rad, azimuths_rad, wavename):
     """
     Get wave radiation pattern for given waveform using station propagation
     coefficients. Numerically more efficient.
@@ -3536,19 +3546,25 @@ def radiation(m6, takeoff_angles_rad, azimuths_rad, wavename):
 
     rad_weights = radiation_function_mapping[wavename](
         takeoff_angles_rad, azimuths_rad)
-    return rad_weights.T.dot(m6)
+    return rad_weights
 
 
-def pol_synthetics(source, polmap):
-    takeoff_angles_rad = polmap.get_takeoff_angles_rad()
-    azimuths_rad = polmap.get_azimuths_rad()
+def pol_synthetics(
+        source, radiation_weights=None,
+        takeoff_angles_rad=None, azimuths_rad=None, wavename='any_P'):
+
+    if radiation_weights is None:
+        if takeoff_angles_rad is None or azimuths_rad is None:
+            raise ValueError('Need to either provide radiation weights or ')
+        else:
+            radiation_weights = radiation_weights(
+                takeoff_angles_rad, azimuths_rad, wavename=wavename)
 
     moment_tensor = source.pyrocko_moment_tensor()
     m9 = moment_tensor.m()
-    m0_unscaled = num.sqrt(num.sum(m9.A ** 2)) / num.sqrt(2.)
+    m0_unscaled = num.sqrt(num.sum(m9.A ** 2)) / sqrt2
     m9 /= m0_unscaled
-    return radiation(
-        m6, takeoff_angles_rad, azimuths_rad, wavename=polmap.name)
+    return radiation_weights.T.dot(to6(m9))
 
 
 def geo_synthetics(
