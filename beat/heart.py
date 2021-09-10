@@ -22,6 +22,7 @@ from pyrocko.guts import (Dict, Object, String, StringChoice,
 from pyrocko.guts_array import Array
 
 from pyrocko import crust2x2, gf, cake, orthodrome, trace, util
+from pyrocko.dataset import ep_crust
 from pyrocko.cake import GradientLayer
 from pyrocko.fomosto import qseis, qssp
 from pyrocko.model import gnss
@@ -1606,6 +1607,50 @@ def get_velocity_model(
 
         source_model = cake.load_model(
             earth_model_name, crust2_profile=profile)
+            
+#######################################################################################
+    elif gfc.use_epcrust:
+        logger.info('Using EPcrust profile')
+        # load velocity profile from EPcrust0.5x0.5 and check for water
+        if gfc.epcrust_radius != 0:
+            profile = ep_crust.avg_profile(location.lat, location.lon, gfc.epcrust_radius)
+            logger.info('Average EPcrust profile in radius of %.f km around the coordinates: %.2f, %.2f' % (gfc.epcrust_radius, profile._lat, profile._lon))
+        else:
+            profile = ep_crust.get_profile(location.lat, location.lon)
+            logger.info('EPcrust profile on the coordinates: %.2f, %.2f' % (profile._lat, profile._lon))
+        if gfc.replace_water:
+            logger.debug('Replacing water layers! ...')
+            thickness_lwater = profile.get_layer(ep_crust.LWATER)[0]
+        
+            if thickness_lwater > 0.0:
+                logger.info(
+                    'Water layer %f in EPcrust model!'
+                    ' Remove and add to lower crust' % thickness_lwater)
+                thickness_llowercrust = profile.get_layer(
+                    ep_crust.LLOWERCRUST)[0]
+                thickness_lsed = profile.get_layer(
+                    ep_crust.LSED)[0]
+
+                profile.set_layer_thickness(ep_crust.LWATER, 0.0)
+                profile.set_layer_thickness(
+                    ep_crust.LSED,
+                    num.ceil(thickness_lsed / 3))
+                profile.set_layer_thickness(
+                    ep_crust.LLOWERCRUST,
+                    thickness_llowercrust +
+                    thickness_lwater +
+                    (thickness_lsed - num.ceil(thickness_lsed / 3)))
+
+                profile._elevation = 0.0
+                logger.info('New Lower crust layer thickness %f' %
+                            profile.get_layer(ep_crust.LLOWERCRUST)[0])
+        else:
+            logger.debug('Not replacing water layers')
+
+        source_model = cake.load_model(
+            earth_model_name, epcrust_profile=profile)
+########################################################################################
+
 
     else:
         logger.info('Using global model ...')
@@ -1713,16 +1758,16 @@ def get_fomosto_baseconfig(
             id='any_P',
             definition=definition))
 
-    if 'any_S' in waveforms:
+    if 'any_S' in waveforms: # always add any_S to have automatic adjustment of GF window
         tabulated_phases.append(gf.TPDef(
             id='any_S',
             definition='s,S,s\\,S\\'))
 
     # surface waves
-    if 'slowest' in waveforms:
-        tabulated_phases.append(gf.TPDef(
-            id='slowest',
-            definition='0.8'))
+    #if 'slowest' in waveforms:
+    tabulated_phases.append(gf.TPDef(
+        id='slowest',
+        definition='0.8'))
 
     return gf.ConfigTypeA(
         id='%s_%s_%.3fHz_%s' % (
@@ -1840,20 +1885,38 @@ def choose_backend(
 
     pids = ['stored:' + wave for wave in waveforms]
 
+#################################################################################
+    pids1 = pids[:-1]
+    pids2 = [pids[-1]] #slowest
+    '''
     conf.time_region = (
         gf.Timing(
             phase_defs=pids, offset=(-1.1 * window_extension), select='first'),
         gf.Timing(
             phase_defs=pids, offset=(1.6 * window_extension), select='last'))
-
+    '''
+    #MG
+    conf.time_region = (
+        gf.Timing(
+             phase_defs=pids1, offset=(-1.2 * window_extension), select='first'),
+        gf.Timing(
+             phase_defs=pids2, offset=(2 * window_extension), select='last'))
+    '''
     conf.cut = (
         gf.Timing(
             phase_defs=pids, offset=-window_extension, select='first'),
         gf.Timing(
             phase_defs=pids, offset=(1.5 * window_extension), select='last'))
+    ''' 
+    #MG  
+    conf.cut = (
+        gf.Timing(
+            phase_defs=pids1, offset=-window_extension, select='first'),
+        gf.Timing(
+            phase_defs=pids2, offset=(1.5 * window_extension), select='last'))
 
     conf.relevel_with_fade_in = True
-
+    '''
     conf.fade = (
         gf.Timing(
             phase_defs=pids, offset=-window_extension, select='first'),
@@ -1863,7 +1926,20 @@ def choose_backend(
             phase_defs=pids, offset=(window_extension), select='last'),
         gf.Timing(
             phase_defs=pids, offset=(1.6 * window_extension), select='last'))
+    '''
+    #MG
+    conf.fade = (
+        gf.Timing(
+            phase_defs=pids1, offset=-window_extension, select='first'),
+        gf.Timing(
+            phase_defs=pids2, offset=(-0.1) * window_extension, select='first'),
+        gf.Timing(
+            phase_defs=pids1, offset=(window_extension), select='last'),
+        gf.Timing(
+            phase_defs=pids2, offset=(2 * window_extension), select='last'))
 
+
+###################################################################################
     return conf
 
 
