@@ -1932,9 +1932,9 @@ def choose_backend(
         gf.Timing(
             phase_defs=pids1, offset=-window_extension, select='first'),
         gf.Timing(
-            phase_defs=pids2, offset=(-0.1) * window_extension, select='first'),
+            phase_defs=pids1, offset=(-0.1) * window_extension, select='first'),
         gf.Timing(
-            phase_defs=pids1, offset=(window_extension), select='last'),
+            phase_defs=pids2, offset=(window_extension), select='last'),
         gf.Timing(
             phase_defs=pids2, offset=(2 * window_extension), select='last'))
 
