@@ -2427,8 +2427,6 @@ class PolarityMapping(object):
                 copy.deepcopy(
                     gfc.reference_location.station) for station in stations]
 
-        arrivals = config.get_arrival_names()
-
         em_name = get_earth_model_prefix(gfc.earth_model_name)
 
         for i, station in enumerate(stations):
@@ -2450,8 +2448,6 @@ class PolarityMapping(object):
                         phase_id=config.name, store_id=store_id))
 
         # TODO: data format
-        # Need to sort amplitudes based on the targets'
-        # order BUT NO NEED TO HAVE A BLACKLIST STATIONS
         station_polarities = config.get_station_polarities()
         self.dataset = num.array(
             [station_polarities[station_names == target.codes[1]]
@@ -3550,9 +3546,12 @@ def radiation_weights(takeoff_angles_rad, azimuths_rad, wavename):
 
 
 def pol_synthetics(
-        source, radiation_weights=None,
-        takeoff_angles_rad=None, azimuths_rad=None, wavename='any_P'):
-
+        source, takeoff_angles_rad=None, azimuths_rad=None, wavename='any_P',
+        radiation_weights=None):
+    """
+    Calculate synthetic radiation pattern for given source and waveform at
+    receivers defined through azimuths and takeoff-angles.
+    """
     if radiation_weights is None:
         if takeoff_angles_rad is None or azimuths_rad is None:
             raise ValueError('Need to either provide radiation weights or ')

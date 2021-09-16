@@ -750,7 +750,7 @@ class PolarityFitConfig(Object):
 
 
 class PolarityConfig(Object):
-    # cleanup
+
     # TODO polarity Map - attribute waveforms? --> PolarityFitConfig
     datadir = String.T(
         default='./')
@@ -794,21 +794,12 @@ class PolarityConfig(Object):
         return list(set(uc))
 
     def get_hypernames(self):
-        # TODO update according to wavenameconvention
         hids = []
-        for i, wc in enumerate(self.waveforms):
-            if wc.include:
-                for c in wc.channels:
-                    hypername = '_'.join(('h', wc.name, str(i), c))
-                    hids.append(hypername)
+        for i, pmap_config in enumerate(self.waveforms):
+            if pmap_config.include:
+                hypername = '_'.join(('h', pmap_config.name, str(i)))
+                hids.append(hypername)
 
-        return hids
-
-    def get_hypernames(self):
-        hids = []
-        name = self.name.split("wfarrival")[0].upper()
-        hypername = '_'.join(('h_any', name, 'pol', 'Z'))
-        hids.append(hypername)
         return hids
 
     def init_waveforms(self, wavenames=['any_P']):
@@ -817,25 +808,6 @@ class PolarityConfig(Object):
         """
         for wavename in wavenames:
             self.waveforms.append(PolarityFitConfig(name=wavename))
-
-    # TODO cleanup
-    def refining_stations(self, stations):
-        station_names = self.get_station_names()
-        return [station for station in stations
-                if station.station in station_names]
-
-    # TODO clarify dataset format
-    def get_station_names(self):
-        return [st_pol[0].split('.')[1]
-                for st_pol in self.stations_polarities]
-
-    def get_station_polarities(self):
-        return num.array(
-            [float(st_pol[1].split()[1])
-             for st_pol in self.stations_polarities])
-
-    def get_arrival_names(self):
-        return arrival_catalog[self.name.split("wfarrival")[0].lower()][0]
 
 
 class CorrectionConfig(Object):

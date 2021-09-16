@@ -414,12 +414,13 @@ class SeisSynthesizer(theano.Op):
 
 class PolSynthesizer(theano.Op):
 
-    __props__ = ('engine', 'sources', 'poldatasets')
+    __props__ = ('engine', 'source', 'pmap', 'is_location_fixed')
 
-    def __init__(self, engine, source, pmap):
+    def __init__(self, engine, source, pmap, is_location_fixed):
         self.engine = engine
         self.source = source
         self.pmap = pmap
+        self.is_location_fixed = is_location_fixed
 
     def __getstate__(self):
         self.engine.close_cashed_stores()
@@ -447,9 +448,13 @@ class PolSynthesizer(theano.Op):
         utility.update_source(
             self.source, **source_points[self.pmap.config.event_idx])
 
-        self.pmap.update_targets(self.engine, self.source)
+        if not self.is_location_fixed:
+            self.pmap.update_targets(self.engine, self.source)
+            self.pmap.update_radiation_weights()
 
-        synths[0] = heart.pol_synthetics(self.source, self.pmap)
+        synths[0] = heart.pol_synthetics(
+            self.source,
+            radiation_weights=self.pmap.get_radiation_weights())
 
     def infer_shape(self, node, input_shapes):
         return [(self.pmap.n_t, )]

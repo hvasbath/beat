@@ -950,10 +950,10 @@ class SeismicPolarityComposite(Composite):
         self.sources = sources
         self.config = polc
         self.gamma = shared(0.01, name='gamma', borrow=True)
-        self.targets = []
+        self.fixed_rvs = {}
 
         # TODO think about dataset class, rather PolMaps?
-        self.polmaps = [None] * self.nevents
+        self.pmaps = [None] * self.nevents
 
         self.engine = LocalEngine(
             store_superdirs=[polc.gf_config.store_superdir])
@@ -962,12 +962,23 @@ class SeismicPolarityComposite(Composite):
             # TODO: datainput ...
             seismic_data_path = os.path.join(
                 project_dir, bconfig.multi_event_seismic_data_name(i))
-            self.polmaps[i] = heart.PolarityMapping(
-                config=polc, data_path=seismic_data_path)
-            self.polmaps[i].update_targets(
-                self.engine, self.sources[i], self.events[i])
 
-        self.targets = self.polmap[0].get_targets()
+        for i, pmap_config in enumerate(self.config.waveforms):
+            pmap = heart.PolarityMapping(
+                config=pmap_config, data_path=seismic_data_path)
+            pmap.update_targets(
+                self.engine, self.sources[pmap.event_idx])
+            self.pmaps[i] = pmap
+
+    @property
+    def is_location_fixed(self):
+        """
+        Returns true if the source location random variables are fixed.
+        """
+        if 'north_shift' and 'east_shift' and 'depth' in self.fixed_rvs:
+            return True
+        else:
+            return False
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
 
@@ -975,18 +986,18 @@ class SeismicPolarityComposite(Composite):
         self.fixed_rvs = fixed_rvs
         self.input_rvs.update(fixed_rvs)
 
-        # hp = [hyperparams[hyper] for hyper in self.get_hypernames()][0]
         hp_names = self.get_hypernames()
 
         logpts = []
-        for i, polmap in enumerate(self.polmaps):
+        for i, pmap in enumerate(self.pmaps):
             self.synthesizers[i] = theanof.PolSynthesizer(
-                self.engine, self.sources[i], polmap)
+                self.engine, self.sources[pmap.event_idx],
+                pmap, self.is_location_fixed)
             llk = polarity_llk(
-                polmap.dataset,
+                pmap.dataset,
                 self.synthesizers[i](self.input_rvs),
                 self.gamma,
-                hyperparams[hp_names[i]])   # TODO ensure pmap consistent
+                hyperparams[hp_names[i]])
             logpts.append(llk)
 
         llks = Deterministic(self._like_name, tt.concatenate((logpts)))
@@ -1113,7 +1124,9 @@ class SeismicPolarityComposite(Composite):
         for polmap, source in zip(self.polmaps, self.sources):
 
             polmap.update_targets(self.engine, source)
-            synthetics = heart.pol_synthetics(source, polmap)
+            polmap.update_radiation_weights()
+            synthetics = heart.pol_synthetics(
+                source, radiation_weights=polmap.get_radiation_weights())
 
             if order == 'list':
                 synths.extend(synthetics)
