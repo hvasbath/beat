@@ -202,6 +202,7 @@ default_decimation_factors = {
 response_file_name = 'responses.pkl'
 geodetic_data_name = 'geodetic_data.pkl'
 seismic_data_name = 'seismic_data.pkl'
+stations_name = 'stations.txt'
 
 
 def multi_event_seismic_data_name(nevent=0):
@@ -209,6 +210,13 @@ def multi_event_seismic_data_name(nevent=0):
         return seismic_data_name
     else:
         return 'seismic_data_subevent_{}.pkl'.format(nevent)
+
+
+def multi_event_stations_name(nevent=0):
+    if nevent == 0:
+        return stations_name
+    else:
+        return 'stations_subevent_{}.txt'.format(nevent)
 
 
 linear_gf_dir_name = 'linear_gfs'
@@ -748,10 +756,18 @@ class PolarityFitConfig(Object):
         help='Index to event from events list for reference time and data '
              'extraction. Default is 0 - always use the reference event.')
 
+    def get_station_names(self):
+        return [station_name_pol[0]
+                for station_name_pol in self.stations_polarities]
+
+    def get_polarities(self):
+        return num.array(
+            [station_name_pol[1]
+             for station_name_pol in self.stations_polarities], dtype='int')
+
 
 class PolarityConfig(Object):
 
-    # TODO polarity Map - attribute waveforms? --> PolarityFitConfig
     datadir = String.T(
         default='./')
     waveforms = List.T(

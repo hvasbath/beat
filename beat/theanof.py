@@ -412,7 +412,7 @@ class SeisSynthesizer(theano.Op):
         return [(nrow, ncol), (nrow,)]
 
 
-class PolSynthesizer(theano.Op):
+class PolaritySynthesizer(theano.Op):
 
     __props__ = ('engine', 'source', 'pmap', 'is_location_fixed')
 

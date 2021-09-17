@@ -13,7 +13,7 @@ from theano import config as tconfig
 
 from beat.utility import list2string, transform_sources, weed_input_rvs
 from beat import sampler
-from beat.models import geodetic, seismic, laplacian
+from beat.models import geodetic, seismic, laplacian, polarity
 
 from beat import config as bconfig
 from beat.backend import ListArrayOrdering, ListToArrayBijection
@@ -49,7 +49,7 @@ class InconsistentNumberHyperparametersError(Exception):
 
 
 geometry_composite_catalog = {
-    'polarity': seismic.SeismicPolarityComposite,
+    'polarity': polarity.PolarityComposite,
     'seismic': seismic.SeismicGeometryComposite,
     'geodetic': geodetic.GeodeticGeometryComposite}
 

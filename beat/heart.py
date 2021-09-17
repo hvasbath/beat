@@ -723,7 +723,7 @@ class PolarityTarget(gf.meta.Receiver):
     A polarity computation request depending on receiver information.
     '''
     codes = Tuple.T(
-        4, String.T(), default=('', 'STA', ''),
+        3, String.T(), default=('NW', 'STA', 'L'),
         help='network, station and location code')
     elevation = Float.T(
         default=0.0,
@@ -2411,12 +2411,14 @@ def get_phase_arrival_time(engine, source, target, wavename=None, snap=True):
 
 class PolarityMapping(object):
 
-    def __init__(self, config, data_path):
+    def __init__(self, pmap_config, stations):
 
         self.targets = []
-        self.config = config
-        stations = utility.load_objects(data_path)[0]
-        station_names = config.get_station_names()
+        self.config = pmap_config
+        self.stations = []
+
+        # polarity data from config
+        station_names = self.config.get_station_names()
 
         gfc = self.config.gf_config
         if gfc.reference_location is None:
@@ -2428,9 +2430,10 @@ class PolarityMapping(object):
                     gfc.reference_location.station) for station in stations]
 
         em_name = get_earth_model_prefix(gfc.earth_model_name)
-
-        for i, station in enumerate(stations):
-            if station.station in station_names:
+        station_idxs = []
+        for i, station in enumerate(stations):  # stations from file
+            station_name = '%s.%s' % (station.network, station.station)
+            if station_name in station_names:
                 store_id = get_store_id(
                     store_prefixes[i], em_name,
                     gfc.sample_rate, gfc.reference_model_idx)
@@ -2439,24 +2442,26 @@ class PolarityMapping(object):
                         codes=(
                             station.network,
                             station.station,
-                            '%i' % gfc.reference_model_idx,
-                            '%s' % self.config.channels),  # n, s, l, c
+                            '%i' % gfc.reference_model_idx),  # n, s, l
                         lat=station.lat, lon=station.lon,
                         azimuth_rad=station.azimuth * d2r,
                         distance_deg=station.dist_deg,
                         elevation=float(station.elevation),
-                        phase_id=config.name, store_id=store_id))
+                        phase_id=self.config.name, store_id=store_id))
+                self.stations.append(station)
+                station_idxs.append(i)
+            else:
+                logger.warning(
+                    'For station %s no polarity data was found, '
+                    'ignoring...' % station_name)
 
-        # TODO: data format
-        station_polarities = config.get_station_polarities()
-        self.dataset = num.array(
-            [station_polarities[station_names == target.codes[1]]
-                for target in self.targets])
-
+        polarities = self.config.get_polarities()
+        self.dataset = polarities[num.array(station_idxs)]
         self._radiation_weights = None
 
     def get_station_names(self):
-        return [target.codes[1] for target in self.targets]
+        return ['%s.%s' % (
+            target.codes[0], target.codes[1]) for target in self.targets]
 
     @property
     def n_t(self):
