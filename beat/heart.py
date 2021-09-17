@@ -1774,6 +1774,9 @@ def get_fomosto_baseconfig(
     crust_ind : int
         Index to set to the Greens Function store
     """
+
+    import fnmatch
+
     sf = gfconfig
 
     if gfconfig.code != 'psgrn' and len(waveforms) < 1:
@@ -1800,7 +1803,8 @@ def get_fomosto_baseconfig(
             id='any_P',
             definition=definition))
 
-    if 'any_S' in waveforms:
+    s_in_waveforms = fnmatch.filter(waveforms, 'any_S*')
+    if len(s_in_waveforms) > 0:
         tabulated_phases.append(gf.TPDef(
             id='any_S',
             definition='s,S,s\\,S\\'))
@@ -2048,14 +2052,14 @@ def seis_construct_gf(
             else:
                 logger.info('Traces exist use force=True to overwrite!')
 
-##Mahdi
-def pol_construct_gf(
+
+def polarity_construct_gf(
         stations, event, polarity_config, crust_ind=0, execute=False,
         force=False):
     """
     Calculate polarity Greens Functions (GFs) and create a repository 'store'
     that is being used later on repeatetly to calculate the synthetic
-    waveforms.
+    radiation patterns.
 
     Parameters
     ----------
@@ -2066,7 +2070,7 @@ def pol_construct_gf(
     event : :class:`pyrocko.model.Event`
         The event is used as a reference point for all the calculations
         According to the its location the earth model is being built
-    seismic_config : :class:`config.SeismicConfig`
+    polarity_config : :class:`config.PolarityConfig`
     crust_ind : int
         Index to set to the Greens Function store, 0 is reference store
         indexes > 0 use reference model and vary its parameters by a Gaussian
@@ -2077,53 +2081,50 @@ def pol_construct_gf(
     """
 
     polgf = polarity_config.gf_config
-    polgf.code = 'qseis'
     source_model = get_velocity_model(
         event, earth_model_name=polgf.earth_model_name, crust_ind=crust_ind,
         gf_config=polgf, custom_velocity_model=polgf.custom_velocity_model)
 
-    arrivals = polarity_config.get_arrival_names()
+    wavenames = polarity_config.get_waveform_names()
 
     for station in stations:
         logger.info('Station %s' % station.station)
         logger.info('---------------------')
 
-        fomosto_config = get_fomosto_baseconfig(polgf, event, station, arrivals, crust_ind)
+        fomosto_config = get_fomosto_baseconfig(
+            polgf, event, station, wavenames, crust_ind)
 
         store_dir = os.path.join(polgf.store_superdir, fomosto_config.id)
 
         if not os.path.exists(store_dir) or force:
             logger.info('Creating Store at %s' % store_dir)
 
-            if len(stations) == 1:
-                custom_velocity_model = polgf.custom_velocity_model
-            else:
-                custom_velocity_model = None
-
-            receiver_model = get_velocity_model(
-                station, earth_model_name=polgf.earth_model_name,
-                crust_ind=crust_ind, gf_config=polgf,
-                custom_velocity_model=custom_velocity_model)
-
-            gf_directory = os.path.join(
-                polgf.store_superdir, 'base_gfs_%i' % crust_ind)
-
-            conf = choose_backend(
-                fomosto_config, polgf.code, source_model, receiver_model,
-                gf_directory)
+            # fill remaining fomosto params
+            fomosto_config.earthmodel_1d = source_model
+            fomosto_config.modelling_code_id = 'cake'
 
             fomosto_config.validate()
-            conf.validate()
 
             gf.Store.create_editables(
                 store_dir,
                 config=fomosto_config,
-                extra={polgf.code: conf},
+                extra={},
                 force=force)
         else:
             logger.info(
                 'Store %s exists! Use force=True to overwrite!' % store_dir)
-##
+
+        if execute:
+            phases_dir = os.path.join(store_dir, 'phases')
+            if not os.path.exists(phases_dir) or force:
+                logger.info('Calculating interpolation tables ...')
+                store = gf.Store(store_dir, 'r')
+                store.make_ttt(force=force)
+                store.make_tat(force=force)
+                store.close()
+            else:
+                logger.info('Phases exist use force=True to overwrite!')
+
 
 def geo_construct_gf(
         event, geodetic_config, crust_ind=0, execute=True, force=False):

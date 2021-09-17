@@ -1279,21 +1279,21 @@ def command_build_gfs(args):
                         force=options.force)
 
             elif datatype == 'polarity':
+                from pyrocko.model import load_stations
+
                 polc = c.polarity_config
                 polcf = polc.gf_config
 
                 if polcf.reference_location is None:
                     logger.info("Creating Green's Function stores individually"
                                 " for each station!")
-                    seismic_data_path = pjoin(
-                        c.project_dir, bconfig.seismic_data_name)
+                    polarity_stations_path = pjoin(
+                        c.project_dir, bconfig.stations_name)
 
-                    stations, _ = utility.load_objects(seismic_data_path)
+                    stations = load_stations(polarity_stations_path)
                     logger.info(
                         'Found stations %s' % list2string(
                             [station.station for station in stations]))
-
-                    stations = polc.refining_stations(stations)
 
                 else:
                     logger.info(
@@ -1304,11 +1304,12 @@ def command_build_gfs(args):
                         'Store name: %s' % polcf.reference_location.station)
 
                 for crust_ind in range(*polcf.n_variations):
-                    heart.pol_construct_gf(
+                    heart.polarity_construct_gf(
                         stations=stations,
                         event=c.event,
                         polarity_config=polc,
                         crust_ind=crust_ind,
+                        execute=options.execute,
                         force=options.force)
 
             else:
