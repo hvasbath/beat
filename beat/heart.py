@@ -767,7 +767,7 @@ class PolarityTarget(gf.meta.Receiver):
             mod = store.config.earthmodel_1d
             rays = mod.arrivals(
                 phases=self.phase_id,
-                distances=[self.distance_deg],
+                distances=[self.distance * cake.m2d],
                 zstart=source.depth,
                 zstop=self.depth)
             self.takeoff_angle_rad = rays[0].takeoff_angle() * d2r
@@ -1428,6 +1428,38 @@ def init_geodetic_targets(
         quantity='displacement',
         store_id=get_store_id('statics', em_name, sample_rate, crust_ind))
         for crust_ind in crust_inds for d in datasets]
+
+    return targets
+
+
+def init_polarity_targets(
+        stations, earth_model_name='ak135-f-average.m', sample_rate=1.0,
+        crust_inds=[0], reference_location=None, wavename='any_P'):
+
+    if reference_location is None:
+        store_prefixes = [
+            copy.deepcopy(station.station) for station in stations]
+    else:
+        store_prefixes = [
+            copy.deepcopy(
+                reference_location.station) for station in stations]
+
+    em_name = get_earth_model_prefix(earth_model_name)
+    targets = []
+    for station, store_prefix in zip(stations, store_prefixes):
+        for crust_ind in crust_inds:
+            store_id = get_store_id(
+                store_prefix, em_name,
+                sample_rate, crust_ind)
+            targets.append(
+                PolarityTarget(
+                    codes=(
+                        station.network,
+                        station.station,
+                        '%i' % crust_ind),  # n, s, l
+                    lat=station.lat, lon=station.lon,
+                    elevation=float(station.elevation),
+                    phase_id=wavename, store_id=store_id))
 
     return targets
 
@@ -2122,6 +2154,12 @@ def polarity_construct_gf(
                 store.make_ttt(force=force)
                 store.make_tat(force=force)
                 store.close()
+
+                # create dummy files for engine to recognize the store
+                for fn in ['index', 'traces']:
+                    dummy_fn = os.path.join(store_dir, fn)
+                    with open(dummy_fn, 'a') as f:
+                        pass
             else:
                 logger.info('Phases exist use force=True to overwrite!')
 
@@ -2412,53 +2450,50 @@ def get_phase_arrival_time(engine, source, target, wavename=None, snap=True):
 
 class PolarityMapping(object):
 
-    def __init__(self, pmap_config, stations):
+    def __init__(self, config, stations, targets):
 
-        self.targets = []
-        self.config = pmap_config
-        self.stations = []
+        self.config = config
+        self.stations = stations
+        self.targets = targets
+        self._radiation_weights = None
+        self.dataset = None
+        self._update_dataset()
+
+    def _update_dataset(self):
+        """
+        Make stations, targets and dataset consistent by dropping
+        stations if not existent in data.
+        """
 
         # polarity data from config
-        station_names = self.config.get_station_names()
+        station_names_data = self.config.get_station_names()
+        station_names_file = [
+            '%s.%s' % (station.network, station.station)
+                for station in self.stations]
 
-        gfc = self.config.gf_config
-        if gfc.reference_location is None:
-            store_prefixes = [
-                copy.deepcopy(station.station) for station in stations]
-        else:
-            store_prefixes = [
-                copy.deepcopy(
-                    gfc.reference_location.station) for station in stations]
-
-        em_name = get_earth_model_prefix(gfc.earth_model_name)
+        stations_new = []
         station_idxs = []
-        for i, station in enumerate(stations):  # stations from file
-            station_name = '%s.%s' % (station.network, station.station)
-            if station_name in station_names:
-                store_id = get_store_id(
-                    store_prefixes[i], em_name,
-                    gfc.sample_rate, gfc.reference_model_idx)
-                self.targets.append(
-                    PolarityTarget(
-                        codes=(
-                            station.network,
-                            station.station,
-                            '%i' % gfc.reference_model_idx),  # n, s, l
-                        lat=station.lat, lon=station.lon,
-                        azimuth_rad=station.azimuth * d2r,
-                        distance_deg=station.dist_deg,
-                        elevation=float(station.elevation),
-                        phase_id=self.config.name, store_id=store_id))
-                self.stations.append(station)
+        for i, station_name in enumerate(station_names_data):
+            if station_name in station_names_file:
+                sta_idx = station_names_file.index(station_name)
+                stations_new.append(self.stations[sta_idx])
                 station_idxs.append(i)
             else:
                 logger.warning(
-                    'For station %s no polarity data was found, '
+                    'For station "%s" no station data was found, '
                     'ignoring...' % station_name)
 
         polarities = self.config.get_polarities()
-        self.dataset = polarities[num.array(station_idxs)]
-        self._radiation_weights = None
+        if station_idxs:
+            logger.info(
+                'Found polarity data for %i stations!' % len(station_idxs))
+            self.dataset = polarities[num.array(station_idxs)]
+            self.stations = stations_new
+        else:
+            logger.warning(
+                'Available station information for stations:'
+                '\n %s' % utility.list2string(station_names_file))
+            raise ValueError('Found no station information!')
 
     def get_station_names(self):
         return ['%s.%s' % (
@@ -2977,6 +3012,7 @@ class DataWaveformCollection(object):
             channels=channels,
             deltat=self._deltat)
 
+
 def concatenate_datasets(datasets):
     """
     Concatenate datasets to single arrays
@@ -3009,6 +3045,7 @@ def concatenate_datasets(datasets):
     datasets = Bij.l2a(_disp_list).astype(tconfig.floatX)
     los_vectors = Bij.f3map(_lv_list).astype(tconfig.floatX)
     return datasets, los_vectors, odws, Bij
+
 
 def init_datahandler(
         seismic_config, seismic_data_path='./', responses_path=None):

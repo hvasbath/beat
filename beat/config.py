@@ -196,6 +196,7 @@ default_seis_std = 1.e-6
 default_geo_std = 1.e-3
 
 default_decimation_factors = {
+    'polarity': 1,
     'geodetic': 4,
     'seismic': 2}
 
@@ -706,15 +707,10 @@ class SeismicConfig(Object):
             self.waveforms.append(WaveformFitConfig(name=wavename))
 
 
-# TODO needed? what for?
-arrival_catalog = {
-    'p': ('any_P', 'Z'),
-    'sv': ('any_SV', 'ZR'),
-    'sh': ('any_SH', 'T')}
-
-
 class PolarityGFConfig(NonlinearGFConfig):
 
+    code = String.T(
+        optional=True, default='cake')
     reference_location = ReferenceLocation.T(
         default=None,
         help="Reference location for the midpoint of the "
@@ -730,7 +726,6 @@ class PolarityFitConfig(Object):
 
     name = String.T(
         default='any_P',
-        optional=True,
         help='Seismic phase name for picked polarities')
     include = Bool.T(
         default=True,
@@ -740,16 +735,12 @@ class PolarityFitConfig(Object):
         optional=True,
         help='If data are included in seismic_data.pkl')
     stations_polarities = List.T(
-        List.T(String.T(), Int.T()),
-        default=['GE.ABCK', 1],
+        List.T(String.T(), Int.T(), yamlstyle='flow'),
+        default=[['GE.ABCK', 1]],
+        yamlstyle='block',
         help='Manual interface to enter polarity data to config as list '
              'of entries. Entry format: '
              '"Network.Station.Location.Channel", 1 / -1')
-    # TODO: needed? dont think so!
-    channels = List.T(
-        default=['Z'],
-        optional=True,
-        help='Channels on which polarities have been picked.')
     event_idx = Int.T(
         default=0,
         optional=True,
@@ -813,7 +804,7 @@ class PolarityConfig(Object):
         hids = []
         for i, pmap_config in enumerate(self.waveforms):
             if pmap_config.include:
-                hypername = '_'.join(('h', pmap_config.name, str(i)))
+                hypername = '_'.join(('h', pmap_config.name, 'pol', str(i)))
                 hids.append(hypername)
 
         return hids
@@ -1762,11 +1753,10 @@ class BEATconfig(Object, Cloneable):
         """
 
         hypernames = []
-        if self.geodetic_config is not None:
-            hypernames.extend(self.geodetic_config.get_hypernames())
-
-        if self.seismic_config is not None:
-            hypernames.extend(self.seismic_config.get_hypernames())
+        for datatype in _datatype_choices:
+            datatype_conf = getattr(self, '%s_config' % datatype)
+            if datatype_conf is not None:
+                hypernames.extend(datatype_conf.get_hypernames())
 
         if self.problem_config.mode == ffi_mode_str:
             if self.problem_config.mode_config.regularization == 'laplacian':

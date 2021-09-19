@@ -8,7 +8,7 @@ from pyrocko.gf import LocalEngine
 from pyrocko.model import load_stations
 
 from beat import config as bconfig
-from beat.heart import (PolarityMapping, PolarityResult,
+from beat.heart import (PolarityMapping, PolarityResult, init_polarity_targets,
                         pol_synthetics, results_for_export)
 from beat.theanof import PolaritySynthesizer
 
@@ -55,6 +55,7 @@ class PolarityComposite(Composite):
             store_superdirs=[polc.gf_config.store_superdir])
         self.stations_event = OrderedDict()
 
+        gfc = self.config.gf_config
         for i in range(self.nevents):
             # stations input in pyrocko stations.txt format
             polarity_stations_path = os.path.join(
@@ -67,11 +68,21 @@ class PolarityComposite(Composite):
             self.stations_event[i] = stations
 
         for i, pmap_config in enumerate(self.config.waveforms):
+            logger.info(
+                'Initialising Polarity Map for "%s"' % pmap_config.name)
+            targets = init_polarity_targets(
+                stations, earth_model_name=gfc.earth_model_name,
+                sample_rate=gfc.sample_rate,
+                crust_inds=[gfc.reference_model_idx],
+                reference_location=gfc.reference_location,
+                wavename=pmap_config.name)
+
             pmap = PolarityMapping(
                 config=pmap_config,
-                stations=stations)
+                stations=stations,
+                targets=targets)
             pmap.update_targets(
-                self.engine, self.sources[pmap.event_idx])
+                self.engine, self.sources[pmap.config.event_idx])
             self.pmaps[i] = pmap
 
     @property

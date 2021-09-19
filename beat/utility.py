@@ -374,10 +374,10 @@ def weed_input_rvs(input_rvs, mode, datatype):
                 'nucleation_y'] + burian
         elif datatype == 'seismic':
             tobeweeded = ['opening'] + burian
-##Mahdi
         elif datatype == 'polarity':
-            tobeweeded = []
-##
+            tobeweeded = [
+                'time', 'duration', 'magnitude', 'peak_ration'] + burian
+
     elif mode == 'interseismic':
         if datatype == 'geodetic':
             tobeweeded = burian
@@ -599,7 +599,7 @@ def transform_sources(sources, datatypes, decimation_factors=None):
                     decimation_factor=decimation_factors[datatype],
                     anchor='top')
 
-            if datatype == 'geodetic':
+            if datatype == 'geodetic' or datatype == 'polarity':
                 transformed_source.stf = None
 
             transformed_sources.append(transformed_source)
