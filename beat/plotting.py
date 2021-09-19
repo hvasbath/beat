@@ -2314,29 +2314,12 @@ def extract_mt_components(problem, po, include_magnitude=False):
 
     return m6s, best_mt, llk_str
 
-##Mahdi
-def extract_polarity_data(problem, po):
-
-    stage = Stage(homepath=problem.outfolder,
-                  backend=problem.config.sampler_config.backend)
-    composite = problem.composites['polarity']
-    observed_polaritydatasets = composite.poldatasets   
-    return observed_polaritydatasets
-##
 
 def draw_ray_piercing_points_bb(
         ax, takeoff_angles_rad, azimuths_rad, polarities,
-        size=1, position=(0, 0), transform=None):
+        size=1, position=(0, 0), transform=None, projection='lambert'):
 
-    #for toa, azi in zip(takeoff_angles_rad, azimuths_rad):
-    #    # why is that needed?
-    #    if toa >= num.pi/2:
-    #        takeoffangles.append(num.pi-toa)
-    #        azi += num.pi
-    #    else:
-    #        takeoffangles.append(toa)
-    #
-    #    azimuths.append(azi)
+    # TODO other color coding for any_SH/V radiation patterns?
 
     toa_idx = takeoff_angles_rad >= (num.pi / 2.)
     takeoff_angles_rad[toa_idx] = num.pi - takeoff_angles_rad[toa_idx]
@@ -2392,35 +2375,20 @@ def draw_fuzzy_beachball(problem, po):
     if not os.path.exists(outpath) or po.force or po.outformat == 'display':
         transform, position, size = beachball.choose_transform(
             axes, kwargs['size_units'], kwargs['position'], kwargs['size'])
+
         beachball.plot_fuzzy_beachball_mpl_pixmap(
             m6s, axes, best_mt=best_mt, best_color='red', **kwargs)
-        ##Mahdi
+
         if 'polarity' in problem.config.problem_config.datatypes:
-            obs_poldatasets = extract_polarity_data(problem, po)
-            takeoffangles = []
-            azimuths = []
-            poldataset = obs_poldatasets[0]
-            polarities = poldataset.dataset
-            for toa, azi in zip(poldataset.get_takeoffangles(), poldataset.get_azimuths()):
-                if toa >= num.pi/2:
-                    takeoffangles.append(num.pi-toa)
-                    azi += num.pi
-                else:
-                    takeoffangles.append(toa)
-                azimuths.append(azi)
-            azimuths = num.array(azimuths).reshape(polarities.shape)
-            takeoffangles = num.array(takeoffangles).reshape(polarities.shape)
-            r = size * num.sqrt(2) * num.sin(0.5*takeoffangles)
-            x = r * num.sin(azimuths)
-            y = r * num.cos(azimuths)
-            x = x.reshape(polarities.shape) + position[1]
-            y = y.reshape(polarities.shape) + position[0]
-            xp, yp =  x[polarities >= 0], y[polarities >= 0]
-            xt, yt =  x[polarities < 0], y[polarities < 0]
-            axes.plot(xp, yp, 'o', ms=5, mew=1.0, mec='blue', mfc='white', transform=transform)
-            axes.plot(xt, yt, 'o', ms=5, mew=1.0, mec='blue', mfc='black', transform=transform)
+            composite = problem.composites['polarity']
+            for pmap in composite.polmaps:
+                draw_ray_piercing_points_bb(
+                    axes, pmap.get_takeoff_angles_rad(),
+                    pmap.get_azimuths_rad(), pmap.dataset,
+                    size=size, position=position, transform=transform)
+
             # axes.legend(['','Compression','Tensile'])
-        ##
+
         axes.set_xlim(0., 10.)
         axes.set_ylim(0., 10.)
         axes.set_axis_off()

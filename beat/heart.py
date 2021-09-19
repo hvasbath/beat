@@ -2515,7 +2515,9 @@ class PolarityMapping(object):
 
     def update_radiation_weights(self):
         self._radiation_weights = radiation_weights(
-            self.get_takeoff_angles_rad(), self.get_azimuths_rad(), self.name)
+            self.get_takeoff_angles_rad(),
+            self.get_azimuths_rad(),
+            self.config.name)
 
     def get_radiation_weights(self):
         if self._radiation_weights is None:

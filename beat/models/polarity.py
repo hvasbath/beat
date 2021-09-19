@@ -42,6 +42,7 @@ class PolarityComposite(Composite):
 
         self.name = 'polarity'
         self._like_name = 'polarity_like'
+        self._targets = None
         self.synthesizers = {}
         self.sources = sources
         self.config = polc
@@ -49,7 +50,7 @@ class PolarityComposite(Composite):
         self.fixed_rvs = {}
 
         # TODO think about dataset class, now in config ... maybe very tedious
-        self.pmaps = [None] * self.nevents
+        self.polmaps = [None] * self.nevents
 
         self.engine = LocalEngine(
             store_superdirs=[polc.gf_config.store_superdir])
@@ -83,7 +84,7 @@ class PolarityComposite(Composite):
                 targets=targets)
             pmap.update_targets(
                 self.engine, self.sources[pmap.config.event_idx])
-            self.pmaps[i] = pmap
+            self.polmaps[i] = pmap
 
     @property
     def is_location_fixed(self):
@@ -104,9 +105,9 @@ class PolarityComposite(Composite):
         hp_names = self.get_hypernames()
 
         logpts = []
-        for i, pmap in enumerate(self.pmaps):
+        for i, pmap in enumerate(self.polmaps):
             self.synthesizers[i] = PolaritySynthesizer(
-                self.engine, self.sources[pmap.event_idx],
+                self.engine, self.sources[pmap.config.event_idx],
                 pmap, self.is_location_fixed)
             llk = polarity_llk(
                 pmap.dataset,
@@ -146,8 +147,7 @@ class PolarityComposite(Composite):
             if hyper in tpoint:
                 tpoint.pop(hyper)
 
-        source_params = list(
-            self.sources[0].keys()) + list(self.sources[0].stf.keys())
+        source_params = list(self.sources[0].keys())
 
         for param in list(tpoint.keys()):
             if param not in source_params:
@@ -160,10 +160,10 @@ class PolarityComposite(Composite):
                 for i, event in enumerate(self.events):     # multi event
                     tpoint['time'][i] += event.time
 
-            source_points = split_point(tpoint)
+        source_points = split_point(tpoint)
 
-            for i, source in enumerate(self.sources):
-                update_source(source, **source_points[i])
+        for i, source in enumerate(self.sources):
+            update_source(source, **source_points[i])
 
     def get_all_station_names(self):
         """
@@ -236,7 +236,7 @@ class PolarityComposite(Composite):
         obs = []
 
         for pmap in zip(self.polmaps):
-            source = self.sources[pmap.event_idx]
+            source = self.sources[pmap.config.event_idx]
             pmap.update_targets(self.engine, source)
             pmap.update_radiation_weights()
             synthetics = pol_synthetics(
@@ -253,3 +253,13 @@ class PolarityComposite(Composite):
                 raise ValueError('Order "%s" is not supported' % order)
 
         return synths, obs
+
+    @property
+    def targets(self):
+        if self._targets is None:
+            ts = []
+            for pmap in self.polmaps:
+                ts.extend(pmap.targets)
+
+            self._targets = ts
+        return self._targets
