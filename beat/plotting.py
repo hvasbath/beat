@@ -2277,40 +2277,43 @@ def extract_mt_components(problem, po, include_magnitude=False):
     if include_magnitude:
         varnames += ['magnitude']
 
+    rpoint = None
+    stage = load_stage(
+        problem, stage_number=po.load_stage, load='trace', chains=[-1])
+
+    n_mts = len(stage.mtrace)
+    m6s = num.empty((n_mts, len(varnames)), dtype='float64')
+    for i, varname in enumerate(varnames):
+        try:
+            m6s[:, i] = stage.mtrace.get_values(
+                varname, combine=True, squeeze=True).ravel()
+        except ValueError:  # if fixed value add that to the ensemble
+            rpoint = problem.get_random_point()
+            mtfield = num.full_like(
+                num.empty((n_mts), dtype=num.float64), rpoint[varname])
+            m6s[:, i] = mtfield
+
+    if po.nensemble:
+        logger.info(
+            'Drawing %i solutions from ensemble ...' % po.nensemble)
+        csteps = float(n_mts) / po.nensemble
+        idxs = num.floor(
+            num.arange(0, n_mts, csteps)).astype('int32')
+        m6s = m6s[idxs, :]
+    else:
+        logger.info('Drawing full ensemble ...')
+
     if not po.reference:
-        rpoint = None
         llk_str = po.post_llk
-        stage = load_stage(
-            problem, stage_number=po.load_stage, load='trace', chains=[-1])
-
-        n_mts = len(stage.mtrace)
-        m6s = num.empty((n_mts, len(varnames)), dtype='float64')
-        for i, varname in enumerate(varnames):
-            try:
-                m6s[:, i] = stage.mtrace.get_values(
-                    varname, combine=True, squeeze=True).ravel()
-            except ValueError:  # if fixed value add that to the ensemble
-                rpoint = problem.get_random_point()
-                mtfield = num.full_like(
-                    num.empty((n_mts), dtype=num.float64), rpoint[varname])
-                m6s[:, i] = mtfield
-
-        if po.nensemble:
-            logger.info(
-                'Drawing %i solutions from ensemble ...' % po.nensemble)
-            csteps = float(n_mts) / po.nensemble
-            idxs = num.floor(
-                num.arange(0, n_mts, csteps)).astype('int32')
-            m6s = m6s[idxs, :]
-        else:
-            logger.info('Drawing full ensemble ...')
-
         point = get_result_point(stage, problem.config, po.post_llk)
         best_mt = point2array(point, varnames=varnames, rpoint=rpoint)
     else:
         llk_str = 'ref'
-        m6s = [point2array(point=po.reference, varnames=varnames)]
-        best_mt = None
+        if source_type == 'MTQTSource':
+            composite = problem.composites[
+                problem.config.problem_config.datatypes[0]]
+            composite.point2sources(po.reference)
+            best_mt = composite.sources[0].get_derived_parameters()[0:6]
 
     return m6s, best_mt, llk_str
 

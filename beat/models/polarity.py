@@ -6,10 +6,11 @@ from theano import shared
 
 from pyrocko.gf import LocalEngine
 from pyrocko.model import load_stations
+from pyrocko.guts import dump
 
 from beat import config as bconfig
 from beat.heart import (PolarityMapping, PolarityResult, init_polarity_targets,
-                        pol_synthetics, results_for_export)
+                        pol_synthetics, results_for_export, ResultPoint)
 from beat.theanof import PolaritySynthesizer
 
 from beat.utility import (adjust_point_units, split_point,
@@ -186,15 +187,11 @@ class PolarityComposite(Composite):
             fix_output=False, force=False, update=False):
 
         results = self.assemble_results(point)
-        for pols, attribute in results_for_export(
-                results=results, datatype='polarity'):
-
+        for i, result in enumerate(results):
             # TODO need human readable format like e.g.: .csv
-            filename = '%s_%i.bin' % (attribute, stage_number)
+            filename = 'polarity_result_pmap_%i_%i.yaml' % (i, stage_number)
             output = os.path.join(results_path, filename)
-            with open(output, 'a+') as fh:
-                fh.write('{} {}\n'.format(pols, attribute))
-                fh.close()
+            dump(result, filename=output)
 
     def assemble_results(self, point, order='list'):
 
@@ -202,18 +199,18 @@ class PolarityComposite(Composite):
             raise ValueError('A point has to be provided!')
 
         logger.debug('Assembling polarities ...')
-        syn_proc_pols, obs_proc_pols = self.get_synthetics(
+        synthetic_polarities, observed_polarities = self.get_synthetics(
             point, order='pmap')
         results = []
+        pmap_results = []
+        res_point = ResultPoint(point=point, post_llk='max')
         for i, pmap in enumerate(self.polmaps):
-            pmap_results = []
-            for j, observed_polarties in enumerate(obs_proc_pols[i]):
-                source_contribution = syn_proc_pols[i][j]
-                pmap_results.append(
-                    PolarityResult(
-                        point=point,
-                        processed_obs=observed_polarties,
-                        source_contributions=source_contribution))
+            source_contribution = synthetic_polarities[i]
+            pmap_results.append(
+                PolarityResult(
+                    point=res_point,
+                    processed_obs=observed_polarities[i],
+                    source_contributions=[source_contribution]))
 
             if order == 'list':
                 results.extend(pmap_results)
@@ -235,7 +232,7 @@ class PolarityComposite(Composite):
         synths = []
         obs = []
 
-        for pmap in zip(self.polmaps):
+        for pmap in self.polmaps:
             source = self.sources[pmap.config.event_idx]
             pmap.update_targets(self.engine, source)
             pmap.update_radiation_weights()

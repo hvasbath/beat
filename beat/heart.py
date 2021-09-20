@@ -484,7 +484,7 @@ def results_for_export(results, datatype=None, attributes=None):
                 'Either datatype or attributes need to be defined!')
         elif datatype == 'geodetic' or datatype == 'seismic':
             attributes = ['processed_obs', 'processed_syn', 'processed_res']
-        elif datatype == 'polarity':            ##Mahdi
+        elif datatype == 'polarity':
             attributes = ['processed_obs', 'processed_syn']
         else:
             raise NotImplementedError(
