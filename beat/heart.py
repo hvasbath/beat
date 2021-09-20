@@ -26,6 +26,7 @@ from pyrocko.cake import GradientLayer
 from pyrocko.fomosto import qseis, qssp
 from pyrocko.model import gnss
 from pyrocko.moment_tensor import to6
+from pyrocko.spit import OutOfBounds
 
 # from pyrocko.fomosto import qseis2d
 
@@ -759,6 +760,11 @@ class PolarityTarget(gf.meta.Receiver):
                 self.phase_id,
                 'takeoff_angle',
                 (source.depth, self.distance)) * d2r
+        except OutOfBounds:
+            raise OutOfBounds(
+                'The distance-depth range of interpolation tables does not '
+                'cover the search space! Please extend these values or reduce '
+                'the search space (priors).')
 
         except gf.StoreError:
             logger.warning(
