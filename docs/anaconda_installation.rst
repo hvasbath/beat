@@ -24,6 +24,10 @@ Download and install several required packages::
 
   conda install -n beat libgfortran openblas theano pygpu openmpi pandas numpy openmpi
 
+Install mpi4py through conda-forge::
+
+  conda install -c conda-forge mpi4py
+
 Configure theano to find your libraries by creating a file ".theanorc" in your home directory containing::
 
   [blas]
