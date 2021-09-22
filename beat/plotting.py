@@ -4750,7 +4750,7 @@ def draw_3d_slip_distribution(problem, po):
     if gc:
         for corr in gc.corrections_config.euler_poles:
             if corr.enabled:
-                if po.varnames[0] == 'coupling':
+                if len(po.varnames) > 0 and po.varnames[0] == 'coupling':
                     from beat.ffi import backslip2coupling
                     logger.info('Plotting coupling ...!')
                     reference['coupling'] = backslip2coupling(
@@ -4778,6 +4778,11 @@ def draw_3d_slip_distribution(problem, po):
     else:
         slip_label = 'slip'
 
+    if po.source_idxs is None:
+        source_idxs = [0, fault.nsubfaults]
+    else:
+        source_idxs = po.source_idxs
+
     outpath = os.path.join(
         problem.outfolder,
         po.figure_dir,
@@ -4790,7 +4795,7 @@ def draw_3d_slip_distribution(problem, po):
 
         gmt = slip_distribution_3d_gmt(
             fault, reference, mtrace, perspective,
-            slip_units, slip_label, varnames)
+            slip_units, slip_label, varnames, source_idxs=source_idxs)
 
         logger.info('saving figure to %s' % outpath)
         gmt.save(outpath, resolution=300, size=10)
@@ -4801,7 +4806,7 @@ def draw_3d_slip_distribution(problem, po):
 def slip_distribution_3d_gmt(
         fault, reference, mtrace=None, perspective='135/30', slip_units='m',
         slip_label='slip', varnames=None, gmt=None, bin_width=1,
-        cptfilepath=None, transparency=0):
+        cptfilepath=None, transparency=0, source_idxs=None):
 
     if len(gmtpy.detect_gmt_installations()) < 1:
         raise gmtpy.GmtPyError(
@@ -4825,10 +4830,10 @@ def slip_distribution_3d_gmt(
         gmt = gmtpy.GMT(config=gmtconfig)
 
     sf_lonlats = num.vstack(
-        [sf.outline(cs='lonlat') for sf in fault.iter_subfaults()])
+        [sf.outline(cs='lonlat') for sf in fault.iter_subfaults(source_idxs)])
 
     sf_xyzs = num.vstack(
-        [sf.outline(cs='xyz') for sf in fault.iter_subfaults()])
+        [sf.outline(cs='xyz') for sf in fault.iter_subfaults(source_idxs)])
     _, _, max_depth = sf_xyzs.max(axis=0) / km
 
     lon_min, lat_min = sf_lonlats.min(axis=0)
@@ -4843,11 +4848,12 @@ def slip_distribution_3d_gmt(
          lat_min - lat_tolerance,
          lat_max + lat_tolerance,
          -max_depth, 0], '/')
-    Jg = '-JM%fc' % 6
+    Jg = '-JM%fc' % 20
     Jz = '-JZ%gc' % 3
     J = [Jg, Jz]
 
-    B = ['-Bxa%gg%g' % (bin_width, bin_width), '-Bya%gg%g' % (bin_width, bin_width),
+    B = ['-Bxa%gg%g' % (bin_width, bin_width),
+         '-Bya%gg%g' % (bin_width, bin_width),
          '-Bza10+Ldepth [km]', '-BWNesZ']
     args = J + B
 
@@ -4884,7 +4890,8 @@ def slip_distribution_3d_gmt(
             out_filename=cptfilepath, suppress_defaults=True)
 
     tmp_patch_fname = '/tmp/temp_patch.txt'
-    for idx in range(fault.nsubfaults):
+
+    for idx in range(*source_idxs):
         slips = fault.vector2subfault(index=idx, vector=reference_slips)
         for i, source in enumerate(fault.get_subfault_patches(idx)):
             lonlats = source.outline(cs='lonlat')

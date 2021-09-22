@@ -150,14 +150,22 @@ total number of patches: %i ''' % (
         else:
             return component
 
-    def iter_subfaults(self, datatype=None, component=None):
+    def iter_subfaults(self, idxs=None, datatype=None, component=None):
         """
         Iterator over subfaults.
+
+        Parameters
+        ----------
+        idxs : tuple
+            start and end-index of subfaults to iterate over
         """
         datatype = self._assign_datatype(datatype)
         component = self._assign_component(component)
 
-        for i in range(self.nsubfaults):
+        if idxs is None:
+            idxs = [0, self.nsubfaults]
+
+        for i in range(*idxs):
             yield self.get_subfault(
                 index=i, datatype=datatype, component=component)
 
