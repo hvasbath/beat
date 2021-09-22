@@ -802,11 +802,13 @@ def gnss_fits(problem, stage, plot_options):
         if mode != ffi_mode_str:
             composite.point2sources(po.reference)
             ref_sources = copy.deepcopy(composite.sources)
-        point = po.reference
+        bpoint = po.reference
     else:
-        point = get_result_point(stage.mtrace, po.post_llk)
+        bpoint = get_result_point(stage.mtrace, po.post_llk)
 
-    results = composite.assemble_results(point)
+    results = composite.assemble_results(bpoint)
+    bvar_reductions = composite.get_variance_reductions(
+        bpoint, weights=composite.weights, results=results)
 
     dataset_to_result = {}
     for dataset, result in zip(composite.datasets, results):
@@ -830,6 +832,40 @@ def gnss_fits(problem, stage, plot_options):
     else:
         raise NotImplementedError(
             '%s projection not implemented!' % po.plot_projection)
+
+    if po.nensemble > 1:
+        from tqdm import tqdm
+        logger.info(
+            'Collecting ensemble of %i '
+            'synthetic displacements ...' % po.nensemble)
+        nchains = len(stage.mtrace)
+        csteps = float(nchains) / po.nensemble
+        idxs = num.floor(num.arange(0, nchains, csteps)).astype('int32')
+        ens_results = []
+        #points = []
+        ens_var_reductions = []
+        for idx in tqdm(idxs):
+            point = stage.mtrace.point(idx=idx)
+            #points.append(point)
+            e_results = composite.assemble_results(point)
+            ens_results.append(e_results)
+            ens_var_reductions.append(
+                composite.get_variance_reductions(
+                    point, weights=composite.weights, results=e_results))
+
+        all_var_reductions = {}
+        bvar_reductions_comp = {}
+        for dataset in dataset_to_result.keys():
+            target_var_reds = []
+            target_bvar_red = bvar_reductions[dataset.name]
+            target_var_reds.append(target_bvar_red)
+            bvar_reductions_comp[dataset.component] = target_bvar_red
+            for var_reds in ens_var_reductions:
+                target_var_reds.append(var_reds[dataset.name])
+
+            all_var_reductions[dataset.component] = num.array(
+                target_var_reds) * 100.
+
 
     radius = otd.distance_accurate50m_numpy(
         lat[num.newaxis], lon[num.newaxis],
@@ -948,7 +984,7 @@ def gnss_fits(problem, stage, plot_options):
                     if isinstance(corr, StrainRateCorrection):
                         lats, lons = corr.get_station_coordinates()
                         mid_lat, mid_lon = otd.geographic_midpoint(lats, lons)
-                        corr_point = corr.get_point_rvs(point)
+                        corr_point = corr.get_point_rvs(bpoint)
                         srt = StrainRateTensor.from_point(corr_point)
                         in_rows = [(
                             mid_lon, mid_lat, srt.eps1, srt.eps2, srt.azimuth)]
@@ -960,6 +996,53 @@ def gnss_fits(problem, stage, plot_options):
                             A='9p+g%s+p1p' % color_str,
                             W=color_str,
                             *m.jxyr)
+
+        m.draw_axes()
+        if po.nensemble > 1:
+            if vertical:
+                var_reductions_ens = all_var_reductions['up']
+            else:
+                var_reductions_tmp = []
+                if 'east' in all_var_reductions:
+                    var_reductions_tmp.append(all_var_reductions['east'])
+
+                if 'north' in all_var_reductions:
+                    var_reductions_tmp.append(all_var_reductions['north'])
+
+                var_reductions_ens = num.mean(var_reductions_tmp, axis=0)
+
+            vmin, vmax = var_reductions_ens.min(), var_reductions_ens.max()
+            inc = nice_value(vmax - vmin)
+            autos = AutoScaler(inc=inc, snap='on', approx_ticks=2)
+            imin, imax, sinc = autos.make_scale(
+                (vmin, vmax),
+                override_mode='min-max')
+            nbins = 50
+            args = ['-Bxa%ff%f+lVR [%s]' % (sinc, sinc, '%'),
+                    '-Bya',    # dummy large value to avoid ticks
+                    '-BwSne']
+
+            # draw white background box for histogram
+            m.gmt.psbasemap(
+                D='n0.722/0.716+w4c/4c',
+                F='+gwhite+p0.25p',
+                *m.jxyr)
+
+            m.gmt.pshistogram(
+                in_rows=pmp.utils.make_2d(
+                    all_var_reductions[dataset.component]),
+                W=(imax - imin) / nbins,
+                G='lightorange',
+                F=True,
+                L='0.5p,orange',
+                J='X4c/4c',
+                X='f13.5c',
+                Y='f13.4c',
+                *args)
+
+
+            # plot vertical line on hist with best solution
+            #    best_data=bvar_reductions[dataset.name] * 100.,
 
         figs.append(m)
 
@@ -1643,8 +1726,8 @@ def draw_gnss_fits(problem, plot_options):
 
     outpath = os.path.join(
         problem.config.project_dir,
-        mode, po.figure_dir, 'gnss_%s_%s_%s' % (
-            stage.number, llk_str, po.plot_projection))
+        mode, po.figure_dir, 'gnss_%s_%s_%i_%s' % (
+            stage.number, llk_str, po.nensemble, po.plot_projection))
 
     if not os.path.exists(outpath) or po.force:
         figs = gnss_fits(problem, stage, po)
