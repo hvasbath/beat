@@ -4793,6 +4793,8 @@ def draw_station_map_gmt(problem, po):
 
 def draw_3d_slip_distribution(problem, po):
 
+    varname_choices = ['coupling', 'slip_deficit']
+
     if po.outformat == 'svg':
         raise NotImplementedError('SVG format is not supported for this plot!')
 
@@ -4833,13 +4835,18 @@ def draw_3d_slip_distribution(problem, po):
     if gc:
         for corr in gc.corrections_config.euler_poles:
             if corr.enabled:
-                if len(po.varnames) > 0 and po.varnames[0] == 'coupling':
+                if len(po.varnames) > 0 and po.varnames[0] in varname_choices:
                     from beat.ffi import backslip2coupling
                     logger.info('Plotting coupling ...!')
                     reference['coupling'] = backslip2coupling(
                         point=reference, fault=fault,
                         event=problem.config.event)
-                    slip_units = '%'
+
+                    # TODO: cleanup iforgy with slip units etc ...
+                    if po.varnames[0] == 'coupling':
+                        slip_units = '%'
+                    else:
+                        slip_units = 'm/yr'
                 else:
                     logger.info(
                         'Found Euler pole correction assuming interseismic '
@@ -4955,6 +4962,10 @@ def slip_distribution_3d_gmt(
 
     if slip_label == 'coupling':
         reference_slips = reference['coupling'] * 100 # in percent
+
+    elif slip_label == 'slip_deficit':
+        reference_slips = reference['coupling'] * fault.get_total_slip(
+            index=None, point=reference)
     else:
         reference_slips = fault.get_total_slip(
             index=None, point=reference, components=varnames)
