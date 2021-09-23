@@ -1228,7 +1228,8 @@ def discretize_sources(
         for component in varnames:
             for datatype in datatypes:
                 for index, sf in enumerate(
-                        fault.iter_subfaults(datatype, component)):
+                        fault.iter_subfaults(
+                            datatype=datatype, component=component)):
                     npw, npl = fault.ordering.get_subfault_discretization(index)
                     patches = sf.patches(
                         nl=npl, nw=npw, datatype=datatype)
@@ -1423,7 +1424,7 @@ def optimize_discretization(
     gfs_comp = []
     for component in varnames:
         for index, sf in enumerate(
-                fault.iter_subfaults(datatype, component)):
+                fault.iter_subfaults(datatype=datatype, component=component)):
             npw = sf.get_n_patches(2 * patch_widths[index] * km, 'width')
             npl = sf.get_n_patches(2 * patch_lengths[index] * km, 'length')
             patches = sf.patches(
