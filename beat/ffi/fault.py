@@ -150,14 +150,22 @@ total number of patches: %i ''' % (
         else:
             return component
 
-    def iter_subfaults(self, datatype=None, component=None):
+    def iter_subfaults(self, idxs=None, datatype=None, component=None):
         """
         Iterator over subfaults.
+
+        Parameters
+        ----------
+        idxs : tuple
+            start and end-index of subfaults to iterate over
         """
         datatype = self._assign_datatype(datatype)
         component = self._assign_component(component)
 
-        for i in range(self.nsubfaults):
+        if idxs is None:
+            idxs = [0, self.nsubfaults]
+
+        for i in range(*idxs):
             yield self.get_subfault(
                 index=i, datatype=datatype, component=component)
 
@@ -1220,7 +1228,8 @@ def discretize_sources(
         for component in varnames:
             for datatype in datatypes:
                 for index, sf in enumerate(
-                        fault.iter_subfaults(datatype, component)):
+                        fault.iter_subfaults(
+                            datatype=datatype, component=component)):
                     npw, npl = fault.ordering.get_subfault_discretization(index)
                     patches = sf.patches(
                         nl=npl, nw=npw, datatype=datatype)
@@ -1415,7 +1424,7 @@ def optimize_discretization(
     gfs_comp = []
     for component in varnames:
         for index, sf in enumerate(
-                fault.iter_subfaults(datatype, component)):
+                fault.iter_subfaults(datatype=datatype, component=component)):
             npw = sf.get_n_patches(2 * patch_widths[index] * km, 'width')
             npl = sf.get_n_patches(2 * patch_lengths[index] * km, 'length')
             patches = sf.patches(

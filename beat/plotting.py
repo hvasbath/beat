@@ -1,6 +1,8 @@
 from pymc3 import plots as pmp
 from pymc3 import quantiles
 
+from collections import OrderedDict
+
 import math
 import os
 import logging
@@ -484,6 +486,7 @@ def correlation_plot_hist(
         for k in range(nvar):
             v_namea = varnames[k]
             a = d[v_namea][:, source_i]
+            pcolor = mpl_graph_color(source_i)
 
             for l in range(k, nvar):
                 v_nameb = varnames[l]
@@ -502,7 +505,7 @@ def correlation_plot_hist(
 
                     histplot_op(
                         axs[l, k], pmp.utils.make_2d(a), alpha=alpha,
-                        color='orange', tstd=0., reference=reference)
+                        color=pcolor, tstd=0., reference=reference)
 
                     axs[l, k].get_yaxis().set_visible(False)
                     format_axes(axs[l, k])
@@ -799,11 +802,13 @@ def gnss_fits(problem, stage, plot_options):
         if mode != ffi_mode_str:
             composite.point2sources(po.reference)
             ref_sources = copy.deepcopy(composite.sources)
-        point = po.reference
+        bpoint = po.reference
     else:
-        point = get_result_point(stage.mtrace, po.post_llk)
+        bpoint = get_result_point(stage.mtrace, po.post_llk)
 
-    results = composite.assemble_results(point)
+    results = composite.assemble_results(bpoint)
+    bvar_reductions = composite.get_variance_reductions(
+        bpoint, weights=composite.weights, results=results)
 
     dataset_to_result = {}
     for dataset, result in zip(composite.datasets, results):
@@ -827,6 +832,40 @@ def gnss_fits(problem, stage, plot_options):
     else:
         raise NotImplementedError(
             '%s projection not implemented!' % po.plot_projection)
+
+    if po.nensemble > 1:
+        from tqdm import tqdm
+        logger.info(
+            'Collecting ensemble of %i '
+            'synthetic displacements ...' % po.nensemble)
+        nchains = len(stage.mtrace)
+        csteps = float(nchains) / po.nensemble
+        idxs = num.floor(num.arange(0, nchains, csteps)).astype('int32')
+        ens_results = []
+        #points = []
+        ens_var_reductions = []
+        for idx in tqdm(idxs):
+            point = stage.mtrace.point(idx=idx)
+            #points.append(point)
+            e_results = composite.assemble_results(point)
+            ens_results.append(e_results)
+            ens_var_reductions.append(
+                composite.get_variance_reductions(
+                    point, weights=composite.weights, results=e_results))
+
+        all_var_reductions = {}
+        bvar_reductions_comp = {}
+        for dataset in dataset_to_result.keys():
+            target_var_reds = []
+            target_bvar_red = bvar_reductions[dataset.name]
+            target_var_reds.append(target_bvar_red)
+            bvar_reductions_comp[dataset.component] = target_bvar_red
+            for var_reds in ens_var_reductions:
+                target_var_reds.append(var_reds[dataset.name])
+
+            all_var_reductions[dataset.component] = num.array(
+                target_var_reds) * 100.
+
 
     radius = otd.distance_accurate50m_numpy(
         lat[num.newaxis], lon[num.newaxis],
@@ -945,7 +984,7 @@ def gnss_fits(problem, stage, plot_options):
                     if isinstance(corr, StrainRateCorrection):
                         lats, lons = corr.get_station_coordinates()
                         mid_lat, mid_lon = otd.geographic_midpoint(lats, lons)
-                        corr_point = corr.get_point_rvs(point)
+                        corr_point = corr.get_point_rvs(bpoint)
                         srt = StrainRateTensor.from_point(corr_point)
                         in_rows = [(
                             mid_lon, mid_lat, srt.eps1, srt.eps2, srt.azimuth)]
@@ -957,6 +996,53 @@ def gnss_fits(problem, stage, plot_options):
                             A='9p+g%s+p1p' % color_str,
                             W=color_str,
                             *m.jxyr)
+
+        m.draw_axes()
+        if po.nensemble > 1:
+            if vertical:
+                var_reductions_ens = all_var_reductions['up']
+            else:
+                var_reductions_tmp = []
+                if 'east' in all_var_reductions:
+                    var_reductions_tmp.append(all_var_reductions['east'])
+
+                if 'north' in all_var_reductions:
+                    var_reductions_tmp.append(all_var_reductions['north'])
+
+                var_reductions_ens = num.mean(var_reductions_tmp, axis=0)
+
+            vmin, vmax = var_reductions_ens.min(), var_reductions_ens.max()
+            inc = nice_value(vmax - vmin)
+            autos = AutoScaler(inc=inc, snap='on', approx_ticks=2)
+            imin, imax, sinc = autos.make_scale(
+                (vmin, vmax),
+                override_mode='min-max')
+            nbins = 50
+            args = ['-Bxa%ff%f+lVR [%s]' % (sinc, sinc, '%'),
+                    '-Bya',    # dummy large value to avoid ticks
+                    '-BwSne']
+
+            # draw white background box for histogram
+            m.gmt.psbasemap(
+                D='n0.722/0.716+w4c/4c',
+                F='+gwhite+p0.25p',
+                *m.jxyr)
+
+            m.gmt.pshistogram(
+                in_rows=pmp.utils.make_2d(
+                    all_var_reductions[dataset.component]),
+                W=(imax - imin) / nbins,
+                G='lightorange',
+                F=True,
+                L='0.5p,orange',
+                J='X4c/4c',
+                X='f13.5c',
+                Y='f13.4c',
+                *args)
+
+
+            # plot vertical line on hist with best solution
+            #    best_data=bvar_reductions[dataset.name] * 100.,
 
         figs.append(m)
 
@@ -1123,7 +1209,7 @@ def scene_fits(problem, stage, plot_options):
     bvar_reductions = composite.get_variance_reductions(
         bpoint, weights=composite.weights, results=bresults_tmp)
 
-    dataset_to_result = {}
+    dataset_to_result = OrderedDict()
     for dataset, bresult in zip(composite.datasets, bresults_tmp):
         if dataset.typ == 'SAR':
             dataset_to_result[dataset] = bresult
@@ -1640,8 +1726,8 @@ def draw_gnss_fits(problem, plot_options):
 
     outpath = os.path.join(
         problem.config.project_dir,
-        mode, po.figure_dir, 'gnss_%s_%s_%s' % (
-            stage.number, llk_str, po.plot_projection))
+        mode, po.figure_dir, 'gnss_%s_%s_%i_%s' % (
+            stage.number, llk_str, po.nensemble, po.plot_projection))
 
     if not os.path.exists(outpath) or po.force:
         figs = gnss_fits(problem, stage, po)
@@ -3270,8 +3356,7 @@ def draw_correlation_hist(problem, plot_options):
             cmap=plt.cm.gist_earth_r,
             chains=None,
             point=reference,
-            point_size=6,
-            point_color='red')
+            point_size=6)
     else:
         logger.info('correlation plot exists. Use force=True for replotting!')
         return
@@ -3606,7 +3691,7 @@ def fault_slip_distribution(
             from beat.models.laplacian import distances
             centers = num.vstack((xgr, ygr)).T
             #interpatch_dists = distances(centers, centers)
-            normalisation = slips.max() #/ interpatch_dists.min()
+            normalisation = slips.max()
 
         slips /= normalisation
 
@@ -3630,7 +3715,9 @@ def fault_slip_distribution(
 
         return quivers, normalisation
 
-    def draw_patches(ax, fault, subfault_idx, patch_values, cmap, alpha):
+    def draw_patches(
+            ax, fault, subfault_idx, patch_values, cmap, alpha, cbounds=None,
+            xlim=None):
 
         lls = fault.get_subfault_patch_attributes(
             subfault_idx, attributes=['bottom_left'])
@@ -3650,17 +3737,21 @@ def fault_slip_distribution(
         lower = rot_lls.min(axis=0)
         pad = sf.length / km * 0.05
 
-        xlim = [lower[0] - pad, lower[0] + sf.length / km + pad]
-        ylim = [lower[1] - pad, lower[1] + sf.width / km + pad]
+        #xlim = [lower[0] - pad, lower[0] + sf.length / km + pad]
+        if xlim is None:
+            xlim = [lower[1] - pad, lower[1] + sf.width / km + pad]
 
+        ax.set_aspect(1)
+        #ax.set_xlim(*xlim)
         ax.set_xlim(*xlim)
-        ax.set_ylim(*ylim)
 
         scale_y = {'scale': 1, 'offset': (-sf.width / km)}
         scale_axes(ax.yaxis, **scale_y)
 
-        ax.set_xlabel('strike-direction [km]', fontsize=fontsize)
-        ax.set_ylabel('dip-direction [km]', fontsize=fontsize)
+        ax.set_xlabel(
+            'strike-direction [km]', fontsize=fontsize)
+        ax.set_ylabel(
+            'dip-direction [km]', fontsize=fontsize)
 
         xticker = tick.MaxNLocator(nbins=ntickmarks)
         yticker = tick.MaxNLocator(nbins=ntickmarks)
@@ -3671,6 +3762,9 @@ def fault_slip_distribution(
         pa_col = PatchCollection(
             d_patches, alpha=alpha, match_original=True, zorder=0)
         pa_col.set(array=patch_values, cmap=cmap)
+
+        if cbounds is not None:
+            pa_col.set_clim(*cbounds)
 
         ax.add_collection(pa_col)
         return pa_col
@@ -3697,9 +3791,15 @@ def fault_slip_distribution(
     fontsize = 12
 
     reference_slip = fault.get_total_slip(index=None, point=reference)
+    slip_bounds = [0, reference_slip.max()]
 
     figs = []
     axs = []
+
+    flengths_max = num.array(
+        [sf.length / km for sf in fault.iter_subfaults()]).max()
+    pad = flengths_max * 0.03
+    xmax = flengths_max + pad
     for ns in range(fault.nsubfaults):
         fig, ax = plt.subplots(
             nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
@@ -3716,8 +3816,8 @@ def fault_slip_distribution(
         pa_col = draw_patches(
             ax, fault,
             subfault_idx=ns,
-            patch_values=reference_slip[patch_idxs],
-            cmap=slip_colormap(100), alpha=0.65)
+            patch_values=reference_slip[patch_idxs], xlim=[-pad, xmax],
+            cmap=slip_colormap(100), alpha=0.65, cbounds=slip_bounds)
 
         # patch central locations
         centers = fault.get_subfault_patch_attributes(
@@ -3769,28 +3869,44 @@ def fault_slip_distribution(
                 # alphas = std_durations.min() / std_durations
 
             # rupture durations
-            fig2, ax2 = plt.subplots(
-                nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
+            if False:
+                fig2, ax2 = plt.subplots(
+                    nrows=1, ncols=1,
+                    figsize=mpl_papersize('a5', 'landscape'))
 
-            reference_durations = reference['durations'][patch_idxs]
+                reference_durations = reference['durations'][patch_idxs]
 
-            pa_col2 = draw_patches(
-                ax2, fault, subfault_idx=ns, patch_values=reference_durations,
-                cmap=plt.cm.seismic, alpha=alpha)
+                pa_col2 = draw_patches(
+                    ax2, fault, subfault_idx=ns,
+                    patch_values=reference_durations,
+                    cmap=plt.cm.seismic, alpha=alpha, xlim=[-pad, xmax])
 
-            draw_colorbar(fig2, ax2, pa_col2, labeltext='durations [s]')
-            figs.append(fig2)
-            axs.append(ax2)
+                draw_colorbar(fig2, ax2, pa_col2, labeltext='durations [s]')
+                figs.append(fig2)
+                axs.append(ax2)
 
             ref_starttimes = fault.point2starttimes(reference, index=ns)
             contours = ax.contour(
                 xgr, ygr, ref_starttimes,
                 colors='black', linewidths=0.5, alpha=0.9)
-            ax.plot(
+
+            # draw subfault hypocenter
+            dip_idx, strike_idx = fault.fault_locations2idxs(
+                ns,
+                reference['nucleation_dip'][ns],
                 reference['nucleation_strike'][ns],
-                ext_source.width / km - reference['nucleation_dip'][ns],
+                backend='numpy')
+            psize_strike = fault.ordering.patch_sizes_strike[ns]
+            psize_dip = fault.ordering.patch_sizes_dip[ns]
+            nuc_strike = strike_idx * psize_strike + (psize_strike / 2.)
+            nuc_dip = dip_idx * psize_dip + (psize_dip / 2.)
+            ax.plot(
+                nuc_strike, ext_source.width / km - nuc_dip,
                 marker='*', color='k', markersize=12)
-            plt.clabel(contours, inline=True, fontsize=10)
+
+            # label contourlines
+            plt.clabel(contours, inline=True, fontsize=10,
+                       fmt=tick.FormatStrFormatter('%.1f'))
 
         if mtrace is not None:
             logger.info('Drawing quantiles ...')
@@ -3808,10 +3924,11 @@ def fault_slip_distribution(
 
             if uparrmean.sum() != 0.:
                 logger.info('Found slip shear components!')
+                normalisation = slip_bounds[1] / 3
                 quivers, normalisation = draw_quivers(
                     ax, uperpmean, uparrmean, xgr, ygr,
                     ext_source.rake, color='grey',
-                    draw_legend=False)
+                    draw_legend=False, normalisation=normalisation)
                 uparrstd = uparr.std(axis=0) / normalisation
                 uperpstd = uperp.std(axis=0) / normalisation
             elif utensmean.sum() != 0:
@@ -3856,7 +3973,7 @@ def fault_slip_distribution(
         draw_colorbar(fig, ax, pa_col, labeltext='slip [m]')
         format_axes(ax, remove=['top', 'right'])
 
-        fig.tight_layout()
+        # fig.tight_layout()
         figs.append(fig)
         axs.append(ax)
 
@@ -4138,6 +4255,12 @@ def fuzzy_moment_rate(
     grid[grid > truncate] = truncate
 
     ax.imshow(grid, extent=extent, origin='lower', cmap=cmap, aspect='auto')
+
+    xticker = tick.MaxNLocator(nbins=5)
+    yticker = tick.MaxNLocator(nbins=5)
+    ax.xaxis.set_major_locator(xticker)
+    ax.yaxis.set_major_locator(yticker)
+
     ax.set_xlabel('Time [s]')
     ax.set_ylabel('Moment rate [$Nm / s$]')
 
@@ -4206,7 +4329,7 @@ def draw_moment_rate(problem, po):
 
         if not os.path.exists(outpath) or po.force:
             fig, ax = plt.subplots(
-                nrows=1, ncols=1, figsize=mpl_papersize('a7', 'landscape'))
+                nrows=1, ncols=1, figsize=mpl_papersize('a6', 'landscape'))
             labelpos = mpl_margins(
                 fig, left=5, bottom=4, top=1.5, right=0.5, units=fontsize)
             labelpos(ax, 2., 1.5)
@@ -4670,6 +4793,8 @@ def draw_station_map_gmt(problem, po):
 
 def draw_3d_slip_distribution(problem, po):
 
+    varname_choices = ['coupling', 'slip_deficit']
+
     if po.outformat == 'svg':
         raise NotImplementedError('SVG format is not supported for this plot!')
 
@@ -4710,13 +4835,18 @@ def draw_3d_slip_distribution(problem, po):
     if gc:
         for corr in gc.corrections_config.euler_poles:
             if corr.enabled:
-                if po.varnames[0] == 'coupling':
+                if len(po.varnames) > 0 and po.varnames[0] in varname_choices:
                     from beat.ffi import backslip2coupling
                     logger.info('Plotting coupling ...!')
                     reference['coupling'] = backslip2coupling(
                         point=reference, fault=fault,
                         event=problem.config.event)
-                    slip_units = '%'
+
+                    # TODO: cleanup iforgy with slip units etc ...
+                    if po.varnames[0] == 'coupling':
+                        slip_units = '%'
+                    else:
+                        slip_units = 'm/yr'
                 else:
                     logger.info(
                         'Found Euler pole correction assuming interseismic '
@@ -4738,6 +4868,11 @@ def draw_3d_slip_distribution(problem, po):
     else:
         slip_label = 'slip'
 
+    if po.source_idxs is None:
+        source_idxs = [0, fault.nsubfaults]
+    else:
+        source_idxs = po.source_idxs
+
     outpath = os.path.join(
         problem.outfolder,
         po.figure_dir,
@@ -4750,7 +4885,7 @@ def draw_3d_slip_distribution(problem, po):
 
         gmt = slip_distribution_3d_gmt(
             fault, reference, mtrace, perspective,
-            slip_units, slip_label, varnames)
+            slip_units, slip_label, varnames, source_idxs=source_idxs)
 
         logger.info('saving figure to %s' % outpath)
         gmt.save(outpath, resolution=300, size=10)
@@ -4761,7 +4896,7 @@ def draw_3d_slip_distribution(problem, po):
 def slip_distribution_3d_gmt(
         fault, reference, mtrace=None, perspective='135/30', slip_units='m',
         slip_label='slip', varnames=None, gmt=None, bin_width=1,
-        cptfilepath=None, transparency=0):
+        cptfilepath=None, transparency=0, source_idxs=None):
 
     if len(gmtpy.detect_gmt_installations()) < 1:
         raise gmtpy.GmtPyError(
@@ -4785,10 +4920,10 @@ def slip_distribution_3d_gmt(
         gmt = gmtpy.GMT(config=gmtconfig)
 
     sf_lonlats = num.vstack(
-        [sf.outline(cs='lonlat') for sf in fault.iter_subfaults()])
+        [sf.outline(cs='lonlat') for sf in fault.iter_subfaults(source_idxs)])
 
     sf_xyzs = num.vstack(
-        [sf.outline(cs='xyz') for sf in fault.iter_subfaults()])
+        [sf.outline(cs='xyz') for sf in fault.iter_subfaults(source_idxs)])
     _, _, max_depth = sf_xyzs.max(axis=0) / km
 
     lon_min, lat_min = sf_lonlats.min(axis=0)
@@ -4803,27 +4938,34 @@ def slip_distribution_3d_gmt(
          lat_min - lat_tolerance,
          lat_max + lat_tolerance,
          -max_depth, 0], '/')
-    Jg = '-JM%gc' % 12
-    Jz = '-JZ%gc' % 6
+    Jg = '-JM%fc' % 20
+    Jz = '-JZ%gc' % 3
     J = [Jg, Jz]
-    B = ['-Bxa%i' % bin_width, '-Bya%i' % bin_width,
-         '-Bza10+Ldepth [km]', '-BwNEsZ']
+
+    B = ['-Bxa%gg%g' % (bin_width, bin_width),
+         '-Bya%gg%g' % (bin_width, bin_width),
+         '-Bza10+Ldepth [km]', '-BWNesZ']
     args = J + B
+
+    gmt.pscoast(
+        R=R,
+        D='a',
+        G='gray90',
+        S='lightcyan',
+        p=p,
+        *J)
 
     gmt.psbasemap(
         R=R,
         p=p,
         *args)
-    gmt.pscoast(
-        R=R,
-        D='a',
-        G='lightgrey',
-        S='lightblue',
-        p=p,
-        *J)
 
     if slip_label == 'coupling':
         reference_slips = reference['coupling'] * 100 # in percent
+
+    elif slip_label == 'slip_deficit':
+        reference_slips = reference['coupling'] * fault.get_total_slip(
+            index=None, point=reference)
     else:
         reference_slips = fault.get_total_slip(
             index=None, point=reference, components=varnames)
@@ -4842,7 +4984,8 @@ def slip_distribution_3d_gmt(
             out_filename=cptfilepath, suppress_defaults=True)
 
     tmp_patch_fname = '/tmp/temp_patch.txt'
-    for idx in range(fault.nsubfaults):
+
+    for idx in range(*source_idxs):
         slips = fault.vector2subfault(index=idx, vector=reference_slips)
         for i, source in enumerate(fault.get_subfault_patches(idx)):
             lonlats = source.outline(cs='lonlat')
