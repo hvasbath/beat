@@ -74,7 +74,7 @@ Editing the *reference_sources* this way ensures consistent geometry for all dat
 Now please make sure that also the arguments *patch_widths* and *patch_lengths* as well as the *extension_widths* and *extension_lengths* are consistent!
 The discretization at this point could be changed of course. However, this would then not allow to import the results from Example 4(ffi optimization), which we want to do next::
 
-  beat import Laquila_kinematic --results=Laquila --mode=ffi --datatypes=geodetic,seismic --import_from_mode=ffi
+  beat import Laquila_kinematic --results=Laquila --mode=ffi --datatypes=geodetic --import_from_mode=ffi
 
 You will notice now that the lower and upper bounds of the slip parameters *uparr* and *uperp* have been updated. Each sub-patch has indiviudal bounds where the index in the array refers to the patch number in the geometry and discretization figure shown in Example 4. As a short recap here again.
 
