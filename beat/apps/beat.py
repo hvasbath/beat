@@ -493,7 +493,10 @@ def command_import(args):
             problem = load_model(
                 options.results, options.import_from_mode,
                 hypers=False, build=False)
-            source_params = list(problem.config.problem_config.priors.keys())
+            priors = set(
+                list(problem.config.problem_config.priors.keys()))
+            rvs = set(problem.varnames)
+            source_params = list(priors.union(rvs))
 
             stage = Stage(
                 homepath=problem.outfolder,
