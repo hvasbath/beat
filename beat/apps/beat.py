@@ -497,6 +497,9 @@ def command_import(args):
                 list(problem.config.problem_config.priors.keys()))
             rvs = set(problem.varnames)
             source_params = list(priors.union(rvs))
+            logger.info(
+                'Importing priors for variables:'
+                ' %s' % list2string(source_params))
 
             stage = Stage(
                 homepath=problem.outfolder,
