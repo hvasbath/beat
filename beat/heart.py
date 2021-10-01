@@ -3146,6 +3146,79 @@ def seis_synthetics(
         raise TypeError('Outmode %s not supported!' % outmode)
 
 
+def seis_derivative(
+        engine, sources, targets, arrival_taper, arrival_times,
+        wavename, filterer, h, parameter, stencil_order=3):
+    """
+    Calculate the model prediction Covariance Sensitivity Kernel.
+    Numerical derivation with respect to the input source parameter
+
+    Parameters
+    ----------
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+    sources : list
+        containing :class:`pyrocko.gf.seismosizer.Source` Objects
+        reference source is the first in the list!!!
+    targets : list
+        containing :class:`pyrocko.gf.seismosizer.Target` Objects
+    arrival_taper : :class:`ArrivalTaper`
+    arrival_times : list or:class:`numpy.ndarray`
+        containing the start times [s] since 1st.January 1970 to start
+        tapering
+    wavename : string
+        of the tabulated phase that determines the phase arrival
+    filterer : :class:`Filterer`
+    h : float
+        distance for derivative calculation
+    parameter : str
+        of parameters with respect to which the kernel
+        is being calculated e.g. 'strike'/ 'dip'/ 'depth'
+    stencil_order : int
+        order N of numerical stencil differentiation, available; 3 or 5
+
+    Returns
+    -------
+    :class:`num.array` ntargets x nsamples with the first derivative
+    """
+
+    ntargets = len(targets)
+    if parameter not in sources[0].keys():
+        raise AttributeError(
+            'Parameter for which the derivative was requested is not'
+            ' represented by the source.')
+
+    calc_sources = copy.deepcopy(sources)
+    store = engine.get_store(targets[0].store_id)
+    nsamples = int(
+        num.ceil(store.config.sample_rate * arrival_taper.duration))
+
+    stencil = utility.StencilOperator(h=h, order=stencil_order)
+
+    # loop over stencil steps
+    tmp = num.zeros((len(stencil), nsamples, ntargets), dtype='float64')
+    for i, hstep in enumerate(stencil.hsteps):
+        diff_sources = []
+        for source in calc_sources:
+            source_diff = source.clone()
+            source_param = source[parameter]
+            setattr(source_diff, parameter, source_param + hstep)
+            diff_sources.append(source_diff)
+
+        tmp[i, :, :], _ = seis_synthetics(
+            engine=engine,
+            sources=diff_sources,
+            targets=targets,
+            arrival_taper=arrival_taper,
+            wavename=wavename,
+            filterer=filterer,
+            arrival_times=arrival_times,
+            pre_stack_cut=True,
+            outmode='array',
+            chop_bounds=['b', 'c'])
+
+    return (tmp * stencil.coefficients).sum(axis=0) / stencil.denominator
+
+
 def geo_synthetics(
         engine, targets, sources, outmode='stacked_array', plot=False,
         nprocs=1):

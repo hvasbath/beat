@@ -57,7 +57,6 @@ class TestUtility(unittest.TestCase):
 
         for var in ordering:
             print(var)
-<<<<<<< HEAD
 
         lpoint = [a, b, c]
         lij = utility.ListToArrayBijection(lordering, lpoint)
@@ -72,7 +71,7 @@ class TestUtility(unittest.TestCase):
     def test_window_rms(self):
 
         data = num.random.randn(5000)
-        ws = data.size / 5
+        ws = int(data.size / 5)
         t0 = time()
         data_stds = utility.running_window_rms(data, window_size=ws)
         t1 = time()
@@ -86,6 +85,15 @@ class TestUtility(unittest.TestCase):
         data_stds = utility.running_window_rms(
             data, window_size=ws, mode='same')
         print(data_stds.shape)
+
+    def test_stencil(self):
+        for order in [3, 5]:
+            so = utility.StencilOperator(order=order, h=0.001)
+            print(so)
+            print(len(so))
+            print('hsteps', so.hsteps)
+            print('coeffs', so.coefficients)
+            print('denom', so.denominator)
 
 
 if __name__ == '__main__':

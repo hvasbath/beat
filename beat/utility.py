@@ -19,7 +19,8 @@ from timeit import Timer
 import numpy as num
 from pyrocko import util, orthodrome, catalog
 from pyrocko.cake import m2d, LayeredModel, read_nd_model_str
-from pyrocko.gf.seismosizer import RectangularSource
+from pyrocko.guts import Int, Float, Object
+
 from theano import config as tconfig
 
 logger = logging.getLogger('utility')
@@ -1488,3 +1489,50 @@ def is_odd(value):
 
 def is_even(value):
     return (value & 1) == 0
+
+
+class StencilOperator(Object):
+
+    h = Float.T(
+        default=0.1,
+        help='step size left and right of the reference value')
+    order = Int.T(
+        default=3,
+        help='number of points of central differences')
+
+    def __init__(self, **kwargs):
+
+        stencil_order = kwargs['order']
+        if stencil_order not in [3, 5]:
+            raise ValueError(
+                'Only stencil orders 3 and 5 implemented.'
+                ' Requested: %i' % stencil_order)
+
+        self._coeffs = {
+            3: num.array([1., -1.]).reshape((2, 1, 1)),
+            5: num.array([1., 8., -8., -1.]).reshape((4, 1, 1))}
+
+        self._denominator = {
+            3: 2.,
+            5: 12.}
+
+        self._hsteps = {
+            3: num.array([-1, 1]),
+            5: num.array([-2, -1, 1, 2])}
+
+        Object.__init__(self, **kwargs)
+
+    @property
+    def coefficients(self):
+        return self._coeffs[self.order]
+
+    def __len__(self):
+        return self.coefficients.shape[0]
+
+    @property
+    def denominator(self):
+        return self._denominator[self.order] * self.h
+
+    @property
+    def hsteps(self):
+        return self._hsteps[self.order] * self.h
