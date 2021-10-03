@@ -496,7 +496,7 @@ def command_import(args):
             priors = set(
                 list(problem.config.problem_config.priors.keys()))
             rvs = set(problem.varnames)
-            source_params = list(priors.union(rvs))
+            source_params = list(priors.intersection(rvs))
             logger.info(
                 'Importing priors for variables:'
                 ' %s' % list2string(source_params))
