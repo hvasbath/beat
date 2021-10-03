@@ -3146,12 +3146,17 @@ def seis_synthetics(
         raise TypeError('Outmode %s not supported!' % outmode)
 
 
+spatial_derivative_parameters = {
+    'dx': 'east_shift',
+    'dy': 'north_shift',
+    'dz': 'depth'}
+
+
 def seis_derivative(
         engine, sources, targets, arrival_taper, arrival_times,
         wavename, filterer, h, parameter, stencil_order=3):
     """
-    Calculate the model prediction Covariance Sensitivity Kernel.
-    Numerical derivation with respect to the input source parameter
+    Calculate numerical derivative with respect to source or spatial parameter
 
     Parameters
     ----------
@@ -3171,8 +3176,8 @@ def seis_derivative(
     h : float
         distance for derivative calculation
     parameter : str
-        of parameters with respect to which the kernel
-        is being calculated e.g. 'strike'/ 'dip'/ 'depth'
+        parameter with respect to which the derivative
+        is being calculated e.g. 'strike', 'dip', 'depth'
     stencil_order : int
         order N of numerical stencil differentiation, available; 3 or 5
 
@@ -3180,6 +3185,8 @@ def seis_derivative(
     -------
     :class:`num.array` ntargets x nsamples with the first derivative
     """
+
+
 
     ntargets = len(targets)
     if parameter not in sources[0].keys():
