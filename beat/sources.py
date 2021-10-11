@@ -44,13 +44,6 @@ class RectangularSource(gf.RectangularSource):
         """
         Get 3 dimensional dip-vector of the planar fault.
 
-        Parameters
-        ----------
-        dip : scalar, float
-            dip-angle [deg] of the fault
-        strike : scalar, float
-            strike-abgle [deg] of the fault
-
         Returns
         -------
         :class:`numpy.ndarray`
@@ -66,11 +59,6 @@ class RectangularSource(gf.RectangularSource):
         """
         Get 3 dimensional strike-vector of the planar fault.
 
-        Parameters
-        ----------
-        strike : scalar, float
-            strike-abgle [deg] of the fault
-
         Returns
         -------
         :class:`numpy.ndarray`
@@ -80,6 +68,18 @@ class RectangularSource(gf.RectangularSource):
             [num.sin(self.strike * d2r),
              num.cos(self.strike * d2r),
              0.])
+
+    @property
+    def normalvector(self):
+        """
+        Get 3 dimensional normal-vector of the planar fault.
+
+        Returns
+        -------
+        :class:`numpy.ndarray`
+        """
+
+        return num.cross(self.strikevector, self.dipvector)
 
     @property
     def center(self):

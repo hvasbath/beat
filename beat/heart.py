@@ -3147,14 +3147,15 @@ def seis_synthetics(
 
 
 spatial_derivative_parameters = {
-    'dx': 'east_shift',
-    'dy': 'north_shift',
-    'dz': 'depth'}
+    'dn': 'north_shift',
+    'de': 'east_shift',
+    'dd': 'depth'}
 
 
 def seis_derivative(
         engine, sources, targets, arrival_taper, arrival_times,
-        wavename, filterer, h, parameter, stencil_order=3):
+        wavename, filterer, h, parameter, stencil_order=3,
+        outmode='tapered_data'):
     """
     Calculate numerical derivative with respect to source or spatial parameter
 
@@ -3186,35 +3187,52 @@ def seis_derivative(
     :class:`num.array` ntargets x nsamples with the first derivative
     """
 
-
-
     ntargets = len(targets)
-    if parameter not in sources[0].keys():
+
+    available_params = list(
+        sources[0].keys()) + list(spatial_derivative_parameters.keys())
+    if parameter not in available_params:
         raise AttributeError(
-            'Parameter for which the derivative was requested is not'
-            ' represented by the source.')
+            'Parameter for which the derivative was requested is neither'
+            ' represented by the source nor the target. Supported parameters:'
+            ' %s' % utility.list2string(available_params))
 
     calc_sources = copy.deepcopy(sources)
     store = engine.get_store(targets[0].store_id)
     nsamples = int(
-        num.ceil(store.config.sample_rate * arrival_taper.duration))
+        num.ceil(store.config.sample_rate * arrival_taper.duration()))
 
     stencil = utility.StencilOperator(h=h, order=stencil_order)
 
     # loop over stencil steps
-    tmp = num.zeros((len(stencil), nsamples, ntargets), dtype='float64')
+    n_stencil_steps = len(stencil)
+    tmp = num.zeros((n_stencil_steps, ntargets, nsamples), dtype='float64')
     for i, hstep in enumerate(stencil.hsteps):
-        diff_sources = []
-        for source in calc_sources:
-            source_diff = source.clone()
-            source_param = source[parameter]
-            setattr(source_diff, parameter, source_param + hstep)
-            diff_sources.append(source_diff)
 
-        tmp[i, :, :], _ = seis_synthetics(
+        if parameter in spatial_derivative_parameters:
+            target_param_name = spatial_derivative_parameters[parameter]
+            diff_targets = []
+            diff_sources = sources
+            for target in targets:
+                target_diff = copy.deepcopy(target)
+                target_param = getattr(target, target_param_name)
+                setattr(target_diff, target_param_name, target_param + hstep)
+                diff_targets.append(target_diff)
+
+            arrival_times = num.repeat(arrival_times, n_stencil_steps)
+        else:
+            diff_targets = targets
+            diff_sources = []
+            for source in calc_sources:
+                source_diff = source.clone()
+                source_param = source[parameter]
+                setattr(source_diff, parameter, source_param + hstep)
+                diff_sources.append(source_diff)
+
+        tmp[i, :, :], tmins = seis_synthetics(
             engine=engine,
             sources=diff_sources,
-            targets=targets,
+            targets=diff_targets,
             arrival_taper=arrival_taper,
             wavename=wavename,
             filterer=filterer,
@@ -3223,7 +3241,29 @@ def seis_derivative(
             outmode='array',
             chop_bounds=['b', 'c'])
 
-    return (tmp * stencil.coefficients).sum(axis=0) / stencil.denominator
+    diff_array = (
+        tmp * stencil.coefficients).sum(axis=0) / stencil.denominator
+
+    print(diff_array.shape)
+    if outmode == 'array':
+        return diff_array
+    elif outmode == 'tapered_data':
+        out_traces = []
+        for i, target in enumerate(targets):
+            store = engine.get_store(target.store_id)
+            network, station, location, channel = target.codes
+            strain_trace = trace.Trace(
+                tmin=tmins[i],
+                ydata=diff_array[i, :],
+                network=network,
+                station=station,
+                location='{}{}'.format(parameter, location),
+                channel=channel,
+                deltat=store.config.deltat)
+            out_traces.append(strain_trace)
+        return out_traces
+    else:
+        raise IOError('Outmode %s not supported!' % outmode)
 
 
 def geo_synthetics(

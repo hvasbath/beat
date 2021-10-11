@@ -1509,8 +1509,8 @@ class StencilOperator(Object):
                 ' Requested: %i' % stencil_order)
 
         self._coeffs = {
-            3: num.array([1., -1.]).reshape((2, 1, 1)),
-            5: num.array([1., 8., -8., -1.]).reshape((4, 1, 1))}
+            3: num.array([1., -1.]),
+            5: num.array([1., 8., -8., -1.])}
 
         self._denominator = {
             3: 2.,
@@ -1524,10 +1524,11 @@ class StencilOperator(Object):
 
     @property
     def coefficients(self):
-        return self._coeffs[self.order]
+        coeffs = self._coeffs[self.order]
+        return coeffs.reshape((coeffs.size, 1, 1))
 
     def __len__(self):
-        return self.coefficients.shape[0]
+        return self.coefficients.size
 
     @property
     def denominator(self):
