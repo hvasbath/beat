@@ -359,7 +359,7 @@ def weed_input_rvs(input_rvs, mode, datatype):
     weeded_input_rvs = copy.copy(input_rvs)
 
     burian = '''
-        lat lon name stf stf1 stf2 stf_mode moment anchor sign
+        lat lon name stf stf1 stf2 stf_mode moment anchor
         velocity interpolation decimation_factor npointsources
         elevation exponent
         '''.split()
