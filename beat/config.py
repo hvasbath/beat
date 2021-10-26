@@ -159,6 +159,7 @@ default_bounds = dict(
 
     volume_change=(1e8, 1e10),
     diameter=(5., 10.),
+    sign=(-1., 1.),
     mix=(0, 1),
     time=(-5., 5.),
     time_shift=(-5., 5.),

@@ -498,6 +498,7 @@ physical_bounds = dict(
     mix=(0, 1),
 
     diameter=(0., 100.),
+    sign=(-1., 1.),
     volume_change=(-1e12, 1e12),
 
     mnn=(-sqrt2, sqrt2),
