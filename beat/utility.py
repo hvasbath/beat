@@ -28,7 +28,7 @@ DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype, name')
 
 locationtypes = {'east_shift', 'north_shift', 'depth', 'distance',
            'delta_depth'}
-dimensiontypes = {'length', 'width'}
+dimensiontypes = {'length', 'width', 'diameter'}
 mttypes = {'mnn', 'mee', 'mdd', 'mne', 'mnd', 'med'}
 degtypes = {'strike', 'dip', 'rake'}
 nucleationtypes = {'nucleation_x', 'nucleation_y'}
