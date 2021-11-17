@@ -40,16 +40,15 @@ except ImportError:
 
 from pymc3.backends import base, ndarray
 from pymc3.backends import tracetab as ttab
-from pymc3.blocking import DictToArrayBijection, ArrayOrdering
 from pymc3.model import modelcontext
-from pymc3.step_methods.arraystep import BlockedStep
+
 from pyrocko import util
 
 from beat.config import (sample_p_outname, transd_vars_dist, mt_components,
                          dc_components)
 from beat.covariance import calc_sample_covariance
-from beat.utility import load_objects, dump_objects, \
-    ListArrayOrdering, ListToArrayBijection, list2string
+from beat.utility import load_objects, dump_objects, list2string
+
 
 logger = logging.getLogger('backend')
 
@@ -80,55 +79,6 @@ def thin_buffer(buffer, buffer_thinning, ensure_last=True):
     else:
         write_buffer = buffer[::buffer_thinning]
     return write_buffer
-
-
-class ArrayStepSharedLLK(BlockedStep):
-    """
-    Modified ArrayStepShared To handle returned larger point including the
-    likelihood values.
-    Takes additionally a list of output vars including the likelihoods.
-
-    Parameters
-    ----------
-
-    vars : list
-        variables to be sampled
-    out_vars : list
-        variables to be stored in the traces
-    shared : dict
-        theano variable -> shared variables
-    blocked : boolen
-        (default True)
-    """
-
-    def __init__(self, vars, out_vars, shared, blocked=True):
-        self.vars = vars
-        self.ordering = ArrayOrdering(vars)
-        self.lordering = ListArrayOrdering(out_vars, intype='tensor')
-        lpoint = [var.tag.test_value for var in out_vars]
-        self.shared = {var.name: shared for var, shared in shared.items()}
-        self.blocked = blocked
-        self.bij = DictToArrayBijection(self.ordering, self.population[0])
-
-        blacklist = list(set(self.lordering.variables) -
-                         set([var.name for var in vars]))
-
-        self.lij = ListToArrayBijection(
-            self.lordering, lpoint, blacklist=blacklist)
-
-    def __getstate__(self):
-        return self.__dict__
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-
-    def step(self, point):
-        for var, share in self.shared.items():
-            share.container.storage[0] = point[var]
-
-        apoint, alist = self.astep(self.bij.map(point))
-
-        return self.bij.rmap(apoint), alist
 
 
 class BaseChain(object):
@@ -235,8 +185,9 @@ class BaseChain(object):
 class FileChain(BaseChain):
     """
     Base class for a trace written to a file with buffer functionality and
-    rogressbar. Buffer is a list of tuples of lpoints and a draw index. Inheriting classes
-    must define the methods: '_write_data_to_file' and '_load_df'
+    rogressbar. Buffer is a list of tuples of lpoints and a draw index.
+    Inheriting classes must define the
+    methods: '_write_data_to_file' and '_load_df'
     """
     def __init__(
             self, dir_path='', model=None, vars=None, buffer_size=5000,
@@ -790,7 +741,7 @@ backend_catalog = {
 }
 
 
-class TransDTextChain(object):
+class TransDChain(object):
     """
     Result Trace object for trans-d problems.
     Manages several TextChains one for each dimension.
@@ -806,7 +757,7 @@ class TransDTextChain(object):
         if vars is None:
             vars = model.unobserved_RVs
 
-        transd, dims_idx = istransd(model)
+        transd, self.dims_idx = istransd(model)
         if transd:
             self.dims_idx
         else:
@@ -819,8 +770,8 @@ class TransDTextChain(object):
             self._straces[k] = TextChain(
                 dir_path=name,
                 model=model,
-                buffer_size=buffer_size,
-                progressbar=progressbar,
+                buffer_size=self.buffer_size,
+                progressbar=self.progressbar,
                 k=k)
 
         # init indexing chain
@@ -841,10 +792,11 @@ class TransDTextChain(object):
 
     def write(self, lpoint, draw):
         self.draws[0] = draw
-        ipoint = [self.draws, lpoint[self.dims_idx]]
+        trace_dim = lpoint[self.dims_idx]
+        ipoint = [self.draws, trace_dim]
 
         self._index.write(ipoint, draw)
-        self._straces[lpoint[self.dims_idx]].write(lpoint, draw)
+        self._straces[trace_dim].write(lpoint, draw)
 
     def __len__(self):
         return int(self._index[-1])

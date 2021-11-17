@@ -5,7 +5,8 @@ import numpy as num
 import pymc3 as pm
 import theano.tensor as tt
 
-from beat.backend import TextChain, NumpyChain, load_multitrace, check_multitrace
+from beat.backend import TextChain, NumpyChain, \
+    load_multitrace, check_multitrace
 
 
 class TestBackend(TestCase):
@@ -38,8 +39,12 @@ class TestBackend(TestCase):
         with pm.Model() as self.PT_test:
             for data_key in self.data_keys:
                 if data_key != "like":
-                    uniform = pm.Uniform(data_key, shape=number_of_parameters, lower=-2. * num.ones_like(mu1),
-                                 upper=2. * num.ones_like(mu1), testval=-1. * num.ones_like(mu1), transform=None)
+                    uniform = pm.Uniform(
+                        data_key,
+                        shape=number_of_parameters,
+                        lower=num.full_like(mu1, -2.),
+                        upper=num.full_like(mu1, 2),
+                        testval=num.full_like(mu1, -1), transform=None)
                 else:
                     like = pm.Deterministic('tmp', two_gaussians(uniform))
             pm.Potential(self.data_keys[self.like_index], like)
@@ -57,7 +62,8 @@ class TestBackend(TestCase):
         self.lpoint = []
         for data_key in self.data_keys:
             if data_key != "like":
-                chain_data = num.arange(number_of_parameters).astype(num.float)*data_increment
+                chain_data = num.arange(
+                    number_of_parameters).astype(num.float) * data_increment
             else:
                 chain_data = num.array([10.]).astype(num.float)
             data_increment += 1
@@ -91,12 +97,16 @@ class TestBackend(TestCase):
             chain_data = textchain.get_values(data_key)
             data_index = 1
             chain_at = textchain.point(data_index)
-            self.assertEqual(chain_data.all(), self.expected_chain_data.get(data_key).all())
-            self.assertEqual(chain_at[data_key].all(), self.expected_chain_data.get(data_key)[data_index].all())
+            self.assertEqual(
+                chain_data.all(), self.expected_chain_data.get(data_key).all())
+            self.assertEqual(
+                chain_at[data_key].all(),
+                self.expected_chain_data.get(data_key)[data_index].all())
 
     def test_chain_bin(self):
 
-        numpy_chain = NumpyChain(dir_path=self.test_dir_path, model=self.PT_test)
+        numpy_chain = NumpyChain(
+            dir_path=self.test_dir_path, model=self.PT_test)
         numpy_chain.setup(10, 0, overwrite=True)
         print(numpy_chain)
         # write data to buffer
@@ -121,21 +131,28 @@ class TestBackend(TestCase):
             data_index = 1
             chain_at = numpy_chain.point(data_index)
             # print(data_key + ": ", chain_data)
-            self.assertEqual(chain_data.all(), self.expected_chain_data.get(data_key).all())
-            self.assertEqual(chain_at[data_key].all(), self.expected_chain_data.get(data_key)[data_index].all())
+            self.assertEqual(
+                chain_data.all(), self.expected_chain_data.get(data_key).all())
+            self.assertEqual(
+                chain_at[data_key].all(),
+                self.expected_chain_data.get(data_key)[data_index].all())
 
     def test_load_bin_chain(self):
-        numpy_chain = NumpyChain(dir_path=self.test_dir_path, model=self.PT_test)
+        numpy_chain = NumpyChain(
+            dir_path=self.test_dir_path, model=self.PT_test)
         numpy_chain.setup(5, 0, overwrite=False)
         # print(len(numpy_chain), numpy_chain.data_file())
         data_index = 1
         chain_at = numpy_chain.point(data_index)
         # print(chain_at)
         for data_key in self.data_keys:
-            self.assertEqual(chain_at[data_key].all(), self.expected_chain_data.get(data_key)[data_index].all())
+            self.assertEqual(
+                chain_at[data_key].all(),
+                self.expected_chain_data.get(data_key)[data_index].all())
 
     def test_load_check_multitrace(self):
-        mtrace = load_multitrace(self.test_dir_path, varnames=self.PT_test.vars, backend='bin')
+        mtrace = load_multitrace(
+            self.test_dir_path, varnames=self.PT_test.vars, backend='bin')
         mtrace.point(1)
 
         corrupted = check_multitrace(mtrace, self.sample_size, 1)

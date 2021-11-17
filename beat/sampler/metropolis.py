@@ -28,7 +28,7 @@ from pyrocko import util
 from beat import backend, utility
 from beat.covariance import init_proposal_covariance
 from .base import iter_parallel_chains, choose_proposal, logp_forw, \
-    init_stage, update_last_samples, multivariate_proposals
+    init_stage, update_last_samples, multivariate_proposals, ArrayStepSharedLLK
 
 
 __all__ = [
@@ -41,7 +41,7 @@ __all__ = [
 logger = logging.getLogger('metropolis')
 
 
-class Metropolis(backend.ArrayStepSharedLLK):
+class Metropolis(ArrayStepSharedLLK):
     """
     Metropolis-Hastings sampler
 

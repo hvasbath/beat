@@ -5,8 +5,8 @@ import shutil
 
 from beat import parallel
 from beat.backend import check_multitrace, load_multitrace, backend_catalog, \
-                         MemoryChain
-from beat.utility import list2string
+    MemoryChain
+from beat.utility import list2string, ListArrayOrdering, ListToArrayBijection
 
 from numpy.random import seed, randint
 from numpy.random import normal, standard_cauchy, standard_exponential, \
@@ -15,6 +15,8 @@ import numpy as np
 
 from theano import function
 
+from pymc3.blocking import DictToArrayBijection, ArrayOrdering
+from pymc3.step_methods.arraystep import BlockedStep
 from pymc3.model import modelcontext, Point
 from pymc3 import CompoundStep
 from pymc3.sampling import stop_tuning
@@ -31,6 +33,55 @@ __all__ = [
     'iter_parallel_chains',
     'init_stage',
     'available_proposals']
+
+
+class ArrayStepSharedLLK(BlockedStep):
+    """
+    Modified ArrayStepShared To handle returned larger point including the
+    likelihood values.
+    Takes additionally a list of output vars including the likelihoods.
+
+    Parameters
+    ----------
+
+    vars : list
+        variables to be sampled
+    out_vars : list
+        variables to be stored in the traces
+    shared : dict
+        theano variable -> shared variables
+    blocked : boolen
+        (default True)
+    """
+
+    def __init__(self, vars, out_vars, shared, blocked=True):
+        self.vars = vars
+        self.ordering = ArrayOrdering(vars)
+        self.lordering = ListArrayOrdering(out_vars, intype='tensor')
+        lpoint = [var.tag.test_value for var in out_vars]
+        self.shared = {var.name: shared for var, shared in shared.items()}
+        self.blocked = blocked
+        self.bij = DictToArrayBijection(self.ordering, self.population[0])
+
+        blacklist = list(set(self.lordering.variables) -
+                         set([var.name for var in vars]))
+
+        self.lij = ListToArrayBijection(
+            self.lordering, lpoint, blacklist=blacklist)
+
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+    def step(self, point):
+        for var, share in self.shared.items():
+            share.container.storage[0] = point[var]
+
+        apoint, alist = self.astep(self.bij.map(point))
+
+        return self.bij.rmap(apoint), alist
 
 
 def multivariate_t_rvs(mean, cov, df=np.inf, size=1):
