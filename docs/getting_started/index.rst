@@ -12,5 +12,6 @@ Getting started with BEAT
    import_data
    update_config
    backends
+   sampler_config
    custom_gf_store
    ffi_setup

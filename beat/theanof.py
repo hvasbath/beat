@@ -449,7 +449,7 @@ class PolaritySynthesizer(theano.Op):
             self.source, **source_points[self.pmap.config.event_idx])
 
         if not self.is_location_fixed:
-            self.pmap.update_targets(self.engine, self.source)
+            self.pmap.update_targets(self.engine, self.source, check=False)
             self.pmap.update_radiation_weights()
 
         synths[0] = heart.pol_synthetics(

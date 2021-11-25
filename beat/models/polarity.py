@@ -84,7 +84,7 @@ class PolarityComposite(Composite):
                 stations=stations,
                 targets=targets)
             pmap.update_targets(
-                self.engine, self.sources[pmap.config.event_idx])
+                self.engine, self.sources[pmap.config.event_idx], check=True)
             self.polmaps[i] = pmap
 
     @property

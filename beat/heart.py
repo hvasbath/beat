@@ -749,17 +749,75 @@ class PolarityTarget(gf.meta.Receiver):
         default='any_P', optional=True,
         help='First arrival of seismic phase')
 
-    def update_target(self, engine, source):
+    def __init__(self, **kwargs):
+        gf.meta.Receiver.__init__(self, **kwargs)
+        self._phase = None
+        self.check = None
+
+    def get_phase_definition(self, store):
+        if self._phase is None:
+            for phase in store.config.tabulated_phases:
+                if phase.id == self.phase_id:
+                    self._phase = phase
+
+        return self._phase
+
+    def get_takeoff_angle_table(self, source, store):
+
+        takeoff_angle = store.get_stored_attribute(
+            self.phase_id,
+            'takeoff_angle',
+            (source.depth, self.distance)) * r2d
+        logger.debug('Takeoff-angle table %f station %s' % (
+            takeoff_angle,
+            utility.list2string(self.codes)))
+        return takeoff_angle
+
+    def get_takeoff_angle_cake(self, source, store):
+
+        mod = store.config.earthmodel_1d
+        rays = mod.arrivals(
+            phases=self.get_phase_definition(store).phases,
+            distances=[self.distance * cake.m2d],
+            zstart=source.depth,
+            zstop=self.depth)
+        earliest_idx = num.argmin([ray.t for ray in rays])
+        takeoff_angle = rays[earliest_idx].takeoff_angle()
+        logger.debug('Takeoff-angle cake %f station %s' % (
+            takeoff_angle,
+            utility.list2string(self.codes)))
+        return takeoff_angle
+
+    def update_target(self, engine, source, check=False):
 
         self.azimuth_rad = self.azibazi_to(source)[1] * d2r
         self.distance = self.distance_to(source)
+        logger.debug(
+            'source distance %f and depth %f', self.distance, source.depth)
         store = engine.get_store(self.store_id)
 
         try:
-            self.takeoff_angle_rad = store.get_stored_attribute(
-                self.phase_id,
-                'takeoff_angle',
-                (source.depth, self.distance)) * d2r
+            self.takeoff_angle_rad = self.get_takeoff_angle_table(
+                source, store) * d2r
+            if check:
+                target_id = utility.list2string(self.codes)
+                takeoff_angle_cake = self.get_takeoff_angle_cake(
+                    source, store)
+                angle_diff = num.abs(
+                    self.takeoff_angle_rad * r2d - takeoff_angle_cake)
+                if angle_diff > 1.:
+                    logger.warning(
+                        'Tabulated takeoff-angle for station %s differs '
+                        'significantly %f [deg] from raytracing value! '
+                        'Please use finer GF gridding!' % (
+                            target_id, angle_diff))
+                    self.check = 1
+                else:
+                    self.check = 0
+                    logger.debug(
+                        'Tabulated and raytraced takeoff-angles are'
+                        ' consistent for %s' % target_id)
+
         except OutOfBounds:
             raise OutOfBounds(
                 'The distance-depth range of interpolation tables does not '
@@ -770,13 +828,8 @@ class PolarityTarget(gf.meta.Receiver):
             logger.warning(
                 'Could not find takeoff-angle table,'
                 ' falling back to cake...')
-            mod = store.config.earthmodel_1d
-            rays = mod.arrivals(
-                phases=self.phase_id,
-                distances=[self.distance * cake.m2d],
-                zstart=source.depth,
-                zstop=self.depth)
-            self.takeoff_angle_rad = rays[0].takeoff_angle() * d2r
+            self.takeoff_angle_rad = self.get_takeoff_angle_cake(
+                source, store) * d2r
 
 
 class DynamicTarget(gf.Target):
@@ -2509,9 +2562,23 @@ class PolarityMapping(object):
     def n_t(self):
         return len(self.targets)
 
-    def update_targets(self, engine, source):
+    def update_targets(self, engine, source, check=False):
+
         for target in self.targets:
-            target.update_target(engine, source)
+            target.update_target(engine, source, check=check)
+
+        if check:
+            error_counter = 0
+            for target in self.targets:
+                error_counter += target.check
+
+            if error_counter:
+                raise ValueError(
+                    'The interpolated takeoff-angles of some stations differ '
+                    'too much from raytraced values! Please use finer GF '
+                    'spacing.')
+            else:
+                logger.info('Tabulated takeoff-angles are precise enough.')
 
     def get_takeoff_angles_rad(self):
         return num.array([target.takeoff_angle_rad for target in self.targets])
