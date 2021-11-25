@@ -2336,11 +2336,11 @@ def draw_ray_piercing_points_bb(
     xp, yp = x[polarities >= 0], y[polarities >= 0]
     xt, yt = x[polarities < 0], y[polarities < 0]
     ax.plot(
-        xp, yp, 'o',
-        ms=5, mew=1.0, mec='blue', mfc='white', transform=transform)
+        xp, yp, 'D',
+        ms=5, mew=0.5, mec='black', mfc='white', transform=transform)
     ax.plot(
-        xt, yt, 'o',
-        ms=5, mew=1.0, mec='blue', mfc='black', transform=transform)
+        xt, yt, 's',
+        ms=6, mew=0.5, mec='white', mfc='black', transform=transform)
 
 
 def draw_fuzzy_beachball(problem, po):
@@ -2360,9 +2360,13 @@ def draw_fuzzy_beachball(problem, po):
         'beachball_type': 'full',
         'size': 8,
         'size_units': 'data',
+        'linewidth': 2.,
+        'alpha': 1.,
         'position': (5, 5),
         'color_t': 'black',
         'edgecolor': 'black',
+        'projection': 'lambert',
+        'zorder': 0,
         'grid_resolution': 400}
 
     fig = plt.figure(figsize=(4., 4.))
@@ -2380,7 +2384,24 @@ def draw_fuzzy_beachball(problem, po):
             axes, kwargs['size_units'], kwargs['position'], kwargs['size'])
 
         beachball.plot_fuzzy_beachball_mpl_pixmap(
-            m6s, axes, best_mt=best_mt, best_color='red', **kwargs)
+            m6s, axes, best_mt=best_mt, best_color='white', **kwargs)
+
+        best_amps, bx, by = beachball.mts2amps(
+            [best_mt],
+            grid_resolution=kwargs['grid_resolution'],
+            projection=kwargs['projection'],
+            beachball_type=kwargs['beachball_type'],
+            mask=False)
+
+        axes.contour(
+            position[0] + by * size, position[1] + bx * size, best_amps.T,
+            levels=[0.],
+            colors=['black'],
+            linestyles='dashed',
+            linewidths=kwargs['linewidth'],
+            transform=transform,
+            zorder=kwargs['zorder'],
+            alpha=kwargs['alpha'])
 
         if 'polarity' in problem.config.problem_config.datatypes:
             composite = problem.composites['polarity']
