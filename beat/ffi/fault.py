@@ -855,13 +855,14 @@ total number of patches: %i ''' % (
         return True if self.npatches else False
 
 
-def write_fault_to_pscmp(filename, fault, point=None, force=False):
+def write_fault_to_pscmp(
+        filename, fault, point=None, force=False, export_patch_idxs=False):
     """
     Dump the fault geometry to ascii file according to the pscmp format.
     """
     from beat import info
 
-    if fault.needs_optimization:
+    if fault.needs_optimization and not export_patch_idxs:
         raise TypeError(
             'PSCMP only supports uniform discretized rectangular sources, '
             'cannot dump irregularly discretized sources')
@@ -989,9 +990,15 @@ def write_fault_to_pscmp(filename, fault, point=None, force=False):
         outarray = num.hstack(
             [rot_centers, strike_slips.T, dip_slips.T, opening.T])
 
+        if export_patch_idxs:
+            patch_idxs = num.atleast_2d(num.arange(
+                *fault.cum_subfault_npatches[index:index + 2])).T
+            print(patch_idxs, outarray)
+            outarray = num.hstack([patch_idxs, outarray])
+
         # write patch info
         with open(filename, mode="a+") as fh:
-            num.savetxt(fh, outarray)
+            num.savetxt(fh, outarray, fmt='%g')
 
 
 class FaultOrdering(object):
