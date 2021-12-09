@@ -4793,7 +4793,7 @@ def draw_station_map_gmt(problem, po):
 
 def draw_3d_slip_distribution(problem, po):
 
-    varname_choices = ['coupling', 'slip_deficit']
+    varname_choices = ['coupling', 'slip_deficit', 'slip_variation']
 
     if po.outformat == 'svg':
         raise NotImplementedError('SVG format is not supported for this plot!')
@@ -4857,6 +4857,16 @@ def draw_3d_slip_distribution(problem, po):
                     'Did not find Euler pole correction-assuming '
                     'co-seismic slip ...')
                 slip_units = 'm'
+
+        if po.varnames[0] == 'slip_variation':
+            from pandas import read_csv
+            from beat.backend import extract_bounds_from_summary
+            summarydf = read_csv(
+                os.path.join(problem.outfolder, 'summary.txt'), sep='\s+')
+            bounds = extract_bounds_from_summary(
+                summarydf, varname='uparr', shape=(fault.npatches,), roundto=1)
+            reference['slip_variation'] = bounds[1] - bounds[0]
+            slip_units = 'm'
 
     if len(po.varnames) == 0:
         varnames = None
@@ -4966,6 +4976,10 @@ def slip_distribution_3d_gmt(
     elif slip_label == 'slip_deficit':
         reference_slips = reference['coupling'] * fault.get_total_slip(
             index=None, point=reference)
+
+    elif slip_label == 'slip_variation':
+        reference_slips = reference[slip_label]
+
     else:
         reference_slips = fault.get_total_slip(
             index=None, point=reference, components=varnames)
