@@ -4837,7 +4837,7 @@ def draw_3d_slip_distribution(problem, po):
             if corr.enabled:
                 if len(po.varnames) > 0 and po.varnames[0] in varname_choices:
                     from beat.ffi import backslip2coupling
-                    logger.info('Plotting coupling ...!')
+                    logger.info('Plotting %s ...!', po.varnames[0])
                     reference['coupling'] = backslip2coupling(
                         point=reference, fault=fault,
                         event=problem.config.event)
@@ -4864,7 +4864,7 @@ def draw_3d_slip_distribution(problem, po):
             summarydf = read_csv(
                 os.path.join(problem.outfolder, 'summary.txt'), sep='\s+')
             bounds = extract_bounds_from_summary(
-                summarydf, varname='uparr', shape=(fault.npatches,), roundto=1)
+                summarydf, varname='uparr', shape=(fault.npatches,))
             reference['slip_variation'] = bounds[1] - bounds[0]
             slip_units = 'm'
 

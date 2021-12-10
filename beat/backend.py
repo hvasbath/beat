@@ -1272,13 +1272,14 @@ def extract_bounds_from_summary(
     for quant in [lower_quant, upper_quant]:
         values = num.empty(shape, 'float64')
         for i, idx in enumerate(indexes):
-            adjust = 10. ** roundto
             if roundto is not None:
+                adjust = 10. ** roundto
                 if quant == lower_quant:
                     operation = num.floor
                 elif quant == upper_quant:
                     operation = num.ceil
             else:
+                adjust = 1.
                 operation = do_nothing
             values[i] = operation(summary[quant][idx] * adjust) / adjust
 
