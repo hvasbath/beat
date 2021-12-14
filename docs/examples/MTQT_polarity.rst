@@ -2,33 +2,33 @@ Example 1: Regional Full Moment Tensor
 --------------------------------------
 Clone project
 ^^^^^^^^^^^^^
-This setup is comprised of 24 seismic stations that are randomly distributed in distance range of 3 to 162 km with respect to a reference event occurred on 2021-03-11 with the local magnitude, 1.6.
-We will explore the solution space of a Full Moment Tensor .
-To copy the Example (including the data) to a directory outside of the package source directory, please edit the *model path* (referred to as $beat_models now on) and execute::
+This setup is comprised of 24 seismic stations that are randomly distributed in a distance range of 3 to 162 km with respect to a reference event occurred on 2021-03-11 with the local magnitude, 1.6.
+We will explore the solution space of a Full Moment Tensor with the Tape and Tape 2015 parameterisation, the MTQTSource.
+To copy the example setup (including the data) to a directory outside of the package source directory, please edit the *model path* (referred to as $beat_models from now on) and execute::
 
     cd /path/to/beat/data/examples/
-    beat clone 20210311.093732 /'model path'/20210311.093732 --copy_data --datatypes=polarity
+    beat clone MTQT_polarity /'model path'/MTQT_polarity --copy_data --datatypes=polarity
 
-This will create a BEAT project directory named *20210311.093732* with a configuration file (config_geometry.yaml) and some synthetic example data (seismic_data.pkl).
+This will create a BEAT project directory named *MTQT_polarity* with a configuration file *config_geometry.yaml* and a file with information of seismic stations *stations.txt*.
 This directory is going to be referred to as *$project_directory* in the following.
 
 Calculate Greens Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 The station-event geometry determines the grid of Greens Functions (GFs) that will need to be calculated next.
 
-Please open $project_directory/config_geometry.yaml with any text editor (e.g. vi) and search for *store_superdir*. Here, it is written for now ./20210311.093732, which is an example path to the directory of Greens Functions.
+Please open $project_directory/config_geometry.yaml with any text editor (e.g. vi) and search for *store_superdir*. Here, it is written for now ./MTQT_polarity, which is an example path to the directory of Greens Functions.
 This path needs to be replaced with the path to where the GFs are supposed to be stored on your computer. This directory is referred to as the $GF_path in the rest of the text. It is strongly recommended to use a separate directory apart from the beat source directory and the $project_directory as the GF databases can become very large, depending on the problem! For real examples, the GF databases may require up to several Gigabyte of free disc space. For our example the database that we are going to create is only around 30 Megabyte.::
 
     cd $beat_models
-    beat build_gfs 20210311.093732 --datatypes='polarity'
+    beat build_gfs MTQT_polarity --datatypes='polarity'
 
-This will create an empty Greens Function store named KSMMA_local_10.000Hz_0 in the $GF_path. Under $GF_path/KSMMA_local_10.000Hz_0/config it is recommended to cross-check again the velocity model and the specifications of the store (open with any texteditor).
-Dependend on the case study there are crucial parameters that often need to be changed from the default values: the spatial grid dimensions, the sample rate and the wave phases (body waves and/or surface waves) to be calculated.
+This will create an empty Greens Function store named PolarityTest_local_10.000Hz_0 in the $GF_path. Under $GF_path/PolarityTest_local_10.000Hz_0/config it is recommended to cross-check again the velocity model and the specifications of the store (open with any texteditor).
+Dependend on the case study there are crucial parameters that often need to be changed from the default values: the spatial grid dimensions.
 
-In the $project_path/config_geometry.yaml under seismic config we find the gf_config, which holds the major parameters for GF calculation::
+In the $project_path/config_geometry.yaml under polarity config we find the gf_config, which holds the major parameters for GF calculation::
 
   gf_config: !beat.PolarityGFConfig
-    store_superdir: ./20210311.093732
+    store_superdir: ./MTQT_polarity
     reference_model_idx: 0
     n_variations:
     - 0
@@ -72,7 +72,7 @@ Please edit the *nworkers* parameter now!
 For our use-case the grid specifications are fine for now. In this case the GFs are going to be calculated for the P body waves. 
 Now the store configuration files have to be updated. As we created them before we need to overwrite them! We can do this with the --force option.::
 
-    beat build_gfs 20210311.093732 --datatypes='polarity' --force
+    beat build_gfs MTQT_polarity --datatypes='polarity' --force
 
 
 Optimization setup (PolarityConfig)
@@ -275,7 +275,7 @@ In case there are several CPUs available the *n_jobs* parameter determines how m
 Each MC will contain 25k samples (*n_steps*) and every 50 samples the step-size will be adjusted (*tune_interval*).
 You may want to increase that now! To start the sampling please run ::
 
-    beat sample 20210311.093732 --hypers
+    beat sample MTQT_polarity --hypers
 
 This reduces the initial search space from 40 orders of magnitude to usually 5 to 10 orders. Checking the $project_directory/config_geometry.yaml,
 the HPs parameter bounds show something like::
@@ -318,7 +318,7 @@ sampler_config: !beat.SamplerConfig
 Here we use 4 cpus (n_jobs) - you can change this according to your systems specifications.
 Finally, we sample the solution space with::
 
-    beat sample 20210311.093732
+    beat sample MTQT_polarity
 
 .. note:: The reader might have noticed the two different *backends* that have been specified in the *SamplerConfigs*, "csv" and "bin". `Here <https://hvasbath.github.io/beat/getting_started/backends.html#sampling-backends>`__ we refer to the backend section that describe these further.
 
@@ -332,7 +332,7 @@ The sampled chain results of the SMC sampler are stored in seperate files and ha
 
 To summarize all the stages of the sampler please run the summarize command.::
 
-    beat summarize 20210311.093732
+    beat summarize MTQT_polarity
 
 
 If the final stage is included in the stages to be summarized also a summary file with the posterior quantiles will be created.
@@ -355,13 +355,13 @@ Plotting
 ^^^^^^^^
 To see results of source inversion based on polarity, we need to plot beachball with polarities on it. 
 
-    beat plot 20210311.093732 fuzzy_beachball --nensemble=200
+    beat plot MTQT_polarity fuzzy_beachball --nensemble=200
     
 nensemble arguement would add uncertainty to the plot.
 
 The following command produces a '.png' file with the final posterior distribution. In the $beat_models run::
 
-    beat plot 20210311.093732 stage_posteriors --reference --stage_number=-1 --format='png'
+    beat plot MTQT_polarity stage_posteriors --reference --stage_number=-1 --format='png'
 
 It may look like this.
 
@@ -372,7 +372,7 @@ We see that the true solution is not comprised within the marginals of all param
 
 To get an image of parameter correlations (including the true reference value in red) of moment tensor components, the location and the magnitude. In the $beat_models run::
 
-    beat plot 20210311.093732 correlation_hist --reference --stage_number=-1 --format='png' --varnames='mee, med, mdd, mnn, mnd, mne, north_shift, east_shift, magnitude'
+    beat plot MTQT_polarity correlation_hist --reference --stage_number=-1 --format='png' --varnames='mee, med, mdd, mnn, mnd, mne, north_shift, east_shift, magnitude'
 
 This will show an image like that.
 
@@ -391,7 +391,7 @@ Now we want to repeat the sampling with the noise structure set to *non-toeplitz
 as well as the configuration files unchanged for keeping track of our work. So we can use again the clone function to clone
 the current setup into a new directory.::
 
-  beat clone 20210311.093732 20210311.093732_nont --copy_data --datatypes=polarity
+  beat clone MTQT_polarity MTQT_polarity_nont --copy_data --datatypes=polarity
 
 References
 ^^^^^^^^^^
