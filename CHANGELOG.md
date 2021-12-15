@@ -11,11 +11,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - chain initialisation with lsq solution for seismic data
 
 **Plotting**
-- 3d_slip_distribution: allows plotting of selected segments, slip-deficit, coupling
+- 3d_slip_distribution: allows plotting of selected segments, slip-deficit, coupling, slip_variation
 - gnss_fits: added Variance Reduction histograms if nensemble > 1
 - slip_distribution: common colorscale and spatial scale accross subfaults
 - moment_rate: adjusted size and formatting to be publication ready
 - correlation_hist: plot source related correlations for nsources > 1, colorcoding
+
+## Fixed
+- Bin backend: loading of traces with corrupt file header
+- beat import: just import sampled variables
+- RingFaultSource: allow sampling of slip-direction (sign)
 
 ## [1.1.0] 12th April 2021
 
