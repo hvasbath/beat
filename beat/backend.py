@@ -736,9 +736,15 @@ class NumpyChain(FileChain):
     def _load_df(self):
 
         if not self.__data_structure:
-            self.__data_structure = self.construct_data_structure()
+            try:
+                self.__data_structure = self.construct_data_structure()
+            except json.decoder.JSONDecodeError:
+                logger.warning(
+                    'File header of %s is corrupted!'
+                    ' Resampling!' % self.filename)
+                self.corrupted_flag = True
 
-        if self._df is None:
+        if self._df is None and not self.corrupted_flag:
             try:
                 with open(self.filename, mode="rb") as file:
                     # skip header.
@@ -748,6 +754,7 @@ class NumpyChain(FileChain):
                         file, dtype=self.data_structure)
             except EOFError as e:
                 print(e)
+                self.corrupted_flag = True
 
     def get_values(self, varname, burn=0, thin=1):
         self._load_df()
