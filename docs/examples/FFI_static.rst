@@ -12,7 +12,7 @@ Please make sure that you are one level above the Laquila project folder (create
 
 Init
 ^^^^
-In this example you will first make use of the **mode** argument. The default is: *geometry*, which is why it was not necessary to specify it in the earlier examples. Now we will always have to set **mode** to *ffi*, which is an abbreviation for finite-fault-optimization.
+In this example you will first make use of the **mode** argument. The default is: *geometry*, which is why it was not necessary to specify it in the earlier examples. Now we will always have to set **mode** to *ffi*, which is an abbreviation for finite-fault-inference.
 The following command will create a configuration file for the *ffi* mode called *config_ffi.yaml* right next to the *config_geometry.yaml*::
 
   beat init Laquila --mode='ffi' --datatypes=geodetic
@@ -54,10 +54,16 @@ The fault geometry needs to be defined in the *geodetic.gf_config.reference_sour
       width: 9347.802691161543
       velocity: 3500.0
       slip: 0.5756726498300268
-    patch_widths: [2.0]
-    patch_lengths: [2.0]
-    extension_widths: [0.6]
-    extension_lengths: [0.4]
+    discretization: uniform
+    discretization_config: !beat.UniformDiscretizationConfig
+      extension_widths:
+      - 0.6
+      extension_lengths:
+      - 0.4
+      patch_widths:
+      - 2.0
+      patch_lengths:
+      - 2.0
     sample_rate: 1.1574074074074073e-05
 
 The values shown above are parts of the MAP solution from the optimization from Example 3. The results can been imported through the import command specifiying the --results option. We want to import the results from the *Laquila* project_directory from an optimization in *geometry* mode and we want to update the *geodetic* part of the *config_ffi.yaml*::
@@ -68,7 +74,7 @@ Of course, these values could be edited manually to whatever the user deems reas
 
 .. warning:: The reference point(s) on the *reference_fault(s)* are the top, central point of the fault(s)! Ergo the *depth* parameter(s) relate(s) to the **top edge(s)** of the fault(s).
 
-Now we need to specify the dimensions of the patches we want to discretize the reference fault(s) into. The *patch_widths* and *patch_lengths* arguments have to be lists and the respective entry needs to result in **square** patches. The parameters **extension_withs** and **extension_lengths** specify by how much the reference fault(s)should be extended in **each** direction. Example: 0.1 means that the fault is extended by 10% of its width/length value in each direction and 0. means no extension.
+Under the *discretization* attribute we can select the way of discretizing the fault surface into patches, now the default *uniform* is set. This attribute determines the *discretization_config* below. Here, we need to specify the dimensions of the patches we want to discretize the reference fault(s) into. The *patch_widths* and *patch_lengths* arguments have to be lists and the respective entry needs to result in **square** patches. The parameters **extension_withs** and **extension_lengths** specify by how much the reference fault(s) should be extended in **each** direction. Example: 0.1 means that the fault is extended by 10% of its width/length value in each direction and 0. means no extension.
 
 Once we decided for the discretization and the reference fault values we can create the discretized fault through.::
 
