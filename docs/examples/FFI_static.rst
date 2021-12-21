@@ -1,8 +1,9 @@
 
-Example 4: Static finite-fault estimation
------------------------------------------
+Example 4a: Static finite-fault estimation, uniform patch discretization
+------------------------------------------------------------------------
 
 In this example we will determine a variable slip distribution for the L'aquila 2009 earthquake by using static InSAR data.
+We will use uniform discretization of fault patches across the fault surface.
 The data is the exact same from `Example 3 <https://pyrocko.org/beat/docs/current/examples/Rectangular.html#>`__, where the overall geometry of the fault plane was estimated.
 It is a requirement to have Example 3 completed in order to follow the instructions and commands given in this example.
 
