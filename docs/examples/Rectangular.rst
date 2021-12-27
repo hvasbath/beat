@@ -225,7 +225,20 @@ Datatype specific setup options
 Orbital ramps
 """""""""""""
 There are additional hierarchical parameters that could be enabled in the setup of the optimization. These would be sampled in the course of the optimization as well.
-For **geodetic** data this is an additional linear trend ('ramp' in InSAR terminology) to each dataset. This can be turned on and off with the variable 'fit_plane' in the geodetic_config section.
+For **geodetic** data this is an additional linear trend ('ramp' in InSAR terminology) to each dataset. This can be turned on and off with the variable *enabled* in the *geodetic_config.corrections* section as well as adding the names of the datasets to the *dataset_names* attribute::
+
+  corrections_config: !beat.GeodeticCorrectionsConfig
+    euler_poles:
+    - !beat.EulerPoleConfig
+      enabled: false
+    ramp: !beat.RampConfig
+      dataset_names:
+      - Laquila_dscxn
+      - Laquila_ascxn
+      enabled: true
+    strain_rates:
+    - !beat.StrainRateConfig
+      enabled: false
 
 Station corrections
 """""""""""""""""""
