@@ -314,8 +314,7 @@ The sampling is successfully finished if the screen shows something like this::
 
 .. note:: The reader might have noticed the two different *backends* that have been specified in the *SamplerConfigs*, "csv" and "bin". `Here <https://hvasbath.github.io/beat/getting_started/backends.html#sampling-backends>`__ we refer to the backend section that describe these further.
 
-.. note::  For more detailed search of the solution space please modify the parameters 'n_steps' and 'n_chains' for the SMC sampler in the $project_directory/config_geometry.yaml file to higher numbers. Depending on these specifications and the available hardware the sampling may take several hours/few days.
-
+.. note::  For more detailed search of the solution space please modify the parameters 'n_steps' and 'n_chains' for the SMC sampler in the $project_directory/config_geometry.yaml file to higher numbers. Depending on these specifications and the available hardware the sampling may take several hours/few days. Further remarks regarding the configuration of the sampler can be found `here <https://pyrocko.org/beat/docs/current/getting_started/sampler_config.html#>`__ .
 
 Restarting sampling
 ^^^^^^^^^^^^^^^^^^^
