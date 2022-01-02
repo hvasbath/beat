@@ -725,6 +725,7 @@ total number of patches: %i ''' % (
                     'Nearest neighbor correlation Laplacian is only '
                     'available for "uniform" discretization! Please change'
                     ' either correlation_function or the discretization.')
+
         else:
             datatype = self._assign_datatype()
             subfault_idxs = list(range(self.nsubfaults))
@@ -740,7 +741,7 @@ total number of patches: %i ''' % (
             centers[:, 0] += east_shifts_wrt_event / km
             centers[:, 1] += north_shifts_wrt_event / km
             return get_smoothing_operator_correlated(
-                centers * km, correlation_function)
+                centers, correlation_function)
 
     def get_subfault_patch_attributes(
             self, index, datatype=None, component=None, attributes=['']):
@@ -1445,7 +1446,8 @@ def optimize_discretization(
         gfs = geo_construct_gf_linear_patches(
             engine=engine, datasets=datasets, targets=targets,
             patches=fault.get_all_patches('geodetic', component=component),
-            nworkers=nworkers)
+            nworkers=nworkers, apply_weight=True)
+
         gfs_comp.append(gfs)
 
     tobedivided = fault.npatches
@@ -1509,7 +1511,8 @@ def optimize_discretization(
             # calculate GFs for fault is [npatches, nobservations]
             gfs = geo_construct_gf_linear_patches(
                 engine=engine, datasets=datasets, targets=targets,
-                patches=all_divided_patches, nworkers=nworkers)
+                patches=all_divided_patches, nworkers=nworkers,
+                apply_weight=True)
             old_gfs = gfs_comp[gfs_i]
 
             # assemble new generation of discretization

@@ -143,6 +143,26 @@ class RectangularSource(gf.RectangularSource):
     def bottom_left(self):
         return self.bottom_center - (0.5 * self.strikevector * self.length)
 
+    @property
+    def bottom_right(self):
+        return self.bottom_center + (0.5 * self.strikevector * self.length)
+
+    @property
+    def top_left(self):
+        return num.array([self.east_shift, self.north_shift, self.depth]) - (
+            0.5 * self.strikevector * self.length)
+
+    @property
+    def top_right(self):
+        return num.array([self.east_shift, self.north_shift, self.depth]) + (
+            0.5 * self.strikevector * self.length)
+
+    @property
+    def corners(self):
+        return num.vstack(
+            [self.top_left, self.top_right,
+             self.bottom_left, self.bottom_right])
+
     def trace_center(self):
         """
         Get trace central coordinates of the fault [m] at the surface of the

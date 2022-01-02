@@ -440,7 +440,7 @@ class TextChain(FileChain):
         cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
 
         if os.path.exists(self.filename) and not overwrite:
-            logger.info('Found existing trace, appending!')
+            logger.debug('Found existing trace, appending!')
         else:
             self.count = 0
 
