@@ -67,7 +67,7 @@ The fault geometry needs to be defined in the *geodetic.gf_config.reference_sour
       - 2.0
     sample_rate: 1.1574074074074073e-05
 
-The values shown above are parts of the MAP solution from the optimization from Example 3. The results can been imported through the import command specifiying the --results option. We want to import the results from the *Laquila* project_directory from an optimization in *geometry* mode and we want to update the *geodetic* part of the *config_ffi.yaml*::
+The values shown above are parts of the MAP solution from the optimization from `Example 3 <https://pyrocko.org/beat/docs/current/examples/Rectangular.html#>`__ . The results can been imported through the import command specifiying the --results option. We want to import the results from the *Laquila* project_directory from an optimization in *geometry* mode and we want to update the *geodetic* part of the *config_ffi.yaml*::
 
   beat import Laquila --results=Laquila --mode='ffi' --datatypes=geodetic --import_from_mode=geometry
 
@@ -157,30 +157,60 @@ Under the *problem_config* we find the parameters that we need to adjust::
           upper: [0.0]
           testvalue: [0.0]
       hierarchicals:
+        Laquila_ascxn_azimuth_ramp: !beat.heart.Parameter
+          name: Laquila_ascxn_azimuth_ramp
+          form: Uniform
+          lower:
+          - -0.00023808150002277328
+          upper:
+          - -0.00023808150002277328
+          testvalue:
+          - -0.00023808150002277328
         Laquila_ascxn_offset: !beat.heart.Parameter
           name: Laquila_ascxn_offset
           form: Uniform
-          lower: [-0.004496268249748271]
-          upper: [-0.004496268249748271]
-          testvalue: [-0.004496268249748271]
-        Laquila_ascxn_ramp: !beat.heart.Parameter
-          name: Laquila_ascxn_ramp
+          lower:
+          - -0.004496268249748271
+          upper:
+          - -0.004496268249748271
+          testvalue:
+          - -0.004496268249748271
+        Laquila_ascxn_range_ramp: !beat.heart.Parameter
+          name: Laquila_ascxn_range_ramp
           form: Uniform
-          lower: [-0.00043773457168120667, -0.00023808150002277328]
-          upper: [-0.00043773457168120667, -0.00023808150002277328]
-          testvalue: [-0.00043773457168120667, -0.00023808150002277328]
+          lower:
+          - -0.00043773457168120667
+          upper:
+          - -0.00043773457168120667
+          testvalue:
+          - -0.00043773457168120667
+        Laquila_dscxn_azimuth_ramp: !beat.heart.Parameter
+          name: Laquila_dscxn_azimuth_ramp
+          form: Uniform
+          lower:
+          - -0.00025072248953317104
+          upper:
+          - -0.00025072248953317104
+          testvalue:
+          - -0.00025072248953317104
         Laquila_dscxn_offset: !beat.heart.Parameter
           name: Laquila_dscxn_offset
           form: Uniform
-          lower: [-0.003754963750062188]
-          upper: [-0.003754963750062188]
-          testvalue: [-0.003754963750062188]
-        Laquila_dscxn_ramp: !beat.heart.Parameter
-          name: Laquila_dscxn_ramp
+          lower:
+          - -0.003754963750062188
+          upper:
+          - -0.003754963750062188
+          testvalue:
+          - -0.003754963750062188
+        Laquila_dscxn_range_ramp: !beat.heart.Parameter
+          name: Laquila_dscxn_range_ramp
           form: Uniform
-          lower: [4.978325480108451e-05, -0.00025072248953317104]
-          upper: [4.978325480108451e-05, -0.00025072248953317104]
-          testvalue: [4.978325480108451e-05, -0.00025072248953317104]
+          lower:
+          - 4.978325480108451e-05
+          upper:
+          - 4.978325480108451e-05
+          testvalue:
+          - 4.978325480108451e-05
 
 .. note:: The npatches parameter should not be manually adjusted. It is automatically set by running the fault discretizeation step during GF calculation(above).
 
@@ -188,9 +218,25 @@ Under the *problem_config* we find the parameters that we need to adjust::
 Hierarchicals
 =============
 
-Please notice the hierarchicals parameters! These are the MAP parameters for the orbital ramps for each radar scene that have been optimized in Example 2.
-These parameters are imported if the *fit_plane* parameter in the *geodetic_config* was set to True. The default is to fix these ramp parameters during the static distributed slip optimization, because leaving them open often results in tradeoffs with patches at greater depth and thus artificial slip is optimized at greater depth.
+Please notice the hierarchicals parameters! These are the MAP parameters for the orbital ramps for each radar scene that have been optimized in `Example 3 <https://pyrocko.org/beat/docs/current/examples/Rectangular.html#>`__ . These parameters are imported if the *ramp* correction under *corrections* in the *geodetic_config* was set to True.::
+
+  corrections_config: !beat.GeodeticCorrectionsConfig
+    euler_poles:
+    - !beat.EulerPoleConfig
+      enabled: false
+    ramp: !beat.RampConfig
+      dataset_names:
+      - Laquila_dscxn
+      - Laquila_ascxn
+      enabled: true
+    strain_rates:
+    - !beat.StrainRateConfig
+      enabled: false
+
+The default is to fix these ramp parameters during the static distributed slip optimization, because leaving them open often results in tradeoffs with patches at greater depth and thus artificial slip is optimized at greater depth.
 Nevertheless, the user may want to try out to free the upper and lower bounds again to include the parameters into the optimization.
+
+..note:: The *EulerPole* and *StrainRate* corrections are useful for interseismic studies and will be covered in another tutorial.
 
 Priors
 ======

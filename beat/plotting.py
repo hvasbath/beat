@@ -4492,6 +4492,17 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
     ax.set_ylabel('North_shift [km]')
     ax.set_xlabel('East_shift [km]')
     set_axes_equal(ax, axes='xy')
+
+    strikes = num.array([extf.strike for extf in extfs])
+    dips = num.array([extf.strike for extf in extfs])
+
+    azim = strikes.mean() - 270
+    elev = dips.mean()
+    logger.debug(
+        'Viewing azimuth %s and elevation angles %s', azim, ax.elev)
+    ax.view_init(ax.elev, azim)
+
+
     if title is not None:
         ax.set_title(title)
 
