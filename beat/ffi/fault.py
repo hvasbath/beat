@@ -1533,7 +1533,7 @@ def optimize_discretization(
                 logger.info('Cross checking gfs ...')
                 check_gfs = geo_construct_gf_linear_patches(
                     engine=engine, datasets=datasets, targets=targets,
-                    patches=new_patches, nworkers=nworkers)
+                    patches=new_patches, nworkers=nworkers, apply_weight=True)
 
                 assert (new_gfs - check_gfs).sum() == 0
 

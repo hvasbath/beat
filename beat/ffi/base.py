@@ -956,11 +956,9 @@ def geo_construct_gf_linear_patches(
         list_gfs = Bij.a_nd2l(gfmatrix)
         w_gfs = []
         for dataset, gfs in zip(datasets, list_gfs):
-            print(gfs.shape)
             w_gfs.append(gfs.dot(dataset.covariance.chol_inverse))
 
         gfmatrix = num.hstack(w_gfs)
-        print(gfmatrix.shape)
 
     return gfmatrix
 

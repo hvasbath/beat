@@ -53,13 +53,13 @@ For the Laquila case please set the following config attributes to:
 ================= ======
   Attribute name   Value
 ================= ======
-          epsilon  0.035
-            alpha   0.05
- patch_widths_min    1.0
- patch_widths_ma    20.0
-patch_lengths_min    1.0
-patch_lengths_max   20.0
-
+          epsilon   0.15
+            alpha    0.1
+ patch_widths_min    2.0
+ patch_widths_ma    30.0
+patch_lengths_min    2.0
+patch_lengths_max   40.0
+    depth_penalty    5.0
 ================= ======
 
 The *nworkers* attribute determines the number of processes to be run in parallel to calculate the Greens Functions and should be set to a sufficiently high number that the hardware supports (number of CPU -1). Then start the discretization optimization with::
@@ -73,13 +73,17 @@ From the log on the screen we can see the following lines the discretization end
 ffi.fault    - INFO     Next generation npatches 86
 ffi.fault    - INFO     Found 0 candidate(s) for division for  1 subfault(s)
 ffi.fault    - INFO     Finished resolution based fault discretization.
-ffi.fault    - INFO     Quality index for this discretization: 0.875069
-beat         - INFO     Plotting patch resolution to /home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE_wide_resolution/ffi/figures/patch_resolutions_eps_0.035.pdf
+ffi.fault    - INFO     Quality index for this discretization: 0.930896
+beat         - INFO     Plotting patch resolution to /home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE_wide_resolution/ffi/figures/patch_resolutions_eps_0.15.pdf
 beat         - INFO     Storing optimized discretized fault geometry to: /home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE_wide_resolution/ffi/linear_gfs/fault_geometry.pkl
 beat         - INFO     Fault discretization optimization done! Updating problem_config...
 
 The quality index (QI) may be at maximum 1.0 and the higher it is the better the final overall resolution of the data to determine the slip on each fault patch. 0.875069 in this case is reasonably high, but it might be good to further increase the *epsilon* value to arrive at an even higher QI. Of course, this trades of with the details of features that may be resolved in
 the final slip distribution. The --plot option creates a plot of the discretized fault geometry with the individual patch resolutions. The higher the resolution the better the slip can be resolved.
+
+..image:: ../_static/example4/Laquila_discretization_resolution.png
+   :height: 350px
+   :width: 350 px
 
 As we do have irregular patch sizes we cannot use the *nearest_neighbor* *correlation_function* for the Laplacian, but we use a *gaussian* instead. Please edit the file accordingly! The *mode_config* should look like this::
 
@@ -88,9 +92,9 @@ As we do have irregular patch sizes we cannot use the *nearest_neighbor* *correl
     regularization_config: !beat.LaplacianRegularizationConfig
       correlation_function: gaussian
     initialization: lsq
-    npatches: 54
+    npatches: 119
     subfault_npatches:
-    - 54
+    - 119
 
 ..warning:: The *npatches* and *subfault_npatches* argument was updated automatically and must not be edited by the user. These might differ slightly for the run of each user depending on the parameter configuration and as the discretization algorithm is not purely deterministic.
 
@@ -109,7 +113,40 @@ Now the solution space can be sampled using the same sampler configuration as fo
   beat sample Laquila_resolution --mode=ffi
 
 
-..warnging:: Please be aware that if the full kinematic model setup is planned to be run after the variable static slip estimation, the resolution based discretization cannot be used in its implemented form as the algorithm only works for static surface data. 
+..warning:: Please be aware that if the full kinematic model setup is planned to be run after the variable static slip estimation, the resolution based discretization cannot be used in its implemented form as the algorithm only works for static surface data. 
+
+
+Summarize and plotting
+^^^^^^^^^^^^^^^^^^^^^^
+After the sampling successfully finished, the final stage results have to be summarized with::
+
+ beat summarize Laquila_resolution --stage_number=-1 --mode=ffi
+
+After that several figures illustrating the results can be created.
+
+For the slip-distribution please run::
+
+  beat plot Laquila_resolution slip_distribution --mode=ffi
+
+.. image:: ../_static/example4/Laquila_static_slip_dist_-1_max.png
+
+To get histograms for the laplacian smoothing, the noise scalings and the posterior likelihood please run::
+
+  beat plot Laquila_resolution stage_posteriors --stage_number=-1 --mode=ffi --varnames=h_laplacian,h_SAR,like
+
+.. image:: ../_static/example4/stage_-1_max.png
+   :height: 350px
+   :width: 350 px
+
+For a comparison between data, synthetic displacements and residuals for the two InSAR tracks in a local coordinate system and a histogram of weighted variance reduction for a posterior model ensemble of 200 models please run::
+
+  beat plot Laquila_resolution scene_fits --mode=ffi --nensemble=200
+
+.. image:: ../_static/example4/scenes_-1_max_local_0.png
+
+The plot should show something like this. Here the residuals are displayed with an individual color scale according to their minimum and maximum values.
+
+
 
 References
 ^^^^^^^^^^

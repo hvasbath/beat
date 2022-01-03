@@ -161,11 +161,11 @@ Under the *problem_config* we find the parameters that we need to adjust::
           name: Laquila_ascxn_azimuth_ramp
           form: Uniform
           lower:
-          - -0.00023808150002277328
+          - -0.00043773457168120667
           upper:
-          - -0.00023808150002277328
+          - -0.00043773457168120667
           testvalue:
-          - -0.00023808150002277328
+          - -0.00043773457168120667
         Laquila_ascxn_offset: !beat.heart.Parameter
           name: Laquila_ascxn_offset
           form: Uniform
@@ -179,20 +179,20 @@ Under the *problem_config* we find the parameters that we need to adjust::
           name: Laquila_ascxn_range_ramp
           form: Uniform
           lower:
-          - -0.00043773457168120667
+          - -0.00023808150002277328
           upper:
-          - -0.00043773457168120667
+          - -0.00023808150002277328
           testvalue:
-          - -0.00043773457168120667
+          - -0.00023808150002277328
         Laquila_dscxn_azimuth_ramp: !beat.heart.Parameter
           name: Laquila_dscxn_azimuth_ramp
           form: Uniform
           lower:
-          - -0.00025072248953317104
+          - 4.978325480108451e-05
           upper:
-          - -0.00025072248953317104
+          - 4.978325480108451e-05
           testvalue:
-          - -0.00025072248953317104
+          - 4.978325480108451e-05
         Laquila_dscxn_offset: !beat.heart.Parameter
           name: Laquila_dscxn_offset
           form: Uniform
@@ -206,11 +206,11 @@ Under the *problem_config* we find the parameters that we need to adjust::
           name: Laquila_dscxn_range_ramp
           form: Uniform
           lower:
-          - 4.978325480108451e-05
+          - -0.00025072248953317104
           upper:
-          - 4.978325480108451e-05
+          - -0.00025072248953317104
           testvalue:
-          - 4.978325480108451e-05
+          - -0.00025072248953317104
 
 .. note:: The npatches parameter should not be manually adjusted. It is automatically set by running the fault discretizeation step during GF calculation(above).
 
@@ -322,7 +322,7 @@ For the slip-distribution please run::
 
 To get histograms for the laplacian smoothing, the noise scalings and the posterior likelihood please run::
 
-  beat plot LaquilaJointPonlyUPDATE_wide stage_posteriors --stage_number=-1 --mode=ffi --varnames=h_laplacian,h_SAR,like
+  beat plot Laquila stage_posteriors --stage_number=-1 --mode=ffi --varnames=h_laplacian,h_SAR,like
 
 .. image:: ../_static/example4/stage_-1_max.png
    :height: 350px
@@ -332,7 +332,7 @@ For a comparison between data, synthetic displacements and residuals for the two
 
   beat plot Laquila scene_fits --mode=ffi
 
-.. image:: ../_static/example4/scenes_-1_max_local_0.png
+.. image:: ../_static/example4/scenes_-1_max_local_200_0.png
 
 The plot should show something like this. Here the residuals are displayed with an individual color scale according to their minimum and maximum values.
 
@@ -341,7 +341,7 @@ For a plot using the global geographic coordinate system where the residuals hav
 
   beat plot Laquila scene_fits --mode=ffi --plot_projection=latlon
 
-.. image:: ../_static/example4/scenes_-1_max_latlon_0.png
+.. image:: ../_static/example4/scenes_-1_max_latlon_200_0.png
 
 
 References
