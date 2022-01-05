@@ -32,8 +32,9 @@ The discretization config should look now like this::
       - 0.1
       extension_lengths:
       - 0.1
-      epsilon: 0.005
-      resolution_thresh: 0.95
+      epsilon: 0.01
+      epsilon_search_runs: 1
+      resolution_thresh: 0.999
       depth_penalty: 3.5
       alpha: 0.3
       patch_widths_min:
@@ -45,45 +46,51 @@ The discretization config should look now like this::
       patch_lengths_max:
       - 5.0
 
-The patch sizes will be iteratively optimized to be between the min and max values in length and width. Starting from large patches at *patch_widths_max* and *patch_lengths_max* they will be divided into smaller pieces until the patches are either smaller/equal than the defined *patch_widths_min* and *patch_lengths_min* or if the patches resolution is below the defined *resolution_thresh*. The *alpha* parameter determines how many of the patch candidates to be divided further are actually divided further in the next iteration (0.3 means 30%). The *epsilon* parameter here is most important in determining the final number of patches. The higher it is the smaller the number of patches is going to be. The *depth_penalty* parameter is set to a reasonable value and likely does not need to be touched. The higher it is the larger the patches that are at larger depth
-are going to be.  
+The patch sizes will be iteratively optimized to be between the min and max values in length and width. Starting from large patches at *patch_widths_max* and *patch_lengths_max* they will be divided into smaller pieces until the patches are either smaller/equal than the defined *patch_widths_min* and *patch_lengths_min* or if the patches resolution is below the defined *resolution_thresh*. The *alpha* parameter determines how many of the patch candidates to be divided further are actually divided further in the next iteration (0.3 means 30%). The *epsilon* parameter here is most important in determining the final number of patches. The higher it is the smaller the number of patches is going to be. The *depth_penalty* parameter is set to a reasonable value and likely does not need to be touched. The higher it is, the larger the patches that are at larger depth are going to be.
 
 For the Laquila case please set the following config attributes to:
 
-================= ======
-  Attribute name   Value
-================= ======
-          epsilon   0.15
-            alpha    0.1
- patch_widths_min    2.0
- patch_widths_ma    30.0
-patch_lengths_min    2.0
-patch_lengths_max   40.0
-    depth_penalty    5.0
-================= ======
+=================== ======
+   Attribute name    Value
+=================== ======
+    extension_width    0.4
+   extension_length    0.4
+            epsilon   0.01
+epsilon_search_runs     20
+              alpha    0.1
+   patch_widths_min    1.0
+   patch_widths_max   25.0
+  patch_lengths_min    1.0
+  patch_lengths_max   25.0
+      depth_penalty    3.5
+=================== ======
 
-The *nworkers* attribute determines the number of processes to be run in parallel to calculate the Greens Functions and should be set to a sufficiently high number that the hardware supports (number of CPU -1). Then start the discretization optimization with::
+The *nworkers* attribute determines the number of processes to be run in parallel to calculate the Greens Functions and should be set to a sufficiently high number that the hardware supports (number of CPU -1). 
+
+With *epsilon_search_runs* we can controll the number of models that
+are run automatically with different *epsilon* parameters on a sensible search bound, starting with *epsilon* as the lowest. 
+
+We can start the discretization optimization with::
 
   beat build_gfs Laquila_resolution --mode=ffi --datetypes=geodetic --execute --force --plot
 
 .. note:: The --force option is needed to overwrite the previously discretized fault object that was copied during the clone command above.
 
-From the log on the screen we can see the following lines the discretization ended up with::
+The --plot option creates a plot of the discretized fault geometry (under Laquila_resolution/ffi/figures) with the individual patch resolutions. The higher the resolution the better the slip can be resolved. Also it will generate following trade-off curve showing the model resolution vs. epsilon. The black numbers indicate the corresponding number of patches. 
 
-  ffi.fault    - INFO     Next generation npatches 86
-  ffi.fault    - INFO     Found 0 candidate(s) for division for  1 subfault(s)
-  ffi.fault    - INFO     Finished resolution based fault discretization.
-  ffi.fault    - INFO     Quality index for this discretization: 0.930896
-  beat         - INFO     Plotting patch resolution to /home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE_wide_resolution/ffi/figures/patch_resolutions_eps_0.15.pdf
-  beat         - INFO     Storing optimized discretized fault geometry to: /home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE_wide_resolution/ffi/linear_gfs/fault_geometry.pkl
-  beat         - INFO     Fault discretization optimization done! Updating problem_config...
-
-The quality index (QI) may be at maximum 1.0 and the higher it is the better the final overall resolution of the data to determine the slip on each fault patch. 0.875069 in this case is reasonably high, but it might be good to further increase the *epsilon* value to arrive at an even higher QI. Of course, this trades of with the details of features that may be resolved in
-the final slip distribution. The --plot option creates a plot of the discretized fault geometry with the individual patch resolutions. The higher the resolution the better the slip can be resolved.
-
-..image:: ../_static/example4/Laquila_discretization_resolution.png
+..image:: ../_static/example4/discretization_tradeoff.png
    :height: 350px
    :width: 350 px
+
+The fault at the elbow of the trade-off curve (red star) will then be selected to run the sampling (middle). Also we see an over- and under-damped case left and right, respectively. 
+
+..image:: ../_static/example4/patch_resolutions_10.png
+   :width: 30%
+..image:: ../_static/example4/patch_resolutions_28.png
+   :width: 30%
+..image:: ../_static/example4/patch_resolutions_127.png
+   :width: 30%
+
 
 As we do have irregular patch sizes we cannot use the *nearest_neighbor* *correlation_function* for the Laplacian, but we use a *gaussian* instead. Please edit the file accordingly! The *mode_config* should look like this::
 
@@ -98,13 +105,33 @@ As we do have irregular patch sizes we cannot use the *nearest_neighbor* *correl
 
 ..warning:: The *npatches* and *subfault_npatches* argument was updated automatically and must not be edited by the user. These might differ slightly for the run of each user depending on the parameter configuration and as the discretization algorithm is not purely deterministic.
 
-Now the following command allows to plot the resulting patch discretization.::
+Manually selecting another fault discretizaion
+----------------------------------------------
+It might happen that the user favors another discretization, instead of the one selected by the algorithm. All the discretized fault objects (each indicated by the respective *epsilon* suffix) are stored under::
+
+  Laquila_resolution/ffi/linear_gfs/discretization
+
+The fault_geometry, which is used for sampling is stored under::
+
+  Laquila_resolution/ffi/linear_gfs/discretization/fault_geometry.pkl
+
+In our case here the user might favor for example the fault that was discretized with 42 patches
+instead of the selected solution with 28 patches, because it potentialy allows to sample finer features of the slip distribution. In our case the fault with 42 patches has an epsilon value of 
+ca. 0.05. Checking the discretization directory with::
+
+  ls Laquila_resolution/ffi/linear_gfs/discretization/
+
+We can identify the fault object to be::
+
+  fault_geometry_0.0555798197749255.pkl
+
+We copy that to the destination of the sampled fault geometry::
+
+  cp Laquila_resolution/ffi/linear_gfs/discretization/fault_geometry_0.0555798197749255.pkl Laquila_resolution/ffi/linear_gfs/
+
+The following command allows to double-check the chosen patch discretization.::
 
   beat check Laquila_resolution --mode=ffi --what=discretization
-
-..image:: ../_static/example4/Laquila_FaultGeometry_resolution_discretization.png
-   :height: 350px
-   :width: 350 px
 
 Sample
 ^^^^^^

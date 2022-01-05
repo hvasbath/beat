@@ -1,7 +1,7 @@
 from beat.utility import (
     list2string, positions2idxs, kmtypes, split_off_list,
     Counter, mod_i, rotate_coords_plane_normal, split_point, update_source,
-    check_point_keys, dump_objects, load_objects)
+    check_point_keys, dump_objects, load_objects, find_elbow)
 
 from beat.fast_sweeping import fast_sweep
 from beat.heart import velocities_from_pole
@@ -17,6 +17,7 @@ from pyrocko.gf.seismosizer import Cloneable
 from pyrocko.orthodrome import latlon_to_ne_numpy, ne_to_latlon
 from pyrocko.moment_tensor import moment_to_magnitude
 from pyrocko.guts import Object, List, Float, Int, Dict, dump, load
+from pyrocko.plot import mpl_papersize
 
 import os
 import copy
@@ -45,6 +46,7 @@ __all__ = [
     'get_division_mapping',
     'optimize_discretization',
     'optimize_damping',
+    'ResolutionDiscretizationResult',
     'write_fault_to_pscmp',
     'backslip2coupling']
 
@@ -117,11 +119,11 @@ total number of patches: %i ''' % (
 
     def get_model_resolution(self):
         if self._model_resolution is None:
-            raise ValueError(
+            logger.warning(
                 'Model resolution matrix has not been calculated! '
-                'Please run beat.ffi.optimize_discretization on this fault!')
-        else:
-            return self._model_resolution
+                'Please run beat.ffi.optimize_discretization on this fault! '
+                'Returning None!')
+        return self._model_resolution
 
     def get_subfault_key(self, index, datatype, component):
 
@@ -1421,13 +1423,23 @@ def optimize_discretization(
         engine, targets, event, force, nworkers, method='laplacian',
         debug=False):
     """
-    Resolution based discretization of the fault surfaces based on:
-    Atzori & Antonioli 2011:
-        Optimal fault resolution in geodetic inversion of coseismic data
+    Resolution based discretization of the fault surfaces
 
     Parameters
     ----------
     config : :class: `config.DiscretizationConfig`
+
+    References
+    ----------
+    .. [Atzori2011] Atzori, S. and Antonioli, A. (2011).
+        Optimal fault resolution in geodetic inversion of coseismic data
+        Geophys. J. Int. (2011) 185, 529–538, 
+        `link <http://ascelibrary.org/doi: 10.1111/j.1365-246X.2011.04955.x>`__
+    .. [Atzori2019] Atzori, S.; Antonioli, A.; Tolomei, C.; De Novellis, V.;
+        De Luca, C. and Monterroso, F.
+        InSAR full-resolution analysis of the 2017–2018 M > 6 earthquakes in
+        Mexico
+        Remote Sensing of Environment, 234, 111461,
     """
     from beat.plotting import source_geometry
     from numpy.testing import assert_array_equal
@@ -1616,6 +1628,7 @@ def optimize_discretization(
                     ax.set_title('Patch idx %i' % gfidx)
 
         resolution_matrices = []
+        R_diags = []
         for gfs_i, component in enumerate(varnames):
             comp_gfs = gfs_array[gfs_i]
 
@@ -1656,12 +1669,14 @@ def optimize_discretization(
                 GG = comp_gfs.T.dot(comp_gfs)
                 Gdamped = num.vstack((comp_gfs, smoothing_op))
                 GdampedG = Gdamped.T.dot(Gdamped)
-                R = num.diag(num.linalg.inv(GdampedG).dot(GG))
+                resolution_matrix = num.linalg.inv(GdampedG).dot(GG)
+                R = num.diag(resolution_matrix)
+                R_diags.append(R)
             else:
                 raise NotImplementedError(
                     'Method "%s" not supported !' % method)
 
-            resolution_matrices.append(R)
+            resolution_matrices.append(resolution_matrix)
 
             R_idxs = num.argwhere(
                 R > config.resolution_thresh).ravel().tolist()
@@ -1716,7 +1731,7 @@ def optimize_discretization(
             'Found %i candidate(s) for division for '
             ' %i subfault(s)' % (ncandidates, fault.nsubfaults))
 
-        mean_R = num.vstack(resolution_matrices).mean(0).ravel()
+        mean_R = num.vstack(R_diags).mean(0).ravel()
         if ncandidates:
             subfault_idxs = list(range(fault.nsubfaults))
             widths, lengths = fault.get_subfault_patch_attributes(
@@ -1809,6 +1824,9 @@ def optimize_discretization(
         plt.colorbar(im)
         plt.show()
 
+    R_matrix = num.dstack(resolution_matrices).mean(2)
+    fault.set_model_resolution(R_matrix)
+
     logger.info('Finished resolution based fault discretization.')
     logger.info('Quality index for this discretization: %f' % mean_R.mean())
     return fault, mean_R
@@ -1824,8 +1842,6 @@ class ResolutionDiscretizationResult(Object):
         help='Optimum fault discretization parameters')
 
     def plot(self):
-        from matplotlib import pyplot as plt
-        from pyrocko.plot import mpl_papersize
 
         fig, ax = plt.subplots(1, 1, figsize=mpl_papersize('a6', 'landscape'))
         ax.plot(
@@ -1849,6 +1865,32 @@ class ResolutionDiscretizationResult(Object):
         ax.set_title('Fault resolution based discretization')
         return fig, ax
 
+    def derive_optimum_fault_geometry(self, debug=False):
+
+        data = num.vstack(
+            (num.array(self.epsilons),
+             num.array(self.normalized_rspreads))).T
+
+        best_idx, rotated_data = find_elbow(data, rotate_left=True)
+
+        if debug:
+            fig, ax = plt.subplots(
+                1, 1, figsize=mpl_papersize('a6', 'landscape'))
+            ax.plot(
+                rotated_data[:, 0],
+                rotated_data[:, 1], '+b', markersize=6)
+            ax.plot(
+                rotated_data[best_idx, 0],
+                rotated_data[best_idx, 1],
+                    '*r', markersize=8)
+            plt.show()
+
+        self.optimum = {
+            'epsilon': self.epsilons[best_idx],
+            'normalized_rspread': self.normalized_rspreads[best_idx],
+            'npatches': self.faults_npatches[best_idx],
+            'idx': best_idx}
+
 
 def normalized_resolution_spread(resolution, nparams):
     """
@@ -1857,7 +1899,7 @@ def normalized_resolution_spread(resolution, nparams):
     Must be between 0 and 1. The closer to zero the better can the model
     parameters be resolved by the data.
     """
-    return num.linalg.norm(resolution - num.ones(nparams)) / nparams
+    return num.linalg.norm(resolution - num.eye(nparams)) / nparams
 
 
 def optimize_damping(
@@ -1865,13 +1907,32 @@ def optimize_damping(
         config, fault, datasets, varnames, crust_ind,
         engine, targets, event, force, nworkers, method='laplacian',
         plot=False, figuredir=None, debug=False):
+    """
+    Resolution based discretization of the fault surfaces epsilon optimization.
+
+    Parameters
+    ----------
+    config : :class: `config.DiscretizationConfig`
+
+    References
+    ----------
+    .. [Atzori2011] Atzori, S. and Antonioli, A. (2011).
+        Optimal fault resolution in geodetic inversion of coseismic data
+        Geophys. J. Int. (2011) 185, 529–538, 
+        `link <http://ascelibrary.org/doi: 10.1111/j.1365-246X.2011.04955.x>`__
+    .. [Atzori2019] Atzori, S.; Antonioli, A.; Tolomei, C.; De Novellis, V.;
+        De Luca, C. and Monterroso, F.
+        InSAR full-resolution analysis of the 2017–2018 M > 6 earthquakes in
+        Mexico
+        Remote Sensing of Environment, 234, 111461,
+    """
 
     discr_dir = os.path.join(outdir, discretization_dir_name)
     ensuredir(discr_dir)
     fault_basename, extension = os.path.splitext(fault_geometry_name)
 
     epsilons = num.logspace(
-        0, 1.6, config.epsilon_search_runs, endpoint=True) * config.epsilon
+        0, 2, config.epsilon_search_runs, endpoint=True) * config.epsilon
     discretization_results_path = os.path.join(
         discr_dir, 'resolution_result_%g_%i.yaml' % (
             config.epsilon, config.epsilon_search_runs))
@@ -1905,7 +1966,6 @@ def optimize_damping(
                 method='laplacian',
                 debug=False)
 
-            dfault.set_model_resolution(mean_R)
             logger.info(
                 'Storing discretized fault geometry to: '
                 '%s' % fault_discr_path)
@@ -1933,43 +1993,24 @@ def optimize_damping(
         normalized_rspreads.append(rspread)
         faults_npatches.append(dfault.npatches)
 
-    best_idx = num.array(normalized_rspreads).argmin()
-    optimum = {
-        'epsilon': epsilons[best_idx],
-        'normalized_rspread': normalized_rspreads[best_idx],
-        'npatches': faults_npatches[best_idx],
-        'idx,': best_idx}
-
     result = ResolutionDiscretizationResult(
         epsilons=epsilons.tolist(),
         normalized_rspreads=normalized_rspreads,
-        faults_npatches=faults_npatches,
-        optimum=optimum)
+        faults_npatches=faults_npatches)
+    result.derive_optimum_fault_geometry()
 
     logger.info('Dumping discretization result to: %s',
-        discretization_results_path)
+                discretization_results_path)
     dump(result, filename=discretization_results_path)
     print(result)
 
+    best_idx = result.optimum['idx']
     if figuredir is not None:
-        logger.info('Plotting discretizations and tradeoff ...')
+        logger.info('Plotting tradeoff and discretizations ...')
         from beat.plotting import source_geometry
+        outformat = 'png'
 
-        for i, dfault in enumerate(dfaults):
-            fig, ax = source_geometry(
-                dfault, list(fault.iter_subfaults()),
-                event=event, values=dfault.get_model_resolution(),
-                title='Resolution',
-                datasets=datasets, show=False)
-
-            outformat = 'png'
-            outpath = os.path.join(
-                figuredir, 'patch_resolutions_%i.%s' % (
-                    fault.npatches, outformat))
-            logger.info(
-                'Plotting patch resolution to %s' % outpath)
-            fig.savefig(outpath, format=outformat, dpi=300)
-
+        # tradeoff
         fig, ax = result.plot()
         outpath = os.path.join(
             figuredir, 'discretization_tradeoff_%g.%s' % (
@@ -1977,5 +2018,22 @@ def optimize_damping(
         logger.info(
             'Plotting discretization_tradeoff to %s' % outpath)
         fig.savefig(outpath, format=outformat, dpi=300)
+
+        # discretizations
+        for i, dfault in enumerate(dfaults):
+            fig, ax = source_geometry(
+                dfault, list(fault.iter_subfaults()),
+                event=event, values=num.diag(dfault.get_model_resolution()),
+                cmap=plt.cm.RdYlBu_r,
+                cbounds=(0, 1),
+                clabel='Resolution',
+                datasets=datasets, show=False)
+
+            outpath = os.path.join(
+                figuredir, 'patch_resolutions_%i.%s' % (
+                    dfault.npatches, outformat))
+            logger.info(
+                'Plotting patch resolution to %s' % outpath)
+            fig.savefig(outpath, format=outformat, dpi=300)
 
     return dfaults[best_idx]

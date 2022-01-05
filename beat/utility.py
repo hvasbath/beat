@@ -1488,3 +1488,48 @@ def is_odd(value):
 
 def is_even(value):
     return (value & 1) == 0
+
+
+def get_data_radiant(data):
+    """
+    Data needs to be [n, 2]
+    """
+    return num.arctan2(
+        data[:, 1].max() - data[:, 1].min(),
+        data[:, 0].max() - data[:, 0].min())
+
+
+def find_elbow(data, theta=None, rotate_left=False):
+    """
+    Get point closest to turning point in data by rotating it by theta.
+
+    Adapted from:
+    https://datascience.stackexchange.com/questions/57122/in-elbow-curve-
+    how-to-find-the-point-from-where-the-curve-starts-to-rise
+
+    Parameters
+    ----------
+    data : array like,
+        [n, 2]
+    theta : rotation angle
+
+    Returns
+    -------
+    Index : int
+        closest to elbow.
+    rotated_data : array-like [n, 2]
+    """
+    if theta is None:
+        theta = get_data_radiant(data)
+
+    if rotate_left:
+        theta = 2 * num.pi - theta
+
+    # make rotation matrix
+    co = num.cos(theta)
+    si = num.sin(theta)
+    rotation_matrix = num.array(((co, -si), (si, co)))
+
+    # rotate data vector
+    rotated_data = data.dot(rotation_matrix)
+    return rotated_data[:, 1].argmin(), rotated_data
