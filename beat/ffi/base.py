@@ -906,7 +906,7 @@ def geo_construct_gf_linear(
 
 def geo_construct_gf_linear_patches(
         engine, datasets=None, targets=None, patches=None, nworkers=1,
-        apply_weight=False):
+        apply_weight=False, return_mapping=False):
     """
     Create geodetic Greens Function matrix for given patches.
 
@@ -923,8 +923,8 @@ def geo_construct_gf_linear_patches(
         complex fault-geometry
     nworkers : int
         number of CPUs to use for processing
-    apply_weight : bool
-        multiply GFs with dataset cholesky inverse as weighting
+    return_mapping : bool
+        return array mapping as well
     """
 
     _, los_vectors, odws, Bij = heart.concatenate_datasets(datasets)
@@ -960,7 +960,10 @@ def geo_construct_gf_linear_patches(
 
         gfmatrix = num.hstack(w_gfs)
 
-    return gfmatrix
+    if not return_mapping:
+        return gfmatrix
+    else:
+        return gfmatrix, Bij
 
 
 def _process_patch_seismic(

@@ -212,6 +212,7 @@ def multi_event_seismic_data_name(nevent=0):
 
 
 linear_gf_dir_name = 'linear_gfs'
+discretization_dir_name = os.path.join(linear_gf_dir_name, 'discretization')
 results_dir_name = 'results'
 fault_geometry_name = 'fault_geometry.pkl'
 geodetic_linear_gf_name = 'linear_geodetic_gfs.pkl'
@@ -439,13 +440,21 @@ class ResolutionDiscretizationConfig(DiscretizationConfig):
 
     epsilon = Float.T(
         default=5.e-3,
-        help='Damping constant for SVD of Greens Functions. '
-             'Reasonable between: [10e-2 to 10e-5]')
+        help='Damping constant for Laplacian of Greens Functions. '
+             'Usually reasonable between: [0.1 to 0.005]')
+    epsilon_search_runs = Int.T(
+        default=1,
+        help='If above 1, the algorithm is iteratively run, starting with '
+             'epsilon as lower bound on equal logspace up to epsilon * 100. '
+             '"epsilon_search_runs" determines times of repetition and the '
+             'spacing between epsilons. If this is 1, only the model for '
+             '"epsilon" is created! The epsilon that minimises Resolution '
+             'spreading (Atzori et al. 2019) is chosen!')
     resolution_thresh = Float.T(
-        default=0.95,
+        default=0.999,
         help='Resolution threshold discretization continues until all patches '
              'are below this threshold. The lower the finer the '
-             'discretization. Reasonable between: [0.95, 0.99]')
+             'discretization. Reasonable between: [0.95, 0.999]')
     depth_penalty = Float.T(
         default=3.5,
         help='The higher the number the more penalty on the deeper '

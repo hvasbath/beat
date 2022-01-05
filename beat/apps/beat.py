@@ -1399,7 +1399,18 @@ def command_build_gfs(args):
                             sample_rate=gf.sample_rate)
 
                         if not fault.is_discretized and fault.needs_optimization:
-                            fault, R = ffi.optimize_discretization(
+
+                            ffidir = os.path.join(c.project_dir, options.mode)
+
+                            if options.plot:
+                                figuredir = os.path.join(ffidir, 'figures')
+                                util.ensuredir(figuredir)
+                            else:
+                                figuredir = None
+
+                            fault = ffi.optimize_damping(
+                                outdir=ffidir,
+                                figuredir=figuredir,
                                 config=gf.discretization_config,
                                 fault=fault,
                                 datasets=datasets,
@@ -1410,30 +1421,6 @@ def command_build_gfs(args):
                                 event=c.event,
                                 force=options.force,
                                 nworkers=gf.nworkers)
-
-                            if options.plot:
-
-                                from beat.plotting import source_geometry
-                                fig, ax = source_geometry(
-                                    fault, list(fault.iter_subfaults()),
-                                    event=c.event, values=R,
-                                    title='Resolution',
-                                    datasets=datasets, show=False)
-
-                                outformat = 'pdf'
-                                figure_path = pjoin(
-                                    c.project_dir, options.mode, 'figures')
-                                util.ensuredir(figure_path)
-                                outpath = pjoin(
-                                    figure_path,
-                                    'patch_resolutions_eps_%g.%s' % (
-                                        gf.discretization_config.epsilon,
-                                        outformat))
-                                logger.info(
-                                    'Plotting patch resolution '
-                                    'to %s' % outpath)
-                                fig.savefig(
-                                    outpath, format=outformat, dpi=300)
 
                             logger.info(
                                 'Storing optimized discretized fault'

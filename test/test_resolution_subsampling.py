@@ -17,8 +17,8 @@ from beat.config import ResolutionDiscretizationConfig
 
 util.setup_logging('R-based subsampling', 'info')
 
-real = True    # if use real data
-synth_data_dist = 'half'
+real = False    # if use real data
+synth_data_dist = 'half'   # uniform / half
 
 km = 1000.
 nworkers = 4
@@ -86,8 +86,8 @@ if real:
         print(rf)
         sources.append(rf)
 
-    epsilon = 0.05  # Damping constant for SVD: sabrnas 0.005 (without squaring -here squaring)
-    R_thresh = 0.95  # Resolution threshhold (patches above R_thresh will be further subdivided)
+    epsilon = 0.1  # Damping constant for SVD: sabrnas 0.005 (without squaring -here squaring)
+    R_thresh = 0.99  # Resolution threshhold (patches above R_thresh will be further subdivided)
     d_par = 5  # Depth penalty, a higher number penalized deeper patches more
     alphaprcnt = 0.1
 
@@ -116,10 +116,12 @@ else:
     X, Y = num.meshgrid(xvec, yvec)
     data_xloc = X.ravel()
     data_yloc = Y.ravel()
-    los = num.ones((data_xloc.size, 3)) * num.array([ -0.1009988, -0.52730111, 0.84365442])
+    los = num.ones(
+        (data_xloc.size, 3)) * num.array(
+        [ -0.1009988, -0.52730111, 0.84365442])
 
-    epsilon = 0.02  # Damping constant for SVD: sabrnas 0.005 (without squaring -here squaring)
-    R_thresh = 0.95  # Resolution threshhold (patches above R_thresh will be further subdivided)
+    epsilon = 0.01  # Damping constant for SVD: sabrnas 0.005 (without squaring -here squaring)
+    R_thresh = 0.999  # Resolution threshhold (patches above R_thresh will be further subdivided)
     d_par = 5  # Depth penalty, a higher number penalized deeper patches more
     alphaprcnt = 0.05
 
@@ -198,5 +200,12 @@ opt_fault, R = optimize_discretization(
     event=event,
     force=True,
     nworkers=nworkers,
-    plot=True,
-    debug=False)
+    debug=False,
+    method='laplacian')
+
+from beat.plotting import source_geometry
+fig, ax = source_geometry(
+    opt_fault, list(fault.iter_subfaults()),
+    event=event, values=R,
+    title='Resolution',
+    datasets=datasets, show=True)

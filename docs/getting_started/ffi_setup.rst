@@ -187,7 +187,8 @@ Finally, we need to pay attention to the "waveforms" under "seismic_config".::
       include: true
       name: any_P
       channels: [Z]
-      filterer: !beat.heart.Filter
+      filterer:
+      - !beat.heart.Filter
         lower_corner: 0.001
         upper_corner: 4.0
         order: 4

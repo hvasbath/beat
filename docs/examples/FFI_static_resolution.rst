@@ -70,13 +70,13 @@ The *nworkers* attribute determines the number of processes to be run in paralle
 
 From the log on the screen we can see the following lines the discretization ended up with::
 
-ffi.fault    - INFO     Next generation npatches 86
-ffi.fault    - INFO     Found 0 candidate(s) for division for  1 subfault(s)
-ffi.fault    - INFO     Finished resolution based fault discretization.
-ffi.fault    - INFO     Quality index for this discretization: 0.930896
-beat         - INFO     Plotting patch resolution to /home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE_wide_resolution/ffi/figures/patch_resolutions_eps_0.15.pdf
-beat         - INFO     Storing optimized discretized fault geometry to: /home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE_wide_resolution/ffi/linear_gfs/fault_geometry.pkl
-beat         - INFO     Fault discretization optimization done! Updating problem_config...
+  ffi.fault    - INFO     Next generation npatches 86
+  ffi.fault    - INFO     Found 0 candidate(s) for division for  1 subfault(s)
+  ffi.fault    - INFO     Finished resolution based fault discretization.
+  ffi.fault    - INFO     Quality index for this discretization: 0.930896
+  beat         - INFO     Plotting patch resolution to /home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE_wide_resolution/ffi/figures/patch_resolutions_eps_0.15.pdf
+  beat         - INFO     Storing optimized discretized fault geometry to: /home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE_wide_resolution/ffi/linear_gfs/fault_geometry.pkl
+  beat         - INFO     Fault discretization optimization done! Updating problem_config...
 
 The quality index (QI) may be at maximum 1.0 and the higher it is the better the final overall resolution of the data to determine the slip on each fault patch. 0.875069 in this case is reasonably high, but it might be good to further increase the *epsilon* value to arrive at an even higher QI. Of course, this trades of with the details of features that may be resolved in
 the final slip distribution. The --plot option creates a plot of the discretized fault geometry with the individual patch resolutions. The higher the resolution the better the slip can be resolved.
