@@ -136,6 +136,10 @@ The following command allows to double-check the chosen patch discretization.::
 .. image:: ../_static/example4/patch_resolutions_42.png
    :width: 80%
 
+Now the linear Greens Functions need to be recalculated for that chosen fault geometry.::
+
+  beat build_gfs Laquila_resolution --mode=ffi --datatypes=geodetic --execute
+
 Sample
 ^^^^^^
 Now the solution space can be sampled using the same sampler configuration as for example 4a, but with the resolution based fault discretization::
