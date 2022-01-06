@@ -4,11 +4,15 @@ All notable changes to BEAT will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [1.2.0] tbd
+## [1.1.1] 6th January 2022
 
 ### Added
 **FFI**
 - chain initialisation with lsq solution for seismic data
+- resolution based discretization:
+  * add improved method of Atzori et al. 2019
+  * automatic damping estimation
+  * add Tutorial 4b to demonstrate the usage and functionality
 
 **Plotting**
 - 3d_slip_distribution: allows plotting of selected segments, slip-deficit, coupling, slip_variation
@@ -17,7 +21,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - moment_rate: adjusted size and formatting to be publication ready
 - correlation_hist: plot source related correlations for nsources > 1, colorcoding
 
-## Fixed
+### Changed
+- docs: rename former example 4 to example 4a
+
+### Fixed
 - Bin backend: loading of traces with corrupt file header
 - beat import: just import sampled variables
 - RingFaultSource: allow sampling of slip-direction (sign)
