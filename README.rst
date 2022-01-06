@@ -7,6 +7,12 @@ Bayesian Earthquake Analysis Tool
 
 Based on pyrocko, theano and pymc3
 
+6 January 2022
+A new version 1.1.1 is released vastly improving resolution based fault discretization. Minor changes.
+Checkout the `changelog <https://github.com/hvasbath/beat/blob/master/CHANGELOG.md>`__ for all the details.
+New `tutorial <https://pyrocko.org/beat/docs/current/examples/FFI_static_resolution.html>`_ on resolution based discretization of the fault surface.
+
+12 April 2021
 A new version 1.1.0 is released adding support for multi-segmented fault setups and tensile dislocations.
 Checkout the `changelog <https://github.com/hvasbath/beat/blob/master/CHANGELOG.md>`__ for all the details.
 
