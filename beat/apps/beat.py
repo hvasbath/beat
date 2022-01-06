@@ -1834,11 +1834,13 @@ def command_check(args):
             datasets = None
 
         if options.mode == ffi_mode_str:
+            from numpy import diag
             fault = problem.composites[datatype].load_fault_geometry()
             reference_sources = problem.config[
                 datatype + '_config'].gf_config.reference_sources
             source_geometry(
                 fault, reference_sources,
+                values=diag(fault.get_model_resolution()),
                 event=problem.config.event, datasets=datasets)
         else:
             logger.warning(

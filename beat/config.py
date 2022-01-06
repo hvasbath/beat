@@ -439,7 +439,7 @@ class ResolutionDiscretizationConfig(DiscretizationConfig):
     """
 
     epsilon = Float.T(
-        default=5.e-3,
+        default=4.e-3,
         help='Damping constant for Laplacian of Greens Functions. '
              'Usually reasonable between: [0.1 to 0.005]')
     epsilon_search_runs = Int.T(

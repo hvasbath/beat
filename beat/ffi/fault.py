@@ -2024,8 +2024,7 @@ def optimize_damping(
             fig, ax = source_geometry(
                 dfault, list(fault.iter_subfaults()),
                 event=event, values=num.diag(dfault.get_model_resolution()),
-                cmap=plt.cm.RdYlBu_r,
-                cbounds=(0, 1),
+                cbounds=(0.5, 1),
                 clabel='Resolution',
                 datasets=datasets, show=False)
 

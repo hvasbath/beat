@@ -14,7 +14,7 @@ Please clone the config_ffi.yaml from the previous uniform static FFI run for th
 
 Calculate Greens Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
-In the uniformly discretized fault variable slip estimation we did define the reference fault geometry based on the results of `Example 3 <https://pyrocko.org/beat/docs/current/examples/Rectangular.html#>` where we did estimate the fault geometry parameters. Based on the reference fault and the available data observations the model resolution matrix can be calculated and the fault can be divided into patches such that a defined threshold of resolution is met. For details on the algorithm I refer the reader to the original article of [AtzoriAntonioli2011]_.
+In the uniformly discretized fault variable slip estimation we did define the reference fault geometry based on the results of `Example 3 <https://pyrocko.org/beat/docs/current/examples/Rectangular.html#>` where we did estimate the fault geometry parameters. Based on the reference fault and the available data observations the model resolution matrix can be calculated and the fault can be divided into patches such that a defined threshold of resolution is met. For details on the algorithm I refer the reader to the original article of [Atzori2011]_.
 
 In this example we want to discretize the fault surface using such a resolution based discretization. Todo so, please set the *discretization* attribute of the *gf_config* to *resolution* and run the update command to display changes to the config::
 
@@ -46,6 +46,7 @@ The discretization config should look now like this::
       patch_lengths_max:
       - 5.0
 
+
 The patch sizes will be iteratively optimized to be between the min and max values in length and width. Starting from large patches at *patch_widths_max* and *patch_lengths_max* they will be divided into smaller pieces until the patches are either smaller/equal than the defined *patch_widths_min* and *patch_lengths_min* or if the patches resolution is below the defined *resolution_thresh*. The *alpha* parameter determines how many of the patch candidates to be divided further are actually divided further in the next iteration (0.3 means 30%). The *epsilon* parameter here is most important in determining the final number of patches. The higher it is the smaller the number of patches is going to be. The *depth_penalty* parameter is set to a reasonable value and likely does not need to be touched. The higher it is, the larger the patches that are at larger depth are going to be.
 
 For the Laquila case please set the following config attributes to:
@@ -55,8 +56,8 @@ For the Laquila case please set the following config attributes to:
 =================== ======
     extension_width    0.4
    extension_length    0.4
-            epsilon   0.01
-epsilon_search_runs     20
+            epsilon  0.004
+epsilon_search_runs     15
               alpha    0.1
    patch_widths_min    1.0
    patch_widths_max   25.0
@@ -76,21 +77,19 @@ We can start the discretization optimization with::
 
 .. note:: The --force option is needed to overwrite the previously discretized fault object that was copied during the clone command above.
 
-The --plot option creates a plot of the discretized fault geometry (under Laquila_resolution/ffi/figures) with the individual patch resolutions. The higher the resolution the better the slip can be resolved. Also it will generate following trade-off curve showing the model resolution vs. epsilon. The black numbers indicate the corresponding number of patches. 
+The --plot option creates a plot of the discretized fault geometry (under Laquila_resolution/ffi/figures) with the individual patch resolutions. The higher the resolution the better the slip can be resolved. Also it will generate following trade-off curve showing the model resolution spread vs. epsilon [Atzori2019]_. The black numbers indicate the corresponding number of patches. 
 
-..image:: ../_static/example4/discretization_tradeoff.png
-   :height: 350px
-   :width: 350 px
+.. image:: ../_static/example4/discretization_tradeoff.png
+   :width: 80%
 
-The fault at the elbow of the trade-off curve (red star) will then be selected to run the sampling (middle). Also we see an over- and under-damped case left and right, respectively. 
+The fault at the elbow of the trade-off curve (red star) will then be selected to run the sampling (middle). Also we see an over- and under-damped case top and bottom, respectively. 
 
-..image:: ../_static/example4/patch_resolutions_10.png
-   :width: 30%
-..image:: ../_static/example4/patch_resolutions_28.png
-   :width: 30%
-..image:: ../_static/example4/patch_resolutions_127.png
-   :width: 30%
-
+.. image:: ../_static/example4/patch_resolutions_10.png
+   :width: 80%
+.. image:: ../_static/example4/patch_resolutions_28.png
+   :width: 80%
+.. image:: ../_static/example4/patch_resolutions_127.png
+   :width: 80%
 
 As we do have irregular patch sizes we cannot use the *nearest_neighbor* *correlation_function* for the Laplacian, but we use a *gaussian* instead. Please edit the file accordingly! The *mode_config* should look like this::
 
@@ -103,10 +102,11 @@ As we do have irregular patch sizes we cannot use the *nearest_neighbor* *correl
     subfault_npatches:
     - 119
 
-..warning:: The *npatches* and *subfault_npatches* argument was updated automatically and must not be edited by the user. These might differ slightly for the run of each user depending on the parameter configuration and as the discretization algorithm is not purely deterministic.
+
+.. warning:: The *npatches* and *subfault_npatches* argument was updated automatically and must not be edited by the user. These might differ slightly for the run of each user depending on the parameter configuration and as the discretization algorithm is not purely deterministic.
 
 Manually selecting another fault discretizaion
-----------------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 It might happen that the user favors another discretization, instead of the one selected by the algorithm. All the discretized fault objects (each indicated by the respective *epsilon* suffix) are stored under::
 
   Laquila_resolution/ffi/linear_gfs/discretization
@@ -127,11 +127,14 @@ We can identify the fault object to be::
 
 We copy that to the destination of the sampled fault geometry::
 
-  cp Laquila_resolution/ffi/linear_gfs/discretization/fault_geometry_0.0555798197749255.pkl Laquila_resolution/ffi/linear_gfs/
+  cp Laquila_resolution/ffi/linear_gfs/discretization/fault_geometry_0.0555798197749255.pkl Laquila_resolution/ffi/linear_gfs/fault_geometry.pkl
 
 The following command allows to double-check the chosen patch discretization.::
 
   beat check Laquila_resolution --mode=ffi --what=discretization
+
+.. image:: ../_static/example4/patch_resolutions_42.png
+   :width: 80%
 
 Sample
 ^^^^^^
@@ -140,7 +143,7 @@ Now the solution space can be sampled using the same sampler configuration as fo
   beat sample Laquila_resolution --mode=ffi
 
 
-..warning:: Please be aware that if the full kinematic model setup is planned to be run after the variable static slip estimation, the resolution based discretization cannot be used in its implemented form as the algorithm only works for static surface data. 
+.. warning:: Please be aware that if the full kinematic model setup is planned to be run after the variable static slip estimation, the resolution based discretization cannot be used in its implemented form as the algorithm only works for static surface data. 
 
 
 Summarize and plotting
@@ -155,13 +158,13 @@ For the slip-distribution please run::
 
   beat plot Laquila_resolution slip_distribution --mode=ffi
 
-.. image:: ../_static/example4/Laquila_static_slip_dist_-1_max.png
+.. image:: ../_static/example4/Laquila_static_slip_dist_-1_max_resolution.png
 
 To get histograms for the laplacian smoothing, the noise scalings and the posterior likelihood please run::
 
   beat plot Laquila_resolution stage_posteriors --stage_number=-1 --mode=ffi --varnames=h_laplacian,h_SAR,like
 
-.. image:: ../_static/example4/stage_-1_max.png
+.. image:: ../_static/example4/stage_-1_max_resolution.png
    :height: 350px
    :width: 350 px
 
@@ -169,12 +172,19 @@ For a comparison between data, synthetic displacements and residuals for the two
 
   beat plot Laquila_resolution scene_fits --mode=ffi --nensemble=200
 
-.. image:: ../_static/example4/scenes_-1_max_local_0.png
+.. image:: ../_static/example4/scenes_-1_max_local_200_0_resolution.png
 
 The plot should show something like this. Here the residuals are displayed with an individual color scale according to their minimum and maximum values.
 
 
-
 References
 ^^^^^^^^^^
-.. [AtzoriAntonioli2011] Atzori, S. and Antonioli, A. (2011). Optimal fault resolution in geodetic inversion of coseismic data. Geophysical Journal International, 185:529–538
+.. [Atzori2011] Atzori, S. and Antonioli, A. (2011).
+    Optimal fault resolution in geodetic inversion of coseismic data
+    Geophys. J. Int. (2011) 185, 529–538, 
+    `link <http://ascelibrary.org/doi: 10.1111/j.1365-246X.2011.04955.x>`__
+.. [Atzori2019] Atzori, S.; Antonioli, A.; Tolomei, C.; De Novellis, V.;
+    De Luca, C. and Monterroso, F.
+    InSAR full-resolution analysis of the 2017–2018 M > 6 earthquakes in
+    Mexico
+    Remote Sensing of Environment, 234, 111461,
