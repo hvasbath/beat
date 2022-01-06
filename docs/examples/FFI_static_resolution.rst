@@ -3,8 +3,8 @@ Example 4b: Static finite-fault estimation, resolution based patch discretizatio
 ---------------------------------------------------------------------------------
 
 In this example we will determine a variable slip distribution for the L'aquila 2009 earthquake by using static InSAR data.
-In contrast to `Example 4a <https://pyrocko.org/beat/docs/current/examples/FFI_static.html#>` we will use resolution based
-discretization of fault patches following the approach of [Atzori&Antonioli2011]_. It is assumed that the reader has Example 4a completed before following this example, in order to be familiar with the concepts and commands for uniform discretized faults.
+In contrast to `Example 4a <https://pyrocko.org/beat/docs/current/examples/FFI_static.html#>`__ we will use resolution based
+discretization of fault patches following the approach of [Atzori2011]_. It is assumed that the reader has Example 4a completed before following this example, in order to be familiar with the concepts and commands for uniform discretized faults.
 
 Clone
 ^^^^^
@@ -14,7 +14,7 @@ Please clone the config_ffi.yaml from the previous uniform static FFI run for th
 
 Calculate Greens Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
-In the uniformly discretized fault variable slip estimation we did define the reference fault geometry based on the results of `Example 3 <https://pyrocko.org/beat/docs/current/examples/Rectangular.html#>` where we did estimate the fault geometry parameters. Based on the reference fault and the available data observations the model resolution matrix can be calculated and the fault can be divided into patches such that a defined threshold of resolution is met. For details on the algorithm I refer the reader to the original article of [Atzori2011]_.
+In the uniformly discretized fault variable slip estimation we did define the reference fault geometry based on the results of `Example 3 <https://pyrocko.org/beat/docs/current/examples/Rectangular.html#>`__ where we did estimate the fault geometry parameters. Based on the reference fault and the available data observations the model resolution matrix can be calculated and the fault can be divided into patches such that a defined threshold of resolution is met. For details on the algorithm I refer the reader to the original article of [Atzori2011]_.
 
 In this example we want to discretize the fault surface using such a resolution based discretization. Todo so, please set the *discretization* attribute of the *gf_config* to *resolution* and run the update command to display changes to the config::
 
