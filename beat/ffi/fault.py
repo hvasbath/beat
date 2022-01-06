@@ -1969,7 +1969,7 @@ def optimize_damping(
             logger.info(
                 'Storing discretized fault geometry to: '
                 '%s' % fault_discr_path)
-            dump_objects(fault_discr_path, dfault)
+            dump_objects(fault_discr_path, [dfault])
 
             # overwrite again with original value
             config.epsilon = epsilons[0]
@@ -1979,7 +1979,7 @@ def optimize_damping(
                 'Discretized fault geometry for epsilon %s exists! '
                 'Use --force to overwrite!' % epsilon)
             logger.info('Loading existing discretized fault')
-            dfault = load_objects(fault_discr_path)
+            dfault = load_objects(fault_discr_path)[0]
 
         dfaults.append(dfault)
         model_resolutions.append(dfault.get_model_resolution())
