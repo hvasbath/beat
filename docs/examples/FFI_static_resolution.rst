@@ -32,7 +32,7 @@ The discretization config should look now like this::
       - 0.1
       extension_lengths:
       - 0.1
-      epsilon: 0.01
+      epsilon: 0.004
       epsilon_search_runs: 1
       resolution_thresh: 0.999
       depth_penalty: 3.5
@@ -47,7 +47,7 @@ The discretization config should look now like this::
       - 5.0
 
 
-The patch sizes will be iteratively optimized to be between the min and max values in length and width. Starting from large patches at *patch_widths_max* and *patch_lengths_max* they will be divided into smaller pieces until the patches are either smaller/equal than the defined *patch_widths_min* and *patch_lengths_min* or if the patches resolution is below the defined *resolution_thresh*. The *alpha* parameter determines how many of the patch candidates to be divided further are actually divided further in the next iteration (0.3 means 30%). The *epsilon* parameter here is most important in determining the final number of patches. The higher it is the smaller the number of patches is going to be. The *depth_penalty* parameter is set to a reasonable value and likely does not need to be touched. The higher it is, the larger the patches that are at larger depth are going to be.
+The patch sizes will be iteratively optimized to be between the min and max values in length and width. Starting from large patches at *patch_widths_max* and *patch_lengths_max* they will be divided into smaller pieces until the patches are either smaller/equal than the defined *patch_widths_min* and *patch_lengths_min* or if the patches resolution is below the defined *resolution_thresh*. The *alpha* parameter determines how many of the patch candidates to be divided further, are actually divided in the next iteration (0.3 means 30%). The *epsilon* parameter here is most important in determining the final number of patches. The higher it is, the smaller the number of patches is going to be. The *depth_penalty* parameter is set to a reasonable value and likely does not need to be touched. The higher it is, the larger the patches that are at larger depth are going to be.
 
 For the Laquila case please set the following config attributes to:
 
@@ -103,7 +103,7 @@ As we do have irregular patch sizes we cannot use the *nearest_neighbor* *correl
     - 119
 
 
-.. warning:: The *npatches* and *subfault_npatches* argument was updated automatically and must not be edited by the user. These might differ slightly for the run of each user depending on the parameter configuration and as the discretization algorithm is not purely deterministic.
+.. warning:: The *npatches* and *subfault_npatches* argument were updated automatically and must not be edited by the user. These might differ slightly for the run of each user depending on the parameter configuration and as the discretization algorithm is not purely deterministic.
 
 Manually selecting another fault discretizaion
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

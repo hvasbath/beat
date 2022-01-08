@@ -32,3 +32,4 @@ In the following examples we will use a deformation velocity estimate from InSAR
    :maxdepth: 3
 
    Rectangular_tensile
+   FFI_static_resolution_tensile
