@@ -412,6 +412,127 @@ class SeisSynthesizer(theano.Op):
         return [(nrow, ncol), (nrow,)]
 
 
+class FftTransform(theano.Op):
+    """
+    Theano wrapper for a seismic forward model with synthetic waveforms.
+    Input order does not matter anymore! Did in previous version.
+
+    Parameters
+    ----------
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+    sources : List
+        containing :class:`pyrocko.gf.seismosizer.Source` Objects
+    targets : List
+        containing :class:`pyrocko.gf.seismosizer.Target` Objects
+
+    arrival_taper : :class:`heart.ArrivalTaper`
+    arrival_times : :class:`ǹumpy.NdArray`
+        with synthetic arrival times wrt reference event
+    filterer : :class:`heart.Filterer`
+    """
+
+    __props__ = ('engine', 'sources', 'targets', 'event', 'deltat',
+                 'arrival_taper', 'arrival_times', 'wavename', 'filterer',
+                 'pre_stack_cut', 'station_corrections')
+
+    def __init__(self, engine, sources, targets, event, deltat, arrival_taper,
+                 arrival_times, wavename, filterer, pre_stack_cut,
+                 station_corrections):
+        self.engine = engine
+        self.sources = tuple(sources)
+        self.targets = tuple(targets)
+        self.deltat = deltat
+        self.event = event
+        self.arrival_taper = arrival_taper
+        self.arrival_times = tuple(arrival_times.tolist())
+        self.wavename = wavename
+        self.filterer = tuple(filterer)
+        self.pre_stack_cut = pre_stack_cut
+        self.station_corrections = station_corrections
+
+    def __getstate__(self):
+        self.engine.close_cashed_stores()
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+    def make_node(self, inputs):
+        """
+        Transforms theano tensors to node and allocates variables accordingly.
+
+        Parameters
+        ----------
+        inputs : dict
+            keys being strings of source attributes of the
+            :class:`pscmp.RectangularSource` that was used to initialise
+            the Operator
+            values are :class:`theano.tensor.Tensor`
+        """
+        inlist = []
+
+        self.varnames = list(inputs.keys())
+
+        for i in inputs.values():
+            inlist.append(tt.as_tensor_variable(i))
+
+        outf = tt.as_tensor_variable(num.zeros((2, 2), dtype=num.complex64))
+        outs = tt.as_tensor_variable(num.zeros((2, 2), dtype=num.float64))
+        outlist = [outf.type(), outs.type()]
+        return theano.Apply(self, inlist, outlist)
+
+    def perform(self, node, inputs, output):
+        """
+        Perform method of the Operator to calculate synthetic displacements.
+
+        Parameters
+        ----------
+        inputs : list
+            of :class:`numpy.ndarray`
+        output : list
+            1) of synthetic waveforms of :class:`numpy.ndarray`
+               (n x nsamples)
+            2) of start times of the first waveform samples
+               :class:`numpy.ndarray` (n x 1)
+        """
+        ffts = output[0]
+        spectra = output[1]
+
+        point = {vname: i for vname, i in zip(self.varnames, inputs)}
+
+        mpoint = utility.adjust_point_units(point)
+
+        if self.station_corrections:
+            time_shifts = mpoint.pop('time_shift').ravel()
+            arrival_times = num.array(self.arrival_times) + time_shifts
+        else:
+            arrival_times = num.array(self.arrival_times)
+
+        source_points = utility.split_point(mpoint)
+
+        for i, source in enumerate(self.sources):
+            utility.update_source(source, **source_points[i])
+            source.time += self.event.time
+
+        ffts[0], spectra[0] = heart.syn_to_fft(
+            engine=self.engine,
+            sources=self.sources,
+            targets=self.targets,
+            deltat=self.deltat,
+            arrival_taper=self.arrival_taper,
+            wavename=self.wavename,
+            filterer=self.filterer,
+            pre_stack_cut=self.pre_stack_cut,
+            arrival_times=arrival_times)
+
+    def infer_shape(self, node, input_shapes):
+        nrow = len(self.targets)
+        store = self.engine.get_store(self.targets[0].store_id)
+        ncol = int(0.5*num.ceil(
+            store.config.sample_rate * self.arrival_taper.duration())) + 1
+        return [(nrow, ncol), (nrow, ncol)]
+
+
 class PolaritySynthesizer(theano.Op):
 
     __props__ = ('engine', 'source', 'pmap', 'is_location_fixed')

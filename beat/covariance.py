@@ -278,7 +278,7 @@ class SeismicNoiseAnalyser(object):
 
         Parameters
         ----------
-        wmap : :class:`eat.WaveformMapping`
+        wmap : :class:`beat.WaveformMapping`
         results
         sample_rate : float
             sampling rate of data_traces and GreensFunction stores
@@ -304,6 +304,48 @@ class SeismicNoiseAnalyser(object):
             cov_ds.append(cov_d)
 
         return cov_ds
+
+    def get_spectradata_covariances(
+            self, wmap, sample_rate, results=None, chop_bounds=None,
+            freq_domain=False, pad_to_pow2=True):
+        """
+        Estimated data covariances of seismic traces
+
+        Parameters
+        ----------
+        wmap : :class:`beat.WaveformMapping`
+        results
+        sample_rate : float
+            sampling rate of data_traces and GreensFunction stores
+
+        Returns
+        -------
+        :class:`numpy.ndarray`
+        """
+        if chop_bounds is None:
+            chop_bounds = self.chop_bounds
+
+        ataper = wmap.config.arrival_taper
+        n = ataper.nsamples(sample_rate, chop_bounds)
+
+        if pad_to_pow2:
+            n = trace.nextpow2(n)
+        n = int(n//2) + 1
+        covariance_structure = ones_data_covariance(n)
+
+        if self.structure == 'import':
+            scalings = self.do_import(wmap, sample_rate)
+        elif self.structure == 'non-toeplitz':
+            scalings = self.do_non_toeplitz(wmap, results, freq_domain=freq_domain)
+        else:
+            scalings = self.do_variance_estimate(wmap)
+
+        cov_spctrds = []
+        for scaling in scalings:
+            cov_d = ensure_cov_psd(scaling * covariance_structure)
+            cov_spctrds.append(cov_d)
+
+        return cov_spctrds
 
 
 def model_prediction_sensitivity(engine, *args, **kwargs):

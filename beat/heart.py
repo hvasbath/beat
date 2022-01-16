@@ -459,6 +459,39 @@ class SeismicResult(Object):
         return tr
 
 
+class SpectraSeismicResult(Object):
+    """
+    Result object assembling different traces of misfit.
+    """
+    point = ResultPoint.T(default=ResultPoint.D())
+    processed_obs = SeismicDataset.T(optional=True)
+    llk = Float.T(default=0., optional=True)
+    source_contributions = List.T(
+        Trace.T(),
+        help='synthetics of source individual contributions.')
+    
+    @property
+    def data_len(self):
+        return self.processed_obs.data_len()
+
+    @property
+    def processed_syn(self):
+        if self.source_contributions is not None:
+            tr0 = copy.deepcopy(self.source_contributions[0])
+            tr0.ydata = num.zeros_like(tr0.ydata)
+            for tr in self.source_contributions:
+                tr0.ydata += tr.ydata
+
+        return tr0
+
+    @property
+    def processed_res(self):
+        tr = copy.deepcopy(self.processed_obs)
+        tr.set_ydata(
+            self.processed_obs.get_ydata() - self.processed_syn.get_ydata())
+        return tr
+
+
 class PolarityResult(Object):
 
     point = ResultPoint.T(default=ResultPoint.D())
@@ -2649,21 +2682,28 @@ class WaveformMapping(object):
         of :class:`pyrocko.gf.target.Target`
     """
     def __init__(self, name, stations, weights=None, channels=['Z'],
-                 datasets=[], targets=[], deltat=None):
+                 datasets=[], targets=[], deltat=None, fft_datasets=None, 
+                 spec_datasets=None):
 
         self.name = name
         self.stations = stations
         self.weights = weights
         self.datasets = datasets
+        self.fft_datasets = fft_datasets
+        self.spec_datasets = spec_datasets
         self.targets = targets
         self.channels = channels
         self.station_correction_idxs = None
         self._prepared_data = None
+        self.fft_prepareddata = None
+        self.spec_prepareddata = None
         self._arrival_times = None
         self._target2index = None
         self._station2index = None
         self.deltat = deltat
         self.config = None
+        self.specweights = []
+        self.fftweights = []
 
         if self.datasets is not None:
             self._update_trace_wavenames()
@@ -2683,14 +2723,21 @@ class WaveformMapping(object):
                     self.stations))
         return self._station2index
 
-    def add_weights(self, weights, force=False):
+    def add_weights(self, weights, specweights, fftweights, force=False):
         n_w = len(weights)
-        if n_w != self.n_t:
+        n_sw = len(specweights)
+        if self.config.freqdomain_include and n_sw != self.n_t:
+            raise CollectionError(
+                'Number of Weights %i inconsistent with targets %i!' % (
+                    n_sw, self.n_t))
+        if  self.config.timedomain_include and n_w != self.n_t:
             raise CollectionError(
                 'Number of Weights %i inconsistent with targets %i!' % (
                     n_w, self.n_t))
 
         self.weights = weights
+        self.specweights = specweights
+        self.fftweights = fftweights
 
     def _update_station_corrections(self):
         """
@@ -2722,6 +2769,9 @@ class WaveformMapping(object):
         if self.n_data > 0:
             self.datasets = utility.weed_data_traces(
                 self.datasets, self.stations)
+            if self.config.freqdomain_include:
+                self.spec_datasets = utility.weed_data_traces(
+                    self.spec_datasets, self.stations)
 
         self.targets = utility.weed_targets(self.targets, self.stations)
 
@@ -2778,8 +2828,10 @@ class WaveformMapping(object):
         if wavename is None:
             wavename = self.name
 
-        for dtrace in self.datasets:
+        for i, dtrace in enumerate(self.datasets):
             dtrace.set_wavename(wavename)
+            if self.config is not None and self.config.freqdomain_include:
+                self.spec_datasets[i].set_wavename(wavename)
 
     @property
     def _mapid(self):
@@ -2859,6 +2911,8 @@ class WaveformMapping(object):
                 deltat=self.deltat,
                 plot=False)
 
+            if self.config.freqdomain_include:
+                self.fft_prepareddata, self.spec_prepareddata = fft_transforms(self._prepared_data, filterer=self.config.filterer, deltat=self.deltat, outmode=outmode)
             self._arrival_times = arrival_times
         else:
             raise ValueError('Wavemap needs configuration!')
@@ -2890,6 +2944,28 @@ class WaveformMapping(object):
             return shared(
                 self._prepared_data,
                 name='%s_data' % self.name, borrow=True)
+
+    @property
+    def shared_fft_array(self):
+        ffts = num.array([spec for spec in self.fft_prepareddata])
+        if self.fft_prepareddata is None:
+            raise ValueError('Data array is not initialized')
+        elif isinstance(ffts, list):
+            raise ValueError(
+                'Data got initialized as pyrocko traces, need array!')
+        else:
+            return shared(ffts, name='%s_fftdata' % self.name, borrow=True)
+    
+    @property
+    def shared_spectra_array(self):
+        specs = num.array([spec for spec in self.spec_prepareddata])
+        if self.spec_prepareddata is None:
+            raise ValueError('Data array is not initialized')
+        elif isinstance(specs, list):
+            raise ValueError(
+                'Data got initialized as pyrocko traces, need array!')
+        else:
+            return shared(specs, name='%s_specdata' % self.name, borrow=True)
 
 class CollectionError(Exception):
     pass
@@ -3046,6 +3122,8 @@ class DataWaveformCollection(object):
         for cha in channels:
             targets.extend(dtargets[cha])
 
+        fft_datasets = []
+        spec_datasets = []
         datasets = []
         discard_targets = []
         for target in targets:
@@ -3053,7 +3131,23 @@ class DataWaveformCollection(object):
             nslc_id = target.codes
             try:
                 dtrace = self._raw_datasets[nslc_id]
+                fxdata, fydata = dtrace.spectrum(True, 0.05)
                 datasets.append(dtrace)
+                
+                ffttrace = SeismicDataset(ydata=fydata, deltat=fxdata[1]-fxdata[0], 
+                                                   tmin=fxdata[0], tmax=fxdata[-1],
+                                                   network=dtrace.network, location=dtrace.location,
+                                                   channel=dtrace.channel+'_fft', 
+                                                   station=dtrace.station)
+                ffttrace.set_wavename(waveform)
+                fft_datasets.append(ffttrace)
+                spctrace = SeismicDataset(ydata=num.abs(fydata), deltat=fxdata[1]-fxdata[0],
+                                                    tmin=fxdata[0], tmax=fxdata[-1],
+                                                    network=dtrace.network, location=dtrace.location,
+                                                    channel=dtrace.channel+'_spc', 
+                                                    station=dtrace.station)
+                spctrace.set_wavename(waveform)
+                spec_datasets.append(spctrace)
             except KeyError:
                 logger.warn(
                     'No data trace for target %s in '
@@ -3085,7 +3179,9 @@ class DataWaveformCollection(object):
             datasets=copy.deepcopy(datasets),
             targets=copy.deepcopy(targets),
             channels=channels,
-            deltat=self._deltat)
+            deltat=self._deltat,
+            fft_datasets=fft_datasets,
+            spec_datasets=spec_datasets)
 
 
 def concatenate_datasets(datasets):
@@ -3682,6 +3778,94 @@ def pol_synthetics(
     m0_unscaled = num.sqrt(num.sum(m9.A ** 2)) / sqrt2
     m9 /= m0_unscaled
     return radiation_weights.T.dot(to6(m9))
+
+
+def fft_transforms(time_domain_signls, filterer=None, deltat=None, outmode='array', pad_to_pow2=True):
+    channel = None
+    station = None
+    if outmode == 'array':
+        n_data, n_samples = num.shape(time_domain_signls)
+        if pad_to_pow2:
+            n_samples = trace.nextpow2(n_samples) + 1
+        n_samples = int(n_samples / 2) + 1
+        if not filterer:
+            df = 1./(n_samples*deltat)
+            fxdata = num.arange(n_samples)*df
+            lower = num.argwhere(fxdata<=filterer.lower_corner/2)[0][0]
+            upper = num.argwhere(fxdata>=3*filterer.upper_corner)[0][0]
+            n_samples = upper - lower
+        fft_signals = num.zeros((n_data, n_samples), dtype=num.complex64)
+        spec_signals = num.zeros((n_data, n_samples), dtype=tconfig.floatX)
+    else:
+        n_data = len(time_domain_signls)
+        fft_signals = [None] * n_data
+        spec_signals = [None] * n_data
+    for i, tr in enumerate(time_domain_signls):
+        if isinstance(tr, num.ndarray):
+            n_samples = len(tr)
+            ydata = tr
+        elif isinstance(tr, trace.Trace):
+            n_samples = tr.data_len()
+            ydata = tr.ydata
+            channel = tr.channel
+            station = tr.station
+        elif isinstance(tr, list):
+            n_samples = tr[0].data_len()
+            ydata = tr[0].ydata
+        else:
+            raise TypeError('Outmode %s not supported!' % outmode)
+
+        if pad_to_pow2:
+            ntrans = trace.nextpow2(n_samples)
+        else:
+            ntrans = n_samples
+        fydata = num.fft.rfft(ydata, ntrans)
+        if outmode == 'array':
+            if not filterer:
+                fydata = fydata[lower:upper]
+            fft_signals[i] = fydata
+            spec_signals[i] = num.abs(fydata)
+        else:
+            df = 1./(ntrans*deltat)
+            fxdata = num.arange(ntrans)*df
+            fft_signals[i] = SeismicDataset(ydata=fydata, deltat=df,
+                                            tmin=num.min(fxdata), 
+                                            tmax=num.max(fxdata),
+                                            channel=channel if channel else None,
+                                            station=station if station else None)
+            spec_signals[i] = SeismicDataset(ydata=num.abs(fydata), deltat=df, 
+                                             tmin=num.min(fxdata), 
+                                             tmax=num.max(fxdata),
+                                             channel=channel if channel else None,
+                                             station=station if station else None)
+    return fft_signals, spec_signals
+
+
+def syn_to_fft(
+        engine, sources, targets, arrival_taper=None, deltat=None,
+        wavename='any_P', filterer=None, reference_taperer=None,
+        plot=False, nprocs=1, outmode='array',
+        pre_stack_cut=False, taper_tolerance_factor=0.,
+        arrival_times=None, chop_bounds=['b', 'c']):
+    syns, _ = seis_synthetics(engine=engine, sources=sources, targets=targets, arrival_taper=arrival_taper, 
+                              wavename=wavename, filterer=filterer, pre_stack_cut=pre_stack_cut, arrival_times=arrival_times)
+    fftsyn, specsyn = fft_transforms(syns, filterer=filterer, deltat=deltat)
+    return fftsyn, specsyn
+
+
+def bartlett_correlation(fftobswaveforms, fftsynwaveforms, weights):
+    from theano import tensor as tt
+    n_t = len(weights)
+    bartcorr = tt.zeros((n_t), tt.config.floatX)
+    for i in range(n_t):
+        # tmp1 = tt.dot(weights[i], fftobswaveforms[i])
+        # tmp2 = tt.dot(weights[i], fftsynwaveforms[i])
+        # tmp3 = tt.sum(tt.dot(tmp1,tmp1)) - (tt.pow(tt.sum(tt.dot(tmp2,tmp1)),2) / tt.sum(tt.dot(tmp2, tmp2)))
+        tmp3 = tt.sum(fftobswaveforms[i].T.conj().dot(weights[i]).dot(fftobswaveforms[i])) - \
+                                 tt.sum(fftsynwaveforms[i].T.conj().dot(weights[i]).dot(fftobswaveforms[i]))**2/ \
+                                     tt.sum(fftsynwaveforms[i].T.conj().dot(weights[i]).dot(fftsynwaveforms[i]))
+        bartcorr = tt.set_subtensor(bartcorr[i:i+1], tmp3 )
+    return bartcorr
 
 
 def geo_synthetics(

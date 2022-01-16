@@ -49,7 +49,9 @@ class SeismicComposite(Composite):
         if true initialise object for hyper parameter optimization
     """
     _datasets = None
+    _spec_datasets = None
     _weights = None
+    _spec_weights = None
     _targets = None
     _hierarchicalnames = None
 
@@ -156,10 +158,17 @@ class SeismicComposite(Composite):
         if self.config.noise_estimator.structure == 'non-toeplitz':
             results = self.assemble_results(
                 tpoint, order='wmap', chop_bounds=chop_bounds)
+            fft_results, spectra_results = self.assemble_spectraresults(
+                tpoint, order='wmap', chop_bounds=chop_bounds)
         else:
             results = [None] * len(self.wavemaps)
+            fft_results = [None] * len(self.wavemaps)
+            spectra_results = [None] * len(self.wavemaps)
 
-        for wmap, wmap_results in zip(self.wavemaps, results):
+        fft_results, spectra_results = self.assemble_spectraresults(
+            tpoint, order='wmap', chop_bounds=chop_bounds)
+
+        for wmap, wmap_results, spectra_result in zip(self.wavemaps, results, spectra_results):
             logger.info(
                 'Retrieving seismic data-covariances with structure "%s" '
                 'for %s ...' % (
@@ -169,6 +178,13 @@ class SeismicComposite(Composite):
                 wmap=wmap, results=wmap_results,
                 sample_rate=self.config.gf_config.sample_rate,
                 chop_bounds=chop_bounds)
+
+            if wmap.config.freqdomain_include:
+
+                cov_ds_spectra = self.noise_analyser.get_spectradata_covariances(
+                    wmap=wmap, results=spectra_result,
+                    sample_rate=self.config.gf_config.sample_rate,
+                    chop_bounds=chop_bounds, pad_to_pow2=True)
 
             for j, trc in enumerate(wmap.datasets):
                 if trc.covariance is None:
@@ -180,6 +196,16 @@ class SeismicComposite(Composite):
                     logger.warning(
                         'Data covariance is identity matrix!'
                         ' Please double check!!!')
+
+                if wmap.config.freqdomain_include:
+                    if wmap.spec_datasets[j].covariance is None: 
+                        wmap.spec_datasets[j].covariance = heart.Covariance(data=cov_ds_spectra[j])
+                    else:
+                        wmap.spec_datasets[j].data = cov_ds_spectra[j]
+                    if int(wmap.spec_datasets[j].covariance.data.sum()) == wmap.spec_datasets[j].data_len():
+                        logger.warning(
+                            'Spectrum data covariance is identity matrix!'
+                            ' Please double check!!!')
 
     def init_hierarchicals(self, problem_config):
         """
@@ -265,16 +291,31 @@ class SeismicComposite(Composite):
             """
             Save covariance matrixes of given attribute
             """
-            covs = {
-                utility.list2string(dataset.nslc_id):
-                    getattr(dataset.covariance, cov_mat)
-                for dataset in wmap.datasets}
+            if wmap.config.timedomain_include:
 
-            outname = os.path.join(
-                results_path, '%s_C_%s_%s' % (
-                    'seismic', cov_mat, wmap._mapid))
-            logger.info('"%s" to: %s' % (wmap._mapid, outname))
-            num.savez(outname, **covs)
+                covs = {
+                    utility.list2string(dataset.nslc_id):
+                        getattr(dataset.covariance, cov_mat)
+                    for dataset in wmap.datasets}
+
+                outname = os.path.join(
+                    results_path, '%s_C_%s_%s' % (
+                        'seismic', cov_mat, wmap._mapid))
+                logger.info('"%s" to: %s' % (wmap._mapid, outname))
+                num.savez(outname, **covs)
+
+            if wmap.config.freqdomain_include:
+
+                covs = {
+                    utility.list2string(dataset.nslc_id+('spc',)):
+                        getattr(dataset.covariance, cov_mat)
+                    for dataset in wmap.spec_datasets}
+
+                outname = os.path.join(
+                    results_path, '%s_C_%s_%s_%s' % (
+                        'seismic', cov_mat, wmap._mapid, 'spc'))
+                logger.info('"%s_spc" to: %s' % (wmap._mapid, outname))
+                num.savez(outname, **covs)
 
         from pyrocko import io
 
@@ -320,6 +361,8 @@ class SeismicComposite(Composite):
         logger.info('Initialising weights ...')
         for wmap in self.wavemaps:
             weights = []
+            specweights = []
+            fftweights = []
             for j, trc in enumerate(wmap.datasets):
                 icov = trc.covariance.chol_inverse
                 weights.append(
@@ -327,8 +370,15 @@ class SeismicComposite(Composite):
                         icov,
                         name='seis_%s_weight_%i' % (wmap._mapid, j),
                         borrow=True))
+                if wmap.config.freqdomain_include:
+                    specicov = wmap.spec_datasets[j].covariance.chol_inverse
+                    # ffticov = wmap.fft_prepareddata[j].covariance.chol_inverse
+                    specweights.append(shared(specicov, name='spec_seis_%s_weight_%i' % (wmap._mapid, j), borrow=True))
+                    # fftweights.append(shared(ffticov, name='fft_seis_%s_weight_%i' % (wmap._mapid, j), borrow=True))
 
-            wmap.add_weights(weights)
+            wmap.add_weights(weights=weights,
+                            specweights=specweights,
+                            fftweights=fftweights)
 
     def get_all_station_names(self):
         """
@@ -372,6 +422,16 @@ class SeismicComposite(Composite):
         return self._datasets
 
     @property
+    def spec_datasets(self):
+        if self._spec_datasets is None:
+            spcds = []
+            for wmap in self.wavemaps:
+                spcds.extend(wmap.spec_datasets)
+
+            self._spec_datasets = spcds
+        return self._spec_datasets
+
+    @property
     def weights(self):
         if self._weights is None or len(self._weights) == 0:
             ws = []
@@ -381,6 +441,17 @@ class SeismicComposite(Composite):
 
             self._weights = ws
         return self._weights
+
+    @property
+    def spec_weights(self):
+        if self._spec_weights is None or len(self._spec_weights) == 0:
+            spec_ws = []
+            for wmap in self.wavemaps:
+                if wmap.weights:
+                    spec_ws.extend(wmap.specweights)
+
+            self._spec_weights = spec_ws
+        return self._spec_weights
 
     @property
     def targets(self):
@@ -459,6 +530,57 @@ class SeismicComposite(Composite):
 
         return results
 
+    def assemble_spectraresults(
+            self, point, chop_bounds=['a', 'd'], order='list',
+            outmode='stacked_traces'):
+        """
+        Assemble seismic traces for given point in solution space.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters
+
+        Returns
+        -------
+        List with :class:`heart.SeismicResult`
+        """
+        if point is None:
+            raise ValueError('A point has to be provided!')
+
+        logger.debug('Assembling seismic waveforms ...')
+
+        syn_proc_traces, obs_proc_traces = self.get_synthetics(point, outmode=outmode,
+                                                            chop_bounds=chop_bounds, order='wmap')
+        spectraresults = []
+        fftresults = []
+        for i, wmap in enumerate(self.wavemaps):
+            obs_ffts, obs_specs = heart.fft_transforms(obs_proc_traces[i], filterer=wmap.config.filterer, deltat=1./self.config.gf_config.sample_rate, outmode=outmode)
+            syn_ffts, syn_specs = heart.fft_transforms(syn_proc_traces[i], filterer=wmap.config.filterer, deltat=1./self.config.gf_config.sample_rate, outmode=outmode)
+            
+            wmap_spectraresults = []
+            wmap_fftresults = []
+            for j, obs_fft in enumerate(obs_ffts):
+
+                source_contributions = [syn_specs[j]]
+
+                wmap_spectraresults.append(heart.SpectraSeismicResult(point=point,
+                                                    processed_obs=obs_specs[j],
+                                                    source_contributions=source_contributions))
+    
+            if order == 'list':
+                spectraresults.extend(wmap_spectraresults)
+                # fftresults.extend(wmap_fftresults)
+
+            elif order == 'wmap':
+                spectraresults.append(wmap_spectraresults)
+                # fftresults.append(wmap_fftresults)
+
+            else:
+                raise ValueError('Order "%s" is not supported' % order)
+
+        return fftresults, spectraresults
+
     def update_llks(self, point):
         """
         Update posterior likelihoods of the composite with respect to one point
@@ -489,29 +611,40 @@ class SeismicComposite(Composite):
         dict of arrays of standardized residuals,
             keys are nslc_ids
         """
+        def compute_residuals(observe, synthetic, hp_specific):
+            hp_name = get_hyper_name(observe)
+            if hp_name in point:
+                if hp_specific:
+                    hp = point[hp_name][counter(hp_name)]
+                else:
+                    hp = point[hp_name]
+            else:
+                hp = num.log(2)
+            
+            choli = num.linalg.inv(
+                observe.covariance.chol * num.exp(hp) / 2.)
+            return choli.dot(
+                    synthetic.processed_res.get_ydata())
+    
         results = self.assemble_results(
             point, order='list', chop_bounds=chop_bounds)
+        spec_results = self.assemble_spectraresults(
+            point, order='list', chop_bounds=chop_bounds)[1]
         self.update_weights(point, chop_bounds=chop_bounds)
 
         counter = utility.Counter()
         hp_specific = self.config.dataset_specific_residual_noise_estimation
-        stdz_res = OrderedDict()
-        for data_trc, result in zip(self.datasets, results):
-            hp_name = get_hyper_name(data_trc)
-            if hp_specific:
-                hp = point[hp_name][counter(hp_name)]
-            else:
-                hp = point[hp_name]
 
-            choli = num.linalg.inv(
-                data_trc.covariance.chol * num.exp(hp) / 2.)
-            stdz_res[data_trc.nslc_id] = choli.dot(
-                result.processed_res.get_ydata())
+        stdz_res = OrderedDict()
+        for i in range(self.n_t):
+            stdz_res[self.datasets[i].nslc_id] = compute_residuals(self.datasets[i], results[i], hp_specific)
+            stdz_res[self.spec_datasets[i].nslc_id] = compute_residuals(self.spec_datasets[i], spec_results[i], hp_specific)
 
         return stdz_res
 
     def get_variance_reductions(
-            self, point, results=None, weights=None, chop_bounds=['a', 'd']):
+            self, point, results=None, weights=None, spec_results=None, 
+            spec_weights=None, chop_bounds=['a', 'd'], freq_domain=False):
         """
         Parameters
         ----------
@@ -524,33 +657,7 @@ class SeismicComposite(Composite):
         dict of floats,
             keys are nslc_ids
         """
-        if results is None:
-            results = self.assemble_results(
-                point, order='list', chop_bounds=chop_bounds)
-
-        ndatasets = len(self.datasets)
-
-        assert len(results) == ndatasets
-
-        if weights is None:
-            self.analyse_noise(point, chop_bounds=chop_bounds)
-            self.update_weights(point, chop_bounds=chop_bounds)
-            weights = self.weights
-
-        nweights = len(weights)
-        assert nweights == ndatasets
-
-        logger.debug(
-            'n weights %i , n datasets %i' % (nweights, ndatasets))
-
-        assert nweights == ndatasets
-
-        logger.debug('Calculating variance reduction for solution ...')
-
-        var_reds = OrderedDict()
-        for data_trc, weight, result in zip(
-                self.datasets, weights, results):
-
+        def compute_var_reduction(data_trc, weight, result):
             icov = data_trc.covariance.inverse
 
             data = result.processed_obs.get_ydata()
@@ -561,19 +668,55 @@ class SeismicComposite(Composite):
 
             logger.debug('nom %f, denom %f' % (float(nom), float(denom)))
             var_red = 1 - (nom / denom)
+            return var_red
+            
+        
+        if results is None:
+            results = self.assemble_results(
+                point, order='list', chop_bounds=chop_bounds)
+        if spec_results is None:
+            spec_results = self.assemble_spectraresults(
+                point, order='list', chop_bounds=chop_bounds)[1]
 
-            nslc_id = utility.list2string(data_trc.nslc_id)
+        ndatasets = len(self.datasets)
+
+        assert len(results) == ndatasets
+
+        self.analyse_noise(point, chop_bounds=chop_bounds)
+        self.update_weights(point, chop_bounds=chop_bounds)
+
+        if weights is None:
+            weights = self.weights
+        if spec_weights is None:
+            spec_weights = self.spec_weights
+
+        nweights = len(weights)
+
+        assert nweights == ndatasets
+
+        logger.debug(
+            'n weights %i , n datasets %i' % (nweights, ndatasets))
+
+        logger.debug('Calculating variance reduction for solution ...')
+
+        var_reds = OrderedDict()
+
+        for i in range(ndatasets):
+            nslc_id = utility.list2string(self.datasets[i].nslc_id)
+            var_reds[nslc_id] = compute_var_reduction(self.datasets[i], weights[i], results[i])
+            if spec_weights != []:
+                nslc_spcid = utility.list2string(self.spec_datasets[i].nslc_id)
+                var_reds[nslc_spcid] = compute_var_reduction(self.spec_datasets[i], spec_weights[i], spec_results[i])
+            
             logger.debug(
-                'Variance reduction for %s is %f' % (nslc_id, var_red))
+                'Variance reduction for %s is %f' % (nslc_id, var_reds[nslc_id]))
 
             if 0:
                 from matplotlib import pyplot as plt
                 fig, ax = plt.subplots(1, 1)
-                im = ax.imshow(data_trc.covariance.data)
+                im = ax.imshow(self.datasets[i].covariance.data)
                 plt.colorbar(im)
                 plt.show()
-
-            var_reds[nslc_id] = var_red
 
         return var_reds
 
@@ -605,6 +748,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self._mode = 'geometry'
         self.synthesizers = {}
+        self.ffttransform = {}
         self.choppers = {}
 
         self.sources = sources
@@ -612,6 +756,8 @@ class SeismicGeometryComposite(SeismicComposite):
         self.correction_name = 'time_shift'
 
         self.config = sc
+        self._freq_like_name = 'frequencylikelihood'
+        self._bart_corr_name = 'bart_correlation'
 
     def point2sources(self, point):
         """
@@ -688,6 +834,8 @@ class SeismicGeometryComposite(SeismicComposite):
 
         t2 = time()
         wlogpts = []
+        slogpts = []
+        bcorr = []
 
         self.init_hierarchicals(problem_config)
         self.analyse_noise(tpoint, chop_bounds=chop_bounds)
@@ -725,35 +873,68 @@ class SeismicGeometryComposite(SeismicComposite):
                         wc.event_idx, wmap._mapid))
                 sources = [self.sources[wc.event_idx]]
 
-            self.synthesizers[wmap._mapid] = theanof.SeisSynthesizer(
-                engine=self.engine,
-                sources=sources,
-                targets=wmap.targets,
-                event=self.events[wc.event_idx],
-                arrival_taper=wc.arrival_taper,
-                arrival_times=wmap._arrival_times,
-                wavename=wmap.name,
-                filterer=wc.filterer,
-                pre_stack_cut=self.config.pre_stack_cut,
-                station_corrections=self.config.station_corrections)
+            if wmap.config.freqdomain_include:
 
-            synths, _ = self.synthesizers[wmap._mapid](self.input_rvs)
+                self.ffttransform[wmap._mapid] = theanof.FftTransform(
+                    engine=self.engine,
+                    sources=sources,
+                    targets=wmap.targets,
+                    event=self.events[wc.event_idx],
+                    deltat=wmap.deltat,
+                    arrival_taper=wc.arrival_taper,
+                    arrival_times=wmap._arrival_times,
+                    wavename=wmap.name,
+                    filterer=wc.filterer,
+                    pre_stack_cut=self.config.pre_stack_cut,
+                    station_corrections=self.config.station_corrections)
+    
+                fft_synthetics, spectra_synthetics = self.ffttransform[wmap._mapid](self.input_rvs)
 
-            residuals = wmap.shared_data_array - synths
+                spectra_residuals = wmap.shared_spectra_array - spectra_synthetics
+                freqlogpts = multivariate_normal_chol(wmap.spec_datasets, wmap.specweights, 
+                                                    hyperparams, spectra_residuals, hp_specific=hp_specific, frequency_domain=True)
+                # bart_correlation = heart.bartlett_correlation(wmap.fft_prepareddata, 
+                #                                     fft_synthetics, wmap.fftweights)
+                slogpts.append(freqlogpts)
+                # bcorr.append(bart_correlation)
 
-            logpts = multivariate_normal_chol(
-                wmap.datasets, wmap.weights, hyperparams, residuals,
-                hp_specific=hp_specific)
+            elif wmap.config.timedomain_include:
 
-            wlogpts.append(logpts)
+                self.synthesizers[wmap._mapid] = theanof.SeisSynthesizer(
+                    engine=self.engine,
+                    sources=sources,
+                    targets=wmap.targets,
+                    event=self.events[wc.event_idx],
+                    arrival_taper=wc.arrival_taper,
+                    arrival_times=wmap._arrival_times,
+                    wavename=wmap.name,
+                    filterer=wc.filterer,
+                    pre_stack_cut=self.config.pre_stack_cut,
+                    station_corrections=self.config.station_corrections)
+    
+                synths, _ = self.synthesizers[wmap._mapid](self.input_rvs)
+    
+                residuals = wmap.shared_data_array - synths
+            
+                logpts = multivariate_normal_chol(
+                    wmap.datasets, wmap.weights, hyperparams, residuals,
+                    hp_specific=hp_specific)
+    
+                wlogpts.append(logpts)
 
         t3 = time()
         logger.debug(
             'Teleseismic forward model on test model takes: %f' %
             (t3 - t2))
 
-        llk = Deterministic(self._like_name, tt.concatenate((wlogpts)))
-        return llk.sum()
+        if wmap.config.timedomain_include:
+            llk = Deterministic(self._like_name, tt.concatenate((wlogpts)))
+            return llk.sum()
+
+        if wmap.config.freqdomain_include:
+            freqllk = Deterministic(self._freq_like_name, tt.concatenate((slogpts)))
+            # bartcorr = Deterministic(self._bart_corr_name, tt.concatenate((bcorr)))
+            return freqllk.sum()
 
     def get_synthetics(self, point, **kwargs):
         """
@@ -936,6 +1117,12 @@ class SeismicGeometryComposite(SeismicComposite):
                 # update shared variables
                 dataset.covariance.update_slog_pdet()
                 wmap.weights[i].set_value(choli)
+                
+                if wmap.config.freqdomain_include:
+                    choli = wmap.spec_datasets[i].covariance.chol_inverse
+                    # update shared variables
+                    wmap.spec_datasets[i].covariance.update_slog_pdet()
+                    wmap.specweights[i].set_value(choli)
 
 
 class SeismicDistributerComposite(SeismicComposite):
