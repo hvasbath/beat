@@ -476,9 +476,9 @@ class FftTransform(theano.Op):
         for i in inputs.values():
             inlist.append(tt.as_tensor_variable(i))
 
-        outf = tt.as_tensor_variable(num.zeros((2, 2), dtype=num.complex64))
+        outt = tt.as_tensor_variable(num.zeros((2, 2), dtype=num.float64))
         outs = tt.as_tensor_variable(num.zeros((2, 2), dtype=num.float64))
-        outlist = [outf.type(), outs.type()]
+        outlist = [outt.type(), outs.type()]
         return theano.Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
@@ -495,7 +495,7 @@ class FftTransform(theano.Op):
             2) of start times of the first waveform samples
                :class:`numpy.ndarray` (n x 1)
         """
-        ffts = output[0]
+        synths = output[0]
         spectra = output[1]
 
         point = {vname: i for vname, i in zip(self.varnames, inputs)}
@@ -514,7 +514,7 @@ class FftTransform(theano.Op):
             utility.update_source(source, **source_points[i])
             source.time += self.event.time
 
-        ffts[0], spectra[0] = heart.syn_to_fft(
+        synths[0], spectra[0] = heart.syn_to_fft(
             engine=self.engine,
             sources=self.sources,
             targets=self.targets,

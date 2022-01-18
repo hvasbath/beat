@@ -459,39 +459,6 @@ class SeismicResult(Object):
         return tr
 
 
-class SpectraSeismicResult(Object):
-    """
-    Result object assembling different traces of misfit.
-    """
-    point = ResultPoint.T(default=ResultPoint.D())
-    processed_obs = SeismicDataset.T(optional=True)
-    llk = Float.T(default=0., optional=True)
-    source_contributions = List.T(
-        Trace.T(),
-        help='synthetics of source individual contributions.')
-    
-    @property
-    def data_len(self):
-        return self.processed_obs.data_len()
-
-    @property
-    def processed_syn(self):
-        if self.source_contributions is not None:
-            tr0 = copy.deepcopy(self.source_contributions[0])
-            tr0.ydata = num.zeros_like(tr0.ydata)
-            for tr in self.source_contributions:
-                tr0.ydata += tr.ydata
-
-        return tr0
-
-    @property
-    def processed_res(self):
-        tr = copy.deepcopy(self.processed_obs)
-        tr.set_ydata(
-            self.processed_obs.get_ydata() - self.processed_syn.get_ydata())
-        return tr
-
-
 class PolarityResult(Object):
 
     point = ResultPoint.T(default=ResultPoint.D())
@@ -955,6 +922,39 @@ class SeismicDataset(trace.Trace):
 
         self._growbuffer = None
         self._update_ids()
+
+
+class SpectraSeismicResult(Object):
+    """
+    Result object assembling different traces of misfit.
+    """
+    point = ResultPoint.T(default=ResultPoint.D())
+    processed_obs = SeismicDataset.T(optional=True)
+    llk = Float.T(default=0., optional=True)
+    source_contributions = List.T(
+        SeismicDataset.T(),
+        help='synthetics of source individual contributions.')
+    
+    @property
+    def data_len(self):
+        return self.processed_obs.data_len()
+
+    @property
+    def processed_syn(self):
+        if self.source_contributions is not None:
+            tr0 = copy.deepcopy(self.source_contributions[0])
+            tr0.ydata = num.zeros_like(tr0.ydata)
+            for tr in self.source_contributions:
+                tr0.ydata += tr.ydata
+
+        return tr0
+
+    @property
+    def processed_res(self):
+        tr = copy.deepcopy(self.processed_obs)
+        tr.set_ydata(
+            self.processed_obs.get_ydata() - self.processed_syn.get_ydata())
+        return tr
 
 
 class GeodeticDataset(gf.meta.MultiLocation):
@@ -2730,7 +2730,7 @@ class WaveformMapping(object):
             raise CollectionError(
                 'Number of Weights %i inconsistent with targets %i!' % (
                     n_sw, self.n_t))
-        if  self.config.timedomain_include and n_w != self.n_t:
+        elif  self.config.timedomain_include and n_w != self.n_t:
             raise CollectionError(
                 'Number of Weights %i inconsistent with targets %i!' % (
                     n_w, self.n_t))
@@ -3849,8 +3849,8 @@ def syn_to_fft(
         arrival_times=None, chop_bounds=['b', 'c']):
     syns, _ = seis_synthetics(engine=engine, sources=sources, targets=targets, arrival_taper=arrival_taper, 
                               wavename=wavename, filterer=filterer, pre_stack_cut=pre_stack_cut, arrival_times=arrival_times)
-    fftsyn, specsyn = fft_transforms(syns, filterer=filterer, deltat=deltat)
-    return fftsyn, specsyn
+    _, specsyn = fft_transforms(syns, filterer=filterer, deltat=deltat)
+    return syns, specsyn
 
 
 def bartlett_correlation(fftobswaveforms, fftsynwaveforms, weights):

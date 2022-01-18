@@ -181,10 +181,10 @@ class SeismicComposite(Composite):
 
             if wmap.config.freqdomain_include:
 
-                cov_ds_spectra = self.noise_analyser.get_spectradata_covariances(
+                cov_ds_spectra = self.noise_analyser.get_data_covariances(
                     wmap=wmap, results=spectra_result,
                     sample_rate=self.config.gf_config.sample_rate,
-                    chop_bounds=chop_bounds, pad_to_pow2=True)
+                    chop_bounds=chop_bounds, spec_domain=True, pad_to_pow2=True)
 
             for j, trc in enumerate(wmap.datasets):
                 if trc.covariance is None:
@@ -304,7 +304,7 @@ class SeismicComposite(Composite):
                 logger.info('"%s" to: %s' % (wmap._mapid, outname))
                 num.savez(outname, **covs)
 
-            if wmap.config.freqdomain_include:
+            elif wmap.config.freqdomain_include:
 
                 covs = {
                     utility.list2string(dataset.nslc_id+('spc',)):
@@ -873,7 +873,7 @@ class SeismicGeometryComposite(SeismicComposite):
                         wc.event_idx, wmap._mapid))
                 sources = [self.sources[wc.event_idx]]
 
-            if wmap.config.freqdomain_include:
+            if not wmap.config.timedomain_include and wmap.config.freqdomain_include:
 
                 self.ffttransform[wmap._mapid] = theanof.FftTransform(
                     engine=self.engine,
@@ -888,17 +888,16 @@ class SeismicGeometryComposite(SeismicComposite):
                     pre_stack_cut=self.config.pre_stack_cut,
                     station_corrections=self.config.station_corrections)
     
-                fft_synthetics, spectra_synthetics = self.ffttransform[wmap._mapid](self.input_rvs)
+                _, spectra_synthetics = self.ffttransform[wmap._mapid](self.input_rvs)
 
                 spectra_residuals = wmap.shared_spectra_array - spectra_synthetics
-                freqlogpts = multivariate_normal_chol(wmap.spec_datasets, wmap.specweights, 
-                                                    hyperparams, spectra_residuals, hp_specific=hp_specific, frequency_domain=True)
-                # bart_correlation = heart.bartlett_correlation(wmap.fft_prepareddata, 
-                #                                     fft_synthetics, wmap.fftweights)
-                slogpts.append(freqlogpts)
-                # bcorr.append(bart_correlation)
 
-            elif wmap.config.timedomain_include:
+                freqlogpts = multivariate_normal_chol(wmap.spec_datasets, wmap.specweights, 
+                                                    hyperparams, spectra_residuals, hp_specific=hp_specific)
+
+                slogpts.append(freqlogpts)
+
+            elif wmap.config.timedomain_include and not wmap.config.freqdomain_include:
 
                 self.synthesizers[wmap._mapid] = theanof.SeisSynthesizer(
                     engine=self.engine,
@@ -922,19 +921,52 @@ class SeismicGeometryComposite(SeismicComposite):
     
                 wlogpts.append(logpts)
 
+            elif wmap.config.timedomain_include and wmap.config.freqdomain_include:
+ 
+                self.ffttransform[wmap._mapid] = theanof.FftTransform(
+                    engine=self.engine,
+                    sources=sources,
+                    targets=wmap.targets,
+                    event=self.events[wc.event_idx],
+                    deltat=wmap.deltat,
+                    arrival_taper=wc.arrival_taper,
+                    arrival_times=wmap._arrival_times,
+                    wavename=wmap.name,
+                    filterer=wc.filterer,
+                    pre_stack_cut=self.config.pre_stack_cut,
+                    station_corrections=self.config.station_corrections)    
+                synths, spectra_synthetics = self.ffttransform[wmap._mapid](self.input_rvs)
+
+                residuals = wmap.shared_data_array - synths
+                spectra_residuals = wmap.shared_spectra_array - spectra_synthetics
+
+                logpts = multivariate_normal_chol(
+                    wmap.datasets, wmap.weights, hyperparams, residuals,
+                    hp_specific=hp_specific)
+                freqlogpts = multivariate_normal_chol(
+                    wmap.spec_datasets, wmap.specweights, hyperparams, spectra_residuals, 
+                    hp_specific=hp_specific)
+                    
+                wlogpts.append(logpts)
+                slogpts.append(freqlogpts)
+
         t3 = time()
         logger.debug(
             'Teleseismic forward model on test model takes: %f' %
             (t3 - t2))
 
-        if wmap.config.timedomain_include:
+        if wmap.config.timedomain_include and not wmap.config.freqdomain_include:
             llk = Deterministic(self._like_name, tt.concatenate((wlogpts)))
             return llk.sum()
 
-        if wmap.config.freqdomain_include:
+        elif not wmap.config.timedomain_include and wmap.config.freqdomain_include:
             freqllk = Deterministic(self._freq_like_name, tt.concatenate((slogpts)))
-            # bartcorr = Deterministic(self._bart_corr_name, tt.concatenate((bcorr)))
             return freqllk.sum()
+
+        elif wmap.config.timedomain_include and wmap.config.freqdomain_include:
+            llk = Deterministic(self._like_name, tt.concatenate((wlogpts)))
+            freqllk = Deterministic(self._freq_like_name, tt.concatenate((slogpts)))
+            return llk.sum() + freqllk.sum()
 
     def get_synthetics(self, point, **kwargs):
         """
