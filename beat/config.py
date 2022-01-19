@@ -599,8 +599,7 @@ class WaveformFitConfig(Object):
         optional=True,
         help='Index to event from events list for reference time and data '
              'extraction. Default is 0 - always use the reference event.')
-    freqdomain_include = Bool.T(default=True, help='Flag to include spectrum into optimization.')
-    timedomain_include = Bool.T(default=True, help='Flag to include spectrum into optimization.')
+    specdomain_include = Bool.T(default=True, help='Flag to include spectrum into optimization.')
 
 
 class SeismicNoiseAnalyserConfig(Object):
@@ -683,12 +682,8 @@ class SeismicConfig(Object):
         for i, wc in enumerate(self.waveforms):
             if wc.include:
                 for c in wc.channels:
-                    if wc.freqdomain_include:
-                        hypername = '_'.join(('h', wc.name, str(i),c, 'spc'))
-                        hids.append(hypername)                    
-                    if wc.timedomain_include:
-                        hypername = '_'.join(('h', wc.name, str(i), c))
-                        hids.append(hypername)
+                    hypername = '_'.join(('h', wc.name, str(i), c))
+                    hids.append(hypername)
 
         return hids
 

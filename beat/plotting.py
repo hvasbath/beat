@@ -1879,7 +1879,7 @@ def seismic_fits(problem, stage, plot_options):
 
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-    spectrum_plot = [ True for wmap in problem.config.seismic_config.waveforms if wmap.freqdomain_include ]
+    spectrum_plot = [ True for wmap in problem.config.seismic_config.waveforms if wmap.specdomain_include ]
     spectrum_plot = True if any(spectrum_plot) else False
 
     composite = problem.composites['seismic']
@@ -1910,8 +1910,6 @@ def seismic_fits(problem, stage, plot_options):
     if best_point:  # for source individual contributions
         bresults = composite.assemble_results(
             best_point, outmode='tapered_data', chop_bounds=chop_bounds)
-        spec_bresults = composite.assemble_spectraresults(
-            best_point, outmode='tapered_data', chop_bounds=chop_bounds)[1]
         synth_plot_flag = True
     else:
         # get dummy results for data
@@ -1920,8 +1918,6 @@ def seismic_fits(problem, stage, plot_options):
         best_point = get_result_point(stage, problem.config, 'max')
         bresults = composite.assemble_results(
             best_point, chop_bounds=chop_bounds)
-        spec_bresults = composite.assemble_spectraresults(
-            best_point, chop_bounds=chop_bounds)[1]
         synth_plot_flag = False
 
     lowest_corner = num.min([[filterer.lower_corner for filterer in wmap.filterer] for wmap in problem.config.seismic_config.waveforms ])
@@ -1952,7 +1948,7 @@ def seismic_fits(problem, stage, plot_options):
                     results=results, chop_bounds=chop_bounds))
             if spectrum_plot:
                 spec_ens_results.append(composite.assemble_spectraresults(
-                    point, chop_bounds=chop_bounds)[1])
+                    point, chop_bounds=chop_bounds))
 
     bvar_reductions = composite.get_variance_reductions(
         best_point, weights=composite.weights,
@@ -1982,10 +1978,10 @@ def seismic_fits(problem, stage, plot_options):
         target_var_reductions.append(
             bvar_reductions[nslc_id_str])
 
-        if spectrum_plot:
-            target_spc_synths.append(spec_bresults[i].processed_syn)
-            target_spc_var_reductions.append(
-                bvar_reductions[nslc_id_str+'_spc'])
+        # if spectrum_plot:
+        #     target_spc_synths.append(spec_bresults[i].processed_syn)
+        #     target_spc_var_reductions.append(
+        #         bvar_reductions[nslc_id_str+'_spc'])
 
         dtraces.append(copy.deepcopy(bresults[i].processed_res))
         if plot_options.nensemble > 1:
@@ -1996,17 +1992,17 @@ def seismic_fits(problem, stage, plot_options):
                 target_synths.append(results[i].processed_syn)
                 target_var_reductions.append(
                     var_reductions[nslc_id_str])
-                if spectrum_plot:
-                    target_spc_synths.append(spec_results[i].processed_syn)
-                    target_spc_var_reductions.append(
-                        var_reductions[nslc_id_str+'_spc'])
+                # if spectrum_plot:
+                #     target_spc_synths.append(spec_results[i].processed_syn)
+                #     target_spc_var_reductions.append(
+                #         var_reductions[nslc_id_str+'_spc'])
 
         target_to_results[target] = target_results
         all_syn_trs_target[target] = target_synths
         all_var_reductions[target] = num.array(target_var_reductions) * 100.
-        if spectrum_plot:
-            all_syn_spc_target[target] = target_spc_synths
-            all_spc_var_reductions[target] = num.array(target_spc_var_reductions) * 100.
+        # if spectrum_plot:
+        #     all_syn_spc_target[target] = target_spc_synths
+        #     all_spc_var_reductions[target] = num.array(target_spc_var_reductions) * 100.
 
     # collecting time-shifts:
     station_corr = composite.config.station_corrections
@@ -2194,9 +2190,9 @@ def seismic_fits(problem, stage, plot_options):
                 result = bresults[itarget]
 
                 traces = all_syn_trs_target[target]
-                if spectrum_plot:
-                    spec_bresult = spec_bresults[itarget]
-                    spctraces = all_syn_spc_target[target]
+                # if spectrum_plot:
+                #     spec_bresult = spec_bresults[itarget]
+                #     spctraces = all_syn_spc_target[target]
 
                 dtrace = dtraces[itarget]
 
@@ -2228,18 +2224,18 @@ def seismic_fits(problem, stage, plot_options):
                             fc=light(misfit_color, 0.3),
                             ec=misfit_color, zorder=4)
 
-                    elif spectrum_plot and po.nensemble > 1:
-                        fuzzy_spectra(axes=axes2, data=spctraces, best_result=spec_bresult,
-                                    lower_corner=lowest_corner, upper_corner=uppest_corner,
-                                    bbox_to_anchor=[0.05, 0.0, 0.75, 0.24],
-                                    grid_size=(500, 500), alpha=1.0, zorder=0,
-                                    linewidth=20.0)
+                    # elif spectrum_plot and po.nensemble > 1:
+                    #     fuzzy_spectra(axes=axes2, data=spctraces, best_result=spec_bresult,
+                    #                 lower_corner=lowest_corner, upper_corner=uppest_corner,
+                    #                 bbox_to_anchor=[0.05, 0.0, 0.75, 0.24],
+                    #                 grid_size=(500, 500), alpha=1.0, zorder=0,
+                    #                 linewidth=20.0)
                         
-                    elif spectrum_plot:
-                        plot_spectrum(axes=axes2, data=spec_bresult, 
-                                    lower_corner=lowest_corner, 
-                                    upper_corner=uppest_corner,
-                                    bbox_to_anchor=[0.05, 0.0, 0.9, 0.24])
+                    # elif spectrum_plot:
+                    #     plot_spectrum(axes=axes2, data=spec_bresult, 
+                    #                 lower_corner=lowest_corner, 
+                    #                 upper_corner=uppest_corner,
+                    #                 bbox_to_anchor=[0.05, 0.0, 0.9, 0.24])
 
                     if po.plot_projection == 'individual':
                         for i, tr in enumerate(result.source_contributions):

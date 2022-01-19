@@ -97,7 +97,7 @@ def available_noise_structures():
 
 
 def import_data_covariance(data_trace, arrival_taper, sample_rate, 
-                           spec_domain=False, pad_to_pow2=True):
+                           spec_domain=False):
     """
     Use imported covariance matrixes and check size consistency with taper.
     Cut or extend based on variance and taper size.
@@ -123,11 +123,9 @@ def import_data_covariance(data_trace, arrival_taper, sample_rate,
     at = arrival_taper
     n_samples = at.nsamples(sample_rate)
 
-    if spec_domain and pad_to_pow2:
+    if spec_domain:
         n_samples = trace.nextpow2(n_samples)
         n_samples = int(n_samples//2) + 1
-    elif spec_domain and not pad_to_pow2:
-        n_samples = int(n_samples//2) + 1     
 
     if data_trace.covariance is None:
         logger.warn(
@@ -184,8 +182,7 @@ class SeismicNoiseAnalyser(object):
         self.structure = structure
         self.chop_bounds = chop_bounds
 
-    def get_structure(self, wmap, sample_rate, chop_bounds=None, 
-                      spec_domain=False, pad_to_pow2=True):
+    def get_structure(self, wmap, sample_rate, chop_bounds=None):
 
         if chop_bounds is None:
             chop_bounds = self.chop_bounds
@@ -194,22 +191,19 @@ class SeismicNoiseAnalyser(object):
         dt = 1. / sample_rate
         ataper = wmap.config.arrival_taper
         n = ataper.nsamples(sample_rate, chop_bounds)
-        if spec_domain and pad_to_pow2:
+        if wmap.config.specdomain_include:
             n = trace.nextpow2(n)
             dt = 1./(n*dt)
             n = int(n//2) + 1
-        elif spec_domain and not pad_to_pow2:
-            dt = 1./(n*dt)
-            n = int(n//2) + 1     
         return NoiseStructureCatalog[self.structure](n, dt, tzero)
 
-    def do_import(self, wmap, sample_rate, spec_domain=False, pad_to_pow2=True):
+    def do_import(self, wmap, sample_rate):
 
         scalings = []
-        for tr, target in zip(wmap.datasets if not spec_domain else wmap.spec_datasets, wmap.targets):
+        for tr, target in zip(wmap.datasets, wmap.targets):
             scaling = import_data_covariance(
                 tr, arrival_taper=wmap.config.arrival_taper,
-                sample_rate=sample_rate, spec_domain=spec_domain, pad_to_pow2=pad_to_pow2)
+                sample_rate=sample_rate, spec_domain=wmap.config.specdomain_include)
             scalings.append(scaling)
 
         return scalings
@@ -230,7 +224,7 @@ class SeismicNoiseAnalyser(object):
 
             return scalings
 
-    def do_variance_estimate(self, wmap, spec_domain=False):
+    def do_variance_estimate(self, wmap):
 
         filterer = wmap.config.filterer
         scalings = []
@@ -267,10 +261,12 @@ class SeismicNoiseAnalyser(object):
                 tmax=arrival_time - self.pre_arrival_time)
 
             nslc_id_str = list2string(ctrace.nslc_id)
-            if spec_domain:
-                data = num.abs(ctrace.spectrum(True, 0.05)[1])
+            
+            if wmap.config.specdomain_include:
+                data = ctrace.spectrum(True, 0.05)[1]
             else:
                 data = ctrace.get_ydata()
+            
             if data.size == 0:
                 raise ValueError(
                     'Trace %s contains no pre-P arrival data! Please either '
@@ -290,8 +286,7 @@ class SeismicNoiseAnalyser(object):
         return scalings
 
     def get_data_covariances(
-            self, wmap, sample_rate, results=None, chop_bounds=None, 
-            spec_domain=False, pad_to_pow2=True):
+            self, wmap, sample_rate, results=None, chop_bounds=None):
         """
         Estimated data covariances of seismic traces
 
@@ -308,14 +303,14 @@ class SeismicNoiseAnalyser(object):
         """
 
         covariance_structure = self.get_structure(
-            wmap, sample_rate, chop_bounds, spec_domain=spec_domain, pad_to_pow2=pad_to_pow2)
+            wmap, sample_rate, chop_bounds)
 
         if self.structure == 'import':
-            scalings = self.do_import(wmap, sample_rate, spec_domain=spec_domain, pad_to_pow2=pad_to_pow2)
+            scalings = self.do_import(wmap, sample_rate)
         elif self.structure == 'non-toeplitz':
             scalings = self.do_non_toeplitz(wmap, results)
         else:
-            scalings = self.do_variance_estimate(wmap, spec_domain=spec_domain)
+            scalings = self.do_variance_estimate(wmap)
 
         cov_ds = []
         for scaling in scalings:
