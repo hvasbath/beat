@@ -360,6 +360,10 @@ class SeismicGFConfig(NonlinearGFConfig):
         default=True,
         help='Flag for removing modeling module GF files after'
              ' completion.')
+    replace_water_source_side = Bool.T(
+        default=True,
+        help='Flag, for replacing water layers in the crust2 model'
+             '-source-side')
 
 
 class GeodeticGFConfig(NonlinearGFConfig):

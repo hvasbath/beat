@@ -1539,7 +1539,7 @@ def ensemble_earthmodel(ref_earthmod, num_vary=10, error_depth=0.1,
 
 def get_velocity_model(
         location, earth_model_name, crust_ind=0, gf_config=None,
-        custom_velocity_model=None):
+        replace_water=True, custom_velocity_model=None):
     """
     Get velocity model at the specified location, combines given or crustal
     models with the global model.
@@ -1555,6 +1555,8 @@ def get_velocity_model(
         Index to set to the Greens Function store, 0 is reference store
         indexes > 0 use reference model and vary its parameters by a Gaussian
     gf_config : :class:`beat.config.GFConfig`
+    replace_water : boolean
+        if True, water layers will be replaced by lower crust
     custom_velocity_model : :class:`pyrocko.cake.LayeredModel`
 
     Returns
@@ -1587,7 +1589,7 @@ def get_velocity_model(
         # load velocity profile from CRUST2x2 and check for water layer
         profile = crust2x2.get_profile(location.lat, location.lon)
 
-        if gfc.replace_water:
+        if replace_water:
             logger.debug('Replacing water layers! ...')
             thickness_lwater = profile.get_layer(crust2x2.LWATER)[0]
             if thickness_lwater > 0.0:
@@ -1909,7 +1911,8 @@ def seis_construct_gf(
 
     source_model = get_velocity_model(
         event, earth_model_name=sf.earth_model_name, crust_ind=crust_ind,
-        gf_config=sf, custom_velocity_model=sf.custom_velocity_model)
+        gf_config=sf, replace_water=sf.replace_water_source_side,
+        custom_velocity_model=sf.custom_velocity_model)
 
     waveforms = seismic_config.get_waveform_names()
 
@@ -1933,6 +1936,7 @@ def seis_construct_gf(
             receiver_model = get_velocity_model(
                 station, earth_model_name=sf.earth_model_name,
                 crust_ind=crust_ind, gf_config=sf,
+                replace_water=sf.replace_water,
                 custom_velocity_model=custom_velocity_model)
 
             gf_directory = os.path.join(
@@ -2001,7 +2005,7 @@ def geo_construct_gf(
     # extract source crustal profile and check for water layer
     source_model = get_velocity_model(
         event, earth_model_name=gfc.earth_model_name,
-        crust_ind=crust_ind, gf_config=gfc,
+        crust_ind=crust_ind, gf_config=gfc, replace_water=gfc.replace_water,
         custom_velocity_model=gfc.custom_velocity_model).extract(
             depth_max=gfc.source_depth_max * km)
 
@@ -2122,7 +2126,7 @@ def geo_construct_gf_psgrn(
     # extract source crustal profile and check for water layer
     source_model = get_velocity_model(
         event, earth_model_name=gfc.earth_model_name,
-        crust_ind=crust_ind, gf_config=gfc,
+        crust_ind=crust_ind, gf_config=gfc, replace_water=gfc.replace_water,
         custom_velocity_model=gfc.custom_velocity_model).extract(
             depth_max=gfc.source_depth_max * km)
 
