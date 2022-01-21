@@ -465,7 +465,7 @@ class SeismicComposite(Composite):
                     point=point,
                     processed_obs=obs_tr,
                     source_contributions=source_contributions,
-                    taper=taper))
+                    taper=taper, spectra=wc.specdomain_include))
 
             if order == 'list':
                 results.extend(wmap_results)
@@ -591,7 +591,10 @@ class SeismicComposite(Composite):
         var_reds = OrderedDict()
 
         for i in range(ndatasets):
-            nslc_id = utility.list2string(self.datasets[i].nslc_id)
+            if results[i].spectra:
+                nslc_id = utility.list2string(self.datasets[i].nslc_id+('spc',))
+            else:
+                nslc_id = utility.list2string(self.datasets[i].nslc_id)
             var_reds[nslc_id] = compute_var_reduction(self.datasets[i], weights[i], results[i])
             
             logger.debug(

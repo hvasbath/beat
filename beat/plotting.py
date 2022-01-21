@@ -25,6 +25,7 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 from scipy.stats import kde
 import numpy as num
+from theano import config as tconfig
 from pyrocko.guts import (Object, String, Dict, List,
                           Bool, Int, load, StringChoice)
 from pyrocko import util, trace
@@ -1746,7 +1747,9 @@ def seismic_fits(problem, stage, plot_options):
             bbox_to_anchor=bbox_to_anchor,
             bbox_transform=axes.transAxes, loc=2, borderpad=0)
         
-        fxdata = data.processed_obs.get_xdata()
+        df = data[0].deltat
+        nfs = data[0].ydata.size
+        fxdata = num.linspace(0,nfs-1, nfs)*df
         lower = num.argwhere(fxdata<=lower_corner/2)[0][0]
         upper = num.argwhere(fxdata>=4*upper_corner)[0][0]
 
@@ -1763,7 +1766,7 @@ def seismic_fits(problem, stage, plot_options):
         in_ax.xaxis.set_visible(False)
         in_ax.spines['bottom'].set_visible(False)
 
-        for tmark, ybound in zip([fxdata[lower], fxdata[upper-1]], [ymax, ymax]):
+        for tmark, ybound in zip([fxdata[lower], fxdata[upper-1]], [0.75*ymax, ymax]):
             in_ax.plot(
                 [tmark, tmark], [0.0, ybound], color=tap_color_annot, lw=0.75)
 
@@ -1796,7 +1799,7 @@ def seismic_fits(problem, stage, plot_options):
 
     def fuzzy_spectra(axes, data, best_result, bbox_to_anchor, lower_corner=0.0,
                       upper_corner=0.2, alpha=0.5, zorder=0,
-                      linewidth=7.0, grid_size=(500, 500)):
+                      linewidth=7.0, grid_size=(500, 500), allaxes=False):
 
         from matplotlib.colors import LinearSegmentedColormap
 
@@ -1812,7 +1815,9 @@ def seismic_fits(problem, stage, plot_options):
             bbox_to_anchor=bbox_to_anchor,
             bbox_transform=axes.transAxes, loc=2, borderpad=0)
 
-        fxdata = data[0].get_xdata()
+        df = data[0].deltat
+        nfs = data[0].ydata.size
+        fxdata = num.linspace(0,nfs-1, nfs)*df
         lower = num.argwhere(fxdata<=lower_corner/2)[0][0]
         upper = num.argwhere(fxdata>=4*upper_corner)[0][0]
 
@@ -1822,7 +1827,7 @@ def seismic_fits(problem, stage, plot_options):
             if ymax < trmax:
                 ymax = trmax
 
-        extent = [lower_corner/2, 4*upper_corner, 0, ymax]
+        extent = [lower_corner/2, 4*upper_corner, 0, 1.2*ymax]
         
         for tr in data:   
             draw_line_on_array(
@@ -1848,41 +1853,91 @@ def seismic_fits(problem, stage, plot_options):
         in_ax.xaxis.set_visible(False)
         in_ax.spines['bottom'].set_visible(False)
         
-        for tmark, ybound in zip([fxdata[lower], fxdata[upper-1]], [0.5*ymax, ymax]):
-            in_ax.plot(
-                [tmark, tmark], [0.0, ybound], color=tap_color_annot, lw=0.75)
-        
-        # annotate axis amplitude
-        in_ax.annotate(
-            '%0.3g -' % (ymax),
-            xycoords='data',
-            xy=(fxdata[upper-1], 0.9*ymax),
-            xytext=(1., 1.),
-            textcoords='offset points',
-            ha='right',
-            va='center',
-            fontsize=fontsize - 3,
-            color=obs_color,
-            fontstyle='normal')
+        if allaxes:
 
-        in_ax.annotate(
-            '$ f \ |\ ^{%0.1g}_{%0.1g} \ $' % (fxdata[lower], fxdata[upper]),
-            xycoords='data',
-            xy=(fxdata[upper-1], 0.4*ymax),
-            xytext=(1., 1.),
-            textcoords='offset points',
-            ha='right',
-            va='center',
-            fontsize=fontsize+1,
-            color=obs_color,
-            fontstyle='normal')
+            for tmark, ybound in zip([fxdata[lower], fxdata[upper-1]], [0.6*ymax, 0.6*ymax]):
+                in_ax.plot(
+                    [tmark, tmark], [0.0, ybound], color=tap_color_annot, lw=0.75)
+
+            # annotate axis amplitude
+            in_ax.annotate(
+                '%0.3g -' % (ymax),
+                xycoords='data',
+                xy=(fxdata[upper-1], 0.45*ymax),
+                xytext=(1., 1.),
+                textcoords='offset points',
+                ha='right',
+                va='center',
+                fontsize=fontsize - 3,
+                color=obs_color,
+                fontstyle='normal')
+    
+            in_ax.annotate(
+                '$ f \ |\ ^{%0.1g}_{%0.1g} \ $' % (fxdata[lower], fxdata[upper]),
+                xycoords='data',
+                xy=(fxdata[upper-1], 0.2*ymax),
+                xytext=(1., 1.),
+                textcoords='offset points',
+                ha='right',
+                va='center',
+                fontsize=fontsize+1,
+                color=obs_color,
+                fontstyle='normal')
+
+        else:
+
+            for tmark, ybound in zip([fxdata[lower], fxdata[upper-1]], [0.5*ymax, ymax]):
+                in_ax.plot(
+                    [tmark, tmark], [0.0, ybound], color=tap_color_annot, lw=0.75)
+            # annotate axis amplitude
+            in_ax.annotate(
+                '%0.3g -' % (ymax),
+                xycoords='data',
+                xy=(fxdata[upper-1], 0.9*ymax),
+                xytext=(1., 1.),
+                textcoords='offset points',
+                ha='right',
+                va='center',
+                fontsize=fontsize - 3,
+                color=obs_color,
+                fontstyle='normal')
+    
+            in_ax.annotate(
+                '$ f \ |\ ^{%0.1g}_{%0.1g} \ $' % (fxdata[lower], fxdata[upper]),
+                xycoords='data',
+                xy=(fxdata[upper-1], 0.4*ymax),
+                xytext=(1., 1.),
+                textcoords='offset points',
+                ha='right',
+                va='center',
+                fontsize=fontsize+1,
+                color=obs_color,
+                fontstyle='normal')
+    
+    def refining_targets(targets, spcindices, tmtrgts):
+        for i in sorted(spcindices, reverse=True):
+            target = targets[i]
+            nslc_id_str = utility.list2string(target.codes)
+            if nslc_id_str in tmtrgts:
+                targets.pop(i)
+        return targets
+
 
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-    spectrum_plot = [ True for wmap in problem.config.seismic_config.waveforms if wmap.specdomain_include ]
-    spectrum_plot = True if any(spectrum_plot) else False
+    time_shift_color = scolor('aluminium3')
+    obs_color = scolor('aluminium5')
+    syn_color = scolor('scarletred2')
+    misfit_color = scolor('scarletred2')
+
+    tap_color_annot = (0.35, 0.35, 0.25)
+    tap_color_edge = (0.85, 0.85, 0.80)
+    # tap_color_fill = (0.95, 0.95, 0.90)
 
     composite = problem.composites['seismic']
+
+    lowest_corner = num.min([[filterer.lower_corner for filterer in wmap.filterer] for wmap in problem.config.seismic_config.waveforms ])
+    uppest_corner = num.max([[filterer.upper_corner for filterer in wmap.filterer] for wmap in problem.config.seismic_config.waveforms ])
 
     fontsize = 8
     fontsize_title = 10
@@ -1919,10 +1974,7 @@ def seismic_fits(problem, stage, plot_options):
         bresults = composite.assemble_results(
             best_point, chop_bounds=chop_bounds)
         synth_plot_flag = False
-
-    lowest_corner = num.min([[filterer.lower_corner for filterer in wmap.filterer] for wmap in problem.config.seismic_config.waveforms ])
-    uppest_corner = num.max([[filterer.upper_corner for filterer in wmap.filterer] for wmap in problem.config.seismic_config.waveforms ])
-
+             
     composite.analyse_noise(best_point, chop_bounds=chop_bounds)
     composite.update_weights(best_point, chop_bounds=chop_bounds)
     if plot_options.nensemble > 1:
@@ -1933,7 +1985,6 @@ def seismic_fits(problem, stage, plot_options):
         csteps = float(nchains) / po.nensemble
         idxs = num.floor(num.arange(0, nchains, csteps)).astype('int32')
         ens_results = []
-        spec_ens_results = []
         points = []
         ens_var_reductions = []
         for idx in tqdm(idxs):
@@ -1946,9 +1997,6 @@ def seismic_fits(problem, stage, plot_options):
                 composite.get_variance_reductions(
                     point, weights=composite.weights,
                     results=results, chop_bounds=chop_bounds))
-            if spectrum_plot:
-                spec_ens_results.append(composite.assemble_spectraresults(
-                    point, chop_bounds=chop_bounds))
 
     bvar_reductions = composite.get_variance_reductions(
         best_point, weights=composite.weights,
@@ -1956,55 +2004,50 @@ def seismic_fits(problem, stage, plot_options):
 
     # collecting results for targets
     logger.info('Mapping results to targets ...')
+    all_results = {}
     target_to_results = {}
     all_syn_trs_target = {}
-    all_syn_spc_target = {}
     all_var_reductions = {}
-    all_spc_var_reductions = {}
     dtraces = []
-
+    spec_targets_indices = []
+    spec_targets = []
+    time_targets = []
     for target in composite.targets:
         target_results = []
         target_synths = []
-        target_spc_synths = []
         target_var_reductions = []
-        target_spc_var_reductions = []
 
         i = target_index[target]
 
-        nslc_id_str = utility.list2string(target.codes)
+        if bresults[i].spectra:
+            nslc_id_str = utility.list2string(target.codes+('spc',))
+            spec_targets.append(nslc_id_str)
+            spec_targets_indices.append(i)
+        else:
+            nslc_id_str = utility.list2string(target.codes)
+            time_targets.append(nslc_id_str)
+                
         target_results.append(bresults[i])
         target_synths.append(bresults[i].processed_syn)
         target_var_reductions.append(
             bvar_reductions[nslc_id_str])
 
-        # if spectrum_plot:
-        #     target_spc_synths.append(spec_bresults[i].processed_syn)
-        #     target_spc_var_reductions.append(
-        #         bvar_reductions[nslc_id_str+'_spc'])
-
         dtraces.append(copy.deepcopy(bresults[i].processed_res))
         if plot_options.nensemble > 1:
-            for results, spec_results, var_reductions in zip(
-                    ens_results, spec_ens_results, ens_var_reductions):
+            for results, var_reductions in zip(
+                    ens_results, ens_var_reductions):
                 # put all results per target here not only single
+
                 target_results.append(results[i])
                 target_synths.append(results[i].processed_syn)
                 target_var_reductions.append(
                     var_reductions[nslc_id_str])
-                # if spectrum_plot:
-                #     target_spc_synths.append(spec_results[i].processed_syn)
-                #     target_spc_var_reductions.append(
-                #         var_reductions[nslc_id_str+'_spc'])
-
         target_to_results[target] = target_results
-        all_syn_trs_target[target] = target_synths
-        all_var_reductions[target] = num.array(target_var_reductions) * 100.
-        # if spectrum_plot:
-        #     all_syn_spc_target[target] = target_spc_synths
-        #     all_spc_var_reductions[target] = num.array(target_spc_var_reductions) * 100.
+        all_results[nslc_id_str] = target_results
+        all_syn_trs_target[nslc_id_str] = target_synths
+        all_var_reductions[nslc_id_str] = num.array(target_var_reductions) * 100.
 
-    # collecting time-shifts:
+        # collecting time-shifts:
     station_corr = composite.config.station_corrections
     if station_corr:
         tshifts = problem.config.problem_config.hierarchicals['time_shift']
@@ -2016,6 +2059,8 @@ def seismic_fits(problem, stage, plot_options):
             for point in points:
                 comp_time_shifts = []
                 for wmap in composite.wavemaps:
+                    if wmap.config.specdomain_include:
+                        continue
                     comp_time_shifts.append(
                         extract_time_shifts(point, wmap))
 
@@ -2024,13 +2069,15 @@ def seismic_fits(problem, stage, plot_options):
 
         btime_shifts = num.hstack(
             [extract_time_shifts(best_point, wmap)
-                for wmap in composite.wavemaps])
+                for wmap in composite.wavemaps if not wmap.config.specdomain_include])
 
         logger.info('Mapping time-shifts to targets ...')
         all_time_shifts = {}
         for target in composite.targets:
             target_time_shifts = []
             i = target_index[target]
+            if i in spec_targets_indices:
+                continue
             target_time_shifts.append(btime_shifts[i])
 
             if plot_options.nensemble > 1:
@@ -2059,10 +2106,12 @@ def seismic_fits(problem, stage, plot_options):
     logger.info('Plotting waveforms ...')
     for cg in cgs:
         targets = cg_to_targets[cg]
-
+        
+        targets = refining_targets(targets, spec_targets_indices, time_targets)
+        
         # can keep from here ... until
         nframes = len(targets)
-
+        
         nx = int(math.ceil(math.sqrt(nframes)))
         ny = (nframes - 1) // nx + 1
 
@@ -2123,7 +2172,7 @@ def seismic_fits(problem, stage, plot_options):
             availmask[iframe] = False
             iy, ix = num.unravel_index(iframe, (ny, nx))
             frame_to_target[iy, ix] = target
-
+                        
         figures = {}
         for iy in range(ny):
             for ix in range(nx):
@@ -2149,17 +2198,37 @@ def seismic_fits(problem, stage, plot_options):
                 logger.debug('iyy %i, ixx %i' % (iyy, ixx))
                 logger.debug('iy %i, ix %i' % (iy, ix))
                 fig = figures[iyy, ixx]
-
+                
                 target = frame_to_target[iy, ix]
+
+                itarget = target_index[target]
+
+                nslc_id_time = utility.list2string(target.codes)
+                nslc_id_spec = utility.list2string(target.codes+('spc',))
+
+                if nslc_id_time in time_targets:
+                    btimeresult = all_results[nslc_id_time][0]
+                    all_time_syn_target = all_syn_trs_target[nslc_id_time]
+                    if synth_plot_flag:
+                        best_data = bvar_reductions[nslc_id_time] * 100.
+                    else:       # for None post_llk
+                        best_data = None
+                else:
+                    btimeresult = all_results[nslc_id_spec][0]
+                    all_time_syn_target = all_syn_trs_target[nslc_id_spec]
+                    if synth_plot_flag:
+                        best_data = bvar_reductions[nslc_id_spec] * 100.
+                    else:       # for None post_llk
+                        best_data = None
 
                 # get min max of all traces
                 key = target.codes[3]
                 amin, amax = trace.minmax(
-                    all_syn_trs_target[target],
+                    all_time_syn_target,
                     key=skey)[key]
                 # need target specific minmax
                 absmax = max(abs(amin), abs(amax))
-
+                
                 ny_this = nymax  # min(ny, nymax)
                 nx_this = nxmax  # min(nx, nxmax)
                 i_this = (iy % ny_this) * nx_this + (ix % nx_this) + 1
@@ -2184,165 +2253,181 @@ def seismic_fits(problem, stage, plot_options):
                         'These traces contain NaN or Inf open in snuffler?')
                     input('Press enter! Otherwise Ctrl + C')
                     from pyrocko.trace import snuffle
-                    snuffle(all_syn_trs_target[target])
-
-                itarget = target_index[target]
-                result = bresults[itarget]
-
-                traces = all_syn_trs_target[target]
-                # if spectrum_plot:
-                #     spec_bresult = spec_bresults[itarget]
-                #     spctraces = all_syn_spc_target[target]
-
-                dtrace = dtraces[itarget]
-
-                if po.nensemble > 1:
-                    xmin, xmax = trace.minmaxtime(traces, key=skey)[key]
-                    fuzzy_waveforms(
-                        axes, traces, linewidth=7, zorder=0,
-                        grid_size=(500, 500), alpha=1.0)
-
-                tap_color_annot = (0.35, 0.35, 0.25)
-                tap_color_edge = (0.85, 0.85, 0.80)
-                # tap_color_fill = (0.95, 0.95, 0.90)
-
-                plot_taper(
-                    axes2, result.processed_obs.get_xdata(), result.taper,
-                    mode=composite._mode, fc='None', ec=tap_color_edge,
-                    zorder=4, alpha=0.6)
-
-                time_shift_color = scolor('aluminium3')
-                obs_color = scolor('aluminium5')
-                syn_color = scolor('scarletred2')
-                misfit_color = scolor('scarletred2')
-
-                if synth_plot_flag:
-                    # only draw if highlighted point exists
-                    if not spectrum_plot:
-                        plot_dtrace(
-                            axes2, dtrace, space, 0., 1.,
-                            fc=light(misfit_color, 0.3),
-                            ec=misfit_color, zorder=4)
-
-                    # elif spectrum_plot and po.nensemble > 1:
-                    #     fuzzy_spectra(axes=axes2, data=spctraces, best_result=spec_bresult,
-                    #                 lower_corner=lowest_corner, upper_corner=uppest_corner,
-                    #                 bbox_to_anchor=[0.05, 0.0, 0.75, 0.24],
-                    #                 grid_size=(500, 500), alpha=1.0, zorder=0,
-                    #                 linewidth=20.0)
+                    snuffle(all_syn_trs_target[target])        
+                    
+                    
+                if nslc_id_time in time_targets:
+                    if po.nensemble > 1:
+                        xmin, xmax = trace.minmaxtime(all_time_syn_target, key=skey)[key]
+                        fuzzy_waveforms(
+                            axes, all_time_syn_target, linewidth=7, zorder=0,
+                            grid_size=(500, 500), alpha=1.0)                    
                         
-                    # elif spectrum_plot:
-                    #     plot_spectrum(axes=axes2, data=spec_bresult, 
-                    #                 lower_corner=lowest_corner, 
-                    #                 upper_corner=uppest_corner,
-                    #                 bbox_to_anchor=[0.05, 0.0, 0.9, 0.24])
+                        nslc_id_str = utility.list2string(target.codes)
+                        logger.debug(
+                            'Plotting variance reductions for %s' % nslc_id_str)
+        
+                        in_ax = plot_inset_hist(
+                            axes,
+                            data=pmp.utils.make_2d(all_var_reductions[nslc_id_time]),
+                            best_data=best_data,
+                            bbox_to_anchor=(0.85, .75, .2, .2))
+                        in_ax.set_title('VR [%]', fontsize=5)
+
+                    plot_taper(
+                        axes2, btimeresult.processed_obs.get_xdata(), all_results[nslc_id_time][0].taper,
+                        mode=composite._mode, fc='None', ec=tap_color_edge,
+                        zorder=4, alpha=0.6)
 
                     if po.plot_projection == 'individual':
-                        for i, tr in enumerate(result.source_contributions):
+                        for i, tr in enumerate(btimeresult.source_contributions):
                             plot_trace(
                                 axes, tr,
                                 color=mpl_graph_color(i), lw=0.5, zorder=5)
                     else:
                         plot_trace(
-                            axes, result.processed_syn,
+                            axes, btimeresult.processed_syn,
                             color=syn_color, lw=0.5, zorder=5)
+    
+                    plot_trace(
+                        axes, btimeresult.processed_obs,
+                        color=obs_color, lw=0.5, zorder=5)
+    
+                    xdata = btimeresult.processed_obs.get_xdata()
+                    axes.set_xlim(xdata[0], xdata[-1])
+    
+                    tmarks = [
+                        btimeresult.processed_obs.tmin,
+                        btimeresult.processed_obs.tmax]
+                    tmark_fontsize = fontsize - 1
 
-                plot_trace(
-                    axes, result.processed_obs,
-                    color=obs_color, lw=0.5, zorder=5)
+                    if nslc_id_spec in spec_targets:
+                        if po.nensemble > 1:
+                            fuzzy_spectra(axes=axes2, data=all_syn_trs_target[nslc_id_spec],
+                                          best_result=all_results[nslc_id_spec][0],
+                                          lower_corner=lowest_corner, upper_corner=uppest_corner,
+                                          bbox_to_anchor=[0.05, 0.0, 0.75, 0.24],
+                                          grid_size=(500, 500), alpha=1.0, zorder=0,
+                                          linewidth=7.0)
+                            if synth_plot_flag:
+                                best_data = bvar_reductions[nslc_id_spec] * 100.
+                            else:       # for None post_llk
+                                best_data = None
+        
+                            in_ax = plot_inset_hist(
+                                axes2,
+                                data=pmp.utils.make_2d(all_var_reductions[nslc_id_spec]),
+                                best_data=best_data,
+                                bbox_to_anchor=(0.85, .02, .2, .2))
+                            in_ax.set_title('SPC_VR [%]', fontsize=5)
+    
+                        else:
+                            plot_spectrum(axes=axes2, data=all_results[nslc_id_spec][0], 
+                                        lower_corner=lowest_corner, 
+                                        upper_corner=uppest_corner,
+                                        bbox_to_anchor=[0.05, 0.0, 0.9, 0.24])
 
-                xdata = result.processed_obs.get_xdata()
-                axes.set_xlim(xdata[0], xdata[-1])
+                    else:
+                        # only draw if highlighted point exists
+                        plot_dtrace(
+                            axes2, btimeresult.processed_res, space, 0., 1.,
+                            fc=light(misfit_color, 0.3),
+                            ec=misfit_color, zorder=4)
 
-                tmarks = [
-                    result.processed_obs.tmin,
-                    result.processed_obs.tmax]
-                tmark_fontsize = fontsize - 1
-
-                # plot variance reductions
-                if po.nensemble > 1:
-                    nslc_id_str = utility.list2string(target.codes)
-                    logger.debug(
-                        'Plotting variance reductions for %s' % nslc_id_str)
-
-                    if synth_plot_flag:
-                        best_data = bvar_reductions[nslc_id_str] * 100.
-                    else:       # for None post_llk
-                        best_data = None
-
-                    in_ax = plot_inset_hist(
-                        axes,
-                        data=pmp.utils.make_2d(all_var_reductions[target]),
-                        best_data=best_data,
-                        bbox_to_anchor=(0.85, .75, .2, .2))
-                    in_ax.set_title('VR [%]', fontsize=5)
-
-                    if spectrum_plot:
+                    if station_corr:
+                        sidebar_ybounds = [-0.9, -0.4]
+                        ytmarks = [-1.3, -0.7]
+                        hor_alignment = 'center'
+    
                         if synth_plot_flag:
-                            best_data = bvar_reductions[nslc_id_str+'_spc'] * 100.
+                            best_data = btime_shifts[itarget]
+                        else:       # for None post_llk
+                            best_data = None
+    
+                        if po.nensemble > 1:
+                            in_ax = plot_inset_hist(
+                                axes,
+                                data=pmp.utils.make_2d(all_time_shifts[target]),
+                                best_data=best_data,
+                                bbox_to_anchor=(-0.0985, .26, .2, .2),
+                                # cmap=plt.cm.get_cmap('seismic'),
+                                # cbounds=time_shift_bounds,
+                                color=time_shift_color,
+                                alpha=0.7)
+                            in_ax.set_xlim(*time_shift_bounds)
+                    else:
+                        sidebar_ybounds = [-1.2, -0.4]
+                        ytmarks = [-1.2, -0.7]
+                        hor_alignment = 'left'
+
+                    for tmark, ybound in zip(tmarks, sidebar_ybounds):
+                        axes2.plot(
+                            [tmark, tmark], [ybound, 0.1], color=tap_color_annot)
+    
+                    for xtmark, ytmark, text, ha, va in [
+                            (tmarks[0], ytmarks[0],
+                             '$\,$ ' + str_duration(tmarks[0] - source.time),
+                             hor_alignment,
+                             'bottom'),
+                            (tmarks[1], ytmarks[1],
+                             '$\Delta$ ' + str_duration(tmarks[1] - tmarks[0]),
+                             'center',
+                             'bottom')]:
+    
+                        axes2.annotate(
+                            text,
+                            xy=(xtmark, ytmark),
+                            xycoords='data',
+                            xytext=(
+                                fontsize * 0.4 * [-1, 1][ha == 'left'],
+                                fontsize * 0.2),
+                            textcoords='offset points',
+                            ha=ha,
+                            va=va,
+                            color=tap_color_annot,
+                            fontsize=tmark_fontsize, zorder=10)
+        
+                    # annotate axis amplitude
+                    axes.annotate(
+                        '%0.3g %s -' % (-absmax, str_unit(target.quantity)),
+                        xycoords='data',
+                        xy=(tmarks[1], -absmax/2),
+                        xytext=(1., 1.),
+                        textcoords='offset points',
+                        ha='right',
+                        va='center',
+                        fontsize=fontsize - 3,
+                        color=obs_color,
+                        fontstyle='normal')
+    
+                    axes2.set_zorder(10)
+
+                else:
+                    if po.nensemble > 1:
+                        fuzzy_spectra(axes=axes, data=all_syn_trs_target[nslc_id_spec],
+                                      best_result=all_results[nslc_id_spec][0],
+                                      lower_corner=lowest_corner, upper_corner=uppest_corner,
+                                      bbox_to_anchor=[-0.05, 0.25, 1.07, 0.7],
+                                      grid_size=(500, 500), alpha=1.0, zorder=0,
+                                      linewidth=7.0, allaxes=True)
+                        if synth_plot_flag:
+                            best_data = bvar_reductions[nslc_id_spec] * 100.
                         else:       # for None post_llk
                             best_data = None
     
                         in_ax = plot_inset_hist(
-                            axes2,
-                            data=pmp.utils.make_2d(all_spc_var_reductions[target]),
+                            axes,
+                            data=pmp.utils.make_2d(all_var_reductions[nslc_id_spec]),
                             best_data=best_data,
-                            bbox_to_anchor=(0.85, .02, .2, .2))
+                            bbox_to_anchor=(0.85, .75, .2, .2))
                         in_ax.set_title('SPC_VR [%]', fontsize=5)
 
-                if station_corr:
-                    sidebar_ybounds = [-0.9, -0.4]
-                    ytmarks = [-1.3, -0.7]
-                    hor_alignment = 'center'
-
-                    if synth_plot_flag:
-                        best_data = btime_shifts[itarget]
-                    else:       # for None post_llk
-                        best_data = None
-
-                    if po.nensemble > 1:
-                        in_ax = plot_inset_hist(
-                            axes,
-                            data=pmp.utils.make_2d(all_time_shifts[target]),
-                            best_data=best_data,
-                            bbox_to_anchor=(-0.0985, .26, .2, .2),
-                            # cmap=plt.cm.get_cmap('seismic'),
-                            # cbounds=time_shift_bounds,
-                            color=time_shift_color,
-                            alpha=0.7)
-                        in_ax.set_xlim(*time_shift_bounds)
-                else:
-                    sidebar_ybounds = [-1.2, -0.4]
-                    ytmarks = [-1.2, -0.7]
-                    hor_alignment = 'left'
-
-                for tmark, ybound in zip(tmarks, sidebar_ybounds):
-                    axes2.plot(
-                        [tmark, tmark], [ybound, 0.1], color=tap_color_annot)
-
-                for xtmark, ytmark, text, ha, va in [
-                        (tmarks[0], ytmarks[0],
-                         '$\,$ ' + str_duration(tmarks[0] - source.time),
-                         hor_alignment,
-                         'bottom'),
-                        (tmarks[1], ytmarks[1],
-                         '$\Delta$ ' + str_duration(tmarks[1] - tmarks[0]),
-                         'center',
-                         'bottom')]:
-
-                    axes2.annotate(
-                        text,
-                        xy=(xtmark, ytmark),
-                        xycoords='data',
-                        xytext=(
-                            fontsize * 0.4 * [-1, 1][ha == 'left'],
-                            fontsize * 0.2),
-                        textcoords='offset points',
-                        ha=ha,
-                        va=va,
-                        color=tap_color_annot,
-                        fontsize=tmark_fontsize, zorder=10)
-
+                    else:
+                        plot_spectrum(axes=axes, data=all_results[nslc_id_spec][0], 
+                                    lower_corner=lowest_corner, 
+                                    upper_corner=uppest_corner,
+                                    bbox_to_anchor=[0.05, 0.25, 0.9, 0.7])
+    
                 scale_string = None
 
                 infos = []
@@ -2365,19 +2450,6 @@ def seismic_fits(problem, stage, plot_options):
                     va='top',
                     fontsize=fontsize,
                     fontstyle='normal', zorder=10)
-
-                # annotate axis amplitude
-                axes.annotate(
-                    '%0.3g %s -' % (-absmax, str_unit(target.quantity)),
-                    xycoords='data',
-                    xy=(tmarks[1], -absmax/2),
-                    xytext=(1., 1.),
-                    textcoords='offset points',
-                    ha='right',
-                    va='center',
-                    fontsize=fontsize - 3,
-                    color=obs_color,
-                    fontstyle='normal')
 
                 axes2.set_zorder(10)
 
@@ -2998,11 +3070,15 @@ def histplot_op(
         if tstd is None:
             tstd = num.std(d)
 
-        step = (maxd - mind) / 40.
+        step = ((maxd - mind) / 40.).astype(tconfig.floatX)
+        
+        if step == 0:
+            step = num.finfo(tconfig.floatX).eps
 
         if bins is None:
             bins = int(num.ceil((maxd - mind) / step))
-
+            if bins == 0:
+                bins = 10
         major, minor = get_matplotlib_version()
         if major < 3:
             kwargs['normed'] = True
@@ -3193,7 +3269,7 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
     fontsize = 10
     ntickmarks_max = kwargs.pop('ntickmarks_max', 3)
     scale_factor = kwargs.pop('scale_factor', 2 / 3)
-    lines_color = kwargs.pop('lines_color', 'k')
+    lines_color = kwargs.pop('lines_color', 'red')
 
     num.set_printoptions(precision=3)
 
@@ -3374,7 +3450,9 @@ def traceplot(trace, varnames=None, transform=lambda x: x, figsize=None,
                     if lines:
                         try:
                             axs[rowi, coli].axvline(
-                                x=lines[v], color=lines_color, lw=1.)
+                                x=lines[v], color='white', lw=1.)
+                            axs[rowi, coli].axvline(
+                                x=lines[v], color='black', linestyle='dashed', lw=1.)
                         except KeyError:
                             pass
 
@@ -3460,6 +3538,7 @@ def draw_posteriors(problem, plot_options):
                 stage.mtrace,
                 varnames=varnames,
                 chains=None,
+                color='black',
                 combined=True,
                 source_idxs=po.source_idxs,
                 plot_style='hist',

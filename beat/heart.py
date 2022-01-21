@@ -9,6 +9,7 @@ import shutil
 import copy
 from time import time
 from collections import OrderedDict
+from xmlrpc.client import Boolean
 
 from beat import psgrn, pscmp, utility, qseis2d
 
@@ -430,7 +431,8 @@ class SeismicResult(Object):
     source_contributions = List.T(
         Trace.T(),
         help='synthetics of source individual contributions.')
-
+    spectra = Bool.T(default=False,
+                     help='indicate existing results are spectrum.')
     @property
     def processed_syn(self):
         if self.source_contributions is not None:
@@ -922,39 +924,6 @@ class SeismicDataset(trace.Trace):
 
         self._growbuffer = None
         self._update_ids()
-
-
-class SpectraSeismicResult(Object):
-    """
-    Result object assembling different traces of misfit.
-    """
-    point = ResultPoint.T(default=ResultPoint.D())
-    processed_obs = SeismicDataset.T(optional=True)
-    llk = Float.T(default=0., optional=True)
-    source_contributions = List.T(
-        SeismicDataset.T(),
-        help='synthetics of source individual contributions.')
-    
-    @property
-    def data_len(self):
-        return self.processed_obs.data_len()
-
-    @property
-    def processed_syn(self):
-        if self.source_contributions is not None:
-            tr0 = copy.deepcopy(self.source_contributions[0])
-            tr0.ydata = num.zeros_like(tr0.ydata)
-            for tr in self.source_contributions:
-                tr0.ydata += tr.ydata
-
-        return tr0
-
-    @property
-    def processed_res(self):
-        tr = copy.deepcopy(self.processed_obs)
-        tr.set_ydata(
-            self.processed_obs.get_ydata() - self.processed_syn.get_ydata())
-        return tr
 
 
 class GeodeticDataset(gf.meta.MultiLocation):
@@ -3721,21 +3690,12 @@ def pol_synthetics(
 
 
 def fft_transforms(time_domain_signls, filterer=None, deltat=None, outmode='array', pad_to_pow2=True):
-    channel = None
-    station = None
 
     if outmode == 'array':
         n_data, n_samples = num.shape(time_domain_signls)
         if pad_to_pow2:
             n_samples = trace.nextpow2(n_samples) 
         n_samples = int(n_samples // 2) + 1
-        # if not filterer:
-        #     print("HERE")
-        #     df = 1./(n_samples*deltat)
-        #     fxdata = num.arange(n_samples)*df
-        #     lower = num.argwhere(fxdata<=filterer.lower_corner/2)[0][0]
-        #     upper = num.argwhere(fxdata>=3*filterer.upper_corner)[0][0]
-        #     n_samples = upper - lower
         spec_signals = num.zeros((n_data, n_samples), dtype=tconfig.floatX)
     else:
         n_data = len(time_domain_signls)
@@ -3754,48 +3714,36 @@ def fft_transforms(time_domain_signls, filterer=None, deltat=None, outmode='arra
             
             fydata = num.fft.rfft(ydata, ntrans)
 
-            spec_signals[i] = fydata
+            spec_signals[i] = num.abs(fydata)
         
         elif isinstance(tr, trace.Trace):
 
-            channel = tr.channel
-            station = tr.station
             fxdata, fydata = tr.spectrum(True, 0.05)
             df = fxdata[1] - fxdata[0]
             spec_signals[i] = SeismicDataset(ydata=num.abs(fydata), deltat=df, 
-                                             tmin=num.min(fxdata), 
-                                             tmax=num.max(fxdata),
+                                             tmin=tr.tmin, 
+                                             tmax=tr.tmax,
                                              channel=tr.channel,
-                                             station=tr.station)
+                                             station=tr.station,
+                                             network=tr.network,
+                                             location=tr.location)
 
         elif isinstance(tr, list):
             
-            channel = tr[0].channel
-            station = tr[0].station
             fxdata, fydata = tr[0].spectrum(True, 0.05)
             df = fxdata[1] - fxdata[0]
             spec_signals[i] = [SeismicDataset(ydata=num.abs(fydata), deltat=df, 
-                                             tmin=num.min(fxdata), 
-                                             tmax=num.max(fxdata),
+                                             tmin=tr[0].tmin, 
+                                             tmax=tr[0].tmax,
                                              channel=tr[0].channel,
-                                             station=tr[0].station)]
+                                             station=tr[0].station,
+                                             network=tr[0].network,
+                                             location=tr[0].location)]
         
         else:
             raise TypeError('Outmode %s not supported!' % outmode)
 
     return spec_signals
-
-
-# def syn_to_fft(
-#         engine, sources, targets, arrival_taper=None, deltat=None,
-#         wavename='any_P', filterer=None, reference_taperer=None,
-#         plot=False, nprocs=1, outmode='array',
-#         pre_stack_cut=False, taper_tolerance_factor=0.,
-#         arrival_times=None, chop_bounds=['b', 'c']):
-#     syns, _ = seis_synthetics(engine=engine, sources=sources, targets=targets, arrival_taper=arrival_taper, 
-#                               wavename=wavename, filterer=filterer, pre_stack_cut=pre_stack_cut, arrival_times=arrival_times)
-#     specsyn = fft_transforms(syns, filterer=filterer, deltat=deltat)
-#     return syns, specsyn
 
 
 def geo_synthetics(
