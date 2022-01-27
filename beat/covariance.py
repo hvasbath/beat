@@ -191,7 +191,7 @@ class SeismicNoiseAnalyser(object):
         dt = 1. / sample_rate
         ataper = wmap.config.arrival_taper
         n = ataper.nsamples(sample_rate, chop_bounds)
-        if wmap.config.specdomain_include:
+        if wmap.config.spectrum_include:
             n = trace.nextpow2(n)
             dt = 1./(n*dt)
             n = int(n//2) + 1
@@ -203,7 +203,7 @@ class SeismicNoiseAnalyser(object):
         for tr, target in zip(wmap.datasets, wmap.targets):
             scaling = import_data_covariance(
                 tr, arrival_taper=wmap.config.arrival_taper,
-                sample_rate=sample_rate, spec_domain=wmap.config.specdomain_include)
+                sample_rate=sample_rate, spec_domain=wmap.config.spectrum_include)
             scalings.append(scaling)
 
         return scalings
@@ -262,7 +262,7 @@ class SeismicNoiseAnalyser(object):
 
             nslc_id_str = list2string(ctrace.nslc_id)
             
-            if wmap.config.specdomain_include:
+            if wmap.config.spectrum_include:
                 data = ctrace.spectrum(True, 0.05)[1]
             else:
                 data = ctrace.get_ydata()

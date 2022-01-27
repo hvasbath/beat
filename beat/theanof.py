@@ -314,11 +314,11 @@ class SeisSynthesizer(theano.Op):
 
     __props__ = ('engine', 'sources', 'targets', 'event',
                  'arrival_taper', 'arrival_times', 'wavename', 'filterer',
-                 'pre_stack_cut', 'station_corrections', 'specdomain_include')
+                 'pre_stack_cut', 'station_corrections', 'spectrum_include')
 
     def __init__(self, engine, sources, targets, event, arrival_taper,
                  arrival_times, wavename, filterer, pre_stack_cut,
-                 station_corrections, specdomain_include):
+                 station_corrections, spectrum_include):
         self.engine = engine
         self.sources = tuple(sources)
         self.targets = tuple(targets)
@@ -329,7 +329,7 @@ class SeisSynthesizer(theano.Op):
         self.filterer = tuple(filterer)
         self.pre_stack_cut = pre_stack_cut
         self.station_corrections = station_corrections
-        self.specdomain_include = specdomain_include
+        self.spectrum_include = spectrum_include
 
     def __getstate__(self):
         self.engine.close_cashed_stores()
@@ -395,7 +395,7 @@ class SeisSynthesizer(theano.Op):
             utility.update_source(source, **source_points[i])
             source.time += self.event.time
 
-        if self.specdomain_include:
+        if self.spectrum_include:
             specs = output[0]
             synths,_ = heart.seis_synthetics(
                 engine=self.engine,

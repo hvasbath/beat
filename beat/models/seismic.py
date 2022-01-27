@@ -190,7 +190,7 @@ class SeismicComposite(Composite):
         hierarchicals = problem_config.hierarchicals
         self._hierarchicalnames = []
         nwmaps = len(self.wavemaps)
-        nspecwmaps = num.sum([ 1 for wmap in self.wavemaps if wmap.config.specdomain_include ])
+        nspecwmaps = num.sum([ 1 for wmap in self.wavemaps if wmap.config.spectrum_include ])
         if not self.config.station_corrections and \
                 self.correction_name in hierarchicals:
             raise ConfigInconsistentError(
@@ -217,60 +217,60 @@ class SeismicComposite(Composite):
             for wmap in self.wavemaps:
                 hierarchical_name = wmap.time_shifts_id
                 nhierarchs = len(wmap.get_station_names())
-                if wmap.config.specdomain_include:
+                if wmap.config.spectrum_include:
                     logger.info(
-                            '%s got fixed at "0" for spectra' % (
+                            '%s got fixed at "0.0" for spectra' % (
                                 hierarchical_name))
                     self.hierarchicals[
-                            hierarchical_name] = num.zeros((nhierarchs), dtype=float)
-                    continue
-                logger.info(
-                    'For %s with %i shifts' % (
-                        hierarchical_name, nhierarchs))
-
-                if hierarchical_name in hierarchicals:
-                    logger.info(
-                        'Using wavemap specific imported:'
-                        ' %s ' % hierarchical_name)
-                    param = hierarchicals[hierarchical_name]
+                            hierarchical_name] = num.zeros((nhierarchs), dtype='int16')
                 else:
-                    logger.info('Using global %s' % self.correction_name)
-                    param = copy.deepcopy(
-                        problem_config.hierarchicals[self.correction_name])
-                    param.lower = num.repeat(param.lower, nhierarchs)
-                    param.upper = num.repeat(param.upper, nhierarchs)
-                    param.testvalue = num.repeat(param.testvalue, nhierarchs)
+                    logger.info(
+                        'For %s with %i shifts' % (
+                            hierarchical_name, nhierarchs))
 
-                if hierarchical_name not in self.hierarchicals:
-                    if not num.array_equal(
-                            param.lower, param.upper):
-                        kwargs = dict(
-                            name=hierarchical_name,
-                            shape=param.dimension,
-                            lower=param.lower,
-                            upper=param.upper,
-                            testval=param.testvalue,
-                            transform=None,
-                            dtype=tconfig.floatX)
-
-                        try:
-                            self.hierarchicals[
-                                hierarchical_name] = Uniform(**kwargs)
-                        except TypeError:
-                            kwargs.pop('name')
-                            self.hierarchicals[hierarchical_name] = \
-                                Uniform.dist(**kwargs)
-
-                        self._hierarchicalnames.append(
-                            hierarchical_name)
-                    else:
+                    if hierarchical_name in hierarchicals:
                         logger.info(
-                            'not solving for %s, got fixed at %s' % (
-                                param.name,
-                                utility.list2string(
-                                    param.lower.flatten())))
-                        self.hierarchicals[
-                            hierarchical_name] = param.lower
+                            'Using wavemap specific imported:'
+                            ' %s ' % hierarchical_name)
+                        param = hierarchicals[hierarchical_name]
+                    else:
+                        logger.info('Using global %s' % self.correction_name)
+                        param = copy.deepcopy(
+                            problem_config.hierarchicals[self.correction_name])
+                        param.lower = num.repeat(param.lower, nhierarchs)
+                        param.upper = num.repeat(param.upper, nhierarchs)
+                        param.testvalue = num.repeat(param.testvalue, nhierarchs)
+
+                    if hierarchical_name not in self.hierarchicals:
+                        if not num.array_equal(
+                                param.lower, param.upper):
+                            kwargs = dict(
+                                name=hierarchical_name,
+                                shape=param.dimension,
+                                lower=param.lower,
+                                upper=param.upper,
+                                testval=param.testvalue,
+                                transform=None,
+                                dtype=tconfig.floatX)
+
+                            try:
+                                self.hierarchicals[
+                                    hierarchical_name] = Uniform(**kwargs)
+                            except TypeError:
+                                kwargs.pop('name')
+                                self.hierarchicals[hierarchical_name] = \
+                                    Uniform.dist(**kwargs)
+
+                            self._hierarchicalnames.append(
+                                hierarchical_name)
+                        else:
+                            logger.info(
+                                'not solving for %s, got fixed at %s' % (
+                                    param.name,
+                                    utility.list2string(
+                                        param.lower.flatten())))
+                            self.hierarchicals[
+                                hierarchical_name] = param.lower
 
     def export(self, point, results_path, stage_number,
                fix_output=False, force=False, update=False,
@@ -285,7 +285,7 @@ class SeismicComposite(Composite):
             """
 
             covs = {
-                utility.list2string(dataset.nslc_id):
+                utility.list2string(dataset.trace_id):
                     getattr(dataset.covariance, cov_mat)
                 for dataset in wmap.datasets}
 
@@ -465,7 +465,7 @@ class SeismicComposite(Composite):
                     point=point,
                     processed_obs=obs_tr,
                     source_contributions=source_contributions,
-                    taper=taper, spectra=wc.specdomain_include))
+                    taper=taper, spectra=wc.spectrum_include))
 
             if order == 'list':
                 results.extend(wmap_results)
@@ -532,7 +532,7 @@ class SeismicComposite(Composite):
 
         stdz_res = OrderedDict()
         for i in range(self.n_t):
-            stdz_res[self.datasets[i].nslc_id] = compute_residuals(self.datasets[i], results[i], hp_specific)
+            stdz_res[self.datasets[i].trace_id] = compute_residuals(self.datasets[i], results[i], hp_specific)
 
         return stdz_res
 
@@ -591,14 +591,11 @@ class SeismicComposite(Composite):
         var_reds = OrderedDict()
 
         for i in range(ndatasets):
-            if results[i].spectra:
-                nslc_id = utility.list2string(self.datasets[i].nslc_id+('spc',))
-            else:
-                nslc_id = utility.list2string(self.datasets[i].nslc_id)
-            var_reds[nslc_id] = compute_var_reduction(self.datasets[i], weights[i], results[i])
+            trace_id = utility.list2string(self.datasets[i].trace_id)
+            var_reds[trace_id] = compute_var_reduction(self.datasets[i], weights[i], results[i])
             
             logger.debug(
-                'Variance reduction for %s is %f' % (nslc_id, var_reds[nslc_id]))
+                'Variance reduction for %s is %f' % (trace_id, var_reds[trace_id]))
 
             if 0:
                 from matplotlib import pyplot as plt
@@ -770,10 +767,10 @@ class SeismicGeometryComposite(SeismicComposite):
                     filterer=wc.filterer,
                     pre_stack_cut=self.config.pre_stack_cut,
                     station_corrections=self.config.station_corrections,
-                    specdomain_include=wc.specdomain_include)
+                    spectrum_include=wc.spectrum_include)
     
             
-            if wc.specdomain_include:
+            if wc.spectrum_include:
                 
                 spectra_synthetics, _ = self.synthesizers[wmap._mapid](self.input_rvs)
                 spectra_residuals = wmap.shared_data_array - spectra_synthetics
@@ -800,9 +797,9 @@ class SeismicGeometryComposite(SeismicComposite):
             'Teleseismic forward model on test model takes: %f' %
             (t3 - t2))
 
-        if  wmap.config.specdomain_include:
-            freqllk = Deterministic(self._spec_like_name, tt.concatenate((slogpts)))
-            return freqllk.sum()
+        if  wmap.config.spectrum_include:
+            specllk = Deterministic(self._spec_like_name, tt.concatenate((slogpts)))
+            return specllk.sum()
 
         else:
             llk = Deterministic(self._like_name, tt.concatenate((wlogpts)))
@@ -842,7 +839,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 chop_bounds=chop_bounds)
 
             arrival_times = wmap._arrival_times
-            if self.config.station_corrections and not wc.specdomain_include:
+            if self.config.station_corrections and not wc.spectrum_include:
                 try:
                     arrival_times += point[
                         wmap.time_shifts_id][wmap.station_correction_idxs]
@@ -874,7 +871,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 # plot=True,
                 **kwargs)
 
-            if self.config.station_corrections and not wc.specdomain_include:
+            if self.config.station_corrections and not wc.spectrum_include:
                 # set tmin to data tmin
                 for tr, dtr in zip(synthetics, wmap._prepared_data):
                     if isinstance(tr, list):
@@ -885,7 +882,7 @@ class SeismicGeometryComposite(SeismicComposite):
                         tr.tmin = dtr.tmin
                         tr.tmax = dtr.tmax
             
-            if wc.specdomain_include:
+            if wc.spectrum_include:
                 synthetics = heart.fft_transforms(synthetics, filterer=wc.filterer, 
                     deltat=wmap.deltat, outmode=outmode, pad_to_pow2=True)
             if order == 'list':

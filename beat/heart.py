@@ -9,10 +9,8 @@ import shutil
 import copy
 from time import time
 from collections import OrderedDict
-from xmlrpc.client import Boolean
 
 from beat import psgrn, pscmp, utility, qseis2d
-
 from theano import config as tconfig
 from theano import shared
 import numpy as num
@@ -28,6 +26,8 @@ from pyrocko.fomosto import qseis, qssp
 from pyrocko.model import gnss
 from pyrocko.moment_tensor import to6
 from pyrocko.spit import OutOfBounds
+
+from pymc3 import plots as pmp
 
 # from pyrocko.fomosto import qseis2d
 
@@ -456,7 +456,7 @@ class SeismicResult(Object):
                 'have different tmin values! '
                 'obs: %g syn: %g, difference: %f. '
                 'Residual may be invalid!' % (
-                    utility.list2string(tr.nslc_id),
+                    utility.list2string(tr.trace_id),
                     tr.tmin, syn_tmin, tr.tmin - syn_tmin))
         return tr
 
@@ -836,6 +836,11 @@ class PolarityTarget(gf.meta.Receiver):
 
 class DynamicTarget(gf.Target):
 
+    results = []
+    synths = []
+    var_reductions = []
+    time_shifts = []
+    spectarget = None
     response = trace.PoleZeroResponse.T(default=None, optional=True)
 
     def update_response(self, magnification, damping, period):
@@ -872,6 +877,461 @@ class DynamicTarget(gf.Target):
             tolerance = 2 * (taperer.b - taperer.a)
             self.tmin = taperer.a - tolerance
             self.tmax = taperer.d + tolerance
+    
+    def plot_waveformfits(self, axes, axes2, plotoptions, source, 
+        time_shift_bounds, synth_plot_flag, lowest_corner, uppest_corner,
+        absmax, mode, tap_color_edge, mpl_graph_color,
+        syn_color, obs_color, fontsize, misfit_color,
+        time_shift_color, tap_color_annot):
+        from beat import plotting
+        from pyrocko.cake_plot import light
+        import matplotlib.ticker as tick
+
+        def plot_trace(axes, tr, **kwargs):
+            return axes.plot(tr.get_xdata(), tr.get_ydata(), **kwargs)
+
+        def plot_taper(axes, t, taper, mode='geometry', **kwargs):
+            y = num.ones(t.size) * 0.9
+            if mode == 'geometry':
+                taper(y, t[0], t[1] - t[0])
+            y2 = num.concatenate((y, -y[::-1]))
+            t2 = num.concatenate((t, t[::-1]))
+            axes.fill(t2, y2, **kwargs)
+
+        def plot_dtrace(axes, tr, space, mi, ma, **kwargs):
+            t = tr.get_xdata()
+            y = tr.get_ydata()
+            y2 = (num.concatenate((y, num.zeros(y.size))) - mi) / \
+                (ma - mi) * space - (1.0 + space)
+            t2 = num.concatenate((t, t[::-1]))
+            axes.fill(
+                t2, y2,
+                clip_on=False,
+                **kwargs)
+
+        def plot_inset_hist(
+                axes, data, best_data, bbox_to_anchor,
+                cmap=None, cbounds=None, color='orange', alpha=0.4):
+
+            in_ax = plotting.inset_axes(
+                axes, width="100%", height="100%",
+                bbox_to_anchor=bbox_to_anchor,
+                bbox_transform=axes.transAxes, loc=2, borderpad=0)
+            plotting.histplot_op(
+                in_ax, data,
+                alpha=alpha, color=color, cmap=cmap, cbounds=cbounds, tstd=0.)
+
+            plotting.format_axes(in_ax)
+            linewidth = 0.5
+            plotting.format_axes(
+                in_ax, remove=['bottom'], visible=True,
+                linewidth=linewidth)
+
+            if best_data:
+                in_ax.axvline(
+                    x=best_data,
+                    color='red', lw=linewidth)
+
+            in_ax.tick_params(
+                axis='both', direction='in', labelsize=5, width=linewidth)
+            in_ax.tick_params(top=False)
+
+            in_ax.yaxis.set_visible(False)
+            xticker = tick.MaxNLocator(nbins=2)
+            in_ax.xaxis.set_major_locator(xticker)
+            return in_ax
+
+        skey = lambda tr: tr.channel
+
+        if plotoptions.nensemble > 1:
+            xmin, xmax = trace.minmaxtime(self.synths, key=skey)[self.codes[3]]
+            plotting.fuzzy_waveforms(
+                axes, self.synths, linewidth=7, zorder=0,
+                grid_size=(500, 500), alpha=1.0)                    
+            
+            nslc_id_str = utility.list2string(self.codes)
+            logger.debug(
+                'Plotting variance reductions for %s' % nslc_id_str)
+
+            in_ax = plotting.plot_inset_hist(
+                axes,
+                data=pmp.utils.make_2d(self.var_reductions),
+                best_data=self.var_reductions[0],
+                bbox_to_anchor=(0.85, .75, .2, .2))
+            in_ax.set_title('VR [%]', fontsize=5)
+
+        plot_taper(
+            axes2, self.results[0].processed_obs.get_xdata(), self.results[0].taper,
+            mode=mode, fc='None', ec=tap_color_edge,
+            zorder=4, alpha=0.6)
+
+        if plotoptions.plot_projection == 'individual':
+            for i, tr in enumerate(self.results[0].source_contributions):
+                plot_trace(
+                    axes, tr,
+                    color=mpl_graph_color(i), lw=0.5, zorder=5)
+        else:
+            plot_trace(
+                axes, self.results[0].processed_syn,
+                color=syn_color, lw=0.5, zorder=5)
+
+        plot_trace(
+            axes, self.results[0].processed_obs,
+            color=obs_color, lw=0.5, zorder=5)
+
+        xdata = self.results[0].processed_obs.get_xdata()
+        axes.set_xlim(xdata[0], xdata[-1])
+
+        tmarks = [
+            self.results[0].processed_obs.tmin,
+            self.results[0].processed_obs.tmax]
+        tmark_fontsize = fontsize - 1
+
+        if self.spectarget:
+            self.spectarget.plot_waveformfits(axes=axes2, plotoptions=plotoptions, synth_plot_flag=synth_plot_flag,
+                            lowest_corner=lowest_corner, uppest_corner=uppest_corner, fontsize=fontsize, allaxe=False,
+                            syn_color=syn_color, obs_color=obs_color, misfit_color=misfit_color, tap_color_annot=tap_color_annot)
+
+        if len(self.time_shifts) != 0:
+            sidebar_ybounds = [-0.9, -0.4]
+            ytmarks = [-1.3, -0.7]
+            hor_alignment = 'center'
+
+            if synth_plot_flag:
+                best_data = self.time_shifts[0]
+            else:       # for None post_llk
+                best_data = None
+
+            if plotoptions.nensemble > 1:
+                in_ax = plotting.plot_inset_hist(
+                    axes,
+                    data=pmp.utils.make_2d(self.time_shifts),
+                    best_data=best_data,
+                    bbox_to_anchor=(-0.0985, .26, .2, .2),
+                    # cmap=plt.cm.get_cmap('seismic'),
+                    # cbounds=time_shift_bounds,
+                    color=time_shift_color,
+                    alpha=0.7)
+                in_ax.set_xlim(*time_shift_bounds)
+        else:
+            sidebar_ybounds = [-1.2, -0.4]
+            ytmarks = [-1.2, -0.7]
+            hor_alignment = 'left'
+
+        for tmark, ybound in zip(tmarks, sidebar_ybounds):
+            axes2.plot(
+                [tmark, tmark], [ybound, 0.1], color=tap_color_annot)
+
+        for xtmark, ytmark, text, ha, va in [
+                (tmarks[0], ytmarks[0],
+                    '$\,$ ' + plotting.str_duration(tmarks[0] - source.time),
+                    hor_alignment,
+                    'bottom'),
+                (tmarks[1], ytmarks[1],
+                    '$\Delta$ ' + plotting.str_duration(tmarks[1] - tmarks[0]),
+                    'center',
+                    'bottom')]:
+
+            axes2.annotate(
+                text,
+                xy=(xtmark, ytmark),
+                xycoords='data',
+                xytext=(
+                    fontsize * 0.4 * [-1, 1][ha == 'left'],
+                    fontsize * 0.2),
+                textcoords='offset points',
+                ha=ha,
+                va=va,
+                color=tap_color_annot,
+                fontsize=tmark_fontsize, zorder=10)
+
+        # annotate axis amplitude
+        axes.annotate(
+            '%0.3g %s -' % (-absmax, plotting.str_unit(self.quantity)),
+            xycoords='data',
+            xy=(tmarks[1], -absmax/2),
+            xytext=(1., 1.),
+            textcoords='offset points',
+            ha='right',
+            va='center',
+            fontsize=fontsize - 3,
+            color=obs_color,
+            fontstyle='normal')
+
+        axes2.set_zorder(10)
+
+
+class SpectrumTarget(gf.Target):
+
+    results = []
+    synths = []
+    var_reductions = []
+    time_shifts = []
+    response = trace.PoleZeroResponse.T(default=None, optional=True)
+
+    def update_response(self, magnification, damping, period):
+        z, p, k = proto2zpk(
+            magnification, damping, period, quantity='displacement')
+        # b, a = zpk2tf(z, p, k)
+
+        if self.response:
+            self.response.zeros = z
+            self.response.poles = p
+            self.response.constant = k
+        else:
+            logger.debug('Initializing new response!')
+            self.response = trace.PoleZeroResponse(
+                zeros=z, poles=p, constant=k)
+
+    def update_target_times(self, sources=None, taperer=None):
+        """
+        Update the target attributes tmin and tmax to do the stacking
+        only in this interval. Adds twice taper fade in time to each taper
+        side.
+
+        Parameters
+        ----------
+        source : list
+            containing :class:`pyrocko.gf.seismosizer.Source` Objects
+        taperer : :class:`pyrocko.trace.CosTaper`
+        """
+
+        if sources is None or taperer is None:
+            self.tmin = None
+            self.tmax = None
+        else:
+            tolerance = 2 * (taperer.b - taperer.a)
+            self.tmin = taperer.a - tolerance
+            self.tmax = taperer.d + tolerance
+
+    def plot_waveformfits(self, axes, plotoptions, 
+        synth_plot_flag, lowest_corner, uppest_corner, allaxe,
+        fontsize, syn_color, obs_color, misfit_color, tap_color_annot):
+        from beat import plotting
+        from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+        def plot_spectrum(
+                axes, data, bbox_to_anchor,
+                lower_corner, upper_corner, syn_color, obs_color, misfit_color, tap_color_annot):
+
+            in_ax = inset_axes(
+                axes, width="100%", height="100%",
+                bbox_to_anchor=bbox_to_anchor,
+                bbox_transform=axes.transAxes, loc=2, borderpad=0)
+            
+            fxdata = data.processed_syn.get_xdata()
+            lower = num.argwhere(fxdata<=lower_corner/2)[0][0]
+            upper = num.argwhere(fxdata>=4*upper_corner)[0][0]
+
+            in_ax.plot(fxdata[lower:upper], data.processed_syn.get_ydata()[lower:upper],
+                        color=syn_color, lw=0.5)
+            in_ax.plot(fxdata[lower:upper], data.processed_obs.get_ydata()[lower:upper], 
+                        color=obs_color, lw=0.5)
+            in_ax.fill(fxdata[lower:upper], data.processed_res.get_ydata()[lower:upper],
+                        clip_on=False, color=misfit_color, lw=0.5)
+            ymax = num.max([data.processed_syn.get_ydata()[lower:upper],data.processed_obs.get_ydata()[lower:upper]])
+
+            plotting.format_axes(in_ax)
+            in_ax.yaxis.set_visible(False)
+            in_ax.xaxis.set_visible(False)
+            in_ax.spines['bottom'].set_visible(False)
+
+            for tmark, ybound in zip([fxdata[lower], fxdata[upper-1]], [0.75*ymax, ymax]):
+                in_ax.plot(
+                    [tmark, tmark], [0.0, ybound], color=tap_color_annot, lw=0.75)
+
+            # annotate axis amplitude
+            in_ax.annotate(
+                '%0.3g -' % (ymax),
+                xycoords='data',
+                xy=(fxdata[upper-1], 0.9*ymax),
+                xytext=(1., 1.),
+                textcoords='offset points',
+                ha='right',
+                va='center',
+                fontsize=fontsize - 3,
+                color=obs_color,
+                fontstyle='normal')
+
+            in_ax.annotate(
+                '$ f \ |\ ^{%0.1g}_{%0.1g} \ $' % (fxdata[lower], fxdata[upper]),
+                xycoords='data',
+                xy=(fxdata[upper-1], 0.4*ymax),
+                xytext=(1., 1.),
+                textcoords='offset points',
+                ha='right',
+                va='center',
+                fontsize=fontsize+1,
+                color=obs_color,
+                fontstyle='normal')
+
+            return in_ax
+
+        def fuzzy_spectra(axes, data, best_result, bbox_to_anchor, lower_corner=0.0,
+                            upper_corner=0.2, alpha=0.5, zorder=0,
+                            linewidth=7.0, grid_size=(500, 500), allaxe=False,
+                            syn_color=syn_color, obs_color=obs_color, misfit_color=misfit_color, tap_color_annot=tap_color_annot):
+
+            from matplotlib.colors import LinearSegmentedColormap
+            from pyrocko.cake_plot import str_to_mpl_color as scolor
+
+            ncolors = 256
+            cmap = LinearSegmentedColormap.from_list(
+                'dummy', ['white', scolor('chocolate2'), scolor('scarletred2')],
+                N=ncolors)
+                
+            grid = num.zeros(grid_size, dtype='float64')
+            
+            in_ax = inset_axes(
+                axes, width="100%", height="100%",
+                bbox_to_anchor=bbox_to_anchor,
+                bbox_transform=axes.transAxes, loc=2, borderpad=0)
+
+            fxdata = data[0].get_xdata()
+            lower = num.argwhere(fxdata<=lower_corner/2)[0][0]
+            upper = num.argwhere(fxdata>=4*upper_corner)[0][0]
+
+            ymax = 0
+            for tr in data:
+                trmax = num.max(tr.ydata)
+                if ymax < trmax:
+                    ymax = trmax
+
+            extent = [lower_corner/2, 4*upper_corner, 0, 1.2*ymax]
+            
+            for tr in data:   
+                plotting.draw_line_on_array(
+                    fxdata[lower:upper], tr.ydata[lower:upper],
+                    grid=grid,
+                    extent=extent,
+                    grid_resolution=grid.shape,
+                    linewidth=linewidth)
+
+            in_ax.imshow(
+                grid, extent=extent, origin='lower', cmap=cmap, aspect='auto',
+                alpha=alpha, zorder=zorder)
+
+            in_ax.plot(fxdata[lower:upper], best_result.processed_syn.get_ydata()[lower:upper],
+                        color=syn_color, lw=0.5)
+            in_ax.plot(fxdata[lower:upper], best_result.processed_obs.get_ydata()[lower:upper], 
+                        color=obs_color, lw=0.5)
+            in_ax.fill(fxdata[lower:upper], best_result.processed_res.get_ydata()[lower:upper],
+                        clip_on=False, color=misfit_color, lw=0.5)
+
+            plotting.format_axes(in_ax)
+            in_ax.yaxis.set_visible(False)
+            in_ax.xaxis.set_visible(False)
+            in_ax.spines['bottom'].set_visible(False)
+            
+            if allaxe:
+
+                for tmark, ybound in zip([fxdata[lower], fxdata[upper-1]], [0.6*ymax, 0.6*ymax]):
+                    in_ax.plot(
+                        [tmark, tmark], [0.0, ybound], color=tap_color_annot, lw=0.75)
+
+                # annotate axis amplitude
+                in_ax.annotate(
+                    '%0.3g -' % (ymax),
+                    xycoords='data',
+                    xy=(fxdata[upper-1], 0.45*ymax),
+                    xytext=(1., 1.),
+                    textcoords='offset points',
+                    ha='right',
+                    va='center',
+                    fontsize=fontsize - 3,
+                    color=obs_color,
+                    fontstyle='normal')
+
+                in_ax.annotate(
+                    '$ f \ |\ ^{%0.1g}_{%0.1g} \ $' % (fxdata[lower], fxdata[upper]),
+                    xycoords='data',
+                    xy=(fxdata[upper-1], 0.2*ymax),
+                    xytext=(1., 1.),
+                    textcoords='offset points',
+                    ha='right',
+                    va='center',
+                    fontsize=fontsize+1,
+                    color=obs_color,
+                    fontstyle='normal')
+
+            else:
+
+                for tmark, ybound in zip([fxdata[lower], fxdata[upper-1]], [0.5*ymax, ymax]):
+                    in_ax.plot(
+                        [tmark, tmark], [0.0, ybound], color=tap_color_annot, lw=0.75)
+                # annotate axis amplitude
+                in_ax.annotate(
+                    '%0.3g -' % (ymax),
+                    xycoords='data',
+                    xy=(fxdata[upper-1], 0.9*ymax),
+                    xytext=(1., 1.),
+                    textcoords='offset points',
+                    ha='right',
+                    va='center',
+                    fontsize=fontsize - 3,
+                    color=obs_color,
+                    fontstyle='normal')
+
+                in_ax.annotate(
+                    '$ f \ |\ ^{%0.1g}_{%0.1g} \ $' % (fxdata[lower], fxdata[upper]),
+                    xycoords='data',
+                    xy=(fxdata[upper-1], 0.4*ymax),
+                    xytext=(1., 1.),
+                    textcoords='offset points',
+                    ha='right',
+                    va='center',
+                    fontsize=fontsize+1,
+                    color=obs_color,
+                    fontstyle='normal')
+                    
+        if allaxe:
+            if plotoptions.nensemble > 1:
+                fuzzy_spectra(axes=axes, data=self.synths,
+                                best_result=self.results[0],
+                                lower_corner=lowest_corner, upper_corner=uppest_corner,
+                                bbox_to_anchor=[-0.05, 0.25, 1.07, 0.7],allaxe=allaxe, 
+                                grid_size=(500, 500), alpha=1.0, zorder=0,
+                                linewidth=7.0, syn_color=syn_color, obs_color=obs_color, 
+                                misfit_color=misfit_color, tap_color_annot=tap_color_annot)
+                if synth_plot_flag:
+                    best_data = self.var_reductions[0]
+                else:       # for None post_llk
+                    best_data = None
+
+                in_ax = plotting.plot_inset_hist(
+                    axes,
+                    data=pmp.utils.make_2d(self.var_reductions),
+                    best_data=best_data,
+                    bbox_to_anchor=(0.85, .75, .2, .2))
+                in_ax.set_title('SPC_VR [%]', fontsize=5)
+
+            else:
+                plot_spectrum(axes=axes, data=self.results[0], 
+                            lower_corner=lowest_corner, 
+                            upper_corner=uppest_corner,
+                            bbox_to_anchor=[0.05, 0.25, 0.9, 0.7],
+                            syn_color=syn_color, obs_color=obs_color, 
+                            misfit_color=misfit_color, tap_color_annot=tap_color_annot)
+        else:
+            if plotoptions.nensemble > 1:
+                fuzzy_spectra(axes=axes, data=self.synths,
+                                best_result=self.results[0],
+                                lower_corner=lowest_corner, upper_corner=uppest_corner,
+                                bbox_to_anchor=[0.05, 0.0, 0.75, 0.24],
+                                grid_size=(500, 500), alpha=1.0, zorder=0,
+                                linewidth=7.0, allaxe=allaxe, syn_color=syn_color, obs_color=obs_color, 
+                                misfit_color=misfit_color, tap_color_annot=tap_color_annot)
+                if synth_plot_flag:
+                    best_data = self.var_reductions[0]
+                else:       # for None post_llk
+                    best_data = None
+
+                in_ax = plotting.plot_inset_hist(
+                    axes,
+                    data=pmp.utils.make_2d(self.var_reductions),
+                    best_data=best_data,
+                    bbox_to_anchor=(0.85, .02, .2, .2))
+                in_ax.set_title('SPC_VR [%]', fontsize=5)
 
 
 class SeismicDataset(trace.Trace):
@@ -924,6 +1384,59 @@ class SeismicDataset(trace.Trace):
 
         self._growbuffer = None
         self._update_ids()
+
+    @property
+    def trace_id(self):
+        return (self.network, self.station, self.location, self.channel)
+
+
+class SpectrumDataset(SeismicDataset):
+    """
+    Extension to :class:`SeismicDataset` to have
+    Spectrum dataset.
+    """
+
+
+    fmin = Float.T(default=0.0)
+    fmax = Float.T(default=5.0)
+    deltaf = Float.T(default=0.1)
+    
+    def __init__(self, network='', station='STA', location='', channel='',
+                 tmin=0., tmax=None, deltat=1., ydata=None, mtime=None,
+                 meta=None, fmin=0.0, fmax=5.0, deltaf=0.1):
+        
+        super(SpectrumDataset, self).__init__(network=network, station=station, location=location, 
+                                             channel=channel, tmin=tmin, tmax=tmax, deltat=deltat,
+                                             ydata=ydata, mtime=mtime, meta=meta)
+        
+        self.fmin = fmin
+        self.fmax = fmax
+        self.deltaf = deltaf
+    
+    @property
+    def trace_id(self):
+        return (self.network, self.station, self.location, self.channel, 'spc')
+
+    def __getstate__(self):
+        return (self.network, self.station, self.location, self.channel,
+                self.tmin, self.tmax, self.deltat, self.mtime,
+                self.ydata, self.meta, self.wavename, self.covariance, 
+                self.fmin, self.fmax, self.deltaf)
+
+    def __setstate__(self, state):
+        self.network, self.station, self.location, self.channel, \
+                self.tmin, self.tmax, self.deltat, self.mtime, \
+                self.ydata, self.meta, self.wavename, self.covariance, \
+                self.fmin, self.fmax, self.deltaf = state
+
+        self._growbuffer = None
+        self._update_ids()
+
+    def get_xdata(self):
+        if self.ydata is None:
+            raise Exception()
+
+        return num.arange(len(self.ydata), dtype=num.float64) * self.deltaf
 
 
 class GeodeticDataset(gf.meta.MultiLocation):
@@ -1434,6 +1947,22 @@ def init_seismic_targets(
                         codes=(station.network,
                                station.station,
                                '%i' % crust_ind, channel),  # n, s, l, c
+                        lat=station.lat,
+                        lon=station.lon,
+                        azimuth=cha.azimuth,
+                        dip=cha.dip,
+                        interpolation=interpolation,
+                        store_id=get_store_id(
+                            store_prefixes[sta_num],
+                            em_name,
+                            sample_rate,
+                            crust_ind)))
+
+                    targets.append(SpectrumTarget(
+                        quantity='displacement',
+                        codes=(station.network,
+                               station.station,
+                               '%i' % crust_ind, channel, 'spc'),  # n, s, l, c
                         lat=station.lat,
                         lon=station.lon,
                         azimuth=cha.azimuth,
@@ -2761,7 +3290,7 @@ class WaveformMapping(object):
         if self.n_t != self.n_data:
             raise CollectionError(
                 'Inconsistent number of datasets and targets!')
-        elif self.n_t == 0:
+        if self.n_t == 0:
             raise CollectionError(
                 'No data left in wavemap "%s" after applying the distance '
                 'filter! Either (1) Adjust distance range (set "distances" '
@@ -2861,7 +3390,7 @@ class WaveformMapping(object):
                 deltat=self.deltat,
                 plot=False)
 
-            if self.config.specdomain_include:
+            if self.config.spectrum_include:
                 self._prepared_data = fft_transforms(self._prepared_data, filterer=self.config.filterer, deltat=self.deltat, outmode=outmode, pad_to_pow2=True)
             self._arrival_times = arrival_times
         else:
@@ -2932,13 +3461,13 @@ class DataWaveformCollection(object):
     def adjust_sampling_datasets(self, deltat, snap=False, force=False):
 
         for tr in self._raw_datasets.values():
-            if tr.nslc_id not in self._datasets or force:
-                self._datasets[tr.nslc_id] = \
+            if tr.trace_id not in self._datasets or force:
+                self._datasets[tr.trace_id] = \
                     utility.downsample_trace(tr, deltat, snap=snap)
             else:
                 raise CollectionError(
                     'Downsampled trace %s already in'
-                    ' collection!' % utility.list2string(tr.nslc_id))
+                    ' collection!' % utility.list2string(tr.trace_id))
 
         self._deltat = deltat
 
@@ -3028,24 +3557,51 @@ class DataWaveformCollection(object):
             if location is not None:
                 d.set_location(str(location))
 
-            nslc_id = d.nslc_id
-            if nslc_id not in entries or force:
-                self._raw_datasets[nslc_id] = d
+            trace_id = d.trace_id
+            if trace_id not in entries or force:
+                self._raw_datasets[trace_id] = d
             else:
                 logger.warn(
-                    'Dataset %s already in collection!' % str(nslc_id))
+                    'Dataset %s already in collection!' % str(trace_id))
+
+        entries = self._raw_datasets.keys()
+        for d in datasets:
+            if location is not None:
+                d.set_location(str(location))
+            
+            d = SpectrumDataset(
+                ydata=d.ydata, 
+                deltat=d.deltat, 
+                tmin=d.tmin, 
+                tmax=d.tmax,
+                channel=d.channel,
+                station=d.station,
+                network=d.network,
+                location=d.location)
+            trace_id = d.trace_id
+            if trace_id not in entries or force:
+                self._raw_datasets[trace_id] = d
+            else:
+                logger.warn(
+                    'Dataset %s already in collection!' % str(trace_id))
 
     @property
     def n_data(self):
         return len(self._datasets.keys())
 
     def get_waveform_mapping(
-            self, waveform, channels=['Z', 'T', 'R'], quantity='displacement'):
+            self, waveform, channels=['Z', 'T', 'R'], quantity='displacement', spectrum_include=False):
 
         self._check_collection(waveform, errormode='not_in')
 
+        if spectrum_include:
+            targettype = SpectrumTarget
+        else:
+            targettype = DynamicTarget
+        
         dtargets = utility.gather(
-            self._targets.values(), lambda t: t.codes[3])
+            self._targets.values(), lambda t: t.codes[3], 
+            filter=lambda t: isinstance(t, targettype))
 
         targets = []
         for cha in channels:
@@ -3055,24 +3611,24 @@ class DataWaveformCollection(object):
         discard_targets = []
         for target in targets:
             target.quantity = quantity
-            nslc_id = target.codes
+            trace_id = target.codes
             try:
-                dtrace = self._raw_datasets[nslc_id]
+                dtrace = self._raw_datasets[trace_id]
 
                 datasets.append(dtrace)
             except KeyError:
                 logger.warn(
                     'No data trace for target %s in '
-                    'the collection! Removing target!' % str(nslc_id))
+                    'the collection! Removing target!' % str(trace_id))
                 discard_targets.append(target)
 
             if self._responses:
                 try:
-                    target.update_response(*self._responses[nslc_id])
+                    target.update_response(*self._responses[trace_id])
                 except KeyError:
                     logger.warn(
                         'No response for target %s in '
-                        'the collection!' % str(nslc_id))
+                        'the collection!' % str(trace_id))
 
         targets = utility.weed_targets(
             targets, self.stations, discard_targets=discard_targets)
@@ -3193,7 +3749,7 @@ def init_wavemap(
     """
     wc = waveformfit_config
     wmap = datahandler.get_waveform_mapping(
-        wc.name, channels=wc.channels, quantity=wc.quantity)
+        wc.name, channels=wc.channels, quantity=wc.quantity, spectrum_include=wc.spectrum_include)
     wmap.config = wc
     wmap.mapnumber = mapnumber
 
@@ -3720,7 +4276,11 @@ def fft_transforms(time_domain_signls, filterer=None, deltat=None, outmode='arra
 
             fxdata, fydata = tr.spectrum(True, 0.05)
             df = fxdata[1] - fxdata[0]
-            spec_signals[i] = SeismicDataset(ydata=num.abs(fydata), deltat=df, 
+            spec_signals[i] = SpectrumDataset(ydata=num.abs(fydata), 
+                                             deltaf=df,
+                                             fmin=fxdata[0],
+                                             fmax=fxdata[-1],
+                                             deltat=tr.deltat, 
                                              tmin=tr.tmin, 
                                              tmax=tr.tmax,
                                              channel=tr.channel,
@@ -3732,13 +4292,17 @@ def fft_transforms(time_domain_signls, filterer=None, deltat=None, outmode='arra
             
             fxdata, fydata = tr[0].spectrum(True, 0.05)
             df = fxdata[1] - fxdata[0]
-            spec_signals[i] = [SeismicDataset(ydata=num.abs(fydata), deltat=df, 
-                                             tmin=tr[0].tmin, 
-                                             tmax=tr[0].tmax,
-                                             channel=tr[0].channel,
-                                             station=tr[0].station,
-                                             network=tr[0].network,
-                                             location=tr[0].location)]
+            spec_signals[i] = [SpectrumDataset(ydata=num.abs(fydata), 
+                                              deltaf=df,
+                                              fmin=fxdata[0],
+                                              fmax=fxdata[-1],                                              
+                                              deltat=tr[0].deltat, 
+                                              tmin=tr[0].tmin, 
+                                              tmax=tr[0].tmax,
+                                              channel=tr[0].channel,
+                                              station=tr[0].station,
+                                              network=tr[0].network,
+                                              location=tr[0].location)]
         
         else:
             raise TypeError('Outmode %s not supported!' % outmode)
