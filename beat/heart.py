@@ -879,10 +879,10 @@ class DynamicTarget(gf.Target):
             self.tmax = taperer.d + tolerance
     
     def plot_waveformfits(self, axes, axes2, plotoptions, source, 
-        time_shift_bounds, synth_plot_flag, lowest_corner, uppest_corner,
+        synth_plot_flag, lowest_corner, uppest_corner,
         absmax, mode, tap_color_edge, mpl_graph_color,
         syn_color, obs_color, fontsize, misfit_color,
-        time_shift_color, tap_color_annot):
+        time_shift_color, tap_color_annot, time_shift_bounds=[]):
         from beat import plotting
         from pyrocko.cake_plot import light
         import matplotlib.ticker as tick
@@ -1191,7 +1191,7 @@ class SpectrumTarget(gf.Target):
             lower = num.argwhere(fxdata<=lower_corner/2)[0][0]
             upper = num.argwhere(fxdata>=4*upper_corner)[0][0]
 
-            ymax = 0
+            ymax = num.max([best_result.processed_syn.get_ydata()[lower:upper],best_result.processed_obs.get_ydata()[lower:upper]])
             for tr in data:
                 trmax = num.max(tr.ydata)
                 if ymax < trmax:

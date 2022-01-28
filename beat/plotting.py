@@ -1797,6 +1797,7 @@ def seismic_fits(problem, stage, plot_options):
 
         # collecting time-shifts:
     station_corr = composite.config.station_corrections
+    time_shift_bounds = [0, 0]
     if station_corr:
         tshifts = problem.config.problem_config.hierarchicals['time_shift']
         time_shift_bounds = [tshifts.lower, tshifts.upper]
