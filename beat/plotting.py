@@ -1687,8 +1687,6 @@ def seismic_fits(problem, stage, plot_options):
     the selected posterior model.
     """
 
-    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-
     time_shift_color = scolor('aluminium3')
     obs_color = scolor('aluminium5')
     syn_color = scolor('scarletred2')
@@ -1966,8 +1964,8 @@ def seismic_fits(problem, stage, plot_options):
                     utility.list2string(target.codes)))
                 axes2 = fig.add_subplot(ny_this, nx_this, i_this)
 
-                space = 0.5
-                space_factor = 1.0 + space
+                space = 0.4
+                space_factor = 0.1 + space
                 axes2.set_axis_off()
                 axes2.set_ylim(-1.05 * space_factor, 1.05)
 
@@ -1986,11 +1984,16 @@ def seismic_fits(problem, stage, plot_options):
                     
                 if isinstance(target, DynamicTarget):
                     target.plot_waveformfits(axes=axes, axes2=axes2, plotoptions=po, source=source,
-                        time_shift_bounds=time_shift_bounds, lowest_corner=lowest_corner, 
-                        uppest_corner=uppest_corner, synth_plot_flag=synth_plot_flag, absmax=absmax, mode=composite._mode, 
+                        time_shift_bounds=time_shift_bounds, synth_plot_flag=synth_plot_flag, absmax=absmax, mode=composite._mode, 
                         fontsize=fontsize, tap_color_edge=tap_color_edge, mpl_graph_color=mpl_graph_color,
-                        syn_color=syn_color, obs_color=obs_color, misfit_color=misfit_color, time_shift_color=time_shift_color,
+                        syn_color=syn_color, obs_color=obs_color, time_shift_color=time_shift_color,
                         tap_color_annot=tap_color_annot)
+
+                    if target.spectarget:
+                        target.spectarget.plot_waveformfits(axes=axes2, plotoptions=po, synth_plot_flag=synth_plot_flag,
+                                        lowest_corner=lowest_corner, uppest_corner=uppest_corner, fontsize=fontsize, allaxe=False,
+                                        syn_color=syn_color, obs_color=obs_color, misfit_color=misfit_color, tap_color_annot=tap_color_annot)
+
                 elif isinstance(target, SpectrumTarget):
                     target.plot_waveformfits(axes=axes, plotoptions=po, synth_plot_flag=synth_plot_flag,
                             lowest_corner=lowest_corner, uppest_corner=uppest_corner, fontsize=fontsize, allaxe=True,

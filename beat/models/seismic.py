@@ -641,7 +641,6 @@ class SeismicGeometryComposite(SeismicComposite):
         self.correction_name = 'time_shift'
 
         self.config = sc
-        self._spec_like_name = 'speclikelihood'
 
     def point2sources(self, point):
         """
@@ -719,7 +718,6 @@ class SeismicGeometryComposite(SeismicComposite):
         t2 = time()
         wlogpts = []
         slogpts = []
-
         self.init_hierarchicals(problem_config)
         self.analyse_noise(tpoint, chop_bounds=chop_bounds)
         self.init_weights()
@@ -770,40 +768,22 @@ class SeismicGeometryComposite(SeismicComposite):
                     spectrum_include=wc.spectrum_include)
     
             
-            if wc.spectrum_include:
-                
-                spectra_synthetics, _ = self.synthesizers[wmap._mapid](self.input_rvs)
-                spectra_residuals = wmap.shared_data_array - spectra_synthetics
+            synths, _ = self.synthesizers[wmap._mapid](self.input_rvs)
+            residuals = wmap.shared_data_array - synths
+        
+            logpts = multivariate_normal_chol(
+                wmap.datasets, wmap.weights, hyperparams, residuals,
+                hp_specific=hp_specific)
 
-                freqlogpts = multivariate_normal_chol(wmap.datasets, wmap.weights, 
-                                                    hyperparams, spectra_residuals, hp_specific=hp_specific)
-
-                slogpts.append(freqlogpts)
-
-            else:
-
-                synths, _ = self.synthesizers[wmap._mapid](self.input_rvs)
-                residuals = wmap.shared_data_array - synths
-            
-                logpts = multivariate_normal_chol(
-                    wmap.datasets, wmap.weights, hyperparams, residuals,
-                    hp_specific=hp_specific)
-    
-                wlogpts.append(logpts)
-
+            wlogpts.append(logpts)
 
         t3 = time()
         logger.debug(
             'Teleseismic forward model on test model takes: %f' %
             (t3 - t2))
 
-        if  wmap.config.spectrum_include:
-            specllk = Deterministic(self._spec_like_name, tt.concatenate((slogpts)))
-            return specllk.sum()
-
-        else:
-            llk = Deterministic(self._like_name, tt.concatenate((wlogpts)))
-            return llk.sum()
+        llk = Deterministic(self._like_name, tt.concatenate((wlogpts)))            
+        return llk.sum()
 
     def get_synthetics(self, point, **kwargs):
         """

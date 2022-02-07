@@ -376,7 +376,7 @@ def weed_input_rvs(input_rvs, mode, datatype):
             tobeweeded = ['opening'] + burian
         elif datatype == 'polarity':
             tobeweeded = [
-                'time', 'duration', 'magnitude', 'peak_ration'] + burian
+                'time', 'duration', 'magnitude', 'peak_ratio'] + burian
 
     elif mode == 'interseismic':
         if datatype == 'geodetic':

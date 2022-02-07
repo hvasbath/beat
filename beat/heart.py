@@ -447,7 +447,7 @@ class SeismicResult(Object):
     def processed_res(self):
         tr = copy.deepcopy(self.processed_obs)
         syn_tmin = self.processed_syn.tmin
-        if tr.tmin == syn_tmin:
+        if num.abs(tr.tmin - syn_tmin) < tr.deltat:
             tr.set_ydata(
                 self.processed_obs.get_ydata() - self.processed_syn.get_ydata())
         else:
@@ -879,12 +879,11 @@ class DynamicTarget(gf.Target):
             self.tmax = taperer.d + tolerance
     
     def plot_waveformfits(self, axes, axes2, plotoptions, source, 
-        synth_plot_flag, lowest_corner, uppest_corner,
-        absmax, mode, tap_color_edge, mpl_graph_color,
-        syn_color, obs_color, fontsize, misfit_color,
-        time_shift_color, tap_color_annot, time_shift_bounds=[]):
+        synth_plot_flag, absmax, mode, tap_color_edge, mpl_graph_color,
+        syn_color, obs_color, fontsize, time_shift_color, tap_color_annot, time_shift_bounds=[]):
         from beat import plotting
         from pyrocko.cake_plot import light
+        from mpl_toolkits.axes_grid1.inset_locator import inset_axes
         import matplotlib.ticker as tick
 
         def plot_trace(axes, tr, **kwargs):
@@ -898,22 +897,11 @@ class DynamicTarget(gf.Target):
             t2 = num.concatenate((t, t[::-1]))
             axes.fill(t2, y2, **kwargs)
 
-        def plot_dtrace(axes, tr, space, mi, ma, **kwargs):
-            t = tr.get_xdata()
-            y = tr.get_ydata()
-            y2 = (num.concatenate((y, num.zeros(y.size))) - mi) / \
-                (ma - mi) * space - (1.0 + space)
-            t2 = num.concatenate((t, t[::-1]))
-            axes.fill(
-                t2, y2,
-                clip_on=False,
-                **kwargs)
-
         def plot_inset_hist(
                 axes, data, best_data, bbox_to_anchor,
                 cmap=None, cbounds=None, color='orange', alpha=0.4):
 
-            in_ax = plotting.inset_axes(
+            in_ax = inset_axes(
                 axes, width="100%", height="100%",
                 bbox_to_anchor=bbox_to_anchor,
                 bbox_transform=axes.transAxes, loc=2, borderpad=0)
@@ -953,7 +941,7 @@ class DynamicTarget(gf.Target):
             logger.debug(
                 'Plotting variance reductions for %s' % nslc_id_str)
 
-            in_ax = plotting.plot_inset_hist(
+            in_ax = plot_inset_hist(
                 axes,
                 data=pmp.utils.make_2d(self.var_reductions),
                 best_data=self.var_reductions[0],
@@ -987,11 +975,6 @@ class DynamicTarget(gf.Target):
             self.results[0].processed_obs.tmax]
         tmark_fontsize = fontsize - 1
 
-        if self.spectarget:
-            self.spectarget.plot_waveformfits(axes=axes2, plotoptions=plotoptions, synth_plot_flag=synth_plot_flag,
-                            lowest_corner=lowest_corner, uppest_corner=uppest_corner, fontsize=fontsize, allaxe=False,
-                            syn_color=syn_color, obs_color=obs_color, misfit_color=misfit_color, tap_color_annot=tap_color_annot)
-
         if len(self.time_shifts) != 0:
             sidebar_ybounds = [-0.9, -0.4]
             ytmarks = [-1.3, -0.7]
@@ -1003,7 +986,7 @@ class DynamicTarget(gf.Target):
                 best_data = None
 
             if plotoptions.nensemble > 1:
-                in_ax = plotting.plot_inset_hist(
+                in_ax = plot_inset_hist(
                     axes,
                     data=pmp.utils.make_2d(self.time_shifts),
                     best_data=best_data,
@@ -1109,39 +1092,77 @@ class SpectrumTarget(gf.Target):
         fontsize, syn_color, obs_color, misfit_color, tap_color_annot):
         from beat import plotting
         from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+        import matplotlib.ticker as tick
 
-        def plot_spectrum(
-                axes, data, bbox_to_anchor,
-                lower_corner, upper_corner, syn_color, obs_color, misfit_color, tap_color_annot):
+        def plot_inset_hist(
+                axes, data, best_data, bbox_to_anchor,
+                cmap=None, cbounds=None, color='orange', alpha=0.4):
 
             in_ax = inset_axes(
                 axes, width="100%", height="100%",
                 bbox_to_anchor=bbox_to_anchor,
                 bbox_transform=axes.transAxes, loc=2, borderpad=0)
+            plotting.histplot_op(
+                in_ax, data,
+                alpha=alpha, color=color, cmap=cmap, cbounds=cbounds, tstd=0.)
+
+            plotting.format_axes(in_ax)
+            linewidth = 0.5
+            plotting.format_axes(
+                in_ax, remove=['bottom'], visible=True,
+                linewidth=linewidth)
+
+            if best_data:
+                in_ax.axvline(
+                    x=best_data,
+                    color='red', lw=linewidth)
+
+            in_ax.tick_params(
+                axis='both', direction='in', labelsize=5, width=linewidth)
+            in_ax.tick_params(top=False)
+
+            in_ax.yaxis.set_visible(False)
+            xticker = tick.MaxNLocator(nbins=2)
+            in_ax.xaxis.set_major_locator(xticker)
+            return in_ax
+
+        def plot_spectrum(
+                axes, data, lower_corner, upper_corner, 
+                syn_color, obs_color, misfit_color, tap_color_annot):
             
             fxdata = data.processed_syn.get_xdata()
             lower = num.argwhere(fxdata<=lower_corner/2)[0][0]
             upper = num.argwhere(fxdata>=4*upper_corner)[0][0]
 
-            in_ax.plot(fxdata[lower:upper], data.processed_syn.get_ydata()[lower:upper],
+            syndata = data.processed_syn.get_ydata()[lower:upper]
+            syndata[0] = 0
+            obsdata = data.processed_obs.get_ydata()[lower:upper]
+            obsdata[0] = 0
+            resdata = data.processed_res.get_ydata()[lower:upper]
+            resdata[0] = 0
+
+            axes.plot(fxdata[lower:upper], syndata,
                         color=syn_color, lw=0.5)
-            in_ax.plot(fxdata[lower:upper], data.processed_obs.get_ydata()[lower:upper], 
-                        color=obs_color, lw=0.5)
-            in_ax.fill(fxdata[lower:upper], data.processed_res.get_ydata()[lower:upper],
-                        clip_on=False, color=misfit_color, lw=0.5)
+            axes.plot(fxdata[lower:upper], obsdata, 
+                        color=obs_color, lw=1.0)
+            axes.fill(fxdata[lower:upper], resdata,
+                        clip_on=False, color=misfit_color, lw=0.5, alpha=0.3)
+
             ymax = num.max([data.processed_syn.get_ydata()[lower:upper],data.processed_obs.get_ydata()[lower:upper]])
 
-            plotting.format_axes(in_ax)
-            in_ax.yaxis.set_visible(False)
-            in_ax.xaxis.set_visible(False)
-            in_ax.spines['bottom'].set_visible(False)
+            plotting.format_axes(axes)
+            axes.yaxis.set_visible(False)
+            axes.xaxis.set_visible(False)
+            axes.set_xlim([fxdata[lower], fxdata[upper]])
+            axes.set_ylim([0, 1.1*ymax])
+            axes.spines['bottom'].set_visible(False)
 
             for tmark, ybound in zip([fxdata[lower], fxdata[upper-1]], [0.75*ymax, ymax]):
-                in_ax.plot(
+                axes.plot(
                     [tmark, tmark], [0.0, ybound], color=tap_color_annot, lw=0.75)
 
             # annotate axis amplitude
-            in_ax.annotate(
+            axes.annotate(
                 '%0.3g -' % (ymax),
                 xycoords='data',
                 xy=(fxdata[upper-1], 0.9*ymax),
@@ -1153,7 +1174,7 @@ class SpectrumTarget(gf.Target):
                 color=obs_color,
                 fontstyle='normal')
 
-            in_ax.annotate(
+            axes.annotate(
                 '$ f \ |\ ^{%0.1g}_{%0.1g} \ $' % (fxdata[lower], fxdata[upper]),
                 xycoords='data',
                 xy=(fxdata[upper-1], 0.4*ymax),
@@ -1167,10 +1188,11 @@ class SpectrumTarget(gf.Target):
 
             return in_ax
 
-        def fuzzy_spectra(axes, data, best_result, bbox_to_anchor, lower_corner=0.0,
+        def fuzzy_spectra(axes, data, best_result, lower_corner=0.0,
                             upper_corner=0.2, alpha=0.5, zorder=0,
                             linewidth=7.0, grid_size=(500, 500), allaxe=False,
-                            syn_color=syn_color, obs_color=obs_color, misfit_color=misfit_color, tap_color_annot=tap_color_annot):
+                            syn_color=syn_color, obs_color=obs_color, 
+                            misfit_color=misfit_color, tap_color_annot=tap_color_annot):
 
             from matplotlib.colors import LinearSegmentedColormap
             from pyrocko.cake_plot import str_to_mpl_color as scolor
@@ -1182,14 +1204,9 @@ class SpectrumTarget(gf.Target):
                 
             grid = num.zeros(grid_size, dtype='float64')
             
-            in_ax = inset_axes(
-                axes, width="100%", height="100%",
-                bbox_to_anchor=bbox_to_anchor,
-                bbox_transform=axes.transAxes, loc=2, borderpad=0)
-
             fxdata = data[0].get_xdata()
-            lower = num.argwhere(fxdata<=lower_corner/2)[0][0]
-            upper = num.argwhere(fxdata>=4*upper_corner)[0][0]
+            lower = num.argwhere(fxdata<lower_corner/2)[0][0]
+            upper = num.argwhere(fxdata>4*upper_corner)[0][0]
 
             ymax = num.max([best_result.processed_syn.get_ydata()[lower:upper],best_result.processed_obs.get_ydata()[lower:upper]])
             for tr in data:
@@ -1200,37 +1217,48 @@ class SpectrumTarget(gf.Target):
             extent = [lower_corner/2, 4*upper_corner, 0, 1.2*ymax]
             
             for tr in data:   
+                ydata = tr.ydata[lower:upper]
+                ydata[0] = 0
                 plotting.draw_line_on_array(
-                    fxdata[lower:upper], tr.ydata[lower:upper],
+                    fxdata[lower:upper], ydata,
                     grid=grid,
                     extent=extent,
                     grid_resolution=grid.shape,
                     linewidth=linewidth)
 
-            in_ax.imshow(
+            axes.imshow(
                 grid, extent=extent, origin='lower', cmap=cmap, aspect='auto',
                 alpha=alpha, zorder=zorder)
+            
+            syndata = best_result.processed_syn.get_ydata()[lower:upper]
+            syndata[0] = 0
+            obsdata = best_result.processed_obs.get_ydata()[lower:upper]
+            obsdata[0] = 0
+            resdata = best_result.processed_res.get_ydata()[lower:upper]
+            resdata[0] = 0
 
-            in_ax.plot(fxdata[lower:upper], best_result.processed_syn.get_ydata()[lower:upper],
+            axes.plot(fxdata[lower:upper], syndata,
                         color=syn_color, lw=0.5)
-            in_ax.plot(fxdata[lower:upper], best_result.processed_obs.get_ydata()[lower:upper], 
-                        color=obs_color, lw=0.5)
-            in_ax.fill(fxdata[lower:upper], best_result.processed_res.get_ydata()[lower:upper],
-                        clip_on=False, color=misfit_color, lw=0.5)
+            axes.plot(fxdata[lower:upper], obsdata, 
+                        color=obs_color, lw=1.0)
+            axes.fill(fxdata[lower:upper], resdata,
+                        clip_on=False, color=misfit_color, lw=0.5, alpha=0.3)
 
-            plotting.format_axes(in_ax)
-            in_ax.yaxis.set_visible(False)
-            in_ax.xaxis.set_visible(False)
-            in_ax.spines['bottom'].set_visible(False)
+            plotting.format_axes(axes)
+            axes.yaxis.set_visible(False)
+            axes.xaxis.set_visible(False)
+            axes.set_xlim([fxdata[lower], fxdata[upper]])
+            axes.set_ylim([0, 1.1*ymax])
+            axes.spines['bottom'].set_visible(False)
             
             if allaxe:
 
                 for tmark, ybound in zip([fxdata[lower], fxdata[upper-1]], [0.6*ymax, 0.6*ymax]):
-                    in_ax.plot(
+                    axes.plot(
                         [tmark, tmark], [0.0, ybound], color=tap_color_annot, lw=0.75)
 
                 # annotate axis amplitude
-                in_ax.annotate(
+                axes.annotate(
                     '%0.3g -' % (ymax),
                     xycoords='data',
                     xy=(fxdata[upper-1], 0.45*ymax),
@@ -1242,7 +1270,7 @@ class SpectrumTarget(gf.Target):
                     color=obs_color,
                     fontstyle='normal')
 
-                in_ax.annotate(
+                axes.annotate(
                     '$ f \ |\ ^{%0.1g}_{%0.1g} \ $' % (fxdata[lower], fxdata[upper]),
                     xycoords='data',
                     xy=(fxdata[upper-1], 0.2*ymax),
@@ -1257,10 +1285,10 @@ class SpectrumTarget(gf.Target):
             else:
 
                 for tmark, ybound in zip([fxdata[lower], fxdata[upper-1]], [0.5*ymax, ymax]):
-                    in_ax.plot(
+                    axes.plot(
                         [tmark, tmark], [0.0, ybound], color=tap_color_annot, lw=0.75)
                 # annotate axis amplitude
-                in_ax.annotate(
+                axes.annotate(
                     '%0.3g -' % (ymax),
                     xycoords='data',
                     xy=(fxdata[upper-1], 0.9*ymax),
@@ -1272,7 +1300,7 @@ class SpectrumTarget(gf.Target):
                     color=obs_color,
                     fontstyle='normal')
 
-                in_ax.annotate(
+                axes.annotate(
                     '$ f \ |\ ^{%0.1g}_{%0.1g} \ $' % (fxdata[lower], fxdata[upper]),
                     xycoords='data',
                     xy=(fxdata[upper-1], 0.4*ymax),
@@ -1289,16 +1317,16 @@ class SpectrumTarget(gf.Target):
                 fuzzy_spectra(axes=axes, data=self.synths,
                                 best_result=self.results[0],
                                 lower_corner=lowest_corner, upper_corner=uppest_corner,
-                                bbox_to_anchor=[-0.05, 0.25, 1.07, 0.7],allaxe=allaxe, 
+                                allaxe=allaxe, 
                                 grid_size=(500, 500), alpha=1.0, zorder=0,
-                                linewidth=7.0, syn_color=syn_color, obs_color=obs_color, 
+                                linewidth=3.0, syn_color=syn_color, obs_color=obs_color, 
                                 misfit_color=misfit_color, tap_color_annot=tap_color_annot)
                 if synth_plot_flag:
                     best_data = self.var_reductions[0]
                 else:       # for None post_llk
                     best_data = None
 
-                in_ax = plotting.plot_inset_hist(
+                in_ax = plot_inset_hist(
                     axes,
                     data=pmp.utils.make_2d(self.var_reductions),
                     best_data=best_data,
@@ -1309,29 +1337,39 @@ class SpectrumTarget(gf.Target):
                 plot_spectrum(axes=axes, data=self.results[0], 
                             lower_corner=lowest_corner, 
                             upper_corner=uppest_corner,
-                            bbox_to_anchor=[0.05, 0.25, 0.9, 0.7],
                             syn_color=syn_color, obs_color=obs_color, 
                             misfit_color=misfit_color, tap_color_annot=tap_color_annot)
         else:
+
+            in_ax = inset_axes(
+                axes, width="100%", height="100%",
+                bbox_to_anchor=(0.05, 0.0, 0.75, 0.24),
+                bbox_transform=axes.transAxes, loc=2, borderpad=0)
+
             if plotoptions.nensemble > 1:
-                fuzzy_spectra(axes=axes, data=self.synths,
+                fuzzy_spectra(axes=in_ax, data=self.synths,
                                 best_result=self.results[0],
                                 lower_corner=lowest_corner, upper_corner=uppest_corner,
-                                bbox_to_anchor=[0.05, 0.0, 0.75, 0.24],
                                 grid_size=(500, 500), alpha=1.0, zorder=0,
-                                linewidth=7.0, allaxe=allaxe, syn_color=syn_color, obs_color=obs_color, 
+                                linewidth=3.0, allaxe=allaxe, syn_color=syn_color, obs_color=obs_color, 
                                 misfit_color=misfit_color, tap_color_annot=tap_color_annot)
                 if synth_plot_flag:
                     best_data = self.var_reductions[0]
                 else:       # for None post_llk
                     best_data = None
 
-                in_ax = plotting.plot_inset_hist(
+                in_ax = plot_inset_hist(
                     axes,
                     data=pmp.utils.make_2d(self.var_reductions),
                     best_data=best_data,
                     bbox_to_anchor=(0.85, .02, .2, .2))
                 in_ax.set_title('SPC_VR [%]', fontsize=5)
+            else:
+                plot_spectrum(axes=in_ax, data=self.results[0], 
+                            lower_corner=lowest_corner, 
+                            upper_corner=uppest_corner,
+                            syn_color=syn_color, obs_color=obs_color, 
+                            misfit_color=misfit_color, tap_color_annot=tap_color_annot)
 
 
 class SeismicDataset(trace.Trace):
