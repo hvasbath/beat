@@ -560,6 +560,83 @@ class GeodeticLinearGFConfig(LinearGFConfig):
     pass
 
 
+class ArrivalFitConfig(Object):
+
+    name = String.T(
+        default='any_P',
+        help='Seismic phase name for picked arrival times')
+    include = Bool.T(
+        default=False,
+        help='Whether to include this FitConfig to the estimation.')
+    binary_input = Bool.T(
+        default=False,
+        optional=True,
+        help='If data are included in seismic_data.pkl')
+    stations_arrivals = List.T(
+        List.T(String.T(), Float.T(), yamlstyle='flow'),
+        default=[['GE.ABCK', 10.0]],
+        yamlstyle='block',
+        help='Manual interface to enter arrival times to config as list '
+             'of entries. Entry format: '
+             '"Network.Station.Location.Channel", 10.0')
+    event_idx = Int.T(
+        default=0,
+        optional=True,
+        help='Index to event from events list for reference time and data '
+             'extraction. Default is 0 - always use the reference event.')
+
+    def get_station_names(self):
+        return [station_name_arr[0]
+                for station_name_arr in self.stations_arrivals]
+
+    def get_arrivals(self):
+        return num.array(
+            [station_name_arr[1]
+             for station_name_arr in self.stations_arrivals], dtype='float')
+
+    def get_arrival(self, station):
+        names = self.get_station_names()
+        index = names.index[station]
+        arrivals = self.get_arrivals()
+        return arrivals[index]
+
+class ArrivalConfig(Object):
+
+    def __init__(self, **kwargs):
+
+        waveforms = 'waveforms'
+        wavenames = kwargs.pop('wavenames', ['any_P'])
+        wavemaps = []
+        if waveforms not in kwargs:
+            for wavename in wavenames:
+                wavemaps.append(ArrivalFitConfig(name=wavename))
+
+            kwargs[waveforms] = wavemaps
+
+        Object.__init__(self, **kwargs)
+
+    def get_waveform_names(self):
+        return [ac.name for ac in self.waveforms]
+
+    def get_unique_channels(self):
+        cl = [ac.channels for ac in self.waveforms]
+        uc = []
+        for c in cl:
+            uc.extend(c)
+        return list(set(uc))
+
+    def init_waveforms(self, wavenames=['any_P']):
+        """
+        Initialise waveform configurations.
+        """
+        for wavename in wavenames:
+            self.waveforms.append(ArrivalFitConfig(name=wavename))
+
+    def get_arrivaltimes(self, station):
+        arrivaltimes = {}
+        for ac in self.waveforms:
+            arrivaltimes[ac.name] = ac.get_arrival(station)
+
 class WaveformFitConfig(Object):
     """
     Config for specific parameters that are applied to post-process
@@ -643,7 +720,8 @@ class SeismicConfig(Object):
              'If false one hyperparameter for each DATATYPE and '
              'displacement COMPONENT.')
     gf_config = GFConfig.T(default=SeismicGFConfig.D())
-
+    arrival_times = ArrivalConfig.T(default=None, optional=True)
+    
     def __init__(self, **kwargs):
 
         waveforms = 'waveforms'

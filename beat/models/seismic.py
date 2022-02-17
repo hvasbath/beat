@@ -591,7 +591,7 @@ class SeismicComposite(Composite):
         var_reds = OrderedDict()
 
         for i in range(ndatasets):
-            trace_id = utility.list2string(self.datasets[i].trace_id)
+            trace_id = self.datasets[i].trace_id_str
             var_reds[trace_id] = compute_var_reduction(self.datasets[i], weights[i], results[i])
             
             logger.debug(
@@ -717,7 +717,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
         t2 = time()
         wlogpts = []
-        slogpts = []
+
         self.init_hierarchicals(problem_config)
         self.analyse_noise(tpoint, chop_bounds=chop_bounds)
         self.init_weights()

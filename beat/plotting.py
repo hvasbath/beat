@@ -1698,8 +1698,8 @@ def seismic_fits(problem, stage, plot_options):
 
     composite = problem.composites['seismic']
 
-    lowest_corner = num.min([[filterer.lower_corner for filterer in wmap.filterer] for wmap in problem.config.seismic_config.waveforms ])
-    uppest_corner = num.max([[filterer.upper_corner for filterer in wmap.filterer] for wmap in problem.config.seismic_config.waveforms ])
+    lowest_corner = num.min([[filterer.get_lower_corner() for filterer in wmap.filterer] for wmap in problem.config.seismic_config.waveforms ])
+    uppest_corner = num.max([[filterer.get_upper_corner() for filterer in wmap.filterer] for wmap in problem.config.seismic_config.waveforms ])
 
     fontsize = 8
     fontsize_title = 10
@@ -1774,7 +1774,7 @@ def seismic_fits(problem, stage, plot_options):
 
         i = target_index[target]
         
-        nslc_id_str = utility.list2string(target.codes)                
+        nslc_id_str = target.target_id_str             
         allresults.append(bresults[i])
         synths.append(bresults[i].processed_syn)
         allvar_reductions.append(
@@ -1830,6 +1830,7 @@ def seismic_fits(problem, stage, plot_options):
             target.time_shifts = num.array(target_time_shifts)
     # remove common time and spectrum targets 
     spectrum_targets = dict((utility.list2string(target.codes[:3]), target) for target in composite.targets if isinstance(target, SpectrumTarget))
+
     plotted_spectargets = []
     for target in composite.targets:
         nslc_id = utility.list2string(target.codes[:3])                

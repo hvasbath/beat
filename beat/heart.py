@@ -5,10 +5,13 @@ Also contains main classes for setup specific parameters.
 
 import os
 import logging
+from random import choice, choices
 import shutil
 import copy
 from time import time
 from collections import OrderedDict
+
+from pyrsistent import optional
 
 from beat import psgrn, pscmp, utility, qseis2d
 from theano import config as tconfig
@@ -355,6 +358,12 @@ class Filter(FilterBase):
                 corner_lp=self.upper_corner,
                 order=self.order)
 
+    def get_lower_corner(self):
+        return self.lower_corner
+
+    def get_upper_corner(self):
+        return self.upper_corner
+
 
 class BandstopFilter(FilterBase):
     """
@@ -378,6 +387,12 @@ class BandstopFilter(FilterBase):
             corner_lp=self.upper_corner,
             order=self.order, demean=False)
 
+    def get_lower_corner(self):
+        return self.lower_corner
+
+    def get_upper_corner(self):
+        return self.upper_corner
+
 
 class FrequencyFilter(FilterBase):
 
@@ -394,6 +409,11 @@ class FrequencyFilter(FilterBase):
         trace = trace.transfer(
             self.tfade, self.freqlimits, invert=False, cut_off_fading=False)
 
+    def get_lower_corner(self):
+        return self.freqlimits[0]
+
+    def get_upper_corner(self):
+        return self.freqlimits[-1]
 
 class ResultPoint(Object):
     """
@@ -834,14 +854,172 @@ class PolarityTarget(gf.meta.Receiver):
                 source, store) * d2r
 
 
-class DynamicTarget(gf.Target):
+class SeismicDataset(trace.Trace):
+    """
+    Extension to :class:`pyrocko.trace.Trace` to have
+    :class:`Covariance` as an attribute.
+    """
 
-    results = []
-    synths = []
-    var_reductions = []
-    time_shifts = []
+    wavename = None
+    covariance = None
+    domain = StringChoice.T(choices=['time', 'spectrum'], default='time', help='type of trace')
+
+    def __init__(self, network='', station='STA', location='', channel='',
+                 tmin=0., tmax=None, deltat=1., ydata=None, mtime=None,
+                 meta=None, domain='time'):
+        
+        super(SeismicDataset, self).__init__(network=network, station=station, location=location, 
+                                             channel=channel, tmin=tmin, tmax=tmax, deltat=deltat,
+                                             ydata=ydata, mtime=mtime, meta=meta)
+        
+        self.domain = domain
+
+    @property
+    def samples(self):
+        if self.covariance.data is not None:
+            return self.covariance.data.shape[0]
+        else:
+            logger.warn(
+                'Dataset has no uncertainties! Return full data length!')
+            return self.data_len()
+
+    def set_wavename(self, wavename):
+        self.wavename = wavename
+
+    @property
+    def typ(self):
+        return self.wavename + '_' + self.channel
+
+    @classmethod
+    def from_pyrocko_trace(cls, trace, **kwargs):
+        d = dict(
+            tmin=trace.tmin,
+            tmax=trace.tmax,
+            ydata=trace.ydata,
+            station=trace.station,
+            location=trace.location,
+            channel=trace.channel,
+            network=trace.network,
+            deltat=trace.delta)
+        return cls(**d)
+
+    def __getstate__(self):
+        return (self.network, self.station, self.location, self.channel,
+                self.tmin, self.tmax, self.deltat, self.mtime,
+                self.ydata, self.meta, self.wavename, self.covariance)
+
+    def __setstate__(self, state):
+        self.network, self.station, self.location, self.channel, \
+            self.tmin, self.tmax, self.deltat, self.mtime, \
+            self.ydata, self.meta, self.wavename, self.covariance = state
+
+        self._growbuffer = None
+        self._update_ids()
+
+    @property
+    def trace_id(self):
+        return (self.network, self.station, self.location, self.channel)
+
+    @property
+    def trace_id_str(self):
+        return utility.list2string([self.network, self.station, self.location, self.channel] + [self.domain])
+
+    @classmethod
+    def return_domain_trace(cls, trace, domain):
+        d = dict(
+        tmin=trace.tmin,
+        tmax=trace.tmax,
+        ydata=trace.ydata,
+        station=trace.station,
+        location=trace.location,
+        channel=trace.channel,
+        network=trace.network,
+        deltat=trace.deltat)
+
+        return trace_domains[domain](**d)
+
+
+class SpectrumDataset(SeismicDataset):
+    """
+    Extension to :class:`SeismicDataset` to have
+    Spectrum dataset.
+    """
+
+    fmin = Float.T(default=0.0)
+    fmax = Float.T(default=5.0)
+    deltaf = Float.T(default=0.1)
+    
+    def __init__(self, network='', station='STA', location='', channel='',
+                 tmin=0., tmax=None, deltat=1., ydata=None, mtime=None,
+                 meta=None, fmin=0.0, fmax=5.0, deltaf=0.1):
+        
+        super(SpectrumDataset, self).__init__(network=network, station=station, location=location, 
+                                             channel=channel, tmin=tmin, tmax=tmax, deltat=deltat,
+                                             ydata=ydata, mtime=mtime, meta=meta)
+        
+        self.fmin = fmin
+        self.fmax = fmax
+        self.deltaf = deltaf
+    
+    def __getstate__(self):
+        return (self.network, self.station, self.location, self.channel,
+                self.tmin, self.tmax, self.deltat, self.mtime,
+                self.ydata, self.meta, self.wavename, self.covariance, 
+                self.fmin, self.fmax, self.deltaf, self.domain)
+
+    def __setstate__(self, state):
+        self.network, self.station, self.location, self.channel, \
+                self.tmin, self.tmax, self.deltat, self.mtime, \
+                self.ydata, self.meta, self.wavename, self.covariance, \
+                self.fmin, self.fmax, self.deltaf, self.domain = state
+
+        self._growbuffer = None
+        self._update_ids()
+
+    def get_xdata(self):
+        if self.ydata is None:
+            raise Exception()
+
+        return num.arange(len(self.ydata), dtype=num.float64) * self.deltaf
+
+
+trace_domains = {'time': SeismicDataset,
+                'spectrum': SpectrumDataset}
+
+
+class BasicTarget(gf.Target):
+
+    results = List.T(SeismicResult.T(), default=[], help='List of results')
+    synths = List.T(SeismicDataset.T(), default=[], help='List of synthics')
+    var_reductions = List.T(Float.T(), default=[], help='List of variance reductions')
+    time_shifts = List.T(Float.T(), default=[], help='List of time shifts')
     spectarget = None
+    arrival_times = Dict.T(default={}, optional=True)
     response = trace.PoleZeroResponse.T(default=None, optional=True)
+    domain = StringChoice.T(choices=['time', 'spectrum'], default='time', help='type of target')
+
+    @classmethod
+    def return_domain_target(self, target, domain):
+        
+        d = dict(quantity=target.quantity,
+                codes=target.codes,
+                lat=target.lat,
+                lon=target.lon,
+                azimuth=target.azimuth,
+                dip=target.dip,
+                interpolation=target.interpolation,
+                store_id=target.store_id,
+                domain=domain)
+        
+        return target_domains[domain](**d)
+
+    @property
+    def domain_id(self):
+        return self.domain
+
+    @property
+    def target_id_str(self):
+        return utility.list2string(list(self.codes) + [self.domain_id])
 
     def update_response(self, magnification, damping, period):
         z, p, k = proto2zpk(
@@ -877,7 +1055,10 @@ class DynamicTarget(gf.Target):
             tolerance = 2 * (taperer.b - taperer.a)
             self.tmin = taperer.a - tolerance
             self.tmax = taperer.d + tolerance
-    
+
+
+class DynamicTarget(BasicTarget):
+
     def plot_waveformfits(self, axes, axes2, plotoptions, source, 
         synth_plot_flag, absmax, mode, tap_color_edge, mpl_graph_color,
         syn_color, obs_color, fontsize, time_shift_color, tap_color_annot, time_shift_bounds=[]):
@@ -897,38 +1078,6 @@ class DynamicTarget(gf.Target):
             t2 = num.concatenate((t, t[::-1]))
             axes.fill(t2, y2, **kwargs)
 
-        def plot_inset_hist(
-                axes, data, best_data, bbox_to_anchor,
-                cmap=None, cbounds=None, color='orange', alpha=0.4):
-
-            in_ax = inset_axes(
-                axes, width="100%", height="100%",
-                bbox_to_anchor=bbox_to_anchor,
-                bbox_transform=axes.transAxes, loc=2, borderpad=0)
-            plotting.histplot_op(
-                in_ax, data,
-                alpha=alpha, color=color, cmap=cmap, cbounds=cbounds, tstd=0.)
-
-            plotting.format_axes(in_ax)
-            linewidth = 0.5
-            plotting.format_axes(
-                in_ax, remove=['bottom'], visible=True,
-                linewidth=linewidth)
-
-            if best_data:
-                in_ax.axvline(
-                    x=best_data,
-                    color='red', lw=linewidth)
-
-            in_ax.tick_params(
-                axis='both', direction='in', labelsize=5, width=linewidth)
-            in_ax.tick_params(top=False)
-
-            in_ax.yaxis.set_visible(False)
-            xticker = tick.MaxNLocator(nbins=2)
-            in_ax.xaxis.set_major_locator(xticker)
-            return in_ax
-
         skey = lambda tr: tr.channel
 
         if plotoptions.nensemble > 1:
@@ -941,7 +1090,7 @@ class DynamicTarget(gf.Target):
             logger.debug(
                 'Plotting variance reductions for %s' % nslc_id_str)
 
-            in_ax = plot_inset_hist(
+            in_ax = plotting.plot_inset_hist(
                 axes,
                 data=pmp.utils.make_2d(self.var_reductions),
                 best_data=self.var_reductions[0],
@@ -986,7 +1135,7 @@ class DynamicTarget(gf.Target):
                 best_data = None
 
             if plotoptions.nensemble > 1:
-                in_ax = plot_inset_hist(
+                in_ax = plotting.plot_inset_hist(
                     axes,
                     data=pmp.utils.make_2d(self.time_shifts),
                     best_data=best_data,
@@ -1044,49 +1193,8 @@ class DynamicTarget(gf.Target):
         axes2.set_zorder(10)
 
 
-class SpectrumTarget(gf.Target):
-
-    results = []
-    synths = []
-    var_reductions = []
-    time_shifts = []
-    response = trace.PoleZeroResponse.T(default=None, optional=True)
-
-    def update_response(self, magnification, damping, period):
-        z, p, k = proto2zpk(
-            magnification, damping, period, quantity='displacement')
-        # b, a = zpk2tf(z, p, k)
-
-        if self.response:
-            self.response.zeros = z
-            self.response.poles = p
-            self.response.constant = k
-        else:
-            logger.debug('Initializing new response!')
-            self.response = trace.PoleZeroResponse(
-                zeros=z, poles=p, constant=k)
-
-    def update_target_times(self, sources=None, taperer=None):
-        """
-        Update the target attributes tmin and tmax to do the stacking
-        only in this interval. Adds twice taper fade in time to each taper
-        side.
-
-        Parameters
-        ----------
-        source : list
-            containing :class:`pyrocko.gf.seismosizer.Source` Objects
-        taperer : :class:`pyrocko.trace.CosTaper`
-        """
-
-        if sources is None or taperer is None:
-            self.tmin = None
-            self.tmax = None
-        else:
-            tolerance = 2 * (taperer.b - taperer.a)
-            self.tmin = taperer.a - tolerance
-            self.tmax = taperer.d + tolerance
-
+class SpectrumTarget(BasicTarget):
+    
     def plot_waveformfits(self, axes, plotoptions, 
         synth_plot_flag, lowest_corner, uppest_corner, allaxe,
         fontsize, syn_color, obs_color, misfit_color, tap_color_annot):
@@ -1094,52 +1202,26 @@ class SpectrumTarget(gf.Target):
         from mpl_toolkits.axes_grid1.inset_locator import inset_axes
         import matplotlib.ticker as tick
 
-        def plot_inset_hist(
-                axes, data, best_data, bbox_to_anchor,
-                cmap=None, cbounds=None, color='orange', alpha=0.4):
-
-            in_ax = inset_axes(
-                axes, width="100%", height="100%",
-                bbox_to_anchor=bbox_to_anchor,
-                bbox_transform=axes.transAxes, loc=2, borderpad=0)
-            plotting.histplot_op(
-                in_ax, data,
-                alpha=alpha, color=color, cmap=cmap, cbounds=cbounds, tstd=0.)
-
-            plotting.format_axes(in_ax)
-            linewidth = 0.5
-            plotting.format_axes(
-                in_ax, remove=['bottom'], visible=True,
-                linewidth=linewidth)
-
-            if best_data:
-                in_ax.axvline(
-                    x=best_data,
-                    color='red', lw=linewidth)
-
-            in_ax.tick_params(
-                axis='both', direction='in', labelsize=5, width=linewidth)
-            in_ax.tick_params(top=False)
-
-            in_ax.yaxis.set_visible(False)
-            xticker = tick.MaxNLocator(nbins=2)
-            in_ax.xaxis.set_major_locator(xticker)
-            return in_ax
-
         def plot_spectrum(
                 axes, data, lower_corner, upper_corner, 
                 syn_color, obs_color, misfit_color, tap_color_annot):
             
             fxdata = data.processed_syn.get_xdata()
-            lower = num.argwhere(fxdata<=lower_corner/2)[0][0]
-            upper = num.argwhere(fxdata>=4*upper_corner)[0][0]
+            lower = num.argwhere(fxdata<lower_corner/2)[0][0]
+            if fxdata[-1]>4*upper_corner:
+                upper = num.argwhere(fxdata>4*upper_corner)[0][0]
+            else:
+                upper = num.argwhere(fxdata==fxdata[-1])[0][0]
 
             syndata = data.processed_syn.get_ydata()[lower:upper]
             syndata[0] = 0
+            syndata[-1] = 0
             obsdata = data.processed_obs.get_ydata()[lower:upper]
             obsdata[0] = 0
+            obsdata[-1] = 0
             resdata = data.processed_res.get_ydata()[lower:upper]
             resdata[0] = 0
+            resdata[-1] = 0
 
             axes.plot(fxdata[lower:upper], syndata,
                         color=syn_color, lw=0.5)
@@ -1206,7 +1288,11 @@ class SpectrumTarget(gf.Target):
             
             fxdata = data[0].get_xdata()
             lower = num.argwhere(fxdata<lower_corner/2)[0][0]
-            upper = num.argwhere(fxdata>4*upper_corner)[0][0]
+            
+            if fxdata[-1]>4*upper_corner:
+                upper = num.argwhere(fxdata>4*upper_corner)[0][0]
+            else:
+                upper = num.argwhere(fxdata==fxdata[-1])[0][0]
 
             ymax = num.max([best_result.processed_syn.get_ydata()[lower:upper],best_result.processed_obs.get_ydata()[lower:upper]])
             for tr in data:
@@ -1232,10 +1318,13 @@ class SpectrumTarget(gf.Target):
             
             syndata = best_result.processed_syn.get_ydata()[lower:upper]
             syndata[0] = 0
+            syndata[-1] = 0
             obsdata = best_result.processed_obs.get_ydata()[lower:upper]
             obsdata[0] = 0
+            obsdata[-1] = 0
             resdata = best_result.processed_res.get_ydata()[lower:upper]
             resdata[0] = 0
+            resdata[-1] = 0
 
             axes.plot(fxdata[lower:upper], syndata,
                         color=syn_color, lw=0.5)
@@ -1326,7 +1415,7 @@ class SpectrumTarget(gf.Target):
                 else:       # for None post_llk
                     best_data = None
 
-                in_ax = plot_inset_hist(
+                in_ax = plotting.plot_inset_hist(
                     axes,
                     data=pmp.utils.make_2d(self.var_reductions),
                     best_data=best_data,
@@ -1358,7 +1447,7 @@ class SpectrumTarget(gf.Target):
                 else:       # for None post_llk
                     best_data = None
 
-                in_ax = plot_inset_hist(
+                in_ax = plotting.plot_inset_hist(
                     axes,
                     data=pmp.utils.make_2d(self.var_reductions),
                     best_data=best_data,
@@ -1372,109 +1461,8 @@ class SpectrumTarget(gf.Target):
                             misfit_color=misfit_color, tap_color_annot=tap_color_annot)
 
 
-class SeismicDataset(trace.Trace):
-    """
-    Extension to :class:`pyrocko.trace.Trace` to have
-    :class:`Covariance` as an attribute.
-    """
-
-    wavename = None
-    covariance = None
-
-    @property
-    def samples(self):
-        if self.covariance.data is not None:
-            return self.covariance.data.shape[0]
-        else:
-            logger.warn(
-                'Dataset has no uncertainties! Return full data length!')
-            return self.data_len()
-
-    def set_wavename(self, wavename):
-        self.wavename = wavename
-
-    @property
-    def typ(self):
-        return self.wavename + '_' + self.channel
-
-    @classmethod
-    def from_pyrocko_trace(cls, trace, **kwargs):
-        d = dict(
-            tmin=trace.tmin,
-            tmax=trace.tmax,
-            ydata=trace.ydata,
-            station=trace.station,
-            location=trace.location,
-            channel=trace.channel,
-            network=trace.network,
-            deltat=trace.deltat)
-        return cls(**d)
-
-    def __getstate__(self):
-        return (self.network, self.station, self.location, self.channel,
-                self.tmin, self.tmax, self.deltat, self.mtime,
-                self.ydata, self.meta, self.wavename, self.covariance)
-
-    def __setstate__(self, state):
-        self.network, self.station, self.location, self.channel, \
-            self.tmin, self.tmax, self.deltat, self.mtime, \
-            self.ydata, self.meta, self.wavename, self.covariance = state
-
-        self._growbuffer = None
-        self._update_ids()
-
-    @property
-    def trace_id(self):
-        return (self.network, self.station, self.location, self.channel)
-
-
-class SpectrumDataset(SeismicDataset):
-    """
-    Extension to :class:`SeismicDataset` to have
-    Spectrum dataset.
-    """
-
-
-    fmin = Float.T(default=0.0)
-    fmax = Float.T(default=5.0)
-    deltaf = Float.T(default=0.1)
-    
-    def __init__(self, network='', station='STA', location='', channel='',
-                 tmin=0., tmax=None, deltat=1., ydata=None, mtime=None,
-                 meta=None, fmin=0.0, fmax=5.0, deltaf=0.1):
-        
-        super(SpectrumDataset, self).__init__(network=network, station=station, location=location, 
-                                             channel=channel, tmin=tmin, tmax=tmax, deltat=deltat,
-                                             ydata=ydata, mtime=mtime, meta=meta)
-        
-        self.fmin = fmin
-        self.fmax = fmax
-        self.deltaf = deltaf
-    
-    @property
-    def trace_id(self):
-        return (self.network, self.station, self.location, self.channel, 'spc')
-
-    def __getstate__(self):
-        return (self.network, self.station, self.location, self.channel,
-                self.tmin, self.tmax, self.deltat, self.mtime,
-                self.ydata, self.meta, self.wavename, self.covariance, 
-                self.fmin, self.fmax, self.deltaf)
-
-    def __setstate__(self, state):
-        self.network, self.station, self.location, self.channel, \
-                self.tmin, self.tmax, self.deltat, self.mtime, \
-                self.ydata, self.meta, self.wavename, self.covariance, \
-                self.fmin, self.fmax, self.deltaf = state
-
-        self._growbuffer = None
-        self._update_ids()
-
-    def get_xdata(self):
-        if self.ydata is None:
-            raise Exception()
-
-        return num.arange(len(self.ydata), dtype=num.float64) * self.deltaf
+target_domains = {'time': DynamicTarget,
+                'spectrum': SpectrumTarget}
 
 
 class GeodeticDataset(gf.meta.MultiLocation):
@@ -1928,7 +1916,7 @@ class GeodeticResult(Object):
 def init_seismic_targets(
         stations, earth_model_name='ak135-f-average.m', channels=['T', 'Z'],
         sample_rate=1.0, crust_inds=[0], interpolation='multilinear',
-        reference_location=None):
+        reference_location=None, arrivaltime_config=None):
     """
     Initiate a list of target objects given a list of indexes to the
     respective GF store velocity model variation index (crust_inds).
@@ -1971,6 +1959,7 @@ def init_seismic_targets(
     em_name = get_earth_model_prefix(earth_model_name)
 
     targets = []
+    arrivaltimes = []
     for sta_num, station in enumerate(stations):
         for channel in channels:
             for crust_ind in crust_inds:
@@ -1980,7 +1969,10 @@ def init_seismic_targets(
                         'Channel "%s" for station "%s" does not exist!'
                         % (channel, station.station))
                 else:
-                    targets.append(DynamicTarget(
+                    if arrivaltime_config:
+                        stationname = '%s.%s'%(station.network,station.station)
+                        arrivaltimes = arrivaltime_config.get_arrivaltimes(stationname)
+                    targets.append(BasicTarget(
                         quantity='displacement',
                         codes=(station.network,
                                station.station,
@@ -1994,23 +1986,9 @@ def init_seismic_targets(
                             store_prefixes[sta_num],
                             em_name,
                             sample_rate,
-                            crust_ind)))
+                            crust_ind),
+                        arrival_times=arrivaltimes))
 
-                    targets.append(SpectrumTarget(
-                        quantity='displacement',
-                        codes=(station.network,
-                               station.station,
-                               '%i' % crust_ind, channel, 'spc'),  # n, s, l, c
-                        lat=station.lat,
-                        lon=station.lon,
-                        azimuth=cha.azimuth,
-                        dip=cha.dip,
-                        interpolation=interpolation,
-                        store_id=get_store_id(
-                            store_prefixes[sta_num],
-                            em_name,
-                            sample_rate,
-                            crust_ind)))
     return targets
 
 
@@ -3281,7 +3259,7 @@ class WaveformMapping(object):
         """
         empty_stations = self.get_station_names_without_data()
         blacklist.extend(empty_stations)
-
+        
         self.stations = utility.apply_station_blacklist(
             self.stations, blacklist)
 
@@ -3407,9 +3385,12 @@ class WaveformMapping(object):
         if hasattr(self, 'config'):
             arrival_times = num.zeros((self.n_t), dtype=tconfig.floatX)
             for i, target in enumerate(self.targets):
-                arrival_times[i] = get_phase_arrival_time(
-                    engine=engine, source=source,
-                    target=target, wavename=self.name)
+                if self.name in target.arrival_times:
+                    arrival_times[i] = target.arrival_time[self.name]
+                else:
+                    arrival_times[i] = get_phase_arrival_time(
+                        engine=engine, source=source,
+                        target=target, wavename=self.name)
 
             if self.config.preprocess_data:
                 logger.debug('Pre-processing data ...')
@@ -3442,6 +3423,8 @@ class WaveformMapping(object):
         for filt in self.config.filterer:
             if isinstance(filt, Filter):
                 highest_fs.append(filt.upper_corner)
+            if isinstance(filt, FrequencyFilter):
+                highest_fs.append(filt.freqlimits[-1])
 
         if len(highest_fs) > 0:
             return num.max(highest_fs)
@@ -3602,57 +3585,35 @@ class DataWaveformCollection(object):
                 logger.warn(
                     'Dataset %s already in collection!' % str(trace_id))
 
-        entries = self._raw_datasets.keys()
-        for d in datasets:
-            if location is not None:
-                d.set_location(str(location))
-            
-            d = SpectrumDataset(
-                ydata=d.ydata, 
-                deltat=d.deltat, 
-                tmin=d.tmin, 
-                tmax=d.tmax,
-                channel=d.channel,
-                station=d.station,
-                network=d.network,
-                location=d.location)
-            trace_id = d.trace_id
-            if trace_id not in entries or force:
-                self._raw_datasets[trace_id] = d
-            else:
-                logger.warn(
-                    'Dataset %s already in collection!' % str(trace_id))
 
     @property
     def n_data(self):
         return len(self._datasets.keys())
 
     def get_waveform_mapping(
-            self, waveform, channels=['Z', 'T', 'R'], quantity='displacement', spectrum_include=False):
+            self, waveform, channels=['Z', 'T', 'R'], quantity='displacement', domain='time'):
 
         self._check_collection(waveform, errormode='not_in')
 
-        if spectrum_include:
-            targettype = SpectrumTarget
-        else:
-            targettype = DynamicTarget
-        
         dtargets = utility.gather(
-            self._targets.values(), lambda t: t.codes[3], 
-            filter=lambda t: isinstance(t, targettype))
+            self._targets.values(), lambda t: t.codes[3])
 
         targets = []
         for cha in channels:
             targets.extend(dtargets[cha])
-
+        
         datasets = []
         discard_targets = []
+        new_targets = []
         for target in targets:
-            target.quantity = quantity
             trace_id = target.codes
+            target = target.return_domain_target(target=target, domain=domain)
+            target.quantity = quantity
+            
             try:
                 dtrace = self._raw_datasets[trace_id]
-
+                dtrace = dtrace.return_domain_trace(trace=dtrace, domain=domain)
+                dtrace.domain = domain
                 datasets.append(dtrace)
             except KeyError:
                 logger.warn(
@@ -3667,9 +3628,10 @@ class DataWaveformCollection(object):
                     logger.warn(
                         'No response for target %s in '
                         'the collection!' % str(trace_id))
+            new_targets.append(target)
 
         targets = utility.weed_targets(
-            targets, self.stations, discard_targets=discard_targets)
+            new_targets, self.stations, discard_targets=discard_targets)
 
         ndata = len(datasets)
         n_t = len(targets)
@@ -3738,6 +3700,11 @@ def init_datahandler(
     """
     sc = seismic_config
 
+    if hasattr(sc, 'ArrivalConfig'):
+        arrivalconfig = sc.ArrivalConfig
+    else:
+        arrivalconfig = None
+    
     stations, data_traces = utility.load_objects(seismic_data_path)
 
     wavenames = sc.get_waveform_names()
@@ -3748,7 +3715,8 @@ def init_datahandler(
         channels=sc.get_unique_channels(),
         sample_rate=sc.gf_config.sample_rate,
         crust_inds=[sc.gf_config.reference_model_idx],
-        reference_location=sc.gf_config.reference_location)
+        reference_location=sc.gf_config.reference_location,
+        arrivaltime_config=arrivalconfig)
 
     target_deltat = 1. / sc.gf_config.sample_rate
 
@@ -3786,8 +3754,14 @@ def init_wavemap(
     wmap : :class:`WaveformMapping`
     """
     wc = waveformfit_config
+    
+    if wc.spectrum_include:
+        domain = 'spectrum'
+    else:
+        domain = 'time'
+    
     wmap = datahandler.get_waveform_mapping(
-        wc.name, channels=wc.channels, quantity=wc.quantity, spectrum_include=wc.spectrum_include)
+        wc.name, channels=wc.channels, quantity=wc.quantity, domain=domain)
     wmap.config = wc
     wmap.mapnumber = mapnumber
 
