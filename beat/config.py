@@ -676,7 +676,7 @@ class WaveformFitConfig(Object):
         optional=True,
         help='Index to event from events list for reference time and data '
              'extraction. Default is 0 - always use the reference event.')
-    spectrum_include = Bool.T(default=True, help='Flag to include spectrum into optimization.')
+    domain = StringChoice.T(choices=['time', 'spectrum'], default='time', help='type of trace')
 
 
 class SeismicNoiseAnalyserConfig(Object):

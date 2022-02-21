@@ -190,7 +190,7 @@ class SeismicComposite(Composite):
         hierarchicals = problem_config.hierarchicals
         self._hierarchicalnames = []
         nwmaps = len(self.wavemaps)
-        nspecwmaps = num.sum([ 1 for wmap in self.wavemaps if wmap.config.spectrum_include ])
+        nspecwmaps = num.sum([ 1 for wmap in self.wavemaps if wmap.config.domain == 'spectrum' ])
         if not self.config.station_corrections and \
                 self.correction_name in hierarchicals:
             raise ConfigInconsistentError(
@@ -217,7 +217,7 @@ class SeismicComposite(Composite):
             for wmap in self.wavemaps:
                 hierarchical_name = wmap.time_shifts_id
                 nhierarchs = len(wmap.get_station_names())
-                if wmap.config.spectrum_include:
+                if wmap.config.domain == 'spectrum':
                     logger.info(
                             '%s got fixed at "0.0" for spectra' % (
                                 hierarchical_name))
@@ -285,7 +285,7 @@ class SeismicComposite(Composite):
             """
 
             covs = {
-                utility.list2string(dataset.trace_id):
+                dataset.trace_id_str:
                     getattr(dataset.covariance, cov_mat)
                 for dataset in wmap.datasets}
 
@@ -465,7 +465,7 @@ class SeismicComposite(Composite):
                     point=point,
                     processed_obs=obs_tr,
                     source_contributions=source_contributions,
-                    taper=taper, spectra=wc.spectrum_include))
+                    taper=taper, domain=wc.domain))
 
             if order == 'list':
                 results.extend(wmap_results)
@@ -532,7 +532,7 @@ class SeismicComposite(Composite):
 
         stdz_res = OrderedDict()
         for i in range(self.n_t):
-            stdz_res[self.datasets[i].trace_id] = compute_residuals(self.datasets[i], results[i], hp_specific)
+            stdz_res[self.datasets[i].trace_id_str] = compute_residuals(self.datasets[i], results[i], hp_specific)
 
         return stdz_res
 
@@ -765,7 +765,7 @@ class SeismicGeometryComposite(SeismicComposite):
                     filterer=wc.filterer,
                     pre_stack_cut=self.config.pre_stack_cut,
                     station_corrections=self.config.station_corrections,
-                    spectrum_include=wc.spectrum_include)
+                    domain=wc.domain)
     
             
             synths, _ = self.synthesizers[wmap._mapid](self.input_rvs)
@@ -819,7 +819,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 chop_bounds=chop_bounds)
 
             arrival_times = wmap._arrival_times
-            if self.config.station_corrections and not wc.spectrum_include:
+            if self.config.station_corrections and wc.domain == 'time':
                 try:
                     arrival_times += point[
                         wmap.time_shifts_id][wmap.station_correction_idxs]
@@ -851,7 +851,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 # plot=True,
                 **kwargs)
 
-            if self.config.station_corrections and not wc.spectrum_include:
+            if self.config.station_corrections and wc.domain == 'time':
                 # set tmin to data tmin
                 for tr, dtr in zip(synthetics, wmap._prepared_data):
                     if isinstance(tr, list):
@@ -862,7 +862,7 @@ class SeismicGeometryComposite(SeismicComposite):
                         tr.tmin = dtr.tmin
                         tr.tmax = dtr.tmax
             
-            if wc.spectrum_include:
+            if wc.domain == 'spectrum':
                 synthetics = heart.fft_transforms(synthetics, filterer=wc.filterer, 
                     deltat=wmap.deltat, outmode=outmode, pad_to_pow2=True)
             if order == 'list':

@@ -11,8 +11,6 @@ import copy
 from time import time
 from collections import OrderedDict
 
-from pyrsistent import optional
-
 from beat import psgrn, pscmp, utility, qseis2d
 from theano import config as tconfig
 from theano import shared
@@ -451,8 +449,8 @@ class SeismicResult(Object):
     source_contributions = List.T(
         Trace.T(),
         help='synthetics of source individual contributions.')
-    spectra = Bool.T(default=False,
-                     help='indicate existing results are spectrum.')
+    domain = StringChoice.T(choices=['time', 'spectrum'], default='time', help='type of trace')
+
     @property
     def processed_syn(self):
         if self.source_contributions is not None:
@@ -476,7 +474,7 @@ class SeismicResult(Object):
                 'have different tmin values! '
                 'obs: %g syn: %g, difference: %f. '
                 'Residual may be invalid!' % (
-                    utility.list2string(tr.trace_id),
+                    utility.list2string(tr.nslc_id),
                     tr.tmin, syn_tmin, tr.tmin - syn_tmin))
         return tr
 
@@ -917,10 +915,6 @@ class SeismicDataset(trace.Trace):
         self._update_ids()
 
     @property
-    def trace_id(self):
-        return (self.network, self.station, self.location, self.channel)
-
-    @property
     def trace_id_str(self):
         return utility.list2string([self.network, self.station, self.location, self.channel] + [self.domain])
 
@@ -934,7 +928,8 @@ class SeismicDataset(trace.Trace):
         location=trace.location,
         channel=trace.channel,
         network=trace.network,
-        deltat=trace.deltat)
+        deltat=trace.deltat,
+        domain=domain)
 
         return trace_domains[domain](**d)
 
@@ -951,11 +946,11 @@ class SpectrumDataset(SeismicDataset):
     
     def __init__(self, network='', station='STA', location='', channel='',
                  tmin=0., tmax=None, deltat=1., ydata=None, mtime=None,
-                 meta=None, fmin=0.0, fmax=5.0, deltaf=0.1):
+                 meta=None, fmin=0.0, fmax=5.0, deltaf=0.1, domain='spectrum'):
         
         super(SpectrumDataset, self).__init__(network=network, station=station, location=location, 
                                              channel=channel, tmin=tmin, tmax=tmax, deltat=deltat,
-                                             ydata=ydata, mtime=mtime, meta=meta)
+                                             ydata=ydata, mtime=mtime, meta=meta, domain=domain)
         
         self.fmin = fmin
         self.fmax = fmax
@@ -1014,12 +1009,8 @@ class BasicTarget(gf.Target):
         return target_domains[domain](**d)
 
     @property
-    def domain_id(self):
-        return self.domain
-
-    @property
     def target_id_str(self):
-        return utility.list2string(list(self.codes) + [self.domain_id])
+        return utility.list2string(list(self.codes) + [self.domain])
 
     def update_response(self, magnification, damping, period):
         z, p, k = proto2zpk(
@@ -3409,7 +3400,7 @@ class WaveformMapping(object):
                 deltat=self.deltat,
                 plot=False)
 
-            if self.config.spectrum_include:
+            if self.config.domain == 'spectrum':
                 self._prepared_data = fft_transforms(self._prepared_data, filterer=self.config.filterer, deltat=self.deltat, outmode=outmode, pad_to_pow2=True)
             self._arrival_times = arrival_times
         else:
@@ -3421,10 +3412,7 @@ class WaveformMapping(object):
         """
         highest_fs = []
         for filt in self.config.filterer:
-            if isinstance(filt, Filter):
-                highest_fs.append(filt.upper_corner)
-            if isinstance(filt, FrequencyFilter):
-                highest_fs.append(filt.freqlimits[-1])
+            highest_fs.append(filt.get_upper_corner())
 
         if len(highest_fs) > 0:
             return num.max(highest_fs)
@@ -3482,13 +3470,13 @@ class DataWaveformCollection(object):
     def adjust_sampling_datasets(self, deltat, snap=False, force=False):
 
         for tr in self._raw_datasets.values():
-            if tr.trace_id not in self._datasets or force:
-                self._datasets[tr.trace_id] = \
+            if tr.nslc_id not in self._datasets or force:
+                self._datasets[tr.nslc_id] = \
                     utility.downsample_trace(tr, deltat, snap=snap)
             else:
                 raise CollectionError(
                     'Downsampled trace %s already in'
-                    ' collection!' % utility.list2string(tr.trace_id))
+                    ' collection!' % utility.list2string(tr.nslc_id))
 
         self._deltat = deltat
 
@@ -3578,12 +3566,12 @@ class DataWaveformCollection(object):
             if location is not None:
                 d.set_location(str(location))
 
-            trace_id = d.trace_id
-            if trace_id not in entries or force:
-                self._raw_datasets[trace_id] = d
+            nslc_id = d.nslc_id
+            if nslc_id not in entries or force:
+                self._raw_datasets[nslc_id] = d
             else:
                 logger.warn(
-                    'Dataset %s already in collection!' % str(trace_id))
+                    'Dataset %s already in collection!' % str(nslc_id))
 
 
     @property
@@ -3604,34 +3592,34 @@ class DataWaveformCollection(object):
         
         datasets = []
         discard_targets = []
-        new_targets = []
+        domain_targets = []
         for target in targets:
-            trace_id = target.codes
+            nslc_id = target.codes
             target = target.return_domain_target(target=target, domain=domain)
             target.quantity = quantity
             
             try:
-                dtrace = self._raw_datasets[trace_id]
+                dtrace = self._raw_datasets[nslc_id]
                 dtrace = dtrace.return_domain_trace(trace=dtrace, domain=domain)
-                dtrace.domain = domain
+
                 datasets.append(dtrace)
             except KeyError:
                 logger.warn(
                     'No data trace for target %s in '
-                    'the collection! Removing target!' % str(trace_id))
+                    'the collection! Removing target!' % str(nslc_id))
                 discard_targets.append(target)
 
             if self._responses:
                 try:
-                    target.update_response(*self._responses[trace_id])
+                    target.update_response(*self._responses[nslc_id])
                 except KeyError:
                     logger.warn(
                         'No response for target %s in '
-                        'the collection!' % str(trace_id))
-            new_targets.append(target)
+                        'the collection!' % str(nslc_id))
+            domain_targets.append(target)
 
         targets = utility.weed_targets(
-            new_targets, self.stations, discard_targets=discard_targets)
+            domain_targets, self.stations, discard_targets=discard_targets)
 
         ndata = len(datasets)
         n_t = len(targets)
@@ -3754,14 +3742,9 @@ def init_wavemap(
     wmap : :class:`WaveformMapping`
     """
     wc = waveformfit_config
-    
-    if wc.spectrum_include:
-        domain = 'spectrum'
-    else:
-        domain = 'time'
-    
+        
     wmap = datahandler.get_waveform_mapping(
-        wc.name, channels=wc.channels, quantity=wc.quantity, domain=domain)
+        wc.name, channels=wc.channels, quantity=wc.quantity, domain=wc.domain)
     wmap.config = wc
     wmap.mapnumber = mapnumber
 

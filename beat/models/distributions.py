@@ -167,7 +167,7 @@ def polarity_llk(obs_polarities, syn_amplitudes, gamma, sigma):
     p_i = gamma + (1 - 2. * gamma) * cumulative_normal(syn_amplitudes / sigma)
     llks = ((1. + obs_polarities) / 2.) * tt.log(p_i) + \
            ((1. - obs_polarities) / 2.) * tt.log(1. - p_i)
-    return llks.sum()
+    return llks
 
 
 def hyper_normal(datasets, hyperparams, llks, hp_specific=False):

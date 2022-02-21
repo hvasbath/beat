@@ -1668,7 +1668,7 @@ def draw_gnss_fits(problem, plot_options):
 
 
 def extract_time_shifts(point, wmap):
-    if not wmap.config.spectrum_include:
+    if wmap.config.domain == 'time':
         try:
             time_shifts = point[wmap.time_shifts_id][
                 wmap.station_correction_idxs]
