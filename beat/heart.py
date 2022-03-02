@@ -313,8 +313,12 @@ class Trace(Object):
 
 
 class FilterBase(Object):
-    pass
 
+    def get_lower_corner(self):
+        return self.lower_corner
+
+    def get_upper_corner(self):
+        return self.upper_corner
 
 class Filter(FilterBase):
     """
@@ -356,12 +360,6 @@ class Filter(FilterBase):
                 corner_lp=self.upper_corner,
                 order=self.order)
 
-    def get_lower_corner(self):
-        return self.lower_corner
-
-    def get_upper_corner(self):
-        return self.upper_corner
-
 
 class BandstopFilter(FilterBase):
     """
@@ -385,12 +383,6 @@ class BandstopFilter(FilterBase):
             corner_lp=self.upper_corner,
             order=self.order, demean=False)
 
-    def get_lower_corner(self):
-        return self.lower_corner
-
-    def get_upper_corner(self):
-        return self.upper_corner
-
 
 class FrequencyFilter(FilterBase):
 
@@ -404,8 +396,9 @@ class FrequencyFilter(FilterBase):
              ' ends of trace.')
 
     def apply(self, trace):
-        trace = trace.transfer(
-            self.tfade, self.freqlimits, invert=False, cut_off_fading=False)
+        new_trace = trace.transfer(
+            tfade=self.tfade, freqlimits=self.freqlimits, cut_off_fading=False)
+        trace.set_ydata(new_trace.ydata)
 
     def get_lower_corner(self):
         return self.freqlimits[0]
@@ -860,7 +853,7 @@ class SeismicDataset(trace.Trace):
 
     wavename = None
     covariance = None
-    domain = StringChoice.T(choices=['time', 'spectrum'], default='time', help='type of trace')
+    domain = 'time'
 
     def __init__(self, network='', station='STA', location='', channel='',
                  tmin=0., tmax=None, deltat=1., ydata=None, mtime=None,
@@ -1046,6 +1039,15 @@ class BasicTarget(gf.Target):
             tolerance = 2 * (taperer.b - taperer.a)
             self.tmin = taperer.a - tolerance
             self.tmax = taperer.d + tolerance
+    
+    def get_phase_arrival_time(self, source, wavename='any_P', deltat=0.1, snap=True):
+
+        atime = self.arrival_times[wavename] + source.time
+
+        if snap:
+            atime = trace.t2ind(atime, deltat, snap=round) * deltat
+        
+        return atime
 
 
 class DynamicTarget(BasicTarget):
@@ -1116,8 +1118,8 @@ class DynamicTarget(BasicTarget):
         tmark_fontsize = fontsize - 1
 
         if len(self.time_shifts) != 0:
-            sidebar_ybounds = [-0.9, -0.4]
-            ytmarks = [-1.3, -0.7]
+            sidebar_ybounds = [-0.3, -0.4]
+            ytmarks = [-1.15, -0.7]
             hor_alignment = 'center'
 
             if synth_plot_flag:
@@ -1130,16 +1132,16 @@ class DynamicTarget(BasicTarget):
                     axes,
                     data=pmp.utils.make_2d(self.time_shifts),
                     best_data=best_data,
-                    bbox_to_anchor=(-0.0985, .26, .2, .2),
+                    bbox_to_anchor=(-0.0985, .16, .2, .2),
                     # cmap=plt.cm.get_cmap('seismic'),
                     # cbounds=time_shift_bounds,
                     color=time_shift_color,
                     alpha=0.7)
                 in_ax.set_xlim(*time_shift_bounds)
         else:
-            sidebar_ybounds = [-1.2, -0.4]
-            ytmarks = [-1.2, -0.7]
-            hor_alignment = 'left'
+            sidebar_ybounds = [-0.6, -0.4]
+            ytmarks = [-0.9, -0.7]
+            hor_alignment = 'center'
 
         for tmark, ybound in zip(tmarks, sidebar_ybounds):
             axes2.plot(
@@ -1199,8 +1201,8 @@ class SpectrumTarget(BasicTarget):
             
             fxdata = data.processed_syn.get_xdata()
             lower = num.argwhere(fxdata<lower_corner/2)[0][0]
-            if fxdata[-1]>4*upper_corner:
-                upper = num.argwhere(fxdata>4*upper_corner)[0][0]
+            if fxdata[-1]>2*upper_corner:
+                upper = num.argwhere(fxdata>2*upper_corner)[0][0]
             else:
                 upper = num.argwhere(fxdata==fxdata[-1])[0][0]
 
@@ -1227,7 +1229,7 @@ class SpectrumTarget(BasicTarget):
             axes.yaxis.set_visible(False)
             axes.xaxis.set_visible(False)
             axes.set_xlim([fxdata[lower], fxdata[upper]])
-            axes.set_ylim([0, 1.1*ymax])
+            axes.set_ylim([0, 1.3*ymax])
             axes.spines['bottom'].set_visible(False)
 
             for tmark, ybound in zip([fxdata[lower], fxdata[upper-1]], [0.75*ymax, ymax]):
@@ -1280,8 +1282,8 @@ class SpectrumTarget(BasicTarget):
             fxdata = data[0].get_xdata()
             lower = num.argwhere(fxdata<lower_corner/2)[0][0]
             
-            if fxdata[-1]>4*upper_corner:
-                upper = num.argwhere(fxdata>4*upper_corner)[0][0]
+            if fxdata[-1]>2*upper_corner:
+                upper = num.argwhere(fxdata>2*upper_corner)[0][0]
             else:
                 upper = num.argwhere(fxdata==fxdata[-1])[0][0]
 
@@ -1291,7 +1293,7 @@ class SpectrumTarget(BasicTarget):
                 if ymax < trmax:
                     ymax = trmax
 
-            extent = [lower_corner/2, 4*upper_corner, 0, 1.2*ymax]
+            extent = [lower_corner/2, 2*upper_corner, 0, 1.2*ymax]
             
             for tr in data:   
                 ydata = tr.ydata[lower:upper]
@@ -1328,7 +1330,7 @@ class SpectrumTarget(BasicTarget):
             axes.yaxis.set_visible(False)
             axes.xaxis.set_visible(False)
             axes.set_xlim([fxdata[lower], fxdata[upper]])
-            axes.set_ylim([0, 1.1*ymax])
+            axes.set_ylim([0, 1.3*ymax])
             axes.spines['bottom'].set_visible(False)
             
             if allaxe:
@@ -1397,8 +1399,7 @@ class SpectrumTarget(BasicTarget):
                 fuzzy_spectra(axes=axes, data=self.synths,
                                 best_result=self.results[0],
                                 lower_corner=lowest_corner, upper_corner=uppest_corner,
-                                allaxe=allaxe, 
-                                grid_size=(500, 500), alpha=1.0, zorder=0,
+                                allaxe=allaxe, grid_size=(500, 500), alpha=1.0, zorder=0,
                                 linewidth=3.0, syn_color=syn_color, obs_color=obs_color, 
                                 misfit_color=misfit_color, tap_color_annot=tap_color_annot)
                 if synth_plot_flag:
@@ -1423,7 +1424,7 @@ class SpectrumTarget(BasicTarget):
 
             in_ax = inset_axes(
                 axes, width="100%", height="100%",
-                bbox_to_anchor=(0.05, 0.0, 0.75, 0.24),
+                bbox_to_anchor=(0.05, -0.15, 0.75, 0.24),
                 bbox_transform=axes.transAxes, loc=2, borderpad=0)
 
             if plotoptions.nensemble > 1:
@@ -1442,7 +1443,7 @@ class SpectrumTarget(BasicTarget):
                     axes,
                     data=pmp.utils.make_2d(self.var_reductions),
                     best_data=best_data,
-                    bbox_to_anchor=(0.85, .02, .2, .2))
+                    bbox_to_anchor=(0.85, -0.15, .2, .2))
                 in_ax.set_title('SPC_VR [%]', fontsize=5)
             else:
                 plot_spectrum(axes=in_ax, data=self.results[0], 
@@ -3377,7 +3378,8 @@ class WaveformMapping(object):
             arrival_times = num.zeros((self.n_t), dtype=tconfig.floatX)
             for i, target in enumerate(self.targets):
                 if self.name in target.arrival_times:
-                    arrival_times[i] = target.arrival_time[self.name]
+                    arrival_times[i] = target.get_phase_arrival_time(
+                        wavename=self.name, source=source, deltat=self.deltat)
                 else:
                     arrival_times[i] = get_phase_arrival_time(
                         engine=engine, source=source,

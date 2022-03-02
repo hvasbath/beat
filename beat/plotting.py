@@ -1838,7 +1838,7 @@ def seismic_fits(problem, stage, plot_options):
             nslc_id in spectrum_targets and \
                 nslc_id not in plotted_spectargets:
                 target.spectarget = spectrum_targets[nslc_id]
-                plotted_spectargets.append(utility.list2string(spectrum_targets[nslc_id].codes))
+                plotted_spectargets.append(spectrum_targets[nslc_id].target_id_str)
 
     skey = lambda tr: tr.channel
     
@@ -1846,7 +1846,7 @@ def seismic_fits(problem, stage, plot_options):
     cg_to_targets = utility.gather(
         composite.targets,
         lambda t: t.codes[3],
-        filter=lambda t: utility.list2string(t.codes) not in plotted_spectargets)
+        filter=lambda t: t.target_id_str not in plotted_spectargets)
 
     cgs = cg_to_targets.keys()
 
@@ -1936,8 +1936,8 @@ def seismic_fits(problem, stage, plot_options):
                         right=1.0 - 0.03,
                         bottom=0.03,
                         top=1.0 - 0.06,
-                        wspace=0.2,
-                        hspace=0.2)
+                        wspace=0.20,
+                        hspace=0.30)
 
                     figs.append(figures[iyy, ixx])
 
@@ -1966,14 +1966,14 @@ def seismic_fits(problem, stage, plot_options):
                 axes2 = fig.add_subplot(ny_this, nx_this, i_this)
 
                 space = 0.4
-                space_factor = 0.1 + space
+                space_factor = 0.7 + space
                 axes2.set_axis_off()
                 axes2.set_ylim(-1.05 * space_factor, 1.05)
 
                 axes = axes2.twinx()
                 axes.set_axis_off()
 
-                ymin, ymax = - absmax * 1.33 * space_factor, absmax * 1.33
+                ymin, ymax = - absmax * 1.5 * space_factor, absmax * 1.5
                 try:
                     axes.set_ylim(ymin, ymax)
                 except ValueError:
