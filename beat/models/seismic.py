@@ -701,7 +701,7 @@ class SeismicGeometryComposite(SeismicComposite):
         -------
         posterior_llk : :class:`theano.tensor.Tensor`
         """
-        chop_bounds=['b', 'c']  # we want llk calculation only between b c
+        chop_bounds = ['b', 'c']  # we want llk calculation only between b c
 
         hp_specific = self.config.dataset_specific_residual_noise_estimation
         tpoint = problem_config.get_test_point()
@@ -755,22 +755,21 @@ class SeismicGeometryComposite(SeismicComposite):
                 sources = [self.sources[wc.event_idx]]
 
             self.synthesizers[wmap._mapid] = theanof.SeisSynthesizer(
-                    engine=self.engine,
-                    sources=sources,
-                    targets=wmap.targets,
-                    event=self.events[wc.event_idx],
-                    arrival_taper=wc.arrival_taper,
-                    arrival_times=wmap._arrival_times,
-                    wavename=wmap.name,
-                    filterer=wc.filterer,
-                    pre_stack_cut=self.config.pre_stack_cut,
-                    station_corrections=self.config.station_corrections,
-                    domain=wc.domain)
-    
-            
+                engine=self.engine,
+                sources=sources,
+                targets=wmap.targets,
+                event=self.events[wc.event_idx],
+                arrival_taper=wc.arrival_taper,
+                arrival_times=wmap._arrival_times,
+                wavename=wmap.name,
+                filterer=wc.filterer,
+                pre_stack_cut=self.config.pre_stack_cut,
+                station_corrections=self.config.station_corrections,
+                domain=wc.domain)
+
             synths, _ = self.synthesizers[wmap._mapid](self.input_rvs)
             residuals = wmap.shared_data_array - synths
-        
+
             logpts = multivariate_normal_chol(
                 wmap.datasets, wmap.weights, hyperparams, residuals,
                 hp_specific=hp_specific)

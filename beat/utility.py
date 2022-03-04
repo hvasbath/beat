@@ -419,7 +419,8 @@ def apply_station_blacklist(stations, blacklist):
 
     outstations = []
     for st in stations:
-        if st.station not in blacklist:
+        station_name = '{}.{}'.format(st.network, st.station)
+        if station_name not in blacklist:
             outstations.append(st)
     return outstations
 
@@ -442,12 +443,14 @@ def weed_data_traces(data_traces, stations):
         of :class:`pyrocko.trace.Trace`
     """
 
-    station_names = [station.station for station in stations]
+    station_names = ['{}.{}'.format(station.network, station.station)
+                     for station in stations]
 
     weeded_data_traces = []
 
     for tr in data_traces:
-        if tr.station in station_names:
+        trace_name = '{}.{}'.format(tr.network, tr.station)
+        if trace_name in station_names:
             weeded_data_traces.append(tr)
 
     return weeded_data_traces
@@ -470,11 +473,13 @@ def weed_targets(targets, stations, discard_targets=[]):
     weeded_targets : list
         of :class:`pyrocko.gf.targets.Target`
     """
-    station_names = [station.station for station in stations]
+    station_names = ['{}.{}'.format(
+        station.network, station.station) for station in stations]
 
     weeded_targets = []
     for target in targets:
-        if target.codes[1] in station_names:
+        target_name = '{}.{}'.format(target.codes[0], target.codes[1])
+        if target_name in station_names:
             if target in discard_targets:
                 pass
             else:

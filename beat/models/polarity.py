@@ -83,6 +83,7 @@ class PolarityComposite(Composite):
                 config=pmap_config,
                 stations=stations,
                 targets=targets)
+            pmap.prepare_data()
             pmap.update_targets(
                 self.engine, self.sources[pmap.config.event_idx], check=True)
             self.polmaps[i] = pmap
@@ -111,7 +112,7 @@ class PolarityComposite(Composite):
                 self.engine, self.sources[pmap.config.event_idx],
                 pmap, self.is_location_fixed)
             llk = polarity_llk(
-                pmap.dataset,
+                pmap.shared_data_array,
                 self.synthesizers[i](self.input_rvs),
                 self.gamma,
                 hyperparams[hp_names[i]])

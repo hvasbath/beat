@@ -3046,28 +3046,184 @@ def get_phase_arrival_time(engine, source, target, wavename=None, snap=True):
     return atime
 
 
-class PolarityMapping(object):
+def get_phase_taperer(
+        engine, source, wavename, target, arrival_taper, arrival_time=num.nan):
+    """
+    Create phase taperer according to synthetic travel times from
+    source- target pair and taper return :class:`pyrocko.trace.CosTaper`
+    according to defined arrival_taper times.
+
+    Parameters
+    ----------
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+    source : :class:`pyrocko.gf.meta.Location`
+        can be therefore :class:`pyrocko.gf.seismosizer.Source` or
+        :class:`pyrocko.model.Event`
+    wavename : string
+        of the tabulated phase that determines the phase arrival
+    target : :class:`pyrocko.gf.seismosizer.Target`
+    arrival_taper : :class:`ArrivalTaper`
+    arrival_time : shift on arrival time (optional)
+
+    Returns
+    -------
+    :class:`pyrocko.trace.CosTaper`
+    """
+    if num.isnan(arrival_time):
+        logger.warning('Using source reference for tapering!')
+        arrival_time = get_phase_arrival_time(
+            engine=engine, source=source, target=target, wavename=wavename)
+
+    return arrival_taper.get_pyrocko_taper(float(arrival_time))
+
+
+class BaseMapping(object):
+
+    def __init__(self, stations, targets):
+
+        self.stations = stations
+        self.targets = targets
+
+        self._station2index = None
+        self._target2index = None
+
+    def target_index_mapping(self):
+        if self._target2index is None:
+            self._target2index = dict(
+                (target, i) for (i, target) in enumerate(
+                    self.targets))
+        return self._target2index
+
+    def station_index_mapping(self):
+        if self._station2index is None:
+            self._station2index = dict(
+                (station, i) for (i, station) in enumerate(
+                    self.stations))
+        return self._station2index
+
+    def get_station_names(self):
+        """
+        Returns list of strings of station names
+        """
+        return ['{}.{}'.format(station.network, station.station)
+                for station in self.stations]
+
+    @property
+    def n_t(self):
+        return len(self.targets)
+
+    @property
+    def n_data(self):
+        return len(self.datasets)
+
+    def get_target_idxs(self, channels=['Z']):
+
+        t2i = self.target_index_mapping()
+        dtargets = utility.gather(self.targets, lambda t: t.codes[3])
+
+        tidxs = []
+        for cha in channels:
+            tidxs.extend([t2i[target] for target in dtargets[cha]])
+
+        return tidxs
+
+    def check_consistency(self):
+        if self.n_t != self.n_data:
+            raise CollectionError(
+                'Inconsistent number of datasets and targets!')
+
+        self._check_specific_consistency()
+
+    def _check_specific_consistency(self):
+        pass
+
+
+class PolarityMapping(BaseMapping):
 
     def __init__(self, config, stations, targets):
 
-        self.config = config
-        self.stations = stations
-        self.targets = targets
-        self._radiation_weights = None
-        self.dataset = None
-        self._update_dataset()
+        BaseMapping.__init__(self, stations, targets)
 
-    def _update_dataset(self):
+        self.config = config
+
+        self.dataset = None
+
+        self._prepared_data = None
+        self._radiation_weights = None
+
+    def _load_polarity_markers(self):
+        from pyrocko.gui.markers import load_markers
+
+        if self.dataset is None:
+            try:
+                self.dataset = load_markers(self.polarities_marker_path)
+            except FileNotFoundError:
+                raise IOError(
+                    'Phase markers file under %s was not'
+                    ' found!' % self.polarities_marker_path)
+
+        return self.dataset
+
+    def get_station_names_data(self):
+        station_names = []
+        for polarity_marker in self.dataset:
+            nslc_id = polarity_marker.one_nslc()
+            station_names.append('{}.{}'.format(nslc_id[0], nslc_id[1]))
+
+        return station_names
+
+    def get_polarities(self):
+        return num.array(
+            [polarity_marker.get_polarity()
+                for polarity_marker in self.datasets], dtype='int16')
+
+    def get_station_names_without_data(self):
+
+        blacklist = []
+        station_names = self.get_station_names()
+        dataset_station_names = self.get_station_names_data()
+
+        for station_name in station_names:
+            if station_name not in dataset_station_names:
+                logger.warning(
+                    'Found no data for station "%s" '
+                    '- removing it from setup.' % station_name)
+                blacklist.append(station_name)
+
+        return blacklist
+
+    def station_weeding(self, blacklist=[]):
+        """
+        Weed stations and related objects based on blacklist.
+        Works only a single time after init!
+        """
+        empty_stations = self.get_station_names_without_data()
+        blacklist.extend(empty_stations)
+
+        self.stations = utility.apply_station_blacklist(
+            self.stations, blacklist)
+
+        self.targets = utility.weed_targets(self.targets, self.stations)
+
+        # reset mappings
+        self._target2index = None
+        self._station2index = None
+
+        self.check_consistency()
+
+    def prepare_data(self):
         """
         Make stations, targets and dataset consistent by dropping
         stations if not existent in data.
         """
 
         # polarity data from config
-        station_names_data = self.config.get_station_names()
+        station_names_data = self.get_station_names_data()
+
+        self.station_weeding(self.blacklist)
         station_names_file = [
-            '%s.%s' % (station.network, station.station)
-                for station in self.stations]
+            '{}.{}'.format(station.network, station.station)
+            for station in self.stations]
 
         stations_new = []
         station_idxs = []
@@ -3078,14 +3234,14 @@ class PolarityMapping(object):
                 station_idxs.append(i)
             else:
                 logger.warning(
-                    'For station "%s" no station data was found, '
+                    'For station "%s" no station meta-data was found, '
                     'ignoring...' % station_name)
 
-        polarities = self.config.get_polarities()
+        polarities = self.get_polarities()
         if station_idxs:
             logger.info(
                 'Found polarity data for %i stations!' % len(station_idxs))
-            self.dataset = polarities[num.array(station_idxs)]
+            self._prepared_data = polarities[num.array(station_idxs)]
             self.stations = stations_new
         else:
             logger.warning(
@@ -3093,13 +3249,14 @@ class PolarityMapping(object):
                 '\n %s' % utility.list2string(station_names_file))
             raise ValueError('Found no station information!')
 
-    def get_station_names(self):
-        return ['%s.%s' % (
-            target.codes[0], target.codes[1]) for target in self.targets]
-
     @property
-    def n_t(self):
-        return len(self.targets)
+    def shared_data_array(self):
+        if self._prepared_data is None:
+            raise ValueError('Data array is not initialized')
+        else:
+            return shared(
+                self._prepared_data,
+                name='%s_data' % self.name, borrow=True)
 
     def update_targets(self, engine, source, check=False):
 
@@ -3137,38 +3294,7 @@ class PolarityMapping(object):
         return self._radiation_weights
 
 
-def get_phase_taperer(
-        engine, source, wavename, target, arrival_taper, arrival_time=num.nan):
-    """
-    Create phase taperer according to synthetic travel times from
-    source- target pair and taper return :class:`pyrocko.trace.CosTaper`
-    according to defined arrival_taper times.
-
-    Parameters
-    ----------
-    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
-    source : :class:`pyrocko.gf.meta.Location`
-        can be therefore :class:`pyrocko.gf.seismosizer.Source` or
-        :class:`pyrocko.model.Event`
-    wavename : string
-        of the tabulated phase that determines the phase arrival
-    target : :class:`pyrocko.gf.seismosizer.Target`
-    arrival_taper : :class:`ArrivalTaper`
-    arrival_time : shift on arrival time (optional)
-
-    Returns
-    -------
-    :class:`pyrocko.trace.CosTaper`
-    """
-    if num.isnan(arrival_time):
-        logger.warning('Using source reference for tapering!')
-        arrival_time = get_phase_arrival_time(
-            engine=engine, source=source, target=target, wavename=wavename)
-
-    return arrival_taper.get_pyrocko_taper(float(arrival_time))
-
-
-class WaveformMapping(object):
+class WaveformMapping(BaseMapping):
     """
     Maps synthetic waveform parameters to targets, stations and data
 
@@ -3190,37 +3316,22 @@ class WaveformMapping(object):
     def __init__(self, name, stations, weights=None, channels=['Z'],
                  datasets=[], targets=[], deltat=None):
 
+        BaseMapping.__init__(self, stations, targets)
+
         self.name = name
-        self.stations = stations
         self.weights = weights
         self.datasets = datasets
-        self.targets = targets
         self.channels = channels
         self.station_correction_idxs = None
         self._prepared_data = None
         self._arrival_times = None
-        self._target2index = None
-        self._station2index = None
+
         self.deltat = deltat
         self.config = None
 
         if self.datasets is not None:
             self._update_trace_wavenames()
             self._update_station_corrections()
-
-    def target_index_mapping(self):
-        if self._target2index is None:
-            self._target2index = dict(
-                (target, i) for (i, target) in enumerate(
-                    self.targets))
-        return self._target2index
-
-    def station_index_mapping(self):
-        if self._station2index is None:
-            self._station2index = dict(
-                (station, i) for (i, station) in enumerate(
-                    self.stations))
-        return self._station2index
 
     def add_weights(self, weights, force=False):
         n_w = len(weights)
@@ -3251,7 +3362,7 @@ class WaveformMapping(object):
         """
         empty_stations = self.get_station_names_without_data()
         blacklist.extend(empty_stations)
-        
+
         self.stations = utility.apply_station_blacklist(
             self.stations, blacklist)
 
@@ -3273,12 +3384,6 @@ class WaveformMapping(object):
 
         self.check_consistency()
 
-    def get_station_names(self):
-        """
-        Returns list of strings of station names
-        """
-        return [station.station for station in self.stations]
-
     def get_station_names_without_data(self):
 
         blacklist = []
@@ -3293,21 +3398,6 @@ class WaveformMapping(object):
                 blacklist.append(station_name)
 
         return blacklist
-
-    def check_consistency(self):
-        if self.n_t != self.n_data:
-            raise CollectionError(
-                'Inconsistent number of datasets and targets!')
-        if self.n_t == 0:
-            raise CollectionError(
-                'No data left in wavemap "%s" after applying the distance '
-                'filter! Either (1) Adjust distance range (set "distances" '
-                ' parameter in beat.WaveformFitConfig, given in degrees '
-                ' epicentral distance) or (2) deactivate the wavemap '
-                'completely by setting include=False!' % self._mapid)
-        else:
-            logger.info('Consistent number of '
-                        'datasets and targets in %s wavemap!' % self._mapid)
 
     def update_interpolation(self, method):
         for target in self.targets:
@@ -3332,10 +3422,6 @@ class WaveformMapping(object):
         return 'time_shifts_' + self._mapid
 
     @property
-    def n_t(self):
-        return len(self.targets)
-
-    @property
     def hypersize(self):
         """
         Return the size of the related hyperparameters as an integer.
@@ -3347,21 +3433,6 @@ class WaveformMapping(object):
             raise ValueError(
                 'hyperparameter size is not integer '
                 'for wavemap %s' % self._mapid)
-
-    @property
-    def n_data(self):
-        return len(self.datasets)
-
-    def get_target_idxs(self, channels=['Z']):
-
-        t2i = self.target_index_mapping()
-        dtargets = utility.gather(self.targets, lambda t: t.codes[3])
-
-        tidxs = []
-        for cha in channels:
-            tidxs.extend([t2i[target] for target in dtargets[cha]])
-
-        return tidxs
 
     def prepare_data(
             self, source, engine, outmode='array', chop_bounds=['b', 'c']):
@@ -3377,7 +3448,7 @@ class WaveformMapping(object):
         if hasattr(self, 'config'):
             arrival_times = num.zeros((self.n_t), dtype=tconfig.floatX)
             for i, target in enumerate(self.targets):
-                if self.name in target.arrival_times:
+                if self.name in target.arrival_times: ### Mahdi
                     arrival_times[i] = target.get_phase_arrival_time(
                         wavename=self.name, source=source, deltat=self.deltat)
                 else:
@@ -3403,7 +3474,13 @@ class WaveformMapping(object):
                 plot=False)
 
             if self.config.domain == 'spectrum':
-                self._prepared_data = fft_transforms(self._prepared_data, filterer=self.config.filterer, deltat=self.deltat, outmode=outmode, pad_to_pow2=True)
+                self._prepared_data = fft_transforms(
+                    self._prepared_data,
+                    filterer=self.config.filterer,
+                    deltat=self.deltat,
+                    outmode=outmode,
+                    pad_to_pow2=True)
+
             self._arrival_times = arrival_times
         else:
             raise ValueError('Wavemap needs configuration!')
@@ -3434,6 +3511,19 @@ class WaveformMapping(object):
             return shared(
                 self._prepared_data,
                 name='%s_data' % self.name, borrow=True)
+
+    def _check_specific_consistency(self):
+
+        if self.n_t == 0:
+            raise CollectionError(
+                'No data left in mapping "%s" after applying the distance '
+                'filter! Either (1) Adjust distance range (set "distances" '
+                ' parameter in beat.WaveformFitConfig, given in degrees '
+                ' epicentral distance) or (2) deactivate the wavemap '
+                'completely by setting include=False!' % self._mapid)
+        else:
+            logger.info('Consistent number of '
+                        'datasets and targets in %s wavemap!' % self._mapid)
 
 
 class CollectionError(Exception):
@@ -3575,14 +3665,15 @@ class DataWaveformCollection(object):
                 logger.warn(
                     'Dataset %s already in collection!' % str(nslc_id))
 
-
     @property
     def n_data(self):
         return len(self._datasets.keys())
 
     def get_waveform_mapping(
-            self, waveform, channels=['Z', 'T', 'R'], quantity='displacement', domain='time'):
+            self, waveform,
+            channels=['Z', 'T', 'R'], quantity='displacement', domain='time'):
 
+        ### Mahdi, need to sort domain stuff
         self._check_collection(waveform, errormode='not_in')
 
         dtargets = utility.gather(
@@ -3591,7 +3682,7 @@ class DataWaveformCollection(object):
         targets = []
         for cha in channels:
             targets.extend(dtargets[cha])
-        
+
         datasets = []
         discard_targets = []
         domain_targets = []
@@ -3599,10 +3690,11 @@ class DataWaveformCollection(object):
             nslc_id = target.codes
             target = target.return_domain_target(target=target, domain=domain)
             target.quantity = quantity
-            
+
             try:
                 dtrace = self._raw_datasets[nslc_id]
-                dtrace = dtrace.return_domain_trace(trace=dtrace, domain=domain)
+                dtrace = dtrace.return_domain_trace(
+                    trace=dtrace, domain=domain)
 
                 datasets.append(dtrace)
             except KeyError:
@@ -3638,6 +3730,7 @@ class DataWaveformCollection(object):
             targets=copy.deepcopy(targets),
             channels=channels,
             deltat=self._deltat)
+
 
 def concatenate_datasets(datasets):
     """

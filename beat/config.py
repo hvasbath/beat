@@ -223,6 +223,7 @@ def multi_event_stations_name(nevent=0):
 linear_gf_dir_name = 'linear_gfs'
 results_dir_name = 'results'
 fault_geometry_name = 'fault_geometry.pkl'
+phase_markers_name = 'phase_markers.txt'
 geodetic_linear_gf_name = 'linear_geodetic_gfs.pkl'
 
 sample_p_outname = 'sample.params'
@@ -235,6 +236,7 @@ km = 1000.
 _quantity_choices = ['displacement', 'velocity', 'acceleration']
 _interpolation_choices = ['nearest_neighbor', 'multilinear']
 _structure_choices = available_noise_structures()
+_domain_choices = ['time', 'spectrum']
 _mode_choices = [geometry_mode_str, ffi_mode_str]
 _regularization_choices = ['laplacian', 'none']
 _correlation_function_choices = ['nearest_neighbor', 'gaussian', 'exponential']
@@ -560,83 +562,6 @@ class GeodeticLinearGFConfig(LinearGFConfig):
     pass
 
 
-class ArrivalFitConfig(Object):
-
-    name = String.T(
-        default='any_P',
-        help='Seismic phase name for picked arrival times')
-    include = Bool.T(
-        default=False,
-        help='Whether to include this FitConfig to the estimation.')
-    binary_input = Bool.T(
-        default=False,
-        optional=True,
-        help='If data are included in seismic_data.pkl')
-    stations_arrivals = List.T(
-        List.T(String.T(), Float.T(), yamlstyle='flow'),
-        default=[['GE.ABCK', 10.0]],
-        yamlstyle='block',
-        help='Manual interface to enter arrival times to config as list '
-             'of entries. Entry format: '
-             '"Network.Station.Location.Channel", 10.0')
-    event_idx = Int.T(
-        default=0,
-        optional=True,
-        help='Index to event from events list for reference time and data '
-             'extraction. Default is 0 - always use the reference event.')
-
-    def get_station_names(self):
-        return [station_name_arr[0]
-                for station_name_arr in self.stations_arrivals]
-
-    def get_arrivals(self):
-        return num.array(
-            [station_name_arr[1]
-             for station_name_arr in self.stations_arrivals], dtype='float')
-
-    def get_arrival(self, station):
-        names = self.get_station_names()
-        index = names.index[station]
-        arrivals = self.get_arrivals()
-        return arrivals[index]
-
-class ArrivalConfig(Object):
-
-    def __init__(self, **kwargs):
-
-        waveforms = 'waveforms'
-        wavenames = kwargs.pop('wavenames', ['any_P'])
-        wavemaps = []
-        if waveforms not in kwargs:
-            for wavename in wavenames:
-                wavemaps.append(ArrivalFitConfig(name=wavename))
-
-            kwargs[waveforms] = wavemaps
-
-        Object.__init__(self, **kwargs)
-
-    def get_waveform_names(self):
-        return [ac.name for ac in self.waveforms]
-
-    def get_unique_channels(self):
-        cl = [ac.channels for ac in self.waveforms]
-        uc = []
-        for c in cl:
-            uc.extend(c)
-        return list(set(uc))
-
-    def init_waveforms(self, wavenames=['any_P']):
-        """
-        Initialise waveform configurations.
-        """
-        for wavename in wavenames:
-            self.waveforms.append(ArrivalFitConfig(name=wavename))
-
-    def get_arrivaltimes(self, station):
-        arrivaltimes = {}
-        for ac in self.waveforms:
-            arrivaltimes[ac.name] = ac.get_arrival(station)
-
 class WaveformFitConfig(Object):
     """
     Config for specific parameters that are applied to post-process
@@ -649,6 +574,11 @@ class WaveformFitConfig(Object):
         default=True,
         help='Flag to filter input data.')
     name = String.T('any_P')
+    arrivals_marker_path = String.T(
+        default=os.path.join('./', phase_markers_name),
+        help='Path to table of "PhaseMarker" containing arrival times of '
+             'waveforms at station(s) dumped by '
+             'pyrocko.gui.marker.save_markers.')
     blacklist = List.T(
         String.T(),
         default=[],
@@ -676,7 +606,10 @@ class WaveformFitConfig(Object):
         optional=True,
         help='Index to event from events list for reference time and data '
              'extraction. Default is 0 - always use the reference event.')
-    domain = StringChoice.T(choices=['time', 'spectrum'], default='time', help='type of trace')
+    domain = StringChoice.T(
+        choices=_domain_choices,
+        default='time',
+        help='type of trace')
 
 
 class SeismicNoiseAnalyserConfig(Object):
@@ -809,31 +742,19 @@ class PolarityFitConfig(Object):
     include = Bool.T(
         default=True,
         help='Whether to include this FitConfig to the estimation.')
-    binary_input = Bool.T(
-        default=False,
-        optional=True,
-        help='If data are included in seismic_data.pkl')
-    stations_polarities = List.T(
-        List.T(String.T(), Int.T(), yamlstyle='flow'),
-        default=[['GE.ABCK', 1]],
-        yamlstyle='block',
-        help='Manual interface to enter polarity data to config as list '
-             'of entries. Entry format: '
-             '"Network.Station.Location.Channel", 1 / -1')
+    polarities_marker_path = String.T(
+        default=os.path.join('./', phase_markers_name),
+        help='Path to table of "PhaseMarker" containing polarity of waveforms '
+             'at station(s) dumped by pyrocko.gui.marker.save_markers.')
+    blacklist = List.T(
+        String.T(),
+        default=[],
+        help='List of Network.Station name(s) for stations to be thrown out.')
     event_idx = Int.T(
         default=0,
         optional=True,
         help='Index to event from events list for reference time and data '
              'extraction. Default is 0 - always use the reference event.')
-
-    def get_station_names(self):
-        return [station_name_pol[0]
-                for station_name_pol in self.stations_polarities]
-
-    def get_polarities(self):
-        return num.array(
-            [station_name_pol[1]
-             for station_name_pol in self.stations_polarities], dtype='int')
 
 
 class PolarityConfig(Object):
