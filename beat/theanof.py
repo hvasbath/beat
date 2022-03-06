@@ -376,7 +376,7 @@ class SeisSynthesizer(theano.Op):
             2) of start times of the first waveform samples
                :class:`numpy.ndarray` (n x 1)
         """
-        
+        synths = output[0]
         tmins = output[1]
 
         point = {vname: i for vname, i in zip(self.varnames, inputs)}
@@ -395,32 +395,25 @@ class SeisSynthesizer(theano.Op):
             utility.update_source(source, **source_points[i])
             source.time += self.event.time
 
-        if self.domain == 'spectrum':
-            specs = output[0]
-            synths,_ = heart.seis_synthetics(
-                engine=self.engine,
-                sources=self.sources,
-                targets=self.targets,
-                arrival_taper=self.arrival_taper,
-                wavename=self.wavename,
-                filterer=self.filterer,
-                pre_stack_cut=self.pre_stack_cut,
-                arrival_times=arrival_times)
-        
-            specs[0] = heart.fft_transforms(
-                time_domain_signls=synths, 
+        synthetics, tmins[0] = heart.seis_synthetics(
+            engine=self.engine,
+            sources=self.sources,
+            targets=self.targets,
+            arrival_taper=self.arrival_taper,
+            wavename=self.wavename,
+            filterer=self.filterer,
+            pre_stack_cut=self.pre_stack_cut,
+            arrival_times=arrival_times)
+
+        if self.domain == 'time':
+            synths[0] = synthetics
+
+        elif self.domain == 'spectrum':
+            synths[0] = heart.fft_transforms(
+                time_domain_signls=synthetics,
                 filterer=self.filterer)
         else:
-            synths = output[0]
-            synths[0],_ = heart.seis_synthetics(
-                engine=self.engine,
-                sources=self.sources,
-                targets=self.targets,
-                arrival_taper=self.arrival_taper,
-                wavename=self.wavename,
-                filterer=self.filterer,
-                pre_stack_cut=self.pre_stack_cut,
-                arrival_times=arrival_times)
+            ValueError('Domain "%" not supported!' % self.domain)
 
     def infer_shape(self, node, input_shapes):
         nrow = len(self.targets)

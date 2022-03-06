@@ -42,6 +42,8 @@ r2d = 180. / num.pi
 near_field_threshold = 9.  # [deg] below that surface waves are calculated
 nanostrain = 1e-9
 
+stackmodes = ['array', 'data', 'stacked_traces', 'tapered_data']
+
 
 lambda_sensors = {
     'Envisat': 0.056,       # needs updating- no ressource file
@@ -442,7 +444,8 @@ class SeismicResult(Object):
     source_contributions = List.T(
         Trace.T(),
         help='synthetics of source individual contributions.')
-    domain = StringChoice.T(choices=['time', 'spectrum'], default='time', help='type of trace')
+    domain = StringChoice.T(
+        choices=['time', 'spectrum'], default='time', help='type of trace')
 
     @property
     def processed_syn(self):
@@ -855,16 +858,6 @@ class SeismicDataset(trace.Trace):
     covariance = None
     domain = 'time'
 
-    def __init__(self, network='', station='STA', location='', channel='',
-                 tmin=0., tmax=None, deltat=1., ydata=None, mtime=None,
-                 meta=None, domain='time'):
-        
-        super(SeismicDataset, self).__init__(network=network, station=station, location=location, 
-                                             channel=channel, tmin=tmin, tmax=tmax, deltat=deltat,
-                                             ydata=ydata, mtime=mtime, meta=meta)
-        
-        self.domain = domain
-
     @property
     def samples(self):
         if self.covariance.data is not None:
@@ -891,7 +884,7 @@ class SeismicDataset(trace.Trace):
             location=trace.location,
             channel=trace.channel,
             network=trace.network,
-            deltat=trace.delta)
+            deltat=trace.deltat)
         return cls(**d)
 
     def __getstate__(self):
@@ -908,23 +901,9 @@ class SeismicDataset(trace.Trace):
         self._update_ids()
 
     @property
-    def trace_id_str(self):
-        return utility.list2string([self.network, self.station, self.location, self.channel] + [self.domain])
-
-    @classmethod
-    def return_domain_trace(cls, trace, domain):
-        d = dict(
-        tmin=trace.tmin,
-        tmax=trace.tmax,
-        ydata=trace.ydata,
-        station=trace.station,
-        location=trace.location,
-        channel=trace.channel,
-        network=trace.network,
-        deltat=trace.deltat,
-        domain=domain)
-
-        return trace_domains[domain](**d)
+    def nslcd_id(self):
+        return (self.network, self.station, self.location,
+                self.channel, self.domain)
 
 
 class SpectrumDataset(SeismicDataset):
@@ -936,30 +915,32 @@ class SpectrumDataset(SeismicDataset):
     fmin = Float.T(default=0.0)
     fmax = Float.T(default=5.0)
     deltaf = Float.T(default=0.1)
-    
+
     def __init__(self, network='', station='STA', location='', channel='',
                  tmin=0., tmax=None, deltat=1., ydata=None, mtime=None,
-                 meta=None, fmin=0.0, fmax=5.0, deltaf=0.1, domain='spectrum'):
-        
-        super(SpectrumDataset, self).__init__(network=network, station=station, location=location, 
-                                             channel=channel, tmin=tmin, tmax=tmax, deltat=deltat,
-                                             ydata=ydata, mtime=mtime, meta=meta, domain=domain)
-        
+                 meta=None, fmin=0.0, fmax=5.0, deltaf=0.1):
+
+        super(SpectrumDataset, self).__init__(
+            network=network, station=station, location=location,
+            channel=channel, tmin=tmin, tmax=tmax, deltat=deltat,
+            ydata=ydata, mtime=mtime, meta=meta)
+
         self.fmin = fmin
         self.fmax = fmax
         self.deltaf = deltaf
-    
+        self.domain = 'spectrum'
+
     def __getstate__(self):
         return (self.network, self.station, self.location, self.channel,
                 self.tmin, self.tmax, self.deltat, self.mtime,
-                self.ydata, self.meta, self.wavename, self.covariance, 
-                self.fmin, self.fmax, self.deltaf, self.domain)
+                self.ydata, self.meta, self.wavename, self.covariance,
+                self.fmin, self.fmax, self.deltaf)
 
     def __setstate__(self, state):
         self.network, self.station, self.location, self.channel, \
-                self.tmin, self.tmax, self.deltat, self.mtime, \
-                self.ydata, self.meta, self.wavename, self.covariance, \
-                self.fmin, self.fmax, self.deltaf, self.domain = state
+            self.tmin, self.tmax, self.deltat, self.mtime, \
+            self.ydata, self.meta, self.wavename, self.covariance, \
+            self.fmin, self.fmax, self.deltaf = state
 
         self._growbuffer = None
         self._update_ids()
@@ -970,40 +951,19 @@ class SpectrumDataset(SeismicDataset):
 
         return num.arange(len(self.ydata), dtype=num.float64) * self.deltaf
 
-
-trace_domains = {'time': SeismicDataset,
-                'spectrum': SpectrumDataset}
+    @property
+    def nslcd_id(self):
+        return (self.network, self.station, self.location,
+                self.channel, self.domain)
 
 
 class BasicTarget(gf.Target):
 
-    results = List.T(SeismicResult.T(), default=[], help='List of results')
-    synths = List.T(SeismicDataset.T(), default=[], help='List of synthics')
-    var_reductions = List.T(Float.T(), default=[], help='List of variance reductions')
-    time_shifts = List.T(Float.T(), default=[], help='List of time shifts')
-    spectarget = None
-    arrival_times = Dict.T(default={}, optional=True)
     response = trace.PoleZeroResponse.T(default=None, optional=True)
-    domain = StringChoice.T(choices=['time', 'spectrum'], default='time', help='type of target')
-
-    @classmethod
-    def return_domain_target(self, target, domain):
-        
-        d = dict(quantity=target.quantity,
-                codes=target.codes,
-                lat=target.lat,
-                lon=target.lon,
-                azimuth=target.azimuth,
-                dip=target.dip,
-                interpolation=target.interpolation,
-                store_id=target.store_id,
-                domain=domain)
-        
-        return target_domains[domain](**d)
 
     @property
-    def target_id_str(self):
-        return utility.list2string(list(self.codes) + [self.domain])
+    def nslcd_id(self):
+        return tuple(list(self.codes) + [self.domain])
 
     def update_response(self, magnification, damping, period):
         z, p, k = proto2zpk(
@@ -1039,18 +999,13 @@ class BasicTarget(gf.Target):
             tolerance = 2 * (taperer.b - taperer.a)
             self.tmin = taperer.a - tolerance
             self.tmax = taperer.d + tolerance
-    
-    def get_phase_arrival_time(self, source, wavename='any_P', deltat=0.1, snap=True):
-
-        atime = self.arrival_times[wavename] + source.time
-
-        if snap:
-            atime = trace.t2ind(atime, deltat, snap=round) * deltat
-        
-        return atime
 
 
 class DynamicTarget(BasicTarget):
+
+    @property
+    def domain(self):
+        return 'time'
 
     def plot_waveformfits(self, axes, axes2, plotoptions, source, 
         synth_plot_flag, absmax, mode, tap_color_edge, mpl_graph_color,
@@ -1187,9 +1142,13 @@ class DynamicTarget(BasicTarget):
 
 
 class SpectrumTarget(BasicTarget):
-    
+
+    @property
+    def domain(self):
+        return 'spectrum'
+
     def plot_waveformfits(self, axes, plotoptions, 
-        synth_plot_flag, lowest_corner, uppest_corner, allaxe,
+        synth_plot_flag, lowest_corner, highest_corner, allaxe,
         fontsize, syn_color, obs_color, misfit_color, tap_color_annot):
         from beat import plotting
         from mpl_toolkits.axes_grid1.inset_locator import inset_axes
@@ -1398,7 +1357,7 @@ class SpectrumTarget(BasicTarget):
             if plotoptions.nensemble > 1:
                 fuzzy_spectra(axes=axes, data=self.synths,
                                 best_result=self.results[0],
-                                lower_corner=lowest_corner, upper_corner=uppest_corner,
+                                lower_corner=lowest_corner, upper_corner=highest_corner,
                                 allaxe=allaxe, grid_size=(500, 500), alpha=1.0, zorder=0,
                                 linewidth=3.0, syn_color=syn_color, obs_color=obs_color, 
                                 misfit_color=misfit_color, tap_color_annot=tap_color_annot)
@@ -1417,7 +1376,7 @@ class SpectrumTarget(BasicTarget):
             else:
                 plot_spectrum(axes=axes, data=self.results[0], 
                             lower_corner=lowest_corner, 
-                            upper_corner=uppest_corner,
+                            upper_corner=highest_corner,
                             syn_color=syn_color, obs_color=obs_color, 
                             misfit_color=misfit_color, tap_color_annot=tap_color_annot)
         else:
@@ -1430,7 +1389,7 @@ class SpectrumTarget(BasicTarget):
             if plotoptions.nensemble > 1:
                 fuzzy_spectra(axes=in_ax, data=self.synths,
                                 best_result=self.results[0],
-                                lower_corner=lowest_corner, upper_corner=uppest_corner,
+                                lower_corner=lowest_corner, upper_corner=highest_corner,
                                 grid_size=(500, 500), alpha=1.0, zorder=0,
                                 linewidth=3.0, allaxe=allaxe, syn_color=syn_color, obs_color=obs_color, 
                                 misfit_color=misfit_color, tap_color_annot=tap_color_annot)
@@ -1448,13 +1407,20 @@ class SpectrumTarget(BasicTarget):
             else:
                 plot_spectrum(axes=in_ax, data=self.results[0], 
                             lower_corner=lowest_corner, 
-                            upper_corner=uppest_corner,
+                            upper_corner=highest_corner,
                             syn_color=syn_color, obs_color=obs_color, 
                             misfit_color=misfit_color, tap_color_annot=tap_color_annot)
 
 
-target_domains = {'time': DynamicTarget,
-                'spectrum': SpectrumTarget}
+target_domains = {
+    'time': DynamicTarget,
+    'spectrum': SpectrumTarget}
+
+
+def init_domain_target(target, domain):
+    tdict = target.__dict__
+    tdict.pop('_latlon')
+    return target_domains[domain](**tdict)
 
 
 class GeodeticDataset(gf.meta.MultiLocation):
@@ -1951,7 +1917,6 @@ def init_seismic_targets(
     em_name = get_earth_model_prefix(earth_model_name)
 
     targets = []
-    arrivaltimes = []
     for sta_num, station in enumerate(stations):
         for channel in channels:
             for crust_ind in crust_inds:
@@ -1961,9 +1926,6 @@ def init_seismic_targets(
                         'Channel "%s" for station "%s" does not exist!'
                         % (channel, station.station))
                 else:
-                    if arrivaltime_config:
-                        stationname = '%s.%s'%(station.network,station.station)
-                        arrivaltimes = arrivaltime_config.get_arrivaltimes(stationname)
                     targets.append(BasicTarget(
                         quantity='displacement',
                         codes=(station.network,
@@ -1978,8 +1940,7 @@ def init_seismic_targets(
                             store_prefixes[sta_num],
                             em_name,
                             sample_rate,
-                            crust_ind),
-                        arrival_times=arrivaltimes))
+                            crust_ind)))
 
     return targets
 
@@ -3086,6 +3047,19 @@ class BaseMapping(object):
 
         self._station2index = None
         self._target2index = None
+        self._phase_markers = None
+
+    def _load_phase_markers(self, path):
+        from pyrocko.gui.markers import load_markers
+
+        if self._phase_markers is None:
+            try:
+                self._phase_markers = load_markers(path)
+            except FileNotFoundError:
+                raise IOError(
+                    'Phase markers file under %s was not found!' % path)
+
+        return self._phase_markers
 
     def target_index_mapping(self):
         if self._target2index is None:
@@ -3145,26 +3119,17 @@ class PolarityMapping(BaseMapping):
         BaseMapping.__init__(self, stations, targets)
 
         self.config = config
-
         self.dataset = None
 
         self._prepared_data = None
         self._radiation_weights = None
 
-    def _load_polarity_markers(self):
-        from pyrocko.gui.markers import load_markers
-
-        if self.dataset is None:
-            try:
-                self.dataset = load_markers(self.polarities_marker_path)
-            except FileNotFoundError:
-                raise IOError(
-                    'Phase markers file under %s was not'
-                    ' found!' % self.polarities_marker_path)
-
-        return self.dataset
-
     def get_station_names_data(self):
+
+        if self.datasets is None:
+            self.datasets = self._load_phase_markers(
+                self.config.polarities_marker_path)
+
         station_names = []
         for polarity_marker in self.dataset:
             nslc_id = polarity_marker.one_nslc()
@@ -3173,6 +3138,11 @@ class PolarityMapping(BaseMapping):
         return station_names
 
     def get_polarities(self):
+
+        if self.datasets is None:
+            self.datasets = self._load_phase_markers(
+                self.config.polarities_marker_path)
+
         return num.array(
             [polarity_marker.get_polarity()
                 for polarity_marker in self.datasets], dtype='int16')
@@ -3313,7 +3283,7 @@ class WaveformMapping(BaseMapping):
     targets : list
         of :class:`pyrocko.gf.target.Target`
     """
-    def __init__(self, name, stations, weights=None, channels=['Z'],
+    def __init__(self, name, config, stations, weights=None, channels=['Z'],
                  datasets=[], targets=[], deltat=None):
 
         BaseMapping.__init__(self, stations, targets)
@@ -3327,7 +3297,7 @@ class WaveformMapping(BaseMapping):
         self._arrival_times = None
 
         self.deltat = deltat
-        self.config = None
+        self.config = config
 
         if self.datasets is not None:
             self._update_trace_wavenames()
@@ -3434,6 +3404,18 @@ class WaveformMapping(BaseMapping):
                 'hyperparameter size is not integer '
                 'for wavemap %s' % self._mapid)
 
+    def get_marker_arrival_times(self):
+
+        if self._phase_markers is None:
+            self._load_phase_markers(self.config.arrivals_marker_path)
+
+        arrival_time_dict = OrderedDict()
+        for phase_marker in self._phase_markers:
+            nslc_id = phase_marker.one_nslc()
+            arrival_time_dict[nslc_id] = phase_marker.tmin
+
+        return arrival_time_dict
+
     def prepare_data(
             self, source, engine, outmode='array', chop_bounds=['b', 'c']):
         """
@@ -3442,16 +3424,24 @@ class WaveformMapping(BaseMapping):
         """
         if self._prepared_data is not None:
             logger.debug(
-                'Overwriting observed data windows in "%s"!' %
-                (self.name + '_' + str(self.mapnumber)))
+                'Overwriting observed data windows in "%s"!' % self._mapid)
 
         if hasattr(self, 'config'):
             arrival_times = num.zeros((self.n_t), dtype=tconfig.floatX)
+            marker_arrival_times = self.get_marker_arrival_times()
+            ncustom_times = len(marker_arrival_times)
+            if ncustom_times > 0:
+                logger.info('Found %i custom arrival times for "%s"' % (
+                    ncustom_times, self._mapid))
+            else:
+                logger.info('Using theoretical arrival times for '
+                            '"%s"' % self._mapid)
+
             for i, target in enumerate(self.targets):
-                if self.name in target.arrival_times: ### Mahdi
-                    arrival_times[i] = target.get_phase_arrival_time(
-                        wavename=self.name, source=source, deltat=self.deltat)
-                else:
+                try:
+                    arrival_times[i] = marker_arrival_times[target.codes]
+
+                except KeyError:
                     arrival_times[i] = get_phase_arrival_time(
                         engine=engine, source=source,
                         target=target, wavename=self.name)
@@ -3477,7 +3467,6 @@ class WaveformMapping(BaseMapping):
                 self._prepared_data = fft_transforms(
                     self._prepared_data,
                     filterer=self.config.filterer,
-                    deltat=self.deltat,
                     outmode=outmode,
                     pad_to_pow2=True)
 
@@ -3669,9 +3658,7 @@ class DataWaveformCollection(object):
     def n_data(self):
         return len(self._datasets.keys())
 
-    def get_waveform_mapping(
-            self, waveform,
-            channels=['Z', 'T', 'R'], quantity='displacement', domain='time'):
+    def get_waveform_mapping(self, waveform, config):
 
         ### Mahdi, need to sort domain stuff
         self._check_collection(waveform, errormode='not_in')
@@ -3680,7 +3667,7 @@ class DataWaveformCollection(object):
             self._targets.values(), lambda t: t.codes[3])
 
         targets = []
-        for cha in channels:
+        for cha in config.channels:
             targets.extend(dtargets[cha])
 
         datasets = []
@@ -3688,14 +3675,11 @@ class DataWaveformCollection(object):
         domain_targets = []
         for target in targets:
             nslc_id = target.codes
-            target = target.return_domain_target(target=target, domain=domain)
-            target.quantity = quantity
+            target = init_domain_target(target=target, domain=config.domain)
+            target.quantity = config.quantity
 
             try:
                 dtrace = self._raw_datasets[nslc_id]
-                dtrace = dtrace.return_domain_trace(
-                    trace=dtrace, domain=domain)
-
                 datasets.append(dtrace)
             except KeyError:
                 logger.warn(
@@ -3725,10 +3709,11 @@ class DataWaveformCollection(object):
 
         return WaveformMapping(
             name=waveform,
+            config=config,
             stations=copy.deepcopy(self.stations),
             datasets=copy.deepcopy(datasets),
             targets=copy.deepcopy(targets),
-            channels=channels,
+            channels=config.channels,
             deltat=self._deltat)
 
 
@@ -3837,10 +3822,8 @@ def init_wavemap(
     wmap : :class:`WaveformMapping`
     """
     wc = waveformfit_config
-        
-    wmap = datahandler.get_waveform_mapping(
-        wc.name, channels=wc.channels, quantity=wc.quantity, domain=wc.domain)
-    wmap.config = wc
+
+    wmap = datahandler.get_waveform_mapping(wc.name, config=wc)
     wmap.mapnumber = mapnumber
 
     wmap.config.arrival_taper.check_sample_rate_consistency(
@@ -4000,7 +3983,6 @@ def seis_synthetics(
          with data each row-one target
     :class:`numpy.ndarray` of tmins for traces
     """
-    stackmodes = ['array', 'data', 'stacked_traces', 'tapered_data']
 
     if outmode not in stackmodes:
         raise StackingError(
@@ -4135,7 +4117,7 @@ def seis_synthetics(
         return outstack, tmins
 
     else:
-       raise TypeError('Outmode %s not supported!' % outmode)
+        raise TypeError('Outmode %s not supported!' % outmode)
 
 
 def radiation_weights_p(takeoff_angles, azimuths):
@@ -4335,65 +4317,59 @@ def pol_synthetics(
     return radiation_weights.T.dot(to6(m9))
 
 
-def fft_transforms(time_domain_signls, filterer=None, deltat=None, outmode='array', pad_to_pow2=True):
+def fft_transforms(
+        time_domain_signals, filterer=None, outmode='array', pad_to_pow2=True):
+
+    if outmode not in stackmodes:
+        raise StackingError(
+            'Outmode "%s" not available! Available: %s' % (
+                outmode, utility.list2string(stackmodes)))
 
     if outmode == 'array':
-        n_data, n_samples = num.shape(time_domain_signls)
+        n_data, n_samples = num.shape(time_domain_signals)
         if pad_to_pow2:
-            n_samples = trace.nextpow2(n_samples) 
+            n_samples = trace.nextpow2(n_samples)
         n_samples = int(n_samples // 2) + 1
         spec_signals = num.zeros((n_data, n_samples), dtype=tconfig.floatX)
     else:
-        n_data = len(time_domain_signls)
+        n_data = len(time_domain_signals)
         spec_signals = [None] * n_data
 
-    for i, tr in enumerate(time_domain_signls):
-        
-        if isinstance(tr, num.ndarray):
+    for i, tr in enumerate(time_domain_signals):
+
+        if outmode == 'array':
             n_samples = len(tr)
             ydata = tr
-            
+
             if pad_to_pow2:
                 ntrans = trace.nextpow2(n_samples)
             else:
                 ntrans = n_samples
-            
+
             fydata = num.fft.rfft(ydata, ntrans)
-
             spec_signals[i] = num.abs(fydata)
-        
-        elif isinstance(tr, trace.Trace):
 
-            fxdata, fydata = tr.spectrum(True, 0.05)
+        elif outmode in ['data', 'tapered_data', 'stacked_traces']:
+            fxdata, fydata = tr.spectrum(pad_to_pow2, 0.05)
             df = fxdata[1] - fxdata[0]
-            spec_signals[i] = SpectrumDataset(ydata=num.abs(fydata), 
-                                             deltaf=df,
-                                             fmin=fxdata[0],
-                                             fmax=fxdata[-1],
-                                             deltat=tr.deltat, 
-                                             tmin=tr.tmin, 
-                                             tmax=tr.tmax,
-                                             channel=tr.channel,
-                                             station=tr.station,
-                                             network=tr.network,
-                                             location=tr.location)
+            spec_tr = SpectrumDataset(
+                ydata=num.abs(fydata),
+                deltaf=df,
+                fmin=fxdata[0],
+                fmax=fxdata[-1],
+                deltat=tr.deltat,
+                tmin=tr.tmin,
+                tmax=tr.tmax,
+                channel=tr.channel,
+                station=tr.station,
+                network=tr.network,
+                location=tr.location)
 
-        elif isinstance(tr, list):
-            
-            fxdata, fydata = tr[0].spectrum(True, 0.05)
-            df = fxdata[1] - fxdata[0]
-            spec_signals[i] = [SpectrumDataset(ydata=num.abs(fydata), 
-                                              deltaf=df,
-                                              fmin=fxdata[0],
-                                              fmax=fxdata[-1],                                              
-                                              deltat=tr[0].deltat, 
-                                              tmin=tr[0].tmin, 
-                                              tmax=tr[0].tmax,
-                                              channel=tr[0].channel,
-                                              station=tr[0].station,
-                                              network=tr[0].network,
-                                              location=tr[0].location)]
-        
+            if outmode == 'tapered_data':
+                spec_signals[i] = [spec_tr]
+            else:
+                spec_signals[i] = spec_tr
+
         else:
             raise TypeError('Outmode %s not supported!' % outmode)
 

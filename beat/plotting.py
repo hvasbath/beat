@@ -1680,7 +1680,7 @@ def extract_time_shifts(point, wmap):
         time_shifts = [0] * wmap.n_t
     return time_shifts
 
-            
+
 def seismic_fits(problem, stage, plot_options):
     """
     Modified from grond. Plot synthetic and data waveforms and the misfit for
@@ -1698,8 +1698,12 @@ def seismic_fits(problem, stage, plot_options):
 
     composite = problem.composites['seismic']
 
-    lowest_corner = num.min([[filterer.get_lower_corner() for filterer in wmap.filterer] for wmap in problem.config.seismic_config.waveforms ])
-    uppest_corner = num.max([[filterer.get_upper_corner() for filterer in wmap.filterer] for wmap in problem.config.seismic_config.waveforms ])
+    lowest_corner = num.min(
+        [[filterer.get_lower_corner() for filterer in wmap.filterer]
+            for wmap in problem.config.seismic_config.waveforms])
+    highest_corner = num.max(
+        [[filterer.get_upper_corner() for filterer in wmap.filterer]
+            for wmap in problem.config.seismic_config.waveforms])
 
     fontsize = 8
     fontsize_title = 10
@@ -1736,7 +1740,7 @@ def seismic_fits(problem, stage, plot_options):
         bresults = composite.assemble_results(
             best_point, chop_bounds=chop_bounds)
         synth_plot_flag = False
-             
+
     composite.analyse_noise(best_point, chop_bounds=chop_bounds)
     composite.update_weights(best_point, chop_bounds=chop_bounds)
     if plot_options.nensemble > 1:
@@ -1773,12 +1777,11 @@ def seismic_fits(problem, stage, plot_options):
         allvar_reductions = []
 
         i = target_index[target]
-        
-        nslc_id_str = target.target_id_str             
+
+        nslcd_id = target.nslcd_id
         allresults.append(bresults[i])
         synths.append(bresults[i].processed_syn)
-        allvar_reductions.append(
-            bvar_reductions[nslc_id_str])
+        allvar_reductions.append(bvar_reductions[nslcd_id])
 
         if plot_options.nensemble > 1:
             for results, var_reductions in zip(
@@ -1787,8 +1790,8 @@ def seismic_fits(problem, stage, plot_options):
 
                 allresults.append(results[i])
                 synths.append(results[i].processed_syn)
-                allvar_reductions.append(
-                    var_reductions[nslc_id_str])
+                allvar_reductions.append(var_reductions[nslcd_id])
+
         target.results = allresults
         target.synths = synths
         target.var_reductions = num.array(allvar_reductions) * 100.
@@ -1813,8 +1816,8 @@ def seismic_fits(problem, stage, plot_options):
                     num.hstack(comp_time_shifts))
 
         btime_shifts = num.hstack(
-            [extract_time_shifts(best_point, wmap) 
-            for wmap in composite.wavemaps ])
+            [extract_time_shifts(best_point, wmap)
+                for wmap in composite.wavemaps])
 
         logger.info('Mapping time-shifts to targets ...')
 
@@ -1833,20 +1836,21 @@ def seismic_fits(problem, stage, plot_options):
 
     plotted_spectargets = []
     for target in composite.targets:
-        nslc_id = utility.list2string(target.codes[:3])                
+        nslc_id = utility.list2string(target.codes[:3])
         if isinstance(target, DynamicTarget) and \
             nslc_id in spectrum_targets and \
                 nslc_id not in plotted_spectargets:
-                target.spectarget = spectrum_targets[nslc_id]
-                plotted_spectargets.append(spectrum_targets[nslc_id].target_id_str)
+
+            target.spectarget = spectrum_targets[nslc_id]
+            plotted_spectargets.append(spectrum_targets[nslc_id].nslcd_id)
 
     skey = lambda tr: tr.channel
-    
+
     # plot remaining targets
     cg_to_targets = utility.gather(
         composite.targets,
         lambda t: t.codes[3],
-        filter=lambda t: t.target_id_str not in plotted_spectargets)
+        filter=lambda t: t.nslcd_id not in plotted_spectargets)
 
     cgs = cg_to_targets.keys()
 
@@ -1854,10 +1858,10 @@ def seismic_fits(problem, stage, plot_options):
     logger.info('Plotting waveforms ...')
     for cg in cgs:
         targets = cg_to_targets[cg]
-                
+
         # can keep from here ... until
         nframes = len(targets)
-        
+
         nx = int(math.ceil(math.sqrt(nframes)))
         ny = (nframes - 1) // nx + 1
 
@@ -1918,7 +1922,7 @@ def seismic_fits(problem, stage, plot_options):
             availmask[iframe] = False
             iy, ix = num.unravel_index(iframe, (ny, nx))
             frame_to_target[iy, ix] = target
-                        
+
         figures = {}
         for iy in range(ny):
             for ix in range(nx):
@@ -1944,7 +1948,7 @@ def seismic_fits(problem, stage, plot_options):
                 logger.debug('iyy %i, ixx %i' % (iyy, ixx))
                 logger.debug('iy %i, ix %i' % (iy, ix))
                 fig = figures[iyy, ixx]
-                
+
                 target = frame_to_target[iy, ix]
 
                 itarget = target_index[target]
@@ -1956,7 +1960,7 @@ def seismic_fits(problem, stage, plot_options):
                     key=skey)[key]
                 # need target specific minmax
                 absmax = max(abs(amin), abs(amax))
-                
+
                 ny_this = nymax  # min(ny, nymax)
                 nx_this = nxmax  # min(nx, nxmax)
                 i_this = (iy % ny_this) * nx_this + (ix % nx_this) + 1
@@ -1981,7 +1985,7 @@ def seismic_fits(problem, stage, plot_options):
                         'These traces contain NaN or Inf open in snuffler?')
                     input('Press enter! Otherwise Ctrl + C')
                     from pyrocko.trace import snuffle
-                    snuffle(target.synths)        
+                    snuffle(target.synths)
                     
                 if isinstance(target, DynamicTarget):
                     target.plot_waveformfits(axes=axes, axes2=axes2, plotoptions=po, source=source,
@@ -1992,12 +1996,12 @@ def seismic_fits(problem, stage, plot_options):
 
                     if target.spectarget:
                         target.spectarget.plot_waveformfits(axes=axes2, plotoptions=po, synth_plot_flag=synth_plot_flag,
-                                        lowest_corner=lowest_corner, uppest_corner=uppest_corner, fontsize=fontsize, allaxe=False,
+                                        lowest_corner=lowest_corner, highest_corner=highest_corner, fontsize=fontsize, allaxe=False,
                                         syn_color=syn_color, obs_color=obs_color, misfit_color=misfit_color, tap_color_annot=tap_color_annot)
 
                 elif isinstance(target, SpectrumTarget):
                     target.plot_waveformfits(axes=axes, plotoptions=po, synth_plot_flag=synth_plot_flag,
-                            lowest_corner=lowest_corner, uppest_corner=uppest_corner, fontsize=fontsize, allaxe=True,
+                            lowest_corner=lowest_corner, highest_corner=highest_corner, fontsize=fontsize, allaxe=True,
                             syn_color=syn_color, obs_color=obs_color, misfit_color=misfit_color, tap_color_annot=tap_color_annot)
     
                 scale_string = None
