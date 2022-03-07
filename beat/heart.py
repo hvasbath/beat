@@ -1239,10 +1239,10 @@ class SpectrumTarget(BasicTarget):
             grid = num.zeros(grid_size, dtype='float64')
             
             fxdata = data[0].get_xdata()
-            lower = num.argwhere(fxdata<lower_corner/2)[0][0]
+            lower = num.argwhere(fxdata < lower_corner/2)[0][0]
             
-            if fxdata[-1]>2*upper_corner:
-                upper = num.argwhere(fxdata>2*upper_corner)[0][0]
+            if fxdata[-1] > 2 * upper_corner:
+                upper = num.argwhere(fxdata > 2 * upper_corner)[0][0]
             else:
                 upper = num.argwhere(fxdata==fxdata[-1])[0][0]
 
@@ -1278,12 +1278,10 @@ class SpectrumTarget(BasicTarget):
             resdata[0] = 0
             resdata[-1] = 0
 
-            axes.plot(fxdata[lower:upper], syndata,
-                        color=syn_color, lw=0.5)
-            axes.plot(fxdata[lower:upper], obsdata, 
-                        color=obs_color, lw=1.0)
+            axes.plot(fxdata[lower:upper], syndata, color=syn_color, lw=0.5)
+            axes.plot(fxdata[lower:upper], obsdata, color=obs_color, lw=1.0)
             axes.fill(fxdata[lower:upper], resdata,
-                        clip_on=False, color=misfit_color, lw=0.5, alpha=0.3)
+                clip_on=False, color=misfit_color, lw=0.5, alpha=0.3)
 
             plotting.format_axes(axes)
             axes.yaxis.set_visible(False)
@@ -1293,65 +1291,44 @@ class SpectrumTarget(BasicTarget):
             axes.spines['bottom'].set_visible(False)
             
             if allaxe:
-
-                for tmark, ybound in zip([fxdata[lower], fxdata[upper-1]], [0.6*ymax, 0.6*ymax]):
-                    axes.plot(
-                        [tmark, tmark], [0.0, ybound], color=tap_color_annot, lw=0.75)
-
-                # annotate axis amplitude
-                axes.annotate(
-                    '%0.3g -' % (ymax),
-                    xycoords='data',
-                    xy=(fxdata[upper-1], 0.45*ymax),
-                    xytext=(1., 1.),
-                    textcoords='offset points',
-                    ha='right',
-                    va='center',
-                    fontsize=fontsize - 3,
-                    color=obs_color,
-                    fontstyle='normal')
-
-                axes.annotate(
-                    '$ f \ |\ ^{%0.1g}_{%0.1g} \ $' % (fxdata[lower], fxdata[upper]),
-                    xycoords='data',
-                    xy=(fxdata[upper-1], 0.2*ymax),
-                    xytext=(1., 1.),
-                    textcoords='offset points',
-                    ha='right',
-                    va='center',
-                    fontsize=fontsize+1,
-                    color=obs_color,
-                    fontstyle='normal')
-
+                ybounds = [0.6*ymax, 0.6*ymax]
+                ymax_factor_amp = 0.45
+                ymax_factor_f = 0.2
             else:
+                ybounds = [0.5*ymax, ymax]
+                ymax_factor_amp = 0.9
+                ymax_factor_f = 0.4
 
-                for tmark, ybound in zip([fxdata[lower], fxdata[upper-1]], [0.5*ymax, ymax]):
-                    axes.plot(
-                        [tmark, tmark], [0.0, ybound], color=tap_color_annot, lw=0.75)
-                # annotate axis amplitude
-                axes.annotate(
-                    '%0.3g -' % (ymax),
-                    xycoords='data',
-                    xy=(fxdata[upper-1], 0.9*ymax),
-                    xytext=(1., 1.),
-                    textcoords='offset points',
-                    ha='right',
-                    va='center',
-                    fontsize=fontsize - 3,
-                    color=obs_color,
-                    fontstyle='normal')
+            for tmark, ybound in zip(
+                    [fxdata[lower], fxdata[upper-1]], ybounds):
+                axes.plot(
+                    [tmark, tmark], [0.0, ybound], color=tap_color_annot, lw=0.75)
 
-                axes.annotate(
-                    '$ f \ |\ ^{%0.1g}_{%0.1g} \ $' % (fxdata[lower], fxdata[upper]),
-                    xycoords='data',
-                    xy=(fxdata[upper-1], 0.4*ymax),
-                    xytext=(1., 1.),
-                    textcoords='offset points',
-                    ha='right',
-                    va='center',
-                    fontsize=fontsize+1,
-                    color=obs_color,
-                    fontstyle='normal')
+            # annotate axis amplitude
+            axes.annotate(
+                '%0.3g -' % (ymax),
+                xycoords='data',
+                xy=(fxdata[upper - 1], ymax_factor_amp * ymax),
+                xytext=(1., 1.),
+                textcoords='offset points',
+                ha='right',
+                va='center',
+                fontsize=fontsize - 3,
+                color=obs_color,
+                fontstyle='normal')
+
+            axes.annotate(
+                '$ f \ |\ ^{%0.1g}_{%0.1g} \ $' % (
+                    fxdata[lower], fxdata[upper]),
+                xycoords='data',
+                xy=(fxdata[upper - 1], ymax_factor_f * ymax),
+                xytext=(1., 1.),
+                textcoords='offset points',
+                ha='right',
+                va='center',
+                fontsize=fontsize + 1,
+                color=obs_color,
+                fontstyle='normal')
                     
         if allaxe:
             if plotoptions.nensemble > 1:
