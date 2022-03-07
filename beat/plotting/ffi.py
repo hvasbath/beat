@@ -1,3 +1,23 @@
+import logging
+import os
+
+import numpy as num
+
+from matplotlib import pyplot as plt
+from matplotlib.patches import Rectangle, FancyArrow
+from matplotlib.collections import PatchCollection
+from matplotlib.ticker import MaxNLocator
+
+from beat import utility
+from beat.models import Stage, load_stage
+from beat.config import ffi_mode_str
+
+from pyrocko.cake_plot import str_to_mpl_color as scolor
+from pyrocko.plot import mpl_papersize, mpl_init, mpl_graph_color, mpl_margins
+from pyrocko import orthodrome as otd
+
+
+logger = logging.getLogger('plotting.ffi')
 
 
 def fuzzy_moment_rate(
@@ -413,8 +433,8 @@ def fault_slip_distribution(
         ax.set_xlabel('strike-direction [km]', fontsize=fontsize)
         ax.set_ylabel('dip-direction [km]', fontsize=fontsize)
 
-        xticker = tick.MaxNLocator(nbins=ntickmarks)
-        yticker = tick.MaxNLocator(nbins=ntickmarks)
+        xticker = MaxNLocator(nbins=ntickmarks)
+        yticker = MaxNLocator(nbins=ntickmarks)
 
         ax.get_xaxis().set_major_locator(xticker)
         ax.get_yaxis().set_major_locator(yticker)
@@ -430,7 +450,7 @@ def fault_slip_distribution(
         cbaxes = fig.add_axes([0.88, 0.4, 0.03, 0.3])
         cb = fig.colorbar(cb_related, ax=axs, cax=cbaxes)
         cb.set_label(labeltext, fontsize=fontsize)
-        cb.locator = tick.MaxNLocator(nbins=ntickmarks)
+        cb.locator = MaxNLocator(nbins=ntickmarks)
         cb.update_ticks()
         ax.set_aspect('equal', adjustable='box')
 

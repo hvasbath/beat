@@ -220,6 +220,7 @@ subpackages = [
     'beat.voronoi',
     'beat.sampler',
     'beat.models',
+    'beat.plotting',
     'beat.ffi',
     'beat.apps']
 

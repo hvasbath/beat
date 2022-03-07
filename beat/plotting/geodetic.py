@@ -1,4 +1,25 @@
+import logging
+import os
+import copy
 
+import numpy as num
+
+from matplotlib import pyplot as plt
+from matplotlib.patches import FancyArrow
+from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.ticker import MaxNLocator
+
+from pymc3.plots.util import make_2d
+
+from beat import utility
+from beat.models import Stage
+from beat.config import ffi_mode_str
+
+from pyrocko.cake_plot import light, str_to_mpl_color as scolor
+from pyrocko import orthodrome as otd
+
+
+logger = logging.getLogger('plotting.geodetic')
 
 
 def map_displacement_grid(displacements, scene):
@@ -259,6 +280,8 @@ def gnss_fits(problem, stage, plot_options):
                     *m.jxyr)
 
         if dataset:
+            from beat.models.corrections import StrainRateCorrection
+            from beat.heart import StrainRateTensor
             # plot strain rate tensor
             if dataset.has_correction:
                 for i, corr in enumerate(dataset.corrections):
@@ -449,8 +472,8 @@ def scene_fits(problem, stage, plot_options):
                 raise TypeError(
                     'Plot projection %s not available' % po.plot_projection)
 
-            ax.xaxis.set_major_locator(tick.MaxNLocator(nbins=3))
-            ax.yaxis.set_major_locator(tick.MaxNLocator(nbins=3))
+            ax.xaxis.set_major_locator(MaxNLocator(nbins=3))
+            ax.yaxis.set_major_locator(MaxNLocator(nbins=3))
 
             if i == 0:
                 ax.set_ylabel(ystr, fontsize=fontsize)

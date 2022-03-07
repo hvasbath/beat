@@ -1,3 +1,27 @@
+import logging
+import os
+
+import numpy as num
+
+from pyrocko.guts import (Object, String, Dict, List,
+                          Bool, Int, load, StringChoice)
+from pyrocko import gmtpy
+from pyrocko import orthodrome as otd
+
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from matplotlib import pyplot as plt
+from matplotlib.ticker import MaxNLocator
+
+from scipy.stats import kde
+
+from beat import utility
+
+from theano import config as tconfig
+
+
+
+logger = logging.getLogger('plotting.common')
+
 
 u_nm = '$[Nm]$'
 u_km = '$[km]$'
@@ -89,7 +113,6 @@ plot_projections = ['latlon', 'local', 'individual']
 def get_matplotlib_version():
     from matplotlib import __version__ as mplversion
     return float(mplversion[0]), float(mplversion[2:])
-
 
 
 def plot_cov(target, point_size=20):
@@ -227,6 +250,8 @@ def str_duration(t):
     """
     Convert time to str representation.
     """
+    from pyrocko import util
+
     s = ''
     if t < 0.:
         s = '-'
@@ -494,7 +519,7 @@ def plot_inset_hist(
         axis='both', direction='in', labelsize=labelsize,
         width=linewidth)
     in_ax.yaxis.set_visible(False)
-    xticker = tick.MaxNLocator(nbins=2)
+    xticker = MaxNLocator(nbins=2)
     in_ax.xaxis.set_major_locator(xticker)
     return in_ax
 

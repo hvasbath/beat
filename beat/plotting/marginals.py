@@ -1,3 +1,30 @@
+import logging
+import os
+import copy
+
+import numpy as num
+
+from matplotlib import pyplot as plt
+from matplotlib.ticker import MaxNLocator
+
+from pymc3 import quantiles
+from pymc3 import plots as pmp
+
+from beat import utility
+from beat.models import Stage, load_stage
+from beat.heart import physical_bounds
+from beat.config import geometry_mode_str, dist_vars
+
+from .common import plot_units
+
+from scipy.stats import kde
+
+from pyrocko.plot import AutoScaler, nice_value
+from pyrocko.cake_plot import str_to_mpl_color as scolor
+from pyrocko.plot import mpl_graph_color, mpl_papersize
+
+
+logger = logging.getLogger('plotting.marginals')
 
 
 def unify_tick_intervals(axs, varnames, ntickmarks_max=5, axis='x'):
@@ -84,7 +111,7 @@ def apply_unified_axis(axs, varnames, unities, axis='x', ntickmarks_max=3,
                     elif axis == 'y':
                         ax.yaxis.set_ticks(ticks)
         else:
-            ticker = tick.MaxNLocator(nbins=3)
+            ticker = MaxNLocator(nbins=3)
             if axis == 'x':
                 ax.get_xaxis().set_major_locator(ticker)
             elif axis == 'y':
@@ -92,12 +119,12 @@ def apply_unified_axis(axs, varnames, unities, axis='x', ntickmarks_max=3,
 
 
 def traceplot(
-    trace, varnames=None, transform=lambda x: x, figsize=None,
-    lines={}, chains=None, combined=False, grid=False,
-    varbins=None, nbins=40, color=None, source_idxs=None,
-    alpha=0.35, priors=None, prior_alpha=1, prior_style='--',
-    axs=None, posterior=None, fig=None, plot_style='kde',
-    prior_bounds={}, unify=True, qlist=[0.1, 99.9], kwargs={}):
+        trace, varnames=None, transform=lambda x: x, figsize=None,
+        lines={}, chains=None, combined=False, grid=False,
+        varbins=None, nbins=40, color=None, source_idxs=None,
+        alpha=0.35, priors=None, prior_alpha=1, prior_style='--',
+        axs=None, posterior=None, fig=None, plot_style='kde',
+        prior_bounds={}, unify=True, qlist=[0.1, 99.9], kwargs={}):
     """
     Plots posterior pdfs as histograms from multiple mtrace objects.
 
@@ -293,7 +320,7 @@ def traceplot(
                         axs[rowi, coli].set_ylim(0)
                         xax = axs[rowi, coli].get_xaxis()
                         # axs[rowi, coli].set_ylim([0, e.max()])
-                        xticker = tick.MaxNLocator(nbins=5)
+                        xticker = MaxNLocator(nbins=5)
                         xax.set_major_locator(xticker)
                     elif plot_style == 'hist':
                         histplot_op(
@@ -591,7 +618,7 @@ def correlation_plot_hist(
                         bmin = num.minimum(bmin, point[v_nameb])
                         bmax = num.maximum(bmax, point[v_nameb])
 
-                yticker = tick.MaxNLocator(nbins=ntickmarks)
+                yticker = MaxNLocator(nbins=ntickmarks)
                 axs[l, k].set_xticks(xticks)
                 axs[l, k].set_xlim(xlim)
                 yax = axs[l, k].get_yaxis()

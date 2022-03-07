@@ -1,11 +1,32 @@
+import logging
+import os
+
+import numpy as num
+
+from matplotlib import pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.ticker import MaxNLocator
+
+from pyrocko import gmtpy
+from pyrocko.cake_plot import str_to_mpl_color as scolor
+from pyrocko.plot import mpl_papersize, mpl_init, mpl_graph_color, mpl_margins
+from pyrocko import trace
+
+from beat import utility
+from beat.models import Stage, load_stage
+
+from .common import get_gmt_config
 
 
+logger = logging.getLogger('plotting.seismic')
 
 
 def n_model_plot(models, axes=None, draw_bg=True, highlightidx=[]):
     """
     Plot cake layered earth models.
     """
+    from pyrocko import cake_plot as cp
+
     fontsize = 10
     if axes is None:
         mpl_init(fontsize=fontsize)
@@ -37,7 +58,8 @@ def n_model_plot(models, axes=None, draw_bg=True, highlightidx=[]):
 
     for i, mod in enumerate(models):
         plot_profile(
-            mod, axes, vp_c=light(vp_c, 0.3), vs_c=light(vs_c, 0.3), lw=1.)
+            mod, axes,
+            vp_c=cp.light(vp_c, 0.3), vs_c=cp.light(vs_c, 0.3), lw=1.)
 
     for count, i in enumerate(sorted(highlightidx)):
         if count == 0:
@@ -77,6 +99,8 @@ def load_earthmodels(store_superdir, store_ids, depth_max='cmb'):
 
 
 def draw_earthmodels(problem, plot_options):
+
+    from beat.heart import init_seismic_targets, init_geodetic_targets
 
     po = plot_options
 
@@ -859,6 +883,8 @@ def fuzzy_mt_decomposition(
     Plot fuzzy moment tensor decompositions for list of mt ensembles.
     """
     from pymc3 import quantiles
+    from pyrocko.moment_tensor import MomentTensor
+    from pyrocko.plot import beachball
 
     logger.info('Drawing Fuzzy MT Decomposition ...')
 
@@ -879,7 +905,7 @@ def fuzzy_mt_decomposition(
         devs = []
         tots = []
         for val in source_vals:
-            m = mt.MomentTensor.from_values(val)
+            m = MomentTensor.from_values(val)
             iso, dc, clvd, dev, tot = m.standard_decomposition()
             isos.append(iso)
             dcs.append(dc)
@@ -1419,6 +1445,8 @@ def draw_station_map_gmt(problem, po):
                     'Using equidistant projection for regional setup '
                     'of wavemap %s.' % wmap._mapid)
                 from pyrocko.automap import Map
+                from pyrocko import orthodrome as otd
+
                 m = Map(
                     lat=event.lat,
                     lon=event.lon,
@@ -1734,8 +1762,8 @@ def draw_station_map_cartopy(problem, po):
 
                 gl = ax.gridlines(
                     color='black', linewidth=0.5, draw_labels=True)
-                gl.ylocator = tick.MaxNLocator(nbins=5)
-                gl.xlocator = tick.MaxNLocator(nbins=5)
+                gl.ylocator = MaxNLocator(nbins=5)
+                gl.xlocator = MaxNLocator(nbins=5)
                 gl.xlabels_top = False
                 gl.ylabels_right = False
                 gl.xformatter = LONGITUDE_FORMATTER
