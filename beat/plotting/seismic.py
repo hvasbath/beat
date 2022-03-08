@@ -15,7 +15,8 @@ from pyrocko import trace
 from beat import utility
 from beat.models import Stage, load_stage
 
-from .common import get_gmt_config
+from .common import (get_gmt_config, format_axes, draw_line_on_array,
+                     get_result_point)
 
 
 logger = logging.getLogger('plotting.seismic')
@@ -211,6 +212,13 @@ def draw_earthmodels(problem, plot_options):
                 fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
+def get_fuzzy_cmap(self, ncolors=256):
+    from matplotlib.colors import LinearSegmentedColormap
+    return LinearSegmentedColormap.from_list(
+        'dummy', ['white', scolor('chocolate2'), scolor('scarletred2')],
+        N=ncolors)
+
+
 def fuzzy_waveforms(
         ax, traces, linewidth, zorder=0, extent=None,
         grid_size=(500, 500), cmap=None, alpha=0.6):
@@ -228,13 +236,7 @@ def fuzzy_waveforms(
     """
 
     if cmap is None:
-
-        from matplotlib.colors import LinearSegmentedColormap
-
-        ncolors = 256
-        cmap = LinearSegmentedColormap.from_list(
-            'dummy', ['white', scolor('chocolate2'), scolor('scarletred2')],
-            N=ncolors)
+        cmap = get_fuzzy_cmap()
         # cmap = plt.cm.gist_earth_r
 
     if extent is None:
@@ -266,6 +268,146 @@ def fuzzy_waveforms(
     ax.imshow(
         grid, extent=extent, origin='lower', cmap=cmap, aspect='auto',
         alpha=alpha, zorder=zorder)
+
+
+def get_valid_spectrum_data(
+        fxdata, filterer, pad_factor=1.5):
+    """ extract valid frequency range of spectrum """
+    lower_corner = filterer.get_lower_corner() / pad_factor
+    upper_corner = filterer.get_upper_corner() * pad_factor
+
+    lower_idx = fxdata[fxdata < lower_corner].argmax()
+
+    if fxdata[-1] < upper_corner:
+        upper_idx = -1
+    else:
+        upper_idx = fxdata[fxdata > upper_corner].argmin()
+
+    return lower_idx, upper_idx, lower_corner, upper_corner
+
+
+def zero_pad_spectrum(trace, lower_idx, upper_idx):
+    ydata = trace.get_ydata()[lower_idx:upper_idx]
+    ydata[[0, -1]] = 0.
+    return ydata
+
+
+def fuzzy_spectrum(
+        ax, traces, filterer, pad_factors=[1.5, 1.2],
+        zorder=0, extent=None,
+        linewidth=7.0, grid_size=(500, 500), cmap=None, alpha=0.5):
+
+    if cmap is None:
+        cmap = get_fuzzy_cmap()
+
+    grid = num.zeros(grid_size, dtype='float64')
+    fxdata = traces[0].get_xdata()
+
+    if extent is None:
+        key = traces[0].channel
+        skey = lambda tr: tr.channel
+
+        ymin, ymax = trace.minmax(traces, key=skey)[key]
+
+        lower_idx, upper_idx, lower_corner, upper_corner = \
+            get_valid_spectrum_data(fxdata, filterer, pad_factor=pad_factors[0])
+
+        extent = [lower_corner, upper_corner, 0, pad_factors[1] * ymax]
+    else:
+        lower_idx, upper_idx = 0, -1
+
+    fxdata = fxdata[lower_idx:upper_idx]
+    for tr in traces:
+        ydata = zero_pad_spectrum(tr, lower_idx, upper_idx)
+        draw_line_on_array(
+            fxdata, ydata,
+            grid=grid,
+            extent=extent,
+            grid_resolution=grid.shape,
+            linewidth=linewidth)
+
+    ax.imshow(
+        grid, extent=extent, origin='lower', cmap=cmap, aspect='auto',
+        alpha=alpha, zorder=zorder)
+
+
+def plot_spectrum(
+        ax, bresult, filterer,
+        syn_color, obs_color, misfit_color, tap_color_annot,
+        pad_factors=(1.5, 1.2)):
+
+    fxdata = best_result.processed_syn.get_xdata()
+    lower_idx, upper_idx, _, _ = \
+            get_valid_spectrum_data(
+                fxdata, filterer, pad_factor=pad_factors[0])
+
+    fxdata = fxdata[lower_idx:upper_idx]
+    linewidths = [1., 0.5, 0.5]
+    colors = [obs_color, syn_color, misfit_color]
+    ymaxs = []
+    for attr_suffix, lw, color in zip(
+            ['obs', 'syn', 'res'], linewidths, colors):
+
+        tr = getattr('processed_{}'.format(attr_suffix), bresult)
+        ydata = zero_pad_spectrum(tr, lower_idx, upper_idx)
+        ymaxs.append(ydata.max())
+
+        if attr_suffix == 'res':
+            ax.fill(fxdata, ydata,
+                clip_on=False, color=color, lw=lw, alpha=0.3)
+        else:
+            ax.plot(fxdata, ydata, color=color, lw=lw)
+
+    ymax = num.max(ymaxs)
+
+    format_axes(ax, remove=['right', 'top', 'left', 'bottom'])
+    ax.yaxis.set_visible(False)
+    ax.xaxis.set_visible(False)
+    ax.set_xlim([fxdata.min(), fxdata.max()])
+    ax.set_ylim([0, pad_factors[1] * ymax])
+
+    if allaxe:
+        ybounds = [0.6 * ymax, 0.6 * ymax]
+        ymax_factor_amp = 0.45
+        ymax_factor_f = 0.2
+    else:
+        ybounds = [0.5 * ymax, ymax]
+        ymax_factor_amp = 0.9
+        ymax_factor_f = 0.4
+
+    for tmark, ybound in zip(
+            [fxdata[0], fxdata[-1]], ybounds):
+        axes.plot(
+            [tmark, tmark], [0.0, ybound], color=tap_color_annot, lw=0.75)
+
+    # annotate axis amplitude
+    xpos = fxdata[-1]
+    axes.annotate(
+        '%0.3g -' % (ymax),
+        xycoords='data',
+        xy=(xpos, ymax_factor_amp * ymax),
+        xytext=(1., 1.),
+        textcoords='offset points',
+        ha='right',
+        va='center',
+        fontsize=fontsize - 3,
+        color=obs_color,
+        fontstyle='normal')
+
+    axes.annotate(
+        '$ f \ |\ ^{%0.1g}_{%0.1g} \ $' % (
+            fxdata[0], xpos),
+        xycoords='data',
+        xy=(xpos, ymax_factor_f * ymax),
+        xytext=(1., 1.),
+        textcoords='offset points',
+        ha='right',
+        va='center',
+        fontsize=fontsize + 1,
+        color=obs_color,
+        fontstyle='normal')
+
+    return in_ax
 
 
 def extract_time_shifts(point, wmap):
@@ -371,31 +513,34 @@ def seismic_fits(problem, stage, plot_options):
 
     # collecting results for targets
     logger.info('Mapping results to targets ...')
+    target_to_results = {}
+    all_syn_trs_target = {}
+    all_var_reductions = {}
 
     for target in composite.targets:
-        allresults = []
-        synths = []
-        allvar_reductions = []
+        target_results = []
+        target_synths = []
+        target_var_reductions = []
 
         i = target_index[target]
 
         nslcd_id = target.nslcd_id
-        allresults.append(bresults[i])
-        synths.append(bresults[i].processed_syn)
-        allvar_reductions.append(bvar_reductions[nslcd_id])
+        target_results.append(bresults[i])
+        target_synths.append(bresults[i].processed_syn)
+        target_var_reductions.append(bvar_reductions[nslcd_id])
 
         if plot_options.nensemble > 1:
             for results, var_reductions in zip(
                     ens_results, ens_var_reductions):
                 # put all results per target here not only single
 
-                allresults.append(results[i])
-                synths.append(results[i].processed_syn)
-                allvar_reductions.append(var_reductions[nslcd_id])
+                target_results.append(results[i])
+                target_synths.append(results[i].processed_syn)
+                target_var_reductions.append(var_reductions[nslcd_id])
 
-        target.results = allresults
-        target.synths = synths
-        target.var_reductions = num.array(allvar_reductions) * 100.
+        target_to_results[target] = target_results
+        all_syn_trs_target[target] = target_synths
+        all_var_reductions[target] = num.array(target_var_reductions) * 100.
 
     # collecting time-shifts:
     station_corr = composite.config.station_corrections

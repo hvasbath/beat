@@ -653,8 +653,7 @@ class SeismicConfig(Object):
              'If false one hyperparameter for each DATATYPE and '
              'displacement COMPONENT.')
     gf_config = GFConfig.T(default=SeismicGFConfig.D())
-    arrival_times = ArrivalConfig.T(default=None, optional=True)
-    
+
     def __init__(self, **kwargs):
 
         waveforms = 'waveforms'

@@ -322,6 +322,7 @@ class FilterBase(Object):
     def get_upper_corner(self):
         return self.upper_corner
 
+
 class Filter(FilterBase):
     """
     Filter object defining frequency range of traces after time-domain
@@ -407,6 +408,7 @@ class FrequencyFilter(FilterBase):
 
     def get_upper_corner(self):
         return self.freqlimits[-1]
+
 
 class ResultPoint(Object):
     """
@@ -957,9 +959,13 @@ class SpectrumDataset(SeismicDataset):
                 self.channel, self.domain)
 
 
-class BasicTarget(gf.Target):
+class DynamicTarget(gf.Target):
 
     response = trace.PoleZeroResponse.T(default=None, optional=True)
+    domain = StringChoice.T(
+        default='time',
+        choices=_domain_choices,
+        help='Domain for signal processing and likelihood calculation.')
 
     @property
     def nslcd_id(self):
@@ -1001,13 +1007,7 @@ class BasicTarget(gf.Target):
             self.tmax = taperer.d + tolerance
 
 
-class DynamicTarget(BasicTarget):
-
-    @property
-    def domain(self):
-        return 'time'
-
-    def plot_waveformfits(self, axes, axes2, plotoptions, source, 
+    def plot_waveformfits(self, axes, axes2, po, source, 
         synth_plot_flag, absmax, mode, tap_color_edge, mpl_graph_color,
         syn_color, obs_color, fontsize, time_shift_color, tap_color_annot, time_shift_bounds=[]):
         from beat import plotting
@@ -1028,7 +1028,7 @@ class DynamicTarget(BasicTarget):
 
         skey = lambda tr: tr.channel
 
-        if plotoptions.nensemble > 1:
+        if po.nensemble > 1:
             xmin, xmax = trace.minmaxtime(self.synths, key=skey)[self.codes[3]]
             plotting.fuzzy_waveforms(
                 axes, self.synths, linewidth=7, zorder=0,
@@ -1050,7 +1050,7 @@ class DynamicTarget(BasicTarget):
             mode=mode, fc='None', ec=tap_color_edge,
             zorder=4, alpha=0.6)
 
-        if plotoptions.plot_projection == 'individual':
+        if po.plot_projection == 'individual':
             for i, tr in enumerate(self.results[0].source_contributions):
                 plot_trace(
                     axes, tr,
@@ -1082,7 +1082,7 @@ class DynamicTarget(BasicTarget):
             else:       # for None post_llk
                 best_data = None
 
-            if plotoptions.nensemble > 1:
+            if po.nensemble > 1:
                 in_ax = plotting.plot_inset_hist(
                     axes,
                     data=pmp.utils.make_2d(self.time_shifts),
@@ -1141,197 +1141,15 @@ class DynamicTarget(BasicTarget):
         axes2.set_zorder(10)
 
 
-class SpectrumTarget(BasicTarget):
-
-    @property
-    def domain(self):
-        return 'spectrum'
-
-    def plot_waveformfits(self, axes, plotoptions, 
+    def plot_waveformfits(self, axes, po, 
         synth_plot_flag, lowest_corner, highest_corner, allaxe,
         fontsize, syn_color, obs_color, misfit_color, tap_color_annot):
         from beat import plotting
         from mpl_toolkits.axes_grid1.inset_locator import inset_axes
         import matplotlib.ticker as tick
 
-        def plot_spectrum(
-                axes, data, lower_corner, upper_corner, 
-                syn_color, obs_color, misfit_color, tap_color_annot):
-            
-            fxdata = data.processed_syn.get_xdata()
-            lower = num.argwhere(fxdata<lower_corner/2)[0][0]
-            if fxdata[-1]>2*upper_corner:
-                upper = num.argwhere(fxdata>2*upper_corner)[0][0]
-            else:
-                upper = num.argwhere(fxdata==fxdata[-1])[0][0]
-
-            syndata = data.processed_syn.get_ydata()[lower:upper]
-            syndata[0] = 0
-            syndata[-1] = 0
-            obsdata = data.processed_obs.get_ydata()[lower:upper]
-            obsdata[0] = 0
-            obsdata[-1] = 0
-            resdata = data.processed_res.get_ydata()[lower:upper]
-            resdata[0] = 0
-            resdata[-1] = 0
-
-            axes.plot(fxdata[lower:upper], syndata,
-                        color=syn_color, lw=0.5)
-            axes.plot(fxdata[lower:upper], obsdata, 
-                        color=obs_color, lw=1.0)
-            axes.fill(fxdata[lower:upper], resdata,
-                        clip_on=False, color=misfit_color, lw=0.5, alpha=0.3)
-
-            ymax = num.max([data.processed_syn.get_ydata()[lower:upper],data.processed_obs.get_ydata()[lower:upper]])
-
-            plotting.format_axes(axes)
-            axes.yaxis.set_visible(False)
-            axes.xaxis.set_visible(False)
-            axes.set_xlim([fxdata[lower], fxdata[upper]])
-            axes.set_ylim([0, 1.3*ymax])
-            axes.spines['bottom'].set_visible(False)
-
-            for tmark, ybound in zip([fxdata[lower], fxdata[upper-1]], [0.75*ymax, ymax]):
-                axes.plot(
-                    [tmark, tmark], [0.0, ybound], color=tap_color_annot, lw=0.75)
-
-            # annotate axis amplitude
-            axes.annotate(
-                '%0.3g -' % (ymax),
-                xycoords='data',
-                xy=(fxdata[upper-1], 0.9*ymax),
-                xytext=(1., 1.),
-                textcoords='offset points',
-                ha='right',
-                va='center',
-                fontsize=fontsize - 3,
-                color=obs_color,
-                fontstyle='normal')
-
-            axes.annotate(
-                '$ f \ |\ ^{%0.1g}_{%0.1g} \ $' % (fxdata[lower], fxdata[upper]),
-                xycoords='data',
-                xy=(fxdata[upper-1], 0.4*ymax),
-                xytext=(1., 1.),
-                textcoords='offset points',
-                ha='right',
-                va='center',
-                fontsize=fontsize+1,
-                color=obs_color,
-                fontstyle='normal')
-
-            return in_ax
-
-        def fuzzy_spectra(axes, data, best_result, lower_corner=0.0,
-                            upper_corner=0.2, alpha=0.5, zorder=0,
-                            linewidth=7.0, grid_size=(500, 500), allaxe=False,
-                            syn_color=syn_color, obs_color=obs_color, 
-                            misfit_color=misfit_color, tap_color_annot=tap_color_annot):
-
-            from matplotlib.colors import LinearSegmentedColormap
-            from pyrocko.cake_plot import str_to_mpl_color as scolor
-
-            ncolors = 256
-            cmap = LinearSegmentedColormap.from_list(
-                'dummy', ['white', scolor('chocolate2'), scolor('scarletred2')],
-                N=ncolors)
-                
-            grid = num.zeros(grid_size, dtype='float64')
-            
-            fxdata = data[0].get_xdata()
-            lower = num.argwhere(fxdata < lower_corner/2)[0][0]
-            
-            if fxdata[-1] > 2 * upper_corner:
-                upper = num.argwhere(fxdata > 2 * upper_corner)[0][0]
-            else:
-                upper = num.argwhere(fxdata==fxdata[-1])[0][0]
-
-            ymax = num.max([best_result.processed_syn.get_ydata()[lower:upper],best_result.processed_obs.get_ydata()[lower:upper]])
-            for tr in data:
-                trmax = num.max(tr.ydata)
-                if ymax < trmax:
-                    ymax = trmax
-
-            extent = [lower_corner/2, 2*upper_corner, 0, 1.2*ymax]
-            
-            for tr in data:   
-                ydata = tr.ydata[lower:upper]
-                ydata[0] = 0
-                plotting.draw_line_on_array(
-                    fxdata[lower:upper], ydata,
-                    grid=grid,
-                    extent=extent,
-                    grid_resolution=grid.shape,
-                    linewidth=linewidth)
-
-            axes.imshow(
-                grid, extent=extent, origin='lower', cmap=cmap, aspect='auto',
-                alpha=alpha, zorder=zorder)
-            
-            syndata = best_result.processed_syn.get_ydata()[lower:upper]
-            syndata[0] = 0
-            syndata[-1] = 0
-            obsdata = best_result.processed_obs.get_ydata()[lower:upper]
-            obsdata[0] = 0
-            obsdata[-1] = 0
-            resdata = best_result.processed_res.get_ydata()[lower:upper]
-            resdata[0] = 0
-            resdata[-1] = 0
-
-            axes.plot(fxdata[lower:upper], syndata, color=syn_color, lw=0.5)
-            axes.plot(fxdata[lower:upper], obsdata, color=obs_color, lw=1.0)
-            axes.fill(fxdata[lower:upper], resdata,
-                clip_on=False, color=misfit_color, lw=0.5, alpha=0.3)
-
-            plotting.format_axes(axes)
-            axes.yaxis.set_visible(False)
-            axes.xaxis.set_visible(False)
-            axes.set_xlim([fxdata[lower], fxdata[upper]])
-            axes.set_ylim([0, 1.3*ymax])
-            axes.spines['bottom'].set_visible(False)
-            
-            if allaxe:
-                ybounds = [0.6*ymax, 0.6*ymax]
-                ymax_factor_amp = 0.45
-                ymax_factor_f = 0.2
-            else:
-                ybounds = [0.5*ymax, ymax]
-                ymax_factor_amp = 0.9
-                ymax_factor_f = 0.4
-
-            for tmark, ybound in zip(
-                    [fxdata[lower], fxdata[upper-1]], ybounds):
-                axes.plot(
-                    [tmark, tmark], [0.0, ybound], color=tap_color_annot, lw=0.75)
-
-            # annotate axis amplitude
-            axes.annotate(
-                '%0.3g -' % (ymax),
-                xycoords='data',
-                xy=(fxdata[upper - 1], ymax_factor_amp * ymax),
-                xytext=(1., 1.),
-                textcoords='offset points',
-                ha='right',
-                va='center',
-                fontsize=fontsize - 3,
-                color=obs_color,
-                fontstyle='normal')
-
-            axes.annotate(
-                '$ f \ |\ ^{%0.1g}_{%0.1g} \ $' % (
-                    fxdata[lower], fxdata[upper]),
-                xycoords='data',
-                xy=(fxdata[upper - 1], ymax_factor_f * ymax),
-                xytext=(1., 1.),
-                textcoords='offset points',
-                ha='right',
-                va='center',
-                fontsize=fontsize + 1,
-                color=obs_color,
-                fontstyle='normal')
-                    
         if allaxe:
-            if plotoptions.nensemble > 1:
+            if po.nensemble > 1:
                 fuzzy_spectra(axes=axes, data=self.synths,
                                 best_result=self.results[0],
                                 lower_corner=lowest_corner, upper_corner=highest_corner,
@@ -1363,7 +1181,7 @@ class SpectrumTarget(BasicTarget):
                 bbox_to_anchor=(0.05, -0.15, 0.75, 0.24),
                 bbox_transform=axes.transAxes, loc=2, borderpad=0)
 
-            if plotoptions.nensemble > 1:
+            if po.nensemble > 1:
                 fuzzy_spectra(axes=in_ax, data=self.synths,
                                 best_result=self.results[0],
                                 lower_corner=lowest_corner, upper_corner=highest_corner,
@@ -1387,17 +1205,6 @@ class SpectrumTarget(BasicTarget):
                             upper_corner=highest_corner,
                             syn_color=syn_color, obs_color=obs_color, 
                             misfit_color=misfit_color, tap_color_annot=tap_color_annot)
-
-
-target_domains = {
-    'time': DynamicTarget,
-    'spectrum': SpectrumTarget}
-
-
-def init_domain_target(target, domain):
-    tdict = target.__dict__
-    tdict.pop('_latlon')
-    return target_domains[domain](**tdict)
 
 
 class GeodeticDataset(gf.meta.MultiLocation):
@@ -3649,10 +3456,9 @@ class DataWaveformCollection(object):
 
         datasets = []
         discard_targets = []
-        domain_targets = []
         for target in targets:
             nslc_id = target.codes
-            target = init_domain_target(target=target, domain=config.domain)
+            target.domain = config.domain
             target.quantity = config.quantity
 
             try:
@@ -3671,10 +3477,9 @@ class DataWaveformCollection(object):
                     logger.warn(
                         'No response for target %s in '
                         'the collection!' % str(nslc_id))
-            domain_targets.append(target)
 
         targets = utility.weed_targets(
-            domain_targets, self.stations, discard_targets=discard_targets)
+            targets, self.stations, discard_targets=discard_targets)
 
         ndata = len(datasets)
         n_t = len(targets)

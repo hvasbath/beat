@@ -9,11 +9,12 @@ from matplotlib.patches import FancyArrow
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import MaxNLocator
 
-from pymc3.plots.util import make_2d
+from pymc3.plots.utils import make_2d
 
 from beat import utility
 from beat.models import Stage
 from beat.config import ffi_mode_str
+from .common import get_result_point
 
 from pyrocko.cake_plot import light, str_to_mpl_color as scolor
 from pyrocko import orthodrome as otd

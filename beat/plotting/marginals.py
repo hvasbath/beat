@@ -15,7 +15,7 @@ from beat.models import Stage, load_stage
 from beat.heart import physical_bounds
 from beat.config import geometry_mode_str, dist_vars
 
-from .common import plot_units
+from .common import plot_units, get_result_point
 
 from scipy.stats import kde
 
