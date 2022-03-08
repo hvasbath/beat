@@ -1838,9 +1838,14 @@ def command_check(args):
             fault = problem.composites[datatype].load_fault_geometry()
             reference_sources = problem.config[
                 datatype + '_config'].gf_config.reference_sources
+            try:
+                values = diag(fault.get_model_resolution())
+            except ValueError:
+                values = None
+
             source_geometry(
                 fault, reference_sources,
-                values=diag(fault.get_model_resolution()),
+                values=values,
                 event=problem.config.event, datasets=datasets)
         else:
             logger.warning(
