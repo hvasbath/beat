@@ -438,11 +438,13 @@ class SeismicResult(Object):
     """
     point = ResultPoint.T(default=ResultPoint.D())
     processed_obs = Trace.T(optional=True)
-#    processed_syn = Trace.T(optional=True)
-#    processed_res = Trace.T(optional=True)
     arrival_taper = trace.Taper.T(optional=True)
     llk = Float.T(default=0., optional=True)
     taper = trace.Taper.T(optional=True)
+    filterer = List.T(
+        FilterBase.T(
+            default=Filter.D()),
+        help='List of Filters that are applied in the order of the list.')
     source_contributions = List.T(
         Trace.T(),
         help='synthetics of source individual contributions.')
@@ -475,6 +477,15 @@ class SeismicResult(Object):
                     utility.list2string(tr.nslc_id),
                     tr.tmin, syn_tmin, tr.tmin - syn_tmin))
         return tr
+
+    def get_upper_corner(self):
+        return max([filt.get_upper_corner() for filt in self.filterer])
+
+    def get_lower_corner(self):
+        return min([filt.get_lower_corner() for filt in self.filterer])
+
+    def get_corner_frequencies(self):
+        return (self.get_lower_corner(), self.get_upper_corner())
 
 
 class PolarityResult(Object):
@@ -1005,206 +1016,6 @@ class DynamicTarget(gf.Target):
             tolerance = 2 * (taperer.b - taperer.a)
             self.tmin = taperer.a - tolerance
             self.tmax = taperer.d + tolerance
-
-
-    def plot_waveformfits(self, axes, axes2, po, source, 
-        synth_plot_flag, absmax, mode, tap_color_edge, mpl_graph_color,
-        syn_color, obs_color, fontsize, time_shift_color, tap_color_annot, time_shift_bounds=[]):
-        from beat import plotting
-        from pyrocko.cake_plot import light
-        from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-        import matplotlib.ticker as tick
-
-        def plot_trace(axes, tr, **kwargs):
-            return axes.plot(tr.get_xdata(), tr.get_ydata(), **kwargs)
-
-        def plot_taper(axes, t, taper, mode='geometry', **kwargs):
-            y = num.ones(t.size) * 0.9
-            if mode == 'geometry':
-                taper(y, t[0], t[1] - t[0])
-            y2 = num.concatenate((y, -y[::-1]))
-            t2 = num.concatenate((t, t[::-1]))
-            axes.fill(t2, y2, **kwargs)
-
-        skey = lambda tr: tr.channel
-
-        if po.nensemble > 1:
-            xmin, xmax = trace.minmaxtime(self.synths, key=skey)[self.codes[3]]
-            plotting.fuzzy_waveforms(
-                axes, self.synths, linewidth=7, zorder=0,
-                grid_size=(500, 500), alpha=1.0)                    
-            
-            nslc_id_str = utility.list2string(self.codes)
-            logger.debug(
-                'Plotting variance reductions for %s' % nslc_id_str)
-
-            in_ax = plotting.plot_inset_hist(
-                axes,
-                data=pmp.utils.make_2d(self.var_reductions),
-                best_data=self.var_reductions[0],
-                bbox_to_anchor=(0.85, .75, .2, .2))
-            in_ax.set_title('VR [%]', fontsize=5)
-
-        plot_taper(
-            axes2, self.results[0].processed_obs.get_xdata(), self.results[0].taper,
-            mode=mode, fc='None', ec=tap_color_edge,
-            zorder=4, alpha=0.6)
-
-        if po.plot_projection == 'individual':
-            for i, tr in enumerate(self.results[0].source_contributions):
-                plot_trace(
-                    axes, tr,
-                    color=mpl_graph_color(i), lw=0.5, zorder=5)
-        else:
-            plot_trace(
-                axes, self.results[0].processed_syn,
-                color=syn_color, lw=0.5, zorder=5)
-
-        plot_trace(
-            axes, self.results[0].processed_obs,
-            color=obs_color, lw=0.5, zorder=5)
-
-        xdata = self.results[0].processed_obs.get_xdata()
-        axes.set_xlim(xdata[0], xdata[-1])
-
-        tmarks = [
-            self.results[0].processed_obs.tmin,
-            self.results[0].processed_obs.tmax]
-        tmark_fontsize = fontsize - 1
-
-        if len(self.time_shifts) != 0:
-            sidebar_ybounds = [-0.3, -0.4]
-            ytmarks = [-1.15, -0.7]
-            hor_alignment = 'center'
-
-            if synth_plot_flag:
-                best_data = self.time_shifts[0]
-            else:       # for None post_llk
-                best_data = None
-
-            if po.nensemble > 1:
-                in_ax = plotting.plot_inset_hist(
-                    axes,
-                    data=pmp.utils.make_2d(self.time_shifts),
-                    best_data=best_data,
-                    bbox_to_anchor=(-0.0985, .16, .2, .2),
-                    # cmap=plt.cm.get_cmap('seismic'),
-                    # cbounds=time_shift_bounds,
-                    color=time_shift_color,
-                    alpha=0.7)
-                in_ax.set_xlim(*time_shift_bounds)
-        else:
-            sidebar_ybounds = [-0.6, -0.4]
-            ytmarks = [-0.9, -0.7]
-            hor_alignment = 'center'
-
-        for tmark, ybound in zip(tmarks, sidebar_ybounds):
-            axes2.plot(
-                [tmark, tmark], [ybound, 0.1], color=tap_color_annot)
-
-        for xtmark, ytmark, text, ha, va in [
-                (tmarks[0], ytmarks[0],
-                    '$\,$ ' + plotting.str_duration(tmarks[0] - source.time),
-                    hor_alignment,
-                    'bottom'),
-                (tmarks[1], ytmarks[1],
-                    '$\Delta$ ' + plotting.str_duration(tmarks[1] - tmarks[0]),
-                    'center',
-                    'bottom')]:
-
-            axes2.annotate(
-                text,
-                xy=(xtmark, ytmark),
-                xycoords='data',
-                xytext=(
-                    fontsize * 0.4 * [-1, 1][ha == 'left'],
-                    fontsize * 0.2),
-                textcoords='offset points',
-                ha=ha,
-                va=va,
-                color=tap_color_annot,
-                fontsize=tmark_fontsize, zorder=10)
-
-        # annotate axis amplitude
-        axes.annotate(
-            '%0.3g %s -' % (-absmax, plotting.str_unit(self.quantity)),
-            xycoords='data',
-            xy=(tmarks[1], -absmax/2),
-            xytext=(1., 1.),
-            textcoords='offset points',
-            ha='right',
-            va='center',
-            fontsize=fontsize - 3,
-            color=obs_color,
-            fontstyle='normal')
-
-        axes2.set_zorder(10)
-
-
-    def plot_waveformfits(self, axes, po, 
-        synth_plot_flag, lowest_corner, highest_corner, allaxe,
-        fontsize, syn_color, obs_color, misfit_color, tap_color_annot):
-        from beat import plotting
-        from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-        import matplotlib.ticker as tick
-
-        if allaxe:
-            if po.nensemble > 1:
-                fuzzy_spectra(axes=axes, data=self.synths,
-                                best_result=self.results[0],
-                                lower_corner=lowest_corner, upper_corner=highest_corner,
-                                allaxe=allaxe, grid_size=(500, 500), alpha=1.0, zorder=0,
-                                linewidth=3.0, syn_color=syn_color, obs_color=obs_color, 
-                                misfit_color=misfit_color, tap_color_annot=tap_color_annot)
-                if synth_plot_flag:
-                    best_data = self.var_reductions[0]
-                else:       # for None post_llk
-                    best_data = None
-
-                in_ax = plotting.plot_inset_hist(
-                    axes,
-                    data=pmp.utils.make_2d(self.var_reductions),
-                    best_data=best_data,
-                    bbox_to_anchor=(0.85, .75, .2, .2))
-                in_ax.set_title('SPC_VR [%]', fontsize=5)
-
-            else:
-                plot_spectrum(axes=axes, data=self.results[0], 
-                            lower_corner=lowest_corner, 
-                            upper_corner=highest_corner,
-                            syn_color=syn_color, obs_color=obs_color, 
-                            misfit_color=misfit_color, tap_color_annot=tap_color_annot)
-        else:
-
-            in_ax = inset_axes(
-                axes, width="100%", height="100%",
-                bbox_to_anchor=(0.05, -0.15, 0.75, 0.24),
-                bbox_transform=axes.transAxes, loc=2, borderpad=0)
-
-            if po.nensemble > 1:
-                fuzzy_spectra(axes=in_ax, data=self.synths,
-                                best_result=self.results[0],
-                                lower_corner=lowest_corner, upper_corner=highest_corner,
-                                grid_size=(500, 500), alpha=1.0, zorder=0,
-                                linewidth=3.0, allaxe=allaxe, syn_color=syn_color, obs_color=obs_color, 
-                                misfit_color=misfit_color, tap_color_annot=tap_color_annot)
-                if synth_plot_flag:
-                    best_data = self.var_reductions[0]
-                else:       # for None post_llk
-                    best_data = None
-
-                in_ax = plotting.plot_inset_hist(
-                    axes,
-                    data=pmp.utils.make_2d(self.var_reductions),
-                    best_data=best_data,
-                    bbox_to_anchor=(0.85, -0.15, .2, .2))
-                in_ax.set_title('SPC_VR [%]', fontsize=5)
-            else:
-                plot_spectrum(axes=in_ax, data=self.results[0], 
-                            lower_corner=lowest_corner, 
-                            upper_corner=highest_corner,
-                            syn_color=syn_color, obs_color=obs_color, 
-                            misfit_color=misfit_color, tap_color_annot=tap_color_annot)
 
 
 class GeodeticDataset(gf.meta.MultiLocation):

@@ -16,7 +16,7 @@ from beat import utility
 from beat.models import Stage, load_stage
 
 from .common import (get_gmt_config, format_axes, draw_line_on_array,
-                     get_result_point)
+                     get_result_point, plot_inset_hist, str_duration)
 
 
 logger = logging.getLogger('plotting.seismic')
@@ -271,10 +271,10 @@ def fuzzy_waveforms(
 
 
 def get_valid_spectrum_data(
-        fxdata, filterer, pad_factor=1.5):
+        fxdata, corner_frequencies=[0, 1.], pad_factor=1.5):
     """ extract valid frequency range of spectrum """
-    lower_corner = filterer.get_lower_corner() / pad_factor
-    upper_corner = filterer.get_upper_corner() * pad_factor
+    lower_corner = corner_frequencies[0] / pad_factor
+    upper_corner = corner_frequencies[1] * pad_factor
 
     lower_idx = fxdata[fxdata < lower_corner].argmax()
 
@@ -293,7 +293,7 @@ def zero_pad_spectrum(trace, lower_idx, upper_idx):
 
 
 def fuzzy_spectrum(
-        ax, traces, filterer, pad_factors=[1.5, 1.2],
+        ax, traces, corner_frequencies=(0, 1.), pad_factors=[1.5, 1.2],
         zorder=0, extent=None,
         linewidth=7.0, grid_size=(500, 500), cmap=None, alpha=0.5):
 
@@ -310,7 +310,9 @@ def fuzzy_spectrum(
         ymin, ymax = trace.minmax(traces, key=skey)[key]
 
         lower_idx, upper_idx, lower_corner, upper_corner = \
-            get_valid_spectrum_data(fxdata, filterer, pad_factor=pad_factors[0])
+            get_valid_spectrum_data(
+                fxdata, corner_frequencies=corner_frequencies,
+                pad_factor=pad_factors[0])
 
         extent = [lower_corner, upper_corner, 0, pad_factors[1] * ymax]
     else:
@@ -331,15 +333,194 @@ def fuzzy_spectrum(
         alpha=alpha, zorder=zorder)
 
 
-def plot_spectrum(
-        ax, bresult, filterer,
-        syn_color, obs_color, misfit_color, tap_color_annot,
-        pad_factors=(1.5, 1.2)):
+def extract_time_shifts(point, wmap):
+    if wmap.config.domain == 'time':
+        try:
+            time_shifts = point[wmap.time_shifts_id][
+                wmap.station_correction_idxs]
+        except KeyError:
+            raise ValueError(
+                'Sampling results do not contain time-shifts for wmap'
+                ' %s!' % wmap.time_shifts_id)
+    else:
+        time_shifts = [0] * wmap.n_t
+    return time_shifts
 
-    fxdata = best_result.processed_syn.get_xdata()
-    lower_idx, upper_idx, _, _ = \
-            get_valid_spectrum_data(
-                fxdata, filterer, pad_factor=pad_factors[0])
+
+def subplot_waveforms(
+    axes, axes2, po, target, source, traces, result, var_reductions,
+    time_shifts, time_shift_bounds, synth_plot_flag, absmax, mode, fontsize,
+    tap_color_edge, syn_color, obs_color, time_shift_color, tap_color_annot):
+
+    def plot_trace(axes, tr, **kwargs):
+        return axes.plot(tr.get_xdata(), tr.get_ydata(), **kwargs)
+
+    def plot_taper(axes, t, taper, mode='geometry', **kwargs):
+        y = num.ones(t.size) * 0.9
+        if mode == 'geometry':
+            taper(y, t[0], t[1] - t[0])
+        y2 = num.concatenate((y, -y[::-1]))
+        t2 = num.concatenate((t, t[::-1]))
+        axes.fill(t2, y2, **kwargs)
+
+    skey = lambda tr: tr.channel
+
+    if po.nensemble > 1:
+        xmin, xmax = trace.minmaxtime(traces, key=skey)[target.codes[3]]
+        fuzzy_waveforms(
+            axes, traces, linewidth=7, zorder=0,
+            grid_size=(500, 500), alpha=1.0)
+
+        nslcd_id_str = utility.list2string(target.nslcd_id)
+        logger.debug(
+            'Plotting variance reductions for %s' % nslcd_id_str)
+
+        best_data = var_reductions[0].
+
+        in_ax = plot_inset_hist(
+            axes,
+            data=pmp.utils.make_2d(var_reductions),
+            best_data=best_data,
+            bbox_to_anchor=(0.85, .75, .2, .2))
+        in_ax.set_title('VR [%]', fontsize=5)
+
+    plot_taper(
+        axes2, result.processed_obs.get_xdata(), result.taper,
+        mode=mode, fc='None', ec=tap_color_edge,
+        zorder=4, alpha=0.6)
+
+    if synth_plot_flag:
+        # only plot if highlighted point exists
+        if po.plot_projection == 'individual':
+            for i, tr in enumerate(result.source_contributions):
+                plot_trace(
+                    axes, tr,
+                    color=mpl_graph_color(i), lw=0.5, zorder=5)
+        else:
+            plot_trace(
+                axes, result.processed_syn,
+                color=syn_color, lw=0.5, zorder=5)
+
+    plot_trace(
+        axes, result.processed_obs,
+        color=obs_color, lw=0.5, zorder=5)
+
+    xdata = result.processed_obs.get_xdata()
+    axes.set_xlim(xdata[0], xdata[-1])
+
+    tmarks = [
+        result.processed_obs.tmin,
+        result.processed_obs.tmax]
+    tmark_fontsize = fontsize - 1
+
+    if len(time_shifts) != 0:
+        sidebar_ybounds = [-0.3, -0.4]
+        ytmarks = [-1.15, -0.7]
+        hor_alignment = 'center'
+
+        if synth_plot_flag:
+            best_data = time_shifts[0]
+        else:       # for None post_llk
+            best_data = None
+
+        if po.nensemble > 1:
+            in_ax = plot_inset_hist(
+                axes,
+                data=pmp.utils.make_2d(time_shifts),
+                best_data=best_data,
+                bbox_to_anchor=(-0.0985, .16, .2, .2),
+                # cmap=plt.cm.get_cmap('seismic'),
+                # cbounds=time_shift_bounds,
+                color=time_shift_color,
+                alpha=0.7)
+            in_ax.set_xlim(*time_shift_bounds)
+    else:
+        sidebar_ybounds = [-0.6, -0.4]
+        ytmarks = [-0.9, -0.7]
+        hor_alignment = 'center'
+
+    for tmark, ybound in zip(tmarks, sidebar_ybounds):
+        axes2.plot(
+            [tmark, tmark], [ybound, 0.1], color=tap_color_annot)
+
+    for xtmark, ytmark, text, ha, va in [
+            (tmarks[0], ytmarks[0],
+                '$\,$ ' + str_duration(tmarks[0] - source.time),
+                hor_alignment,
+                'bottom'),
+            (tmarks[1], ytmarks[1],
+                '$\Delta$ ' + str_duration(tmarks[1] - tmarks[0]),
+                'center',
+                'bottom')]:
+
+        axes2.annotate(
+            text,
+            xy=(xtmark, ytmark),
+            xycoords='data',
+            xytext=(
+                fontsize * 0.4 * [-1, 1][ha == 'left'],
+                fontsize * 0.2),
+            textcoords='offset points',
+            ha=ha,
+            va=va,
+            color=tap_color_annot,
+            fontsize=tmark_fontsize, zorder=10)
+
+    # annotate axis amplitude
+    axes.annotate(
+        '%0.3g %s -' % (-absmax, plotting.str_unit(target.quantity)),
+        xycoords='data',
+        xy=(tmarks[1], -absmax / 2),
+        xytext=(1., 1.),
+        textcoords='offset points',
+        ha='right',
+        va='center',
+        fontsize=fontsize - 3,
+        color=obs_color,
+        fontstyle='normal')
+
+    axes2.set_zorder(10)
+
+
+def subplot_spectrum(
+    axes, po, target, traces, result, synth_plot_flag,
+    only_spectrum, var_reductions, fontsize,
+    syn_color, obs_color, misfit_color, tap_color_annot):
+
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+    if not only_spectrum:
+        axes = inset_axes(
+            axes, width="100%", height="100%",
+            bbox_to_anchor=(0.05, -0.15, 0.75, 0.24),
+            bbox_transform=axes.transAxes, loc=2, borderpad=0)
+        bbox_y = 0.75
+    else:
+        bbox_y = -0.15
+
+    corner_frequencies = result.get_corner_frequencies()
+    if po.nensemble > 1:
+        fuzzy_spectrum(
+            axes, traces=traces, corner_frequencies=corner_frequencies,
+            pad_factors=[1.5, 1.2], zorder=0, extent=None,
+            linewidth=7.0, grid_size=(500, 500), cmap=None, alpha=1.)
+
+        if synth_plot_flag:
+            best_data = var_reductions[0]
+        else:       # for None post_llk
+            best_data = None
+
+        in_ax = plot_inset_hist(
+            axes,
+            data=pmp.utils.make_2d(var_reductions),
+            best_data=best_data,
+            bbox_to_anchor=(0.85, bbox_y, .2, .2))
+        in_ax.set_title('SPC_VR [%]', fontsize=5)
+
+    fxdata = result.processed_syn.get_xdata()
+    lower_idx, upper_idx, _, _ = get_valid_spectrum_data(
+        fxdata, corner_frequencies=result.get_corner_frequencies(),
+        pad_factor=pad_factors[0])
 
     fxdata = fxdata[lower_idx:upper_idx]
     linewidths = [1., 0.5, 0.5]
@@ -348,25 +529,25 @@ def plot_spectrum(
     for attr_suffix, lw, color in zip(
             ['obs', 'syn', 'res'], linewidths, colors):
 
-        tr = getattr('processed_{}'.format(attr_suffix), bresult)
+        tr = getattr('processed_{}'.format(attr_suffix), result)
         ydata = zero_pad_spectrum(tr, lower_idx, upper_idx)
         ymaxs.append(ydata.max())
 
         if attr_suffix == 'res':
-            ax.fill(fxdata, ydata,
+            axes.fill(fxdata, ydata,
                 clip_on=False, color=color, lw=lw, alpha=0.3)
         else:
-            ax.plot(fxdata, ydata, color=color, lw=lw)
+            axes.plot(fxdata, ydata, color=color, lw=lw)
 
     ymax = num.max(ymaxs)
 
     format_axes(ax, remove=['right', 'top', 'left', 'bottom'])
-    ax.yaxis.set_visible(False)
-    ax.xaxis.set_visible(False)
-    ax.set_xlim([fxdata.min(), fxdata.max()])
-    ax.set_ylim([0, pad_factors[1] * ymax])
+    axes.yaxis.set_visible(False)
+    axes.xaxis.set_visible(False)
+    axes.set_xlim([fxdata.min(), fxdata.max()])
+    axes.set_ylim([0, pad_factors[1] * ymax])
 
-    if allaxe:
+    if only_spectrum:
         ybounds = [0.6 * ymax, 0.6 * ymax]
         ymax_factor_amp = 0.45
         ymax_factor_f = 0.2
@@ -406,22 +587,6 @@ def plot_spectrum(
         fontsize=fontsize + 1,
         color=obs_color,
         fontstyle='normal')
-
-    return in_ax
-
-
-def extract_time_shifts(point, wmap):
-    if wmap.config.domain == 'time':
-        try:
-            time_shifts = point[wmap.time_shifts_id][
-                wmap.station_correction_idxs]
-        except KeyError:
-            raise ValueError(
-                'Sampling results do not contain time-shifts for wmap'
-                ' %s!' % wmap.time_shifts_id)
-    else:
-        time_shifts = [0] * wmap.n_t
-    return time_shifts
 
 
 def seismic_fits(problem, stage, plot_options):
@@ -566,7 +731,7 @@ def seismic_fits(problem, stage, plot_options):
                 for wmap in composite.wavemaps])
 
         logger.info('Mapping time-shifts to targets ...')
-
+        all_time_shifts = {}
         for target in composite.targets:
             target_time_shifts = []
             i = target_index[target]
@@ -576,41 +741,32 @@ def seismic_fits(problem, stage, plot_options):
                 for time_shifts in ens_time_shifts:
                     target_time_shifts.append(time_shifts[i])
 
-            target.time_shifts = num.array(target_time_shifts)
+            all_time_shifts[target] = num.array(target_time_shifts)
 
-    ### Mahdi target mess
-    # gather
-    spectrum_targets = dict(
-        (utility.list2string(target.codes[:3]), target)
-         for target in composite.targets if isinstance(target, SpectrumTarget))
+    # gather domain targets
+    domain_to_targets = utility.gather(
+        composite.targets,
+        lambda t: t.domain)
 
-    plotted_spectargets = []
-    for target in composite.targets:
-        nslc_id = utility.list2string(target.codes[:3])
-        if isinstance(target, DynamicTarget) and \
-            nslc_id in spectrum_targets and \
-                nslc_id not in plotted_spectargets:
+    target_codes_to_targets = utility.gather(
+        composite.targets,
+        lambda t: t.codes)
 
-            target.spectarget = spectrum_targets[nslc_id]
-            plotted_spectargets.append(spectrum_targets[nslc_id].nslcd_id)
+    # gather unique target codes
+    unique_target_codes = list(target_codes_to_targets.keys())
+    cg_to_target_codes = utility.gather(
+        unique_target_codes,
+        lambda t: t.t)
 
     skey = lambda tr: tr.channel
-
-    # plot remaining targets
-    cg_to_targets = utility.gather(
-        composite.targets,
-        lambda t: t.codes[3],
-        filter=lambda t: t.nslcd_id not in plotted_spectargets)
-
-    cgs = cg_to_targets.keys()
+    cgs = cg_to_target_codes.keys()
 
     figs = []
     logger.info('Plotting waveforms ...')
     for cg in cgs:
-        targets = cg_to_targets[cg]
+        target_codes = cg_to_target_codes[cg]
 
-        # can keep from here ... until
-        nframes = len(targets)
+        nframes = len(target_codes)
 
         nx = int(math.ceil(math.sqrt(nframes)))
         ny = (nframes - 1) // nx + 1
@@ -633,7 +789,8 @@ def seismic_fits(problem, stage, plot_options):
         fys = num.repeat(ys, nx)
 
         data = []
-        for target in targets:
+        for target_code in target_codes:
+            target = target_codes_to_targets[target_code][0]
             azi = source.azibazi_to(target)[0]
             dist = source.distance_to(target)
             x = dist * num.sin(num.deg2rad(azi))
@@ -646,7 +803,7 @@ def seismic_fits(problem, stage, plot_options):
 
         gxs = gxs[iorder]
         gys = gys[iorder]
-        targets_sorted = [targets[ii] for ii in iorder]
+        target_codes_sorted = [target_codes[ii] for ii in iorder]
 
         gxs -= num.mean(gxs)
         gys -= num.mean(gys)
@@ -665,18 +822,18 @@ def seismic_fits(problem, stage, plot_options):
         distmax = num.max(dists)
 
         availmask = num.ones(dists.shape[1], dtype=num.bool)
-        frame_to_target = {}
-        for itarget, target in enumerate(targets_sorted):
+        frame_to_target_code = {}
+        for itarget, target_code in enumerate(target_codes_sorted):
             iframe = num.argmin(
                 num.where(availmask, dists[itarget], distmax + 1.))
             availmask[iframe] = False
             iy, ix = num.unravel_index(iframe, (ny, nx))
-            frame_to_target[iy, ix] = target
+            frame_to_target_code[iy, ix] = target_code
 
         figures = {}
         for iy in range(ny):
             for ix in range(nx):
-                if (iy, ix) not in frame_to_target:
+                if (iy, ix) not in frame_to_target_code:
                     continue
 
                 ixx = ix // nxmax
@@ -699,61 +856,91 @@ def seismic_fits(problem, stage, plot_options):
                 logger.debug('iy %i, ix %i' % (iy, ix))
                 fig = figures[iyy, ixx]
 
-                target = frame_to_target[iy, ix]
+                target_code = frame_to_target_code[iy, ix]
+                domain_targets = target_codes_to_targets[target_code]
+                if len(domain_targets) > 1:
+                    only_spectrum = False
+                    spec_axes = axes2
+                else:
+                    only_spectrum = True
+                    spec_axes = axes
 
-                itarget = target_index[target]
+                for target in domain_targets:
 
-                # get min max of all traces
-                key = target.codes[3]
-                amin, amax = trace.minmax(
-                    target.synths,
-                    key=skey)[key]
-                # need target specific minmax
-                absmax = max(abs(amin), abs(amax))
+                    syn_traces = all_syn_trs_target[target]
+                    itarget = target_index[target]
 
-                ny_this = nymax  # min(ny, nymax)
-                nx_this = nxmax  # min(nx, nxmax)
-                i_this = (iy % ny_this) * nx_this + (ix % nx_this) + 1
-                logger.debug('i_this %i' % i_this)
-                logger.debug('Station {}'.format(
-                    utility.list2string(target.codes)))
-                axes2 = fig.add_subplot(ny_this, nx_this, i_this)
+                    # get min max of all traces
+                    key = target.codes[3]
+                    amin, amax = trace.minmax(
+                        syn_traces,
+                        key=skey)[key]
+                    # need target specific minmax
+                    absmax = max(abs(amin), abs(amax))
 
-                space = 0.4
-                space_factor = 0.7 + space
-                axes2.set_axis_off()
-                axes2.set_ylim(-1.05 * space_factor, 1.05)
+                    ny_this = nymax  # min(ny, nymax)
+                    nx_this = nxmax  # min(nx, nxmax)
+                    i_this = (iy % ny_this) * nx_this + (ix % nx_this) + 1
+                    logger.debug('i_this %i' % i_this)
+                    logger.debug('Station {}'.format(
+                        utility.list2string(target.codes)))
+                    axes2 = fig.add_subplot(ny_this, nx_this, i_this)
 
-                axes = axes2.twinx()
-                axes.set_axis_off()
+                    space = 0.4
+                    space_factor = 0.7 + space
+                    axes2.set_axis_off()
+                    axes2.set_ylim(-1.05 * space_factor, 1.05)
 
-                ymin, ymax = - absmax * 1.5 * space_factor, absmax * 1.5
-                try:
-                    axes.set_ylim(ymin, ymax)
-                except ValueError:
-                    logger.debug(
-                        'These traces contain NaN or Inf open in snuffler?')
-                    input('Press enter! Otherwise Ctrl + C')
-                    from pyrocko.trace import snuffle
-                    snuffle(target.synths)
-                    
-                if isinstance(target, DynamicTarget):
-                    target.plot_waveformfits(axes=axes, axes2=axes2, po=po, source=source,
-                        time_shift_bounds=time_shift_bounds, synth_plot_flag=synth_plot_flag, absmax=absmax, mode=composite._mode, 
-                        fontsize=fontsize, tap_color_edge=tap_color_edge, mpl_graph_color=mpl_graph_color,
-                        syn_color=syn_color, obs_color=obs_color, time_shift_color=time_shift_color,
-                        tap_color_annot=tap_color_annot)
+                    axes = axes2.twinx()
+                    axes.set_axis_off()
 
-                    if target.spectarget:
-                        target.spectarget.plot_waveformfits(axes=axes2, po=po, synth_plot_flag=synth_plot_flag,
-                                        lowest_corner=lowest_corner, highest_corner=highest_corner, fontsize=fontsize, allaxe=False,
-                                        syn_color=syn_color, obs_color=obs_color, misfit_color=misfit_color, tap_color_annot=tap_color_annot)
+                    ymin, ymax = - absmax * 1.5 * space_factor, absmax * 1.5
+                    try:
+                        axes.set_ylim(ymin, ymax)
+                    except ValueError:
+                        logger.debug(
+                            'These traces contain NaN or Inf open in snuffler?')
+                        input('Press enter! Otherwise Ctrl + C')
+                        from pyrocko.trace import snuffle
+                        snuffle(syn_traces)
 
-                elif isinstance(target, SpectrumTarget):
-                    target.plot_waveformfits(axes=axes, po=po, synth_plot_flag=synth_plot_flag,
-                            lowest_corner=lowest_corner, highest_corner=highest_corner, fontsize=fontsize, allaxe=True,
-                            syn_color=syn_color, obs_color=obs_color, misfit_color=misfit_color, tap_color_annot=tap_color_annot)
-    
+                    if target.domain == 'time':
+                        subplot_waveforms(
+                            axes=axes, axes2=axes2,
+                            po=po,
+                            result=result,
+                            target=target,
+                            traces=syn_traces,
+                            source=source,
+                            var_reductions=all_var_reductions[target],
+                            time_shifts=all_time_shifts[target],
+                            time_shift_bounds=time_shift_bounds,
+                            synth_plot_flag=synth_plot_flag,
+                            absmax=absmax,
+                            mode=composite._mode,
+                            fontsize=fontsize,
+                            syn_color=syn_color,
+                            obs_color=obs_color,
+                            time_shift_color=time_shift_color,
+                            tap_color_edge=tap_color_edge,
+                            tap_color_annot=tap_color_annot)
+
+                    if target.domain == 'spectrum':
+                        subplot_spectrum(
+                            axes=spec_axes,
+                            po=po,
+                            target=target,
+                            traces=syn_traces,
+                            result=result,
+                            synth_plot_flag=synth_plot_flag,
+                            only_spectrum=only_spectrum,
+                            var_reductions=all_var_reductions[target],
+                            fontsize=fontsize,
+                            syn_color=syn_color,
+                            obs_color=obs_color,
+                            misfit_color=misfit_color,
+                            tap_color_annot=tap_color_annot)
+
                 scale_string = None
 
                 infos = []

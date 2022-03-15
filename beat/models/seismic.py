@@ -465,7 +465,9 @@ class SeismicComposite(Composite):
                     point=point,
                     processed_obs=obs_tr,
                     source_contributions=source_contributions,
-                    taper=taper, domain=wc.domain))
+                    taper=taper,
+                    filterer=wmap.filterer,
+                    domain=wc.domain))
 
             if order == 'list':
                 results.extend(wmap_results)
