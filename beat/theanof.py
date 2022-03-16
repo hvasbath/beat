@@ -410,7 +410,7 @@ class SeisSynthesizer(theano.Op):
 
         elif self.domain == 'spectrum':
             synths[0] = heart.fft_transforms(
-                time_domain_signls=synthetics,
+                time_domain_signals=synthetics,
                 filterer=self.filterer)
         else:
             ValueError('Domain "%" not supported!' % self.domain)

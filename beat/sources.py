@@ -606,7 +606,10 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
     @property
     def scaled_m6(self):
         m9 = mtm.symmat6(*self.m6)
-        m0_unscaled = math.sqrt(num.sum(m9.A ** 2)) / math.sqrt(2.)
+        if isinstance(m9, num.matrix):
+            m9 = m9.A
+
+        m0_unscaled = math.sqrt(num.sum(m9 ** 2)) / math.sqrt(2.)
         m9 /= m0_unscaled
         m6 = mtm.to6(m9)
         return m6

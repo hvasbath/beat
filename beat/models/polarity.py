@@ -102,6 +102,11 @@ class PolarityComposite(Composite):
 
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs
+
+        logger.info(
+            'Polarity optimization on: \n '
+            ' %s' % ', '.join(self.input_rvs.keys()))
+
         self.input_rvs.update(fixed_rvs)
 
         hp_names = self.get_hypernames()

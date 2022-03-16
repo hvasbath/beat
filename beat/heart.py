@@ -2716,6 +2716,7 @@ class PolarityMapping(BaseMapping):
 
         self.config = config
         self.datasets = None
+        self.name = 'polarity'
 
         self._prepared_data = None
         self._radiation_weights = None
@@ -3906,7 +3907,11 @@ def pol_synthetics(
 
     moment_tensor = source.pyrocko_moment_tensor()
     m9 = moment_tensor.m()
-    m0_unscaled = num.sqrt(num.sum(m9.A ** 2)) / sqrt2
+
+    if isinstance(m9, num.matrix):
+        m9 = m9.A
+
+    m0_unscaled = num.sqrt(num.sum(m9 ** 2)) / sqrt2
     m9 /= m0_unscaled
     return radiation_weights.T.dot(to6(m9))
 
