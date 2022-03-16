@@ -24,7 +24,7 @@ from beat.config import ffi_mode_str, geometry_mode_str, dist_vars
 from beat.models import load_model, Stage, estimate_hypers, sample
 from beat.backend import backend_catalog, extract_bounds_from_summary, \
                          thin_buffer
-from beat.sampler import SamplingHistory
+from beat.sampler.pt import SamplingHistory
 from beat.sampler.smc import sample_factor_final_stage
 
 from beat.sources import MTSourceWithMagnitude, MTQTSource
@@ -1820,6 +1820,11 @@ def command_check(args):
                 source=event,
                 engine=sc.engine,
                 outmode='stacked_traces')
+
+            # set location code for setup checking
+            for tr in wmap._prepared_data:
+                tr.set_location('f')
+
             snuffle(
                 wmap.datasets + wmap._prepared_data,
                 stations=wmap.stations, events=[event])

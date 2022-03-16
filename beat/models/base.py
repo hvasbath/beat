@@ -3,7 +3,6 @@ import os
 
 from beat import config as bconfig
 from beat.models import hyper_normal
-from beat import sampler
 from beat.backend import SampleStage, thin_buffer
 
 from pymc3 import Deterministic
@@ -200,11 +199,12 @@ def sample(step, problem):
         start = None
 
     if sc.name == 'Metropolis':
+        from beat.sampler import metropolis_sample
         logger.info('... Starting Metropolis ...\n')
 
         ensuredir(problem.outfolder)
 
-        sampler.metropolis_sample(
+        metropolis_sample(
             n_steps=pa.n_steps,
             step=step,
             progressbar=sc.progressbar,
@@ -219,9 +219,10 @@ def sample(step, problem):
             rm_flag=pa.rm_flag)
 
     elif sc.name == 'SMC':
+        from beat.sampler import smc_sample
         logger.info('... Starting SMC ...\n')
 
-        sampler.smc_sample(
+        smc_sample(
             pa.n_steps,
             step=step,
             progressbar=sc.progressbar,
@@ -236,9 +237,10 @@ def sample(step, problem):
             rm_flag=pa.rm_flag)
 
     elif sc.name == 'PT':
+        from beat.sampler import pt_sample
         logger.info('... Starting Parallel Tempering ...\n')
 
-        sampler.pt_sample(
+        pt_sample(
             step=step,
             n_chains=pa.n_chains + 1,  # add master
             n_samples=pa.n_samples,

@@ -419,7 +419,7 @@ def apply_station_blacklist(stations, blacklist):
 
     outstations = []
     for st in stations:
-        station_name = '{}.{}'.format(st.network, st.station)
+        station_name = get_ns_id((st.network, st.station))
         if station_name not in blacklist:
             outstations.append(st)
     return outstations
@@ -443,13 +443,13 @@ def weed_data_traces(data_traces, stations):
         of :class:`pyrocko.trace.Trace`
     """
 
-    station_names = ['{}.{}'.format(station.network, station.station)
+    station_names = [get_ns_id((station.network, station.station))
                      for station in stations]
 
     weeded_data_traces = []
 
     for tr in data_traces:
-        trace_name = '{}.{}'.format(tr.network, tr.station)
+        trace_name = get_ns_id(tr.nslc_id)
         if trace_name in station_names:
             weeded_data_traces.append(tr)
 
@@ -473,12 +473,12 @@ def weed_targets(targets, stations, discard_targets=[]):
     weeded_targets : list
         of :class:`pyrocko.gf.targets.Target`
     """
-    station_names = ['{}.{}'.format(
-        station.network, station.station) for station in stations]
+    station_names = [
+        get_ns_id((station.network, station.station)) for station in stations]
 
     weeded_targets = []
     for target in targets:
-        target_name = '{}.{}'.format(target.codes[0], target.codes[1])
+        target_name = get_ns_id((target.codes[0], target.codes[1]))
         if target_name in station_names:
             if target in discard_targets:
                 pass
@@ -555,7 +555,7 @@ def weed_stations(
             'Distance of station %s: %f [deg]' % (station.station, distance))
         if distance >= distances[0] and distance <= distances[1]:
             logger.debug('Inside defined distance range!')
-            ns_str = '{}.{}'.format(station.network, station.station)
+            ns_str = get_ns_id((station.network, station.station))
             if ns_str in check_duplicate and remove_duplicate:
                 logger.warning(
                     'Station %s already in wavemap! Multiple '
@@ -1457,6 +1457,10 @@ def rotate_coords_plane_normal(coords, sf):
 
     roty[:, 0] *= - 1.
     return roty
+
+
+def get_ns_id(nslc_id):
+    return '{}.{}'.format(nslc_id[0], nslc_id[1])
 
 
 def time_method(loop=10000):

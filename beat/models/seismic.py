@@ -96,6 +96,7 @@ class SeismicComposite(Composite):
 
         self.wavemaps = []
         for i, wc in enumerate(sc.waveforms):
+            logger.info('Initialising seismic wavemap for "%s" ...' % wc.name)
             if wc.include:
                 wmap = heart.init_wavemap(
                     waveformfit_config=wc,
@@ -466,7 +467,7 @@ class SeismicComposite(Composite):
                     processed_obs=obs_tr,
                     source_contributions=source_contributions,
                     taper=taper,
-                    filterer=wmap.filterer,
+                    filterer=wmap.config.filterer,
                     domain=wc.domain))
 
             if order == 'list':
@@ -552,18 +553,6 @@ class SeismicComposite(Composite):
         dict of floats,
             keys are nslc_ids
         """
-        def compute_var_reduction(data_trc, weight, result):
-            icov = data_trc.covariance.inverse
-
-            data = result.processed_obs.get_ydata()
-            residual = result.processed_res.get_ydata()
-
-            nom = residual.T.dot(icov).dot(residual)
-            denom = data.T.dot(icov).dot(data)
-
-            logger.debug('nom %f, denom %f' % (float(nom), float(denom)))
-            var_red = 1 - (nom / denom)
-            return var_red
 
         if results is None:
             results = self.assemble_results(
@@ -589,10 +578,19 @@ class SeismicComposite(Composite):
         logger.debug('Calculating variance reduction for solution ...')
 
         var_reds = OrderedDict()
-        for i in range(ndatasets):
-            nslcd_id = self.datasets[i].nslcd_id
-            var_reds[nslcd_id] = compute_var_reduction(
-                self.datasets[i], weights[i], results[i])
+        for result, tr in zip(results, self.datasets):
+            nslcd_id = result.processed_obs.nslcd_id
+
+            icov = tr.covariance.inverse
+
+            data = result.processed_obs.get_ydata()
+            residual = result.processed_res.get_ydata()
+
+            nom = residual.T.dot(icov).dot(residual)
+            denom = data.T.dot(icov).dot(data)
+
+            logger.debug('nom %f, denom %f' % (float(nom), float(denom)))
+            var_reds[nslcd_id] = 1 - (nom / denom)
 
             logger.debug(
                 'Variance reduction for %s is %f' % (
@@ -815,7 +813,7 @@ class SeismicGeometryComposite(SeismicComposite):
             wmap.prepare_data(
                 source=self.events[wc.event_idx],
                 engine=self.engine,
-                outmode=outmode,
+                outmode='stacked_traces',       # no source individual contribs
                 chop_bounds=chop_bounds)
 
             arrival_times = wmap._arrival_times

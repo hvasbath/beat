@@ -9,14 +9,16 @@ from matplotlib.ticker import MaxNLocator
 
 from pyrocko import gmtpy
 from pyrocko.cake_plot import str_to_mpl_color as scolor
-from pyrocko.plot import mpl_papersize, mpl_init, mpl_graph_color, mpl_margins
+from pyrocko.plot import (mpl_papersize, mpl_init, mpl_graph_color,
+                          mpl_margins, beachball)
 from pyrocko import trace
 
 from beat import utility
 from beat.models import Stage, load_stage
 
 from .common import (get_gmt_config, format_axes, draw_line_on_array,
-                     get_result_point, plot_inset_hist, str_duration)
+                     get_result_point, plot_inset_hist,
+                     str_duration, str_unit, str_dist)
 
 
 logger = logging.getLogger('plotting.seismic')
@@ -281,7 +283,7 @@ def get_valid_spectrum_data(
     if fxdata[-1] < upper_corner:
         upper_idx = -1
     else:
-        upper_idx = fxdata[fxdata > upper_corner].argmin()
+        upper_idx = (fxdata > upper_corner).argmax()
 
     return lower_idx, upper_idx, lower_corner, upper_corner
 
@@ -375,7 +377,7 @@ def subplot_waveforms(
         logger.debug(
             'Plotting variance reductions for %s' % nslcd_id_str)
 
-        best_data = var_reductions[0].
+        best_data = var_reductions[0]
 
         in_ax = plot_inset_hist(
             axes,
@@ -413,7 +415,7 @@ def subplot_waveforms(
         result.processed_obs.tmax]
     tmark_fontsize = fontsize - 1
 
-    if len(time_shifts) != 0:
+    if time_shifts is not None:
         sidebar_ybounds = [-0.3, -0.4]
         ytmarks = [-1.15, -0.7]
         hor_alignment = 'center'
@@ -468,7 +470,7 @@ def subplot_waveforms(
 
     # annotate axis amplitude
     axes.annotate(
-        '%0.3g %s -' % (-absmax, plotting.str_unit(target.quantity)),
+        '%0.3g %s -' % (-absmax, str_unit(target.quantity)),
         xycoords='data',
         xy=(tmarks[1], -absmax / 2),
         xytext=(1., 1.),
@@ -483,15 +485,16 @@ def subplot_waveforms(
 
 
 def subplot_spectrum(
-    axes, po, target, traces, result, synth_plot_flag,
+    axes, axes2, po, target, traces, result, synth_plot_flag,
     only_spectrum, var_reductions, fontsize,
-    syn_color, obs_color, misfit_color, tap_color_annot):
+    syn_color, obs_color, misfit_color, tap_color_annot,
+    pad_factors=[1.5, 1.2]):
 
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
     if not only_spectrum:
         axes = inset_axes(
-            axes, width="100%", height="100%",
+            axes2, width="100%", height="100%",
             bbox_to_anchor=(0.05, -0.15, 0.75, 0.24),
             bbox_transform=axes.transAxes, loc=2, borderpad=0)
         bbox_y = 0.75
@@ -502,7 +505,7 @@ def subplot_spectrum(
     if po.nensemble > 1:
         fuzzy_spectrum(
             axes, traces=traces, corner_frequencies=corner_frequencies,
-            pad_factors=[1.5, 1.2], zorder=0, extent=None,
+            pad_factors=pad_factors, zorder=0, extent=None,
             linewidth=7.0, grid_size=(500, 500), cmap=None, alpha=1.)
 
         if synth_plot_flag:
@@ -529,7 +532,7 @@ def subplot_spectrum(
     for attr_suffix, lw, color in zip(
             ['obs', 'syn', 'res'], linewidths, colors):
 
-        tr = getattr('processed_{}'.format(attr_suffix), result)
+        tr = getattr(result, 'processed_{}'.format(attr_suffix))
         ydata = zero_pad_spectrum(tr, lower_idx, upper_idx)
         ymaxs.append(ydata.max())
 
@@ -541,7 +544,7 @@ def subplot_spectrum(
 
     ymax = num.max(ymaxs)
 
-    format_axes(ax, remove=['right', 'top', 'left', 'bottom'])
+    format_axes(axes, remove=['right', 'top', 'left', 'bottom'])
     axes.yaxis.set_visible(False)
     axes.xaxis.set_visible(False)
     axes.set_xlim([fxdata.min(), fxdata.max()])
@@ -605,13 +608,6 @@ def seismic_fits(problem, stage, plot_options):
     # tap_color_fill = (0.95, 0.95, 0.90)
 
     composite = problem.composites['seismic']
-
-    lowest_corner = num.min(
-        [[filterer.get_lower_corner() for filterer in wmap.filterer]
-            for wmap in problem.config.seismic_config.waveforms])
-    highest_corner = num.max(
-        [[filterer.get_upper_corner() for filterer in wmap.filterer]
-            for wmap in problem.config.seismic_config.waveforms])
 
     fontsize = 8
     fontsize_title = 10
@@ -742,6 +738,8 @@ def seismic_fits(problem, stage, plot_options):
                     target_time_shifts.append(time_shifts[i])
 
             all_time_shifts[target] = num.array(target_time_shifts)
+    else:
+        all_time_shifts = {target: None for target in composite.targets}
 
     # gather domain targets
     domain_to_targets = utility.gather(
@@ -756,7 +754,7 @@ def seismic_fits(problem, stage, plot_options):
     unique_target_codes = list(target_codes_to_targets.keys())
     cg_to_target_codes = utility.gather(
         unique_target_codes,
-        lambda t: t.t)
+        lambda t: t[3])
 
     skey = lambda tr: tr.channel
     cgs = cg_to_target_codes.keys()
@@ -768,7 +766,7 @@ def seismic_fits(problem, stage, plot_options):
 
         nframes = len(target_codes)
 
-        nx = int(math.ceil(math.sqrt(nframes)))
+        nx = int(num.ceil(num.sqrt(nframes)))
         ny = (nframes - 1) // nx + 1
 
         logger.debug('nx %i, ny %i' % (nx, ny))
@@ -860,15 +858,14 @@ def seismic_fits(problem, stage, plot_options):
                 domain_targets = target_codes_to_targets[target_code]
                 if len(domain_targets) > 1:
                     only_spectrum = False
-                    spec_axes = axes2
                 else:
                     only_spectrum = True
-                    spec_axes = axes
 
-                for target in domain_targets:
+                for k_subf, target in enumerate(domain_targets):
 
                     syn_traces = all_syn_trs_target[target]
                     itarget = target_index[target]
+                    result = bresults[itarget]
 
                     # get min max of all traces
                     key = target.codes[3]
@@ -884,15 +881,18 @@ def seismic_fits(problem, stage, plot_options):
                     logger.debug('i_this %i' % i_this)
                     logger.debug('Station {}'.format(
                         utility.list2string(target.codes)))
-                    axes2 = fig.add_subplot(ny_this, nx_this, i_this)
 
-                    space = 0.4
-                    space_factor = 0.7 + space
-                    axes2.set_axis_off()
-                    axes2.set_ylim(-1.05 * space_factor, 1.05)
+                    if k_subf == 0:
+                        # only create axes instances for first target
+                        axes2 = fig.add_subplot(ny_this, nx_this, i_this)
 
-                    axes = axes2.twinx()
-                    axes.set_axis_off()
+                        space = 0.4
+                        space_factor = 0.7 + space
+                        axes2.set_axis_off()
+                        axes2.set_ylim(-1.05 * space_factor, 1.05)
+
+                        axes = axes2.twinx()
+                        axes.set_axis_off()
 
                     ymin, ymax = - absmax * 1.5 * space_factor, absmax * 1.5
                     try:
@@ -927,7 +927,8 @@ def seismic_fits(problem, stage, plot_options):
 
                     if target.domain == 'spectrum':
                         subplot_spectrum(
-                            axes=spec_axes,
+                            axes=axes,
+                            axes2=axes2,
                             po=po,
                             target=target,
                             traces=syn_traces,
@@ -1058,35 +1059,36 @@ def extract_mt_components(problem, po, include_magnitude=False):
     if include_magnitude:
         varnames += ['magnitude']
 
-    rpoint = None
-    stage = load_stage(
-        problem, stage_number=po.load_stage, load='trace', chains=[-1])
-
-    n_mts = len(stage.mtrace)
-    m6s = num.empty((n_mts, len(varnames)), dtype='float64')
-    for i, varname in enumerate(varnames):
-        try:
-            m6s[:, i] = stage.mtrace.get_values(
-                varname, combine=True, squeeze=True).ravel()
-        except ValueError:  # if fixed value add that to the ensemble
-            rpoint = problem.get_random_point()
-            mtfield = num.full_like(
-                num.empty((n_mts), dtype=num.float64), rpoint[varname])
-            m6s[:, i] = mtfield
-
-    if po.nensemble:
-        logger.info(
-            'Drawing %i solutions from ensemble ...' % po.nensemble)
-        csteps = float(n_mts) / po.nensemble
-        idxs = num.floor(
-            num.arange(0, n_mts, csteps)).astype('int32')
-        m6s = m6s[idxs, :]
-    else:
-        logger.info('Drawing full ensemble ...')
 
     if not po.reference:
+        rpoint = None
         llk_str = po.post_llk
-        point = get_result_point(stage, problem.config, po.post_llk)
+        stage = load_stage(
+            problem, stage_number=po.load_stage, load='trace', chains=[-1])
+
+        n_mts = len(stage.mtrace)
+        m6s = num.empty((n_mts, len(varnames)), dtype='float64')
+        for i, varname in enumerate(varnames):
+            try:
+                m6s[:, i] = stage.mtrace.get_values(
+                    varname, combine=True, squeeze=True).ravel()
+            except ValueError:  # if fixed value add that to the ensemble
+                rpoint = problem.get_random_point()
+                mtfield = num.full_like(
+                    num.empty((n_mts), dtype=num.float64), rpoint[varname])
+                m6s[:, i] = mtfield
+
+        if po.nensemble:
+            logger.info(
+                'Drawing %i solutions from ensemble ...' % po.nensemble)
+            csteps = float(n_mts) / po.nensemble
+            idxs = num.floor(
+                num.arange(0, n_mts, csteps)).astype('int32')
+            m6s = m6s[idxs, :]
+        else:
+            logger.info('Drawing full ensemble ...')
+
+        point = get_result_point(stage.mtrace, po.post_llk)
         best_mt = point2array(point, varnames=varnames, rpoint=rpoint)
     else:
         llk_str = 'ref'
@@ -1094,7 +1096,11 @@ def extract_mt_components(problem, po, include_magnitude=False):
             composite = problem.composites[
                 problem.config.problem_config.datatypes[0]]
             composite.point2sources(po.reference)
-            best_mt = composite.sources[0].get_derived_parameters()[0:6]
+            m6s = [composite.sources[0].get_derived_parameters()[0:6]]
+            best_mt = None
+        else:
+            m6s = [point2array(point=po.reference, varnames=varnames)]
+            best_mt = None
 
     return m6s, best_mt, llk_str
 
@@ -1167,29 +1173,30 @@ def draw_fuzzy_beachball(problem, po):
         beachball.plot_fuzzy_beachball_mpl_pixmap(
             m6s, axes, best_mt=best_mt, best_color='white', **kwargs)
 
-        best_amps, bx, by = beachball.mts2amps(
-            [best_mt],
-            grid_resolution=kwargs['grid_resolution'],
-            projection=kwargs['projection'],
-            beachball_type=kwargs['beachball_type'],
-            mask=False)
+        if best_mt is not None:
+            best_amps, bx, by = beachball.mts2amps(
+                [best_mt],
+                grid_resolution=kwargs['grid_resolution'],
+                projection=kwargs['projection'],
+                beachball_type=kwargs['beachball_type'],
+                mask=False)
 
-        axes.contour(
-            position[0] + by * size, position[1] + bx * size, best_amps.T,
-            levels=[0.],
-            colors=['black'],
-            linestyles='dashed',
-            linewidths=kwargs['linewidth'],
-            transform=transform,
-            zorder=kwargs['zorder'],
-            alpha=kwargs['alpha'])
+            axes.contour(
+                position[0] + by * size, position[1] + bx * size, best_amps.T,
+                levels=[0.],
+                colors=['black'],
+                linestyles='dashed',
+                linewidths=kwargs['linewidth'],
+                transform=transform,
+                zorder=kwargs['zorder'],
+                alpha=kwargs['alpha'])
 
         if 'polarity' in problem.config.problem_config.datatypes:
             composite = problem.composites['polarity']
             for pmap in composite.polmaps:
                 draw_ray_piercing_points_bb(
                     axes, pmap.get_takeoff_angles_rad(),
-                    pmap.get_azimuths_rad(), pmap.dataset,
+                    pmap.get_azimuths_rad(), pmap.get_polarities(),
                     size=size, position=position, transform=transform)
 
             # axes.legend(['','Compression','Tensile'])
@@ -1216,7 +1223,6 @@ def fuzzy_mt_decomposition(
     """
     from pymc3 import quantiles
     from pyrocko.moment_tensor import MomentTensor
-    from pyrocko.plot import beachball
 
     logger.info('Drawing Fuzzy MT Decomposition ...')
 
@@ -1317,7 +1323,7 @@ def fuzzy_mt_decomposition(
 
             if ratio > 1e-4:
                 try:
-                    size = math.sqrt(ratio) * 0.95 * size0
+                    size = num.sqrt(ratio) * 0.95 * size0
                     kwargs['position'] = (1. + xpos, ypos)
                     kwargs['size'] = size
                     kwargs['color_t'] = color_t
@@ -2059,7 +2065,7 @@ def draw_station_map_cartopy(problem, po):
                     central_longitude=event.lon, central_latitude=event.lat)
                 extent = None
             else:
-                max_dist = math.ceil(wmap.config.distances[1])
+                max_dist = num.ceil(wmap.config.distances[1])
                 map_proj = ctp.crs.PlateCarree()
                 extent = [
                     event.lon - max_dist, event.lon + max_dist,

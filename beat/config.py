@@ -20,7 +20,7 @@ from pyrocko.gf import RectangularSource as PyrockoRS
 from pyrocko.gf.seismosizer import Cloneable, LocalEngine, stf_classes
 
 from beat.heart import Filter, FilterBase, ArrivalTaper, Parameter
-from beat.heart import ReferenceLocation
+from beat.heart import ReferenceLocation, _domain_choices
 from beat.sources import RectangularSource, MTSourceWithMagnitude, MTQTSource
 from beat.covariance import available_noise_structures
 
@@ -236,7 +236,6 @@ km = 1000.
 _quantity_choices = ['displacement', 'velocity', 'acceleration']
 _interpolation_choices = ['nearest_neighbor', 'multilinear']
 _structure_choices = available_noise_structures()
-_domain_choices = ['time', 'spectrum']
 _mode_choices = [geometry_mode_str, ffi_mode_str]
 _regularization_choices = ['laplacian', 'none']
 _correlation_function_choices = ['nearest_neighbor', 'gaussian', 'exponential']
@@ -582,7 +581,7 @@ class WaveformFitConfig(Object):
     blacklist = List.T(
         String.T(),
         default=[],
-        help='Station name for stations to be thrown out.')
+        help='Network.Station codes for stations to be thrown out.')
     quantity = StringChoice.T(
         choices=_quantity_choices,
         default='displacement',
@@ -747,7 +746,7 @@ class PolarityFitConfig(Object):
              'at station(s) dumped by pyrocko.gui.marker.save_markers.')
     blacklist = List.T(
         String.T(),
-        default=[],
+        default=[''],
         help='List of Network.Station name(s) for stations to be thrown out.')
     event_idx = Int.T(
         default=0,

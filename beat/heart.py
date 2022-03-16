@@ -44,6 +44,7 @@ nanostrain = 1e-9
 
 stackmodes = ['array', 'data', 'stacked_traces', 'tapered_data']
 
+_domain_choices = ['time', 'spectrum']
 
 lambda_sensors = {
     'Envisat': 0.056,       # needs updating- no ressource file
@@ -796,7 +797,7 @@ class PolarityTarget(gf.meta.Receiver):
         takeoff_angle = store.get_stored_attribute(
             self.phase_id,
             'takeoff_angle',
-            (source.depth, self.distance)) * r2d
+            (source.depth, self.distance))
         logger.debug('Takeoff-angle table %f station %s' % (
             takeoff_angle,
             utility.list2string(self.codes)))
@@ -1521,7 +1522,7 @@ def init_seismic_targets(
                         'Channel "%s" for station "%s" does not exist!'
                         % (channel, station.station))
                 else:
-                    targets.append(BasicTarget(
+                    targets.append(DynamicTarget(
                         quantity='displacement',
                         codes=(station.network,
                                station.station,
@@ -2226,7 +2227,7 @@ def seis_construct_gf(
             if not os.path.exists(traces_path) or force:
                 logger.info('Filling store ...')
                 store = gf.Store(store_dir, 'r')
-                store.make_ttt(force=force)
+                store.make_travel_time_tables(force=force)
                 store.close()
                 backend_builders[sf.code](
                     store_dir, nworkers=sf.nworkers, force=force)
@@ -2305,8 +2306,8 @@ def polarity_construct_gf(
             if not os.path.exists(phases_dir) or force:
                 logger.info('Calculating interpolation tables ...')
                 store = gf.Store(store_dir, 'r')
-                store.make_ttt(force=force)
-                store.make_tat(force=force)
+                store.make_travel_time_tables(force=force)
+                store.make_takeoff_angle_tables(force=force)
                 store.close()
 
                 # create dummy files for engine to recognize the store
@@ -2645,7 +2646,7 @@ class BaseMapping(object):
         self._phase_markers = None
 
     def _load_phase_markers(self, path):
-        from pyrocko.gui.markers import load_markers
+        from pyrocko.gui.marker import load_markers
 
         if self._phase_markers is None:
             try:
@@ -2674,7 +2675,7 @@ class BaseMapping(object):
         """
         Returns list of strings of station names
         """
-        return ['{}.{}'.format(station.network, station.station)
+        return [utility.get_ns_id((station.network, station.station))
                 for station in self.stations]
 
     @property
@@ -2714,7 +2715,7 @@ class PolarityMapping(BaseMapping):
         BaseMapping.__init__(self, stations, targets)
 
         self.config = config
-        self.dataset = None
+        self.datasets = None
 
         self._prepared_data = None
         self._radiation_weights = None
@@ -2726,9 +2727,9 @@ class PolarityMapping(BaseMapping):
                 self.config.polarities_marker_path)
 
         station_names = []
-        for polarity_marker in self.dataset:
+        for polarity_marker in self.datasets:
             nslc_id = polarity_marker.one_nslc()
-            station_names.append('{}.{}'.format(nslc_id[0], nslc_id[1]))
+            station_names.append(utility.get_ns_id(nslc_id))
 
         return station_names
 
@@ -2785,9 +2786,9 @@ class PolarityMapping(BaseMapping):
         # polarity data from config
         station_names_data = self.get_station_names_data()
 
-        self.station_weeding(self.blacklist)
+        self.station_weeding(self.config.blacklist)
         station_names_file = [
-            '{}.{}'.format(station.network, station.station)
+            utility.get_ns_id((station.network, station.station))
             for station in self.stations]
 
         stations_new = []
@@ -2953,7 +2954,8 @@ class WaveformMapping(BaseMapping):
 
         blacklist = []
         station_names = self.get_station_names()
-        dataset_station_names = [tr.station for tr in self.datasets]
+        dataset_station_names = [
+            utility.get_ns_id(tr.nslc_id) for tr in self.datasets]
 
         for station_name in station_names:
             if station_name not in dataset_station_names:
@@ -3002,7 +3004,12 @@ class WaveformMapping(BaseMapping):
     def get_marker_arrival_times(self):
 
         if self._phase_markers is None:
-            self._load_phase_markers(self.config.arrivals_marker_path)
+            try:
+                self._load_phase_markers(self.config.arrivals_marker_path)
+            except IOError:
+                logger.info(
+                    'Did not find custom arrival times.')
+                return {}
 
         arrival_time_dict = OrderedDict()
         for phase_marker in self._phase_markers:
@@ -3360,11 +3367,6 @@ def init_datahandler(
     datahandler : :class:`DataWaveformCollection`
     """
     sc = seismic_config
-
-    if hasattr(sc, 'ArrivalConfig'):
-        arrivalconfig = sc.ArrivalConfig
-    else:
-        arrivalconfig = None
     
     stations, data_traces = utility.load_objects(seismic_data_path)
 
@@ -3376,8 +3378,7 @@ def init_datahandler(
         channels=sc.get_unique_channels(),
         sample_rate=sc.gf_config.sample_rate,
         crust_inds=[sc.gf_config.reference_model_idx],
-        reference_location=sc.gf_config.reference_location,
-        arrivaltime_config=arrivalconfig)
+        reference_location=sc.gf_config.reference_location)
 
     target_deltat = 1. / sc.gf_config.sample_rate
 
@@ -3427,7 +3428,7 @@ def init_wavemap(
     wmap.update_interpolation(wc.interpolation)
     wmap._update_trace_wavenames('_'.join([wc.name, str(wmap.mapnumber)]))
 
-    logger.info('Number of seismic datasets for wavemap: %s: %i ' % (
+    logger.info('Number of seismic datasets for wavemap: %s: %i \n' % (
         wmap._mapid, wmap.n_data))
     return wmap
 
@@ -3943,6 +3944,10 @@ def fft_transforms(
             spec_signals[i] = num.abs(fydata)
 
         elif outmode in ['data', 'tapered_data', 'stacked_traces']:
+
+            if outmode == 'tapered_data':
+                tr = tr[0]
+
             fxdata, fydata = tr.spectrum(pad_to_pow2, 0.05)
             df = fxdata[1] - fxdata[0]
             spec_tr = SpectrumDataset(
@@ -4082,7 +4087,6 @@ def taper_filter_traces(
     ctpp = cut_traces.append
     for i, tr in enumerate(traces):
         cut_trace = tr.copy()
-        cut_trace.set_location('f')
 
         if arrival_taper:
             taper = arrival_taper.get_pyrocko_taper(float(arrival_times[i]))

@@ -12,7 +12,6 @@ import theano.tensor as tt
 from theano import config as tconfig
 
 from beat.utility import list2string, transform_sources, weed_input_rvs
-from beat import sampler
 from beat.models import geodetic, seismic, laplacian, polarity
 
 from beat import config as bconfig
@@ -126,6 +125,7 @@ class Problem(object):
         """
         Initialise the Sampling algorithm as defined in the configuration file.
         """
+        from beat import sampler
 
         if hypers:
             sc = self.config.hyper_sampler_config
