@@ -475,7 +475,7 @@ class SeismicResult(Object):
                 'have different tmin values! '
                 'obs: %g syn: %g, difference: %f. '
                 'Residual may be invalid!' % (
-                    utility.list2string(tr.nslc_id),
+                    utility.list2string(tr.nslcd_id),
                     tr.tmin, syn_tmin, tr.tmin - syn_tmin))
         return tr
 
@@ -524,6 +524,7 @@ def results_for_export(results, datatype=None, attributes=None):
     for attribute in attributes:
         try:
             data = [getattr(result, attribute) for result in results]
+
         except AttributeError:
             raise AttributeError(
                 'Result object does not have the attribute '
@@ -929,6 +930,7 @@ class SpectrumDataset(SeismicDataset):
     fmin = Float.T(default=0.0)
     fmax = Float.T(default=5.0)
     deltaf = Float.T(default=0.1)
+    domain = 'spectrum'
 
     def __init__(self, network='', station='STA', location='', channel='',
                  tmin=0., tmax=None, deltat=1., ydata=None, mtime=None,
@@ -942,7 +944,6 @@ class SpectrumDataset(SeismicDataset):
         self.fmin = fmin
         self.fmax = fmax
         self.deltaf = deltaf
-        self.domain = 'spectrum'
 
     def __getstate__(self):
         return (self.network, self.station, self.location, self.channel,
@@ -2644,6 +2645,11 @@ class BaseMapping(object):
         self._station2index = None
         self._target2index = None
         self._phase_markers = None
+        self._prepared_data = None
+
+    @property
+    def is_prepared(self):
+        return True if self._prepared_data is not None else False
 
     def _load_phase_markers(self, path):
         from pyrocko.gui.marker import load_markers
@@ -2718,7 +2724,6 @@ class PolarityMapping(BaseMapping):
         self.datasets = None
         self.name = 'polarity'
 
-        self._prepared_data = None
         self._radiation_weights = None
 
     def get_station_names_data(self):
@@ -2890,7 +2895,6 @@ class WaveformMapping(BaseMapping):
         self.datasets = datasets
         self.channels = channels
         self.station_correction_idxs = None
-        self._prepared_data = None
         self._arrival_times = None
 
         self.deltat = deltat
@@ -3029,53 +3033,52 @@ class WaveformMapping(BaseMapping):
             logger.debug(
                 'Overwriting observed data windows in "%s"!' % self._mapid)
 
-        if hasattr(self, 'config'):
-            arrival_times = num.zeros((self.n_t), dtype=tconfig.floatX)
-            marker_arrival_times = self.get_marker_arrival_times()
-            ncustom_times = len(marker_arrival_times)
-            if ncustom_times > 0:
-                logger.info('Found %i custom arrival times for "%s"' % (
-                    ncustom_times, self._mapid))
-            else:
-                logger.info('Using theoretical arrival times for '
-                            '"%s"' % self._mapid)
-
-            for i, target in enumerate(self.targets):
-                try:
-                    arrival_times[i] = marker_arrival_times[target.codes]
-
-                except KeyError:
-                    arrival_times[i] = get_phase_arrival_time(
-                        engine=engine, source=source,
-                        target=target, wavename=self.name)
-
-            if self.config.preprocess_data:
-                logger.debug('Pre-processing data ...')
-                filterer = self.config.filterer
-            else:
-                logger.debug('Not pre-processing data ...')
-                filterer = None
-
-            self._prepared_data = taper_filter_traces(
-                self.datasets,
-                arrival_taper=self.config.arrival_taper,
-                filterer=filterer,
-                arrival_times=arrival_times,
-                outmode=outmode,
-                chop_bounds=chop_bounds,
-                deltat=self.deltat,
-                plot=False)
-
-            if self.config.domain == 'spectrum':
-                self._prepared_data = fft_transforms(
-                    self._prepared_data,
-                    filterer=self.config.filterer,
-                    outmode=outmode,
-                    pad_to_pow2=True)
-
-            self._arrival_times = arrival_times
+        arrival_times = num.zeros((self.n_t), dtype=tconfig.floatX)
+        marker_arrival_times = self.get_marker_arrival_times()
+        ncustom_times = len(marker_arrival_times)
+        if ncustom_times > 0:
+            logger.info(
+                'Found %i custom arrival times for "%s"' % (
+                ncustom_times, self._mapid))
         else:
-            raise ValueError('Wavemap needs configuration!')
+            logger.info(
+                'Using theoretical arrival times for '
+                '"%s"' % self._mapid)
+
+        for i, target in enumerate(self.targets):
+            try:
+                arrival_times[i] = marker_arrival_times[target.codes]
+
+            except KeyError:
+                arrival_times[i] = get_phase_arrival_time(
+                    engine=engine, source=source,
+                    target=target, wavename=self.name)
+
+        if self.config.preprocess_data:
+            logger.debug('Pre-processing data ...')
+            filterer = self.config.filterer
+        else:
+            logger.debug('Not pre-processing data ...')
+            filterer = None
+
+        self._prepared_data = taper_filter_traces(
+            self.datasets,
+            arrival_taper=self.config.arrival_taper,
+            filterer=filterer,
+            arrival_times=arrival_times,
+            outmode=outmode,
+            chop_bounds=chop_bounds,
+            deltat=self.deltat,
+            plot=False)
+
+        if self.config.domain == 'spectrum':
+            self._prepared_data = fft_transforms(
+                self._prepared_data,
+                filterer=self.config.filterer,
+                outmode=outmode,
+                pad_to_pow2=True)
+
+        self._arrival_times = arrival_times
 
     def get_highest_frequency(self):
         """

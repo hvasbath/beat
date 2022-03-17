@@ -15,7 +15,8 @@ from beat.models import Stage, load_stage
 from beat.heart import physical_bounds
 from beat.config import geometry_mode_str, dist_vars
 
-from .common import plot_units, get_result_point
+from .common import (plot_units, get_result_point, histplot_op, hypername,
+                     format_axes, kde2plot)
 
 from scipy.stats import kde
 
@@ -368,7 +369,8 @@ def traceplot(
                             axs[rowi, coli].axvline(
                                 x=lines[v], color='white', lw=1.)
                             axs[rowi, coli].axvline(
-                                x=lines[v], color='black', linestyle='dashed', lw=1.)
+                                x=lines[v], color='black',
+                                linestyle='dashed', lw=1.)
                         except KeyError:
                             pass
 
@@ -735,7 +737,6 @@ def draw_posteriors(problem, plot_options):
                 stage.mtrace,
                 varnames=varnames,
                 chains=None,
-                color='black',
                 combined=True,
                 source_idxs=po.source_idxs,
                 plot_style='hist',

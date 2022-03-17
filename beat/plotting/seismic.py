@@ -13,6 +13,8 @@ from pyrocko.plot import (mpl_papersize, mpl_init, mpl_graph_color,
                           mpl_margins, beachball)
 from pyrocko import trace
 
+from pymc3.plots.utils import make_2d
+
 from beat import utility
 from beat.models import Stage, load_stage
 
@@ -214,7 +216,7 @@ def draw_earthmodels(problem, plot_options):
                 fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
-def get_fuzzy_cmap(self, ncolors=256):
+def get_fuzzy_cmap(ncolors=256):
     from matplotlib.colors import LinearSegmentedColormap
     return LinearSegmentedColormap.from_list(
         'dummy', ['white', scolor('chocolate2'), scolor('scarletred2')],
@@ -381,7 +383,7 @@ def subplot_waveforms(
 
         in_ax = plot_inset_hist(
             axes,
-            data=pmp.utils.make_2d(var_reductions),
+            data=make_2d(var_reductions),
             best_data=best_data,
             bbox_to_anchor=(0.85, .75, .2, .2))
         in_ax.set_title('VR [%]', fontsize=5)
@@ -428,7 +430,7 @@ def subplot_waveforms(
         if po.nensemble > 1:
             in_ax = plot_inset_hist(
                 axes,
-                data=pmp.utils.make_2d(time_shifts),
+                data=make_2d(time_shifts),
                 best_data=best_data,
                 bbox_to_anchor=(-0.0985, .16, .2, .2),
                 # cmap=plt.cm.get_cmap('seismic'),
@@ -488,7 +490,7 @@ def subplot_spectrum(
     axes, axes2, po, target, traces, result, synth_plot_flag,
     only_spectrum, var_reductions, fontsize,
     syn_color, obs_color, misfit_color, tap_color_annot,
-    pad_factors=[1.5, 1.2]):
+    pad_factors=[2., 1.2]):
 
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
@@ -497,9 +499,9 @@ def subplot_spectrum(
             axes2, width="100%", height="100%",
             bbox_to_anchor=(0.05, -0.15, 0.75, 0.24),
             bbox_transform=axes.transAxes, loc=2, borderpad=0)
-        bbox_y = 0.75
-    else:
         bbox_y = -0.15
+    else:
+        bbox_y = 0.75
 
     corner_frequencies = result.get_corner_frequencies()
     if po.nensemble > 1:
@@ -514,8 +516,8 @@ def subplot_spectrum(
             best_data = None
 
         in_ax = plot_inset_hist(
-            axes,
-            data=pmp.utils.make_2d(var_reductions),
+            axes2,
+            data=make_2d(var_reductions),
             best_data=best_data,
             bbox_to_anchor=(0.85, bbox_y, .2, .2))
         in_ax.set_title('SPC_VR [%]', fontsize=5)
@@ -538,7 +540,7 @@ def subplot_spectrum(
 
         if attr_suffix == 'res':
             axes.fill(fxdata, ydata,
-                clip_on=False, color=color, lw=lw, alpha=0.3)
+                clip_on=False, color=color, lw=lw, alpha=0.15)
         else:
             axes.plot(fxdata, ydata, color=color, lw=lw)
 
@@ -607,6 +609,7 @@ def seismic_fits(problem, stage, plot_options):
     tap_color_edge = (0.85, 0.85, 0.80)
     # tap_color_fill = (0.95, 0.95, 0.90)
 
+    problem.init_hierarchicals()
     composite = problem.composites['seismic']
 
     fontsize = 8
@@ -661,7 +664,7 @@ def seismic_fits(problem, stage, plot_options):
             point = stage.mtrace.point(idx=idx)
             points.append(point)
             results = composite.assemble_results(
-                point, chop_bounds=chop_bounds)
+                point, chop_bounds=chop_bounds, force=False)
             ens_results.append(results)
             ens_var_reductions.append(
                 composite.get_variance_reductions(
@@ -1088,7 +1091,7 @@ def extract_mt_components(problem, po, include_magnitude=False):
         else:
             logger.info('Drawing full ensemble ...')
 
-        point = get_result_point(stage.mtrace, po.post_llk)
+        point = get_result_point(stage, problem.config, po.post_llk)
         best_mt = point2array(point, varnames=varnames, rpoint=rpoint)
     else:
         llk_str = 'ref'

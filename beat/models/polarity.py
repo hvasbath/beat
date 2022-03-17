@@ -247,11 +247,11 @@ class PolarityComposite(Composite):
 
             if order == 'list':
                 synths.extend(synthetics)
-                obs.extend(pmap.dataset)
+                obs.extend(pmap._prepared_data)
 
             elif order == 'pmap':
                 synths.append(synthetics)
-                obs.append(pmap.dataset)
+                obs.append(pmap._prepared_data)
             else:
                 raise ValueError('Order "%s" is not supported' % order)
 

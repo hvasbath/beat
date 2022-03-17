@@ -712,7 +712,7 @@ def scene_fits(problem, stage, plot_options):
         if po.nensemble > 1:
             in_ax = plot_inset_hist(
                 axs[2],
-                data=pmp.utils.make_2d(all_var_reductions[dataset.name]),
+                data=make_2d(all_var_reductions[dataset.name]),
                 best_data=bvar_reductions[dataset.name] * 100.,
                 linewidth=1.,
                 bbox_to_anchor=(0.75, .775, .25, .225),

@@ -157,7 +157,7 @@ class SeismicComposite(Composite):
         """
         if self.config.noise_estimator.structure == 'non-toeplitz':
             results = self.assemble_results(
-                tpoint, order='wmap', chop_bounds=chop_bounds, )
+                tpoint, order='wmap', chop_bounds=chop_bounds)
         else:
             results = [None] * len(self.wavemaps)
 
@@ -286,7 +286,7 @@ class SeismicComposite(Composite):
             """
 
             covs = {
-                dataset.nslcd_id:
+                utility.list2string(dataset.nslcd_id):
                     getattr(dataset.covariance, cov_mat)
                 for dataset in wmap.datasets}
 
@@ -299,7 +299,8 @@ class SeismicComposite(Composite):
         from pyrocko import io
 
         # synthetics and data
-        results = self.assemble_results(point, chop_bounds=chop_bounds)
+        results = self.assemble_results(
+            point, chop_bounds=chop_bounds)
         for traces, attribute in heart.results_for_export(
                 results=results, datatype='seismic'):
 
@@ -414,7 +415,7 @@ class SeismicComposite(Composite):
 
     def assemble_results(
             self, point, chop_bounds=['a', 'd'], order='list',
-            outmode='stacked_traces'):
+            outmode='stacked_traces', force=True):
         """
         Assemble seismic traces for given point in solution space.
 
@@ -422,6 +423,9 @@ class SeismicComposite(Composite):
         ----------
         point : :func:`pymc3.Point`
             Dictionary with model parameters
+        force : bool 
+            force preparation of data with input params otherwise cached is
+            used
 
         Returns
         -------
@@ -434,17 +438,7 @@ class SeismicComposite(Composite):
 
         syn_proc_traces, obs_proc_traces = self.get_synthetics(
             point, outmode=outmode,
-            chop_bounds=chop_bounds, order='wmap')
-
-        # will yield exactly the same as previous call needs wmap.prepare data
-        # to be aware of taper_tolerance_factor
-        # DEPRECATED but keep for now
-        # syn_filt_traces, obs_filt_traces = self.get_synthetics(
-        #    point, outmode=outmode, taper_tolerance_factor=0.,
-        #    chop_bounds=chop_bounds, order='wmap')
-        # syn_filt_traces, obs_filt_traces = syn_proc_traces, obs_proc_traces
-        #from pyrocko import trace
-        #trace.snuffle(syn_proc_traces + obs_proc_traces)
+            chop_bounds=chop_bounds, order='wmap', force=force)
 
         results = []
         for i, wmap in enumerate(self.wavemaps):
@@ -521,9 +515,10 @@ class SeismicComposite(Composite):
             else:
                 hp = num.log(2)
 
+            ydata = synthetic.processed_res.get_ydata()
             choli = num.linalg.inv(
                 observe.covariance.chol * num.exp(hp) / 2.)
-            return choli.dot(synthetic.processed_res.get_ydata())
+            return choli.dot(ydata)
 
         results = self.assemble_results(
             point, order='list', chop_bounds=chop_bounds)
@@ -562,10 +557,10 @@ class SeismicComposite(Composite):
 
         assert len(results) == ndatasets
 
-        self.analyse_noise(point, chop_bounds=chop_bounds)
-        self.update_weights(point, chop_bounds=chop_bounds)
 
         if weights is None:
+            self.analyse_noise(point, chop_bounds=chop_bounds)
+            self.update_weights(point, chop_bounds=chop_bounds)
             weights = self.weights
 
         nweights = len(weights)
@@ -802,6 +797,7 @@ class SeismicGeometryComposite(SeismicComposite):
         chop_bounds = kwargs.pop('chop_bounds', ['a', 'd'])
         order = kwargs.pop('order', 'list')
         nprocs = kwargs.pop('nprocs', 4)
+        force = kwargs.pop('force', False)
 
         self.point2sources(point)
 
@@ -810,11 +806,12 @@ class SeismicGeometryComposite(SeismicComposite):
         obs = []
         for wmap in self.wavemaps:
             wc = wmap.config
-            wmap.prepare_data(
-                source=self.events[wc.event_idx],
-                engine=self.engine,
-                outmode='stacked_traces',       # no source individual contribs
-                chop_bounds=chop_bounds)
+            if not wmap.is_prepared or force:
+                wmap.prepare_data(
+                    source=self.events[wc.event_idx],
+                    engine=self.engine,
+                    outmode='stacked_traces',  # no source individual contribs
+                    chop_bounds=chop_bounds)
 
             arrival_times = wmap._arrival_times
             if self.config.station_corrections and wc.domain == 'time':
@@ -822,8 +819,12 @@ class SeismicGeometryComposite(SeismicComposite):
                     arrival_times += point[
                         wmap.time_shifts_id][wmap.station_correction_idxs]
                 except KeyError:  # got reference point from config
-                    arrival_times += float(point[self.correction_name]) * \
-                        num.ones(wmap.n_t)
+                    if self.correction_name in point:
+                        arrival_times += float(point[self.correction_name]) * \
+                            num.ones(wmap.n_t)
+                    else:  # fixed individual station corrections
+                        arrival_times += self.hierarchicals[
+                            wmap.time_shifts_id][wmap.station_correction_idxs]
 
             if self.nevents == 1:
                 logger.debug('Using all sources for each wavemap!')
@@ -1317,8 +1318,12 @@ class SeismicDistributerComposite(SeismicComposite):
                 try:
                     corrections = point[wmap.time_shifts_id]
                 except KeyError:  # got reference point from config
-                    corrections = float(point[self.correction_name]) * \
-                        num.ones(wmap.n_t)
+                    if self.correction_name in point:
+                        corrections = float(point[self.correction_name]) * \
+                            num.ones(wmap.n_t)
+                    else:  # fixed individual station corrections
+                        corrections = self.hierarchicals[
+                            wmap.time_shifts_id][wmap.station_correction_idxs]
 
                 starttimes -= num.repeat(
                     corrections[wmap.station_correction_idxs],
@@ -1380,11 +1385,12 @@ class SeismicDistributerComposite(SeismicComposite):
                     'Supported outmodes: stacked_traces, tapered_data, array! '
                     'Given outmode: %s !' % outmode)
 
-            wmap.prepare_data(
-                source=self.events[wc.event_idx],
-                engine=self.engine,
-                outmode=outmode,
-                chop_bounds=chop_bounds)
+            if not wmap.is_prepared:
+                wmap.prepare_data(
+                    source=self.events[wc.event_idx],
+                    engine=self.engine,
+                    outmode=outmode,
+                    chop_bounds=chop_bounds)
 
             if order == 'list':
                 synth_traces.extend(wmap_synthetics)

@@ -14,6 +14,8 @@ from matplotlib.ticker import MaxNLocator
 
 from scipy.stats import kde
 
+from pymc3 import quantiles
+
 from beat import utility
 
 from theano import config as tconfig
@@ -270,7 +272,6 @@ def str_duration(t):
         return s + '%.1f d' % (t / (24. * 3600.))
 
 
-
 def get_result_point(stage, config, point_llk='max'):
     """
     Return point of a given stage result.
@@ -327,8 +328,8 @@ def histplot_op(
         maxd = quants[qlist[-1]]
 
         if reference is not None:
-            mind = num.minimum(mind, reference)
-            maxd = num.maximum(maxd, reference)
+            mind = num.minimum(mind, reference.squeeze())
+            maxd = num.maximum(maxd, reference.squeeze())
 
         if tstd is None:
             tstd = num.std(d)
