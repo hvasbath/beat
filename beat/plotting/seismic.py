@@ -337,15 +337,19 @@ def fuzzy_spectrum(
         alpha=alpha, zorder=zorder)
 
 
-def extract_time_shifts(point, wmap):
+def extract_time_shifts(point, hierarchicals, wmap):
     if wmap.config.domain == 'time':
         try:
             time_shifts = point[wmap.time_shifts_id][
                 wmap.station_correction_idxs]
         except KeyError:
-            raise ValueError(
-                'Sampling results do not contain time-shifts for wmap'
-                ' %s!' % wmap.time_shifts_id)
+            if wmap.time_shifts_id in hierarchicals:
+                time_shifts = hierarchicals[wmap.time_shifts_id][
+                    wmap.station_correction_idxs]
+            else:
+                raise ValueError(
+                    'Sampling results do not contain time-shifts for wmap'
+                    ' %s!' % wmap.time_shifts_id)
     else:
         time_shifts = [0] * wmap.n_t
     return time_shifts
@@ -490,7 +494,7 @@ def subplot_spectrum(
     axes, axes2, po, target, traces, result, synth_plot_flag,
     only_spectrum, var_reductions, fontsize,
     syn_color, obs_color, misfit_color, tap_color_annot,
-    pad_factors=[2., 1.2]):
+    pad_factors):
 
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
@@ -711,7 +715,7 @@ def seismic_fits(problem, stage, plot_options):
     time_shift_bounds = [0, 0]
     if station_corr:
         tshifts = problem.config.problem_config.hierarchicals['time_shift']
-        time_shift_bounds = [tshifts.lower, tshifts.upper]
+        time_shift_bounds = [tshifts.lower.squeeze(), tshifts.upper.squeeze()]
 
         logger.info('Collecting time-shifts ...')
         if plot_options.nensemble > 1:
@@ -720,13 +724,14 @@ def seismic_fits(problem, stage, plot_options):
                 comp_time_shifts = []
                 for wmap in composite.wavemaps:
                     comp_time_shifts.append(
-                        extract_time_shifts(point, wmap))
+                        extract_time_shifts(
+                            point, composite.hierarchicals, wmap))
 
                 ens_time_shifts.append(
                     num.hstack(comp_time_shifts))
 
         btime_shifts = num.hstack(
-            [extract_time_shifts(best_point, wmap)
+            [extract_time_shifts(best_point, composite.hierarchicals, wmap)
                 for wmap in composite.wavemaps])
 
         logger.info('Mapping time-shifts to targets ...')
@@ -897,17 +902,17 @@ def seismic_fits(problem, stage, plot_options):
                         axes = axes2.twinx()
                         axes.set_axis_off()
 
-                    ymin, ymax = - absmax * 1.5 * space_factor, absmax * 1.5
-                    try:
-                        axes.set_ylim(ymin, ymax)
-                    except ValueError:
-                        logger.debug(
-                            'These traces contain NaN or Inf open in snuffler?')
-                        input('Press enter! Otherwise Ctrl + C')
-                        from pyrocko.trace import snuffle
-                        snuffle(syn_traces)
-
                     if target.domain == 'time':
+                        ymin, ymax = - absmax * 1.5 * space_factor, absmax * 1.5
+                        try:
+                            axes.set_ylim(ymin, ymax)
+                        except ValueError:
+                            logger.debug(
+                                'These traces contain NaN or Inf open in snuffler?')
+                            input('Press enter! Otherwise Ctrl + C')
+                            from pyrocko.trace import snuffle
+                            snuffle(syn_traces)
+
                         subplot_waveforms(
                             axes=axes, axes2=axes2,
                             po=po,
@@ -943,7 +948,8 @@ def seismic_fits(problem, stage, plot_options):
                             syn_color=syn_color,
                             obs_color=obs_color,
                             misfit_color=misfit_color,
-                            tap_color_annot=tap_color_annot)
+                            tap_color_annot=tap_color_annot,
+                            pad_factors=[1.6, 1.2])
 
                 scale_string = None
 
@@ -1763,7 +1769,8 @@ def draw_station_map_gmt(problem, po):
         if not os.path.exists(outpath) or po.force:
 
             if point:
-                time_shifts = extract_time_shifts(point, wmap)
+                time_shifts = extract_time_shifts(
+                    point, composite.hierarchicals, wmap)
             else:
                 time_shifts = None
 

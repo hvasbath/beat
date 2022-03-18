@@ -813,7 +813,7 @@ class SeismicGeometryComposite(SeismicComposite):
                     outmode='stacked_traces',  # no source individual contribs
                     chop_bounds=chop_bounds)
 
-            arrival_times = wmap._arrival_times
+            arrival_times = copy.deepcopy(wmap._arrival_times)
             if self.config.station_corrections and wc.domain == 'time':
                 try:
                     arrival_times += point[
