@@ -3896,16 +3896,16 @@ def radiation_weights(takeoff_angles_rad, azimuths_rad, wavename):
 
 def pol_synthetics(
         source, takeoff_angles_rad=None, azimuths_rad=None, wavename='any_P',
-        radiation_weights=None):
+        radiation_weight=None):
     """
     Calculate synthetic radiation pattern for given source and waveform at
     receivers defined through azimuths and takeoff-angles.
     """
-    if radiation_weights is None:
+    if radiation_weight is None:
         if takeoff_angles_rad is None or azimuths_rad is None:
             raise ValueError('Need to either provide radiation weights or ')
         else:
-            radiation_weights = radiation_weights(
+            radiation_weight = radiation_weights(
                 takeoff_angles_rad, azimuths_rad, wavename=wavename)
 
     moment_tensor = source.pyrocko_moment_tensor()
@@ -3916,7 +3916,7 @@ def pol_synthetics(
 
     m0_unscaled = num.sqrt(num.sum(m9 ** 2)) / sqrt2
     m9 /= m0_unscaled
-    return radiation_weights.T.dot(to6(m9))
+    return radiation_weight.T.dot(to6(m9))
 
 
 def fft_transforms(
