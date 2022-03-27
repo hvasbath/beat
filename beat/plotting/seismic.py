@@ -11,6 +11,8 @@ from pyrocko import gmtpy
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.plot import (mpl_papersize, mpl_init, mpl_graph_color,
                           mpl_margins, beachball)
+from pyrocko.guts import load
+
 from pyrocko import trace
 from pyrocko.guts import load
 
@@ -23,6 +25,9 @@ from .common import (get_gmt_config, format_axes, draw_line_on_array,
                      get_result_point, plot_inset_hist,
                      str_duration, str_unit, str_dist, 
                      km, spherical_kde_op)
+
+
+km = 1000.
 
 
 logger = logging.getLogger('plotting.seismic')
@@ -118,9 +123,9 @@ def draw_earthmodels(problem, plot_options):
             sc = problem.config.seismic_config
 
             if sc.gf_config.reference_location is None:
-                plot_stations = composite.datahandler.stations
+                plot_stations = composite.datahandlers[0].stations
             else:
-                plot_stations = [composite.datahandler.stations[0]]
+                plot_stations = [composite.datahandlers[0].stations[0]]
                 plot_stations[0].station = \
                     sc.gf_config.reference_location.station
 

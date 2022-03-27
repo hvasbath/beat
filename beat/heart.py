@@ -2855,7 +2855,7 @@ class PolarityMapping(BaseMapping):
         return num.array([target.azimuth_rad for target in self.targets])
 
     def update_radiation_weights(self):
-        self._radiation_weights = radiation_weights(
+        self._radiation_weights = calculate_radiation_weights(
             self.get_takeoff_angles_rad(),
             self.get_azimuths_rad(),
             self.config.name)
@@ -3875,7 +3875,7 @@ radiation_function_mapping = {
     'any_SV': radiation_weights_sv}
 
 
-def radiation_weights(takeoff_angles_rad, azimuths_rad, wavename):
+def calculate_radiation_weights(takeoff_angles_rad, azimuths_rad, wavename):
     """
     Get wave radiation pattern for given waveform using station propagation
     coefficients. Numerically more efficient.
@@ -3896,16 +3896,16 @@ def radiation_weights(takeoff_angles_rad, azimuths_rad, wavename):
 
 def pol_synthetics(
         source, takeoff_angles_rad=None, azimuths_rad=None, wavename='any_P',
-        radiation_weight=None):
+        radiation_weights=None):
     """
     Calculate synthetic radiation pattern for given source and waveform at
     receivers defined through azimuths and takeoff-angles.
     """
-    if radiation_weight is None:
+    if radiation_weights is None:
         if takeoff_angles_rad is None or azimuths_rad is None:
             raise ValueError('Need to either provide radiation weights or ')
         else:
-            radiation_weight = radiation_weights(
+            radiation_weights = calculate_radiation_weights(
                 takeoff_angles_rad, azimuths_rad, wavename=wavename)
 
     moment_tensor = source.pyrocko_moment_tensor()
@@ -3916,7 +3916,7 @@ def pol_synthetics(
 
     m0_unscaled = num.sqrt(num.sum(m9 ** 2)) / sqrt2
     m9 /= m0_unscaled
-    return radiation_weight.T.dot(to6(m9))
+    return radiation_weights.T.dot(to6(m9))
 
 
 def fft_transforms(
