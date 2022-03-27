@@ -7,6 +7,7 @@ from pyrocko.guts import (Object, String, Dict, List,
                           Bool, Int, load, StringChoice)
 from pyrocko import gmtpy
 from pyrocko import orthodrome as otd
+from pyrocko.plot import mpl_graph_color
 
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib import pyplot as plt

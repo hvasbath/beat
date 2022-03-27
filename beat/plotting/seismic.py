@@ -12,6 +12,7 @@ from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.plot import (mpl_papersize, mpl_init, mpl_graph_color,
                           mpl_margins, beachball)
 from pyrocko import trace
+from pyrocko.guts import load
 
 from pymc3.plots.utils import make_2d
 
@@ -20,7 +21,8 @@ from beat.models import Stage, load_stage
 
 from .common import (get_gmt_config, format_axes, draw_line_on_array,
                      get_result_point, plot_inset_hist,
-                     str_duration, str_unit, str_dist)
+                     str_duration, str_unit, str_dist, 
+                     km, spherical_kde_op)
 
 
 logger = logging.getLogger('plotting.seismic')
@@ -1770,7 +1772,7 @@ def draw_station_map_gmt(problem, po):
 
             if point:
                 time_shifts = extract_time_shifts(
-                    point, composite.hierarchicals, wmap)
+                    point, sc.hierarchicals, wmap)
             else:
                 time_shifts = None
 

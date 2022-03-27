@@ -7,16 +7,20 @@ from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle, FancyArrow
 from matplotlib.collections import PatchCollection
 from matplotlib.ticker import MaxNLocator
+from matplotlib.backends.backend_pdf import PdfPages
 
 from beat import utility
 from beat.models import Stage, load_stage
 from beat.config import ffi_mode_str
-from .common import draw_line_on_array, get_result_point
+from .common import (draw_line_on_array, get_result_point, 
+format_axes, scale_axes, km, get_gmt_config)
 
 from pyrocko.cake_plot import str_to_mpl_color as scolor
-from pyrocko.plot import mpl_papersize, mpl_init, mpl_graph_color, mpl_margins
+from pyrocko.plot import (mpl_papersize, mpl_init, 
+mpl_graph_color, mpl_margins, AutoScaler)
 from pyrocko import orthodrome as otd
-
+from pyrocko import gmtpy
+import pyrocko.moment_tensor as mt
 
 logger = logging.getLogger('plotting.ffi')
 
