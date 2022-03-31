@@ -14,7 +14,6 @@ from pyrocko.plot import (mpl_papersize, mpl_init, mpl_graph_color,
 from pyrocko.guts import load
 
 from pyrocko import trace
-from pyrocko.guts import load
 
 from pymc3.plots.utils import make_2d
 
@@ -23,8 +22,7 @@ from beat.models import Stage, load_stage
 
 from .common import (get_gmt_config, format_axes, draw_line_on_array,
                      get_result_point, plot_inset_hist,
-                     str_duration, str_unit, str_dist, 
-                     km, spherical_kde_op)
+                     str_duration, str_unit, str_dist)
 
 
 km = 1000.
@@ -386,9 +384,8 @@ def subplot_waveforms(
             axes, traces, linewidth=7, zorder=0,
             grid_size=(500, 500), alpha=1.0)
 
-        nslcd_id_str = utility.list2string(target.nslcd_id)
         logger.debug(
-            'Plotting variance reductions for %s' % nslcd_id_str)
+            'Plotting variance reductions for %s' % target.nslcd_id_str)
 
         best_data = var_reductions[0]
 
@@ -699,10 +696,10 @@ def seismic_fits(problem, stage, plot_options):
 
         i = target_index[target]
 
-        nslcd_id = target.nslcd_id
+        nslcd_id_str = target.nslcd_id_str
         target_results.append(bresults[i])
         target_synths.append(bresults[i].processed_syn)
-        target_var_reductions.append(bvar_reductions[nslcd_id])
+        target_var_reductions.append(bvar_reductions[nslcd_id_str])
 
         if plot_options.nensemble > 1:
             for results, var_reductions in zip(
@@ -711,7 +708,7 @@ def seismic_fits(problem, stage, plot_options):
 
                 target_results.append(results[i])
                 target_synths.append(results[i].processed_syn)
-                target_var_reductions.append(var_reductions[nslcd_id])
+                target_var_reductions.append(var_reductions[nslcd_id_str])
 
         target_to_results[target] = target_results
         all_syn_trs_target[target] = target_synths
@@ -1777,7 +1774,7 @@ def draw_station_map_gmt(problem, po):
 
             if point:
                 time_shifts = extract_time_shifts(
-                    point, sc.hierarchicals, wmap)
+                    point, composite.hierarchicals, wmap)
             else:
                 time_shifts = None
 

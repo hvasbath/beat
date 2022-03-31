@@ -286,7 +286,7 @@ class SeismicComposite(Composite):
             """
 
             covs = {
-                utility.list2string(dataset.nslcd_id):
+                dataset.nslcd_id_str:
                     getattr(dataset.covariance, cov_mat)
                 for dataset in wmap.datasets}
 
@@ -529,7 +529,7 @@ class SeismicComposite(Composite):
 
         stdz_res = OrderedDict()
         for i in range(self.n_t):
-            stdz_res[self.datasets[i].nslcd_id] = compute_residuals(
+            stdz_res[self.datasets[i].nslcd_id_str] = compute_residuals(
                 self.datasets[i], results[i], hp_specific)
 
         return stdz_res
@@ -574,7 +574,7 @@ class SeismicComposite(Composite):
 
         var_reds = OrderedDict()
         for result, tr in zip(results, self.datasets):
-            nslcd_id = result.processed_obs.nslcd_id
+            nslcd_id_str = result.processed_obs.nslcd_id_str
 
             icov = tr.covariance.inverse
 
@@ -585,11 +585,12 @@ class SeismicComposite(Composite):
             denom = data.T.dot(icov).dot(data)
 
             logger.debug('nom %f, denom %f' % (float(nom), float(denom)))
-            var_reds[nslcd_id] = 1 - (nom / denom)
+
+            var_reds[nslcd_id_str] = float(1 - (nom / denom))
 
             logger.debug(
                 'Variance reduction for %s is %f' % (
-                    utility.list2string(nslcd_id), var_reds[nslcd_id]))
+                    nslcd_id_str, var_reds[nslcd_id_str]))
 
             if 0:
                 from matplotlib import pyplot as plt

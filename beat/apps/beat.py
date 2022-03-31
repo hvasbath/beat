@@ -2092,6 +2092,8 @@ def command_export(args):
 
     rpoint = heart.ResultPoint(
         point=point, post_llk=options.post_llk, variance_reductions=var_reds)
+    rpoint.validate()
+
     outpoint_name = pjoin(
         results_path, 'solution_{}.yaml'.format(options.post_llk))
     dump(rpoint, filename=outpoint_name)

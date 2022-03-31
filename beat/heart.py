@@ -920,6 +920,10 @@ class SeismicDataset(trace.Trace):
         return (self.network, self.station, self.location,
                 self.channel, self.domain)
 
+    @property
+    def nslcd_id_str(self):
+        return utility.list2string(self.nslcd_id)
+
 
 class SpectrumDataset(SeismicDataset):
     """
@@ -966,11 +970,6 @@ class SpectrumDataset(SeismicDataset):
 
         return num.arange(len(self.ydata), dtype=num.float64) * self.deltaf
 
-    @property
-    def nslcd_id(self):
-        return (self.network, self.station, self.location,
-                self.channel, self.domain)
-
 
 class DynamicTarget(gf.Target):
 
@@ -983,6 +982,10 @@ class DynamicTarget(gf.Target):
     @property
     def nslcd_id(self):
         return tuple(list(self.codes) + [self.domain])
+
+    @property
+    def nslcd_id_str(self):
+        return utility.list2string(self.nslcd_id)
 
     def update_response(self, magnification, damping, period):
         z, p, k = proto2zpk(

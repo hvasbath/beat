@@ -16,8 +16,8 @@ from beat import utility
 from beat.models import Stage
 from beat.config import ffi_mode_str
 from .common import (format_axes, get_result_point, set_anchor, 
-get_gmt_colorstring_from_mpl, get_latlon_ratio, scale_axes, 
-plot_inset_hist, km)
+                     get_gmt_colorstring_from_mpl, get_latlon_ratio,
+                     scale_axes, plot_inset_hist, km)
 
 from pyrocko.cake_plot import light, str_to_mpl_color as scolor
 from pyrocko import orthodrome as otd
