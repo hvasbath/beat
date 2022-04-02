@@ -290,6 +290,8 @@ def traceplot(
                 else:
                     selected = d.T
 
+                nsources = selected.shape[0]
+                logger.debug('Number of sources: %i' % nsources)
                 for isource, e in enumerate(selected):
                     e = pmp.utils.make_2d(e)
                     if make_bins_flag:
@@ -307,7 +309,10 @@ def traceplot(
                         reference = None
 
                     if color is None:
-                        pcolor = mpl_graph_color(isource)
+                        if nsources == 1:
+                            pcolor = 'black'
+                        else:
+                            pcolor = mpl_graph_color(isource)
                     else:
                         pcolor = color
 
