@@ -206,6 +206,14 @@ def list_callback(option, opt, value, parser):
     setattr(parser.values, option.dest, out)
 
 
+def get_sampled_slip_variables(config):
+    slip_varnames = config.problem_config.get_slip_variables()
+    rvs, fixed_rvs = config.problem_config.get_random_variables()
+
+    varnames = list(set(slip_varnames).intersection(set(list(rvs.keys()))))
+    return varnames
+
+
 def command_init(args):
 
     def setup(parser):
@@ -1294,10 +1302,7 @@ def command_build_gfs(args):
     elif options.mode == ffi_mode_str:
         from beat import ffi
 
-        slip_varnames = c.problem_config.get_slip_variables()
-        rvs, fixed_rvs = c.problem_config.get_random_variables()
-
-        varnames = list(set(slip_varnames).intersection(set(list(rvs.keys()))))
+        varnames = get_sampled_slip_variables(c)
         outdir = pjoin(c.project_dir, options.mode, bconfig.linear_gf_dir_name)
         util.ensuredir(outdir)
 
@@ -1790,7 +1795,8 @@ def command_check(args):
             from beat import ffi
 
             for datatype in options.datatypes:
-                for var in problem.config.problem_config.get_slip_variables():
+                for var in get_sampled_slip_variables(problem.config):
+
                     outdir = pjoin(
                         problem.config.project_dir, options.mode,
                         bconfig.linear_gf_dir_name)
@@ -1801,7 +1807,7 @@ def command_check(args):
                         for wmap in scomp.wavemaps:
                             filename = ffi.get_gf_prefix(
                                 datatype, component=var,
-                                wavename=wmap.config.name,
+                                wavename=wmap._mapid,
                                 crust_ind=sc.gf_config.reference_model_idx)
 
                             logger.info(
