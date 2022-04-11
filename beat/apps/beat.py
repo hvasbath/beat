@@ -1374,6 +1374,7 @@ def command_build_gfs(args):
         if options.execute:
             logger.info("Calculating linear Green's Functions")
             logger.info("------------------------------------\n")
+            logger.info("For slip components: %s" % list2string(varnames))
 
             for datatype in options.datatypes:
                 logger.info('for %s data ...' % datatype)
@@ -1483,7 +1484,7 @@ def command_build_gfs(args):
                                 durations_prior=pc.priors['durations'],
                                 velocities_prior=pc.priors['velocities'],
                                 nucleation_time_prior=pc.priors['time'],
-                                varnames=slip_varnames,
+                                varnames=varnames,
                                 wavemap=wmap,
                                 event=c.event,
                                 time_shift=time_shift,
