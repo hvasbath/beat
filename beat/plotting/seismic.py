@@ -22,7 +22,7 @@ from beat.models import Stage, load_stage
 
 from .common import (get_gmt_config, format_axes, draw_line_on_array,
                      get_result_point, plot_inset_hist,
-                     str_duration, str_unit, str_dist)
+                     str_duration, str_unit, str_dist, spherical_kde_op)
 
 
 km = 1000.
