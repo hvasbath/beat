@@ -1774,7 +1774,7 @@ def draw_station_map_gmt(problem, po):
 
             if point:
                 time_shifts = extract_time_shifts(
-                    point, composite.hierarchicals, wmap)
+                    point, sc.hierarchicals, wmap)
             else:
                 time_shifts = None
 
