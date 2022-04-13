@@ -2800,11 +2800,13 @@ class PolarityMapping(BaseMapping):
             utility.get_ns_id((station.network, station.station))
             for station in self.stations]
 
+        targets_new = []
         stations_new = []
         station_idxs = []
         for i, station_name in enumerate(station_names_data):
             if station_name in station_names_file:
                 sta_idx = station_names_file.index(station_name)
+                targets_new.append(self.targets[sta_idx])
                 stations_new.append(self.stations[sta_idx])
                 station_idxs.append(i)
             else:
@@ -2818,6 +2820,7 @@ class PolarityMapping(BaseMapping):
                 'Found polarity data for %i stations!' % len(station_idxs))
             self._prepared_data = polarities[num.array(station_idxs)]
             self.stations = stations_new
+            self.targets = targets_new
         else:
             logger.warning(
                 'Available station information for stations:'
