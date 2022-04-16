@@ -308,7 +308,7 @@ class SeismicNoiseAnalyser(object):
         elif self.structure == 'non-toeplitz':
             scalings = self.do_non_toeplitz(wmap, results)
         else:
-            scalings = self.do_variance_estimate(wmap)
+            scalings = self.do_variance_estimate(wmap, chop_bounds=chop_bounds)
 
         cov_ds = []
         for scaling in scalings:

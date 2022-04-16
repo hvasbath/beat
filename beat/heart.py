@@ -3078,9 +3078,11 @@ class WaveformMapping(BaseMapping):
             plot=False)
 
         if self.config.domain == 'spectrum':
+            lower_idx, upper_idx = self.get_low_high_freq_indices(chop_bounds=chop_bounds, 
+                                                 pad_to_pow2=True)
             self._prepared_data = fft_transforms(
                 self._prepared_data,
-                filterer=self.config.filterer,
+                low_high_indices=(lower_idx, upper_idx),
                 outmode=outmode,
                 pad_to_pow2=True)
 
