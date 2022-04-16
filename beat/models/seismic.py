@@ -749,6 +749,8 @@ class SeismicGeometryComposite(SeismicComposite):
                         wc.event_idx, wmap._mapid))
                 sources = [self.sources[wc.event_idx]]
 
+            low_high_indices = wmap.get_low_high_freq_indices(chop_bounds=chop_bounds, pad_to_pow2=True)
+
             self.synthesizers[wmap._mapid] = theanof.SeisSynthesizer(
                 engine=self.engine,
                 sources=sources,
@@ -760,7 +762,8 @@ class SeismicGeometryComposite(SeismicComposite):
                 filterer=wc.filterer,
                 pre_stack_cut=self.config.pre_stack_cut,
                 station_corrections=self.config.station_corrections,
-                domain=wc.domain)
+                domain=wc.domain,
+                low_high_indices=low_high_indices)
 
             synths, _ = self.synthesizers[wmap._mapid](self.input_rvs)
             residuals = wmap.shared_data_array - synths
@@ -863,9 +866,11 @@ class SeismicGeometryComposite(SeismicComposite):
                         tr.tmax = dtr.tmax
 
             if wc.domain == 'spectrum':
+                low_high_indices = wmap.get_low_high_freq_indices(chop_bounds=chop_bounds, 
+                                                                 pad_to_pow2=True)
                 synthetics = heart.fft_transforms(
                     synthetics,
-                    filterer=wc.filterer,
+                    low_high_indices=low_high_indices,
                     outmode=outmode, pad_to_pow2=True)
 
             if order == 'list':

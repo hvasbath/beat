@@ -188,13 +188,8 @@ class SeismicNoiseAnalyser(object):
             chop_bounds = self.chop_bounds
 
         tzero = 1. / wmap.get_highest_frequency()
-        dt = 1. / sample_rate
-        ataper = wmap.config.arrival_taper
-        n = ataper.nsamples(sample_rate, chop_bounds)
-        if wmap.config.domain == 'spectrum':
-            n = trace.nextpow2(n)
-            dt = 1./(n*dt)
-            n = int(n//2) + 1
+        n, dt = wmap.get_nsamples_dt(chop_bounds=chop_bounds)
+
         return NoiseStructureCatalog[self.structure](n, dt, tzero)
 
     def do_import(self, wmap, sample_rate):
@@ -224,7 +219,7 @@ class SeismicNoiseAnalyser(object):
 
             return scalings
 
-    def do_variance_estimate(self, wmap):
+    def do_variance_estimate(self, wmap, chop_bounds=None):
 
         filterer = wmap.config.filterer
         scalings = []
@@ -263,7 +258,10 @@ class SeismicNoiseAnalyser(object):
             nslc_id_str = list2string(ctrace.nslc_id)
             
             if wmap.config.domain == 'spectrum':
+                lower_idx, upper_idx = wmap.get_low_high_freq_indices(chop_bounds=chop_bounds, 
+                                                                 pad_to_pow2=True)
                 data = ctrace.spectrum(True, 0.05)[1]
+                data = data[lower_idx:upper_idx]
             else:
                 data = ctrace.get_ydata()
             

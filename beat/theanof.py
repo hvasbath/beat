@@ -314,11 +314,11 @@ class SeisSynthesizer(theano.Op):
 
     __props__ = ('engine', 'sources', 'targets', 'event',
                  'arrival_taper', 'arrival_times', 'wavename', 'filterer',
-                 'pre_stack_cut', 'station_corrections', 'domain')
+                 'pre_stack_cut', 'station_corrections', 'domain', 'low_high_indices')
 
     def __init__(self, engine, sources, targets, event, arrival_taper,
                  arrival_times, wavename, filterer, pre_stack_cut,
-                 station_corrections, domain):
+                 station_corrections, domain, low_high_indices):
         self.engine = engine
         self.sources = tuple(sources)
         self.targets = tuple(targets)
@@ -330,6 +330,7 @@ class SeisSynthesizer(theano.Op):
         self.pre_stack_cut = pre_stack_cut
         self.station_corrections = station_corrections
         self.domain = domain
+        self.low_high_indices = low_high_indices
 
     def __getstate__(self):
         self.engine.close_cashed_stores()
@@ -411,7 +412,7 @@ class SeisSynthesizer(theano.Op):
         elif self.domain == 'spectrum':
             synths[0] = heart.fft_transforms(
                 time_domain_signals=synthetics,
-                filterer=self.filterer)
+                low_high_indices=self.low_high_indices)
         else:
             ValueError('Domain "%" not supported!' % self.domain)
 

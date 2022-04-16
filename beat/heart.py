@@ -3101,6 +3101,64 @@ class WaveformMapping(BaseMapping):
                 'No Filterer objects configured for wavemap %s'
                 'Cannot return upper corner frequency!' % self._mapid)
 
+    def get_lowest_frequency(self):
+        """
+        Loop over filterers and return lowest frequency.
+        """
+        lowest_fs = []
+        for filt in self.config.filterer:
+            lowest_fs.append(filt.get_lower_corner())
+
+        if len(lowest_fs) > 0:
+            return num.min(lowest_fs)
+        else:
+            raise ValueError(
+                'No Filterer objects configured for wavemap %s'
+                'Cannot return lower corner frequency!' % self._mapid)
+
+    def get_nsamples_intime(self, chop_bounds=None):
+        
+        ataper = self.config.arrival_taper
+        return ataper.nsamples(1/self.deltat, chop_bounds)
+
+    def get_low_high_freq_indices(self, chop_bounds=None, pad_to_pow2=True):
+        from .plotting.seismic import get_valid_spectrum_data
+        
+        n_samples = self.get_nsamples_intime(chop_bounds)
+        if pad_to_pow2:
+            n_samples = trace.nextpow2(n_samples)
+        df = 1./(n_samples*self.deltat)
+        n_samples = int(n_samples//2) + 1
+        fxdata = num.arange(n_samples)*df
+        lower_idx, upper_idx, _, _ = get_valid_spectrum_data(
+        fxdata, corner_frequencies=(self.get_lowest_frequency(),self.get_highest_frequency()),
+                pad_factor=1.6)
+
+        return lower_idx, upper_idx     
+
+    def get_nsamples_infreq(self, chop_bounds=None, pad_to_pow2=True):
+        
+        lower_idx, upper_idx = self.get_low_high_freq_indices(chop_bounds=chop_bounds, 
+                                                              pad_to_pow2=pad_to_pow2)
+        return upper_idx - lower_idx 
+
+    def get_df(self, chop_bounds=None, pad_to_pow2=True):
+        
+        n_samples = self.get_nsamples_intime(chop_bounds)
+        if pad_to_pow2:
+            n_samples = trace.nextpow2(n_samples)
+        return 1./(n_samples*self.deltat)
+
+    def get_nsamples_dt(self, chop_bounds=None, pad_to_pow2=True):
+        
+        if self.config.domain == 'spectrum':
+            n = self.get_nsamples_infreq(chop_bounds=chop_bounds, pad_to_pow2=pad_to_pow2)
+            dt = self.get_df(chop_bounds=chop_bounds, pad_to_pow2=pad_to_pow2)
+        else:
+            n = self.get_nsamples_intime(chop_bounds)
+            dt = self.deltat
+        return n, dt
+
     @property
     def shared_data_array(self):
         if self._prepared_data is None:
@@ -3926,7 +3984,7 @@ def pol_synthetics(
 
 
 def fft_transforms(
-        time_domain_signals, filterer=None, outmode='array', pad_to_pow2=True):
+        time_domain_signals, low_high_indices=None, outmode='array', pad_to_pow2=True):
 
     if outmode not in stackmodes:
         raise StackingError(
@@ -3934,10 +3992,8 @@ def fft_transforms(
                 outmode, utility.list2string(stackmodes)))
 
     if outmode == 'array':
-        n_data, n_samples = num.shape(time_domain_signals)
-        if pad_to_pow2:
-            n_samples = trace.nextpow2(n_samples)
-        n_samples = int(n_samples // 2) + 1
+        n_data, _ = num.shape(time_domain_signals)
+        n_samples = low_high_indices[1] - low_high_indices[0]
         spec_signals = num.zeros((n_data, n_samples), dtype=tconfig.floatX)
     else:
         n_data = len(time_domain_signals)
@@ -3955,7 +4011,7 @@ def fft_transforms(
                 ntrans = n_samples
 
             fydata = num.fft.rfft(ydata, ntrans)
-            spec_signals[i] = num.abs(fydata)
+            spec_signals[i] = num.abs(fydata)[low_high_indices[0]:low_high_indices[1]]
 
         elif outmode in ['data', 'tapered_data', 'stacked_traces']:
 
@@ -3963,6 +4019,8 @@ def fft_transforms(
                 tr = tr[0]
 
             fxdata, fydata = tr.spectrum(pad_to_pow2, 0.05)
+            fydata = fydata[low_high_indices[0]:low_high_indices[1]]
+            fxdata = fxdata[low_high_indices[0]:low_high_indices[1]]
             df = fxdata[1] - fxdata[0]
             spec_tr = SpectrumDataset(
                 ydata=num.abs(fydata),
