@@ -864,7 +864,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
             if wc.domain == 'spectrum':
 
-                valid_spectrum_indices, = wmap.get_valid_spectrum_indices(
+                valid_spectrum_indices = wmap.get_valid_spectrum_indices(
                     chop_bounds=chop_bounds,
                     pad_to_pow2=True,
                     pad_factor=1.6)

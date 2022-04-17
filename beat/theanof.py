@@ -13,6 +13,8 @@ from collections import OrderedDict
 from beat import heart, utility, interseismic
 from beat.fast_sweeping import fast_sweep
 
+from pyrocko.trace import nextpow2
+
 from pymc3.model import FreeRV
 
 import theano.tensor as tt
@@ -334,10 +336,10 @@ class SeisSynthesizer(theano.Op):
             self.targets[0].store_id).config.sample_rate
 
         if self.domain == 'spectrum':
-            nsamples = self.arrival_taper.nsamples(self.sample_rate)
-            corner_frequencies = filterer_minmax(filterer)
+            nsamples = nextpow2(self.arrival_taper.nsamples(self.sample_rate))
+            corner_frequencies = heart.filterer_minmax(filterer)
             deltaf = self.sample_rate / nsamples
-            self.valid_trace_indices, _ = utility.get_valid_spectrum_data(
+            self.valid_spectrum_indices, _ = utility.get_valid_spectrum_data(
                 deltaf, corner_frequencies, pad_factor=1.6)
 
     def __getstate__(self):
@@ -420,7 +422,7 @@ class SeisSynthesizer(theano.Op):
         elif self.domain == 'spectrum':
             synths[0] = heart.fft_transforms(
                 time_domain_signals=synthetics,
-                valid_spectrum_indices=self.valid_trace_indices,
+                valid_spectrum_indices=self.valid_spectrum_indices,
                 outmode='array',
                 pad_to_pow2=True)
         else:
@@ -431,8 +433,9 @@ class SeisSynthesizer(theano.Op):
 
         if self.domain == 'time':
             ncol = self.arrival_taper.nsamples(self.sample_rate)
-        elif self.domain == 'spectrum'::
-            ncol = self.valid_trace_indices[1] - self.valid_trace_indices[0]
+        elif self.domain == 'spectrum':
+            ncol = self.valid_spectrum_indices[1] - \
+                   self.valid_spectrum_indices[0]
         return [(nrow, ncol), (nrow,)]
 
 

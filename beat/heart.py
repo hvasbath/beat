@@ -3092,13 +3092,13 @@ class WaveformMapping(BaseMapping):
         self._arrival_times = arrival_times
 
     def get_corner_frequencies(self):
-        return filterer_minmax(self.filterer)
+        return filterer_minmax(self.config.filterer)
 
     def get_nsamples_time(self, chop_bounds=['b', 'c'], pad_to_pow2=False):
         ataper = self.config.arrival_taper
         nsamples = ataper.nsamples(1 / self.deltat, chop_bounds)
         if pad_to_pow2:
-            n_samples = trace.nextpow2(n_samples)
+            nsamples = trace.nextpow2(nsamples)
         return nsamples
 
     def get_nsamples_spectrum(
@@ -3152,8 +3152,8 @@ class WaveformMapping(BaseMapping):
 
 def filterer_minmax(filterer):
     """Get minimum and maximum corner frequencies of list of filterers"""
-    fmin = min([filt.get_lower_corner() for filt in self.filterer])
-    fmax = max([filt.get_upper_corner() for filt in self.filterer])
+    fmin = min([filt.get_lower_corner() for filt in filterer])
+    fmax = max([filt.get_upper_corner() for filt in filterer])
     return (fmin, fmax)
 
 

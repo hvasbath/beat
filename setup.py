@@ -49,7 +49,8 @@ def git_infos():
     if not op.exists('.git'):
         raise NotInAGitRepos()
 
-    sha1 = q(['git', 'log', '--pretty=oneline', '-n1']).split()[0]
+    sha1 = q(['git', 'log', '--pretty=oneline', '-n1'])
+
     sha1 = re.sub(br'[^0-9a-f]', '', sha1)
     sha1 = str(sha1.decode('ascii'))
     sstatus = q(['git', 'status'])

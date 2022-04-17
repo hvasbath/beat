@@ -7,7 +7,7 @@ from scipy.linalg import toeplitz
 import logging
 
 from beat import heart
-from beat.utility import ensure_cov_psd, running_window_rms, list2string,
+from beat.utility import ensure_cov_psd, running_window_rms, list2string
 from theano import config as tconfig
 
 from pymc3 import Point
@@ -191,12 +191,12 @@ class SeismicNoiseAnalyser(object):
         tzero = 1. / fmax
 
         if wmap.config.domain == 'spectrum':
-            n = self.get_nsamples_spectrum(
-                chop_bounds=chop_bounds, pad_to_pow2=pad_to_pow2)
-            dsample = self.get_deltaf(
-                chop_bounds=chop_bounds, pad_to_pow2=pad_to_pow2)
+            n = wmap.get_nsamples_spectrum(
+                chop_bounds=chop_bounds, pad_to_pow2=True)
+            dsample = wmap.get_deltaf(
+                chop_bounds=chop_bounds, pad_to_pow2=True)
         else:
-            n = self.get_nsamples_time(chop_bounds)
+            n = wmap.get_nsamples_time(chop_bounds)
             dsample = wmap.deltat
 
         return NoiseStructureCatalog[self.structure](n, dsample, tzero)
