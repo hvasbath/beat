@@ -314,11 +314,11 @@ class SeisSynthesizer(theano.Op):
 
     __props__ = ('engine', 'sources', 'targets', 'event',
                  'arrival_taper', 'arrival_times', 'wavename', 'filterer',
-                 'pre_stack_cut', 'station_corrections', 'domain', 'low_high_indices')
+                 'pre_stack_cut', 'station_corrections', 'domain')
 
     def __init__(self, engine, sources, targets, event, arrival_taper,
                  arrival_times, wavename, filterer, pre_stack_cut,
-                 station_corrections, domain, low_high_indices):
+                 station_corrections, domain):
         self.engine = engine
         self.sources = tuple(sources)
         self.targets = tuple(targets)
@@ -330,7 +330,15 @@ class SeisSynthesizer(theano.Op):
         self.pre_stack_cut = pre_stack_cut
         self.station_corrections = station_corrections
         self.domain = domain
-        self.low_high_indices = low_high_indices
+        self.sample_rate = self.engine.get_store(
+            self.targets[0].store_id).config.sample_rate
+
+        if self.domain == 'spectrum':
+            nsamples = self.arrival_taper.nsamples(self.sample_rate)
+            corner_frequencies = filterer_minmax(filterer)
+            deltaf = self.sample_rate / nsamples
+            self.valid_trace_indices, _ = utility.get_valid_spectrum_data(
+                deltaf, corner_frequencies, pad_factor=1.6)
 
     def __getstate__(self):
         self.engine.close_cashed_stores()
@@ -412,15 +420,19 @@ class SeisSynthesizer(theano.Op):
         elif self.domain == 'spectrum':
             synths[0] = heart.fft_transforms(
                 time_domain_signals=synthetics,
-                low_high_indices=self.low_high_indices)
+                valid_spectrum_indices=self.valid_trace_indices,
+                outmode='array',
+                pad_to_pow2=True)
         else:
             ValueError('Domain "%" not supported!' % self.domain)
 
     def infer_shape(self, node, input_shapes):
         nrow = len(self.targets)
-        store = self.engine.get_store(self.targets[0].store_id)
-        ncol = int(num.ceil(
-            store.config.sample_rate * self.arrival_taper.duration()))
+
+        if self.domain == 'time':
+            ncol = self.arrival_taper.nsamples(self.sample_rate)
+        elif self.domain == 'spectrum'::
+            ncol = self.valid_trace_indices[1] - self.valid_trace_indices[0]
         return [(nrow, ncol), (nrow,)]
 
 

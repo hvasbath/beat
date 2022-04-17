@@ -7,7 +7,7 @@ from scipy.linalg import toeplitz
 import logging
 
 from beat import heart
-from beat.utility import ensure_cov_psd, running_window_rms, list2string
+from beat.utility import ensure_cov_psd, running_window_rms, list2string,
 from theano import config as tconfig
 
 from pymc3 import Point
@@ -96,8 +96,8 @@ def available_noise_structures():
     return list(NoiseStructureCatalog.keys())
 
 
-def import_data_covariance(data_trace, arrival_taper, sample_rate, 
-                           domain='time'):
+def import_data_covariance(
+        data_trace, arrival_taper, sample_rate, domain='time'):
     """
     Use imported covariance matrixes and check size consistency with taper.
     Cut or extend based on variance and taper size.
@@ -125,7 +125,7 @@ def import_data_covariance(data_trace, arrival_taper, sample_rate,
 
     if domain == 'spectrum':
         n_samples = trace.nextpow2(n_samples)
-        n_samples = int(n_samples//2) + 1
+        n_samples = int(n_samples // 2) + 1
 
     if data_trace.covariance is None:
         logger.warn(
@@ -182,23 +182,34 @@ class SeismicNoiseAnalyser(object):
         self.structure = structure
         self.chop_bounds = chop_bounds
 
-    def get_structure(self, wmap, sample_rate, chop_bounds=None):
+    def get_structure(self, wmap, chop_bounds=None):
 
         if chop_bounds is None:
             chop_bounds = self.chop_bounds
 
-        tzero = 1. / wmap.get_highest_frequency()
-        n, dt = wmap.get_nsamples_dt(chop_bounds=chop_bounds)
+        _, fmax = wmap.get_corner_frequencies()
+        tzero = 1. / fmax
 
-        return NoiseStructureCatalog[self.structure](n, dt, tzero)
+        if wmap.config.domain == 'spectrum':
+            n = self.get_nsamples_spectrum(
+                chop_bounds=chop_bounds, pad_to_pow2=pad_to_pow2)
+            dsample = self.get_deltaf(
+                chop_bounds=chop_bounds, pad_to_pow2=pad_to_pow2)
+        else:
+            n = self.get_nsamples_time(chop_bounds)
+            dsample = wmap.deltat
 
-    def do_import(self, wmap, sample_rate):
+        return NoiseStructureCatalog[self.structure](n, dsample, tzero)
+
+    def do_import(self, wmap):
 
         scalings = []
         for tr, target in zip(wmap.datasets, wmap.targets):
             scaling = import_data_covariance(
-                tr, arrival_taper=wmap.config.arrival_taper,
-                sample_rate=sample_rate, domain=wmap.config.domain)
+                tr,
+                arrival_taper=wmap.config.arrival_taper,
+                sample_rate=1. / wmap.deltat,
+                domain=wmap.config.domain)
             scalings.append(scaling)
 
         return scalings
@@ -258,8 +269,8 @@ class SeismicNoiseAnalyser(object):
             nslc_id_str = list2string(ctrace.nslc_id)
             
             if wmap.config.domain == 'spectrum':
-                lower_idx, upper_idx = wmap.get_low_high_freq_indices(chop_bounds=chop_bounds, 
-                                                                 pad_to_pow2=True)
+                lower_idx, upper_idx = wmap.get_valid_spectrum_indices(
+                    chop_bounds=chop_bounds, pad_to_pow2=True, pad_factor=1.6)
                 data = ctrace.spectrum(True, 0.05)[1]
                 data = data[lower_idx:upper_idx]
             else:
@@ -300,11 +311,10 @@ class SeismicNoiseAnalyser(object):
         :class:`numpy.ndarray`
         """
 
-        covariance_structure = self.get_structure(
-            wmap, sample_rate, chop_bounds)
+        covariance_structure = self.get_structure(wmap, chop_bounds)
 
         if self.structure == 'import':
-            scalings = self.do_import(wmap, sample_rate)
+            scalings = self.do_import(wmap)
         elif self.structure == 'non-toeplitz':
             scalings = self.do_non_toeplitz(wmap, results)
         else:

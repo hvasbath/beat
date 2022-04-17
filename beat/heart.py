@@ -479,14 +479,8 @@ class SeismicResult(Object):
                     tr.tmin, syn_tmin, tr.tmin - syn_tmin))
         return tr
 
-    def get_upper_corner(self):
-        return max([filt.get_upper_corner() for filt in self.filterer])
-
-    def get_lower_corner(self):
-        return min([filt.get_lower_corner() for filt in self.filterer])
-
     def get_corner_frequencies(self):
-        return (self.get_lower_corner(), self.get_upper_corner())
+        return filterer_minmax(self.filterer)
 
 
 class PolarityResult(Object):
@@ -2655,14 +2649,23 @@ class BaseMapping(object):
         return True if self._prepared_data is not None else False
 
     def _load_phase_markers(self, path):
-        from pyrocko.gui.marker import load_markers
+        from pyrocko.gui.marker import load_markers, PhaseMarker
 
         if self._phase_markers is None:
             try:
-                self._phase_markers = load_markers(path)
+                markers = load_markers(path)
             except FileNotFoundError:
                 raise IOError(
                     'Phase markers file under %s was not found!' % path)
+
+            self._phase_markers = []
+            for marker in markers:
+                if isinstance(marker, PhaseMarker):
+                    self.phase_markers.append(marker)
+                else:
+                    logger.warning(
+                        'Marker is not of class PhaseMarker skipping: \n '
+                        '%s ', marker.__str__())
 
         return self._phase_markers
 
@@ -3078,88 +3081,48 @@ class WaveformMapping(BaseMapping):
             plot=False)
 
         if self.config.domain == 'spectrum':
-            lower_idx, upper_idx = self.get_low_high_freq_indices(chop_bounds=chop_bounds, 
-                                                 pad_to_pow2=True)
+            valid_spectrum_indices = self.get_valid_spectrum_indices(
+                chop_bounds=chop_bounds, pad_to_pow2=True)
             self._prepared_data = fft_transforms(
                 self._prepared_data,
-                low_high_indices=(lower_idx, upper_idx),
+                valid_spectrum_indices=valid_spectrum_indices,
                 outmode=outmode,
                 pad_to_pow2=True)
 
         self._arrival_times = arrival_times
 
-    def get_highest_frequency(self):
-        """
-        Loop over filterers and return highest frequency.
-        """
-        highest_fs = []
-        for filt in self.config.filterer:
-            highest_fs.append(filt.get_upper_corner())
+    def get_corner_frequencies(self):
+        return filterer_minmax(self.filterer)
 
-        if len(highest_fs) > 0:
-            return num.max(highest_fs)
-        else:
-            raise ValueError(
-                'No Filterer objects configured for wavemap %s'
-                'Cannot return upper corner frequency!' % self._mapid)
-
-    def get_lowest_frequency(self):
-        """
-        Loop over filterers and return lowest frequency.
-        """
-        lowest_fs = []
-        for filt in self.config.filterer:
-            lowest_fs.append(filt.get_lower_corner())
-
-        if len(lowest_fs) > 0:
-            return num.min(lowest_fs)
-        else:
-            raise ValueError(
-                'No Filterer objects configured for wavemap %s'
-                'Cannot return lower corner frequency!' % self._mapid)
-
-    def get_nsamples_intime(self, chop_bounds=None):
-        
+    def get_nsamples_time(self, chop_bounds=['b', 'c'], pad_to_pow2=False):
         ataper = self.config.arrival_taper
-        return ataper.nsamples(1/self.deltat, chop_bounds)
-
-    def get_low_high_freq_indices(self, chop_bounds=None, pad_to_pow2=True):
-        from .plotting.seismic import get_valid_spectrum_data
-        
-        n_samples = self.get_nsamples_intime(chop_bounds)
+        nsamples = ataper.nsamples(1 / self.deltat, chop_bounds)
         if pad_to_pow2:
             n_samples = trace.nextpow2(n_samples)
-        df = 1./(n_samples*self.deltat)
-        n_samples = int(n_samples//2) + 1
-        fxdata = num.arange(n_samples)*df
-        lower_idx, upper_idx, _, _ = get_valid_spectrum_data(
-        fxdata, corner_frequencies=(self.get_lowest_frequency(),self.get_highest_frequency()),
-                pad_factor=1.6)
+        return nsamples
 
-        return lower_idx, upper_idx     
-
-    def get_nsamples_infreq(self, chop_bounds=None, pad_to_pow2=True):
+    def get_nsamples_spectrum(
+            self, chop_bounds=['b', 'c'], pad_to_pow2=True, pad_factor=1.6):
         
-        lower_idx, upper_idx = self.get_low_high_freq_indices(chop_bounds=chop_bounds, 
-                                                              pad_to_pow2=pad_to_pow2)
-        return upper_idx - lower_idx 
+        lower_idx, upper_idx = self.get_valid_spectrum_indices(
+            chop_bounds=chop_bounds,
+            pad_to_pow2=pad_to_pow2,
+            pad_factor=pad_factor)
+        return upper_idx - lower_idx
 
-    def get_df(self, chop_bounds=None, pad_to_pow2=True):
-        
-        n_samples = self.get_nsamples_intime(chop_bounds)
-        if pad_to_pow2:
-            n_samples = trace.nextpow2(n_samples)
-        return 1./(n_samples*self.deltat)
+    def get_valid_spectrum_indices(
+            self, chop_bounds=['b', 'c'], pad_to_pow2=True, pad_factor=1.6):
 
-    def get_nsamples_dt(self, chop_bounds=None, pad_to_pow2=True):
-        
-        if self.config.domain == 'spectrum':
-            n = self.get_nsamples_infreq(chop_bounds=chop_bounds, pad_to_pow2=pad_to_pow2)
-            dt = self.get_df(chop_bounds=chop_bounds, pad_to_pow2=pad_to_pow2)
-        else:
-            n = self.get_nsamples_intime(chop_bounds)
-            dt = self.deltat
-        return n, dt
+        valid_spectrum_indices, _ = utility.get_valid_spectrum_data(
+            deltaf=self.get_deltaf(chop_bounds, pad_to_pow2),
+            corner_frequencies=self.get_corner_frequencies(),
+            pad_factor=pad_factor)
+        return valid_spectrum_indices 
+
+    def get_deltaf(self, chop_bounds=['b', 'c'], pad_to_pow2=True):
+        n_samples = self.get_nsamples_time(
+            chop_bounds, pad_to_pow2=pad_to_pow2)
+        return 1. / (n_samples * self.deltat) 
 
     @property
     def shared_data_array(self):
@@ -3185,6 +3148,13 @@ class WaveformMapping(BaseMapping):
         else:
             logger.info('Consistent number of '
                         'datasets and targets in %s wavemap!' % self._mapid)
+
+
+def filterer_minmax(filterer):
+    """Get minimum and maximum corner frequencies of list of filterers"""
+    fmin = min([filt.get_lower_corner() for filt in self.filterer])
+    fmax = max([filt.get_upper_corner() for filt in self.filterer])
+    return (fmin, fmax)
 
 
 class CollectionError(Exception):
@@ -3986,16 +3956,19 @@ def pol_synthetics(
 
 
 def fft_transforms(
-        time_domain_signals, low_high_indices=None, outmode='array', pad_to_pow2=True):
+        time_domain_signals, valid_spectrum_indices, outmode='array',
+        pad_to_pow2=True):
 
     if outmode not in stackmodes:
         raise StackingError(
             'Outmode "%s" not available! Available: %s' % (
                 outmode, utility.list2string(stackmodes)))
 
+    lower_idx, upper_idx = valid_spectrum_indices
+
     if outmode == 'array':
         n_data, _ = num.shape(time_domain_signals)
-        n_samples = low_high_indices[1] - low_high_indices[0]
+        n_samples = upper_idx - lower_idx
         spec_signals = num.zeros((n_data, n_samples), dtype=tconfig.floatX)
     else:
         n_data = len(time_domain_signals)
@@ -4013,7 +3986,7 @@ def fft_transforms(
                 ntrans = n_samples
 
             fydata = num.fft.rfft(ydata, ntrans)
-            spec_signals[i] = num.abs(fydata)[low_high_indices[0]:low_high_indices[1]]
+            spec_signals[i] = num.abs(fydata)[lower_idx:upper_idx]
 
         elif outmode in ['data', 'tapered_data', 'stacked_traces']:
 
@@ -4021,12 +3994,12 @@ def fft_transforms(
                 tr = tr[0]
 
             fxdata, fydata = tr.spectrum(pad_to_pow2, 0.05)
-            fydata = fydata[low_high_indices[0]:low_high_indices[1]]
-            fxdata = fxdata[low_high_indices[0]:low_high_indices[1]]
-            df = fxdata[1] - fxdata[0]
+            fydata = fydata[lower_idx:upper_idx]
+            fxdata = fxdata[lower_idx:upper_idx]
+            deltaf = fxdata[1] - fxdata[0]
             spec_tr = SpectrumDataset(
                 ydata=num.abs(fydata),
-                deltaf=df,
+                deltaf=deltaf,
                 fmin=fxdata[0],
                 fmax=fxdata[-1],
                 deltat=tr.deltat,

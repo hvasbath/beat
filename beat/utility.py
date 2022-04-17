@@ -1482,3 +1482,15 @@ def is_odd(value):
 
 def is_even(value):
     return (value & 1) == 0
+
+
+def get_valid_spectrum_data(
+        deltaf, corner_frequencies=[0, 1.], pad_factor=1.5):
+    """ extract valid frequency range of spectrum """
+    lower_corner = corner_frequencies[0] / pad_factor
+    upper_corner = corner_frequencies[1] * pad_factor
+
+    lower_idx = int(num.floor(lower_corner / deltaf))
+    upper_idx = int(num.ceil(upper_corner / deltaf))
+
+    return (lower_idx, upper_idx), (lower_corner, upper_corner)

@@ -279,22 +279,6 @@ def fuzzy_waveforms(
         alpha=alpha, zorder=zorder)
 
 
-def get_valid_spectrum_data(
-        fxdata, corner_frequencies=[0, 1.], pad_factor=1.5):
-    """ extract valid frequency range of spectrum """
-    lower_corner = corner_frequencies[0] / pad_factor
-    upper_corner = corner_frequencies[1] * pad_factor
-
-    lower_idx = fxdata[fxdata < lower_corner].argmax()
-
-    if fxdata[-1] < upper_corner:
-        upper_idx = -1
-    else:
-        upper_idx = (fxdata > upper_corner).argmax()
-
-    return lower_idx, upper_idx, lower_corner, upper_corner
-
-
 def zero_pad_spectrum(trace, lower_idx, upper_idx):
     ydata = trace.get_ydata()[lower_idx:upper_idx]
     ydata[[0, -1]] = 0.
@@ -318,12 +302,13 @@ def fuzzy_spectrum(
 
         ymin, ymax = trace.minmax(traces, key=skey)[key]
 
-        lower_idx, upper_idx, lower_corner, upper_corner = \
-            get_valid_spectrum_data(
-                fxdata, corner_frequencies=corner_frequencies,
+        valid_spectrum_indices, corner_frequencies = \
+            utility.get_valid_spectrum_data(
+                deltaf=fxdata[1] - fxdata[0],
+                corner_frequencies=corner_frequencies,
                 pad_factor=pad_factors[0])
-
-        extent = [lower_corner, upper_corner, 0, pad_factors[1] * ymax]
+        lower_idx, upper_idx = valid_spectrum_indices
+        extent = [*corner_frequencies, 0, pad_factors[1] * ymax]
     else:
         lower_idx, upper_idx = 0, -1
 
@@ -531,10 +516,13 @@ def subplot_spectrum(
         in_ax.set_title('SPC_VR [%]', fontsize=5)
 
     fxdata = result.processed_syn.get_xdata()
-    lower_idx, upper_idx, _, _ = get_valid_spectrum_data(
-        fxdata, corner_frequencies=result.get_corner_frequencies(),
+    deltaf = fxdata[1] - fxdata[0]
+    valid_spectrum_indices, _ = utility.get_valid_spectrum_data(
+        deltaf,
+        corner_frequencies=result.get_corner_frequencies(),
         pad_factor=pad_factors[0])
 
+    lower_idx, upper_idx = valid_spectrum_indices
     fxdata = fxdata[lower_idx:upper_idx]
     linewidths = [1., 0.5, 0.5]
     colors = [obs_color, syn_color, misfit_color]
