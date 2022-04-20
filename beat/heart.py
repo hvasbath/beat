@@ -317,11 +317,28 @@ class Trace(Object):
 
 class FilterBase(Object):
 
+    lower_corner = Float.T(
+        default=0.001,
+        help='Lower corner frequency')
+    upper_corner = Float.T(
+        default=0.1,
+        help='Upper corner frequency')
+    ffactor = Float.T(
+        default=1.5,
+        help='Factor for tapering the corner frequencies in spectral domain.')
+
     def get_lower_corner(self):
         return self.lower_corner
 
     def get_upper_corner(self):
         return self.upper_corner
+
+    def get_freqlimits(self):
+        return (
+            self.lower_corner / self.ffactor,
+            self.lower_corner,
+            self.upper_corner,
+            self.upper_corner * self.ffactor)
 
 
 class Filter(FilterBase):
@@ -330,12 +347,6 @@ class Filter(FilterBase):
     filtering.
     """
 
-    lower_corner = Float.T(
-        default=0.001,
-        help='Lower corner frequency')
-    upper_corner = Float.T(
-        default=0.1,
-        help='Upper corner frequency')
     order = Int.T(
         default=4,
         help='order of filter, the higher the steeper')
@@ -390,10 +401,6 @@ class BandstopFilter(FilterBase):
 
 class FrequencyFilter(FilterBase):
 
-    freqlimits = Tuple.T(
-        4, Float.T(),
-        default=(0.005, 0.006, 166., 200.),
-        help='Corner frequencies 4-tuple [Hz] for frequency domain filter.')
     tfade = Float.T(
         default=20.,
         help='Rise/fall time in seconds of taper applied in timedomain at both'
@@ -401,14 +408,10 @@ class FrequencyFilter(FilterBase):
 
     def apply(self, trace):
         new_trace = trace.transfer(
-            tfade=self.tfade, freqlimits=self.freqlimits, cut_off_fading=False)
+            tfade=self.tfade,
+            freqlimits=self.get_freqlimits(),
+            cut_off_fading=False)
         trace.set_ydata(new_trace.ydata)
-
-    def get_lower_corner(self):
-        return self.freqlimits[0]
-
-    def get_upper_corner(self):
-        return self.freqlimits[-1]
 
 
 class ResultPoint(Object):
@@ -479,7 +482,7 @@ class SeismicResult(Object):
                     tr.tmin, syn_tmin, tr.tmin - syn_tmin))
         return tr
 
-    def get_corner_frequencies(self):
+    def get_taper_frequencies(self):
         return filterer_minmax(self.filterer)
 
 
@@ -962,7 +965,8 @@ class SpectrumDataset(SeismicDataset):
         if self.ydata is None:
             raise Exception()
 
-        return num.arange(len(self.ydata), dtype=num.float64) * self.deltaf
+        return num.arange(
+            len(self.ydata), dtype=num.float64) * self.deltaf + self.fmin
 
 
 class DynamicTarget(gf.Target):
@@ -2661,7 +2665,7 @@ class BaseMapping(object):
             self._phase_markers = []
             for marker in markers:
                 if isinstance(marker, PhaseMarker):
-                    self.phase_markers.append(marker)
+                    self._phase_markers.append(marker)
                 else:
                     logger.warning(
                         'Marker is not of class PhaseMarker skipping: \n '
@@ -3091,7 +3095,7 @@ class WaveformMapping(BaseMapping):
 
         self._arrival_times = arrival_times
 
-    def get_corner_frequencies(self):
+    def get_taper_frequencies(self):
         return filterer_minmax(self.config.filterer)
 
     def get_nsamples_time(self, chop_bounds=['b', 'c'], pad_to_pow2=False):
@@ -3102,21 +3106,19 @@ class WaveformMapping(BaseMapping):
         return nsamples
 
     def get_nsamples_spectrum(
-            self, chop_bounds=['b', 'c'], pad_to_pow2=True, pad_factor=1.6):
+            self, chop_bounds=['b', 'c'], pad_to_pow2=True):
         
         lower_idx, upper_idx = self.get_valid_spectrum_indices(
             chop_bounds=chop_bounds,
-            pad_to_pow2=pad_to_pow2,
-            pad_factor=pad_factor)
+            pad_to_pow2=pad_to_pow2)
         return upper_idx - lower_idx
 
     def get_valid_spectrum_indices(
-            self, chop_bounds=['b', 'c'], pad_to_pow2=True, pad_factor=1.6):
+            self, chop_bounds=['b', 'c'], pad_to_pow2=True):
 
-        valid_spectrum_indices, _ = utility.get_valid_spectrum_data(
+        valid_spectrum_indices = utility.get_valid_spectrum_data(
             deltaf=self.get_deltaf(chop_bounds, pad_to_pow2),
-            corner_frequencies=self.get_corner_frequencies(),
-            pad_factor=pad_factor)
+            taper_frequencies=self.get_taper_frequencies())
         return valid_spectrum_indices 
 
     def get_deltaf(self, chop_bounds=['b', 'c'], pad_to_pow2=True):
@@ -3152,8 +3154,8 @@ class WaveformMapping(BaseMapping):
 
 def filterer_minmax(filterer):
     """Get minimum and maximum corner frequencies of list of filterers"""
-    fmin = min([filt.get_lower_corner() for filt in filterer])
-    fmax = max([filt.get_upper_corner() for filt in filterer])
+    fmin = min([min(filt.get_freqlimits()) for filt in filterer])
+    fmax = max([max(filt.get_freqlimits()) for filt in filterer])
     return (fmin, fmax)
 
 
@@ -3994,9 +3996,11 @@ def fft_transforms(
                 tr = tr[0]
 
             fxdata, fydata = tr.spectrum(pad_to_pow2, 0.05)
+
             fydata = fydata[lower_idx:upper_idx]
             fxdata = fxdata[lower_idx:upper_idx]
             deltaf = fxdata[1] - fxdata[0]
+
             spec_tr = SpectrumDataset(
                 ydata=num.abs(fydata),
                 deltaf=deltaf,

@@ -1485,12 +1485,10 @@ def is_even(value):
 
 
 def get_valid_spectrum_data(
-        deltaf, corner_frequencies=[0, 1.], pad_factor=1.5):
+        deltaf, taper_frequencies=[0, 1.]):
     """ extract valid frequency range of spectrum """
-    lower_corner = corner_frequencies[0] / pad_factor
-    upper_corner = corner_frequencies[1] * pad_factor
+    lower_f, upper_f  = taper_frequencies
 
-    lower_idx = int(num.floor(lower_corner / deltaf))
-    upper_idx = int(num.ceil(upper_corner / deltaf))
-
-    return (lower_idx, upper_idx), (lower_corner, upper_corner)
+    lower_idx = int(num.floor(lower_f / deltaf))
+    upper_idx = int(num.ceil(upper_f / deltaf))
+    return lower_idx, upper_idx

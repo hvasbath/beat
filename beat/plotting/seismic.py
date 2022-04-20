@@ -279,14 +279,14 @@ def fuzzy_waveforms(
         alpha=alpha, zorder=zorder)
 
 
-def zero_pad_spectrum(trace, lower_idx, upper_idx):
-    ydata = trace.get_ydata()[lower_idx:upper_idx]
+def zero_pad_spectrum(trace):
+    ydata = trace.get_ydata()   # [lower_idx:upper_idx]
     ydata[[0, -1]] = 0.
     return ydata
 
 
 def fuzzy_spectrum(
-        ax, traces, corner_frequencies=(0, 1.), pad_factors=[1.5, 1.2],
+        ax, traces, taper_frequencies=(0, 1.), ypad_factor=1.2,
         zorder=0, extent=None,
         linewidth=7.0, grid_size=(500, 500), cmap=None, alpha=0.5):
 
@@ -302,19 +302,17 @@ def fuzzy_spectrum(
 
         ymin, ymax = trace.minmax(traces, key=skey)[key]
 
-        valid_spectrum_indices, corner_frequencies = \
-            utility.get_valid_spectrum_data(
-                deltaf=fxdata[1] - fxdata[0],
-                corner_frequencies=corner_frequencies,
-                pad_factor=pad_factors[0])
-        lower_idx, upper_idx = valid_spectrum_indices
-        extent = [*corner_frequencies, 0, pad_factors[1] * ymax]
+        lower_idx, upper_idx = utility.get_valid_spectrum_data(
+            deltaf=fxdata[1] - fxdata[0],
+            taper_frequencies=taper_frequencies)
+
+        extent = [*taper_frequencies, 0, ypad_factor * ymax]
     else:
         lower_idx, upper_idx = 0, -1
 
-    fxdata = fxdata[lower_idx:upper_idx]
+    #fxdata = fxdata[lower_idx:upper_idx]
     for tr in traces:
-        ydata = zero_pad_spectrum(tr, lower_idx, upper_idx)
+        ydata = zero_pad_spectrum(tr)
         draw_line_on_array(
             fxdata, ydata,
             grid=grid,
@@ -483,7 +481,7 @@ def subplot_spectrum(
     axes, axes2, po, target, traces, result, synth_plot_flag,
     only_spectrum, var_reductions, fontsize,
     syn_color, obs_color, misfit_color, tap_color_annot,
-    pad_factors):
+    ypad_factor):
 
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
@@ -496,11 +494,11 @@ def subplot_spectrum(
     else:
         bbox_y = 0.75
 
-    corner_frequencies = result.get_corner_frequencies()
+    taper_frequencies = result.get_taper_frequencies()
     if po.nensemble > 1:
         fuzzy_spectrum(
-            axes, traces=traces, corner_frequencies=corner_frequencies,
-            pad_factors=pad_factors, zorder=0, extent=None,
+            axes, traces=traces, taper_frequencies=taper_frequencies,
+            ypad_factor=ypad_factor, zorder=0, extent=None,
             linewidth=7.0, grid_size=(500, 500), cmap=None, alpha=1.)
 
         if synth_plot_flag:
@@ -516,14 +514,7 @@ def subplot_spectrum(
         in_ax.set_title('SPC_VR [%]', fontsize=5)
 
     fxdata = result.processed_syn.get_xdata()
-    deltaf = fxdata[1] - fxdata[0]
-    valid_spectrum_indices, _ = utility.get_valid_spectrum_data(
-        deltaf,
-        corner_frequencies=result.get_corner_frequencies(),
-        pad_factor=pad_factors[0])
 
-    lower_idx, upper_idx = valid_spectrum_indices
-    fxdata = fxdata[lower_idx:upper_idx]
     linewidths = [1., 0.5, 0.5]
     colors = [obs_color, syn_color, misfit_color]
     ymaxs = []
@@ -531,7 +522,7 @@ def subplot_spectrum(
             ['obs', 'syn', 'res'], linewidths, colors):
 
         tr = getattr(result, 'processed_{}'.format(attr_suffix))
-        ydata = zero_pad_spectrum(tr, lower_idx, upper_idx)
+        ydata = zero_pad_spectrum(tr)
         ymaxs.append(ydata.max())
 
         if attr_suffix == 'res':
@@ -546,7 +537,7 @@ def subplot_spectrum(
     axes.yaxis.set_visible(False)
     axes.xaxis.set_visible(False)
     axes.set_xlim([fxdata.min(), fxdata.max()])
-    axes.set_ylim([0, pad_factors[1] * ymax])
+    axes.set_ylim([0, ypad_factor * ymax])
 
     if only_spectrum:
         ybounds = [0.6 * ymax, 0.6 * ymax]
@@ -577,7 +568,7 @@ def subplot_spectrum(
         fontstyle='normal')
 
     axes.annotate(
-        '$ f \ |\ ^{%0.1g}_{%0.1g} \ $' % (
+        '$ f \ |\ ^{%0.2g}_{%0.2g} \ $' % (
             fxdata[0], xpos),
         xycoords='data',
         xy=(xpos, ymax_factor_f * ymax),
@@ -941,7 +932,7 @@ def seismic_fits(problem, stage, plot_options):
                             obs_color=obs_color,
                             misfit_color=misfit_color,
                             tap_color_annot=tap_color_annot,
-                            pad_factors=[1.6, 1.2])
+                            ypad_factor=1.2)
 
                 scale_string = None
 

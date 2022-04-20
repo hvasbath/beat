@@ -187,7 +187,7 @@ class SeismicNoiseAnalyser(object):
         if chop_bounds is None:
             chop_bounds = self.chop_bounds
 
-        _, fmax = wmap.get_corner_frequencies()
+        _, fmax = wmap.get_taper_frequencies()
         tzero = 1. / fmax
 
         if wmap.config.domain == 'spectrum':
@@ -224,8 +224,13 @@ class SeismicNoiseAnalyser(object):
             scalings = []
             for result in results:
                 residual = result.processed_res.get_ydata()
+                window_size = residual.size // 5
+                if window_size == 0:
+                    raise ValueError(
+                        'Length of trace too short! Please widen taper in time'
+                        ' domain or frequency bands in spectral domain.')
                 scaling = non_toeplitz_covariance(
-                    residual, window_size=residual.size // 5)
+                    residual, window_size=window_size)
                 scalings.append(scaling)
 
             return scalings
@@ -270,7 +275,7 @@ class SeismicNoiseAnalyser(object):
             
             if wmap.config.domain == 'spectrum':
                 lower_idx, upper_idx = wmap.get_valid_spectrum_indices(
-                    chop_bounds=chop_bounds, pad_to_pow2=True, pad_factor=1.6)
+                    chop_bounds=chop_bounds, pad_to_pow2=True)
                 data = ctrace.spectrum(True, 0.05)[1]
                 data = data[lower_idx:upper_idx]
             else:

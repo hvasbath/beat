@@ -866,8 +866,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
                 valid_spectrum_indices = wmap.get_valid_spectrum_indices(
                     chop_bounds=chop_bounds,
-                    pad_to_pow2=True,
-                    pad_factor=1.6)
+                    pad_to_pow2=True)
 
                 synthetics = heart.fft_transforms(
                     synthetics,

@@ -337,10 +337,11 @@ class SeisSynthesizer(theano.Op):
 
         if self.domain == 'spectrum':
             nsamples = nextpow2(self.arrival_taper.nsamples(self.sample_rate))
-            corner_frequencies = heart.filterer_minmax(filterer)
+            taper_frequencies = heart.filterer_minmax(filterer)
             deltaf = self.sample_rate / nsamples
-            self.valid_spectrum_indices, _ = utility.get_valid_spectrum_data(
-                deltaf, corner_frequencies, pad_factor=1.6)
+
+            self.valid_spectrum_indices = utility.get_valid_spectrum_data(
+                deltaf, taper_frequencies)
 
     def __getstate__(self):
         self.engine.close_cashed_stores()
