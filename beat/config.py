@@ -300,6 +300,14 @@ class NonlinearGFConfig(GFConfig):
         default=True,
         help='Flag, for replacing the crust from the earthmodel'
              'with crust from the crust2 model.')
+    use_epcrust = Bool.T(
+        default=True,
+        help='Flag, for replacing the crust from the earthmodel'
+             'with crust from the EPcrust model.')
+    epcrust_radius = Float.T(
+        default=50,
+        help='Get the average EPcrust profile in the defined radius around Reference location'
+             'radius is in km')
     replace_water = Bool.T(
         default=True,
         help='Flag, for replacing water layers in the crust2 model.')
@@ -1837,6 +1845,8 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                 c.geodetic_config.gf_config.custom_velocity_model = \
                     load_model().extract(depth_max=100. * km)
                 c.geodetic_config.gf_config.use_crust2 = False
+                c.geodetic_config.gf_config.use_epcrust = False
+                c.geodetic_config.gf_config.epcrust_radius = 0
                 c.geodetic_config.gf_config.replace_water = False
         else:
             c.geodetic_config = None
@@ -1856,6 +1866,8 @@ def init_config(name, date=None, min_magnitude=6.0, main_path='./',
                 c.seismic_config.gf_config.custom_velocity_model = \
                     load_model().extract(depth_max=100. * km)
                 c.seismic_config.gf_config.use_crust2 = False
+                c.geodetic_config.gf_config.use_epcrust = False
+                c.geodetic_config.gf_config.epcrust_radius = 0
                 c.seismic_config.gf_config.replace_water = False
         else:
             c.seismic_config = None
