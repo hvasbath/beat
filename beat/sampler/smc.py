@@ -88,7 +88,7 @@ class SMC(Metropolis):
                  n_chains=100, tune=True, tune_interval=100, model=None,
                  check_bound=True, likelihood_name='like',
                  proposal_name='MultivariateNormal', backend='csv',
-                 coef_variation=1., **kwargs):
+                 coef_variation=1.0, **kwargs):
 
         super(SMC, self).__init__(
             vars=vars, out_vars=out_vars, covariance=covariance, scale=scale,
@@ -151,6 +151,30 @@ class SMC(Metropolis):
         beta = current_beta
         weights = temp / np.sum(temp)
         return beta, old_beta, weights
+
+        ### new beta
+        beta_threshhold = int(self.n_chains * self.coef_variation)
+
+        while up_beta - low_beta > 1e-6:
+            new_beta = (low_beta + up_beta) / 2.0
+            log_weights_un = (new_beta - old_beta) * self.likelihoods
+            log_weights = log_weights_un - logsumexp(log_weights_un)
+            effective_sample_size = int(np.exp(-logsumexp(log_weights * 2)))
+            if effective_sample_size == beta_threshhold:
+                break
+            elif effective_sample_size < beta_threshhold:
+                up_beta = new_beta
+            else:
+                low_beta = new_beta
+
+        beta = new_beta
+        # We normalize again to correct for small numerical errors 
+        # that might build up
+        weights = log_weights / np.sum(log_weights)
+        self.log_marginal_likelihood += logsumexp(
+            log_weights_un) - np.log(self.n_chains)
+        return beta, old_beta, weights
+
 
     def calc_covariance(self):
         """
@@ -310,6 +334,16 @@ class SMC(Metropolis):
 
         return outindx
 
+    def tune_n_steps(self, stage_acceptance):
+        """Tune n_steps based on the acceptance rate."""
+        nproposed = self.n_steps * self.n_chains
+
+        acc_rate = max(1.0 / nproposed, stage_acceptance)
+        self.n_steps = min(
+            self.max_n_steps,
+            max(2, int(
+                np.log(1 - self.p_acc_rate) / np.log(1 - acc_rate))))
+
     def __getstate__(self):
         return self.__dict__
 
@@ -320,8 +354,8 @@ class SMC(Metropolis):
 def smc_sample(
         n_steps, step=None, start=None, homepath=None,
         stage=0, n_jobs=1, progressbar=False, buffer_size=5000,
-        buffer_thinning=1, model=None, update=None, random_seed=None,
-        rm_flag=False):
+        buffer_thinning=1, tune_n_steps, model=None, update=None,
+        random_seed=None, rm_flag=False):
     """
     Sequential Monte Carlo samlping
 
@@ -367,6 +401,9 @@ def smc_sample(
     buffer_thinning : int
         every nth sample of the buffer is written to disk
         default: 1 (no thinning)
+    tune_n_steps : bool
+        If enabled tune the number of steps based on the acceptance rate of 
+        the ensemble of chains
     model : :class:`pymc3.Model`
         (optional if in `with` context) has to contain deterministic
         variable name defined under step.likelihood_name' that contains the
@@ -388,7 +425,7 @@ def smc_sample(
     """
 
     model = modelcontext(model)
-    step.n_steps = int(n_steps)
+    step.max_n_steps = step.n_steps = int(n_steps)
 
     if n_steps < 1:
         raise TypeError('Argument `n_steps` should be above 0.', exc_info=1)
@@ -469,6 +506,9 @@ def smc_sample(
                     step.select_end_points(mtrace)
 
             step.beta, step.old_beta, step.weights = step.calc_beta()
+
+            if tune_n_steps:
+                step.tune_n_steps()
 
             if step.beta > 1.:
                 logger.info('Beta > 1.: %f' % step.beta)
