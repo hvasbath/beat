@@ -597,6 +597,7 @@ class NumpyChain(FileChain):
     flat_names_tag = "flat_names"
     var_shape_tag = "var_shapes"
     var_dtypes_tag = "var_dtypes"
+    footer_data_tags = "accepted", "tuned_n_steps"
     __data_structure = None
 
     def __init__(
@@ -608,6 +609,8 @@ class NumpyChain(FileChain):
             buffer_size=buffer_size, buffer_thinning=buffer_thinning, k=k)
 
         self.k = k
+        self.accepted = None
+        self.tuned_n_steps
 
     def __repr__(self):
         return "NumpyChain({},{},{},{},{},{})".format(
@@ -665,6 +668,20 @@ class NumpyChain(FileChain):
                 header = (json.dumps(header_data) + '\n').encode()
                 fh.write(header)
 
+    @property
+    def file_footer(self, blocksize=128):
+        with open(self.filename, mode="rb") as file:
+            return next(reversed_lines(file, blocksize))
+
+    def write_footer(self, footer_dict={}):
+        if self.__data_structure is None:
+            raise IOError(
+                'Trace has not been set-up yet! Not writing into file')
+        else:
+            with open(self.filename, 'wb') as fh:
+                footer = ('\n' + json.dumps(footer_dict) + '\n').encode()
+                fh.write(footer)
+
     def extract_variables_from_header(self, file_header):
         header_data = json.loads(file_header, object_pairs_hook=OrderedDict)
         flat_names = header_data[self.flat_names_tag]
@@ -674,6 +691,11 @@ class NumpyChain(FileChain):
         var_dtypes = header_data[self.var_dtypes_tag]
         varnames = list(flat_names.keys())
         return flat_names, var_shapes, var_dtypes, varnames
+
+    def extract_data_from_footer(self, file_footer):
+        footer_data = json.loads(file_footer, object_pairs_hook=OrderedDict)
+        if footer_data:
+            return footer_data
 
     def construct_data_structure(self):
         """
@@ -748,6 +770,16 @@ class NumpyChain(FileChain):
                         file, dtype=self.data_structure)
             except EOFError as e:
                 print(e)
+
+        if self.accepted is None:
+            footer_data = self.extract_data_from_footer()
+            if footer_data:
+                for tag in self.footer_data_tags:
+                    try:
+                        setattr(self, tag, footer_data[tag])
+                    except KeyError:
+                        logger.warning(
+                            'Could not find %s in file footer.' % tag)
 
     def get_values(self, varname, burn=0, thin=1):
         self._load_df()
@@ -1120,7 +1152,7 @@ def check_multitrace(mtrace, draws, n_chains, buffer_thinning=1):
     mtrace : :class:`pymc3.backend.base.MultiTrace`
         Multitrace object containing the sampling traces
     draws : int
-        Number of steps (i.e. chain length for each Markov Chain)
+        Number of steps (i.e. thinned chain length for each Markov Chain)
     n_chains : int
         Number of Markov Chains
 
@@ -1285,3 +1317,33 @@ def extract_bounds_from_summary(
         bounds.append(values)
 
     return bounds
+
+
+def reversed_lines(file, blocksize=2048):
+    """
+    Generator for the lines of file in reverse order.
+    """
+    part = ''
+    for block in reversed_blocks(file, blocksize):
+        print(block)
+        for c in reversed(block.decode()):
+            if c == '\n' and part:
+                yield part[::-1]
+                part = ''
+
+            part += c
+    if part:
+        yield part[::-1]
+
+
+def reversed_blocks(file, blocksize=2048):
+    """
+    Generator for blocks of file's contents in reverse order.
+    """
+    file.seek(0, os.SEEK_END)
+    here = file.tell()
+    while 0 < here:
+        delta = min(blocksize, here)
+        here -= delta
+        file.seek(here, os.SEEK_SET)
+        yield file.read(delta)

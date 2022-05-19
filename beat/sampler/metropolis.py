@@ -108,6 +108,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
         self.stage_sample = 0
         self.cumulative_samples = 0
         self.accepted = 0
+        self.chain_accepted = 0
 
         self.beta = 1.
         self.stage = 0
@@ -298,6 +299,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
                         logger.debug('proposed: %f previous: %f' % (
                             lp[self._llk_index], llk0))
                         self.accepted += 1
+                        self.chain_accepted += 1
                         l_new = lp
                         self.chain_previous_lpoint[self.chain_index] = l_new
                     else:
@@ -324,6 +326,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
                 if accepted:
                     self.accepted += 1
+                    self.chain_accepted += 1
                     l_new = lp
                     self.chain_previous_lpoint[self.chain_index] = l_new
                 else:

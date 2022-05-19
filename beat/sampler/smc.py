@@ -61,6 +61,10 @@ class SMC(Metropolis):
         from stage to stage, i.e.indirectly the number of stages,
         low coef_variation --> slow beta change,
         results in many stages and vice verca (default: 1.)
+    p_acc_rate : scalar, float
+        Used to compute ``n_steps`` when ``tune_steps == True``. The higher the
+        value of ``p_acc_rate`` the higher the number of steps computed
+        automatically. Defaults to 0.85. It should be above 0 and below 1.
     check_bound : boolean
         Check if current sample lies outside of variable definition
         speeds up computation as the forward model wont be executed
@@ -86,7 +90,7 @@ class SMC(Metropolis):
 
     def __init__(self, vars=None, out_vars=None, covariance=None, scale=1.,
                  n_chains=100, tune=True, tune_interval=100, model=None,
-                 check_bound=True, likelihood_name='like',
+                 check_bound=True, likelihood_name='like', p_acc_rate=0.85,
                  proposal_name='MultivariateNormal', backend='csv',
                  coef_variation=1.0, **kwargs):
 
@@ -98,6 +102,7 @@ class SMC(Metropolis):
             proposal_name=proposal_name, **kwargs)
 
         self.beta = 0
+        self.p_acc_rate = p_acc_rate
 
         self.coef_variation = coef_variation
         self.likelihoods = np.zeros(n_chains)
@@ -334,11 +339,11 @@ class SMC(Metropolis):
 
         return outindx
 
-    def tune_n_steps(self, stage_acceptance):
+    def tune_n_steps(self, stage_accepted):
         """Tune n_steps based on the acceptance rate."""
         nproposed = self.n_steps * self.n_chains
 
-        acc_rate = max(1.0 / nproposed, stage_acceptance)
+        acc_rate = max(1.0 / nproposed, stage_accepted)
         self.n_steps = min(
             self.max_n_steps,
             max(2, int(
@@ -354,7 +359,7 @@ class SMC(Metropolis):
 def smc_sample(
         n_steps, step=None, start=None, homepath=None,
         stage=0, n_jobs=1, progressbar=False, buffer_size=5000,
-        buffer_thinning=1, tune_n_steps, model=None, update=None,
+        buffer_thinning=1, tune_n_steps=False, model=None, update=None,
         random_seed=None, rm_flag=False):
     """
     Sequential Monte Carlo samlping

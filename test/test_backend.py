@@ -5,7 +5,10 @@ import numpy as num
 import pymc3 as pm
 import theano.tensor as tt
 
-from beat.backend import TextChain, NumpyChain, load_multitrace, check_multitrace
+from collections import OrderedDict
+from beat.backend import (
+    TextChain, NumpyChain, load_multitrace, check_multitrace, reversed_blocks,
+    reversed_lines)
 
 
 class TestBackend(TestCase):
@@ -107,22 +110,16 @@ class TestBackend(TestCase):
 
         numpy_chain.record_buffer()
 
-        # print("Var shapes: ", numpy_chain.var_shapes)
-        # print("flat names: ", numpy_chain.flat_names)
-        # print("Var names: ", numpy_chain.varnames)
-
-
-        # print("Var shapes: ", numpy_chain.var_shapes)
-        # print("flat names: ", numpy_chain.flat_names)
-        # print("Var names: ", numpy_chain.varnames)
-
         for data_key in self.data_keys:
             chain_data = numpy_chain.get_values(data_key)
             data_index = 1
             chain_at = numpy_chain.point(data_index)
             # print(data_key + ": ", chain_data)
-            self.assertEqual(chain_data.all(), self.expected_chain_data.get(data_key).all())
-            self.assertEqual(chain_at[data_key].all(), self.expected_chain_data.get(data_key)[data_index].all())
+            self.assertEqual(
+                chain_data.all(), self.expected_chain_data.get(data_key).all())
+            self.assertEqual(
+                chain_at[data_key].all(),
+                self.expected_chain_data.get(data_key)[data_index].all())
 
     def test_load_bin_chain(self):
         numpy_chain = NumpyChain(dir_path=self.test_dir_path, model=self.PT_test)
@@ -132,14 +129,55 @@ class TestBackend(TestCase):
         chain_at = numpy_chain.point(data_index)
         # print(chain_at)
         for data_key in self.data_keys:
-            self.assertEqual(chain_at[data_key].all(), self.expected_chain_data.get(data_key)[data_index].all())
+            self.assertEqual(
+                chain_at[data_key].all(),
+                self.expected_chain_data.get(data_key)[data_index].all())
 
     def test_load_check_multitrace(self):
-        mtrace = load_multitrace(self.test_dir_path, varnames=self.PT_test.vars, backend='bin')
+        mtrace = load_multitrace(
+            self.test_dir_path, varnames=self.PT_test.vars, backend='bin')
         mtrace.point(1)
 
         corrupted = check_multitrace(mtrace, self.sample_size, 1)
         self.assertEqual(len(corrupted), 0)
+
+    def test_footer_bin_loader_str(self):
+
+        with open('test.bin', 'wb') as fh: 
+            fh.write('anfang\n'.encode()) 
+            fh.write('ende\n'.encode())
+
+        with open('test.bin', 'rb') as fh:
+            gen = reversed_lines(fh, 1024)
+            print('Here4')
+            for i, block in enumerate(gen):
+                print(i, block)
+
+    def test_footer_bin_loader_json(self):
+
+        import json
+        from time import time
+
+        stats_data = OrderedDict(
+            accepted=12300, n_steps= 27000)
+
+        with open('test.bin', 'wb') as fh: 
+            fh.write('anfang\n'.encode()) 
+            fh.write('ende\n'.encode())
+            fh.write(json.dumps(stats_data).encode()) 
+
+        with open('test.bin', 'rb') as fh:
+            t0 = time()
+            gen = reversed_lines(fh, 128)
+            t1 = time()
+            print('Time load', t1 - t0)
+            stats = json.loads(next(gen), object_pairs_hook=OrderedDict)
+            print(stats)
+            print('Time dict', time() - t1)
+            for i, block in enumerate(gen):
+                print(i, block)
+                print('Time line', time() - t1)
+
 
 #    def tearDown(self):
 #        import shutil
