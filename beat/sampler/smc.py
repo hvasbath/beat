@@ -5,6 +5,7 @@ Runs on any pymc3 model.
 """
 
 import numpy as np
+from scipy.special import logsumexp
 
 import logging
 
@@ -61,10 +62,11 @@ class SMC(Metropolis):
         from stage to stage, i.e.indirectly the number of stages,
         low coef_variation --> slow beta change,
         results in many stages and vice verca (default: 1.)
-    p_acc_rate : scalar, float
+    adaptive_step_tuning_rate : scalar, float
         Used to compute ``n_steps`` when ``tune_steps == True``. The higher the
-        value of ``p_acc_rate`` the higher the number of steps computed
-        automatically. Defaults to 0.85. It should be above 0 and below 1.
+        value of ``adaptive_step_tuning_rate`` the higher the number of steps 
+        computed automatically. Defaults to 0.85.
+        It should be above 0 and below 1.
     check_bound : boolean
         Check if current sample lies outside of variable definition
         speeds up computation as the forward model wont be executed
@@ -90,7 +92,8 @@ class SMC(Metropolis):
 
     def __init__(self, vars=None, out_vars=None, covariance=None, scale=1.,
                  n_chains=100, tune=True, tune_interval=100, model=None,
-                 check_bound=True, likelihood_name='like', p_acc_rate=0.85,
+                 check_bound=True, likelihood_name='like',
+                 adaptive_step_tuning_rate=0.85,
                  proposal_name='MultivariateNormal', backend='csv',
                  coef_variation=1.0, **kwargs):
 
@@ -102,9 +105,10 @@ class SMC(Metropolis):
             proposal_name=proposal_name, **kwargs)
 
         self.beta = 0
-        self.p_acc_rate = p_acc_rate
+        self.adaptive_step_tuning_rate = adaptive_step_tuning_rate
 
         self.coef_variation = coef_variation
+        self.log_marginal_likelihood = 0.
         self.likelihoods = np.zeros(n_chains)
 
     def _sampler_state_blacklist(self):
@@ -142,20 +146,20 @@ class SMC(Metropolis):
         up_beta = 2.
         old_beta = self.beta
 
-        while up_beta - low_beta > 1e-6:
-            current_beta = (low_beta + up_beta) / 2.
-            temp = np.exp(
-                (current_beta - self.beta) *
-                (self.likelihoods - self.likelihoods.max()))
-            cov_temp = np.std(temp) / np.mean(temp)
-            if cov_temp > self.coef_variation:
-                up_beta = current_beta
-            else:
-                low_beta = current_beta
-
-        beta = current_beta
-        weights = temp / np.sum(temp)
-        return beta, old_beta, weights
+#        while up_beta - low_beta > 1e-6:
+#            current_beta = (low_beta + up_beta) / 2.
+#            temp = np.exp(
+#                (current_beta - self.beta) *
+#                (self.likelihoods - self.likelihoods.max()))
+#            cov_temp = np.std(temp) / np.mean(temp)
+#            if cov_temp > self.coef_variation:
+#                up_beta = current_beta
+#            else:
+#                low_beta = current_beta
+#
+#        beta = current_beta
+#        weights = temp / np.sum(temp)
+#        return beta, old_beta, weights
 
         ### new beta
         beta_threshhold = int(self.n_chains * self.coef_variation)
@@ -165,6 +169,7 @@ class SMC(Metropolis):
             log_weights_un = (new_beta - old_beta) * self.likelihoods
             log_weights = log_weights_un - logsumexp(log_weights_un)
             effective_sample_size = int(np.exp(-logsumexp(log_weights * 2)))
+
             if effective_sample_size == beta_threshhold:
                 break
             elif effective_sample_size < beta_threshhold:
@@ -172,6 +177,7 @@ class SMC(Metropolis):
             else:
                 low_beta = new_beta
 
+        logger.info('Effective sample size: %g' % effective_sample_size)
         beta = new_beta
         # We normalize again to correct for small numerical errors 
         # that might build up
@@ -292,6 +298,12 @@ class SMC(Metropolis):
 
         return chain_previous_lpoint
 
+    def get_stage_acceptance_params(self):
+
+        return {'chain_accepted': int(self.chains_accepted[self.chain_index]),
+                'tuned_n_steps': self.n_steps,
+                'adaptive_step_tuning_rate:': self.adaptive_step_tuning_rate}
+
     def get_map_end_points(self):
         """
         Calculate mean of the end-points and return point.
@@ -339,15 +351,31 @@ class SMC(Metropolis):
 
         return outindx
 
-    def tune_n_steps(self, stage_accepted):
+    def tune_n_steps(self, mtrace):
         """Tune n_steps based on the acceptance rate."""
-        nproposed = self.n_steps * self.n_chains
+        if self.adaptive_step_tuning_rate > 0.:
+            logger.info(
+                'Adaptive tuning of number of steps for next stage ...')
 
-        acc_rate = max(1.0 / nproposed, stage_accepted)
-        self.n_steps = min(
-            self.max_n_steps,
-            max(2, int(
-                np.log(1 - self.p_acc_rate) / np.log(1 - acc_rate))))
+            chains_accepted = np.sum(
+                [strace.chain_accepted for strace in mtrace._straces.values()])
+            print(chains_accepted)
+
+            nproposed = self.n_steps * self.n_chains
+            acc_rate = max(1.0 / nproposed, chains_accepted / nproposed)
+            logger.info('Stage acceptance rate: %g' % acc_rate)
+
+            self.n_steps = min(
+                self.max_n_steps,
+                max(2, int(
+                    np.log(1 - self.adaptive_step_tuning_rate) /
+                    np.log(1 - acc_rate))))
+
+            logger.info('Number of n_steps for next stage: %i' % self.n_steps)
+        else:
+            logger.info('Not tuning number of steps.')
+
+        self.chain_accepted = 0         # reset chain accepted samples
 
     def __getstate__(self):
         return self.__dict__
@@ -359,7 +387,7 @@ class SMC(Metropolis):
 def smc_sample(
         n_steps, step=None, start=None, homepath=None,
         stage=0, n_jobs=1, progressbar=False, buffer_size=5000,
-        buffer_thinning=1, tune_n_steps=False, model=None, update=None,
+        buffer_thinning=1, model=None, update=None,
         random_seed=None, rm_flag=False):
     """
     Sequential Monte Carlo samlping
@@ -406,9 +434,6 @@ def smc_sample(
     buffer_thinning : int
         every nth sample of the buffer is written to disk
         default: 1 (no thinning)
-    tune_n_steps : bool
-        If enabled tune the number of steps based on the acceptance rate of 
-        the ensemble of chains
     model : :class:`pymc3.Model`
         (optional if in `with` context) has to contain deterministic
         variable name defined under step.likelihood_name' that contains the
@@ -478,7 +503,7 @@ def smc_sample(
                 logger.info('Sample initial stage: ...')
                 draws = 1
             else:
-                draws = n_steps
+                draws = step.n_steps
 
             logger.info('Beta: %f Stage: %i' % (step.beta, step.stage))
 
@@ -512,8 +537,8 @@ def smc_sample(
 
             step.beta, step.old_beta, step.weights = step.calc_beta()
 
-            if tune_n_steps:
-                step.tune_n_steps()
+            if step.stage > 0:
+                step.tune_n_steps(mtrace)
 
             if step.beta > 1.:
                 logger.info('Beta > 1.: %f' % step.beta)
@@ -542,9 +567,11 @@ def smc_sample(
         logger.info('Sample final stage with n_steps %i ' % draws)
         step.stage = -1
 
-        temp = np.exp((1 - step.old_beta) *
-                      (step.likelihoods - step.likelihoods.max()))
-        step.weights = temp / np.sum(temp)
+        log_weights_un = (new_beta - old_beta) * self.likelihoods
+        log_weights = log_weights_un - logsumexp(log_weights_un)
+        #temp = np.exp((1 - step.old_beta) *
+        #              (step.likelihoods - step.likelihoods.max()))
+        step.weights = log_weights / np.sum(log_weights)
         step.covariance = step.calc_covariance()
         step.proposal_dist = choose_proposal(
             step.proposal_name, scale=step.covariance)

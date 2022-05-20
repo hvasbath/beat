@@ -597,7 +597,7 @@ class NumpyChain(FileChain):
     flat_names_tag = "flat_names"
     var_shape_tag = "var_shapes"
     var_dtypes_tag = "var_dtypes"
-    footer_data_tags = "accepted", "tuned_n_steps"
+    footer_data_tags = ("chain_accepted", "tuned_n_steps")
     __data_structure = None
 
     def __init__(
@@ -609,8 +609,8 @@ class NumpyChain(FileChain):
             buffer_size=buffer_size, buffer_thinning=buffer_thinning, k=k)
 
         self.k = k
-        self.accepted = None
-        self.tuned_n_steps
+        self.chain_accepted = None
+        self.tuned_n_steps = None
 
     def __repr__(self):
         return "NumpyChain({},{},{},{},{},{})".format(
@@ -674,11 +674,12 @@ class NumpyChain(FileChain):
             return next(reversed_lines(file, blocksize))
 
     def write_footer(self, footer_dict={}):
+        print(footer_dict)
         if self.__data_structure is None:
             raise IOError(
                 'Trace has not been set-up yet! Not writing into file')
         else:
-            with open(self.filename, 'wb') as fh:
+            with open(self.filename, 'ab') as fh:
                 footer = ('\n' + json.dumps(footer_dict) + '\n').encode()
                 fh.write(footer)
 
@@ -693,9 +694,12 @@ class NumpyChain(FileChain):
         return flat_names, var_shapes, var_dtypes, varnames
 
     def extract_data_from_footer(self, file_footer):
-        footer_data = json.loads(file_footer, object_pairs_hook=OrderedDict)
-        if footer_data:
-            return footer_data
+        try:
+            footer_data = json.loads(file_footer, object_pairs_hook=OrderedDict)
+        except json.decoder.JSONDecodeError:
+            footer_data = {}
+
+        return footer_data
 
     def construct_data_structure(self):
         """
@@ -771,8 +775,8 @@ class NumpyChain(FileChain):
             except EOFError as e:
                 print(e)
 
-        if self.accepted is None:
-            footer_data = self.extract_data_from_footer()
+        if self.chain_accepted is None:
+            footer_data = self.extract_data_from_footer(self.file_footer)
             if footer_data:
                 for tag in self.footer_data_tags:
                     try:
@@ -1321,19 +1325,34 @@ def extract_bounds_from_summary(
 
 def reversed_lines(file, blocksize=2048):
     """
-    Generator for the lines of file in reverse order.
+    Generator for the lines of a binary file in reverse order.
     """
-    part = ''
+    part = ''.encode()
     for block in reversed_blocks(file, blocksize):
-        print(block)
-        for c in reversed(block.decode()):
-            if c == '\n' and part:
-                yield part[::-1]
-                part = ''
 
-            part += c
+        block = block + part
+        block = block.split('\n'.encode())
+        block.reverse()
+        part = block.pop()
+        if block[0] == '':
+            block.pop(0)
+
+        for line in block:
+            yield line.decode()
+
     if part:
-        yield part[::-1]
+        yield part
+
+
+#        print(block)
+#        for c in reversed(block.decode()):
+#            if c == '\n' and part:
+#                yield part[::-1]
+#                part = ''
+#
+#            part += c
+#    if part:
+#        yield part[::-1]
 
 
 def reversed_blocks(file, blocksize=2048):

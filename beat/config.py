@@ -1604,6 +1604,14 @@ class SMCConfig(SamplerParameters):
              'intermediate stage pdfs;'
              'low - small beta steps (slow cooling),'
              'high - wide beta steps (fast cooling)')
+    adaptive_step_tuning_rate = Float.T(
+        default=0.,
+        help='Set value to the valid range 0 < x < 1 for adaptively tuning of '
+             'the number of steps for the next stage based on the acceptance '
+             'rate of all chains. The closer to 1 the higher the next '
+             '`n_steps`. A good value for tuning is 0.85. If set to zero no' 
+             'tuning is done and each stage samples for the `n_steps`'
+             ' of stage 0.')
     stage = Int.T(default=0,
                   help='Stage where to start/continue the sampling. Has to'
                        ' be int -1 for final stage')

@@ -107,8 +107,8 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
         self.stage_sample = 0
         self.cumulative_samples = 0
-        self.accepted = 0
-        self.chain_accepted = 0
+        self.accepted = num.zeros(n_chains, dtype='int16')
+        self.chains_accepted = num.zeros(n_chains, dtype='int32') 
 
         self.beta = 1.
         self.stage = 0
@@ -240,11 +240,12 @@ class Metropolis(backend.ArrayStepSharedLLK):
                 self.scaling = utility.scalar2floatX(
                     step_tune(
                         self.scaling,
-                        self.accepted / float(self.tune_interval)))
+                        self.accepted[self.chain_index] / float(
+                            self.tune_interval)))
 
                 # Reset counter
                 self.steps_until_tune = self.tune_interval
-                self.accepted = 0
+                self.accepted[self.chain_index] = 0
 
             logger.debug(
                 'Get delta: Chain_%i step_%i' % (
@@ -298,8 +299,8 @@ class Metropolis(backend.ArrayStepSharedLLK):
                             self.chain_index, self.stage_sample))
                         logger.debug('proposed: %f previous: %f' % (
                             lp[self._llk_index], llk0))
-                        self.accepted += 1
-                        self.chain_accepted += 1
+                        self.accepted[self.chain_index] += 1
+                        self.chains_accepted[self.chain_index] += 1
                         l_new = lp
                         self.chain_previous_lpoint[self.chain_index] = l_new
                     else:
@@ -325,8 +326,8 @@ class Metropolis(backend.ArrayStepSharedLLK):
                     q, q0)
 
                 if accepted:
-                    self.accepted += 1
-                    self.chain_accepted += 1
+                    self.accepted[self.chain_index] += 1
+                    self.chains_accepted[self.chain_index] += 1
                     l_new = lp
                     self.chain_previous_lpoint[self.chain_index] = l_new
                 else:

@@ -173,6 +173,8 @@ class Problem(object):
                     n_chains=sc.parameters.n_chains,
                     tune_interval=sc.parameters.tune_interval,
                     coef_variation=sc.parameters.coef_variation,
+                    adaptive_step_tuning_rate=\
+                        sc.parameters.adaptive_step_tuning_rate,
                     proposal_dist=sc.parameters.proposal_dist,
                     likelihood_name=self._like_name,
                     backend=sc.backend)

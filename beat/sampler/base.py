@@ -293,6 +293,7 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
 
         if strace:
             strace.record_buffer()
+            strace.write_footer(step.get_stage_acceptance_params())
 
     return chain
 
