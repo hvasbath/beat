@@ -10,7 +10,7 @@ import time
 op = os.path
 
 packname = 'beat'
-version = '1.1.1'
+version = '1.2.0'
 
 
 try:
@@ -62,6 +62,8 @@ def git_infos():
 def make_info_module(packname, version):
     '''Put version and revision information into file beat/info.py.'''
 
+    from subprocess import CalledProcessError
+
     sha1, local_modifications = None, None
     combi = '%s-%s' % (packname, version)
     try:
@@ -70,7 +72,7 @@ def make_info_module(packname, version):
         if local_modifications:
             combi += '-modified'
 
-    except (OSError, NotInAGitRepos):
+    except (OSError, CalledProcessError, NotInAGitRepos):
         pass
 
     datestr = time.strftime('%Y-%m-%d_%H:%M:%S')
@@ -235,11 +237,11 @@ setup(
     author='Hannes Vasyuara-Bathke',
     author_email='hannes.vasyura-bathke@kaust.edu.sa',
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Science/Research',
         'Topic :: Scientific/Engineering',
         'Topic :: Scientific/Engineering :: Physics',
-        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3',
         'Programming Language :: C',
         'Operating System :: POSIX',
         'Operating System :: MacOS',

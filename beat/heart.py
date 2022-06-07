@@ -11,7 +11,7 @@ import copy
 from time import time
 from collections import OrderedDict
 
-from beat import psgrn, pscmp, utility, qseis2d
+from beat import utility
 from theano import config as tconfig
 from theano import shared
 import numpy as num
@@ -2025,8 +2025,7 @@ def get_fomosto_baseconfig(
 
 backend_builders = {
     'qseis': qseis.build,
-    'qssp': qssp.build,
-    'qseis2d': qseis2d.build}
+    'qssp': qssp.build}
 
 
 def choose_backend(
@@ -2089,25 +2088,6 @@ def choose_backend(
             spheroidal_modes=True,
             source_patch_radius=(
                 fc.distance_delta - fc.distance_delta * 0.05) / km)
-
-    elif code == 'qseis2d':
-        version = '2014'
-
-        conf = qseis2d.QSeis2dConfig()
-        conf.qseis_s_config.slowness_window = slowness_taper
-        conf.qseis_s_config.calc_slowness_window = 0
-        conf.qseis_s_config.receiver_max_distance = \
-            distances[1] * cake.d2m / km
-        conf.qseis_s_config.sw_flat_earth_transform = 1
-        conf.gf_directory = gf_directory
-
-        # find common basement layer
-        layer = source_model.layer(receiver_basement_depth)
-        conf.qseis_s_config.receiver_basement_depth = \
-            round(layer.zbot / km, 1)
-        receiver_model = receiver_model.extract(
-            depth_max=layer.ztop)
-        receiver_model.append(layer)
 
     else:
         raise NotImplementedError('Backend not supported: %s' % code)
@@ -2421,130 +2401,6 @@ def geo_construct_gf(
 
         else:
             logger.info('Traces exist use force=True to overwrite!')
-
-
-def geo_construct_gf_psgrn(
-        event, geodetic_config, crust_ind=0, execute=True, force=False):
-    """
-    Calculate geodetic Greens Functions (GFs) and create a repository 'store'
-    that is being used later on repeatetly to calculate the synthetic
-    displacements.
-
-    Parameters
-    ----------
-    event : :class:`pyrocko.model.Event`
-        The event is used as a reference point for all the calculations
-        According to the its location the earth model is being built
-    geodetic_config : :class:`config.GeodeticConfig`
-    crust_ind : int
-        Index to set to the Greens Function store
-    execute : boolean
-        Flag to execute the calculation, if False just setup tested
-    force : boolean
-        Flag to overwrite existing GF stores
-    """
-    logger.warn(
-        'This function is deprecated and might be removed in later versions!')
-    gfc = geodetic_config.gf_config
-
-    c = psgrn.PsGrnConfigFull()
-
-    n_steps_depth = int(
-        (gfc.source_depth_max - gfc.source_depth_min) /
-        gfc.source_depth_spacing) + 1
-    n_steps_distance = int(
-        (gfc.source_distance_max - gfc.source_distance_min) /
-        gfc.source_distance_spacing) + 1
-
-    c.distance_grid = psgrn.PsGrnSpatialSampling(
-        n_steps=n_steps_distance,
-        start_distance=gfc.source_distance_min,
-        end_distance=gfc.source_distance_max)
-
-    c.depth_grid = psgrn.PsGrnSpatialSampling(
-        n_steps=n_steps_depth,
-        start_distance=gfc.source_depth_min,
-        end_distance=gfc.source_depth_max)
-
-    c.sampling_interval = gfc.sampling_interval
-
-    # extract source crustal profile and check for water layer
-    source_model = get_velocity_model(
-        event, earth_model_name=gfc.earth_model_name,
-        crust_ind=crust_ind, gf_config=gfc,
-        custom_velocity_model=gfc.custom_velocity_model).extract(
-            depth_max=gfc.source_depth_max * km)
-
-    # potentially vary source model
-    if crust_ind > 0:
-        source_model = ensemble_earthmodel(
-            source_model,
-            num_vary=1,
-            error_depth=gfc.error_depth,
-            error_velocities=gfc.error_velocities)[0]
-
-    c.earthmodel_1d = source_model
-    c.psgrn_outdir = os.path.join(
-        gfc.store_superdir, 'psgrn_green_%i' % (crust_ind))
-    c.validate()
-
-    util.ensuredir(c.psgrn_outdir)
-
-    runner = psgrn.PsGrnRunner(outdir=c.psgrn_outdir)
-
-    if not execute:
-        logger.info('Geo GFs can be created in directory: %s ! '
-                    '(execute=True necessary)! GF params: \n' % c.psgrn_outdir)
-        print(c)
-
-    if execute:
-        logger.info('Creating Geo GFs in directory: %s' % c.psgrn_outdir)
-        runner.run(c, force)
-
-
-def geo_layer_synthetics_pscmp(
-        store_superdir, crust_ind, lons, lats, sources,
-        keep_tmp=False, outmode='data'):
-    """
-    Calculate synthetic displacements for a given Greens Function database
-    sources and observation points on the earths surface.
-
-    Parameters
-    ----------
-    store_superdir : str
-        main path to directory containing the different Greensfunction stores
-    crust_ind : int
-        index of Greens Function store to use
-    lons : List of floats
-        Longitudes [decimal deg] of observation points
-    lats : List of floats
-        Latitudes [decimal deg] of observation points
-    sources : List of :class:`pscmp.PsCmpRectangularSource`
-        Sources to calculate synthetics for
-    keep_tmp : boolean
-        Flag to keep directories (in '/tmp') where calculated synthetics are
-        stored.
-    outmode : str
-        determines type of output
-
-    Returns
-    -------
-    :class:`numpy.ndarray` (n_observations; ux-North, uy-East, uz-Down)
-    """
-
-    c = pscmp.PsCmpConfigFull()
-    c.observation = pscmp.PsCmpScatter(lats=lats, lons=lons)
-    c.psgrn_outdir = os.path.join(
-        store_superdir, 'psgrn_green_%i/' % (crust_ind))
-
-    # only coseismic displacement
-    c.times_snapshots = [0]
-    c.rectangular_source_patches = sources
-
-    runner = pscmp.PsCmpRunner(keep_tmp=keep_tmp)
-    runner.run(c)
-    # returns list of displacements for each snapshot
-    return runner.get_results(component='displ', flip_z=True)[0]
 
 
 class RayPathError(Exception):
