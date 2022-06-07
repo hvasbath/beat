@@ -370,8 +370,8 @@ texinfo_documents = [
 intersphinx_mapping = {
     'python': ('https://docs.python.org/', None),
     'numpy': ('http://docs.scipy.org/doc/numpy/', None),
-    'pymc3': ('http://pymc-devs.github.io/pymc3/', None),
-    'pyrocko': ('http://pyrocko.org/', None),
+    'pymc3': ('https://docs.pymc.io/', None),
+    'pyrocko': ('https://pyrocko.org/', None),
     'theano': ('https://theano-pymc.readthedocs.io/', None)
 }
 

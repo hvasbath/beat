@@ -206,6 +206,14 @@ def list_callback(option, opt, value, parser):
     setattr(parser.values, option.dest, out)
 
 
+def get_sampled_slip_variables(config):
+    slip_varnames = config.problem_config.get_slip_variables()
+    rvs, fixed_rvs = config.problem_config.get_random_variables()
+
+    varnames = list(set(slip_varnames).intersection(set(list(rvs.keys()))))
+    return varnames
+
+
 def command_init(args):
 
     def setup(parser):
@@ -493,7 +501,13 @@ def command_import(args):
             problem = load_model(
                 options.results, options.import_from_mode,
                 hypers=False, build=False)
-            source_params = list(problem.config.problem_config.priors.keys())
+            priors = set(
+                list(problem.config.problem_config.priors.keys()))
+            rvs = set(problem.varnames)
+            source_params = list(priors.intersection(rvs))
+            logger.info(
+                'Importing priors for variables:'
+                ' %s' % list2string(source_params))
 
             stage = Stage(
                 homepath=problem.outfolder,
@@ -503,7 +517,7 @@ def command_import(args):
                 model=problem.model, stage_number=-1,
                 load='trace', chains=[-1])
 
-            point = plotting.get_result_point(stage, problem.config, 'max')
+            point = plotting.get_result_point(stage.mtrace, 'max')
             summarydf = read_csv(
                 pjoin(problem.outfolder, 'summary.txt'), sep='\s+')
 
@@ -1325,10 +1339,7 @@ def command_build_gfs(args):
     elif options.mode == ffi_mode_str:
         from beat import ffi
 
-        slip_varnames = c.problem_config.get_slip_variables()
-        rvs, fixed_rvs = c.problem_config.get_random_variables()
-
-        varnames = list(set(slip_varnames).intersection(set(list(rvs.keys()))))
+        varnames = get_sampled_slip_variables(c)
         outdir = pjoin(c.project_dir, options.mode, bconfig.linear_gf_dir_name)
         util.ensuredir(outdir)
 
@@ -1405,6 +1416,7 @@ def command_build_gfs(args):
         if options.execute:
             logger.info("Calculating linear Green's Functions")
             logger.info("------------------------------------\n")
+            logger.info("For slip components: %s" % list2string(varnames))
 
             for datatype in options.datatypes:
                 logger.info('for %s data ...' % datatype)
@@ -1430,7 +1442,18 @@ def command_build_gfs(args):
                             sample_rate=gf.sample_rate)
 
                         if not fault.is_discretized and fault.needs_optimization:
-                            fault, R = ffi.optimize_discretization(
+
+                            ffidir = os.path.join(c.project_dir, options.mode)
+
+                            if options.plot:
+                                figuredir = os.path.join(ffidir, 'figures')
+                                util.ensuredir(figuredir)
+                            else:
+                                figuredir = None
+
+                            fault = ffi.optimize_damping(
+                                outdir=ffidir,
+                                figuredir=figuredir,
                                 config=gf.discretization_config,
                                 fault=fault,
                                 datasets=datasets,
@@ -1441,30 +1464,6 @@ def command_build_gfs(args):
                                 event=c.event,
                                 force=options.force,
                                 nworkers=gf.nworkers)
-
-                            if options.plot:
-
-                                from beat.plotting import source_geometry
-                                fig, ax = source_geometry(
-                                    fault, list(fault.iter_subfaults()),
-                                    event=c.event, values=R,
-                                    title='Resolution',
-                                    datasets=datasets, show=False)
-
-                                outformat = 'pdf'
-                                figure_path = pjoin(
-                                    c.project_dir, options.mode, 'figures')
-                                util.ensuredir(figure_path)
-                                outpath = pjoin(
-                                    figure_path,
-                                    'patch_resolutions_eps_%g.%s' % (
-                                        gf.discretization_config.epsilon,
-                                        outformat))
-                                logger.info(
-                                    'Plotting patch resolution '
-                                    'to %s' % outpath)
-                                fig.savefig(
-                                    outpath, format=outformat, dpi=300)
 
                             logger.info(
                                 'Storing optimized discretized fault'
@@ -1527,7 +1526,7 @@ def command_build_gfs(args):
                                 durations_prior=pc.priors['durations'],
                                 velocities_prior=pc.priors['velocities'],
                                 nucleation_time_prior=pc.priors['time'],
-                                varnames=slip_varnames,
+                                varnames=varnames,
                                 wavemap=wmap,
                                 event=c.event,
                                 time_shift=time_shift,
@@ -1838,7 +1837,8 @@ def command_check(args):
             from beat import ffi
 
             for datatype in options.datatypes:
-                for var in problem.config.problem_config.get_slip_variables():
+                for var in get_sampled_slip_variables(problem.config):
+
                     outdir = pjoin(
                         problem.config.project_dir, options.mode,
                         bconfig.linear_gf_dir_name)
@@ -1849,7 +1849,7 @@ def command_check(args):
                         for wmap in scomp.wavemaps:
                             filename = ffi.get_gf_prefix(
                                 datatype, component=var,
-                                wavename=wmap.config.name,
+                                wavename=wmap._mapid,
                                 crust_ind=sc.gf_config.reference_model_idx)
 
                             logger.info(
@@ -1883,11 +1883,18 @@ def command_check(args):
             datasets = None
 
         if options.mode == ffi_mode_str:
+            from numpy import diag
             fault = problem.composites[datatype].load_fault_geometry()
             reference_sources = problem.config[
                 datatype + '_config'].gf_config.reference_sources
+            try:
+                values = diag(fault.get_model_resolution())
+            except ValueError:
+                values = None
+
             source_geometry(
                 fault, reference_sources,
+                values=values,
                 event=problem.config.event, datasets=datasets)
         else:
             logger.warning(
@@ -2081,7 +2088,7 @@ def command_export(args):
             load='trace', chains=[-1])
 
         res_point = plotting.get_result_point(
-            stage, problem.config, point_llk=options.post_llk)
+            stage.mtrace, point_llk=options.post_llk)
         point.update(res_point)
 
         if options.stage_number == -1:

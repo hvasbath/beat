@@ -96,7 +96,7 @@ def draw_moment_rate(problem, po):
         problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
     if not po.reference:
-        reference = get_result_point(stage, problem.config, po.post_llk)
+        reference = get_result_point(stage.mtrace, po.post_llk)
         llk_str = po.post_llk
         mtrace = stage.mtrace
     else:
@@ -660,7 +660,7 @@ def draw_slip_dist(problem, po):
         stage = load_stage(
             problem, stage_number=po.load_stage, load='trace', chains=[-1])
         reference = problem.config.problem_config.get_test_point()
-        res_point = get_result_point(stage, problem.config, po.post_llk)
+        res_point = get_result_point(stage.mtrace, po.post_llk)
         reference.update(res_point)
         llk_str = po.post_llk
         mtrace = stage.mtrace
@@ -712,7 +712,7 @@ def draw_3d_slip_distribution(problem, po):
 
     if not po.reference:
         reference = problem.config.problem_config.get_test_point()
-        res_point = get_result_point(stage, problem.config, po.post_llk)
+        res_point = get_result_point(stage.mtrace, po.post_llk)
         reference.update(res_point)
         llk_str = po.post_llk
         mtrace = stage.mtrace

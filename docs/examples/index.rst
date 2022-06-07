@@ -23,6 +23,7 @@ In the following examples we will use real data of the 2009 L'Aquila earthquake.
    dc_teleseismic
    Rectangular
    FFI_static
+   FFI_static_resolution
    FFI_kinematic
 
 In the following examples we will use a deformation velocity estimate from InSAR time-series of Fernandina volcano.
@@ -31,6 +32,7 @@ In the following examples we will use a deformation velocity estimate from InSAR
    :maxdepth: 3
 
    Rectangular_tensile
+   FFI_static_resolution_tensile
 
 In the following example we will use synthetic waveform amplitude polarities to estimate the parameters of a moment tensor.
 

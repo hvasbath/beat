@@ -148,7 +148,7 @@ def gnss_fits(problem, stage, plot_options):
             ref_sources = copy.deepcopy(composite.sources)
         point = po.reference
     else:
-        point = get_result_point(stage, problem.config, po.post_llk)
+        point = get_result_point(stage.mtrace, po.post_llk)
 
     results = composite.assemble_results(point)
 
@@ -360,7 +360,7 @@ def scene_fits(problem, stage, plot_options):
             ref_sources = copy.deepcopy(composite.sources)
         bpoint = po.reference
     else:
-        bpoint = get_result_point(stage, problem.config, po.post_llk)
+        bpoint = get_result_point(stage.mtrace, po.post_llk)
 
     bresults_tmp = composite.assemble_results(bpoint)
     bvar_reductions = composite.get_variance_reductions(

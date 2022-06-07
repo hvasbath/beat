@@ -55,7 +55,7 @@ class LaplacianDistributerComposite(Composite):
         if(0):
             from matplotlib import pyplot as plt
             print('Smoothing Op', self.smoothing_op)
-            im = plt.matshow(num.log(self.smoothing_op))
+            im = plt.matshow(self.smoothing_op)
             plt.colorbar(im)
             plt.show()
 
@@ -252,9 +252,9 @@ def get_smoothing_operator_nearest_neighbor(
     n_patch_dip : int
         number of patches in dip direction
     patch_size_strike : float
-        size of patches along strike-direction [m]
+        size of patches along strike-direction [km]
     patch_size_dip : float
-        size of patches along dip-direction [m]
+        size of patches along dip-direction [km]
 
     Returns
     -------
@@ -300,7 +300,7 @@ def get_smoothing_operator_correlated(
 
     Parameters
     ----------
-    patches_coords: :class:`numpy.Ndarray` (npatches x 3)
+    patches_coords: :class:`numpy.Ndarray` (npatches x 3) [km]
     correlation_function: string
         type of distance penalty, can be gaussian or exponential
 
@@ -310,7 +310,6 @@ def get_smoothing_operator_correlated(
     """
 
     inter_patch_distances = distances(patches_coords, patches_coords)
-    inter_patch_distances /= inter_patch_distances.mean()
 
     if correlation_function == 'gaussian':
         a = 1 / num.power(inter_patch_distances, 2)
@@ -325,4 +324,4 @@ def get_smoothing_operator_correlated(
     num.fill_diagonal(a, num.zeros(a.shape[0]))  # remove invalid diag
     norm_distances = a.sum(0)
     num.fill_diagonal(a, -norm_distances)
-    return a #/ inter_patch_distances.mean()
+    return a

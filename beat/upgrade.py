@@ -29,10 +29,19 @@ def rename_class(new):
     return func
 
 
-def drop_attribute(old):
+def drop_attribute(old, newclass=None):
     def func(path, obj):
         if old in obj:
-            obj.drop_attribute(old)
+            if newclass is not None:
+                oldclass = obj.get(old)
+                if not isinstance(oldclass, newclass):
+                    obj.drop_attribute(old)
+                else:
+                    logger.debug(
+                        'Not updating "%s" attribute, it already meets'
+                        ' new class.', old)
+            else:
+                obj.drop_attribute(old)
 
     return func
 
@@ -129,7 +138,7 @@ def upgrade_config_file(fn, diff=True, update=[]):
         ('beat.GeodeticConfig',
             drop_attribute('blacklist')),
         ('beat.GeodeticConfig',
-            drop_attribute('types')),
+            drop_attribute('types', dict)),
         ('beat.EulerPoleConfig',
             rename_attribute('blacklist', 'station_blacklist'))
     ]

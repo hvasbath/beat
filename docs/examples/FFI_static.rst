@@ -1,8 +1,9 @@
 
-Example 4: Static finite-fault estimation
------------------------------------------
+Example 4a: Static finite-fault estimation, uniform patch discretization
+------------------------------------------------------------------------
 
 In this example we will determine a variable slip distribution for the L'aquila 2009 earthquake by using static InSAR data.
+We will use uniform discretization of fault patches across the fault surface.
 The data is the exact same from `Example 3 <https://pyrocko.org/beat/docs/current/examples/Rectangular.html#>`__, where the overall geometry of the fault plane was estimated.
 It is a requirement to have Example 3 completed in order to follow the instructions and commands given in this example.
 
@@ -12,7 +13,7 @@ Please make sure that you are one level above the Laquila project folder (create
 
 Init
 ^^^^
-In this example you will first make use of the **mode** argument. The default is: *geometry*, which is why it was not necessary to specify it in the earlier examples. Now we will always have to set **mode** to *ffi*, which is an abbreviation for finite-fault-optimization.
+In this example you will first make use of the **mode** argument. The default is: *geometry*, which is why it was not necessary to specify it in the earlier examples. Now we will always have to set **mode** to *ffi*, which is an abbreviation for finite-fault-inference.
 The following command will create a configuration file for the *ffi* mode called *config_ffi.yaml* right next to the *config_geometry.yaml*::
 
   beat init Laquila --mode='ffi' --datatypes=geodetic
@@ -54,13 +55,19 @@ The fault geometry needs to be defined in the *geodetic.gf_config.reference_sour
       width: 9347.802691161543
       velocity: 3500.0
       slip: 0.5756726498300268
-    patch_widths: [2.0]
-    patch_lengths: [2.0]
-    extension_widths: [0.6]
-    extension_lengths: [0.4]
+    discretization: uniform
+    discretization_config: !beat.UniformDiscretizationConfig
+      extension_widths:
+      - 0.6
+      extension_lengths:
+      - 0.4
+      patch_widths:
+      - 2.0
+      patch_lengths:
+      - 2.0
     sample_rate: 1.1574074074074073e-05
 
-The values shown above are parts of the MAP solution from the optimization from Example 3. The results can been imported through the import command specifiying the --results option. We want to import the results from the *Laquila* project_directory from an optimization in *geometry* mode and we want to update the *geodetic* part of the *config_ffi.yaml*::
+The values shown above are parts of the MAP solution from the optimization from `Example 3 <https://pyrocko.org/beat/docs/current/examples/Rectangular.html#>`__ . The results can been imported through the import command specifiying the --results option. We want to import the results from the *Laquila* project_directory from an optimization in *geometry* mode and we want to update the *geodetic* part of the *config_ffi.yaml*::
 
   beat import Laquila --results=Laquila --mode='ffi' --datatypes=geodetic --import_from_mode=geometry
 
@@ -68,7 +75,7 @@ Of course, these values could be edited manually to whatever the user deems reas
 
 .. warning:: The reference point(s) on the *reference_fault(s)* are the top, central point of the fault(s)! Ergo the *depth* parameter(s) relate(s) to the **top edge(s)** of the fault(s).
 
-Now we need to specify the dimensions of the patches we want to discretize the reference fault(s) into. The *patch_widths* and *patch_lengths* arguments have to be lists and the respective entry needs to result in **square** patches. The parameters **extension_withs** and **extension_lengths** specify by how much the reference fault(s)should be extended in **each** direction. Example: 0.1 means that the fault is extended by 10% of its width/length value in each direction and 0. means no extension.
+Under the *discretization* attribute we can select the way of discretizing the fault surface into patches, now the default *uniform* is set. This attribute determines the *discretization_config* below. Here, we need to specify the dimensions of the patches we want to discretize the reference fault(s) into. The *patch_widths* and *patch_lengths* arguments have to be lists and the respective entry needs to result in **square** patches. The parameters **extension_withs** and **extension_lengths** specify by how much the reference fault(s) should be extended in **each** direction. Example: 0.1 means that the fault is extended by 10% of its width/length value in each direction and 0. means no extension.
 
 Once we decided for the discretization and the reference fault values we can create the discretized fault through.::
 
@@ -150,30 +157,60 @@ Under the *problem_config* we find the parameters that we need to adjust::
           upper: [0.0]
           testvalue: [0.0]
       hierarchicals:
+        Laquila_ascxn_azimuth_ramp: !beat.heart.Parameter
+          name: Laquila_ascxn_azimuth_ramp
+          form: Uniform
+          lower:
+          - -0.00043773457168120667
+          upper:
+          - -0.00043773457168120667
+          testvalue:
+          - -0.00043773457168120667
         Laquila_ascxn_offset: !beat.heart.Parameter
           name: Laquila_ascxn_offset
           form: Uniform
-          lower: [-0.004496268249748271]
-          upper: [-0.004496268249748271]
-          testvalue: [-0.004496268249748271]
-        Laquila_ascxn_ramp: !beat.heart.Parameter
-          name: Laquila_ascxn_ramp
+          lower:
+          - -0.004496268249748271
+          upper:
+          - -0.004496268249748271
+          testvalue:
+          - -0.004496268249748271
+        Laquila_ascxn_range_ramp: !beat.heart.Parameter
+          name: Laquila_ascxn_range_ramp
           form: Uniform
-          lower: [-0.00043773457168120667, -0.00023808150002277328]
-          upper: [-0.00043773457168120667, -0.00023808150002277328]
-          testvalue: [-0.00043773457168120667, -0.00023808150002277328]
+          lower:
+          - -0.00023808150002277328
+          upper:
+          - -0.00023808150002277328
+          testvalue:
+          - -0.00023808150002277328
+        Laquila_dscxn_azimuth_ramp: !beat.heart.Parameter
+          name: Laquila_dscxn_azimuth_ramp
+          form: Uniform
+          lower:
+          - 4.978325480108451e-05
+          upper:
+          - 4.978325480108451e-05
+          testvalue:
+          - 4.978325480108451e-05
         Laquila_dscxn_offset: !beat.heart.Parameter
           name: Laquila_dscxn_offset
           form: Uniform
-          lower: [-0.003754963750062188]
-          upper: [-0.003754963750062188]
-          testvalue: [-0.003754963750062188]
-        Laquila_dscxn_ramp: !beat.heart.Parameter
-          name: Laquila_dscxn_ramp
+          lower:
+          - -0.003754963750062188
+          upper:
+          - -0.003754963750062188
+          testvalue:
+          - -0.003754963750062188
+        Laquila_dscxn_range_ramp: !beat.heart.Parameter
+          name: Laquila_dscxn_range_ramp
           form: Uniform
-          lower: [4.978325480108451e-05, -0.00025072248953317104]
-          upper: [4.978325480108451e-05, -0.00025072248953317104]
-          testvalue: [4.978325480108451e-05, -0.00025072248953317104]
+          lower:
+          - -0.00025072248953317104
+          upper:
+          - -0.00025072248953317104
+          testvalue:
+          - -0.00025072248953317104
 
 .. note:: The npatches parameter should not be manually adjusted. It is automatically set by running the fault discretizeation step during GF calculation(above).
 
@@ -181,9 +218,25 @@ Under the *problem_config* we find the parameters that we need to adjust::
 Hierarchicals
 =============
 
-Please notice the hierarchicals parameters! These are the MAP parameters for the orbital ramps for each radar scene that have been optimized in Example 2.
-These parameters are imported if the *fit_plane* parameter in the *geodetic_config* was set to True. The default is to fix these ramp parameters during the static distributed slip optimization, because leaving them open often results in tradeoffs with patches at greater depth and thus artificial slip is optimized at greater depth.
+Please notice the hierarchicals parameters! These are the MAP parameters for the orbital ramps for each radar scene that have been optimized in `Example 3 <https://pyrocko.org/beat/docs/current/examples/Rectangular.html#>`__ . These parameters are imported if the *ramp* correction under *corrections* in the *geodetic_config* was set to True.::
+
+  corrections_config: !beat.GeodeticCorrectionsConfig
+    euler_poles:
+    - !beat.EulerPoleConfig
+      enabled: false
+    ramp: !beat.RampConfig
+      dataset_names:
+      - Laquila_dscxn
+      - Laquila_ascxn
+      enabled: true
+    strain_rates:
+    - !beat.StrainRateConfig
+      enabled: false
+
+The default is to fix these ramp parameters during the static distributed slip optimization, because leaving them open often results in tradeoffs with patches at greater depth and thus artificial slip is optimized at greater depth.
 Nevertheless, the user may want to try out to free the upper and lower bounds again to include the parameters into the optimization.
+
+..note:: The *EulerPole* and *StrainRate* corrections are useful for interseismic studies and will be covered in another tutorial.
 
 Priors
 ======
@@ -269,7 +322,7 @@ For the slip-distribution please run::
 
 To get histograms for the laplacian smoothing, the noise scalings and the posterior likelihood please run::
 
-  beat plot LaquilaJointPonlyUPDATE_wide stage_posteriors --stage_number=-1 --mode=ffi --varnames=h_laplacian,h_SAR,like
+  beat plot Laquila stage_posteriors --stage_number=-1 --mode=ffi --varnames=h_laplacian,h_SAR,like
 
 .. image:: ../_static/example4/stage_-1_max.png
    :height: 350px
@@ -279,7 +332,7 @@ For a comparison between data, synthetic displacements and residuals for the two
 
   beat plot Laquila scene_fits --mode=ffi
 
-.. image:: ../_static/example4/scenes_-1_max_local_0.png
+.. image:: ../_static/example4/scenes_-1_max_local_200_0.png
 
 The plot should show something like this. Here the residuals are displayed with an individual color scale according to their minimum and maximum values.
 
@@ -288,7 +341,7 @@ For a plot using the global geographic coordinate system where the residuals hav
 
   beat plot Laquila scene_fits --mode=ffi --plot_projection=latlon
 
-.. image:: ../_static/example4/scenes_-1_max_latlon_0.png
+.. image:: ../_static/example4/scenes_-1_max_latlon_200_0.png
 
 
 References

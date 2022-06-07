@@ -28,7 +28,7 @@ DataMap = collections.namedtuple('DataMap', 'list_ind, slc, shp, dtype, name')
 
 locationtypes = {'east_shift', 'north_shift', 'depth', 'distance',
            'delta_depth'}
-dimensiontypes = {'length', 'width'}
+dimensiontypes = {'length', 'width', 'diameter'}
 mttypes = {'mnn', 'mee', 'mdd', 'mne', 'mnd', 'med'}
 degtypes = {'strike', 'dip', 'rake'}
 nucleationtypes = {'nucleation_x', 'nucleation_y'}
@@ -359,9 +359,9 @@ def weed_input_rvs(input_rvs, mode, datatype):
     weeded_input_rvs = copy.copy(input_rvs)
 
     burian = '''
-        lat lon name stf stf1 stf2 stf_mode moment anchor sign
+        lat lon name stf stf1 stf2 stf_mode moment anchor
         velocity interpolation decimation_factor npointsources
-        elevation exponent
+        elevation exponent aggressive_oversampling
         '''.split()
 
     if mode == 'geometry':
@@ -688,6 +688,24 @@ def join_points(ldicts):
         jpoint[k] = num.array(jvar)
 
     return jpoint
+
+
+def check_point_keys(point, phrase):
+    """
+    Searches point keys for a phrase, returns list of keys with the phrase.
+    """
+    from fnmatch import fnmatch
+
+    keys = list(point.keys())
+
+    contains = False
+    contained_keys = []
+    for k in keys:
+        if fnmatch(k, phrase):
+            contains = True
+            contained_keys.append(k)
+
+    return contains, contained_keys
 
 
 def update_source(source, **point):
@@ -1492,3 +1510,48 @@ def get_valid_spectrum_data(
     lower_idx = int(num.floor(lower_f / deltaf))
     upper_idx = int(num.ceil(upper_f / deltaf))
     return lower_idx, upper_idx
+
+
+def get_data_radiant(data):
+    """
+    Data needs to be [n, 2]
+    """
+    return num.arctan2(
+        data[:, 1].max() - data[:, 1].min(),
+        data[:, 0].max() - data[:, 0].min())
+
+
+def find_elbow(data, theta=None, rotate_left=False):
+    """
+    Get point closest to turning point in data by rotating it by theta.
+
+    Adapted from:
+    https://datascience.stackexchange.com/questions/57122/in-elbow-curve-
+    how-to-find-the-point-from-where-the-curve-starts-to-rise
+
+    Parameters
+    ----------
+    data : array like,
+        [n, 2]
+    theta : rotation angle
+
+    Returns
+    -------
+    Index : int
+        closest to elbow.
+    rotated_data : array-like [n, 2]
+    """
+    if theta is None:
+        theta = get_data_radiant(data)
+
+    if rotate_left:
+        theta = 2 * num.pi - theta
+
+    # make rotation matrix
+    co = num.cos(theta)
+    si = num.sin(theta)
+    rotation_matrix = num.array(((co, -si), (si, co)))
+
+    # rotate data vector
+    rotated_data = data.dot(rotation_matrix)
+    return rotated_data[:, 1].argmin(), rotated_data

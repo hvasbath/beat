@@ -5,33 +5,52 @@ Notes on sampler configuration
 Sequential Monte Carlo (SMC) Sampler
 ====================================
 
-This question comes up a lot and I will write this week a longer documentation for the webpage. Short points to consider:
+This document discusses points to consider for the configuration of the SMC sampler. The most important
+point to consider is the **number of unknown parameters**. The higher the number of unknown parameters the configured model setup contains, the higher the sampler parameters need to be set.
 
-- number of unknown parameters: The more unknown parameters you have the higher you need to set your sampler parameters.
+What are unknown parameters in the configured problem that affect the setup? 
 
-What is the problem you are estimating? Only MT, with/without station corrections? with/without noise scalings?
+ * the parameterization of the source (e.g. MT, RectangularSource, FFI ...) 
+ * station corrections, i.e. time shifts on data traces (number of data traces per waveform fit config, e.g. 21 waveforms fitting the P wave on the Z component) 
+ * noise scalings affected by *dataset_specific_residual_noise estimation*:
 
-E.g. if you have around 10 parameters (location, MT components, moment magnitude) you can significantly reduce the default sampler parameters to e.g.:
+   + "True" - one scaling parameter per dataset (e.g. 21 scalings for 21 waveforms fitting the P wave on 
+     the  Z component, or 3 scaling parameters for 3 displacement maps, or 5 scaling parameters for 5 GNSS stations)
+   + "False" - one parameter per dataset group (e.g. 1 scaling parameter for 21 waveforms fitting the P 
+     wave on the Z component, 1 scaling parameter for 3 displacement maps, or 1 scaling parameter for 5 GNSS stations)
+ * other hierarchical parameters, e.g. *ramp corrections* (InSAR), *euler_pole corrections* ...
 
-nchains=200, nsteps=400, buffer_thinning=20, workers= as many as your hardware allows (e.g. 10)
+The following table shows some example model configurations and the respective recommended SMC sampler configuration:
 
-You may be able to further decrease these numbers, I havent had the chance to systematically test that yet. I tend to be conservative on those. But this could be something you could investigate yourself.
++------------+------------------+-------------+----------+---------+----------+
+|           Model configuration               |   Total  |  Sampler parameters|
++------------+------------------+-------------+----------+---------+----------+
+| source     |noise scalings    |hierarchicals|Parameters|*n_steps*|*n_chains*|
++============+==================+=============+==========+=========+==========+
+| MTQTsource |                  |             |          |         |          |
+| location   | 21 waveforms     | 21 waveforms|          |         |          |
+| magnitude  | False            | False       |          |         |          |
++------------+------------------+-------------+----------+---------+----------+
+| 5 + 3 + 1  | 1                | 1           | 11       | 500     | 200      |
++------------+------------------+-------------+----------+---------+----------+
+| 2 sources  | - 3 SAR (True)   | - ramp      |          |         |          |
+| Rectangular| - 5 GNSS (True)  |   (True)    |          |         |          |
+| location   | - 15 P waveform  | - P: True   |          |         |          |
+| STF        |   (True) - Z     | - S: True   |          |         |          |
+|            | - 8 S waveforms  |             |          |         |          |
+|            |   (True) - T     |             |          |         |          |
++------------+------------------+-------------+----------+---------+----------+
+| 2 *        | 3 + 5 + 15 + 8   | 3 * 3 +     | 86       | 300     | 1500     |
+|(6 + 3 + 2) |                  | 15 + 8      |          |         |          |
++------------+------------------+-------------+----------+---------+----------+
+| FFI        | - 3 SAR (True)   | - ramp      |          |         |          |
+| 150 patches| - 5 GNSS (True)  |   (False)   |          |         |          |
+| nucleation | - 15 P waveform  | - P: True   |          |         |          |
+| point      |   (True) - Z     | - S: True   |          |         |          |
+|            | - 8 S waveforms  | - laplacian |          |         |          |
+|            |   (True) - T     |             |          |         |          |
++------------+------------------+-------------+----------+---------+----------+
+| 150 * 4 + 2| 3 + 5 + 15 + 8   | 15 + 8 + 1  | 675      | 300     | 10000    |
++------------+------------------+-------------+----------+---------+----------+
 
-With 20hrs of runtime for an MT problem you likely have used very high sampler parameters, but thus you can almost be certain that you arrived at the global maximum likelihood.
-
-Now you could use the same setup simply changing the sampler parameters to lower as suggested and mybe even lower later until you notice significant deviation from your originl well sempled setup.
-
-If you do this I would be very interested to hear your findings and if you agree to include your statements on the webpage. I and all the other users would appreciate your efforts very much!
-
-Of course your names would be acknowledged.
-
-
-If you will find you have around 100 parameters you rather need to go to 1500 chains.
-
-- sampling rate of the data (seismic only) - do you really need high sampling rate? or are you only doing teleseismic body waveform inversion up to 0.1 Hz, thus 1Hz sample rate might be sufficient
-
-- taper duration (a-d)- the longer the more costly the forward model
-
-- number of observations (seismic/geodetic stations): are there redundant stations close to each other where one could be removed?
-
-
+.. note:: The aim of the configuration is, to make convergence of the sampler likely. Nevertheless, it may happed that the sampler does not converge and values need to be adjusted. Each model setup is individual and success or failure to reach convergence also depends on other factors e.g. choice of source parameterization, noise parameterization, available data ... 

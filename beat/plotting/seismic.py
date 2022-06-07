@@ -608,7 +608,7 @@ def seismic_fits(problem, stage, plot_options):
     po = plot_options
 
     if not po.reference:
-        best_point = get_result_point(stage, problem.config, po.post_llk)
+        best_point = get_result_point(stage.mtrace, po.post_llk)
     else:
         best_point = po.reference
 
@@ -630,7 +630,7 @@ def seismic_fits(problem, stage, plot_options):
         # get dummy results for data
         logger.warning(
             'Got "None" post_llk, still loading MAP for VR calculation')
-        best_point = get_result_point(stage, problem.config, 'max')
+        best_point = get_result_point(stage.mtrace, 'max')
         bresults = composite.assemble_results(
             best_point, chop_bounds=chop_bounds)
         synth_plot_flag = False
@@ -1080,7 +1080,7 @@ def extract_mt_components(problem, po, include_magnitude=False):
         else:
             logger.info('Drawing full ensemble ...')
 
-        point = get_result_point(stage, problem.config, po.post_llk)
+        point = get_result_point(stage.mtrace, po.post_llk)
         best_mt = point2array(point, varnames=varnames, rpoint=rpoint)
     else:
         llk_str = 'ref'
@@ -1721,7 +1721,7 @@ def draw_station_map_gmt(problem, po):
         stage = load_stage(
             problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
-        point = get_result_point(stage, problem.config, po.post_llk)
+        point = get_result_point(stage.mtrace, po.post_llk)
         value_string = '%i' % po.load_stage
     else:
         point = None

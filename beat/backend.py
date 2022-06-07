@@ -440,7 +440,7 @@ class TextChain(FileChain):
         cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
 
         if os.path.exists(self.filename) and not overwrite:
-            logger.info('Found existing trace, appending!')
+            logger.debug('Found existing trace, appending!')
         else:
             self.count = 0
 
@@ -736,9 +736,15 @@ class NumpyChain(FileChain):
     def _load_df(self):
 
         if not self.__data_structure:
-            self.__data_structure = self.construct_data_structure()
+            try:
+                self.__data_structure = self.construct_data_structure()
+            except json.decoder.JSONDecodeError:
+                logger.warning(
+                    'File header of %s is corrupted!'
+                    ' Resampling!' % self.filename)
+                self.corrupted_flag = True
 
-        if self._df is None:
+        if self._df is None and not self.corrupted_flag:
             try:
                 with open(self.filename, mode="rb") as file:
                     # skip header.
@@ -748,6 +754,7 @@ class NumpyChain(FileChain):
                         file, dtype=self.data_structure)
             except EOFError as e:
                 print(e)
+                self.corrupted_flag = True
 
     def get_values(self, varname, burn=0, thin=1):
         self._load_df()
@@ -1272,13 +1279,14 @@ def extract_bounds_from_summary(
     for quant in [lower_quant, upper_quant]:
         values = num.empty(shape, 'float64')
         for i, idx in enumerate(indexes):
-            adjust = 10. ** roundto
             if roundto is not None:
+                adjust = 10. ** roundto
                 if quant == lower_quant:
                     operation = num.floor
                 elif quant == upper_quant:
                     operation = num.ceil
             else:
+                adjust = 1.
                 operation = do_nothing
             values[i] = operation(summary[quant][idx] * adjust) / adjust
 

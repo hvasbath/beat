@@ -7,7 +7,6 @@ from pyrocko.guts import (Object, String, Dict, List,
                           Bool, Int, load, StringChoice)
 from pyrocko import gmtpy
 from pyrocko import orthodrome as otd
-from pyrocko.plot import mpl_graph_color
 
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib import pyplot as plt
@@ -15,17 +14,13 @@ from matplotlib.ticker import MaxNLocator
 
 from scipy.stats import kde
 
-from pymc3 import quantiles
-
 from beat import utility
 
 from theano import config as tconfig
 
 
+
 logger = logging.getLogger('plotting.common')
-
-
-km = 1000.
 
 
 u_nm = '$[Nm]$'
@@ -273,29 +268,31 @@ def str_duration(t):
         return s + '%.1f d' % (t / (24. * 3600.))
 
 
-def get_result_point(stage, config, point_llk='max'):
+def get_result_point(mtrace, point_llk='max'):
     """
-    Return point of a given stage result.
+    Return Point dict from multitrace
 
     Parameters
     ----------
-    stage : :class:`models.Stage`
-    config : :class:`config.BEATConfig`
-    point_llk : str
-        with specified llk(max, mean, min).
+    mtrace: pm.MultiTrace
+        sampled result trace containing the posterior ensemble
+    point_llk: str
+        returning according point with 'max', 'min', 'mean' likelihood
 
     Returns
     -------
-    dict
+    point: dict
+        keys varnames, values numpy ndarrays
     """
+
     if point_llk != 'None':
-        llk = stage.mtrace.get_values(
+        llk = mtrace.get_values(
             varname='like',
             combine=True)
 
         posterior_idxs = utility.get_fit_indexes(llk)
 
-        point = stage.mtrace.point(idx=posterior_idxs[point_llk])
+        point = mtrace.point(idx=posterior_idxs[point_llk])
 
     else:
         point = None
@@ -329,8 +326,8 @@ def histplot_op(
         maxd = quants[qlist[-1]]
 
         if reference is not None:
-            mind = num.minimum(mind, reference.squeeze())
-            maxd = num.maximum(maxd, reference.squeeze())
+            mind = num.minimum(mind, reference)
+            maxd = num.maximum(maxd, reference)
 
         if tstd is None:
             tstd = num.std(d)

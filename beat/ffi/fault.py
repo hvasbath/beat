@@ -1,19 +1,23 @@
 from beat.utility import (
     list2string, positions2idxs, kmtypes, split_off_list,
-    Counter, mod_i, rotate_coords_plane_normal, split_point, update_source)
+    Counter, mod_i, rotate_coords_plane_normal, split_point, update_source,
+    check_point_keys, dump_objects, load_objects, find_elbow)
 
 from beat.fast_sweeping import fast_sweep
 from beat.heart import velocities_from_pole
 
 from beat.config import ResolutionDiscretizationConfig, \
-    UniformDiscretizationConfig
+    UniformDiscretizationConfig, discretization_dir_name, fault_geometry_name
 from beat.models.laplacian import get_smoothing_operator_correlated, \
     get_smoothing_operator_nearest_neighbor, distances
 from .base import get_backend, geo_construct_gf_linear_patches
 
+from pyrocko.util import ensuredir
 from pyrocko.gf.seismosizer import Cloneable
 from pyrocko.orthodrome import latlon_to_ne_numpy, ne_to_latlon
 from pyrocko.moment_tensor import moment_to_magnitude
+from pyrocko.guts import Object, List, Float, Int, Dict, dump, load
+from pyrocko.plot import mpl_papersize
 
 import os
 import copy
@@ -41,7 +45,10 @@ __all__ = [
     'discretize_sources',
     'get_division_mapping',
     'optimize_discretization',
-    'write_fault_to_pscmp']
+    'optimize_damping',
+    'ResolutionDiscretizationResult',
+    'write_fault_to_pscmp',
+    'backslip2coupling']
 
 
 slip_directions = {
@@ -82,6 +89,7 @@ class FaultGeometry(Cloneable):
         self.components = components
         self._ext_sources = OrderedDict()
         self._discretized_patches = OrderedDict()
+        self._model_resolution = None
         self.ordering = ordering
         self.config = config
 
@@ -105,6 +113,17 @@ total number of patches: %i ''' % (
     def _check_index(self, index):
         if index > self.nsubfaults - 1:
             raise TypeError('Subfault with index %i not defined!' % index)
+
+    def set_model_resolution(self, model_resolution):
+        self._model_resolution = model_resolution
+
+    def get_model_resolution(self):
+        if self._model_resolution is None:
+            logger.warning(
+                'Model resolution matrix has not been calculated! '
+                'Please run beat.ffi.optimize_discretization on this fault! '
+                'Returning None!')
+        return self._model_resolution
 
     def get_subfault_key(self, index, datatype, component):
 
@@ -148,14 +167,22 @@ total number of patches: %i ''' % (
         else:
             return component
 
-    def iter_subfaults(self, datatype=None, component=None):
+    def iter_subfaults(self, idxs=None, datatype=None, component=None):
         """
         Iterator over subfaults.
+
+        Parameters
+        ----------
+        idxs : tuple
+            start and end-index of subfaults to iterate over
         """
         datatype = self._assign_datatype(datatype)
         component = self._assign_component(component)
 
-        for i in range(self.nsubfaults):
+        if idxs is None:
+            idxs = [0, self.nsubfaults]
+
+        for i in range(*idxs):
             yield self.get_subfault(
                 index=i, datatype=datatype, component=component)
 
@@ -488,7 +515,8 @@ total number of patches: %i ''' % (
             srf_times = num.zeros(1)
             sub_headers = []
 
-            if 'pole_lat' in point:
+            has_pole, _ = check_point_keys(point, phrase='*_pole_lat')
+            if has_pole:
                 logger.info(
                     'Found Euler pole in point also exporting coupling ...!')
                 coupling = backslip2coupling(
@@ -680,6 +708,40 @@ total number of patches: %i ''' % (
             nuc_x=nuc_strike_idx, nuc_y=nuc_dip_idx)
         return start_times
 
+    def get_event_relative_patch_centers(
+            self, event, index=None, datatype=None):
+        """
+        Returns list of arrays of requested attributes.
+        If attributes have several fields they are concatenated to 2d arrays
+
+        Parameters
+        ----------
+        index: int or list of ints
+
+        Returns
+        -------
+        :class:`numpy.Ndarray`
+            (n_patches x 3)
+        """
+        if datatype is None:
+            datatype = self._assign_datatype()
+
+        if index is None:
+            subfault_idxs = list(range(self.nsubfaults))
+
+        centers = self.get_subfault_patch_attributes(
+            subfault_idxs, datatype, attributes=['center'])
+
+        lats, lons = self.get_subfault_patch_attributes(
+            subfault_idxs, datatype, attributes=['lat', 'lon'])
+
+        north_shifts_wrt_event, east_shifts_wrt_event = latlon_to_ne_numpy(
+            event.lat, event.lon, lats, lons)
+
+        centers[:, 0] += east_shifts_wrt_event / km
+        centers[:, 1] += north_shifts_wrt_event / km
+        return centers
+
     def get_smoothing_operator(
             self, event, correlation_function='nearest_neighbor'):
         """
@@ -714,22 +776,11 @@ total number of patches: %i ''' % (
                     'Nearest neighbor correlation Laplacian is only '
                     'available for "uniform" discretization! Please change'
                     ' either correlation_function or the discretization.')
+
         else:
-            datatype = self._assign_datatype()
-            subfault_idxs = list(range(self.nsubfaults))
-            centers = self.get_subfault_patch_attributes(
-                subfault_idxs, datatype, attributes=['center'])
-
-            lats, lons = self.get_subfault_patch_attributes(
-                subfault_idxs, datatype, attributes=['lat', 'lon'])
-
-            north_shifts_wrt_event, east_shifts_wrt_event = latlon_to_ne_numpy(
-                event.lat, event.lon, lats, lons)
-
-            centers[:, 0] += east_shifts_wrt_event / km
-            centers[:, 1] += north_shifts_wrt_event / km
+            centers = self.get_event_relative_patch_centers(event)
             return get_smoothing_operator_correlated(
-                centers * km, correlation_function)
+                centers, correlation_function)
 
     def get_subfault_patch_attributes(
             self, index, datatype=None, component=None, attributes=['']):
@@ -844,13 +895,14 @@ total number of patches: %i ''' % (
         return True if self.npatches else False
 
 
-def write_fault_to_pscmp(filename, fault, point=None, force=False):
+def write_fault_to_pscmp(
+        filename, fault, point=None, force=False, export_patch_idxs=False):
     """
     Dump the fault geometry to ascii file according to the pscmp format.
     """
     from beat import info
 
-    if fault.needs_optimization:
+    if fault.needs_optimization and not export_patch_idxs:
         raise TypeError(
             'PSCMP only supports uniform discretized rectangular sources, '
             'cannot dump irregularly discretized sources')
@@ -978,9 +1030,15 @@ def write_fault_to_pscmp(filename, fault, point=None, force=False):
         outarray = num.hstack(
             [rot_centers, strike_slips.T, dip_slips.T, opening.T])
 
+        if export_patch_idxs:
+            patch_idxs = num.atleast_2d(num.arange(
+                *fault.cum_subfault_npatches[index:index + 2])).T
+            print(patch_idxs, outarray)
+            outarray = num.hstack([patch_idxs, outarray])
+
         # write patch info
         with open(filename, mode="a+") as fh:
-            num.savetxt(fh, outarray)
+            num.savetxt(fh, outarray, fmt='%g')
 
 
 class FaultOrdering(object):
@@ -1217,7 +1275,8 @@ def discretize_sources(
         for component in varnames:
             for datatype in datatypes:
                 for index, sf in enumerate(
-                        fault.iter_subfaults(datatype, component)):
+                        fault.iter_subfaults(
+                            datatype=datatype, component=component)):
                     npw, npl = fault.ordering.get_subfault_discretization(index)
                     patches = sf.patches(
                         nl=npl, nw=npw, datatype=datatype)
@@ -1317,11 +1376,21 @@ def backslip2coupling(point, fault, event):
     except KeyError:
         raise ValueError('Parallel slip component not in result point!')
 
-    try:
-        plat = point['pole_lat']
-        plon = point['pole_lon']
-        omega = point['omega']
-    except KeyError:
+    has_pole, pole_lat_keys = check_point_keys(point, phrase='*_pole_lat')
+    has_pole, pole_lon_keys = check_point_keys(point, phrase='*_pole_lon')
+    has_pole, omega_keys = check_point_keys(point, phrase='*_omega')
+
+    npoles = len(pole_lon_keys)
+    if has_pole:
+        if npoles > 1:
+            logger.warning(
+                'Found %i poles in result point! '
+                'Returning coupling only for first pole!' % npoles)
+
+        plat = point[pole_lat_keys[0]]
+        plon = point[pole_lon_keys[0]]
+        omega = point[omega_keys[0]]
+    else:
         raise ValueError('Euler Pole not in result point!')
 
     subfault_idxs = list(range(fault.nsubfaults))
@@ -1339,7 +1408,7 @@ def backslip2coupling(point, fault, event):
 
     euler_velocities_xyz = velocities_from_pole(
         lats=lats, lons=lons,
-        plat=plat, plon=plon, omega=omega, earth_shape='ellipsoid')
+        pole_lat=plat, pole_lon=plon, omega=omega, earth_shape='ellipsoid')
     vels_along_strike = num.abs(
         (euler_velocities_xyz * strikevectors).sum(axis=1))
 
@@ -1351,18 +1420,38 @@ def backslip2coupling(point, fault, event):
 
 def optimize_discretization(
         config, fault, datasets, varnames, crust_ind,
-        engine, targets, event, force, nworkers, debug=False):
+        engine, targets, event, force, nworkers, method='laplacian',
+        debug=False):
     """
-    Resolution based discretization of the fault surfaces based on:
-    Atzori & Antonioli 2011:
-        Optimal fault resolution in geodetic inversion of coseismic data
+    Resolution based discretization of the fault surfaces
 
     Parameters
     ----------
     config : :class: `config.DiscretizationConfig`
+
+    References
+    ----------
+    .. [Atzori2011] Atzori, S. and Antonioli, A. (2011).
+        Optimal fault resolution in geodetic inversion of coseismic data
+        Geophys. J. Int. (2011) 185, 529–538, 
+        `link <http://ascelibrary.org/doi: 10.1111/j.1365-246X.2011.04955.x>`__
+    .. [Atzori2019] Atzori, S.; Antonioli, A.; Tolomei, C.; De Novellis, V.;
+        De Luca, C. and Monterroso, F.
+        InSAR full-resolution analysis of the 2017–2018 M > 6 earthquakes in
+        Mexico
+        Remote Sensing of Environment, 234, 111461,
     """
     from beat.plotting import source_geometry
     from numpy.testing import assert_array_equal
+
+    _available_methods = ('laplacian', 'svd')
+
+    if method not in _available_methods:
+        raise NotImplementedError(
+            'Supported methods: %s, specified: %s' % (
+                list2string(_available_methods), method))
+
+    logger.info('Using "%s" for calculation of Resolution', method)
 
     def sv_vec2matrix(sv_vec, ndata, nparams):
         """
@@ -1384,7 +1473,7 @@ def optimize_discretization(
         Lmat[:n_sv, :n_sv] = num.diag(sv_vec)
         return Lmat
 
-    logger.info('Optimizing fault discretization based on resolution: ... \n')
+    logger.debug('Optimizing fault discretization based on resolution: ... \n')
 
     datatype = 'geodetic'
 
@@ -1402,21 +1491,22 @@ def optimize_discretization(
     gfs_comp = []
     for component in varnames:
         for index, sf in enumerate(
-                fault.iter_subfaults(datatype, component)):
+                fault.iter_subfaults(datatype=datatype, component=component)):
             npw = sf.get_n_patches(2 * patch_widths[index] * km, 'width')
             npl = sf.get_n_patches(2 * patch_lengths[index] * km, 'length')
             patches = sf.patches(
                 nl=npl, nw=npw, datatype=datatype)
             fault.set_subfault_patches(index, patches, datatype, component)
 
-        logger.info("Calculating Green's Functions for %i "
+        logger.debug("Calculating Green's Functions for %i "
                     "initial patches for %s slip-component." % (
             fault.npatches, component))
 
         gfs = geo_construct_gf_linear_patches(
             engine=engine, datasets=datasets, targets=targets,
             patches=fault.get_all_patches('geodetic', component=component),
-            nworkers=nworkers)
+            nworkers=nworkers, return_mapping=True)
+
         gfs_comp.append(gfs)
 
     tobedivided = fault.npatches
@@ -1449,7 +1539,7 @@ def optimize_discretization(
                 values=patch_data_distance_mins, title='min distance')
 
         for gfs_i, component in enumerate(varnames):
-            logger.info('Component %s' % component)
+            logger.debug('Component %s' % component)
 
             # iterate over subfaults and divide patches
             old2new, div2new, new_subfault_npatches = get_division_mapping(
@@ -1460,7 +1550,7 @@ def optimize_discretization(
             old_patches = fault.get_all_patches(
                 datatype=datatype, component=component)
             all_divided_patches = []
-            logger.info('Division indexes %s' % (list2string(sf_div_idxs)))
+            logger.debug('Division indexes %s' % (list2string(sf_div_idxs)))
             for div_idx in sf_div_idxs:
                 # pull out patch to be divided
                 patch = old_patches[div_idx]
@@ -1474,7 +1564,7 @@ def optimize_discretization(
                 # add to all patches that need recalculation
                 all_divided_patches.extend(div_patches)
 
-            logger.info("Calculating Green's Functions for %i divided "
+            logger.debug("Calculating Green's Functions for %i divided "
                         "patches." % len(all_divided_patches))
 
             # calculate GFs for fault is [npatches, nobservations]
@@ -1498,17 +1588,18 @@ def optimize_discretization(
                     new_gfs[new_idx] = tgfs[patch_idx]
 
             if False:
-                logger.info('Cross checking gfs ...')
+                logger.debug('Cross checking gfs ...')
                 check_gfs = geo_construct_gf_linear_patches(
                     engine=engine, datasets=datasets, targets=targets,
                     patches=new_patches, nworkers=nworkers)
 
                 assert (new_gfs - check_gfs).sum() == 0
 
-            gfs_array.append(new_gfs.T)
+            gfs_array.append(new_gfs.T)     # G(nobs, npatches)
 
             # register new generation of patches with fault
-            for sf_idx, sf_npatches in enumerate(new_subfault_npatches.tolist()):
+            for sf_idx, sf_npatches in enumerate(
+                    new_subfault_npatches.tolist()):
                 sf_patches = split_off_list(new_patches, sf_npatches)
                 fault.set_subfault_patches(
                     sf_idx, sf_patches, datatype, component, replace=True)
@@ -1521,11 +1612,6 @@ def optimize_discretization(
 
         assert_array_equal(
             num.array(fault.subfault_npatches), new_subfault_npatches)
-
-        # U data-space, L singular values, V model space
-        full_GFs = num.vstack(gfs_array)
-        ndata, nparams = full_GFs.shape
-        U, l, V = svd(full_GFs, full_matrices=True)
 
         if False:
             fig, axs = plt.subplots(2, 3)
@@ -1541,29 +1627,65 @@ def optimize_discretization(
                         edgecolors='none', cmap=plt.cm.get_cmap('jet'))
                     ax.set_title('Patch idx %i' % gfidx)
 
-        # apply singular value damping
-        ldamped_inv = 1. / (l + config.epsilon ** 2)
-        Linv = sv_vec2matrix(ldamped_inv, ndata=ndata, nparams=nparams)
-        L = sv_vec2matrix(l, ndata=ndata, nparams=nparams)
+        resolution_matrices = []
+        R_diags = []
+        for gfs_i, component in enumerate(varnames):
+            comp_gfs = gfs_array[gfs_i]
 
-        # calculate resolution matrix and take trace
-        if(0):
-            # for debugging
-            print('full_GFs', full_GFs.shape)
-            print('V', V.shape)
-            print('l', l.shape)
-            print('L', L.shape)
-            print('Linnv', Linv.shape)
-            print('U', U.shape)
+            if method == 'svd':
+                # Atzori & Antonioli 2011
+                # U data-space, L singular values, V model space
 
-        R = num.diag(num.dot(
-            V.dot(Linv.T).dot(U.T),
-            U.dot(L).dot(V.T)))
+                ndata, nparams = comp_gfs.shape
+                U, l, V = svd(comp_gfs, full_matrices=True)
 
-        R_idxs = num.argwhere(R > config.resolution_thresh).ravel().tolist()
-        tmp_fixed_idxs = set(
-            num.argwhere(R <= config.resolution_thresh).ravel().tolist())
-        fixed_idxs.update(tmp_fixed_idxs)
+                # apply singular value damping
+                ldamped_inv = 1. / (l + config.epsilon ** 2)
+                Linv = sv_vec2matrix(ldamped_inv, ndata=ndata, nparams=nparams)
+                L = sv_vec2matrix(l, ndata=ndata, nparams=nparams)
+
+                # calculate resolution matrix and take trace
+                if(0):
+                    # for debugging
+                    print('full_GFs', full_GFs.shape)
+                    print('V', V.shape)
+                    print('l', l.shape)
+                    print('L', L.shape)
+                    print('Linnv', Linv.shape)
+                    print('U', U.shape)
+
+                R = num.diag(num.dot(
+                    V.dot(Linv.T).dot(U.T),
+                    U.dot(L).dot(V.T)))
+
+            elif method == 'laplacian':
+                # Atzori et al. 2019 Full Resolution Analysis
+                # G(nobs, npatches)
+                smoothing_op = fault.get_smoothing_operator(
+                    event,
+                    correlation_function='gaussian') * config.epsilon ** 2
+
+                # weighting makes it not work! dont weight for now
+                GG = comp_gfs.T.dot(comp_gfs)
+                Gdamped = num.vstack((comp_gfs, smoothing_op))
+                GdampedG = Gdamped.T.dot(Gdamped)
+                resolution_matrix = num.linalg.inv(GdampedG).dot(GG)
+                R = num.diag(resolution_matrix)
+                R_diags.append(R)
+            else:
+                raise NotImplementedError(
+                    'Method "%s" not supported !' % method)
+
+            resolution_matrices.append(resolution_matrix)
+
+            R_idxs = num.argwhere(
+                R > config.resolution_thresh).ravel().tolist()
+            tmp_fixed_idxs = set(
+                num.argwhere(R <= config.resolution_thresh).ravel().tolist())
+            logger.debug(
+                'Patches fixed %s component: %s', component,
+                list2string(list(tmp_fixed_idxs)))
+            fixed_idxs.update(tmp_fixed_idxs)
 
         # print('R > thresh', R_idxs, R[R_idxs])
         # analysis for further patch division
@@ -1605,9 +1727,11 @@ def optimize_discretization(
 
         ncandidates = len(unique_ids)
 
-        logger.info(
+        logger.debug(
             'Found %i candidate(s) for division for '
             ' %i subfault(s)' % (ncandidates, fault.nsubfaults))
+
+        mean_R = num.vstack(R_diags).mean(0).ravel()
         if ncandidates:
             subfault_idxs = list(range(fault.nsubfaults))
             widths, lengths = fault.get_subfault_patch_attributes(
@@ -1631,18 +1755,7 @@ def optimize_discretization(
             c_one_pen = num.array(c1)
 
             # distance penalties
-            east_shifts, north_shifts = fault.get_subfault_patch_attributes(
-                subfault_idxs, datatype,
-                attributes=['east_shift', 'north_shift'])
-            lats, lons = fault.get_subfault_patch_attributes(
-                subfault_idxs, datatype, attributes=['lat', 'lon'])
-
-            north_shifts_wrt_event, east_shifts_wrt_event = latlon_to_ne_numpy(
-                event.lat, event.lon, lats, lons)
-            centers = num.vstack(
-                [east_shifts + east_shifts_wrt_event / km,
-                 north_shifts + north_shifts_wrt_event / km]).T
-
+            centers = fault.get_event_relative_patch_centers(event)[:, :2]
             cand_centers = centers
 
             patch_data_distances = distances(
@@ -1656,13 +1769,14 @@ def optimize_discretization(
             inter_patch_distances = distances(
                 points=centers, ref_points=cand_centers)
 
-            res_w = (R * inter_patch_distances)
+            res_w = (mean_R * inter_patch_distances)
 
             c_three_pen = res_w.sum(axis=1) / inter_patch_distances.sum(0)
 
             rating = area_pen * c_one_pen * c_two_pen * c_three_pen
             rating_idxs = num.array(rating.argsort()[::-1])
-            rated_sel = num.array([ridx for ridx in rating_idxs if ridx in uids])
+            rated_sel = num.array(
+                [ridx for ridx in rating_idxs if ridx in uids])
 
             n_sel = len(rated_sel)
             idxs = rated_sel[range(int(num.ceil(config.alpha * n_sel)))]
@@ -1684,10 +1798,10 @@ def optimize_discretization(
                 print('unique patches uids', uids)
                 print('R select rated', rated_sel)
 
-            logger.info(
+            logger.debug(
                 'Patches: %s of %i subfault(s) are fixed.' % (
                     list2string(list(fixed_idxs)), fault.nsubfaults))
-            logger.info(
+            logger.debug(
                 'Patches: %s of %i subfault(s) are further divided.' % (
                     list2string(idxs.tolist()), fault.nsubfaults))
             tobedivided = len(idxs)
@@ -1697,6 +1811,228 @@ def optimize_discretization(
         else:
             tobedivided = 0
 
+    if debug:
+        patches = fault.get_all_patches(datatype, component='uparr')
+        minidx, maxidx = mean_R.argmin(), mean_R.argmax()
+        print(mean_R.max(), mean_R.min(), maxidx, minidx)
+        print('min', patches[minidx])
+        print('max', patches[maxidx])
+
+        from matplotlib import pyplot as plt
+        print('Smoothing Op', smoothing_op)
+        im = plt.matshow(smoothing_op)
+        plt.colorbar(im)
+        plt.show()
+
+    R_matrix = num.dstack(resolution_matrices).mean(2)
+    fault.set_model_resolution(R_matrix)
+
     logger.info('Finished resolution based fault discretization.')
-    logger.info('Quality index for this discretization: %f' % R.mean())
-    return fault, R
+    logger.info('Quality index for this discretization: %f' % mean_R.mean())
+    return fault, mean_R
+
+
+class ResolutionDiscretizationResult(Object):
+
+    epsilons = List.T(Float.T(), default=[0])
+    normalized_rspreads = List.T(Float.T(), default=[1.])
+    faults_npatches = List.T(Int.T(), default=[1])
+    optimum = Dict.T(
+        default=dict(),
+        help='Optimum fault discretization parameters')
+
+    def plot(self):
+
+        fig, ax = plt.subplots(1, 1, figsize=mpl_papersize('a6', 'landscape'))
+        ax.plot(
+            num.array(self.epsilons),
+            num.array(self.normalized_rspreads), '+b', markersize=6)
+
+        for epsilon, rspread, npatches in zip(
+                self.epsilons, self.normalized_rspreads, self.faults_npatches):
+            ax.text(epsilon, rspread, npatches, fontsize=9)
+        try:
+            ax.plot(
+                num.array(self.optimum['epsilon']),
+                num.array(self.optimum['normalized_rspread']),
+                '*r', markersize=8)
+        except KeyError:
+            logger.warning(
+                'Discretization result does not contain the optimum')
+
+        ax.set_ylabel('Normalized resolution spread')
+        ax.set_xlabel('Epsilon (damping)')
+        ax.set_title('Fault resolution based discretization')
+        return fig, ax
+
+    def derive_optimum_fault_geometry(self, debug=False):
+
+        data = num.vstack(
+            (num.array(self.epsilons),
+             num.array(self.normalized_rspreads))).T
+
+        best_idx, rotated_data = find_elbow(data, rotate_left=True)
+
+        if debug:
+            fig, ax = plt.subplots(
+                1, 1, figsize=mpl_papersize('a6', 'landscape'))
+            ax.plot(
+                rotated_data[:, 0],
+                rotated_data[:, 1], '+b', markersize=6)
+            ax.plot(
+                rotated_data[best_idx, 0],
+                rotated_data[best_idx, 1],
+                    '*r', markersize=8)
+            plt.show()
+
+        self.optimum = {
+            'epsilon': self.epsilons[best_idx],
+            'normalized_rspread': self.normalized_rspreads[best_idx],
+            'npatches': self.faults_npatches[best_idx],
+            'idx': best_idx}
+
+
+def normalized_resolution_spread(resolution, nparams):
+    """
+    Get normalized resolution spread after Atzori et al. 2019
+
+    Must be between 0 and 1. The closer to zero the better can the model
+    parameters be resolved by the data.
+    """
+    return num.linalg.norm(resolution - num.eye(nparams)) / nparams
+
+
+def optimize_damping(
+        outdir,
+        config, fault, datasets, varnames, crust_ind,
+        engine, targets, event, force, nworkers, method='laplacian',
+        plot=False, figuredir=None, debug=False):
+    """
+    Resolution based discretization of the fault surfaces epsilon optimization.
+
+    Parameters
+    ----------
+    config : :class: `config.DiscretizationConfig`
+
+    References
+    ----------
+    .. [Atzori2011] Atzori, S. and Antonioli, A. (2011).
+        Optimal fault resolution in geodetic inversion of coseismic data
+        Geophys. J. Int. (2011) 185, 529–538, 
+        `link <http://ascelibrary.org/doi: 10.1111/j.1365-246X.2011.04955.x>`__
+    .. [Atzori2019] Atzori, S.; Antonioli, A.; Tolomei, C.; De Novellis, V.;
+        De Luca, C. and Monterroso, F.
+        InSAR full-resolution analysis of the 2017–2018 M > 6 earthquakes in
+        Mexico
+        Remote Sensing of Environment, 234, 111461,
+    """
+
+    discr_dir = os.path.join(outdir, discretization_dir_name)
+    ensuredir(discr_dir)
+    fault_basename, extension = os.path.splitext(fault_geometry_name)
+
+    epsilons = num.logspace(
+        0, 2, config.epsilon_search_runs, endpoint=True) * config.epsilon
+    discretization_results_path = os.path.join(
+        discr_dir, 'resolution_result_%g_%i.yaml' % (
+            config.epsilon, config.epsilon_search_runs))
+
+    logger.info(
+        'Calculating discretizations for %s', list2string(epsilons.tolist()))
+
+    model_resolutions = []
+    dfaults = []
+    for epsilon in epsilons:
+
+        logger.info('Epsilon: %g', epsilon)
+        logger.info('--------------')
+        fault_discr_path = os.path.join(
+            discr_dir, '{}_{}{}'.format(
+                fault_basename, epsilon, extension))
+
+        if not os.path.exists(fault_discr_path) or force:
+            config.epsilon = epsilon
+            dfault, mean_R = optimize_discretization(
+                config=config,
+                fault=copy.deepcopy(fault),
+                datasets=datasets,
+                varnames=varnames,
+                crust_ind=crust_ind,
+                engine=engine,
+                targets=targets,
+                event=event,
+                force=force,
+                nworkers=nworkers,
+                method='laplacian',
+                debug=False)
+
+            logger.info(
+                'Storing discretized fault geometry to: '
+                '%s' % fault_discr_path)
+            dump_objects(fault_discr_path, [dfault])
+
+            # overwrite again with original value
+            config.epsilon = epsilons[0]
+
+        elif os.path.exists(fault_discr_path):
+            logger.info(
+                'Discretized fault geometry for epsilon %s exists! '
+                'Use --force to overwrite!' % epsilon)
+            logger.info('Loading existing discretized fault')
+            dfault = load_objects(fault_discr_path)[0]
+
+        dfaults.append(dfault)
+        model_resolutions.append(dfault.get_model_resolution())
+
+    logger.info('Calculating normalized resolution spreads ...')
+    normalized_rspreads = []
+    faults_npatches = []
+    for dfault, resolution in zip(dfaults, model_resolutions):
+        rspread = normalized_resolution_spread(
+            resolution, nparams=dfault.npatches)
+        normalized_rspreads.append(rspread)
+        faults_npatches.append(dfault.npatches)
+
+    result = ResolutionDiscretizationResult(
+        epsilons=epsilons.tolist(),
+        normalized_rspreads=normalized_rspreads,
+        faults_npatches=faults_npatches)
+    result.derive_optimum_fault_geometry()
+
+    logger.info('Dumping discretization result to: %s',
+                discretization_results_path)
+    dump(result, filename=discretization_results_path)
+    print(result)
+
+    best_idx = result.optimum['idx']
+    if figuredir is not None:
+        logger.info('Plotting tradeoff and discretizations ...')
+        from beat.plotting import source_geometry
+        outformat = 'png'
+
+        # tradeoff
+        fig, ax = result.plot()
+        outpath = os.path.join(
+            figuredir, 'discretization_tradeoff_%g.%s' % (
+                epsilons[best_idx], outformat))
+        logger.info(
+            'Plotting discretization_tradeoff to %s' % outpath)
+        fig.savefig(outpath, format=outformat, dpi=300)
+
+        # discretizations
+        for i, dfault in enumerate(dfaults):
+            fig, ax = source_geometry(
+                dfault, list(fault.iter_subfaults()),
+                event=event, values=num.diag(dfault.get_model_resolution()),
+                cbounds=(0.5, 1),
+                clabel='Resolution',
+                datasets=datasets, show=False)
+
+            outpath = os.path.join(
+                figuredir, 'patch_resolutions_%i.%s' % (
+                    dfault.npatches, outformat))
+            logger.info(
+                'Plotting patch resolution to %s' % outpath)
+            fig.savefig(outpath, format=outformat, dpi=300)
+
+    return dfaults[best_idx]

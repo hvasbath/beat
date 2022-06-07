@@ -202,7 +202,7 @@ can be adjusted with the parameters *n_chains* and *n_chains_posterior*, respect
 We propose to swap chain states randomly every 10 to 30 samples (*swap_interval*) between random chains.
 We also adaptively tune the tempering parameters of each chain based on the swap acceptance every *beta_tune_interval*.
 The *buffer_size* determines the number of samples from each Markov Chain that are used to estimate the sampled
-trace parameter covariances. These are then used to update the proposal distribution. This should not be set too low to avoid
+trace parameter covariances. These are then used to update the proposal distribution. This should not be set too low to avoid.. note::  For more detailed search of the solution space please modify the parameters 'n_steps' and 'n_chains' for the SMC sampler in the $project_directory/config_geometry.yaml file to higher numbers. Depending on these specifications and the available hardware the sampling may take several hours/few days. Further remarks regarding the configuration of the sampler can be found `here <https://pyrocko.org/beat/getting_started/sampler_config.html#>`__ .
 a biased estimate of parameter covariances.
 
 Depending on your hardware you can use the config above (please update your config!) for a Laptop with 4 CPUs. For a desktop computer with 12 CPUs you could
@@ -211,6 +211,7 @@ We run the sampling with::
 
     beat sample Laquila_dc
 
+.. note::  For more detailed search of the solution space please modify the parameters 'n_steps' and 'n_chains' for the SMC sampler in the $project_directory/config_geometry.yaml file to higher numbers. Depending on these specifications and the available hardware the sampling may take several hours/few days. Further remarks regarding the configuration of the sampler can be found `here <https://pyrocko.org/beat/docs/current/getting_started/sampler_config.html#>`__ .
 
 Summarize the results
 ^^^^^^^^^^^^^^^^^^^^^

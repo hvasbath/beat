@@ -549,6 +549,7 @@ physical_bounds = dict(
     mix=(0, 1),
 
     diameter=(0., 100.),
+    sign=(-1., 1.),
     volume_change=(-1e12, 1e12),
 
     mnn=(-sqrt2, sqrt2),
@@ -4189,9 +4190,9 @@ def velocities_from_pole(
         of geographic latitudes [deg] of points to calculate velocities for
     lons: :class:`numpy.NdArray`
         of geographic longitudes [deg] of points to calculate velocities for
-    plat: float
+    pole_lat: float
         Euler pole latitude [deg]
-    plon: float
+    pole_lon: float
         Euler pole longitude [deg]
     omega: float
         angle of rotation around Euler pole [deg / million yrs]

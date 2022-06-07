@@ -225,7 +225,20 @@ Datatype specific setup options
 Orbital ramps
 """""""""""""
 There are additional hierarchical parameters that could be enabled in the setup of the optimization. These would be sampled in the course of the optimization as well.
-For **geodetic** data this is an additional linear trend ('ramp' in InSAR terminology) to each dataset. This can be turned on and off with the variable 'fit_plane' in the geodetic_config section.
+For **geodetic** data this is an additional linear trend ('ramp' in InSAR terminology) to each dataset. This can be turned on and off with the variable *enabled* in the *geodetic_config.corrections* section as well as adding the names of the datasets to the *dataset_names* attribute::
+
+  corrections_config: !beat.GeodeticCorrectionsConfig
+    euler_poles:
+    - !beat.EulerPoleConfig
+      enabled: false
+    ramp: !beat.RampConfig
+      dataset_names:
+      - Laquila_dscxn
+      - Laquila_ascxn
+      enabled: true
+    strain_rates:
+    - !beat.StrainRateConfig
+      enabled: false
 
 Station corrections
 """""""""""""""""""
@@ -314,8 +327,7 @@ The sampling is successfully finished if the screen shows something like this::
 
 .. note:: The reader might have noticed the two different *backends* that have been specified in the *SamplerConfigs*, "csv" and "bin". `Here <https://hvasbath.github.io/beat/getting_started/backends.html#sampling-backends>`__ we refer to the backend section that describe these further.
 
-.. note::  For more detailed search of the solution space please modify the parameters 'n_steps' and 'n_chains' for the SMC sampler in the $project_directory/config_geometry.yaml file to higher numbers. Depending on these specifications and the available hardware the sampling may take several hours/few days.
-
+.. note::  For more detailed search of the solution space please modify the parameters 'n_steps' and 'n_chains' for the SMC sampler in the $project_directory/config_geometry.yaml file to higher numbers. Depending on these specifications and the available hardware the sampling may take several hours/few days. Further remarks regarding the configuration of the sampler can be found `here <https://pyrocko.org/beat/docs/current/getting_started/sampler_config.html#>`__ .
 
 Restarting sampling
 ^^^^^^^^^^^^^^^^^^^

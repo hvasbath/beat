@@ -4,11 +4,24 @@
 Updating beat
 *************
 
+For installations into system
+-----------------------------
 In the beat main directory run::
 
-    git pull origin master
-    sudo python setup.py install
+  git pull origin master
+  sudo python setup.py install
 
+For anaconda installations
+--------------------------
+
+Activate your environment that you created for the beat installation::
+
+  conda activate beat
+
+In the beat main directory run::
+
+  git pull origin master
+  python setup.py install
 
 Testing development features
 ----------------------------

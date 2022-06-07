@@ -800,7 +800,7 @@ def draw_correlation_hist(problem, plot_options):
         problem, stage_number=po.load_stage, load='trace', chains=[-1])
 
     if not po.reference:
-        reference = get_result_point(stage, problem.config, po.post_llk)
+        reference = get_result_point(stage.mtrace, po.post_llk)
         llk_str = po.post_llk
     else:
         reference = po.reference
