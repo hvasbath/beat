@@ -308,6 +308,15 @@ class NonlinearGFConfig(GFConfig):
         optional=True,
         help='Custom Earthmodel, in case crust2 and standard model not'
              ' wanted. Needs to be a :py::class:cake.LayeredModel')
+    receiver_depth_min = Float.T(
+        default=0.,
+        help='Minimum receiver depth [km] for GF function grid.')
+    receiver_depth_max = Float.T(
+        default=0.,
+        help='Maximum receiver depth [km] for GF function grid.')
+    receiver_depth_delta = Float.T(
+        default=1.,
+        help='Depth receiver spacing [km] for GF function grid.')
     source_depth_min = Float.T(
         default=0.,
         help='Minimum depth [km] for GF function grid.')

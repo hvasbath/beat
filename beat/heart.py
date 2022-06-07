@@ -1299,6 +1299,7 @@ def init_seismic_targets(
                                '%i' % crust_ind, channel),  # n, s, l, c
                         lat=station.lat,
                         lon=station.lon,
+                        depth=station.depth,
                         azimuth=cha.azimuth,
                         dip=cha.dip,
                         interpolation=interpolation,
@@ -1735,7 +1736,7 @@ def get_fomosto_baseconfig(
             id='slowest',
             definition='0.8'))
 
-    return gf.ConfigTypeA(
+    return gf.ConfigTypeB(
         id='%s_%s_%.3fHz_%s' % (
             station.station,
             get_earth_model_prefix(sf.earth_model_name),
@@ -1743,7 +1744,9 @@ def get_fomosto_baseconfig(
             crust_ind),
         ncomponents=10,
         sample_rate=sf.sample_rate,
-        receiver_depth=0. * km,
+        receiver_depth_min=sf.receiver_depth_min * km,
+        receiver_depth_max=sf.receiver_depth_max * km,
+        receiver_depth_delta=sf.receiver_depth_delta * km,
         source_depth_min=sf.source_depth_min * km,
         source_depth_max=sf.source_depth_max * km,
         source_depth_delta=sf.source_depth_spacing * km,
@@ -2244,7 +2247,7 @@ def get_phase_arrival_time(engine, source, target, wavename=None, snap=True):
         wavename, cake.m2d * dist))
 
     try:
-        atime = store.t(wavename, (source.depth, dist)) + source.time
+        atime = store.t(wavename, (source.depth, target.depth, dist)) + source.time
     except TypeError:
         raise RayPathError(
             'No wave-arrival for wavename "%s" distance %f [deg]! '
