@@ -691,8 +691,9 @@ def draw_slip_dist(problem, po):
                 fig.savefig(outpath + '_%i.%s' % (i, po.outformat), dpi=po.dpi)
 
 
-
 def draw_3d_slip_distribution(problem, po):
+
+    varname_choices = ['coupling', 'slip_deficit', 'slip_variation']
 
     if po.outformat == 'svg':
         raise NotImplementedError('SVG format is not supported for this plot!')
@@ -734,15 +735,38 @@ def draw_3d_slip_distribution(problem, po):
     if gc:
         for corr in gc.corrections_config.euler_poles:
             if corr.enabled:
-                logger.info(
-                    'Found Euler pole correction assuming interseismic '
-                    'slip-rates ...')
-                slip_units = 'm/yr'
+                if len(po.varnames) > 0 and po.varnames[0] in varname_choices:
+                    from beat.ffi import backslip2coupling
+                    logger.info('Plotting %s ...!', po.varnames[0])
+                    reference['coupling'] = backslip2coupling(
+                        point=reference, fault=fault,
+                        event=problem.config.event)
+
+                    # TODO: cleanup iforgy with slip units etc ...
+                    if po.varnames[0] == 'coupling':
+                        slip_units = '%'
+                    else:
+                        slip_units = 'm/yr'
+                else:
+                    logger.info(
+                        'Found Euler pole correction assuming interseismic '
+                        'slip-rates ...')
+                    slip_units = 'm/yr'
             else:
                 logger.info(
                     'Did not find Euler pole correction-assuming '
                     'co-seismic slip ...')
                 slip_units = 'm'
+
+        if po.varnames[0] == 'slip_variation':
+            from pandas import read_csv
+            from beat.backend import extract_bounds_from_summary
+            summarydf = read_csv(
+                os.path.join(problem.outfolder, 'summary.txt'), sep='\s+')
+            bounds = extract_bounds_from_summary(
+                summarydf, varname='uparr', shape=(fault.npatches,))
+            reference['slip_variation'] = bounds[1] - bounds[0]
+            slip_units = 'm'
 
     if len(po.varnames) == 0:
         varnames = None
@@ -753,6 +777,11 @@ def draw_3d_slip_distribution(problem, po):
         slip_label = po.varnames[0]
     else:
         slip_label = 'slip'
+
+    if po.source_idxs is None:
+        source_idxs = [0, fault.nsubfaults]
+    else:
+        source_idxs = po.source_idxs
 
     outpath = os.path.join(
         problem.outfolder,
@@ -766,7 +795,7 @@ def draw_3d_slip_distribution(problem, po):
 
         gmt = slip_distribution_3d_gmt(
             fault, reference, mtrace, perspective,
-            slip_units, slip_label, varnames)
+            slip_units, slip_label, varnames, source_idxs=source_idxs)
 
         logger.info('saving figure to %s' % outpath)
         gmt.save(outpath, resolution=300, size=10)
@@ -776,40 +805,42 @@ def draw_3d_slip_distribution(problem, po):
 
 def slip_distribution_3d_gmt(
         fault, reference, mtrace=None, perspective='135/30', slip_units='m',
-        slip_label='slip', varnames=None):
+        slip_label='slip', varnames=None, gmt=None, bin_width=1,
+        cptfilepath=None, transparency=0, source_idxs=None):
 
     if len(gmtpy.detect_gmt_installations()) < 1:
         raise gmtpy.GmtPyError(
             'GMT needs to be installed for station_map plot!')
 
-    font_size = 12
-    font = '1'
-    bin_width = 1  # major grid and tick increment in [deg]
-    h = 15  # outsize in cm
-    w = 22
-
     p = 'z%s/0' % perspective
+    # bin_width = 1  # major grid and tick increment in [deg]
 
-    gmtconfig = get_gmt_config(gmtpy, h=h, w=w, fontsize=11)
+    if gmt is None:
+        font_size = 12
+        font = '1'
+        h = 15  # outsize in cm
+        w = 22
 
-    gmtconfig['MAP_FRAME_TYPE'] = 'plain'
-    gmtconfig['MAP_SCALE_HEIGHT'] = '11p'
-    #gmtconfig.pop('PS_MEDIA')
+        gmtconfig = get_gmt_config(gmtpy, h=h, w=w, fontsize=11)
 
-    gmt = gmtpy.GMT(config=gmtconfig)
+        gmtconfig['MAP_FRAME_TYPE'] = 'plain'
+        gmtconfig['MAP_SCALE_HEIGHT'] = '11p'
+        #gmtconfig.pop('PS_MEDIA')
+
+        gmt = gmtpy.GMT(config=gmtconfig)
 
     sf_lonlats = num.vstack(
-        [sf.outline(cs='lonlat') for sf in fault.iter_subfaults()])
+        [sf.outline(cs='lonlat') for sf in fault.iter_subfaults(source_idxs)])
 
     sf_xyzs = num.vstack(
-        [sf.outline(cs='xyz') for sf in fault.iter_subfaults()])
+        [sf.outline(cs='xyz') for sf in fault.iter_subfaults(source_idxs)])
     _, _, max_depth = sf_xyzs.max(axis=0) / km
 
     lon_min, lat_min = sf_lonlats.min(axis=0)
     lon_max, lat_max = sf_lonlats.max(axis=0)
 
-    lon_tolerance = 0.2
-    lat_tolerance = 0.3
+    lon_tolerance = (lon_max - lon_min) * 0.1
+    lat_tolerance = (lat_max - lat_min) * 0.1
 
     R = utility.list2string(
         [lon_min - lon_tolerance,
@@ -817,42 +848,58 @@ def slip_distribution_3d_gmt(
          lat_min - lat_tolerance,
          lat_max + lat_tolerance,
          -max_depth, 0], '/')
-    Jg = '-JM%gc' % 18
-    Jz = '-JZ%gc' % 6
+    Jg = '-JM%fc' % 20
+    Jz = '-JZ%gc' % 3
     J = [Jg, Jz]
-    B = ['-Bxa%i' % bin_width, '-Bya%i' % bin_width,
-         '-Bza10+Ldepth [km]', '-BwNEsZ']
+
+    B = ['-Bxa%gg%g' % (bin_width, bin_width),
+         '-Bya%gg%g' % (bin_width, bin_width),
+         '-Bza10+Ldepth [km]', '-BWNesZ']
     args = J + B
+
+    gmt.pscoast(
+        R=R,
+        D='a',
+        G='gray90',
+        S='lightcyan',
+        p=p,
+        *J)
 
     gmt.psbasemap(
         R=R,
         p=p,
         *args)
-    gmt.pscoast(
-        R=R,
-        D='a',
-        G='lightgrey',
-        S='lightblue',
-        p=p,
-        *J)
 
-    reference_slips = fault.get_total_slip(
-        index=None, point=reference, components=varnames)
+    if slip_label == 'coupling':
+        reference_slips = reference['coupling'] * 100 # in percent
+
+    elif slip_label == 'slip_deficit':
+        reference_slips = reference['coupling'] * fault.get_total_slip(
+            index=None, point=reference)
+
+    elif slip_label == 'slip_variation':
+        reference_slips = reference[slip_label]
+
+    else:
+        reference_slips = fault.get_total_slip(
+            index=None, point=reference, components=varnames)
 
     autos = AutoScaler(snap='on', approx_ticks=3)
 
     cmin, cmax, cinc = autos.make_scale(
         (0, reference_slips.max()), override_mode='min-max')
 
-    cptfilepath = '/tmp/tempfile.cpt'
-    gmt.makecpt(
-        C='hot',
-        I='c',
-        T='%f/%f' % (cmin, cmax),
-        out_filename=cptfilepath, suppress_defaults=True)
+    if cptfilepath is None:
+        cptfilepath = '/tmp/tempfile.cpt'
+        gmt.makecpt(
+            C='hot',
+            I='c',
+            T='%f/%f' % (cmin, cmax),
+            out_filename=cptfilepath, suppress_defaults=True)
 
     tmp_patch_fname = '/tmp/temp_patch.txt'
-    for idx in range(fault.nsubfaults):
+
+    for idx in range(*source_idxs):
         slips = fault.vector2subfault(index=idx, vector=reference_slips)
         for i, source in enumerate(fault.get_subfault_patches(idx)):
             lonlats = source.outline(cs='lonlat')
@@ -871,6 +918,7 @@ def slip_distribution_3d_gmt(
                 R=R,
                 C=cptfilepath,
                 L=True,
+                t=transparency,
                 W='0.1p',
                 p=p,
                 *J)
@@ -895,4 +943,5 @@ def slip_distribution_3d_gmt(
         finish=True)
 
     return gmt
+
 
