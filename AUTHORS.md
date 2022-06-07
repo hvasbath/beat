@@ -7,4 +7,4 @@ It is not a complete list, in the sense that many others have influenced the dev
 * Andreas Steinberg
 * Thiago Junqueira
 * So-Young Baag
-* Rebecca Salvage   
+* Rebecca Salvage
