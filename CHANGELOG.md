@@ -4,6 +4,24 @@ All notable changes to BEAT will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+
+## [1.2.0] TBD June 2022
+Contributors: Mahdi Hamidbeygi, Hannes Vasyura-Bathke
+
+### Added
+**Polarity**
+- polarity module/composite/dataset-type for inference of wave onset polarities
+- drawing of piercing points on fuzzyBB plot if polarity data exists
+- add tutorial Example 8 for polarity inference
+
+**Amplitude Spectra**
+- added string-choice `domain` to WaveMaps to choose `time` or `frequency` domain for inference
+- plotting: added spectra fits in waveform fits plot
+
+### Changed
+- split plotting module into plotting directory with submodules 
+
+
 ## [1.1.1] 6th January 2022
 
 ### Added
