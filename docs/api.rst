@@ -141,6 +141,34 @@ The :mod:`plotting` Module
    :members:
 
 
+:mod:`common`
+=============
+
+.. automodule:: plotting.common
+   :members:
+
+
+:mod:`seismic`
+==============
+
+.. automodule:: plotting.seismic
+   :members:
+
+
+:mod:`geodetic`
+===============
+
+.. automodule:: plotting.geodetic
+   :members:
+
+
+:mod:`marginals`
+================
+
+.. automodule:: plotting.marginals
+   :members:
+
+
 The :mod:`inputf` Module
 ------------------------
 

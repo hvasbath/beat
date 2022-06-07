@@ -1625,7 +1625,7 @@ def gmt_station_map_azimuthal(
         of :class:`pyrocko.model.station.Station`
     event : :class:`pyrocko.model.event.Event`
     data_cpt : str
-        path to gmt '*.cpt' file for coloring
+        path to gmt `*.cpt` file for coloring
     data : :class:`numoy.NdArray`
         1d vector length of stations to color stations
     max_distance : float

@@ -19,9 +19,9 @@ from beat import utility
 from theano import config as tconfig
 
 
-
 logger = logging.getLogger('plotting.common')
 
+km = 1000.
 
 u_nm = '$[Nm]$'
 u_km = '$[km]$'
