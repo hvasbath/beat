@@ -4164,7 +4164,7 @@ def velocities_from_strain_rate_tensor(
     Returns
     -------
     v_xyz: 2d array-like :class:`numpy.ndarray`
-        Deformation rate in [m] in x - East, y - North, z - Up Direction
+        Deformation rate in [m] in x - North, y - East, z - Up Direction
     """
 
     D = num.array([

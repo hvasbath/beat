@@ -1394,23 +1394,26 @@ def backslip2coupling(point, fault, event):
         raise ValueError('Euler Pole not in result point!')
 
     subfault_idxs = list(range(fault.nsubfaults))
-    strikevectors = fault.get_subfault_patch_attributes(
+    strikevectors_enu = fault.get_subfault_patch_attributes(
         subfault_idxs, datatype=datatype,
         component='uparr', attributes=['strikevector'])
 
-    east_shifts, north_shifts = fault.get_subfault_patch_attributes(
-        subfault_idxs, datatype,
-        attributes=['east_shift', 'north_shift'])
+    strikevectors_neu = num.zeros_like(strikevectors_enu)
+    strikevectors_neu[:, 0] = strikevectors_enu[:, 1]
+    strikevectors_neu[:, 1] = strikevectors_enu[:, 0]
+
+    centers = fault.get_event_relative_patch_centers(event=event)[:, 0:2] * km
 
     lats, lons = ne_to_latlon(
         lat0=event.lat, lon0=event.lon,
-        north_m=north_shifts, east_m=east_shifts)
+        north_m=centers[:, 1], east_m=centers[:, 0])
 
-    euler_velocities_xyz = velocities_from_pole(
+    euler_velocities_neu = velocities_from_pole(
         lats=lats, lons=lons,
         pole_lat=plat, pole_lon=plon, omega=omega, earth_shape='ellipsoid')
+
     vels_along_strike = num.abs(
-        (euler_velocities_xyz * strikevectors).sum(axis=1))
+        (euler_velocities_neu * strikevectors_neu).sum(axis=1))
 
     coupling = backslips / vels_along_strike
     coupling[coupling < 0.] = 0.  # negative slip values mean no coupling
