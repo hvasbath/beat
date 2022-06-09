@@ -16,15 +16,29 @@ import copy
 import numpy as num
 import logging
 
+# MTQT constants
 pi = num.pi
 pi4 = pi / 4.
 km = 1000.
 d2r = pi / 180.
 r2d = 180. / pi
 
-sqrt3 = num.sqrt(3.)
-sqrt2 = num.sqrt(2.)
-sqrt6 = num.sqrt(6.)
+SQRT3 = num.sqrt(3.)
+SQRT2 = num.sqrt(2.)
+SQRT6 = num.sqrt(6.)
+
+n = 1000
+BETA_MAPPING = num.linspace(0, pi, n)
+U_MAPPING = \
+    (3. / 4. * BETA_MAPPING) - \
+    (1. / 2. * num.sin(2. * BETA_MAPPING)) + \
+    (1. / 16. * num.sin(4. * BETA_MAPPING))
+
+LAMPBDA_FACTOR_MATRIX = num.array(
+    [[SQRT3, -1., SQRT2],
+     [0., 2., SQRT2],
+     [-SQRT3, -1., SQRT2]], dtype='float64')
+
 
 logger = logging.getLogger('sources')
 
@@ -410,17 +424,6 @@ class MTQTSource(gf.SourceWithMagnitude):
              'Defined: 0 <= h <= 1')
 
     def __init__(self, **kwargs):
-        n = 1000
-        self._beta_mapping = num.linspace(0, pi, n)
-        self._u_mapping = \
-            (3. / 4. * self._beta_mapping) - \
-            (1. / 2. * num.sin(2. * self._beta_mapping)) + \
-            (1. / 16. * num.sin(4. * self._beta_mapping))
-
-        self.lambda_factor_matrix = num.array(
-            [[sqrt3, -1., sqrt2],
-             [0., 2., sqrt2],
-             [-sqrt3, -1., sqrt2]], dtype='float64')
 
         self.R = get_rotation_matrix()
         self.roty_pi4 = self.R['y'](-pi4)
@@ -450,7 +453,7 @@ class MTQTSource(gf.SourceWithMagnitude):
         Lunar co-latitude, dependend on u
         """
         return w_to_beta(
-            self.w, u_mapping=self._u_mapping, beta_mapping=self._beta_mapping)
+            self.w, u_mapping=U_MAPPING, beta_mapping=BETA_MAPPING)
 
     def delta(self):
         """
@@ -461,7 +464,7 @@ class MTQTSource(gf.SourceWithMagnitude):
 
     @property
     def rho(self):
-        return mtm.magnitude_to_moment(self.magnitude) * sqrt2
+        return mtm.magnitude_to_moment(self.magnitude) * SQRT2
 
     @property
     def theta(self):
@@ -486,7 +489,7 @@ class MTQTSource(gf.SourceWithMagnitude):
         sin_gamma = num.sin(self.gamma)
         cos_gamma = num.cos(self.gamma)
         vec = num.array([sin_beta * cos_gamma, sin_beta * sin_gamma, cos_beta])
-        return 1. / sqrt6 * self.lambda_factor_matrix.dot(vec) * self.rho
+        return 1. / SQRT6 * LAMPBDA_FACTOR_MATRIX.dot(vec) * self.rho
 
     @property
     def lune_lambda_matrix(self):
