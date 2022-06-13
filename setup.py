@@ -37,25 +37,23 @@ class NotInAGitRepos(Exception):
 
 
 def git_infos():
+
+    from subprocess import run, PIPE
     '''Query git about sha1 of last commit and check if there are local \
        modifications.'''
-
-    from subprocess import Popen, PIPE
     import re
 
     def q(c):
-        return Popen(c, stdout=PIPE).communicate()[0]
+        return run(c, stdout=PIPE, stderr=PIPE, check=True).stdout
 
     if not op.exists('.git'):
         raise NotInAGitRepos()
 
-    sha1 = q(['git', 'log', '--pretty=oneline', '-n1'])
-
+    sha1 = q(['git', 'log', '--pretty=oneline', '-n1']).split()[0]
     sha1 = re.sub(br'[^0-9a-f]', '', sha1)
     sha1 = str(sha1.decode('ascii'))
-    sstatus = q(['git', 'status'])
-    local_modifications = bool(re.search(br'^#\s+modified:', sstatus,
-                                         flags=re.M))
+    sstatus = q(['git', 'status', '--porcelain', '-uno'])
+    local_modifications = bool(sstatus.strip())
     return sha1, local_modifications
 
 
@@ -73,7 +71,10 @@ def make_info_module(packname, version):
             combi += '-modified'
 
     except (OSError, CalledProcessError, NotInAGitRepos):
-        pass
+       print(
+           'Failed to include git commit ID into installation.',
+           file=sys.stderr)
+
 
     datestr = time.strftime('%Y-%m-%d_%H:%M:%S')
     combi += '-%s' % datestr

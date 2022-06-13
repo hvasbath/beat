@@ -730,7 +730,8 @@ class SeismicConfig(Object):
 class PolarityGFConfig(NonlinearGFConfig):
 
     code = String.T(
-        optional=True, default='cake')
+        default='cake',
+        help='Raytracing code to use for takeoff-angle computations.')
     reference_location = ReferenceLocation.T(
         default=None,
         help="Reference location for the midpoint of the "

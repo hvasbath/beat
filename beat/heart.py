@@ -325,6 +325,7 @@ class FilterBase(Object):
         help='Upper corner frequency')
     ffactor = Float.T(
         default=1.5,
+        optional=True,
         help='Factor for tapering the corner frequencies in spectral domain.')
 
     def get_lower_corner(self):
@@ -748,6 +749,12 @@ class Parameter(Object):
                          dtype=num.float)
 
 
+phase_id_mapping = {
+    'any_SH': 'any_S',
+    'any_SV': 'any_S',
+    'any_P': 'any_P'}
+
+
 class PolarityTarget(gf.meta.Receiver):
     '''
     A polarity computation request depending on receiver information.
@@ -786,7 +793,7 @@ class PolarityTarget(gf.meta.Receiver):
     def get_phase_definition(self, store):
         if self._phase is None:
             for phase in store.config.tabulated_phases:
-                if phase.id == self.phase_id:
+                if phase.id == phase_id_mapping[self.phase_id]:
                     self._phase = phase
 
         return self._phase
@@ -794,7 +801,7 @@ class PolarityTarget(gf.meta.Receiver):
     def get_takeoff_angle_table(self, source, store):
 
         takeoff_angle = store.get_stored_attribute(
-            self.phase_id,
+            phase_id_mapping[self.phase_id],
             'takeoff_angle',
             (source.depth, self.distance))
         logger.debug('Takeoff-angle table %f station %s' % (
