@@ -1098,8 +1098,9 @@ def extract_mt_components(problem, po, include_magnitude=False):
 
 
 def draw_ray_piercing_points_bb(
-        ax, takeoff_angles_rad, azimuths_rad, polarities,
-        size=1, position=(0, 0), transform=None, projection='lambert'):
+        ax, takeoff_angles_rad, azimuths_rad, polarities, nomask=False,
+        markersize=5, size=1, position=(0, 0), transform=None,
+        projection='lambert'):
 
     # TODO other color coding for any_SH/V radiation patterns?
 
@@ -1112,14 +1113,17 @@ def draw_ray_piercing_points_bb(
     x = r * num.sin(azimuths_rad) + position[1]
     y = r * num.cos(azimuths_rad) + position[0]
 
-    xp, yp = x[polarities >= 0], y[polarities >= 0]
-    xt, yt = x[polarities < 0], y[polarities < 0]
-    ax.plot(
-        xp, yp, 'D',
-        ms=5, mew=0.5, mec='black', mfc='white', transform=transform)
-    ax.plot(
-        xt, yt, 's',
-        ms=6, mew=0.5, mec='white', mfc='black', transform=transform)
+    if not nomask:
+        xp, yp = x[polarities >= 0], y[polarities >= 0]
+        xt, yt = x[polarities < 0], y[polarities < 0]
+        ax.plot(
+            xp, yp, 'D',
+            ms=markersize, mew=0.5, mec='black', mfc='white', transform=transform)
+        ax.plot(
+            xt, yt, 's',
+            ms=markersize, mew=0.5, mec='white', mfc='black', transform=transform)
+    else:
+        ax.scatter(x, y, markersize, polarities, transform=transform)
 
 
 def draw_fuzzy_beachball(problem, po):

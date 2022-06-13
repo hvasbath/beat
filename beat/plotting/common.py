@@ -8,6 +8,8 @@ from pyrocko.guts import (Object, String, Dict, List,
 from pyrocko import gmtpy
 from pyrocko import orthodrome as otd
 
+from pymc3 import quantiles
+
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator

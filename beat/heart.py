@@ -3805,7 +3805,9 @@ def pol_synthetics(
     """
     if radiation_weights is None:
         if takeoff_angles_rad is None or azimuths_rad is None:
-            raise ValueError('Need to either provide radiation weights or ')
+            raise ValueError(
+                'Need to either provide radiation weights or '
+                'takeoff-angles and azimuths!')
         else:
             radiation_weights = calculate_radiation_weights(
                 takeoff_angles_rad, azimuths_rad, wavename=wavename)

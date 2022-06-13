@@ -1,5 +1,5 @@
 import unittest
-from beat.heart import (radiation_weights, radiation_matmul)
+from beat.heart import (calculate_radiation_weights, radiation_matmul)
 from beat.utility import get_random_uniform
 from pyrocko.plot import beachball
 
@@ -57,7 +57,7 @@ class TestPolarity(unittest.TestCase):
             t1 = time()
 
             t2 = time()
-            rad_weights = radiation_weights(
+            rad_weights = calculate_radiation_weights(
                 self.takeoff_angles_rad, self.azimuths_rad,
                 wavename=wavename)
             amps_weights = rad_weights.T.dot(self.m6arr)
@@ -78,7 +78,7 @@ class TestPolarity(unittest.TestCase):
         from matplotlib import pyplot as plt
         from beat.plotting import draw_ray_piercing_points_bb
 
-        nstations = 1000
+        nstations = 2000
         takeoff_angles_rad = num.deg2rad(
             get_random_uniform(lower=1, upper=90, dimension=nstations))
         azimuths_rad = num.deg2rad(
@@ -100,7 +100,7 @@ class TestPolarity(unittest.TestCase):
         wavenames = ['any_P', 'any_SH', 'any_SV']
         for i, wavename in enumerate(wavenames):
             ax = axs[i]
-            rad_weights = radiation_weights(
+            rad_weights = calculate_radiation_weights(
                 takeoff_angles_rad, azimuths_rad, wavename=wavename)
             amps_weights = rad_weights.T.dot(self.m6arr)
 
@@ -110,7 +110,8 @@ class TestPolarity(unittest.TestCase):
                 num.atleast_2d(self.m6arr), ax, best_mt=None, **kwargs)
             draw_ray_piercing_points_bb(
                 ax, takeoff_angles_rad, azimuths_rad, amps_weights,
-                size=size, position=position, transform=transform)
+                size=size, position=position, transform=transform, nomask=True,
+                markersize=8)
             ax.set_title(wavename, fontsize=12)
 
         plt.show()
