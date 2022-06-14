@@ -5,8 +5,9 @@ import numpy as num
 
 from pyrocko.guts import (Object, String, Dict, List,
                           Bool, Int, load, StringChoice)
-from pyrocko import gmtpy
+
 from pyrocko import orthodrome as otd
+from pyrocko.plot import mpl_graph_color
 
 from pymc3 import quantiles
 
