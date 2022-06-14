@@ -14,6 +14,7 @@ from pyrocko.plot import (mpl_papersize, mpl_init, mpl_graph_color,
 from pyrocko.guts import load
 
 from pyrocko import trace
+from pyrocko.moment_tensor import MomentTensor
 
 from pymc3.plots.utils import make_2d
 
@@ -1126,6 +1127,195 @@ def draw_ray_piercing_points_bb(
         ax.scatter(x, y, markersize, polarities, transform=transform)
 
 
+def lower_focalsphere_angles(grid_resolution, projection):
+
+    nx = grid_resolution
+    ny = grid_resolution
+
+    x = num.linspace(-1., 1., nx)
+    y = num.linspace(-1., 1., ny)
+
+    vecs2 = num.zeros((nx * ny, 2), dtype=num.float64)
+    vecs2[:, 0] = num.tile(x, ny)
+    vecs2[:, 1] = num.repeat(y, nx)
+
+    ii_ok = vecs2[:, 0]**2 + vecs2[:, 1]**2 <= 1.0
+    amps = num.full(nx * ny, num.nan, dtype=num.float64)
+
+    amps[ii_ok] = 0.
+
+    nmts = 4
+    fig, axs = plt.subplots(
+            nrows=nmts, ncols=2, figsize=mpl_papersize('a6', 'landscape'))
+
+    for i in range(nmts):
+
+        strikes = [0]
+        dips = [0]
+        rakes = [0,10,20,30]
+
+        vert_dc_mt = MomentTensor(strike=strikes[0], dip=dips[0], rake=rakes[i])
+       # vert_dc_mt = beachball.deco_part(vert_dc_mt, mt_type='full', view='top')
+        print(vert_dc_mt)
+        ep, en, et, vp, vn, vt = vert_dc_mt.eigensystem()
+        print(vp, vn, vt)
+
+        vecs3_ok = beachball.inverse_project(vecs2[ii_ok, :], projection)
+
+        to_e = num.vstack((vn, vt, vp))
+
+        vecs_e = num.dot(to_e, vecs3_ok.T).T
+        rtp = beachball.numpy_xyz2rtp(vecs_e)
+
+        atheta, aphi = rtp[:, 1], rtp[:, 2]
+
+        atheta_re = num.zeros_like(amps)
+        atheta_re[ii_ok] = atheta
+
+        aphi_re = num.zeros_like(amps)
+        aphi_re[ii_ok] = aphi
+        atheta_re = num.reshape(atheta_re * 180/ num.pi, (ny, nx))
+        aphi_re = num.reshape(aphi_re * 180/ num.pi, (ny, nx))
+
+        im1 = axs[i, 0].imshow(atheta_re)
+        plt.colorbar(im1)
+        im2 = axs[i, 1].imshow(aphi_re)
+        plt.colorbar(im2)
+    return atheta_re, aphi_re
+
+
+def mts2amps(mts, projection, beachball_type, grid_resolution=200, mask=True,
+             view='top'):
+
+    n_balls = len(mts)
+
+    atheta, aphi = lower_focalsphere_angles(grid_resolution, projection)
+
+    for mt in mts:
+
+
+        plt.show()
+        amps_ok = ep * num.cos(atheta)**2 + (
+            en * num.cos(aphi)**2 + et * num.sin(aphi)**2) * num.sin(atheta)**2
+
+        if mask:
+            amps_ok[amps_ok > 0] = 1.
+            amps_ok[amps_ok < 0] = 0.
+
+        amps[ii_ok] += amps_ok
+
+    return num.reshape(amps, (ny, nx)) / n_balls, x, y
+
+
+def plot_fuzzy_beachball_mpl_pixmap(
+        mts, axes,
+        best_mt=None,
+        beachball_type='deviatoric',
+        position=(0., 0.),
+        size=None,
+        zorder=0,
+        color_t='red',
+        color_p='white',
+        edgecolor='black',
+        best_color='red',
+        linewidth=2,
+        alpha=1.0,
+        projection='lambert',
+        size_units='data',
+        grid_resolution=100,
+        method='imshow',
+        view='top'):
+    '''
+    Plot fuzzy beachball from a list of given MomentTensors
+
+    :param mts: list of
+        :py:class:`pyrocko.moment_tensor.MomentTensor` object or an
+        array or sequence which can be converted into an MT object
+    :param best_mt: :py:class:`pyrocko.moment_tensor.MomentTensor` object or
+        an array or sequence which can be converted into an MT object
+        of most likely or minimum misfit solution to extra highlight
+    :param best_color: mpl color for best MomentTensor edges,
+        polygons are not plotted
+
+    See plot_beachball_mpl for other arguments
+    '''
+    from matplotlib.colors import LinearSegmentedColormap
+
+    if size_units == 'points':
+        raise BeachballError(
+            'size_units="points" not supported in '
+            'plot_fuzzy_beachball_mpl_pixmap')
+
+    transform, position, size = beachball.choose_transform(
+        axes, size_units, position, size)
+
+    amps, x, y = mts2amps(
+        mts,
+        grid_resolution=grid_resolution,
+        projection=projection,
+        beachball_type=beachball_type,
+        mask=True,
+        view=view)
+
+    ncolors = 256
+    cmap = LinearSegmentedColormap.from_list(
+        'dummy', [color_p, color_t], N=ncolors)
+
+    levels = num.linspace(0, 1., ncolors)
+    if method == 'contourf':
+        axes.contourf(
+            position[0] + y * size, position[1] + x * size, amps.T,
+            levels=levels,
+            cmap=cmap,
+            transform=transform,
+            zorder=zorder,
+            alpha=alpha)
+
+    elif method == 'imshow':
+        axes.imshow(
+            amps.T,
+            extent=(
+                position[0] + y[0] * size,
+                position[0] + y[-1] * size,
+                position[1] - x[0] * size,
+                position[1] - x[-1] * size),
+            cmap=cmap,
+            transform=transform,
+            zorder=zorder-0.1,
+            alpha=alpha)
+    else:
+        assert False, 'invalid `method` argument'
+
+    # draw optimum edges
+    if best_mt is not None:
+        best_amps, bx, by = mts2amps(
+            [best_mt],
+            grid_resolution=grid_resolution,
+            projection=projection,
+            beachball_type=beachball_type,
+            mask=False)
+
+        axes.contour(
+            position[0] + by * size, position[1] + bx * size, best_amps.T,
+            levels=[0.],
+            colors=[best_color],
+            linewidths=linewidth,
+            transform=transform,
+            zorder=zorder,
+            alpha=alpha)
+
+    phi = num.linspace(0., 2 * PI, 361)
+    x = num.cos(phi)
+    y = num.sin(phi)
+    axes.plot(
+        position[0] + x * size, position[1] + y * size,
+        linewidth=linewidth,
+        color=edgecolor,
+        transform=transform,
+        zorder=zorder,
+        alpha=alpha)
+
+
 def draw_fuzzy_beachball(problem, po):
 
     if problem.config.problem_config.n_sources > 1:
@@ -1166,11 +1356,11 @@ def draw_fuzzy_beachball(problem, po):
         transform, position, size = beachball.choose_transform(
             axes, kwargs['size_units'], kwargs['position'], kwargs['size'])
 
-        beachball.plot_fuzzy_beachball_mpl_pixmap(
+        plot_fuzzy_beachball_mpl_pixmap(
             m6s, axes, best_mt=best_mt, best_color='white', **kwargs)
 
         if best_mt is not None:
-            best_amps, bx, by = beachball.mts2amps(
+            best_amps, bx, by = mts2amps(
                 [best_mt],
                 grid_resolution=kwargs['grid_resolution'],
                 projection=kwargs['projection'],
