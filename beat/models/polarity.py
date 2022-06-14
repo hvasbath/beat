@@ -47,7 +47,7 @@ class PolarityComposite(Composite):
         self.synthesizers = {}
         self.sources = sources
         self.config = polc
-        self.gamma = shared(0.01, name='gamma', borrow=True)
+        self.gamma = shared(0.2, name='gamma', borrow=True)
         self.fixed_rvs = {}
 
         # TODO think about dataset class, now in config ... maybe very tedious
