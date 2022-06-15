@@ -173,7 +173,7 @@ def draw_moment_rate(problem, po):
 
 
 def source_geometry(fault, ref_sources, event, datasets=None, values=None,
-                    cmap=None, title=None, show=True):
+                    cmap=None, title=None, show=True, cbounds=None, clabel=''):
     """
     Plot source geometry in 3d rotatable view
 
@@ -221,15 +221,16 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
 
 
     def set_axes_equal(ax, axes='xyz'):
-        '''
+        """
         Make axes of 3D plot have equal scale so that spheres appear as
         spheres, cubes as cubes, etc..
         This is one possible solution to Matplotlib's
         ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
 
-        Input
-          ax: a matplotlib axis, e.g., as output from plt.gca().
-        '''
+        Parameters
+        ----------
+        ax: a matplotlib axis, e.g., as output from plt.gca().
+        """
 
         limits = num.array([
             ax.get_xlim3d(),
@@ -241,7 +242,7 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
         radius = 0.5 * num.max(num.abs(limits[:, 1] - limits[:, 0]))
         set_axes_radius(ax, origin, radius, axes=axes)
 
-    fig = plt.figure(figsize=mpl_papersize('a4', 'landscape'))
+    fig = plt.figure(figsize=mpl_papersize('a5', 'landscape'))
     ax = fig.add_subplot(111, projection='3d')
     extfs = fault.get_all_subfaults()
 
@@ -265,21 +266,33 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
                 patch.east_shift + shift_ne[1],
                 patch.north_shift + shift_ne[0], patch.center[2] * -1.,
                 str(i + fault.cum_subfault_npatches[idx]), zorder=3,
-                fontsize=10)
+                fontsize=8)
 
     if values is not None:
 
         if cmap is None:
-            cmap = plt.cm.get_cmap('jet')
+            cmap = plt.cm.get_cmap('RdYlBu_r')
 
         poly_patches = Poly3DCollection(
             verts=arr_coords, zorder=1, cmap=cmap)
         poly_patches.set_array(values)
-        poly_patches.set_clim(values.min(), values.max())
+
+        if cbounds is None:
+            poly_patches.set_clim(values.min(), values.max())
+        else:
+            poly_patches.set_clim(*cbounds)
+
         poly_patches.set_alpha(0.6)
         poly_patches.set_edgecolor('k')
         ax.add_collection(poly_patches)
-        plt.colorbar(poly_patches)
+        cbs = plt.colorbar(
+            poly_patches,
+            ax=ax,
+            orientation='vertical',
+            cmap=cmap)
+
+        if clabel is not None:
+            cbs.set_label(clabel)
 
     if datasets:
         for dataset in datasets:
@@ -298,6 +311,17 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
     ax.set_ylabel('North_shift [km]')
     ax.set_xlabel('East_shift [km]')
     set_axes_equal(ax, axes='xy')
+
+    strikes = num.array([extf.strike for extf in extfs])
+    dips = num.array([extf.strike for extf in extfs])
+
+    azim = strikes.mean() - 270
+    elev = dips.mean()
+    logger.debug(
+        'Viewing azimuth %s and elevation angles %s', azim, ax.elev)
+    ax.view_init(ax.elev, azim)
+
+
     if title is not None:
         ax.set_title(title)
 
@@ -305,7 +329,6 @@ def source_geometry(fault, ref_sources, event, datasets=None, values=None,
         plt.show()
 
     return fig, ax
-
 
 
 def fuzzy_rupture_fronts(

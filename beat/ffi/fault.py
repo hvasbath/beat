@@ -1650,7 +1650,7 @@ def optimize_discretization(
                 # calculate resolution matrix and take trace
                 if(0):
                     # for debugging
-                    print('full_GFs', full_GFs.shape)
+                    print('full_GFs', comp_gfs.shape)
                     print('V', V.shape)
                     print('l', l.shape)
                     print('L', L.shape)
