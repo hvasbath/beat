@@ -709,3 +709,13 @@ def draw_line_on_array(
     return grid, extent
 
 
+def get_nice_plot_bounds(dmin, dmax, override_mode='min-max'):
+    """
+    Get nice min, max and increment for plots
+    """
+    from pyrocko.plot import AutoScaler, nice_value
+    inc = nice_value(dmax - dmin)
+    autos = AutoScaler(inc=inc, snap='on', approx_ticks=2)
+    return autos.make_scale(
+        (dmin, dmax),
+        override_mode=override_mode)
