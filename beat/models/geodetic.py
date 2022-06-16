@@ -439,7 +439,7 @@ class GeodeticComposite(Composite):
             if 0:
                 from matplotlib import pyplot as plt
                 fig, ax = plt.subplots(1, 1)
-                im = ax.imshow(data_trc.covariance.data)
+                im = ax.imshow(dataset.covariance.data)
                 plt.colorbar(im)
                 plt.show()
 

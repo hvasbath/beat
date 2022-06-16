@@ -2099,6 +2099,7 @@ def command_export(args):
 
     rpoint = heart.ResultPoint(
         point=point, post_llk=options.post_llk, variance_reductions=var_reds)
+    rpoint.regularize()
     rpoint.validate()
 
     outpoint_name = pjoin(
