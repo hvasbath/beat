@@ -1,6 +1,7 @@
 import unittest
 from beat.heart import (calculate_radiation_weights, radiation_matmul)
 from beat.utility import get_random_uniform
+from beat.plotting import plot_fuzzy_beachball_mpl_pixmap
 from pyrocko.plot import beachball
 
 from pyrocko.moment_tensor import symmat6, MomentTensor
@@ -106,8 +107,8 @@ class TestPolarity(unittest.TestCase):
 
             transform, position, size = beachball.choose_transform(
                 ax, kwargs['size_units'], kwargs['position'], kwargs['size'])
-            beachball.plot_fuzzy_beachball_mpl_pixmap(
-                num.atleast_2d(self.m6arr), ax, best_mt=None, **kwargs)
+            plot_fuzzy_beachball_mpl_pixmap(
+                num.atleast_2d(self.m6arr), ax, wavename=wavename, best_mt=None, **kwargs)
             draw_ray_piercing_points_bb(
                 ax, takeoff_angles_rad, azimuths_rad, amps_weights,
                 size=size, position=position, transform=transform, nomask=True,

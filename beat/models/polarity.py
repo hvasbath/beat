@@ -47,11 +47,9 @@ class PolarityComposite(Composite):
         self.synthesizers = {}
         self.sources = sources
         self.config = polc
-        self.gamma = shared(0.01, name='gamma', borrow=True)
+        self.gamma = shared(0.2, name='gamma', borrow=True)
         self.fixed_rvs = {}
-
-        # TODO think about dataset class, now in config ... maybe very tedious
-        self.polmaps = [None] * self.nevents
+        self.polmaps = []
 
         self.engine = LocalEngine(
             store_superdirs=[polc.gf_config.store_superdir])
@@ -86,7 +84,7 @@ class PolarityComposite(Composite):
             pmap.prepare_data()
             pmap.update_targets(
                 self.engine, self.sources[pmap.config.event_idx], check=True)
-            self.polmaps[i] = pmap
+            self.polmaps.append(pmap)
 
     @property
     def is_location_fixed(self):

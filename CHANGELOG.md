@@ -11,7 +11,9 @@ Contributors: Mahdi Hamidbeygi, Hannes Vasyura-Bathke
 ### Added
 **Polarity**
 - polarity module/composite/dataset-type for inference of wave onset polarities
+- joint inference of P, Sh and Sv wave-polarities
 - drawing of piercing points on fuzzyBB plot if polarity data exists
+- drawing of fuzzyBBs for Sh and Sv waves
 - add tutorial Example 8 for polarity inference
 
 **Amplitude Spectra**

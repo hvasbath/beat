@@ -14,11 +14,13 @@ from pyrocko.plot import (mpl_papersize, mpl_init, mpl_graph_color,
 from pyrocko.guts import load
 
 from pyrocko import trace
+from pyrocko.moment_tensor import to6
 
 from pymc3.plots.utils import make_2d
 
 from beat import utility
 from beat.models import Stage, load_stage
+from beat.heart import calculate_radiation_weights
 
 from .common import (get_gmt_config, format_axes, draw_line_on_array,
                      get_result_point, plot_inset_hist,
@@ -26,7 +28,8 @@ from .common import (get_gmt_config, format_axes, draw_line_on_array,
 
 
 km = 1000.
-
+SQRT2 = num.sqrt(2.)
+PI = num.pi
 
 logger = logging.getLogger('plotting.seismic')
 
@@ -1099,10 +1102,8 @@ def extract_mt_components(problem, po, include_magnitude=False):
 
 def draw_ray_piercing_points_bb(
         ax, takeoff_angles_rad, azimuths_rad, polarities, nomask=False,
-        markersize=5, size=1, position=(0, 0), transform=None,
+        markersize=5, size=1, position=(0, 0), transform=None, stations=None,
         projection='lambert'):
-
-    # TODO other color coding for any_SH/V radiation patterns?
 
     toa_idx = takeoff_angles_rad >= (num.pi / 2.)
     takeoff_angles_rad[toa_idx] = num.pi - takeoff_angles_rad[toa_idx]
@@ -1124,6 +1125,213 @@ def draw_ray_piercing_points_bb(
             ms=markersize, mew=0.5, mec='white', mfc='black', transform=transform)
     else:
         ax.scatter(x, y, markersize, polarities, transform=transform)
+
+    if stations is not None:
+        if len(stations) != x.size:
+            raise ValueError('Number of stations is inconsistent with polarity data!')
+
+        for i_s, station in enumerate(stations):
+            ax.text(
+                x[i_s], y[i_s], '{},{:2.1f}'.format(station.station,
+                polarities[i_s]), color='red', fontsize=5)
+
+
+def lower_focalsphere_angles(grid_resolution, projection):
+
+    nx = grid_resolution
+    ny = grid_resolution
+
+    x = num.linspace(-1., 1., nx)
+    y = num.linspace(-1., 1., ny)
+
+    vecs2 = num.zeros((nx * ny, 2), dtype=num.float64)
+    vecs2[:, 0] = num.tile(x, ny)
+    vecs2[:, 1] = num.repeat(y, nx)
+
+    ii_ok = vecs2[:, 0]**2 + vecs2[:, 1]**2 <= 1.0
+    amps = num.full(nx * ny, num.nan, dtype=num.float64)
+
+    amps[ii_ok] = 0.
+
+    vp = num.array([1, 0, 0])
+    vt = num.array([0, 1, 0])
+    vn = num.array([0, 0, 1])
+
+    vecs3_ok = beachball.inverse_project(vecs2[ii_ok, :], projection)
+
+    to_e = num.vstack((vp, vt, vn))
+
+    vecs_e = num.dot(to_e, vecs3_ok.T).T
+    rtp = beachball.numpy_xyz2rtp(vecs_e)
+
+    atheta, aphi = rtp[:, 1], rtp[:, 2]
+
+    if 0:
+        atheta_re = num.zeros_like(amps)
+        atheta_re[ii_ok] = atheta
+
+        aphi_re = num.zeros_like(amps)
+        aphi_re[ii_ok] = aphi
+        atheta_re = num.reshape(atheta_re * 180/ num.pi, (ny, nx))
+        aphi_re = num.reshape(aphi_re * 180/ num.pi, (ny, nx)).T
+
+        print("theta", atheta_re.min(), atheta_re.max())
+        print("phi", aphi_re.min(), aphi_re.max())
+
+        fig, axs = plt.subplots(
+            nrows=1, ncols=2, figsize=mpl_papersize('a6', 'landscape'))
+
+        im1 = axs[0].imshow(atheta_re)
+        plt.colorbar(im1)
+        im2 = axs[1].imshow(aphi_re, origin='lower')
+        plt.colorbar(im2)
+    return amps, atheta, aphi, ii_ok, x, y
+
+
+def mts2amps(mts, projection, beachball_type, grid_resolution=200, mask=True,
+             view='top', wavename='any_P'):
+
+    n_balls = len(mts)
+    nx = ny = grid_resolution
+
+    amps, takeoff_angles_rad, azimuths_rad, ii_ok, x, y = lower_focalsphere_angles(
+        grid_resolution, projection)
+
+    for mt in mts:
+
+        mt = beachball.deco_part(mt, mt_type=beachball_type, view=view)
+
+        radiation_weights = calculate_radiation_weights(
+                takeoff_angles_rad, azimuths_rad, wavename=wavename)
+
+        m9 = mt.m()
+
+        if isinstance(m9, num.matrix):
+            m9 = m9.A
+
+        m0_unscaled = num.sqrt(num.sum(m9 ** 2)) / SQRT2
+        m9 /= m0_unscaled
+        amps_ok = radiation_weights.T.dot(to6(m9))
+
+        if mask:
+            amps_ok[amps_ok > 0] = 1.
+            amps_ok[amps_ok < 0] = 0.
+
+        amps[ii_ok] += amps_ok
+
+    return num.reshape(amps, (ny, nx)) / n_balls, x, y
+
+
+def plot_fuzzy_beachball_mpl_pixmap(
+        mts, axes,
+        best_mt=None,
+        beachball_type='deviatoric',
+        wavename='any_P',
+        position=(0., 0.),
+        size=None,
+        zorder=0,
+        color_t='red',
+        color_p='white',
+        edgecolor='black',
+        best_color='red',
+        linewidth=2,
+        alpha=1.0,
+        projection='lambert',
+        size_units='data',
+        grid_resolution=100,
+        method='imshow',
+        view='top'):
+    '''
+    Plot fuzzy beachball from a list of given MomentTensors
+
+    :param mts: list of
+        :py:class:`pyrocko.moment_tensor.MomentTensor` object or an
+        array or sequence which can be converted into an MT object
+    :param best_mt: :py:class:`pyrocko.moment_tensor.MomentTensor` object or
+        an array or sequence which can be converted into an MT object
+        of most likely or minimum misfit solution to extra highlight
+    :param best_color: mpl color for best MomentTensor edges,
+        polygons are not plotted
+
+    See plot_beachball_mpl for other arguments
+    '''
+    from matplotlib.colors import LinearSegmentedColormap
+
+    if size_units == 'points':
+        raise beachball.BeachballError(
+            'size_units="points" not supported in '
+            'plot_fuzzy_beachball_mpl_pixmap')
+
+    transform, position, size = beachball.choose_transform(
+        axes, size_units, position, size)
+
+    amps, x, y = mts2amps(
+        mts,
+        grid_resolution=grid_resolution,
+        projection=projection,
+        beachball_type=beachball_type,
+        mask=True,
+        wavename=wavename,
+        view=view)
+
+    ncolors = 256
+    cmap = LinearSegmentedColormap.from_list(
+        'dummy', [color_p, color_t], N=ncolors)
+
+    levels = num.linspace(0, 1., ncolors)
+    if method == 'contourf':
+        axes.contourf(
+            position[0] + y * size, position[1] + x * size, amps.T,
+            levels=levels,
+            cmap=cmap,
+            transform=transform,
+            zorder=zorder,
+            alpha=alpha)
+
+    elif method == 'imshow':
+        axes.imshow(
+            amps.T,
+            extent=(
+                position[0] + y[0] * size,
+                position[0] + y[-1] * size,
+                position[1] - x[0] * size,
+                position[1] - x[-1] * size),
+            cmap=cmap,
+            transform=transform,
+            zorder=zorder-0.1,
+            alpha=alpha)
+    else:
+        assert False, 'invalid `method` argument'
+
+    # draw optimum edges
+    if best_mt is not None:
+        best_amps, bx, by = mts2amps(
+            [best_mt],
+            grid_resolution=grid_resolution,
+            projection=projection,
+            wavename=wavename,
+            beachball_type=beachball_type,
+            mask=False)
+
+        axes.contour(
+            position[0] + by * size, position[1] + bx * size, best_amps.T,
+            levels=[0.],
+            colors=[best_color],
+            linewidths=linewidth,
+            transform=transform,
+            zorder=zorder,
+            alpha=alpha)
+
+    phi = num.linspace(0., 2 * PI, 361)
+    x = num.cos(phi)
+    y = num.sin(phi)
+    axes.plot(
+        position[0] + x * size, position[1] + y * size,
+        linewidth=linewidth,
+        color=edgecolor,
+        transform=transform,
+        zorder=zorder,
+        alpha=alpha)
 
 
 def draw_fuzzy_beachball(problem, po):
@@ -1152,63 +1360,71 @@ def draw_fuzzy_beachball(problem, po):
         'zorder': 0,
         'grid_resolution': 400}
 
-    fig = plt.figure(figsize=(4., 4.))
-    fig.subplots_adjust(left=0., right=1., bottom=0., top=1.)
-    axes = fig.add_subplot(1, 1, 1)
+    if 'polarity' in problem.config.problem_config.datatypes:
+        composite = problem.composites['polarity']
+        wavenames = [pmap.config.name for pmap in composite.polmaps]
+    else:
+        wavenames = ['any_P']
 
-    outpath = os.path.join(
-        problem.outfolder,
-        po.figure_dir,
-        'fuzzy_beachball_%i_%s_%i.%s' % (
-            po.load_stage, llk_str, po.nensemble, po.outformat))
+    for k_pamp, wavename in enumerate(wavenames):
 
-    if not os.path.exists(outpath) or po.force or po.outformat == 'display':
-        transform, position, size = beachball.choose_transform(
-            axes, kwargs['size_units'], kwargs['position'], kwargs['size'])
+        outpath = os.path.join(
+            problem.outfolder,
+            po.figure_dir,
+            'fuzzy_beachball_%i_%s_%i_%s.%s' % (
+                po.load_stage, llk_str, po.nensemble, wavename, po.outformat))
 
-        beachball.plot_fuzzy_beachball_mpl_pixmap(
-            m6s, axes, best_mt=best_mt, best_color='white', **kwargs)
+        if not os.path.exists(outpath) or po.force or po.outformat == 'display':
+            fig = plt.figure(figsize=(4., 4.))
+            fig.subplots_adjust(left=0., right=1., bottom=0., top=1.)
+            axes = fig.add_subplot(1, 1, 1)
 
-        if best_mt is not None:
-            best_amps, bx, by = beachball.mts2amps(
-                [best_mt],
-                grid_resolution=kwargs['grid_resolution'],
-                projection=kwargs['projection'],
-                beachball_type=kwargs['beachball_type'],
-                mask=False)
+            transform, position, size = beachball.choose_transform(
+                axes, kwargs['size_units'], kwargs['position'], kwargs['size'])
 
-            axes.contour(
-                position[0] + by * size, position[1] + bx * size, best_amps.T,
-                levels=[0.],
-                colors=['black'],
-                linestyles='dashed',
-                linewidths=kwargs['linewidth'],
-                transform=transform,
-                zorder=kwargs['zorder'],
-                alpha=kwargs['alpha'])
+            plot_fuzzy_beachball_mpl_pixmap(
+                m6s, axes, best_mt=best_mt, best_color='white',
+                wavename=wavename, **kwargs)
 
-        if 'polarity' in problem.config.problem_config.datatypes:
-            composite = problem.composites['polarity']
-            for pmap in composite.polmaps:
+            if best_mt is not None:
+                best_amps, bx, by = mts2amps(
+                    [best_mt],
+                    grid_resolution=kwargs['grid_resolution'],
+                    projection=kwargs['projection'],
+                    beachball_type=kwargs['beachball_type'],
+                    wavename=wavename,
+                    mask=False)
+
+                axes.contour(
+                    position[0] + by * size, position[1] + bx * size, best_amps.T,
+                    levels=[0.],
+                    colors=['black'],
+                    linestyles='dashed',
+                    linewidths=kwargs['linewidth'],
+                    transform=transform,
+                    zorder=kwargs['zorder'],
+                    alpha=kwargs['alpha'])
+
+            if 'polarity' in problem.config.problem_config.datatypes:
+                pmap = composite.polmaps[k_pamp]
                 draw_ray_piercing_points_bb(
                     axes, pmap.get_takeoff_angles_rad(),
                     pmap.get_azimuths_rad(), pmap.get_polarities(),
+                    stations=pmap.stations,
                     size=size, position=position, transform=transform)
 
-            # axes.legend(['','Compression','Tensile'])
+            axes.set_xlim(0., 10.)
+            axes.set_ylim(0., 10.)
+            axes.set_axis_off()
 
-        axes.set_xlim(0., 10.)
-        axes.set_ylim(0., 10.)
-        axes.set_axis_off()
+            if not po.outformat == 'display':
+                logger.info('saving figure to %s' % outpath)
+                fig.savefig(outpath, dpi=po.dpi)
+            else:
+                plt.show()
 
-        if not po.outformat == 'display':
-            logger.info('saving figure to %s' % outpath)
-            fig.savefig(outpath, dpi=po.dpi)
         else:
-            plt.show()
-
-    else:
-        logger.info('Plot already exists! Please use --force to overwrite!')
+            logger.info('Plot already exists! Please use --force to overwrite!')
 
 
 def fuzzy_mt_decomposition(
