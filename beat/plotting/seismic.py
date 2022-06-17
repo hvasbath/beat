@@ -28,7 +28,7 @@ from .common import (get_gmt_config, format_axes, draw_line_on_array,
 
 
 km = 1000.
-sqrt2 = num.sqrt(2.)
+SQRT2 = num.sqrt(2.)
 PI = num.pi
 
 logger = logging.getLogger('plotting.seismic')
@@ -1209,7 +1209,7 @@ def mts2amps(mts, projection, beachball_type, grid_resolution=200, mask=True,
         if isinstance(m9, num.matrix):
             m9 = m9.A
 
-        m0_unscaled = num.sqrt(num.sum(m9 ** 2)) / sqrt2
+        m0_unscaled = num.sqrt(num.sum(m9 ** 2)) / SQRT2
         m9 /= m0_unscaled
         amps_ok = radiation_weights.T.dot(to6(m9))
 
