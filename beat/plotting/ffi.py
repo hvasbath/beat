@@ -493,6 +493,8 @@ def fault_slip_distribution(
         return u
 
     from beat.colormap import slip_colormap
+    from tqdm import tqdm
+
     fontsize = 12
 
     reference_slip = fault.get_total_slip(index=None, point=reference)
@@ -531,33 +533,19 @@ def fault_slip_distribution(
             ygr = ygr.reshape(shp)
 
             if mtrace is not None:
-                from tqdm import tqdm
-                nuc_dip = transform(mtrace.get_values(
-                    'nucleation_dip', combine=True, squeeze=True))
-                nuc_strike = transform(mtrace.get_values(
-                    'nucleation_strike', combine=True, squeeze=True))
-                velocities = transform(mtrace.get_values(
-                    'velocities', combine=True, squeeze=True))
-                times = transform(mtrace.get_values(
-                    'time', combine=True, squeeze=True))
+                _, dummy_ax = plt.subplots(
+                    nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
+
                 nchains = len(mtrace)
                 csteps = 6
                 rupture_fronts = []
-                dummy_fig, dummy_ax = plt.subplots(
-                    nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
                 csteps = float(nchains) / nensemble
                 idxs = num.floor(
                     num.arange(0, nchains, csteps)).astype('int32')
                 logger.info('Rendering rupture fronts ...')
                 for i in tqdm(idxs):
-                    print(nuc_dip[i])
-                    nuc_dip_idx, nuc_strike_idx = fault.fault_locations2idxs(
-                        ns, nuc_dip[i], nuc_strike[i], backend='numpy')
-                    veloc_ns = fault.vector2subfault(
-                        index=ns, vector=velocities[i, :])
-                    sts = fault.get_subfault_starttimes(
-                        ns, veloc_ns,
-                        nuc_dip_idx[ns], nuc_strike_idx[ns]) + times[i, ns]
+                    point = mtrace.point(idx=i)
+                    sts = fault.point2starttimes(point, index=ns)
 
                     contours = dummy_ax.contour(xgr, ygr, sts)
                     rupture_fronts.append(contours.allsegs)
