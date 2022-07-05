@@ -538,6 +538,8 @@ def fault_slip_distribution(
                     'nucleation_strike', combine=True, squeeze=True))
                 velocities = transform(mtrace.get_values(
                     'velocities', combine=True, squeeze=True))
+                times = transform(mtrace.get_values(
+                    'time', combine=True, squeeze=True))
                 nchains = len(mtrace)
                 csteps = 6
                 rupture_fronts = []
@@ -548,12 +550,14 @@ def fault_slip_distribution(
                     num.arange(0, nchains, csteps)).astype('int32')
                 logger.info('Rendering rupture fronts ...')
                 for i in tqdm(idxs):
+                    print(nuc_dip[i])
                     nuc_dip_idx, nuc_strike_idx = fault.fault_locations2idxs(
                         ns, nuc_dip[i], nuc_strike[i], backend='numpy')
                     veloc_ns = fault.vector2subfault(
                         index=ns, vector=velocities[i, :])
                     sts = fault.get_subfault_starttimes(
-                        ns, veloc_ns, nuc_dip_idx[ns], nuc_strike_idx[ns])
+                        ns, veloc_ns,
+                        nuc_dip_idx[ns], nuc_strike_idx[ns]) + times[i, ns]
 
                     contours = dummy_ax.contour(xgr, ygr, sts)
                     rupture_fronts.append(contours.allsegs)
