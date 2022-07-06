@@ -6,7 +6,7 @@ import numpy as num
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle, FancyArrow
 from matplotlib.collections import PatchCollection
-from matplotlib.ticker import MaxNLocator
+from matplotlib.ticker import MaxNLocator, FormatStrFormatter
 from matplotlib.backends.backend_pdf import PdfPages
 
 from beat import utility
@@ -466,8 +466,8 @@ def fault_slip_distribution(
         ax.set_ylabel(
             'dip-direction [km]', fontsize=fontsize)
 
-        xticker = tick.MaxNLocator(nbins=ntickmarks)
-        yticker = tick.MaxNLocator(nbins=ntickmarks)
+        xticker = MaxNLocator(nbins=ntickmarks)
+        yticker = MaxNLocator(nbins=ntickmarks)
 
         ax.get_xaxis().set_major_locator(xticker)
         ax.get_yaxis().set_major_locator(yticker)
@@ -486,7 +486,7 @@ def fault_slip_distribution(
         cbaxes = fig.add_axes([0.88, 0.4, 0.03, 0.3])
         cb = fig.colorbar(cb_related, ax=axs, cax=cbaxes)
         cb.set_label(labeltext, fontsize=fontsize)
-        cb.locator = tick.MaxNLocator(nbins=ntickmarks)
+        cb.locator = MaxNLocator(nbins=ntickmarks)
         cb.update_ticks()
         ax.set_aspect('equal', adjustable='box')
 
@@ -501,6 +501,8 @@ def fault_slip_distribution(
         return u
 
     from beat.colormap import slip_colormap
+    from tqdm import tqdm
+
     fontsize = 12
 
     reference_slip = fault.get_total_slip(index=None, point=reference)
@@ -609,7 +611,7 @@ def fault_slip_distribution(
 
             # label contourlines
             plt.clabel(contours, inline=True, fontsize=10,
-                       fmt=tick.FormatStrFormatter('%.1f'))
+                       fmt=FormatStrFormatter('%.1f'))
 
         if mtrace is not None:
             logger.info('Drawing quantiles ...')
