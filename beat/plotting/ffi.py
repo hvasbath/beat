@@ -6,7 +6,7 @@ import numpy as num
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle, FancyArrow
 from matplotlib.collections import PatchCollection
-from matplotlib.ticker import MaxNLocator
+from matplotlib.ticker import MaxNLocator, FormatStrFormatter
 from matplotlib.backends.backend_pdf import PdfPages
 
 from beat import utility
@@ -387,7 +387,6 @@ def fault_slip_distribution(
     """
     Draw discretized fault geometry rotated to the 2-d view of the foot-wall
     of the fault.
-
     Parameters
     ----------
     fault : :class:`ffi.fault.FaultGeometry`
@@ -405,7 +404,7 @@ def fault_slip_distribution(
             from beat.models.laplacian import distances
             centers = num.vstack((xgr, ygr)).T
             #interpatch_dists = distances(centers, centers)
-            normalisation = slips.max() #/ interpatch_dists.min()
+            normalisation = slips.max()
 
         slips /= normalisation
 
@@ -429,7 +428,9 @@ def fault_slip_distribution(
 
         return quivers, normalisation
 
-    def draw_patches(ax, fault, subfault_idx, patch_values, cmap, alpha):
+    def draw_patches(
+            ax, fault, subfault_idx, patch_values, cmap, alpha, cbounds=None,
+            xlim=None):
 
         lls = fault.get_subfault_patch_attributes(
             subfault_idx, attributes=['bottom_left'])
@@ -449,17 +450,21 @@ def fault_slip_distribution(
         lower = rot_lls.min(axis=0)
         pad = sf.length / km * 0.05
 
-        xlim = [lower[0] - pad, lower[0] + sf.length / km + pad]
-        ylim = [lower[1] - pad, lower[1] + sf.width / km + pad]
+        #xlim = [lower[0] - pad, lower[0] + sf.length / km + pad]
+        if xlim is None:
+            xlim = [lower[1] - pad, lower[1] + sf.width / km + pad]
 
+        ax.set_aspect(1)
+        #ax.set_xlim(*xlim)
         ax.set_xlim(*xlim)
-        ax.set_ylim(*ylim)
 
         scale_y = {'scale': 1, 'offset': (-sf.width / km)}
         scale_axes(ax.yaxis, **scale_y)
 
-        ax.set_xlabel('strike-direction [km]', fontsize=fontsize)
-        ax.set_ylabel('dip-direction [km]', fontsize=fontsize)
+        ax.set_xlabel(
+            'strike-direction [km]', fontsize=fontsize)
+        ax.set_ylabel(
+            'dip-direction [km]', fontsize=fontsize)
 
         xticker = MaxNLocator(nbins=ntickmarks)
         yticker = MaxNLocator(nbins=ntickmarks)
@@ -470,6 +475,9 @@ def fault_slip_distribution(
         pa_col = PatchCollection(
             d_patches, alpha=alpha, match_original=True, zorder=0)
         pa_col.set(array=patch_values, cmap=cmap)
+
+        if cbounds is not None:
+            pa_col.set_clim(*cbounds)
 
         ax.add_collection(pa_col)
         return pa_col
@@ -493,12 +501,20 @@ def fault_slip_distribution(
         return u
 
     from beat.colormap import slip_colormap
+    from tqdm import tqdm
+
     fontsize = 12
 
     reference_slip = fault.get_total_slip(index=None, point=reference)
+    slip_bounds = [0, reference_slip.max()]
 
     figs = []
     axs = []
+
+    flengths_max = num.array(
+        [sf.length / km for sf in fault.iter_subfaults()]).max()
+    pad = flengths_max * 0.03
+    xmax = flengths_max + pad
     for ns in range(fault.nsubfaults):
         fig, ax = plt.subplots(
             nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
@@ -515,8 +531,8 @@ def fault_slip_distribution(
         pa_col = draw_patches(
             ax, fault,
             subfault_idx=ns,
-            patch_values=reference_slip[patch_idxs],
-            cmap=slip_colormap(100), alpha=0.65)
+            patch_values=reference_slip[patch_idxs], xlim=[-pad, xmax],
+            cmap=slip_colormap(100), alpha=0.65, cbounds=slip_bounds)
 
         # patch central locations
         centers = fault.get_subfault_patch_attributes(
@@ -531,29 +547,19 @@ def fault_slip_distribution(
             ygr = ygr.reshape(shp)
 
             if mtrace is not None:
-                from tqdm import tqdm
-                nuc_dip = transform(mtrace.get_values(
-                    'nucleation_dip', combine=True, squeeze=True))
-                nuc_strike = transform(mtrace.get_values(
-                    'nucleation_strike', combine=True, squeeze=True))
-                velocities = transform(mtrace.get_values(
-                    'velocities', combine=True, squeeze=True))
+                _, dummy_ax = plt.subplots(
+                    nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
+
                 nchains = len(mtrace)
                 csteps = 6
                 rupture_fronts = []
-                dummy_fig, dummy_ax = plt.subplots(
-                    nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
                 csteps = float(nchains) / nensemble
                 idxs = num.floor(
                     num.arange(0, nchains, csteps)).astype('int32')
                 logger.info('Rendering rupture fronts ...')
                 for i in tqdm(idxs):
-                    nuc_dip_idx, nuc_strike_idx = fault.fault_locations2idxs(
-                        ns, nuc_dip[i], nuc_strike[i], backend='numpy')
-                    veloc_ns = fault.vector2subfault(
-                        index=ns, vector=velocities[i, :])
-                    sts = fault.get_subfault_starttimes(
-                        ns, veloc_ns, nuc_dip_idx[ns], nuc_strike_idx[ns])
+                    point = mtrace.point(idx=i)
+                    sts = fault.point2starttimes(point, index=ns)
 
                     contours = dummy_ax.contour(xgr, ygr, sts)
                     rupture_fronts.append(contours.allsegs)
@@ -562,34 +568,50 @@ def fault_slip_distribution(
                     ax, rupture_fronts, xgr, ygr,
                     alpha=1., linewidth=7, zorder=-1)
 
+            # rupture durations
+            if False:
                 durations = transform(mtrace.get_values(
                     'durations', combine=True, squeeze=True))
                 std_durations = durations.std(axis=0)
                 # alphas = std_durations.min() / std_durations
 
-            # rupture durations
-            fig2, ax2 = plt.subplots(
-                nrows=1, ncols=1, figsize=mpl_papersize('a5', 'landscape'))
+                fig2, ax2 = plt.subplots(
+                    nrows=1, ncols=1,
+                    figsize=mpl_papersize('a5', 'landscape'))
 
-            reference_durations = reference['durations'][patch_idxs]
+                reference_durations = reference['durations'][patch_idxs]
 
-            pa_col2 = draw_patches(
-                ax2, fault, subfault_idx=ns, patch_values=reference_durations,
-                cmap=plt.cm.seismic, alpha=alpha)
+                pa_col2 = draw_patches(
+                    ax2, fault, subfault_idx=ns,
+                    patch_values=reference_durations,
+                    cmap=plt.cm.seismic, alpha=alpha, xlim=[-pad, xmax])
 
-            draw_colorbar(fig2, ax2, pa_col2, labeltext='durations [s]')
-            figs.append(fig2)
-            axs.append(ax2)
+                draw_colorbar(fig2, ax2, pa_col2, labeltext='durations [s]')
+                figs.append(fig2)
+                axs.append(ax2)
 
             ref_starttimes = fault.point2starttimes(reference, index=ns)
             contours = ax.contour(
                 xgr, ygr, ref_starttimes,
                 colors='black', linewidths=0.5, alpha=0.9)
-            ax.plot(
+
+            # draw subfault hypocenter
+            dip_idx, strike_idx = fault.fault_locations2idxs(
+                ns,
+                reference['nucleation_dip'][ns],
                 reference['nucleation_strike'][ns],
-                ext_source.width / km - reference['nucleation_dip'][ns],
+                backend='numpy')
+            psize_strike = fault.ordering.patch_sizes_strike[ns]
+            psize_dip = fault.ordering.patch_sizes_dip[ns]
+            nuc_strike = strike_idx * psize_strike + (psize_strike / 2.)
+            nuc_dip = dip_idx * psize_dip + (psize_dip / 2.)
+            ax.plot(
+                nuc_strike, ext_source.width / km - nuc_dip,
                 marker='*', color='k', markersize=12)
-            plt.clabel(contours, inline=True, fontsize=10)
+
+            # label contourlines
+            plt.clabel(contours, inline=True, fontsize=10,
+                       fmt=FormatStrFormatter('%.1f'))
 
         if mtrace is not None:
             logger.info('Drawing quantiles ...')
@@ -607,10 +629,11 @@ def fault_slip_distribution(
 
             if uparrmean.sum() != 0.:
                 logger.info('Found slip shear components!')
+                normalisation = slip_bounds[1] / 3
                 quivers, normalisation = draw_quivers(
                     ax, uperpmean, uparrmean, xgr, ygr,
                     ext_source.rake, color='grey',
-                    draw_legend=False)
+                    draw_legend=False, normalisation=normalisation)
                 uparrstd = uparr.std(axis=0) / normalisation
                 uperpstd = uperp.std(axis=0) / normalisation
             elif utensmean.sum() != 0:
@@ -655,7 +678,7 @@ def fault_slip_distribution(
         draw_colorbar(fig, ax, pa_col, labeltext='slip [m]')
         format_axes(ax, remove=['top', 'right'])
 
-        fig.tight_layout()
+        # fig.tight_layout()
         figs.append(fig)
         axs.append(ax)
 
