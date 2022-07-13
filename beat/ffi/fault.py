@@ -48,6 +48,7 @@ __all__ = [
     'optimize_damping',
     'ResolutionDiscretizationResult',
     'write_fault_to_pscmp',
+    'euler_pole2slips',
     'backslip2coupling']
 
 
@@ -519,8 +520,9 @@ total number of patches: %i ''' % (
             if has_pole:
                 logger.info(
                     'Found Euler pole in point also exporting coupling ...!')
-                coupling = backslip2coupling(
+                euler_slips = euler_pole2slips(
                     point=point, fault=self, event=event)
+                coupling = backslip2coupling(point, euler_slips)
             else:
                 coupling = None
         else:
@@ -1353,9 +1355,9 @@ def get_division_mapping(patch_idxs, div_idxs, subfault_npatches):
     return old2new, div2new, new_subfault_npatches
 
 
-def backslip2coupling(point, fault, event):
+def euler_pole2slips(point, fault, event):
     """
-    Transform backslips and Euler pole rotation to coupling coefficients.
+    Get Euler pole rotation imposed slip component in strike-direction of fault.
 
     Parameters
     ----------
@@ -1371,10 +1373,6 @@ def backslip2coupling(point, fault, event):
         0 - no coupling, 1 - full coupling
     """
     datatype = 'geodetic'
-    try:
-        backslips = point['uparr']
-    except KeyError:
-        raise ValueError('Parallel slip component not in result point!')
 
     has_pole, pole_lat_keys = check_point_keys(point, phrase='*_pole_lat')
     has_pole, pole_lon_keys = check_point_keys(point, phrase='*_pole_lon')
@@ -1412,13 +1410,28 @@ def backslip2coupling(point, fault, event):
         lats=lats, lons=lons,
         pole_lat=plat, pole_lon=plon, omega=omega, earth_shape='ellipsoid')
 
-    vels_along_strike = num.abs(
+    return num.abs(
         (euler_velocities_neu * strikevectors_neu).sum(axis=1))
 
-    coupling = backslips / vels_along_strike
+
+def backslip2coupling(point, euler_slips):
+    """
+    Transform backslips and Euler pole rotation slips on fault to coupling coefficients.
+
+    Parameters
+    ----------
+    point : dict
+        of numpy arrays of random variables
+    """
+    try:
+        backslips = point['uparr']
+    except KeyError:
+        raise ValueError('Parallel slip component not in result point!')
+
+    coupling = backslips / euler_slips
     coupling[coupling < 0.] = 0.  # negative slip values mean no coupling
     coupling[coupling > 1.] = 1.  # backslip higher than long term rate full coupling
-    return coupling
+    return coupling * 100         # to percent
 
 
 def optimize_discretization(

@@ -739,7 +739,7 @@ def draw_slip_dist(problem, po):
 
 def draw_3d_slip_distribution(problem, po):
 
-    varname_choices = ['coupling', 'slip_deficit', 'slip_variation']
+    varname_choices = ['coupling', 'euler_slip', 'slip_variation']
 
     if po.outformat == 'svg':
         raise NotImplementedError('SVG format is not supported for this plot!')
@@ -782,9 +782,9 @@ def draw_3d_slip_distribution(problem, po):
         for corr in gc.corrections_config.euler_poles:
             if corr.enabled:
                 if len(po.varnames) > 0 and po.varnames[0] in varname_choices:
-                    from beat.ffi import backslip2coupling
+                    from beat.ffi import euler_pole2slips
                     logger.info('Plotting %s ...!', po.varnames[0])
-                    reference['coupling'] = backslip2coupling(
+                    reference['euler_slip'] = euler_pole2slips(
                         point=reference, fault=fault,
                         event=problem.config.event)
 
@@ -917,11 +917,12 @@ def slip_distribution_3d_gmt(
         *args)
 
     if slip_label == 'coupling':
-        reference_slips = reference['coupling'] * 100 # in percent
+        from beat.ffi import backslip2coupling
+        euler_slips = reference['euler_slip']
+        reference_slips = backslip2coupling(reference, euler_slips)
 
-    elif slip_label == 'slip_deficit':
-        reference_slips = reference['coupling'] * fault.get_total_slip(
-            index=None, point=reference)
+    elif slip_label == 'euler_slip':
+        reference_slips = reference['euler_slip']
 
     elif slip_label == 'slip_variation':
         reference_slips = reference[slip_label]
