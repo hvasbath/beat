@@ -1,5 +1,5 @@
 
-![BEAT logo](https://github.com/hvasbath/beat/tree/master/docs/_static/LOGO_BEAT.png)
+![BEAT logo](https://pyrocko.org/beat/docs/current/_images/LOGO_BEAT.png)
 
 # Bayesian Earthquake Analysis Tool
 
