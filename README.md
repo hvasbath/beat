@@ -1,6 +1,5 @@
-.. image:: docs/_static/LOGO_BEAT.png?raw=true
-    :align: center
-    :alt: BEAT logo
+
+![BEAT logo](https://github.com/hvasbath/beat/tree/master/docs/_static/LOGO_BEAT.png)
 
 # Bayesian Earthquake Analysis Tool
 
