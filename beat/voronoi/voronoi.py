@@ -3,8 +3,8 @@ import numpy as num
 
 
 def get_voronoi_cell_indexes_c(
-        gf_points_dip, gf_points_strike,
-        voronoi_points_dip, voronoi_points_strike):
+    gf_points_dip, gf_points_strike, voronoi_points_dip, voronoi_points_strike
+):
     """
     Do voronoi cell discretization and return idxs to cells.
 
@@ -25,13 +25,13 @@ def get_voronoi_cell_indexes_c(
     """
 
     return voronoi_ext.voronoi(
-        gf_points_dip, gf_points_strike,
-        voronoi_points_dip, voronoi_points_strike)
+        gf_points_dip, gf_points_strike, voronoi_points_dip, voronoi_points_strike
+    )
 
 
 def get_voronoi_cell_indexes_numpy(
-        gf_points_dip, gf_points_strike,
-        voronoi_points_dip, voronoi_points_strike):
+    gf_points_dip, gf_points_strike, voronoi_points_dip, voronoi_points_strike
+):
 
     n_voros = voronoi_points_dip.size
     n_gfs = gf_points_dip.size
@@ -43,8 +43,7 @@ def get_voronoi_cell_indexes_numpy(
     voro_strike_arr = num.repeat(voronoi_points_strike, n_gfs)
 
     distances = num.sqrt(
-        (gfs_dip_arr - voro_dips_arr) ** 2. +
-        (gfs_strike_arr - voro_strike_arr) ** 2.).reshape(
-            (n_voros, n_gfs))
+        (gfs_dip_arr - voro_dips_arr) ** 2.0 + (gfs_strike_arr - voro_strike_arr) ** 2.0
+    ).reshape((n_voros, n_gfs))
 
     return distances.argmin(axis=0)

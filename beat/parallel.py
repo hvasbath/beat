@@ -11,7 +11,7 @@ from io import BytesIO
 import sys
 
 
-logger = getLogger('parallel')
+logger = getLogger("parallel")
 
 # for sharing memory across processes
 _shared_memory = OrderedDict()
@@ -53,29 +53,33 @@ def check_available_memory(filesize):
        in [Mb] megabyte
     """
     from psutil import virtual_memory
+
     mem = virtual_memory()
     avail_mem_mb = mem.available / (1080 ** 2)
     phys_mem_mb = mem.total / (1080 ** 2)
 
     logger.debug(
-        'Physical Memory [Mb] %f \n '
-        'Available Memory [Mb] %f \n ' % (phys_mem_mb, avail_mem_mb))
+        "Physical Memory [Mb] %f \n "
+        "Available Memory [Mb] %f \n " % (phys_mem_mb, avail_mem_mb)
+    )
 
     if filesize > phys_mem_mb:
         raise MemoryError(
-            'Physical memory on this system: %f is to small for the'
-            ' FFI setup configuration! The problem complexity'
-            ' (please reduce the number of: patches, stations,'
-            ' starttimes or durations or reduce the sample rate'
-            ' of your data and synthetcs.)'
-            ' has to be reduced or the hardware needs to be'
-            ' upgraded!' % phys_mem_mb)
+            "Physical memory on this system: %f is to small for the"
+            " FFI setup configuration! The problem complexity"
+            " (please reduce the number of: patches, stations,"
+            " starttimes or durations or reduce the sample rate"
+            " of your data and synthetcs.)"
+            " has to be reduced or the hardware needs to be"
+            " upgraded!" % phys_mem_mb
+        )
 
     if filesize > avail_mem_mb:
         logger.warn(
-            'The Greens Functino Library filesize is larger than'
-            ' the available memory. Likely it will use the SWAP which'
-            ' may result in extremely slowed down calculation times!')
+            "The Greens Functino Library filesize is larger than"
+            " the available memory. Likely it will use the SWAP which"
+            " may result in extremely slowed down calculation times!"
+        )
 
 
 def exception_tracer(func):
@@ -83,13 +87,14 @@ def exception_tracer(func):
     Function decorator that returns a traceback if an Error is raised in
     a child process of a pool.
     """
+
     @wraps(func)
     def wrapped_func(*args, **kwargs):
         try:
             return func(*args, **kwargs)
         except Exception as e:
             msg = "{}\n\nOriginal {}".format(e, traceback.format_exc())
-            print('Exception in ' + func.__name__)
+            print("Exception in " + func.__name__)
             raise type(e)(msg)
 
     return wrapped_func
@@ -99,6 +104,7 @@ class TimeoutException(Exception):
     """
     Exception raised if a per-task timeout fires.
     """
+
     def __init__(self, jobstack=[]):
         super(TimeoutException, self).__init__()
         self.jobstack = jobstack
@@ -146,8 +152,7 @@ class WatchedWorker(object):
         time [s] after which worker is fired, default 65536s
     """
 
-    def __init__(
-            self, task, work, initializer=None, initargs=(), timeout=0xFFFF):
+    def __init__(self, task, work, initializer=None, initargs=(), timeout=0xFFFF):
         self.function = task
         self.work = work
         self.timeout = timeout
@@ -163,7 +168,7 @@ class WatchedWorker(object):
         try:
             return self.function(*self.work)
         except TimeoutException:
-            logger.warn('Worker timed out! Fire him! Returning: None!')
+            logger.warn("Worker timed out! Fire him! Returning: None!")
             return None
 
 
@@ -176,8 +181,16 @@ def _pay_worker(worker):
 
 
 def paripool(
-        function, workpackage, nprocs=None, chunksize=1, timeout=0xFFFF,
-        initializer=None, initargs=(), worker_initializer=None, winitargs=()):
+    function,
+    workpackage,
+    nprocs=None,
+    chunksize=1,
+    timeout=0xFFFF,
+    initializer=None,
+    initargs=(),
+    worker_initializer=None,
+    winitargs=(),
+):
     """
     Initialises a pool of workers and executes a function in parallel by
     forking the process. Does forking once during initialisation.
@@ -206,10 +219,10 @@ def paripool(
     """
 
     def start_message(*globals):
-        logger.debug('Starting %s' % multiprocessing.current_process().name)
+        logger.debug("Starting %s" % multiprocessing.current_process().name)
 
     def callback(result):
-        logger.info('\n Feierabend! Done with the work!')
+        logger.info("\n Feierabend! Done with the work!")
 
     if nprocs is None:
         nprocs = multiprocessing.cpu_count()
@@ -225,36 +238,38 @@ def paripool(
 
     else:
         pool = multiprocessing.Pool(
-            processes=nprocs,
-            initializer=initializer,
-            initargs=initargs)
+            processes=nprocs, initializer=initializer, initargs=initargs
+        )
 
-        logger.debug('Worker timeout after %i second(s)' % timeout)
+        logger.debug("Worker timeout after %i second(s)" % timeout)
 
         workers = [
             WatchedWorker(
-                function, work,
+                function,
+                work,
                 initializer=worker_initializer,
                 initargs=winitargs,
-                timeout=timeout)
-            for work in workpackage]
+                timeout=timeout,
+            )
+            for work in workpackage
+        ]
 
-        pool_timeout = int(len(workpackage) / 3. * timeout / nprocs)
+        pool_timeout = int(len(workpackage) / 3.0 * timeout / nprocs)
         if pool_timeout < 100:
             pool_timeout = 100
 
-        logger.debug('Overseer timeout after %i second(s)' % pool_timeout)
-        logger.debug('Chunksize: %i' % chunksize)
+        logger.debug("Overseer timeout after %i second(s)" % pool_timeout)
+        logger.debug("Chunksize: %i" % chunksize)
 
         try:
             yield pool.map_async(
-                _pay_worker, workers,
-                chunksize=chunksize, callback=callback).get(pool_timeout)
+                _pay_worker, workers, chunksize=chunksize, callback=callback
+            ).get(pool_timeout)
         except multiprocessing.TimeoutError:
-            logger.error('Overseer fell asleep. Fire everyone!')
+            logger.error("Overseer fell asleep. Fire everyone!")
             pool.terminate()
         except KeyboardInterrupt:
-            logger.error('Got Ctrl + C')
+            logger.error("Got Ctrl + C")
             traceback.print_exc()
             pool.terminate()
         else:
@@ -278,7 +293,8 @@ def memshare(parameternames):
         if not isinstance(paramname, str):
             raise ValueError(
                 'Parameter cannot be memshared! Invalid name! "%s" '
-                'Has to be of type "string"' % paramname)
+                'Has to be of type "string"' % paramname
+            )
 
     _tobememshared.update(parameternames)
 
@@ -326,9 +342,10 @@ def memshare_sparams(shared_params):
         size = original.size
         shape = original.shape
         original.shape = size
-        logger.info('Allocating %s' % param.name)
+        logger.info("Allocating %s" % param.name)
         ctypes = multiprocessing.RawArray(
-            'f' if original.dtype == num.float32 else 'd', size)
+            "f" if original.dtype == num.float32 else "d", size
+        )
 
         ctypes_numarr = num.ctypeslib.as_array(ctypes)
         ctypes_numarr[:] = original
@@ -390,7 +407,7 @@ def borrow_memory(shared_param, memshared_instance, shape):
     See `borrow_all_memories` for list usage.
     """
 
-    logger.debug('%s' % shared_param.name)
+    logger.debug("%s" % shared_param.name)
     param_value = num.frombuffer(memshared_instance).reshape(shape)
     shared_param.set_value(param_value, borrow=True)
 

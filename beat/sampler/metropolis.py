@@ -27,18 +27,20 @@ from pyrocko import util
 
 from beat import backend, utility
 from beat.covariance import init_proposal_covariance
-from .base import iter_parallel_chains, choose_proposal, logp_forw, \
-    init_stage, update_last_samples, multivariate_proposals
+from .base import (
+    iter_parallel_chains,
+    choose_proposal,
+    logp_forw,
+    init_stage,
+    update_last_samples,
+    multivariate_proposals,
+)
 
 
-__all__ = [
-    'metropolis_sample',
-    'get_trace_stats',
-    'get_final_stage',
-    'Metropolis']
+__all__ = ["metropolis_sample", "get_trace_stats", "get_final_stage", "Metropolis"]
 
 
-logger = logging.getLogger('metropolis')
+logger = logging.getLogger("metropolis")
 
 
 class Metropolis(backend.ArrayStepSharedLLK):
@@ -81,10 +83,22 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
     default_blocked = True
 
-    def __init__(self, vars=None, out_vars=None, covariance=None, scale=1.,
-                 n_chains=100, tune=True, tune_interval=100, model=None,
-                 check_bound=True, likelihood_name='like', backend='csv',
-                 proposal_name='MultivariateNormal', **kwargs):
+    def __init__(
+        self,
+        vars=None,
+        out_vars=None,
+        covariance=None,
+        scale=1.0,
+        n_chains=100,
+        tune=True,
+        tune_interval=100,
+        model=None,
+        check_bound=True,
+        likelihood_name="like",
+        backend="csv",
+        proposal_name="MultivariateNormal",
+        **kwargs
+    ):
 
         model = modelcontext(model)
 
@@ -109,7 +123,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
         self.cumulative_samples = 0
         self.accepted = 0
 
-        self.beta = 1.
+        self.beta = 1.0
         self.stage = 0
         self.chain_index = 0
 
@@ -121,18 +135,21 @@ class Metropolis(backend.ArrayStepSharedLLK):
         self._llk_index = out_varnames.index(likelihood_name)
         self.backend = backend
         self.discrete = num.concatenate(
-            [[v.dtype in discrete_types] * (v.dsize or 1) for v in vars])
+            [[v.dtype in discrete_types] * (v.dsize or 1) for v in vars]
+        )
         self.any_discrete = self.discrete.any()
         self.all_discrete = self.discrete.all()
 
         # create initial population
         self.population = []
         self.array_population = num.zeros(n_chains)
-        logger.info('Creating initial population for {}'
-                    ' chains ...'.format(self.n_chains))
+        logger.info(
+            "Creating initial population for {}" " chains ...".format(self.n_chains)
+        )
         for i in range(self.n_chains):
             self.population.append(
-                Point({v.name: v.random() for v in vars}, model=model))
+                Point({v.name: v.random() for v in vars}, model=model)
+            )
 
         self.population[0] = model.test_point
 
@@ -146,9 +163,10 @@ class Metropolis(backend.ArrayStepSharedLLK):
         if covariance is None and proposal_name in multivariate_proposals:
             t0 = time()
             self.covariance = init_proposal_covariance(
-                bij=self.bij, vars=vars, model=model, pop_size=1000)
+                bij=self.bij, vars=vars, model=model, pop_size=1000
+            )
             t1 = time()
-            logger.info('Time for proposal covariance init: %f' % (t1 - t0))
+            logger.info("Time for proposal covariance init: %f" % (t1 - t0))
             scale = self.covariance
         elif covariance is None:
             scale = num.ones(sum(v.dsize for v in vars))
@@ -156,8 +174,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
             scale = covariance
 
         self.proposal_name = proposal_name
-        self.proposal_dist = choose_proposal(
-            self.proposal_name, scale=scale)
+        self.proposal_dist = choose_proposal(self.proposal_name, scale=scale)
         self.proposal_samples_array = self.proposal_dist(n_chains)
 
         self.chain_previous_lpoint = [[]] * self.n_chains
@@ -167,15 +184,17 @@ class Metropolis(backend.ArrayStepSharedLLK):
         """
         Returns sampler attributes that are not saved.
         """
-        bl = ['check_bnd',
-              'logp_forw',
-              'proposal_samples_array',
-              'vars',
-              'bij',
-              'lij',
-              'ordering',
-              'lordering',
-              '_BlockedStep__newargs']
+        bl = [
+            "check_bnd",
+            "logp_forw",
+            "proposal_samples_array",
+            "vars",
+            "bij",
+            "lij",
+            "ordering",
+            "lordering",
+            "_BlockedStep__newargs",
+        ]
         return bl
 
     def get_sampler_state(self):
@@ -220,36 +239,37 @@ class Metropolis(backend.ArrayStepSharedLLK):
             l_new = self.logp_forw(q0)
             if not num.isfinite(l_new[self._llk_index]):
                 raise ValueError(
-                    'Got NaN in likelihood evaluation! '
-                    'Invalid model definition? '
-                    'Or starting point outside prior bounds!')
+                    "Got NaN in likelihood evaluation! "
+                    "Invalid model definition? "
+                    "Or starting point outside prior bounds!"
+                )
 
             q_new = q0
 
         else:
             if self.stage_sample == 0:
-                self.proposal_samples_array = self.proposal_dist(
-                    self.n_steps).astype(tconfig.floatX)
+                self.proposal_samples_array = self.proposal_dist(self.n_steps).astype(
+                    tconfig.floatX
+                )
 
             if not self.steps_until_tune and self.tune:
                 # Tune scaling parameter
-                logger.debug('Tuning: Chain_%i step_%i' % (
-                    self.chain_index, self.stage_sample))
+                logger.debug(
+                    "Tuning: Chain_%i step_%i" % (self.chain_index, self.stage_sample)
+                )
 
                 self.scaling = utility.scalar2floatX(
-                    step_tune(
-                        self.scaling,
-                        self.accepted / float(self.tune_interval)))
+                    step_tune(self.scaling, self.accepted / float(self.tune_interval))
+                )
 
                 # Reset counter
                 self.steps_until_tune = self.tune_interval
                 self.accepted = 0
 
             logger.debug(
-                'Get delta: Chain_%i step_%i' % (
-                    self.chain_index, self.stage_sample))
-            delta = self.proposal_samples_array[self.stage_sample, :] * \
-                self.scaling
+                "Get delta: Chain_%i step_%i" % (self.chain_index, self.stage_sample)
+            )
+            delta = self.proposal_samples_array[self.stage_sample, :] * self.scaling
 
             if self.any_discrete:
                 if self.all_discrete:
@@ -257,8 +277,9 @@ class Metropolis(backend.ArrayStepSharedLLK):
                     q0 = q0.astype(int)
                     q = (q0 + delta).astype(int)
                 else:
-                    delta[self.discrete] = num.round(
-                        delta[self.discrete], 0).astype(int)
+                    delta[self.discrete] = num.round(delta[self.discrete], 0).astype(
+                        int
+                    )
                     q = q0 + delta
                     q = q[self.discrete].astype(int)
             else:
@@ -274,53 +295,68 @@ class Metropolis(backend.ArrayStepSharedLLK):
                 llk0 = l0[self._llk_index]
 
             if self.check_bound:
-                logger.debug('Checking bound: Chain_%i step_%i' % (
-                    self.chain_index, self.stage_sample))
+                logger.debug(
+                    "Checking bound: Chain_%i step_%i"
+                    % (self.chain_index, self.stage_sample)
+                )
                 varlogp = self.check_bnd(q)
 
                 if num.isfinite(varlogp):
-                    logger.debug('Calc llk: Chain_%i step_%i' % (
-                        self.chain_index, self.stage_sample))
+                    logger.debug(
+                        "Calc llk: Chain_%i step_%i"
+                        % (self.chain_index, self.stage_sample)
+                    )
 
                     lp = self.logp_forw(q)
 
-                    logger.debug('Select llk: Chain_%i step_%i' % (
-                        self.chain_index, self.stage_sample))
+                    logger.debug(
+                        "Select llk: Chain_%i step_%i"
+                        % (self.chain_index, self.stage_sample)
+                    )
 
                     tempered_llk_ratio = self.beta * (
-                        lp[self._llk_index] - l0[self._llk_index])
-                    q_new, accepted = metrop_select(
-                        tempered_llk_ratio, q, q0)
+                        lp[self._llk_index] - l0[self._llk_index]
+                    )
+                    q_new, accepted = metrop_select(tempered_llk_ratio, q, q0)
 
                     if accepted:
-                        logger.debug('Accepted: Chain_%i step_%i' % (
-                            self.chain_index, self.stage_sample))
-                        logger.debug('proposed: %f previous: %f' % (
-                            lp[self._llk_index], llk0))
+                        logger.debug(
+                            "Accepted: Chain_%i step_%i"
+                            % (self.chain_index, self.stage_sample)
+                        )
+                        logger.debug(
+                            "proposed: %f previous: %f" % (lp[self._llk_index], llk0)
+                        )
                         self.accepted += 1
                         l_new = lp
                         self.chain_previous_lpoint[self.chain_index] = l_new
                     else:
-                        logger.debug('Rejected: Chain_%i step_%i' % (
-                            self.chain_index, self.stage_sample))
-                        logger.debug('proposed: %f previous: %f' % (
-                            lp[self._llk_index], l0[self._llk_index]))
+                        logger.debug(
+                            "Rejected: Chain_%i step_%i"
+                            % (self.chain_index, self.stage_sample)
+                        )
+                        logger.debug(
+                            "proposed: %f previous: %f"
+                            % (lp[self._llk_index], l0[self._llk_index])
+                        )
                         l_new = l0
                 else:
                     q_new = q0
                     l_new = l0
 
             else:
-                logger.debug('Calc llk: Chain_%i step_%i' % (
-                    self.chain_index, self.stage_sample))
+                logger.debug(
+                    "Calc llk: Chain_%i step_%i" % (self.chain_index, self.stage_sample)
+                )
 
                 lp = self.logp_forw(q)
 
-                logger.debug('Select: Chain_%i step_%i' % (
-                    self.chain_index, self.stage_sample))
+                logger.debug(
+                    "Select: Chain_%i step_%i" % (self.chain_index, self.stage_sample)
+                )
                 q_new, accepted = metrop_select(
-                    self.beta * (lp[self._llk_index] - llk0),
-                    q, q0)
+                    self.beta * (lp[self._llk_index] - llk0), q, q0
+                )
 
                 if accepted:
                     self.accepted += 1
@@ -330,8 +366,8 @@ class Metropolis(backend.ArrayStepSharedLLK):
                     l_new = l0
 
             logger.debug(
-                'Counters: Chain_%i step_%i' % (
-                    self.chain_index, self.stage_sample))
+                "Counters: Chain_%i step_%i" % (self.chain_index, self.stage_sample)
+            )
             self.steps_until_tune -= 1
             self.stage_sample += 1
             self.cumulative_samples += 1
@@ -341,8 +377,8 @@ class Metropolis(backend.ArrayStepSharedLLK):
                 self.stage_sample = 0
 
             logger.debug(
-                'End step: Chain_%i step_%i' % (
-                    self.chain_index, self.stage_sample))
+                "End step: Chain_%i step_%i" % (self.chain_index, self.stage_sample)
+            )
 
         return q_new, l_new
 
@@ -357,30 +393,39 @@ def get_final_stage(homepath, n_stages, model):
 
     mtraces = []
     for stage in range(n_stages):
-        logger.info('Loading Metropolis stage %i' % stage)
-        stage_outpath = os.path.join(homepath, 'stage_%i' % stage)
+        logger.info("Loading Metropolis stage %i" % stage)
+        stage_outpath = os.path.join(homepath, "stage_%i" % stage)
 
-        mtraces.append(
-            backend.load(
-                name=stage_outpath, model=model))
+        mtraces.append(backend.load(name=stage_outpath, model=model))
 
     ctrace = backend.concatenate_traces(mtraces)
-    outname = os.path.join(homepath, 'stage_final')
+    outname = os.path.join(homepath, "stage_final")
 
     if os.path.exists(outname):
-        logger.info('Removing existing previous final stage!')
+        logger.info("Removing existing previous final stage!")
         shutil.rmtree(outname)
 
     util.ensuredir(outname)
-    logger.info('Creating final Metropolis stage')
+    logger.info("Creating final Metropolis stage")
 
     text.dump(name=outname, trace=ctrace)
 
 
 def metropolis_sample(
-        n_steps=10000, homepath=None, start=None,
-        progressbar=False, rm_flag=False, buffer_size=5000, buffer_thinning=1,
-        step=None, model=None, n_jobs=1, update=None, burn=0.5, thin=2):
+    n_steps=10000,
+    homepath=None,
+    start=None,
+    progressbar=False,
+    rm_flag=False,
+    buffer_size=5000,
+    buffer_thinning=1,
+    step=None,
+    model=None,
+    n_jobs=1,
+    update=None,
+    burn=0.5,
+    thin=2,
+):
     """
     Execute Metropolis algorithm repeatedly depending on the number of chains.
     """
@@ -391,31 +436,32 @@ def metropolis_sample(
     step.n_steps = int(n_steps)
 
     if n_steps < 1:
-        raise TypeError('Argument `n_steps` should be above 0.', exc_info=1)
+        raise TypeError("Argument `n_steps` should be above 0.", exc_info=1)
 
     if step is None:
-        raise TypeError('Argument `step` has to be a Metropolis step object.')
+        raise TypeError("Argument `step` has to be a Metropolis step object.")
 
     if homepath is None:
-        raise TypeError(
-            'Argument `homepath` should be path to result_directory.')
+        raise TypeError("Argument `homepath` should be path to result_directory.")
 
     if n_jobs > 1:
         if not (step.n_chains / float(n_jobs)).is_integer():
-            raise Exception('n_chains / n_jobs has to be a whole number!')
+            raise Exception("n_chains / n_jobs has to be a whole number!")
 
     if start is not None:
         if len(start) != step.n_chains:
-            raise Exception('Argument `start` should have dicts equal the '
-                            'number of chains (step.N-chains)')
+            raise Exception(
+                "Argument `start` should have dicts equal the "
+                "number of chains (step.N-chains)"
+            )
         else:
             step.population = start
 
-    if not any(
-            step.likelihood_name in var.name for var in model.deterministics):
+    if not any(step.likelihood_name in var.name for var in model.deterministics):
         raise Exception(
-            'Model (deterministic) variables need to contain '
-            'a variable %s as defined in `step`.' % step.likelihood_name)
+            "Model (deterministic) variables need to contain "
+            "a variable %s as defined in `step`." % step.likelihood_name
+        )
 
     stage_handler = backend.SampleStage(homepath, backend=step.backend)
 
@@ -424,48 +470,51 @@ def metropolis_sample(
     chains, step, update = init_stage(
         stage_handler=stage_handler,
         step=step,
-        stage=stage,   # needs zero otherwise tries to load stage_0 results
+        stage=stage,  # needs zero otherwise tries to load stage_0 results
         progressbar=progressbar,
         update=update,
         model=model,
-        rm_flag=rm_flag)
+        rm_flag=rm_flag,
+    )
 
     with model:
 
         chains = stage_handler.clean_directory(step.stage, chains, rm_flag)
 
-        logger.info('Sampling stage ...')
+        logger.info("Sampling stage ...")
 
         draws = n_steps
 
         step.stage = stage
 
         sample_args = {
-            'draws': draws,
-            'step': step,
-            'stage_path': stage_handler.stage_path(step.stage),
-            'progressbar': progressbar,
-            'model': model,
-            'n_jobs': n_jobs,
-            'buffer_size': buffer_size,
-            'buffer_thinning': buffer_thinning,
-            'chains': chains}
+            "draws": draws,
+            "step": step,
+            "stage_path": stage_handler.stage_path(step.stage),
+            "progressbar": progressbar,
+            "model": model,
+            "n_jobs": n_jobs,
+            "buffer_size": buffer_size,
+            "buffer_thinning": buffer_thinning,
+            "chains": chains,
+        }
 
         mtrace = iter_parallel_chains(**sample_args)
 
-        if step.proposal_name == 'MultivariateNormal':
-            pdict, step.covariance = get_trace_stats(
-                mtrace, step, burn, thin, n_jobs)
+        if step.proposal_name == "MultivariateNormal":
+            pdict, step.covariance = get_trace_stats(mtrace, step, burn, thin, n_jobs)
 
             step.proposal_dist = choose_proposal(
-                step.proposal_name, scale=step.covariance)
+                step.proposal_name, scale=step.covariance
+            )
 
         if update is not None:
-            logger.info('Updating Covariances ...')
-            update.update_weights(pdict['dist_mean'], n_jobs=n_jobs)
+            logger.info("Updating Covariances ...")
+            update.update_weights(pdict["dist_mean"], n_jobs=n_jobs)
 
             mtrace = update_last_samples(
-                homepath, step, progressbar, model, n_jobs, rm_flag)
+                homepath, step, progressbar, model, n_jobs, rm_flag
+            )
 
         elif update is not None and stage == 0:
             update.engine.close_cashed_stores()
@@ -496,17 +545,14 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2, n_jobs=1):
     n_steps = len(mtrace)
 
     array_population = num.zeros(
-        (n_jobs * int(
-            num.ceil(n_steps * (1 - burn) / thin)),
-            step.ordering.size))
+        (n_jobs * int(num.ceil(n_steps * (1 - burn) / thin)), step.ordering.size)
+    )
 
     # collect end points of each chain and put into array
     for var, slc, shp, _ in step.ordering.vmap:
         samples = mtrace.get_values(
-            varname=var,
-            burn=int(burn * n_steps),
-            thin=thin,
-            combine=True)
+            varname=var, burn=int(burn * n_steps), thin=thin, combine=True
+        )
 
         if len(shp) == 0:
             array_population[:, slc] = num.atleast_2d(samples).T
@@ -514,21 +560,19 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2, n_jobs=1):
             array_population[:, slc] = samples
 
     llks = mtrace.get_values(
-        varname=step.likelihood_name,
-        burn=int(burn * n_steps),
-        thin=thin,
-        combine=True)
+        varname=step.likelihood_name, burn=int(burn * n_steps), thin=thin, combine=True
+    )
 
     posterior_idxs = utility.get_fit_indexes(llks)
     d = {}
     for k, v in posterior_idxs.items():
         d[k] = step.bij.rmap(array_population[v, :])
 
-    d['dist_mean'] = step.bij.rmap(array_population.mean(axis=0))
+    d["dist_mean"] = step.bij.rmap(array_population.mean(axis=0))
     avar = array_population.var(axis=0)
-    if avar.sum() == 0.:
-        logger.warn('Trace std not valid not enough samples! Use 1.')
-        avar = 1.
+    if avar.sum() == 0.0:
+        logger.warn("Trace std not valid not enough samples! Use 1.")
+        avar = 1.0
 
     cov = num.eye(step.ordering.size) * avar
     return d, cov
