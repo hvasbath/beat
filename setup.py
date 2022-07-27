@@ -12,20 +12,21 @@ import time
 
 op = os.path
 
-packname = 'beat'
-version = '1.2.0'
+packname = "beat"
+version = "1.2.0"
 
 
 try:
     import numpy
 except ImportError:
-    class numpy():
+
+    class numpy:
         def __init__(self):
             ...
 
         @classmethod
         def get_include(cls):
-            return 
+            return
 
 
 project_root = op.dirname(op.realpath(__file__))
@@ -38,58 +39,60 @@ class NotInAGitRepos(Exception):
 def git_infos():
 
     from subprocess import run, PIPE
-    '''Query git about sha1 of last commit and check if there are local \
-       modifications.'''
+
+    """Query git about sha1 of last commit and check if there are local \
+       modifications."""
     import re
 
     def q(c):
         return run(c, stdout=PIPE, stderr=PIPE, check=True).stdout
 
-    if not op.exists('.git'):
+    if not op.exists(".git"):
         raise NotInAGitRepos()
 
-    sha1 = q(['git', 'log', '--pretty=oneline', '-n1']).split()[0]
-    sha1 = re.sub(br'[^0-9a-f]', '', sha1)
-    sha1 = str(sha1.decode('ascii'))
-    sstatus = q(['git', 'status', '--porcelain', '-uno'])
+    sha1 = q(["git", "log", "--pretty=oneline", "-n1"]).split()[0]
+    sha1 = re.sub(br"[^0-9a-f]", "", sha1)
+    sha1 = str(sha1.decode("ascii"))
+    sstatus = q(["git", "status", "--porcelain", "-uno"])
     local_modifications = bool(sstatus.strip())
     return sha1, local_modifications
 
 
 def make_info_module(packname, version):
-    '''Put version and revision information into file beat/info.py.'''
+    """Put version and revision information into file beat/info.py."""
 
     from subprocess import CalledProcessError
 
     sha1, local_modifications = None, None
-    combi = '%s-%s' % (packname, version)
+    combi = "%s-%s" % (packname, version)
     try:
         sha1, local_modifications = git_infos()
-        combi += '-%s' % sha1
+        combi += "-%s" % sha1
         if local_modifications:
-            combi += '-modified'
+            combi += "-modified"
 
     except (OSError, CalledProcessError, NotInAGitRepos):
-       print(
-           'Failed to include git commit ID into installation.',
-           file=sys.stderr)
+        print("Failed to include git commit ID into installation.", file=sys.stderr)
 
+    datestr = time.strftime("%Y-%m-%d_%H:%M:%S")
+    combi += "-%s" % datestr
 
-    datestr = time.strftime('%Y-%m-%d_%H:%M:%S')
-    combi += '-%s' % datestr
-
-    s = '''# This module is automatically created from setup.py
+    s = """# This module is automatically created from setup.py
 project_root = %s
 git_sha1 = %s
 local_modifications = %s
 version = %s
 long_version = %s  # noqa
 installed_date = %s
-''' % tuple([repr(x) for x in (
-        project_root, sha1, local_modifications, version, combi, datestr)])
+""" % tuple(
+        [
+            repr(x)
+            for x in (project_root, sha1, local_modifications, version, combi, datestr)
+        ]
+    )
 
     try:
-        f = open(op.join('beat', 'info.py'), 'w')
+        f = open(op.join("beat", "info.py"), "w")
         f.write(s)
         f.close()
     except Exception:
@@ -103,8 +106,8 @@ def bash_completions_dir():
         return Popen(c, stdout=PIPE).communicate()[0]
 
     try:
-        d = q(['pkg-config', 'bash-completion', '--variable=completionsdir'])
-        return d.strip().decode('utf-8')
+        d = q(["pkg-config", "bash-completion", "--variable=completionsdir"])
+        return d.strip().decode("utf-8")
     except Exception:
         return None
 
@@ -118,36 +121,30 @@ class custom_build_py(build_py):
         bd_dir = bash_completions_dir()
         if bd_dir:
             try:
-                shutil.copy('extras/beat', bd_dir)
+                shutil.copy("extras/beat", bd_dir)
                 print('Installing beat bash_completion to "%s"' % bd_dir)
             except Exception:
                 print(
                     'Could not install beat bash_completion to "%s" '
-                    '(continuing without)'
-                    % bd_dir)
+                    "(continuing without)" % bd_dir
+                )
 
-
-subpackages = [
-    'beat.fast_sweeping',
-    'beat.voronoi',
-    'beat.sampler',
-    'beat.models',
-    'beat.plotting',
-    'beat.ffi',
-    'beat.apps']
 
 setup(
-    cmdclass={
-        'build_py': custom_build_py},
+    # cmdclass={"build_py": custom_build_py},
     ext_modules=[
         Extension(
-            'fast_sweep_ext',
-            sources=[op.join('beat/fast_sweeping', 'fast_sweep_ext.c')],
-            include_dirs=[numpy.get_include(), get_python_inc()]),
+            "fast_sweep_ext",
+            language="c",
+            sources=[op.join("beat/fast_sweeping", "fast_sweep_ext.c")],
+            include_dirs=[numpy.get_include(), get_python_inc()],
+        ),
         Extension(
-            'voronoi_ext',
-            extra_compile_args=['-lm'],
-            sources=[op.join('beat/voronoi', 'voronoi_ext.c')],
-            include_dirs=[numpy.get_include(), get_python_inc()])
-        ]
+            "voronoi_ext",
+            extra_compile_args=["-lm"],
+            language="c",
+            sources=[op.join("beat/voronoi", "voronoi_ext.c")],
+            include_dirs=[numpy.get_include(), get_python_inc()],
+        ),
+    ]
 )
