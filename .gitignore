@@ -131,4 +131,5 @@ test/
 beat.git/
 .idea
 .vscode
-beat.info.py
+beat/info.py
+*log.txt

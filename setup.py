@@ -112,26 +112,24 @@ def bash_completions_dir():
         return None
 
 
-class custom_build_py(build_py):
-    def run(self):
+def make_bash_completion():
+    bd_dir = bash_completions_dir()
+    if bd_dir:
+        try:
+            shutil.copy("extras/beat", bd_dir)
+            print('Installing beat bash_completion to "%s"' % bd_dir)
+        except Exception:
+            print(
+                'Could not install beat bash_completion to "%s" '
+                "(continuing without)" % bd_dir
+            )
 
-        make_info_module(packname, version)
-        build_py.run(self)
 
-        bd_dir = bash_completions_dir()
-        if bd_dir:
-            try:
-                shutil.copy("extras/beat", bd_dir)
-                print('Installing beat bash_completion to "%s"' % bd_dir)
-            except Exception:
-                print(
-                    'Could not install beat bash_completion to "%s" '
-                    "(continuing without)" % bd_dir
-                )
+make_info_module(packname, version)
+make_bash_completion()
 
 
 setup(
-    # cmdclass={"build_py": custom_build_py},
     ext_modules=[
         Extension(
             "fast_sweep_ext",
