@@ -458,7 +458,7 @@ class SeismicComposite(Composite):
         ----------
         point : :func:`pymc3.Point`
             Dictionary with model parameters
-        force : bool 
+        force : bool
             force preparation of data with input params otherwise cached is
             used
 

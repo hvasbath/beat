@@ -275,7 +275,7 @@ def vonmises_fisher(lats, lons, lats0, lons0, sigma=1.0):
     """
 
     def logsinh(x):
-        """ Compute log(sinh(x)), stably for large x.<
+        """Compute log(sinh(x)), stably for large x.<
         Parameters
         ----------
         x : float or numpy.array
@@ -298,8 +298,8 @@ def vonmises_fisher(lats, lons, lats0, lons0, sigma=1.0):
     x = cartesian_from_polar(phi=num.deg2rad(lons_t), theta=num.deg2rad(lats_t))
     x0 = cartesian_from_polar(phi=num.deg2rad(lons0_t), theta=num.deg2rad(lats0_t))
 
-    norm = -num.log(4.0 * num.pi * sigma ** 2) - logsinh(1.0 / sigma ** 2)
-    return norm + num.tensordot(x, x0, axes=[[0], [0]]) / sigma ** 2
+    norm = -num.log(4.0 * num.pi * sigma**2) - logsinh(1.0 / sigma**2)
+    return norm + num.tensordot(x, x0, axes=[[0], [0]]) / sigma**2
 
 
 def vonmises_std(lons, lats):
@@ -336,5 +336,5 @@ def vonmises_std(lons, lats):
 
     logger.debug("Estimating VonMises std ...")
     kappa = brentq(f, 1e-8, 1e8)
-    sigma = kappa ** -0.5
+    sigma = kappa**-0.5
     return sigma

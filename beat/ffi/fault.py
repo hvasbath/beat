@@ -1082,7 +1082,7 @@ def write_fault_to_pscmp(
         uperp_sf = fault.vector2subfault(index, uperp)
 
         angles = num.arctan2(-uperp_sf, uparr_sf) * r2d + sf.rake
-        slips = num.sqrt(uparr_sf ** 2 + uperp_sf ** 2)
+        slips = num.sqrt(uparr_sf**2 + uperp_sf**2)
 
         strike_slips = num.atleast_2d(num.cos(angles * d2r)) * slips
         dip_slips = num.atleast_2d(num.sin(angles * d2r)) * slips
@@ -1536,7 +1536,7 @@ def optimize_discretization(
     ----------
     .. [Atzori2011] Atzori, S. and Antonioli, A. (2011).
         Optimal fault resolution in geodetic inversion of coseismic data
-        Geophys. J. Int. (2011) 185, 529–538, 
+        Geophys. J. Int. (2011) 185, 529–538,
         `link <http://ascelibrary.org/doi: 10.1111/j.1365-246X.2011.04955.x>`__
     .. [Atzori2019] Atzori, S.; Antonioli, A.; Tolomei, C.; De Novellis, V.;
         De Luca, C. and Monterroso, F.
@@ -1776,7 +1776,7 @@ def optimize_discretization(
                 U, l, V = svd(comp_gfs, full_matrices=True)
 
                 # apply singular value damping
-                ldamped_inv = 1.0 / (l + config.epsilon ** 2)
+                ldamped_inv = 1.0 / (l + config.epsilon**2)
                 Linv = sv_vec2matrix(ldamped_inv, ndata=ndata, nparams=nparams)
                 L = sv_vec2matrix(l, ndata=ndata, nparams=nparams)
 
@@ -1797,7 +1797,7 @@ def optimize_discretization(
                 # G(nobs, npatches)
                 smoothing_op = (
                     fault.get_smoothing_operator(event, correlation_function="gaussian")
-                    * config.epsilon ** 2
+                    * config.epsilon**2
                 )
 
                 # weighting makes it not work! dont weight for now
@@ -2078,7 +2078,7 @@ def optimize_damping(
     ----------
     .. [Atzori2011] Atzori, S. and Antonioli, A. (2011).
         Optimal fault resolution in geodetic inversion of coseismic data
-        Geophys. J. Int. (2011) 185, 529–538, 
+        Geophys. J. Int. (2011) 185, 529–538,
         `link <http://ascelibrary.org/doi: 10.1111/j.1365-246X.2011.04955.x>`__
     .. [Atzori2019] Atzori, S.; Antonioli, A.; Tolomei, C.; De Novellis, V.;
         De Luca, C. and Monterroso, F.

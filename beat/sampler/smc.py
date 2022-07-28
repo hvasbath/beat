@@ -481,9 +481,11 @@ def smc_sample(
 
             mtrace = iter_parallel_chains(**sample_args)
 
-            step.population, step.array_population, step.likelihoods = step.select_end_points(
-                mtrace
-            )
+            (
+                step.population,
+                step.array_population,
+                step.likelihoods,
+            ) = step.select_end_points(mtrace)
 
             if update is not None:
                 logger.info("Updating Covariances ...")
@@ -492,9 +494,11 @@ def smc_sample(
                 mtrace = update_last_samples(
                     homepath, step, progressbar, model, n_jobs, rm_flag
                 )
-                step.population, step.array_population, step.likelihoods = step.select_end_points(
-                    mtrace
-                )
+                (
+                    step.population,
+                    step.array_population,
+                    step.likelihoods,
+                ) = step.select_end_points(mtrace)
 
             step.beta, step.old_beta, step.weights = step.calc_beta()
 

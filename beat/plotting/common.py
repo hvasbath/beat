@@ -423,7 +423,7 @@ def spherical_kde_op(
     if sigma is None:
         logger.debug("No sigma given, estimating VonMisesStd ...")
         sigmahat = vonmises_std(lats=lats0, lons=lons0)
-        sigma = 1.06 * sigmahat * lats0.size ** -0.2
+        sigma = 1.06 * sigmahat * lats0.size**-0.2
         logger.debug("suggested sigma: %f, sigmahat: %f" % (sigma, sigmahat))
 
     if lats is None and lons is None:

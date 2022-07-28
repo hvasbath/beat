@@ -941,9 +941,20 @@ class SeismicDataset(trace.Trace):
         )
 
     def __setstate__(self, state):
-        self.network, self.station, self.location, self.channel, self.tmin, self.tmax, self.deltat, self.mtime, self.ydata, self.meta, self.wavename, self.covariance = (
-            state
-        )
+        (
+            self.network,
+            self.station,
+            self.location,
+            self.channel,
+            self.tmin,
+            self.tmax,
+            self.deltat,
+            self.mtime,
+            self.ydata,
+            self.meta,
+            self.wavename,
+            self.covariance,
+        ) = state
 
         self._growbuffer = None
         self._update_ids()
@@ -1022,9 +1033,23 @@ class SpectrumDataset(SeismicDataset):
         )
 
     def __setstate__(self, state):
-        self.network, self.station, self.location, self.channel, self.tmin, self.tmax, self.deltat, self.mtime, self.ydata, self.meta, self.wavename, self.covariance, self.fmin, self.fmax, self.deltaf = (
-            state
-        )
+        (
+            self.network,
+            self.station,
+            self.location,
+            self.channel,
+            self.tmin,
+            self.tmax,
+            self.deltat,
+            self.mtime,
+            self.ydata,
+            self.meta,
+            self.wavename,
+            self.covariance,
+            self.fmin,
+            self.fmax,
+            self.deltaf,
+        ) = state
 
         self._growbuffer = None
         self._update_ids()
@@ -1162,7 +1187,7 @@ class GeodeticDataset(gf.meta.MultiLocation):
         north_shifts, east_shifts = orthodrome.latlon_to_ne_numpy(
             loc.lat, loc.lon, self.lats, self.lons
         )
-        return num.sqrt(north_shifts ** 2 + east_shifts ** 2)
+        return num.sqrt(north_shifts**2 + east_shifts**2)
 
     @property
     def samples(self):
@@ -3523,7 +3548,7 @@ def proto2zpk(magnification, damping, period, quantity="displacement"):
     zeros = num.zeros(nzeros[quantity]).tolist()
     omega0 = 2.0 * num.pi / period
     preal = -damping * omega0
-    pimag = 1.0j * omega0 * cmath.sqrt(1.0 - damping ** 2)
+    pimag = 1.0j * omega0 * cmath.sqrt(1.0 - damping**2)
     poles = [preal + pimag, preal - pimag]
     return zeros, poles, magnification
 
@@ -3742,7 +3767,7 @@ def radiation_weights_p(takeoff_angles, azimuths):
 
     st = num.sin(takeoff_angles)
     ct = num.cos(takeoff_angles)
-    stp2 = st ** 2
+    stp2 = st**2
     st2 = 2 * st * ct  # num.sin(2 * takeoff_angles)
 
     ca = num.cos(azimuths)
@@ -3750,7 +3775,7 @@ def radiation_weights_p(takeoff_angles, azimuths):
     sa2 = 2 * ca * sa  # num.sin(2 * azimuths)
 
     return num.array(
-        [stp2 * ca ** 2, stp2 * sa ** 2, ct ** 2, stp2 * sa2, st2 * ca, st2 * sa]
+        [stp2 * ca**2, stp2 * sa**2, ct**2, stp2 * sa2, st2 * ca, st2 * sa]
     )
 
 
@@ -3773,7 +3798,7 @@ def radiation_weights_sv(takeoff_angles, azimuths):
     ca = num.cos(azimuths)
     sa = num.sin(azimuths)
     return num.array(
-        [sct * ca ** 2, sct * sa ** 2, -sct, 2 * sct * sa * ca, ct2 * ca, ct2 * sa]
+        [sct * ca**2, sct * sa**2, -sct, 2 * sct * sa * ca, ct2 * ca, ct2 * sa]
     )
 
 
@@ -3920,7 +3945,7 @@ def pol_synthetics(
     if isinstance(m9, num.matrix):
         m9 = m9.A
 
-    m0_unscaled = num.sqrt(num.sum(m9 ** 2)) / sqrt2
+    m0_unscaled = num.sqrt(num.sum(m9**2)) / sqrt2
     m9 /= m0_unscaled
     return radiation_weights.T.dot(to6(m9))
 
@@ -4245,7 +4270,7 @@ class StrainRateTensor(Object):
 
     @property
     def shear_strain_rate(self):
-        return float(0.5 * num.sqrt((self.exx - self.eyy) ** 2 + 4 * self.exy ** 2))
+        return float(0.5 * num.sqrt((self.exx - self.eyy) ** 2 + 4 * self.exy**2))
 
     @property
     def eps1(self):

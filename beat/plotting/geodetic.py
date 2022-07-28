@@ -276,7 +276,7 @@ def gnss_fits(problem, stage, plot_options):
             for comp in sta.components.values():
                 offset_scale[ista] += comp.shift
 
-        offset_scale = num.sqrt(offset_scale ** 2).max()
+        offset_scale = num.sqrt(offset_scale**2).max()
 
         if len(campaign.stations) > 40:
             logger.warning("More than 40 stations disabling station labels ..")

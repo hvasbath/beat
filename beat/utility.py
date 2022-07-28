@@ -1505,7 +1505,7 @@ def is_even(value):
 
 
 def get_valid_spectrum_data(deltaf, taper_frequencies=[0, 1.0]):
-    """ extract valid frequency range of spectrum """
+    """extract valid frequency range of spectrum"""
     lower_f, upper_f = taper_frequencies
 
     lower_idx = int(num.floor(lower_f / deltaf))

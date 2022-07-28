@@ -271,8 +271,8 @@ def get_smoothing_operator_nearest_neighbor(
 
     smooth_op = num.zeros((n_patches, n_patches))
 
-    delta_l_dip = 1.0 / (patch_size_dip ** 2)
-    delta_l_strike = 1.0 / (patch_size_strike ** 2)
+    delta_l_dip = 1.0 / (patch_size_dip**2)
+    delta_l_strike = 1.0 / (patch_size_strike**2)
     deltas = num.array([delta_l_dip, delta_l_dip, delta_l_strike, delta_l_strike])
 
     for i in range(n_patches):

@@ -102,7 +102,7 @@ class GFLibrary(object):
         """
         Size of the library in MByte.
         """
-        return self.size * 8.0 / (1024.0 ** 2)
+        return self.size * 8.0 / (1024.0**2)
 
     @property
     def patchidxs(self):

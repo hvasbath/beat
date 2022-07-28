@@ -1352,7 +1352,7 @@ def mts2amps(
         if isinstance(m9, num.matrix):
             m9 = m9.A
 
-        m0_unscaled = num.sqrt(num.sum(m9 ** 2)) / SQRT2
+        m0_unscaled = num.sqrt(num.sum(m9**2)) / SQRT2
         m9 /= m0_unscaled
         amps_ok = radiation_weights.T.dot(to6(m9))
 

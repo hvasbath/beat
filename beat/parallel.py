@@ -55,8 +55,8 @@ def check_available_memory(filesize):
     from psutil import virtual_memory
 
     mem = virtual_memory()
-    avail_mem_mb = mem.available / (1080 ** 2)
-    phys_mem_mb = mem.total / (1080 ** 2)
+    avail_mem_mb = mem.available / (1080**2)
+    phys_mem_mb = mem.total / (1080**2)
 
     logger.debug(
         "Physical Memory [Mb] %f \n "

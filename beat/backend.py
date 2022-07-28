@@ -728,9 +728,12 @@ class NumpyChain(FileChain):
         """
 
         if len(self.flat_names) == 0 and not self.corrupted_flag:
-            self.flat_names, self.var_shapes, self.var_dtypes, self.varnames = self.extract_variables_from_header(
-                self.file_header
-            )
+            (
+                self.flat_names,
+                self.var_shapes,
+                self.var_dtypes,
+                self.varnames,
+            ) = self.extract_variables_from_header(self.file_header)
 
         formats = [
             "{shape}{dtype}".format(
@@ -1075,9 +1078,11 @@ class SampleStage(object):
                 dirname=prev_stage_path, varnames=varnames, backend=self.backend
             )
 
-            step.population, step.array_population, step.likelihoods = step.select_end_points(
-                mtrace
-            )
+            (
+                step.population,
+                step.array_population,
+                step.likelihoods,
+            ) = step.select_end_points(mtrace)
 
         stage_path = self.stage_path(stage)
         if os.path.exists(stage_path):
@@ -1326,7 +1331,7 @@ def extract_bounds_from_summary(summary, varname, shape, roundto=None, alpha=0.0
         values = num.empty(shape, "float64")
         for i, idx in enumerate(indexes):
             if roundto is not None:
-                adjust = 10.0 ** roundto
+                adjust = 10.0**roundto
                 if quant == lower_quant:
                     operation = num.floor
                 elif quant == upper_quant:

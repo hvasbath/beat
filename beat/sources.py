@@ -642,7 +642,7 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
         if isinstance(m9, num.matrix):
             m9 = m9.A
 
-        m0_unscaled = math.sqrt(num.sum(m9 ** 2)) / math.sqrt(2.0)
+        m0_unscaled = math.sqrt(num.sum(m9**2)) / math.sqrt(2.0)
         m9 /= m0_unscaled
         m6 = mtm.to6(m9)
         return m6

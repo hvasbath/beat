@@ -463,7 +463,7 @@ def fault_slip_distribution(
 
         # positive uperp is always dip-normal- have to multiply -1
         angles = num.arctan2(-uperp, uparr) * mt.r2d + rake
-        slips = num.sqrt((uperp ** 2 + uparr ** 2)).ravel()
+        slips = num.sqrt((uperp**2 + uparr**2)).ravel()
 
         if normalisation is None:
             from beat.models.laplacian import distances
