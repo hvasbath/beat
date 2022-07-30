@@ -4,12 +4,14 @@
 Detailed Installation instructions
 **********************************
 
-BEAT can be installed on any Unix based system with python>=3.5
+BEAT can be installed on any Unix based system with python>=3.7
 that supports its prerequisites.
 
-For any user who has no user rights on the machine where BEAT is supposed to be installed, please add --user at the end of each sudo command, e.g.::
 
-    sudo python3 setup.py install --user
+Virtual environments
+--------------------
+Please consider to use `virtual environments <https://docs.python.org/3/tutorial/venv.html>`__ to lower the risk of package conflicts.
+
 
 Prerequisites
 -------------
@@ -28,8 +30,7 @@ Then we will need a fortran compiler and the python developers library::
 BEAT does many intensive calculations, which is why we need to get as much as
 possible out of the available libraries in terms of computational efficiency.
 There are actually significant speedups possible by not using the standard
-distribution packages that are available over tools like `pip` or
-`easy_install`.
+distribution packages that are available over tools like `pip`.
 
 Although, this process is somewhat tedious and not straight forward for
 everybody, it is really worth doing so! If you have done a similar optimization
@@ -41,6 +42,7 @@ For all the heavy details I refer to these links:
 `Numpy configure <https://hunseblog.wordpress.com/2014/09/15/installing-numpy-and-openblas/>`__
 
 `Theano configure <http://www.johnwittenauer.net/configuring-theano-for-high-performance-deep-learning/>`__
+
 
 OpenBlas
 """"""""
@@ -75,6 +77,7 @@ Alternatively, you could add your /custom_path/lib to the $LD_LIBRARY_PATH in
 your .bashrc or .cshrc in the homedirectory::
 
     export LD_LIBRARY_PATH=/custom_path/lib:$LD_LIBRARY_PATH
+
 
 Numpy
 """""
@@ -121,7 +124,7 @@ If everything worked ok,i.e. no mention of the ATLAS library, run::
 
 Finally::
 
-    sudo python setup.py install
+    python3 setup.py install
 
 
 Test the performance and if everything works fine::
@@ -154,7 +157,7 @@ For the bleeding edge installation do::
     cd ~/src
     git clone https://github.com/Theano/Theano
     cd Theano
-    sudo python3 setup.py install
+    python3 setup.py install
 
 For any troubleshooting and detailed installation instructions I refer to the
 `Theano <http://deeplearning.net/software/theano/install.html>`__ webpage.
@@ -306,19 +309,14 @@ can be found on the respective websites:
  - `pymc3 <https://github.com/pymc-devs/pymc3>`__
  - `pyrocko <http://pyrocko.org/>`__
 
+
 pymc3
 """""
 Pymc3 is a framework that provides various optimization algorithms allows and
-allows to build Bayesian models. For the last stable release::
+allows to build Bayesian models. BEAT relies on an older version of pymc3- work into upgrading it::
 
-    pip install pymc3==3.4.1
+    pip3 install pymc3==3.4.1
 
-For the bleeding edge::
-
-    cd ~/src
-    git clone https://github.com/pymc-devs/pymc3
-    cd pymc3
-    sudo python3 setup.py install
 
 Pyrocko
 """""""
@@ -328,7 +326,7 @@ framework to efficiently store and access Greens Functions.::
     cd ~/src
     git clone git://github.com/pyrocko/pyrocko.git pyrocko
     cd pyrocko
-    sudo python3 setup.py install
+    pip3 install .
 
 OpenMPI
 """""""
@@ -346,12 +344,13 @@ Finally, the python wrapper::
 
     sudo pip3 install mpi4py
 
+
 BEAT
 """"
 After these long and heavy installations, you can setup BEAT itself::
 
     cd ~/src/beat
-    sudo python3 setup.py install
+    pip3 install .
 
 Greens Functions
 ----------------

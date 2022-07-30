@@ -10,21 +10,22 @@ from theano import config as tconfig
 from beat.utility import Counter
 
 
-logger = getLogger('distributions')
+logger = getLogger("distributions")
 
 
 log_2pi = num.log(2 * num.pi)
 
 
 __all__ = [
-    'multivariate_normal',
-    'multivariate_normal_chol',
-    'hyper_normal',
-    'get_hyper_name']
+    "multivariate_normal",
+    "multivariate_normal_chol",
+    "hyper_normal",
+    "get_hyper_name",
+]
 
 
 def get_hyper_name(dataset):
-    return '_'.join(('h', dataset.typ))
+    return "_".join(("h", dataset.typ))
 
 
 def multivariate_normal(datasets, weights, hyperparams, residuals):
@@ -54,24 +55,26 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
     logpts = tt.zeros((n_t), tconfig.floatX)
 
     for l, data in enumerate(datasets):
-        M = tt.cast(shared(
-            data.samples, name='nsamples', borrow=True), 'int16')
+        M = tt.cast(shared(data.samples, name="nsamples", borrow=True), "int16")
         hp_name = get_hyper_name(data)
-        norm = (M * (2 * hyperparams[hp_name] + log_2pi))
+        norm = M * (2 * hyperparams[hp_name] + log_2pi)
         logpts = tt.set_subtensor(
-            logpts[l:l + 1],
-            (-0.5) * (
-                data.covariance.slog_pdet +
-                norm +
-                (1 / tt.exp(hyperparams[hp_name] * 2)) *
-                (residuals[l].dot(weights[l]).dot(residuals[l].T))))
+            logpts[l : l + 1],
+            (-0.5)
+            * (
+                data.covariance.slog_pdet
+                + norm
+                + (1 / tt.exp(hyperparams[hp_name] * 2))
+                * (residuals[l].dot(weights[l]).dot(residuals[l].T))
+            ),
+        )
 
     return logpts
 
 
 def multivariate_normal_chol(
-        datasets, weights, hyperparams, residuals, hp_specific=False,
-        sparse=False):
+    datasets, weights, hyperparams, residuals, hp_specific=False, sparse=False
+):
     """
     Calculate posterior Likelihood of a Multivariate Normal distribution.
     Assumes weights to be the inverse cholesky decomposed lower triangle
@@ -107,6 +110,7 @@ def multivariate_normal_chol(
     """
     if sparse:
         import theano.sparse as ts
+
         dot = ts.dot
     else:
         dot = tt.dot
@@ -116,8 +120,7 @@ def multivariate_normal_chol(
     count = Counter()
 
     for l, data in enumerate(datasets):
-        M = tt.cast(shared(
-            data.samples, name='nsamples', borrow=True), 'int16')
+        M = tt.cast(shared(data.samples, name="nsamples", borrow=True), "int16")
         hp_name = get_hyper_name(data)
 
         if hp_specific:
@@ -126,14 +129,16 @@ def multivariate_normal_chol(
             hp = hyperparams[hp_name]
 
         tmp = dot(weights[l], (residuals[l]))
-        norm = (M * (2 * hp + log_2pi))
+        norm = M * (2 * hp + log_2pi)
         logpts = tt.set_subtensor(
-            logpts[l:l + 1],
-            (-0.5) * (
-                data.covariance.slog_pdet +
-                norm +
-                (1 / tt.exp(hp * 2)) *
-                (tt.dot(tmp, tmp))))
+            logpts[l : l + 1],
+            (-0.5)
+            * (
+                data.covariance.slog_pdet
+                + norm
+                + (1 / tt.exp(hp * 2)) * (tt.dot(tmp, tmp))
+            ),
+        )
 
     return logpts
 
@@ -164,9 +169,10 @@ def polarity_llk(obs_polarities, syn_amplitudes, gamma, sigma):
         data for double-couple focal mechanisms of local earthquakes,
         GJI, eq. 6, 7
     """
-    p_i = gamma + (1 - 2. * gamma) * cumulative_normal(syn_amplitudes / sigma)
-    llks = ((1. + obs_polarities) / 2.) * tt.log(p_i) + \
-           ((1. - obs_polarities) / 2.) * tt.log(1. - p_i)
+    p_i = gamma + (1 - 2.0 * gamma) * cumulative_normal(syn_amplitudes / sigma)
+    llks = ((1.0 + obs_polarities) / 2.0) * tt.log(p_i) + (
+        (1.0 - obs_polarities) / 2.0
+    ) * tt.log(1.0 - p_i)
     return llks
 
 
@@ -196,23 +202,25 @@ def hyper_normal(datasets, hyperparams, llks, hp_specific=False):
     for k, data in enumerate(datasets):
         M = data.samples
         hp_name = get_hyper_name(data)
-#        print('hypername', hp_name)
+        #        print('hypername', hp_name)
         if hp_specific:
             idx = count(hp_name)
-#            print 'idx', idx
+            #            print 'idx', idx
             hp = hyperparams[hp_name][idx]
-#            Print('all')(hyperparams[hp_name])
-#            hp = Print('hyperparam %i %s' % (idx, hp_name))(hp)
+        #            Print('all')(hyperparams[hp_name])
+        #            hp = Print('hyperparam %i %s' % (idx, hp_name))(hp)
         else:
             hp = hyperparams[hp_name]
 
         logpts = tt.set_subtensor(
-            logpts[k:k + 1],
-            (-0.5) * (
-                data.covariance.slog_pdet +
-                (M * 2 * hp) +
-                (1 / tt.exp(hp * 2)) *
-                llks[k]))
+            logpts[k : k + 1],
+            (-0.5)
+            * (
+                data.covariance.slog_pdet
+                + (M * 2 * hp)
+                + (1 / tt.exp(hp * 2)) * llks[k]
+            ),
+        )
 
     return logpts
 
@@ -237,7 +245,7 @@ def cartesian_from_polar(phi, theta):
     return num.array([x, y, z])
 
 
-def vonmises_fisher(lats, lons, lats0, lons0, sigma=1.):
+def vonmises_fisher(lats, lons, lats0, lons0, sigma=1.0):
     """
     Von-Mises Fisher distribution function.
 
@@ -267,7 +275,7 @@ def vonmises_fisher(lats, lons, lats0, lons0, sigma=1.):
     """
 
     def logsinh(x):
-        """ Compute log(sinh(x)), stably for large x.<
+        """Compute log(sinh(x)), stably for large x.<
         Parameters
         ----------
         x : float or numpy.array
@@ -279,21 +287,19 @@ def vonmises_fisher(lats, lons, lats0, lons0, sigma=1.):
         """
         if num.any(x < 0):
             raise ValueError("logsinh only valid for positive arguments")
-        return x + num.log(1. - num.exp(-2. * x)) - num.log(2.)
+        return x + num.log(1.0 - num.exp(-2.0 * x)) - num.log(2.0)
 
     # transform to [0-pi, 0-2pi]
-    lats_t = 90. - lats
-    lons_t = num.mod(lons, 360.)
-    lats0_t = 90. - lats0
-    lons0_t = num.mod(lons0, 360.)
+    lats_t = 90.0 - lats
+    lons_t = num.mod(lons, 360.0)
+    lats0_t = 90.0 - lats0
+    lons0_t = num.mod(lons0, 360.0)
 
-    x = cartesian_from_polar(
-        phi=num.deg2rad(lons_t), theta=num.deg2rad(lats_t))
-    x0 = cartesian_from_polar(
-        phi=num.deg2rad(lons0_t), theta=num.deg2rad(lats0_t))
+    x = cartesian_from_polar(phi=num.deg2rad(lons_t), theta=num.deg2rad(lats_t))
+    x0 = cartesian_from_polar(phi=num.deg2rad(lons0_t), theta=num.deg2rad(lats0_t))
 
-    norm = -num.log(4. * num.pi * sigma ** 2) - logsinh(1. / sigma ** 2)
-    return norm + num.tensordot(x, x0, axes=[[0], [0]]) / sigma ** 2
+    norm = -num.log(4.0 * num.pi * sigma**2) - logsinh(1.0 / sigma**2)
+    return norm + num.tensordot(x, x0, axes=[[0], [0]]) / sigma**2
 
 
 def vonmises_std(lons, lats):
@@ -326,9 +332,9 @@ def vonmises_std(lons, lats):
     R = S.dot(S) ** 0.5 / x.shape[-1]
 
     def f(s):
-        return 1. / num.tanh(s) - 1. / s - R
+        return 1.0 / num.tanh(s) - 1.0 / s - R
 
-    logger.debug('Estimating VonMises std ...')
+    logger.debug("Estimating VonMises std ...")
     kappa = brentq(f, 1e-8, 1e8)
-    sigma = kappa ** -0.5
+    sigma = kappa**-0.5
     return sigma

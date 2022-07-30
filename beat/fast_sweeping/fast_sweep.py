@@ -18,11 +18,12 @@ import theano.tensor as tt
 from theano.ifelse import ifelse
 
 
-km = 1000.
+km = 1000.0
 
 
 def get_rupture_times_c(
-        slowness, patch_size, n_patch_strike, n_patch_dip, nuc_x, nuc_y):
+    slowness, patch_size, n_patch_strike, n_patch_dip, nuc_x, nuc_y
+):
     """
     C Implementation wrapper
 
@@ -59,13 +60,13 @@ def get_rupture_times_c(
     The C-implementation has it along columns!!!
     """
     return fast_sweep_ext.fast_sweep(
-        slowness, patch_size,
-        nuc_y, nuc_x,
-        n_patch_dip, n_patch_strike)
+        slowness, patch_size, nuc_y, nuc_x, n_patch_dip, n_patch_strike
+    )
 
 
 def get_rupture_times_numpy(
-        Slowness, patch_size, n_patch_strike, n_patch_dip, nuc_x, nuc_y):
+    Slowness, patch_size, n_patch_strike, n_patch_dip, nuc_x, nuc_y
+):
     """
     Numpy implementation for reference.
 
@@ -97,8 +98,8 @@ def get_rupture_times_numpy(
     StartTimes[nuc_y, nuc_x] = 0
 
     def upwind(
-            dip_ind, str_ind, StartTimes, Slowness,
-            patch_sz, n_patch_dip, n_patch_strike):
+        dip_ind, str_ind, StartTimes, Slowness, patch_sz, n_patch_dip, n_patch_strike
+    ):
         s1 = str_ind - 1
         d1 = dip_ind - 1
         s2 = str_ind + 1
@@ -127,11 +128,11 @@ def get_rupture_times_numpy(
             checked_d2 = d2
 
         ST_xmin = num.min(
-            (StartTimes[checked_d1, str_ind],
-             StartTimes[checked_d2, str_ind]))
+            (StartTimes[checked_d1, str_ind], StartTimes[checked_d2, str_ind])
+        )
         ST_ymin = num.min(
-            (StartTimes[dip_ind, checked_s1],
-             StartTimes[dip_ind, checked_s2]))
+            (StartTimes[dip_ind, checked_s1], StartTimes[dip_ind, checked_s2])
+        )
 
         ### Eikonal equation solver ###
         # The unique solution to the equation
@@ -143,13 +144,20 @@ def get_rupture_times_numpy(
         #         |0.5 * [ a+b+sqrt( 2*f^2*h^2 - (a-b)^2 ) ], |a-b| < f*h
 
         if num.abs(ST_xmin - ST_ymin) >= Slowness[dip_ind, str_ind] * patch_sz:
-            start_new = (num.min((ST_xmin, ST_ymin)) + \
-                         Slowness[dip_ind, str_ind] * patch_sz)
+            start_new = (
+                num.min((ST_xmin, ST_ymin)) + Slowness[dip_ind, str_ind] * patch_sz
+            )
         else:
-            start_new = (ST_xmin + ST_ymin + num.sqrt(
-                    2 * num.power(Slowness[dip_ind, str_ind], 2) * \
-                        num.power(patch_sz, 2) - num.power(
-                            (ST_xmin - ST_ymin), 2))) / 2
+            start_new = (
+                ST_xmin
+                + ST_ymin
+                + num.sqrt(
+                    2
+                    * num.power(Slowness[dip_ind, str_ind], 2)
+                    * num.power(patch_sz, 2)
+                    - num.power((ST_xmin - ST_ymin), 2)
+                )
+            ) / 2
 
         # if a < b return a
 
@@ -169,28 +177,52 @@ def get_rupture_times_numpy(
                 for i in range(n_patch_dip):
                     for j in range(n_patch_strike):
                         StartTimes[i, j] = upwind(
-                            i, j, StartTimes, Slowness, patch_size,
-                            n_patch_dip, n_patch_strike)
+                            i,
+                            j,
+                            StartTimes,
+                            Slowness,
+                            patch_size,
+                            n_patch_dip,
+                            n_patch_strike,
+                        )
             if ii == 1:
                 for i in range(n_patch_dip - 1, -1, -1):
                     for j in range(n_patch_strike):
                         StartTimes[i, j] = upwind(
-                            i, j, StartTimes, Slowness, patch_size,
-                            n_patch_dip, n_patch_strike)
+                            i,
+                            j,
+                            StartTimes,
+                            Slowness,
+                            patch_size,
+                            n_patch_dip,
+                            n_patch_strike,
+                        )
 
             if ii == 2:
                 for i in range(n_patch_dip - 1, -1, -1):
                     for j in range(n_patch_strike - 1, -1, -1):
                         StartTimes[i, j] = upwind(
-                            i, j, StartTimes, Slowness, patch_size,
-                            n_patch_dip, n_patch_strike)
+                            i,
+                            j,
+                            StartTimes,
+                            Slowness,
+                            patch_size,
+                            n_patch_dip,
+                            n_patch_strike,
+                        )
 
             if ii == 3:
                 for i in range(n_patch_dip):
                     for j in range(n_patch_strike - 1, -1, -1):
                         StartTimes[i, j] = upwind(
-                            i, j, StartTimes, Slowness, patch_size,
-                            n_patch_dip, n_patch_strike)
+                            i,
+                            j,
+                            StartTimes,
+                            Slowness,
+                            patch_size,
+                            n_patch_dip,
+                            n_patch_strike,
+                        )
 
         err = num.sum(num.sum(num.power((StartTimes - Old_Times), 2)))
         num_iter = num_iter + 1
@@ -217,12 +249,12 @@ def get_rupture_times_theano(slownesses, patch_size, nuc_x, nuc_y):
     str1 = tt.tile(tt.arange(step_str_max), step_dip_max)
 
     dip2 = tt.repeat(tt.arange(step_dip_max), step_str_max)
-    str2 = tt.tile(tt.arange(step_str_max - 1, - 1, - 1), step_dip_max)
+    str2 = tt.tile(tt.arange(step_str_max - 1, -1, -1), step_dip_max)
 
-    dip3 = tt.repeat(tt.arange(step_dip_max - 1, - 1, - 1), step_str_max)
-    str3 = tt.tile(tt.arange(step_str_max - 1, - 1, - 1), step_dip_max)
+    dip3 = tt.repeat(tt.arange(step_dip_max - 1, -1, -1), step_str_max)
+    str3 = tt.tile(tt.arange(step_str_max - 1, -1, -1), step_dip_max)
 
-    dip4 = tt.repeat(tt.arange(step_dip_max - 1, - 1, - 1), step_str_max)
+    dip4 = tt.repeat(tt.arange(step_dip_max - 1, -1, -1), step_str_max)
     str4 = tt.tile(tt.arange(step_str_max), step_dip_max)
 
     DIP = tt.concatenate([dip1, dip2, dip3, dip4])
@@ -246,11 +278,11 @@ def get_rupture_times_theano(slownesses, patch_size, nuc_x, nuc_y):
         checked_d2 = ifelse(tt.le(n_patch_dip, d2), n_patch_dip - 1, d2)
 
         ST_xmin = tt.min(
-            (StartTimes[checked_d1, str_ind],
-             StartTimes[checked_d2, str_ind]))
+            (StartTimes[checked_d1, str_ind], StartTimes[checked_d2, str_ind])
+        )
         ST_ymin = tt.min(
-            (StartTimes[dip_ind, checked_s1],
-             StartTimes[dip_ind, checked_s2]))
+            (StartTimes[dip_ind, checked_s1], StartTimes[dip_ind, checked_s2])
+        )
 
         ### Eikonal equation solver ###
         # The unique solution to the equation
@@ -261,39 +293,47 @@ def get_rupture_times_theano(slownesses, patch_size, nuc_x, nuc_y):
         # xnew =  |
         #         |0.5 * [ a+b+sqrt( 2*f^2*h^2 - (a-b)^2 ) ], |a-b| < f*h
         start_new = ifelse(
-            tt.le(slownesses[dip_ind, str_ind] * patch_size,
-                tt.abs_(ST_xmin - ST_ymin)),
-            tt.min((ST_xmin, ST_ymin)) + slownesses[dip_ind, str_ind] * \
-                patch_size,
-            (ST_xmin + ST_ymin + \
-                tt.sqrt(2 * tt.pow(slownesses[dip_ind, str_ind], 2) * \
-                                tt.pow(patch_size, 2) - \
-                                tt.pow((ST_xmin - ST_ymin), 2)
-                       )) / 2
-                          )
+            tt.le(
+                slownesses[dip_ind, str_ind] * patch_size, tt.abs_(ST_xmin - ST_ymin)
+            ),
+            tt.min((ST_xmin, ST_ymin)) + slownesses[dip_ind, str_ind] * patch_size,
+            (
+                ST_xmin
+                + ST_ymin
+                + tt.sqrt(
+                    2 * tt.pow(slownesses[dip_ind, str_ind], 2) * tt.pow(patch_size, 2)
+                    - tt.pow((ST_xmin - ST_ymin), 2)
+                )
+            )
+            / 2,
+        )
 
         # if a < b return a
         output = ifelse(
             tt.lt(start_new, StartTimes[dip_ind, str_ind]),
             start_new,
-            StartTimes[dip_ind, str_ind])
+            StartTimes[dip_ind, str_ind],
+        )
         return tt.set_subtensor(
-            StartTimes[dip_ind:dip_ind + 1, str_ind:str_ind + 1],
-            output)
+            StartTimes[dip_ind : dip_ind + 1, str_ind : str_ind + 1], output
+        )
 
     def loop_upwind(StartTimes, PreviousTimes, err_val, iteration, epsilon):
         [results, updates] = theano.scan(
             fn=upwind,
             sequences=[DIP, STR],
             outputs_info=[StartTimes],
-            non_sequences=[slownesses, patch_size])
+            non_sequences=[slownesses, patch_size],
+        )
 
         StartTimes = results[-1]
         err_val = tt.sum(tt.sum(tt.pow((StartTimes - PreviousTimes), 2)))
 
         PreviousTimes = StartTimes.copy()
-        return (StartTimes, PreviousTimes, err_val, iteration + 1), \
-                theano.scan_module.until(err_val < epsilon)
+        return (
+            (StartTimes, PreviousTimes, err_val, iteration + 1),
+            theano.scan_module.until(err_val < epsilon),
+        )
 
     # while loop until err < epsilon
     iteration = theano.shared(0)
@@ -302,5 +342,6 @@ def get_rupture_times_theano(slownesses, patch_size, nuc_x, nuc_y):
         fn=loop_upwind,
         outputs_info=[StartTimes, PreviousTimes, err_val, iteration],
         non_sequences=[epsilon],
-        n_steps=500)     # arbitrary set, stops after few iterations
+        n_steps=500,
+    )  # arbitrary set, stops after few iterations
     return result[-1]

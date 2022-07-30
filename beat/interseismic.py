@@ -27,16 +27,16 @@ from pyrocko.gf import RectangularSource as RS
 
 from matplotlib.path import Path
 
-logger = logging.getLogger('interseismic')
+logger = logging.getLogger("interseismic")
 
-km = 1000.
-d2r = num.pi / 180.
-r2d = 180. / num.pi
+km = 1000.0
+d2r = num.pi / 180.0
+r2d = 180.0 / num.pi
 
-non_source = set(['amplitude', 'azimuth', 'locking_depth'])
+non_source = set(["amplitude", "azimuth", "locking_depth"])
 
 
-__all__ = ['geo_backslip_synthetics']
+__all__ = ["geo_backslip_synthetics"]
 
 
 def block_mask(easts, norths, sources, east_ref, north_ref):
@@ -68,24 +68,36 @@ def block_mask(easts, norths, sources, east_ref, north_ref):
         print(f1, f2)
         return utility.line_intersect(f1[0, :], f1[1, :], f2[0, :], f2[1, :])
 
-    tol = 2. * km
+    tol = 2.0 * km
 
     Eline = RS(
-        east_shift=easts.max() + tol, north_shift=0.,
-        strike=0., dip=90., length=1 * km)
+        east_shift=easts.max() + tol,
+        north_shift=0.0,
+        strike=0.0,
+        dip=90.0,
+        length=1 * km,
+    )
     Nline = RS(
-        east_shift=0., north_shift=norths.max() + tol,
-        strike=90, dip=90., length=1 * km)
+        east_shift=0.0,
+        north_shift=norths.max() + tol,
+        strike=90,
+        dip=90.0,
+        length=1 * km,
+    )
     Sline = RS(
-        east_shift=0., north_shift=norths.min() - tol,
-        strike=90, dip=90., length=1 * km)
+        east_shift=0.0,
+        north_shift=norths.min() - tol,
+        strike=90,
+        dip=90.0,
+        length=1 * km,
+    )
 
     frame = [Nline, Eline, Sline]
 
     # collect frame lines
     outlines = []
     for source in sources + frame:
-        outline = source.outline(cs='xy')
+        outline = source.outline(cs="xy")
         outlines.append(utility.swap_columns(outline, 0, 1)[0:2, :])
 
     # get polygon vertices
@@ -132,10 +144,9 @@ def block_geometry(lons, lats, sources, reference):
         mask with zeros/ones for stable/moving observation points, respectively
     """
 
-    norths, easts = latlon_to_ne_numpy(
-        reference.lat, reference.lon, lats, lons)
+    norths, easts = latlon_to_ne_numpy(reference.lat, reference.lon, lats, lons)
 
-    return block_mask(easts, norths, sources, east_ref=0., north_ref=0.)
+    return block_mask(easts, norths, sources, east_ref=0.0, north_ref=0.0)
 
 
 def block_movement(bmask, amplitude, azimuth):
@@ -158,9 +169,8 @@ def block_movement(bmask, amplitude, azimuth):
          (n x 3) [North, East, Down] displacements [m]
     """
 
-    tmp = num.repeat(
-        bmask * 2. * float(amplitude), 3).reshape((bmask.shape[0], 3))
-    sv = utility.strike_vector(float(azimuth), order='NEZ')
+    tmp = num.repeat(bmask * 2.0 * float(amplitude), 3).reshape((bmask.shape[0], 3))
+    sv = utility.strike_vector(float(azimuth), order="NEZ")
     return tmp * sv
 
 
@@ -218,8 +228,8 @@ def backslip_params(azimuth, strike, dip, amplitude, locking_depth):
     -------
     dict of parameters for the back-slipping RectangularSource
     """
-    if dip == 0.:
-        raise ValueError('Dip must not be zero!')
+    if dip == 0.0:
+        raise ValueError("Dip must not be zero!")
 
     az_vec = utility.strike_vector(azimuth)
     strike_vec = utility.strike_vector(strike)
@@ -232,23 +242,27 @@ def backslip_params(azimuth, strike, dip, amplitude, locking_depth):
     slip = num.abs(amplitude * num.cos(alpha))
     opening = -amplitude * num.sin(alpha) * sdip
 
-    if alphad < 90. and alphad >= 0.:
-        rake = 0.
-    elif alphad >= 90. and alphad <= 180.:
-        rake = 180.
+    if alphad < 90.0 and alphad >= 0.0:
+        rake = 0.0
+    elif alphad >= 90.0 and alphad <= 180.0:
+        rake = 180.0
     else:
-        raise Exception('Angle between vectors inconsistent!')
+        raise Exception("Angle between vectors inconsistent!")
 
     width = locking_depth * km / sdip
 
     return dict(
-        slip=float(slip), opening=float(opening), width=float(width),
-        depth=0., rake=float(rake))
+        slip=float(slip),
+        opening=float(opening),
+        width=float(width),
+        depth=0.0,
+        rake=float(rake),
+    )
 
 
 def geo_backslip_synthetics(
-    engine, sources, targets, lons, lats, reference,
-    amplitude, azimuth, locking_depth):
+    engine, sources, targets, lons, lats, reference, amplitude, azimuth, locking_depth
+):
     """
     Interseismic backslip model: forward model for synthetic
     displacements(n,e,d) [m] caused by a rigid moving block defined by the
@@ -287,17 +301,22 @@ def geo_backslip_synthetics(
     """
 
     disp_block = geo_block_synthetics(
-        lons, lats, sources, amplitude, azimuth, reference)
+        lons, lats, sources, amplitude, azimuth, reference
+    )
 
     for source, ld in zip(sources, locking_depth):
         source_params = backslip_params(
-            azimuth=azimuth, amplitude=amplitude, locking_depth=ld,
-            strike=source.strike, dip=source.dip)
+            azimuth=azimuth,
+            amplitude=amplitude,
+            locking_depth=ld,
+            strike=source.strike,
+            dip=source.dip,
+        )
         source.update(**source_params)
 
     disp_block += geo_synthetics(
-        engine=engine, targets=targets, sources=sources,
-        outmode='stacked_array')
+        engine=engine, targets=targets, sources=sources, outmode="stacked_array"
+    )
 
     return disp_block
 

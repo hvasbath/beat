@@ -1,25 +1,25 @@
-.. image:: docs/_static/LOGO_BEAT.png?raw=true
-    :align: center
-    :alt: BEAT logo
 
-Bayesian Earthquake Analysis Tool
----------------------------------
+![BEAT logo](https://pyrocko.org/beat/docs/current/_images/LOGO_BEAT.png)
+
+# Bayesian Earthquake Analysis Tool
+
+If you came looking for the beat package calculating internet time you can find it [here](https://github.com/tonyskapunk/beat).
 
 Based on pyrocko, theano and pymc3
 
 6 January 2022
 A new version 1.1.1 is released vastly improving resolution based fault discretization. Minor changes.
-Checkout the `changelog <https://github.com/hvasbath/beat/blob/master/CHANGELOG.md>`__ for all the details.
-New `tutorial <https://pyrocko.org/beat/docs/current/examples/FFI_static_resolution.html>`_ on resolution based discretization of the fault surface.
+Checkout the [changelog](https://github.com/hvasbath/beat/blob/master/CHANGELOG.md) for all the details.
+New [tutorial](https://pyrocko.org/beat/docs/current/examples/FFI_static_resolution.html) on resolution based discretization of the fault surface.
 
 12 April 2021
 A new version 1.1.0 is released adding support for multi-segmented fault setups and tensile dislocations.
-Checkout the `changelog <https://github.com/hvasbath/beat/blob/master/CHANGELOG.md>`__ for all the details.
+Checkout the [changelog](https://github.com/hvasbath/beat/blob/master/CHANGELOG.md) for all the details.
 
 Documentation of the current version moved to the pyrocko server can be found here:
 https://pyrocko.org/beat/
 
-New `tutorial <https://pyrocko.org/beat/docs/current/examples/Rectangular_tensile.html>`_ on tensile dislocation modeling.
+New [tutorial](https://pyrocko.org/beat/docs/current/examples/Rectangular_tensile.html) on tensile dislocation modeling.
 
 **HELP wanted!** 
 
@@ -33,8 +33,7 @@ you in writing parts of the documentation for a particular feature-if you want t
 
 The legacy documentation of beat v1.0. can be found under: https://hvasbath.github.io/beat/
 
-License 
-=======
+## License 
 GNU General Public License, Version 3, 29 June 2007
 
 Copyright © 2017 Hannes Vasyura-Bathke
@@ -44,8 +43,7 @@ BEAT is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY
 You should have received a copy of the GNU General Public License along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
-Citation
-========
+## Citation
 If your work results in an publication where you used BEAT we kindly ask you to consider citing the BEAT software package and the related article.:
 
  > Vasyura-Bathke, Hannes; Dettmer, Jan; Steinberg, Andreas; Heimann, Sebastian; Isken, Marius; Zielke, Olaf; Mai, Paul Martin; Sudhaus, Henriette; Jónsson, Sigurjón: The Bayesian Earthquake Analysis Tool. Seismological Research Letters. https://doi.org/10.1785/0220190075
@@ -53,21 +51,17 @@ If your work results in an publication where you used BEAT we kindly ask you to 
  > Vasyura-Bathke, Hannes; Dettmer, Jan; Steinberg, Andreas; Heimann, Sebastian; Isken, Marius; Zielke, Olaf; Mai, Paul Martin; Sudhaus, Henriette; Jónsson, Sigurjón (2019): BEAT - Bayesian Earthquake Analysis Tool. V. 1.0. GFZ Data Services. http://doi.org/10.5880/fidgeo.2019.024
 
 
-Tutorials
-=========
+## Tutorials
 Step by step points on how to use the tool for several scenarios can be found here:
-`Examples <https://hvasbath.github.io/beat/examples/index.html>`__
+[Examples](https://hvasbath.github.io/beat/examples/index.html)
 
-Data import
-===========
-Geodetic
-^^^^^^^^
+## Data import
+### Geodetic
 We recommend to prepare the SAR data (subsampling, data covariance estimation) using KITE (www.pyrocko.org).
 kite supports import of ISCE, GAMMA, ROI_Pac and GMTSAR processed interferograms. BEAT then supports import of the native KITE format.
 
-Seismic
-^^^^^^^
-To see a list of the supported data types please see: `Trace Handeling <https://pyrocko.org/docs/current/library/examples/trace_handling.html>`__
+### Seismic
+To see a list of the supported data types please see: [Trace Handeling](https://pyrocko.org/docs/current/library/examples/trace_handling.html)
 In addition to these an ascii text file with the station information is needed of the format::
     
     #network_name.station_name.location_name latitude[deg] longitude[deg] elevation[m] depth[m]
@@ -95,11 +89,10 @@ containing a list of 2 lists:
 We invite the users to propose data formats or outputs of specific programs that they would 
 like to see implemented. 
 
-Support
-=======
+## Support
 For substantial issues please use and check the "issues" tab here in the repository.
-For common issues please check out the BEAT FAQ `here <https://hvasbath.github.io/beat/faq.html>`__ .
-For smaller issues or short clarifications there is a support chat `here <https://hive.pyrocko.org/pyrocko-support/channels/beat>`__ . This is provided by the pyrocko project and is accessible after a short account creation.
+For common issues please check out the BEAT [FAQ](https://hvasbath.github.io/beat/faq.html).
+For smaller issues or short clarifications there is a support [chat](https://hive.pyrocko.org/pyrocko-support/channels/beat). This is provided by the pyrocko project and is accessible after a short account creation.
 
 Finally, there is the option to write an email to:
 
@@ -109,6 +102,5 @@ hvasbath@uni-potsdam.de
 Andreas Steinberg
 andreas.steinberg@ifg.uni-kiel.de
 
-Contributions
-=============
+## Contributions
 This is an open source project and contributions to the repository are welcome!

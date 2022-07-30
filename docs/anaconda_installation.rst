@@ -54,7 +54,7 @@ Install pymc3 and pyrocko packages::
 Once all the requirements are installed we install BEAT with::
 
   cd ~/src/beat
-  python3 setup.py install
+  pip3 install .
 
 Then for a fast check if beat is running one can start it calling the help::
 

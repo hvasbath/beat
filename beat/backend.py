@@ -45,19 +45,23 @@ from pymc3.model import modelcontext
 from pymc3.step_methods.arraystep import BlockedStep
 from pyrocko import util
 
-from beat.config import (sample_p_outname, transd_vars_dist, mt_components,
-                         dc_components)
+from beat.config import sample_p_outname, transd_vars_dist, mt_components, dc_components
 from beat.covariance import calc_sample_covariance
-from beat.utility import load_objects, dump_objects, \
-    ListArrayOrdering, ListToArrayBijection, list2string
+from beat.utility import (
+    load_objects,
+    dump_objects,
+    ListArrayOrdering,
+    ListToArrayBijection,
+    list2string,
+)
 
-logger = logging.getLogger('backend')
+logger = logging.getLogger("backend")
 
 
 derived_variables_mapping = {
-    'MTQTSource': mt_components + dc_components,
-    'MTSource': dc_components,
-    'RectangularSource': ['magnitude'],
+    "MTQTSource": mt_components + dc_components,
+    "MTSource": dc_components,
+    "RectangularSource": ["magnitude"],
 }
 
 
@@ -104,17 +108,17 @@ class ArrayStepSharedLLK(BlockedStep):
     def __init__(self, vars, out_vars, shared, blocked=True):
         self.vars = vars
         self.ordering = ArrayOrdering(vars)
-        self.lordering = ListArrayOrdering(out_vars, intype='tensor')
+        self.lordering = ListArrayOrdering(out_vars, intype="tensor")
         lpoint = [var.tag.test_value for var in out_vars]
         self.shared = {var.name: shared for var, shared in shared.items()}
         self.blocked = blocked
         self.bij = DictToArrayBijection(self.ordering, self.population[0])
 
-        blacklist = list(set(self.lordering.variables) -
-                         set([var.name for var in vars]))
+        blacklist = list(
+            set(self.lordering.variables) - set([var.name for var in vars])
+        )
 
-        self.lij = ListToArrayBijection(
-            self.lordering, lpoint, blacklist=blacklist)
+        self.lij = ListToArrayBijection(self.lordering, lpoint, blacklist=blacklist)
 
     def __getstate__(self):
         return self.__dict__
@@ -145,8 +149,7 @@ class BaseChain(object):
         `model.unobserved_RVs` is used.
     """
 
-    def __init__(self, model=None, vars=None, buffer_size=5000,
-                 buffer_thinning=1):
+    def __init__(self, model=None, vars=None, buffer_size=5000, buffer_thinning=1):
 
         self.model = None
         self.vars = None
@@ -179,7 +182,7 @@ class BaseChain(object):
                 self.var_dtypes[var.name] = var.tag.test_value.dtype
                 self.varnames.append(var.name)
         else:
-            logger.debug('No model or variables given!')
+            logger.debug("No model or variables given!")
 
     def __getitem__(self, idx):
         if isinstance(idx, slice):
@@ -188,7 +191,7 @@ class BaseChain(object):
         try:
             return self.point(int(idx))
         except (ValueError, TypeError):  # Passed variable or variable name.
-            raise ValueError('Can only index with slice or integer')
+            raise ValueError("Can only index with slice or integer")
 
     def __getstate__(self):
         return self.__dict__
@@ -204,8 +207,7 @@ class BaseChain(object):
         self.count += 1
         self.buffer.append((lpoint, draw))
         if self.count == self.buffer_size:
-            raise BufferError(
-                'Buffer is full! Needs recording!!')
+            raise BufferError("Buffer is full! Needs recording!!")
 
     def empty_buffer(self):
         self.buffer = []
@@ -217,17 +219,18 @@ class BaseChain(object):
         """
         sample_difference = self.count - self.buffer_size
         if sample_difference < 0:
-            raise ValueError('Covariance has been updated already!')
+            raise ValueError("Covariance has been updated already!")
         elif sample_difference > 0:
-            raise BufferError(
-                'Buffer is not full and sample covariance may be biased')
+            raise BufferError("Buffer is not full and sample covariance may be biased")
         else:
             logger.info(
-                'Evaluating sampled trace covariance of worker %i at '
-                'sample %i' % (self.chain, step.cumulative_samples))
+                "Evaluating sampled trace covariance of worker %i at "
+                "sample %i" % (self.chain, step.cumulative_samples)
+            )
 
             cov = calc_sample_covariance(
-                self.buffer, lij=step.lij, bij=step.bij, beta=step.beta)
+                self.buffer, lij=step.lij, bij=step.bij, beta=step.beta
+            )
             self.cov_counter += 1
         return cov
 
@@ -238,13 +241,24 @@ class FileChain(BaseChain):
     rogressbar. Buffer is a list of tuples of lpoints and a draw index. Inheriting classes
     must define the methods: '_write_data_to_file' and '_load_df'
     """
+
     def __init__(
-            self, dir_path='', model=None, vars=None, buffer_size=5000,
-            buffer_thinning=1, progressbar=False, k=None):
+        self,
+        dir_path="",
+        model=None,
+        vars=None,
+        buffer_size=5000,
+        buffer_thinning=1,
+        progressbar=False,
+        k=None,
+    ):
 
         super(FileChain, self).__init__(
-            model=model, vars=vars, buffer_size=buffer_size,
-            buffer_thinning=buffer_thinning)
+            model=model,
+            vars=vars,
+            buffer_size=buffer_size,
+            buffer_thinning=buffer_thinning,
+        )
 
         if not os.path.exists(dir_path):
             os.mkdir(dir_path)
@@ -289,24 +303,24 @@ class FileChain(BaseChain):
         try:
             varnames = derived_variables_mapping[source_type]
             logger.info(
-                'Adding derived variables %s to '
-                'trace.' % list2string(varnames))
+                "Adding derived variables %s to " "trace." % list2string(varnames)
+            )
         except KeyError:
-            logger.info('No derived variables for %s' % source_type)
+            logger.info("No derived variables for %s" % source_type)
             varnames = []
 
         for varname in varnames:
             shape = (n_sources,)
             self.flat_names[varname] = ttab.create_flat_names(varname, shape)
             self.var_shapes[varname] = shape
-            self.var_dtypes[varname] = 'float64'
+            self.var_dtypes[varname] = "float64"
             self.varnames.append(varname)
 
     def _load_df(self):
-        raise ValueError('This method must be defined in inheriting classes!')
+        raise ValueError("This method must be defined in inheriting classes!")
 
     def _write_data_to_file(self):
-        raise ValueError('This method must be defined in inheriting classes!')
+        raise ValueError("This method must be defined in inheriting classes!")
 
     def data_file(self):
         return self._df
@@ -314,8 +328,7 @@ class FileChain(BaseChain):
     def record_buffer(self):
 
         if self.chain is None:
-            raise ValueError(
-                'Chain has not been setup. Saving samples not possible!')
+            raise ValueError("Chain has not been setup. Saving samples not possible!")
 
         else:
             n_samples = len(self.buffer)
@@ -324,17 +337,17 @@ class FileChain(BaseChain):
             if not self.progressbar:
                 if n_samples > self.buffer_size // 2:
                     logger.info(
-                        'Writing %i / %i samples of chain %i to disk...' %
-                        (self.stored_samples, self.draws, self.chain))
+                        "Writing %i / %i samples of chain %i to disk..."
+                        % (self.stored_samples, self.draws, self.chain)
+                    )
 
             t0 = time()
-            logger.debug(
-                'Start Record: Chain_%i' % self.chain)
+            logger.debug("Start Record: Chain_%i" % self.chain)
             self._write_data_to_file()
 
             t1 = time()
-            logger.debug('End Record: Chain_%i' % self.chain)
-            logger.debug('Writing to file took %f' % (t1 - t0))
+            logger.debug("End Record: Chain_%i" % self.chain)
+            logger.debug("Writing to file took %f" % (t1 - t0))
             self.empty_buffer()
 
     def write(self, lpoint, draw):
@@ -365,6 +378,7 @@ class MemoryChain(BaseChain):
     chain : int
         Chain number
     """
+
     def __init__(self, buffer_size=5000):
 
         super(MemoryChain, self).__init__(buffer_size=buffer_size)
@@ -380,7 +394,7 @@ class MemoryChain(BaseChain):
             self.buffer = []
 
     def record_buffer(self):
-        logger.debug('Emptying buffer of trace %i' % self.chain)
+        logger.debug("Emptying buffer of trace %i" % self.chain)
         self.empty_buffer()
 
 
@@ -412,12 +426,25 @@ class TextChain(FileChain):
     """
 
     def __init__(
-            self, dir_path, model=None, vars=None,
-            buffer_size=5000, buffer_thinning=1, progressbar=False, k=None):
+        self,
+        dir_path,
+        model=None,
+        vars=None,
+        buffer_size=5000,
+        buffer_thinning=1,
+        progressbar=False,
+        k=None,
+    ):
 
         super(TextChain, self).__init__(
-            dir_path, model, vars, buffer_size=buffer_size,
-            progressbar=progressbar, k=k, buffer_thinning=buffer_thinning)
+            dir_path,
+            model,
+            vars,
+            buffer_size=buffer_size,
+            progressbar=progressbar,
+            k=k,
+            buffer_thinning=buffer_thinning,
+        )
 
     def setup(self, draws, chain, overwrite=False):
         """
@@ -430,23 +457,22 @@ class TextChain(FileChain):
         chain : int
             Chain number
         """
-        logger.debug('SetupTrace: Chain_%i step_%i' % (chain, draws))
+        logger.debug("SetupTrace: Chain_%i step_%i" % (chain, draws))
         self.chain = chain
 
         self.draws = draws
-        self.filename = os.path.join(
-            self.dir_path, 'chain-{}.csv'.format(chain))
+        self.filename = os.path.join(self.dir_path, "chain-{}.csv".format(chain))
 
         cnames = [fv for v in self.varnames for fv in self.flat_names[v]]
 
         if os.path.exists(self.filename) and not overwrite:
-            logger.debug('Found existing trace, appending!')
+            logger.debug("Found existing trace, appending!")
         else:
             self.count = 0
 
             # writing header
-            with open(self.filename, 'w') as fh:
-                fh.write(','.join(cnames) + '\n')
+            with open(self.filename, "w") as fh:
+                fh.write(",".join(cnames) + "\n")
 
     def _write_data_to_file(self, lpoint=None):
         """
@@ -461,8 +487,9 @@ class TextChain(FileChain):
 
         def lpoint2file(filehandle, lpoint):
             columns = itertools.chain.from_iterable(
-                map(str, value.ravel()) for value in lpoint)
-            filehandle.write(','.join(columns) + '\n')
+                map(str, value.ravel()) for value in lpoint
+            )
+            filehandle.write(",".join(columns) + "\n")
 
         # Write binary
         if lpoint is None and len(self.buffer) == 0:
@@ -473,7 +500,8 @@ class TextChain(FileChain):
                 if lpoint is None:
                     # write out thinned buffer starting with last sample
                     write_buffer = thin_buffer(
-                        self.buffer, self.buffer_thinning, ensure_last=True)
+                        self.buffer, self.buffer_thinning, ensure_last=True
+                    )
                     for lpoint, draw in write_buffer:
                         lpoint2file(fh, lpoint)
 
@@ -489,19 +517,17 @@ class TextChain(FileChain):
                 self._df = pd.read_csv(self.filename)
             except EmptyDataError:
                 logger.warning(
-                    'Trace %s is empty and needs to be resampled!' %
-                    self.filename)
+                    "Trace %s is empty and needs to be resampled!" % self.filename
+                )
                 os.remove(self.filename)
                 self.corrupted_flag = True
             except CParserError:
-                logger.warning(
-                    'Trace %s has wrong size!' % self.filename)
+                logger.warning("Trace %s has wrong size!" % self.filename)
                 self.corrupted_flag = True
                 os.remove(self.filename)
 
             if len(self.flat_names) == 0 and not self.corrupted_flag:
-                self.flat_names, self.var_shapes = extract_variables_from_df(
-                    self._df)
+                self.flat_names, self.var_shapes = extract_variables_from_df(self._df)
                 self.varnames = list(self.var_shapes.keys())
 
     def get_values(self, varname, burn=0, thin=1):
@@ -531,14 +557,14 @@ class TextChain(FileChain):
             shape = (self._df.shape[0],) + self.var_shapes[varname]
             vals = var_df.values.ravel().reshape(shape)
             return vals[burn::thin]
-        except(KeyError):
+        except (KeyError):
             raise ValueError(
-                'Did not find varname "%s" in sampling '
-                'results! Fixed?' % varname)
+                'Did not find varname "%s" in sampling ' "results! Fixed?" % varname
+            )
 
     def _slice(self, idx):
         if idx.stop is not None:
-            raise ValueError('Stop value in slice not supported.')
+            raise ValueError("Stop value in slice not supported.")
         return ndarray._slice_as_ndarray(self, idx)
 
     def point(self, idx):
@@ -561,8 +587,7 @@ class TextChain(FileChain):
             # needs deepcopy otherwise reference to df is kept repetead calls
             # lead to memory leak
             vals = self._df[self.flat_names[varname]].iloc[idx]
-            pt[varname] = copy.deepcopy(
-                vals.values.reshape(self.var_shapes[varname]))
+            pt[varname] = copy.deepcopy(vals.values.reshape(self.var_shapes[varname]))
             del vals
         return pt
 
@@ -600,19 +625,37 @@ class NumpyChain(FileChain):
     __data_structure = None
 
     def __init__(
-            self, dir_path, model=None, vars=None, buffer_size=5000,
-            progressbar=False, k=None, buffer_thinning=1):
+        self,
+        dir_path,
+        model=None,
+        vars=None,
+        buffer_size=5000,
+        progressbar=False,
+        k=None,
+        buffer_thinning=1,
+    ):
 
         super(NumpyChain, self).__init__(
-            dir_path, model, vars, progressbar=progressbar,
-            buffer_size=buffer_size, buffer_thinning=buffer_thinning, k=k)
+            dir_path,
+            model,
+            vars,
+            progressbar=progressbar,
+            buffer_size=buffer_size,
+            buffer_thinning=buffer_thinning,
+            k=k,
+        )
 
         self.k = k
 
     def __repr__(self):
         return "NumpyChain({},{},{},{},{},{})".format(
-            self.dir_path, self.model, self.vars, self.buffer_size,
-            self.progressbar, self.k)
+            self.dir_path,
+            self.model,
+            self.vars,
+            self.buffer_size,
+            self.progressbar,
+            self.k,
+        )
 
     @property
     def data_structure(self):
@@ -641,28 +684,28 @@ class NumpyChain(FileChain):
             false otherwise.
         """
 
-        logger.debug('SetupTrace: Chain_%i step_%i' % (chain, draws))
+        logger.debug("SetupTrace: Chain_%i step_%i" % (chain, draws))
         self.chain = chain
 
         self.draws = draws
-        self.filename = os.path.join(
-            self.dir_path, 'chain-{}.bin'.format(chain))
+        self.filename = os.path.join(self.dir_path, "chain-{}.bin".format(chain))
         self.__data_structure = self.construct_data_structure()
         if os.path.exists(self.filename) and not overwrite:
-            logger.info('Found existing trace, appending!')
+            logger.info("Found existing trace, appending!")
         else:
             logger.debug('Setup new "bin" trace for chain %i' % chain)
             self.count = 0
             data_type = OrderedDict()
-            with open(self.filename, 'wb') as fh:
+            with open(self.filename, "wb") as fh:
                 for k, v in self.var_dtypes.items():
                     data_type[k] = "{}".format(v)
 
                 header_data = {
                     self.flat_names_tag: self.flat_names,
                     self.var_shape_tag: self.var_shapes,
-                    self.var_dtypes_tag: data_type}
-                header = (json.dumps(header_data) + '\n').encode()
+                    self.var_dtypes_tag: data_type,
+                }
+                header = (json.dumps(header_data) + "\n").encode()
                 fh.write(header)
 
     def extract_variables_from_header(self, file_header):
@@ -685,16 +728,22 @@ class NumpyChain(FileChain):
         """
 
         if len(self.flat_names) == 0 and not self.corrupted_flag:
-            self.flat_names, self.var_shapes, self.var_dtypes, self.varnames = \
-                self.extract_variables_from_header(self.file_header)
+            (
+                self.flat_names,
+                self.var_shapes,
+                self.var_dtypes,
+                self.varnames,
+            ) = self.extract_variables_from_header(self.file_header)
 
         formats = [
             "{shape}{dtype}".format(
-                shape=self.var_shapes[name], dtype=self.var_dtypes[name])
-            for name in self.varnames]
+                shape=self.var_shapes[name], dtype=self.var_dtypes[name]
+            )
+            for name in self.varnames
+        ]
 
         # set data structure
-        return num.dtype({'names': self.varnames, 'formats': formats})
+        return num.dtype({"names": self.varnames, "formats": formats})
 
     def _write_data_to_file(self, lpoint=None):
         """
@@ -724,7 +773,8 @@ class NumpyChain(FileChain):
             with open(self.filename, mode="ab+") as fh:
                 if lpoint is None:
                     write_buffer = thin_buffer(
-                        self.buffer, self.buffer_thinning, ensure_last=True)
+                        self.buffer, self.buffer_thinning, ensure_last=True
+                    )
                     for lpoint, draw in write_buffer:
                         lpoint2file(fh, self.varnames, data, lpoint)
                 else:
@@ -740,8 +790,8 @@ class NumpyChain(FileChain):
                 self.__data_structure = self.construct_data_structure()
             except json.decoder.JSONDecodeError:
                 logger.warning(
-                    'File header of %s is corrupted!'
-                    ' Resampling!' % self.filename)
+                    "File header of %s is corrupted!" " Resampling!" % self.filename
+                )
                 self.corrupted_flag = True
 
         if self._df is None and not self.corrupted_flag:
@@ -750,8 +800,7 @@ class NumpyChain(FileChain):
                     # skip header.
                     next(file)
                     # read data
-                    self._df = num.fromfile(
-                        file, dtype=self.data_structure)
+                    self._df = num.fromfile(file, dtype=self.data_structure)
             except EOFError as e:
                 print(e)
                 self.corrupted_flag = True
@@ -763,10 +812,10 @@ class NumpyChain(FileChain):
             shape = (self._df.shape[0],) + self.var_shapes[varname]
             vals = data.ravel().reshape(shape)
             return vals[burn::thin]
-        except(ValueError):
+        except (ValueError):
             raise ValueError(
-                'Did not find varname "%s" in sampling '
-                'results! Fixed?' % varname)
+                'Did not find varname "%s" in sampling ' "results! Fixed?" % varname
+            )
 
     def point(self, idx):
         """
@@ -791,10 +840,7 @@ class NumpyChain(FileChain):
         return pt
 
 
-backend_catalog = {
-    'csv': TextChain,
-    'bin': NumpyChain
-}
+backend_catalog = {"csv": TextChain, "bin": NumpyChain}
 
 
 class TransDTextChain(object):
@@ -802,9 +848,10 @@ class TransDTextChain(object):
     Result Trace object for trans-d problems.
     Manages several TextChains one for each dimension.
     """
+
     def __init__(
-            self, name, model=None, vars=None,
-            buffer_size=5000, progressbar=False):
+        self, name, model=None, vars=None, buffer_size=5000, progressbar=False
+    ):
 
         self._straces = {}
         self.buffer_size = buffer_size
@@ -817,8 +864,7 @@ class TransDTextChain(object):
         if transd:
             self.dims_idx
         else:
-            raise ValueError(
-                'Model is not trans-d but TransD Chain initialized!')
+            raise ValueError("Model is not trans-d but TransD Chain initialized!")
 
         dimensions = model.unobserved_RVs[self.dims_idx]
 
@@ -828,19 +874,20 @@ class TransDTextChain(object):
                 model=model,
                 buffer_size=buffer_size,
                 progressbar=progressbar,
-                k=k)
+                k=k,
+            )
 
         # init indexing chain
         self._index = TextChain(
             dir_path=name,
             vars=[],
             buffer_size=self.buffer_size,
-            progressbar=self.progressbar)
-        self._index.flat_names = {
-            'draw__0': (1,), 'k__0': (1,), 'k_idx__0': (1,)}
+            progressbar=self.progressbar,
+        )
+        self._index.flat_names = {"draw__0": (1,), "k__0": (1,), "k_idx__0": (1,)}
 
     def setup(self, draws, chain):
-        self.draws = num.zeros(1, dtype='int32')
+        self.draws = num.zeros(1, dtype="int32")
         for k, trace in self._straces.items():
             trace.setup(draws=draws, chain=k)
 
@@ -876,14 +923,14 @@ class TransDTextChain(object):
         dict : of point values
         """
         ipoint = self._index.point(idx)
-        return self._straces[ipoint['k']].point(ipoint['k_idx'])
+        return self._straces[ipoint["k"]].point(ipoint["k_idx"])
 
     def get_values(self, varname):
         raise NotImplementedError()
 
 
 class SampleStage(object):
-    def __init__(self, base_dir, backend='csv'):
+    def __init__(self, base_dir, backend="csv"):
         self.base_dir = base_dir
         self.project_dir = os.path.dirname(base_dir)
         self.mode = os.path.basename(base_dir)
@@ -891,16 +938,16 @@ class SampleStage(object):
         util.ensuredir(self.base_dir)
 
     def stage_path(self, stage):
-        return os.path.join(self.base_dir, 'stage_{}'.format(stage))
+        return os.path.join(self.base_dir, "stage_{}".format(stage))
 
     def trans_stage_path(self, stage):
-        return os.path.join(self.base_dir, 'trans_stage_{}'.format(stage))
+        return os.path.join(self.base_dir, "trans_stage_{}".format(stage))
 
     def stage_number(self, stage_path):
         """
         Inverse function of SampleStage.path
         """
-        return int(os.path.basename(stage_path).split('_')[-1])
+        return int(os.path.basename(stage_path).split("_")[-1])
 
     def highest_sampled_stage(self):
         """
@@ -911,7 +958,7 @@ class SampleStage(object):
         -------
         stage number : int
         """
-        return max(self.stage_number(s) for s in glob(self.stage_path('*')))
+        return max(self.stage_number(s) for s in glob(self.stage_path("*")))
 
     def get_stage_indexes(self, load_stage=None):
         """
@@ -944,8 +991,7 @@ class SampleStage(object):
         """
         Consistent naming for atmip params.
         """
-        return os.path.join(
-            self.stage_path(stage_number), sample_p_outname)
+        return os.path.join(self.stage_path(stage_number), sample_p_outname)
 
     def load_sampler_params(self, stage_number):
         """
@@ -966,9 +1012,9 @@ class SampleStage(object):
         else:
             prev = stage_number - 1
 
-        logger.info('Loading parameters from completed stage {}'.format(prev))
+        logger.info("Loading parameters from completed stage {}".format(prev))
         sampler_state, updates = load_objects(self.atmip_path(prev))
-        sampler_state['stage'] = stage_number
+        sampler_state["stage"] = stage_number
         return sampler_state, updates
 
     def dump_atmip_params(self, stage_number, outlist):
@@ -985,8 +1031,7 @@ class SampleStage(object):
         stage_path = self.stage_path(stage)
         if rm_flag:
             if os.path.exists(stage_path):
-                logger.info(
-                    'Removing previous sampling results ... %s' % stage_path)
+                logger.info("Removing previous sampling results ... %s" % stage_path)
                 shutil.rmtree(stage_path)
             chains = None
         elif not os.path.exists(stage_path):
@@ -1012,12 +1057,12 @@ class SampleStage(object):
         """
         dirname = self.stage_path(stage)
         return load_multitrace(
-            dirname=dirname, chains=chains,
-            varnames=varnames, backend=self.backend)
+            dirname=dirname, chains=chains, varnames=varnames, backend=self.backend
+        )
 
     def recover_existing_results(
-            self, stage, draws, step,
-            buffer_thinning=1, varnames=None, update=None):
+        self, stage, draws, step, buffer_thinning=1, varnames=None, update=None
+    ):
 
         if stage > 0:
             prev = stage - 1
@@ -1026,35 +1071,41 @@ class SampleStage(object):
             else:
                 prev_stage_path = self.stage_path(prev)
 
-            logger.info('Loading end points of last completed stage: '
-                        '%s' % prev_stage_path)
+            logger.info(
+                "Loading end points of last completed stage: " "%s" % prev_stage_path
+            )
             mtrace = load_multitrace(
-                dirname=prev_stage_path,
-                varnames=varnames,
-                backend=self.backend)
+                dirname=prev_stage_path, varnames=varnames, backend=self.backend
+            )
 
-            step.population, step.array_population, step.likelihoods = \
-                step.select_end_points(mtrace)
+            (
+                step.population,
+                step.array_population,
+                step.likelihoods,
+            ) = step.select_end_points(mtrace)
 
         stage_path = self.stage_path(stage)
         if os.path.exists(stage_path):
             # load incomplete stage results
-            logger.info('Reloading existing results ...')
+            logger.info("Reloading existing results ...")
             mtrace = self.load_multitrace(stage, varnames=varnames)
             if len(mtrace.chains):
                 # continue sampling if traces exist
-                logger.info('Checking for corrupted files ...')
+                logger.info("Checking for corrupted files ...")
                 return check_multitrace(
-                    mtrace, draws=draws, n_chains=step.n_chains,
-                    buffer_thinning=buffer_thinning)
+                    mtrace,
+                    draws=draws,
+                    n_chains=step.n_chains,
+                    buffer_thinning=buffer_thinning,
+                )
         else:
-            logger.info('Found no sampling results under %s ' % stage_path)
-            logger.info('Init new trace!')
+            logger.info("Found no sampling results under %s " % stage_path)
+            logger.info("Init new trace!")
         return None
 
 
 def istransd(varnames):
-    dims = 'dimensions'
+    dims = "dimensions"
     if dims in varnames:
         dims_idx = varnames.index(dims)
         return True, dims_idx
@@ -1063,7 +1114,7 @@ def istransd(varnames):
         return False, None
 
 
-def load_multitrace(dirname, varnames=[], chains=None, backend='csv'):
+def load_multitrace(dirname, varnames=[], chains=None, backend="csv"):
     """
     Load TextChain database.
 
@@ -1081,13 +1132,13 @@ def load_multitrace(dirname, varnames=[], chains=None, backend='csv'):
     """
 
     if not istransd(varnames)[0]:
-        logger.info('Loading multitrace from %s' % dirname)
+        logger.info("Loading multitrace from %s" % dirname)
         if chains is None:
-            files = glob(os.path.join(dirname, 'chain-*.%s' % backend))
+            files = glob(os.path.join(dirname, "chain-*.%s" % backend))
             chains = [
-                int(os.path.splitext(
-                    os.path.basename(f))[0].replace('chain-', ''))
-                for f in files]
+                int(os.path.splitext(os.path.basename(f))[0].replace("chain-", ""))
+                for f in files
+            ]
 
             final_chain = -1
             if final_chain in chains:
@@ -1096,14 +1147,15 @@ def load_multitrace(dirname, varnames=[], chains=None, backend='csv'):
                 chains.pop(idx)
         else:
             files = [
-                os.path.join(
-                    dirname, 'chain-%i.%s' % (
-                        chain, backend)) for chain in chains]
+                os.path.join(dirname, "chain-%i.%s" % (chain, backend))
+                for chain in chains
+            ]
             for f in files:
                 if not os.path.exists(f):
                     raise IOError(
-                        'File %s does not exist! Please run:'
-                        ' "beat summarize <project_dir>"!' % f)
+                        "File %s does not exist! Please run:"
+                        ' "beat summarize <project_dir>"!' % f
+                    )
 
         straces = []
         for chain, f in zip(chains, files):
@@ -1113,8 +1165,8 @@ def load_multitrace(dirname, varnames=[], chains=None, backend='csv'):
             straces.append(strace)
         return base.MultiTrace(straces)
     else:
-        logger.info('Loading trans-d trace from %s' % dirname)
-        raise NotImplementedError('Loading trans-d trace is not implemented!')
+        logger.info("Loading trans-d trace from %s" % dirname)
+        raise NotImplementedError("Loading trans-d trace is not implemented!")
 
 
 def check_multitrace(mtrace, draws, n_chains, buffer_thinning=1):
@@ -1144,14 +1196,13 @@ def check_multitrace(mtrace, draws, n_chains, buffer_thinning=1):
             chain_len = len(mtrace._straces[chain])
             if chain_len != draws:
                 logger.warn(
-                    'Trace number %i incomplete: (%i / %i)' % (
-                        chain, chain_len, draws))
+                    "Trace number %i incomplete: (%i / %i)" % (chain, chain_len, draws)
+                )
                 mtrace._straces[chain].corrupted_flag = True
         else:
             not_sampled_idx.append(chain)
 
-    flag_bool = [
-        mtrace._straces[chain].corrupted_flag for chain in mtrace.chains]
+    flag_bool = [mtrace._straces[chain].corrupted_flag for chain in mtrace.chains]
     corrupted_idx = [i for i, x in enumerate(flag_bool) if x]
     return corrupted_idx + not_sampled_idx
 
@@ -1169,15 +1220,15 @@ def get_highest_sampled_stage(homedir, return_final=False):
     -------
     stage number : int
     """
-    stages = glob(os.path.join(homedir, 'stage_*'))
+    stages = glob(os.path.join(homedir, "stage_*"))
 
     stagenumbers = []
     for s in stages:
-        stage_ending = os.path.splitext(s)[0].rsplit('_', 1)[1]
+        stage_ending = os.path.splitext(s)[0].rsplit("_", 1)[1]
         try:
             stagenumbers.append(int(stage_ending))
         except ValueError:
-            logger.debug('string - Thats the final stage!')
+            logger.debug("string - Thats the final stage!")
             if return_final:
                 return stage_ending
 
@@ -1199,7 +1250,8 @@ def load_sampler_params(project_dir, stage_number, mode):
     """
 
     stage_path = os.path.join(
-        project_dir, mode, 'stage_%s' % stage_number, sample_p_outname)
+        project_dir, mode, "stage_%s" % stage_number, sample_p_outname
+    )
     return load_objects(stage_path)
 
 
@@ -1242,14 +1294,14 @@ def extract_variables_from_df(dataframe):
         with variable names and shapes
     """
     all_df_indexes = [str(flatvar) for flatvar in dataframe.columns]
-    varnames = list(set([index.split('__')[0] for index in all_df_indexes]))
+    varnames = list(set([index.split("__")[0] for index in all_df_indexes]))
 
     flat_names = OrderedDict()
     var_shapes = OrderedDict()
     for varname in varnames:
         indexes = []
         for index in all_df_indexes:
-            if index.split('__')[0] == varname:
+            if index.split("__")[0] == varname:
                 indexes.append(index)
 
         flat_names[varname] = indexes
@@ -1258,8 +1310,7 @@ def extract_variables_from_df(dataframe):
     return flat_names, var_shapes
 
 
-def extract_bounds_from_summary(
-        summary, varname, shape, roundto=None, alpha=0.01):
+def extract_bounds_from_summary(summary, varname, shape, roundto=None, alpha=0.01):
     """
     Extract lower and upper bound of random variable.
 
@@ -1272,21 +1323,21 @@ def extract_bounds_from_summary(
         return value
 
     indexes = ttab.create_flat_names(varname, shape)
-    lower_quant = 'hpd_{0:g}'.format(100 * alpha / 2)
-    upper_quant = 'hpd_{0:g}'.format(100 * (1 - alpha / 2))
+    lower_quant = "hpd_{0:g}".format(100 * alpha / 2)
+    upper_quant = "hpd_{0:g}".format(100 * (1 - alpha / 2))
 
     bounds = []
     for quant in [lower_quant, upper_quant]:
-        values = num.empty(shape, 'float64')
+        values = num.empty(shape, "float64")
         for i, idx in enumerate(indexes):
             if roundto is not None:
-                adjust = 10. ** roundto
+                adjust = 10.0**roundto
                 if quant == lower_quant:
                     operation = num.floor
                 elif quant == upper_quant:
                     operation = num.ceil
             else:
-                adjust = 1.
+                adjust = 1.0
                 operation = do_nothing
             values[i] = operation(summary[quant][idx] * adjust) / adjust
 

@@ -4,13 +4,11 @@ import os
 import shutil
 
 from beat import parallel
-from beat.backend import check_multitrace, load_multitrace, backend_catalog, \
-                         MemoryChain
+from beat.backend import check_multitrace, load_multitrace, backend_catalog, MemoryChain
 from beat.utility import list2string
 
 from numpy.random import seed, randint
-from numpy.random import normal, standard_cauchy, standard_exponential, \
-    poisson
+from numpy.random import normal, standard_cauchy, standard_exponential, poisson
 import numpy as np
 
 from theano import function
@@ -23,14 +21,15 @@ from pymc3.theanof import join_nonshared_inputs
 from tqdm import tqdm
 
 
-logger = logging.getLogger('sampler')
+logger = logging.getLogger("sampler")
 
 
 __all__ = [
-    'choose_proposal',
-    'iter_parallel_chains',
-    'init_stage',
-    'available_proposals']
+    "choose_proposal",
+    "iter_parallel_chains",
+    "init_stage",
+    "available_proposals",
+]
 
 
 def multivariate_t_rvs(mean, cov, df=np.inf, size=1):
@@ -64,7 +63,7 @@ def multivariate_t_rvs(mean, cov, df=np.inf, size=1):
     m = np.asarray(mean)
     d = len(mean)
     if df == np.inf:
-        x = 1.
+        x = 1.0
     else:
         x = np.random.chisquare(df, size) / df
 
@@ -81,6 +80,7 @@ class Proposal(object):
     ----------
     scale : :class:`numpy.ndarray`
     """
+
     def __init__(self, scale):
         self.scale = np.atleast_1d(scale)
 
@@ -98,6 +98,7 @@ class DiscreteBoundedUniformProposal(Proposal):
     scale : float or int
         returned values are multiples of this value, (default: 1)
     """
+
     def __init__(self, lower=0, upper=10, scale=1):
         self.lower = lower
         self.upper = upper
@@ -120,14 +121,14 @@ class DiscreteBoundedUniformProposal(Proposal):
         the returned data type is determined by the data type of "scale"
         (default: int)
         """
-        return (randint(
-            low=self.upper - self.lower, size=size) +
-            self.lower) * self.scale
+        return (
+            randint(low=self.upper - self.lower, size=size) + self.lower
+        ) * self.scale
 
 
 class NormalProposal(Proposal):
     def __call__(self, num_draws=None):
-        size = (self.scale.shape)
+        size = self.scale.shape
         if num_draws:
             size += (num_draws,)
         return normal(scale=self.scale[0], size=size).T
@@ -135,7 +136,7 @@ class NormalProposal(Proposal):
 
 class CauchyProposal(Proposal):
     def __call__(self, num_draws=None):
-        size = (self.scale.shape)
+        size = self.scale.shape
         if num_draws:
             size += (num_draws,)
         return standard_cauchy(size=size).T * self.scale
@@ -143,16 +144,17 @@ class CauchyProposal(Proposal):
 
 class LaplaceProposal(Proposal):
     def __call__(self, num_draws=None):
-        size = (self.scale.shape)
+        size = self.scale.shape
         if num_draws:
             size += (num_draws,)
-        return (standard_exponential(size=size) -
-                standard_exponential(size=size)).T * self.scale
+        return (
+            standard_exponential(size=size) - standard_exponential(size=size)
+        ).T * self.scale
 
 
 class PoissonProposal(Proposal):
     def __call__(self, num_draws=None):
-        size = (self.scale.shape)
+        size = self.scale.shape
         if num_draws:
             size += (num_draws,)
         return poisson(lam=self.scale, size=size).T - self.scale
@@ -161,14 +163,15 @@ class PoissonProposal(Proposal):
 class MultivariateNormalProposal(Proposal):
     def __call__(self, num_draws=None):
         return np.random.multivariate_normal(
-            mean=np.zeros(self.scale.shape[0]), cov=self.scale, size=num_draws)
+            mean=np.zeros(self.scale.shape[0]), cov=self.scale, size=num_draws
+        )
 
 
 class MultivariateStudentTProposal(Proposal):
     def __call__(self, df, num_draws=None):
         return multivariate_t_rvs(
-            mean=np.zeros(self.scale.shape[0]),
-            cov=self.scale, df=df, size=num_draws)
+            mean=np.zeros(self.scale.shape[0]), cov=self.scale, df=df, size=num_draws
+        )
 
 
 class MultivariateCauchyProposal(Proposal):
@@ -176,23 +179,25 @@ class MultivariateCauchyProposal(Proposal):
     Uses multivariate student T distribution with degrees
     of freedom equal to one.
     """
+
     def __call__(self, num_draws=None):
         return multivariate_t_rvs(
-            mean=np.zeros(self.scale.shape[0]),
-            cov=self.scale, df=1, size=num_draws)
+            mean=np.zeros(self.scale.shape[0]), cov=self.scale, df=1, size=num_draws
+        )
 
 
 proposal_distributions = {
-    'Cauchy': CauchyProposal,
-    'Poisson': PoissonProposal,
-    'Normal': NormalProposal,
-    'Laplace': LaplaceProposal,
-    'MultivariateNormal': MultivariateNormalProposal,
-    'MultivariateCauchy': MultivariateCauchyProposal,
-    'DiscreteBoundedUniform': DiscreteBoundedUniformProposal}
+    "Cauchy": CauchyProposal,
+    "Poisson": PoissonProposal,
+    "Normal": NormalProposal,
+    "Laplace": LaplaceProposal,
+    "MultivariateNormal": MultivariateNormalProposal,
+    "MultivariateCauchy": MultivariateCauchyProposal,
+    "DiscreteBoundedUniform": DiscreteBoundedUniformProposal,
+}
 
 
-multivariate_proposals = ['MultivariateCauchy', 'MultivariateNormal']
+multivariate_proposals = ["MultivariateCauchy", "MultivariateNormal"]
 
 
 def available_proposals():
@@ -224,8 +229,7 @@ def setup_chain_counter(n_chains, n_jobs):
 
 
 class ChainCounter(object):
-
-    def __init__(self, n, n_jobs, perc_disp=0.2, subject='chains'):
+    def __init__(self, n, n_jobs, perc_disp=0.2, subject="chains"):
 
         n_chains_worker = n // n_jobs
         frac_disp = int(np.ceil(n_chains_worker * perc_disp))
@@ -248,23 +252,34 @@ class ChainCounter(object):
         self.chain_count += 1
         if self.chain_count in self.logger_steps:
             logger.info(
-                'Worker %i: Finished %i / %i %s' %
-                (i, self.chain_count, self.n_chains, self.subject))
+                "Worker %i: Finished %i / %i %s"
+                % (i, self.chain_count, self.n_chains, self.subject)
+            )
 
 
-def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
-            progressbar=True, model=None, random_seed=-1):
+def _sample(
+    draws,
+    step=None,
+    start=None,
+    trace=None,
+    chain=0,
+    tune=None,
+    progressbar=True,
+    model=None,
+    random_seed=-1,
+):
 
     shared_params = [
-        sparam for sparam in step.logp_forw.get_shared()
-        if sparam.name in parallel._tobememshared]
+        sparam
+        for sparam in step.logp_forw.get_shared()
+        if sparam.name in parallel._tobememshared
+    ]
 
     if len(parallel._shared_memory) > 0:
-        logger.debug('Accessing shared memory')
+        logger.debug("Accessing shared memory")
         parallel.borrow_all_memories(shared_params, parallel._shared_memory)
 
-    sampling = _iter_sample(draws, step, start, trace, chain,
-                            tune, model, random_seed)
+    sampling = _iter_sample(draws, step, start, trace, chain, tune, model, random_seed)
 
     n = parallel.get_process_id()
 
@@ -272,10 +287,11 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
         sampling = tqdm(
             sampling,
             total=draws,
-            desc='chain: %i worker %i' % (chain, n),
+            desc="chain: %i worker %i" % (chain, n),
             position=n,
             leave=False,
-            ncols=65)
+            ncols=65,
+        )
 
     strace = None
     try:
@@ -288,7 +304,7 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
         if progressbar:
             sampling.close()
         else:
-            if hasattr(parallel, 'counter'):
+            if hasattr(parallel, "counter"):
                 parallel.counter(n)
 
         if strace:
@@ -297,9 +313,19 @@ def _sample(draws, step=None, start=None, trace=None, chain=0, tune=None,
     return chain
 
 
-def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
-                 model=None, random_seed=-1, overwrite=True,
-                 update_proposal=False, keep_last=False):
+def _iter_sample(
+    draws,
+    step,
+    start=None,
+    trace=None,
+    chain=0,
+    tune=None,
+    model=None,
+    random_seed=-1,
+    overwrite=True,
+    update_proposal=False,
+    keep_last=False,
+):
     """
     Modified from :func:`pymc3.sampling._iter_sample`
 
@@ -312,7 +338,7 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
     draws = int(draws)
 
     if draws < 1:
-        raise ValueError('Argument `draws` should be above 0.')
+        raise ValueError("Argument `draws` should be above 0.")
 
     if start is None:
         start = {}
@@ -334,30 +360,35 @@ def _iter_sample(draws, step, start=None, trace=None, chain=0, tune=None,
         if i == tune:
             step = stop_tuning(step)
 
-        logger.debug('Step: Chain_%i step_%i' % (chain, i))
+        logger.debug("Step: Chain_%i step_%i" % (chain, i))
         point, out_list = step.step(point)
 
         try:
             trace.buffer_write(out_list, step.cumulative_samples)
-        except BufferError:     # buffer full
+        except BufferError:  # buffer full
             last_sample = deepcopy(trace.buffer[-1])
-            if update_proposal:     # only valid for PT for now
+            if update_proposal:  # only valid for PT for now
                 if step.proposal_name in multivariate_proposals:
                     cov = trace.get_sample_covariance(step)
                     if cov is not None:
                         if not isinstance(trace, MemoryChain):
-                            filename = '%s/proposal_cov_chain_%i_%i.%s' % (
-                                trace.dir_path, trace.chain, trace.cov_counter,
-                                'png')
+                            filename = "%s/proposal_cov_chain_%i_%i.%s" % (
+                                trace.dir_path,
+                                trace.chain,
+                                trace.cov_counter,
+                                "png",
+                            )
                             from matplotlib import pyplot as plt
+
                             fig, axs = plt.subplots(1, 1)
-                            im = axs.imshow(cov, aspect='auto')
+                            im = axs.imshow(cov, aspect="auto")
                             plt.colorbar(im)
                             fig.savefig(filename, dpi=150)
                             plt.close(fig)
 
                         step.proposal_dist = choose_proposal(
-                            step.proposal_name, scale=cov)
+                            step.proposal_name, scale=cov
+                        )
 
             trace.record_buffer()
             if keep_last:
@@ -379,21 +410,31 @@ def init_chain_hypers(problem):
 
     sc = problem.config.sampler_config
 
-    point = problem.get_random_point(include=['hierarchicals', 'priors'])
+    point = problem.get_random_point(include=["hierarchicals", "priors"])
 
-    if hasattr(sc.parameters, 'update_covariances'):
+    if hasattr(sc.parameters, "update_covariances"):
         if sc.parameters.update_covariances:
-            logger.info('Updating Covariances ...')
+            logger.info("Updating Covariances ...")
             problem.update_weights(point)
 
-    logger.debug('Updating source point ...')
+    logger.debug("Updating source point ...")
     problem.update_llks(point)
 
 
 def iter_parallel_chains(
-        draws, step, stage_path, progressbar, model, n_jobs,
-        chains=None, initializer=None, initargs=(),
-        buffer_size=5000, buffer_thinning=1, chunksize=None):
+    draws,
+    step,
+    stage_path,
+    progressbar,
+    model,
+    n_jobs,
+    chains=None,
+    initializer=None,
+    initargs=(),
+    buffer_size=5000,
+    buffer_thinning=1,
+    chunksize=None,
+):
     """
     Do Metropolis sampling over all the chains with each chain being
     sampled 'draws' times. Parallel execution according to n_jobs.
@@ -445,7 +486,8 @@ def iter_parallel_chains(
 
     if n_chains == 0:
         mtrace = load_multitrace(
-            dirname=stage_path, varnames=varnames, backend=step.backend)
+            dirname=stage_path, varnames=varnames, backend=step.backend
+        )
 
     # while is necessary if any worker times out - rerun in case
     while n_chains > 0:
@@ -454,24 +496,38 @@ def iter_parallel_chains(
         if n_chains > 100:
             setup_chain_counter(n_chains, n_jobs)
 
-        logger.info('Initialising %i chain traces ...' % n_chains)
+        logger.info("Initialising %i chain traces ..." % n_chains)
         for chain in chains:
             trace_list.append(
                 backend_catalog[step.backend](
-                    dir_path=stage_path, model=model,
+                    dir_path=stage_path,
+                    model=model,
                     buffer_thinning=buffer_thinning,
-                    buffer_size=buffer_size, progressbar=progressbar))
+                    buffer_size=buffer_size,
+                    progressbar=progressbar,
+                )
+            )
 
         max_int = np.iinfo(np.int32).max
         random_seeds = [randint(max_int) for _ in range(n_chains)]
 
-        work = [(draws, step, step.population[step.resampling_indexes[chain]],
-                trace, chain, None, progressbar, model, rseed)
-                for chain, rseed, trace in zip(
-                    chains, random_seeds, trace_list)]
+        work = [
+            (
+                draws,
+                step,
+                step.population[step.resampling_indexes[chain]],
+                trace,
+                chain,
+                None,
+                progressbar,
+                model,
+                rseed,
+            )
+            for chain, rseed, trace in zip(chains, random_seeds, trace_list)
+        ]
 
         tps = step.time_per_sample(np.minimum(n_jobs, 10))
-        logger.info('Serial time per sample: %f' % tps)
+        logger.info("Serial time per sample: %f" % tps)
 
         if chunksize is None:
             if draws < 10:
@@ -485,52 +541,55 @@ def iter_parallel_chains(
 
         if n_jobs > 1 and True:
             shared_params = [
-                sparam for sparam in step.logp_forw.get_shared()
-                if sparam.name in parallel._tobememshared]
+                sparam
+                for sparam in step.logp_forw.get_shared()
+                if sparam.name in parallel._tobememshared
+            ]
 
-            logger.info(
-                'Data to be memory shared: %s' %
-                list2string(shared_params))
+            logger.info("Data to be memory shared: %s" % list2string(shared_params))
 
             if len(shared_params) > 0:
                 if len(parallel._shared_memory) == 0:
-                    logger.info('Putting data into shared memory ...')
+                    logger.info("Putting data into shared memory ...")
                     parallel.memshare_sparams(shared_params)
                 else:
-                    logger.info('Data already in shared memory!')
+                    logger.info("Data already in shared memory!")
 
             else:
-                logger.info('No data to be memshared!')
+                logger.info("No data to be memshared!")
 
         else:
-            logger.info('Not using shared memory.')
+            logger.info("Not using shared memory.")
 
         p = parallel.paripool(
-            _sample, work,
+            _sample,
+            work,
             chunksize=chunksize,
             timeout=timeout,
             nprocs=n_jobs,
             initializer=initializer,
-            initargs=initargs)
+            initargs=initargs,
+        )
 
-        logger.info('Sampling ...')
+        logger.info("Sampling ...")
 
         for res in p:
             pass
 
         # return chain indexes that have been corrupted
         mtrace = load_multitrace(
-            dirname=stage_path, varnames=varnames, backend=step.backend)
+            dirname=stage_path, varnames=varnames, backend=step.backend
+        )
         corrupted_chains = check_multitrace(
-            mtrace, draws=draws, n_chains=step.n_chains,
-            buffer_thinning=buffer_thinning)
+            mtrace, draws=draws, n_chains=step.n_chains, buffer_thinning=buffer_thinning
+        )
 
         n_chains = len(corrupted_chains)
 
         if n_chains > 0:
             logger.warning(
-                '%i Chains not finished sampling,'
-                ' restarting ...' % n_chains)
+                "%i Chains not finished sampling," " restarting ..." % n_chains
+            )
 
         chains = corrupted_chains
 
@@ -557,8 +616,15 @@ def logp_forw(out_vars, vars, shared):
 
 
 def init_stage(
-        stage_handler, step, stage, model, buffer_thinning=1,
-        progressbar=False, update=None, rm_flag=False):
+    stage_handler,
+    step,
+    stage,
+    model,
+    buffer_thinning=1,
+    progressbar=False,
+    update=None,
+    rm_flag=False,
+):
     """
     Examine starting point of sampling, reload stages and initialise steps.
     """
@@ -573,28 +639,31 @@ def init_stage(
         else:
             draws = step.n_steps
             try:
-                sampler_state, updates = \
-                    stage_handler.load_sampler_params(stage)
+                sampler_state, updates = stage_handler.load_sampler_params(stage)
                 step.apply_sampler_state(sampler_state)
 
                 if update is not None:
-                    logger.info('Applying reloaded weight matrixes ...')
+                    logger.info("Applying reloaded weight matrixes ...")
                     update.apply(updates)
             except ValueError:
-                logger.info(
-                    'Found no existing sample directories! Skipping loading!')
+                logger.info("Found no existing sample directories! Skipping loading!")
 
         varnames = [var.name for var in model.unobserved_RVs]
         chains = stage_handler.recover_existing_results(
-            stage, draws, step, buffer_thinning=buffer_thinning,
-            varnames=varnames, update=update)
+            stage,
+            draws,
+            step,
+            buffer_thinning=buffer_thinning,
+            varnames=varnames,
+            update=update,
+        )
 
     return chains, step, update
 
 
 def update_last_samples(
-        homepath, step,
-        progressbar=False, model=None, n_jobs=1, rm_flag=False):
+    homepath, step, progressbar=False, model=None, n_jobs=1, rm_flag=False
+):
     """
     Resampling the last stage samples with the updated covariances and
     accept the new sample.
@@ -605,12 +674,11 @@ def update_last_samples(
     """
 
     tmp_stage = deepcopy(step.stage)
-    logger.info('Updating last samples ...')
+    logger.info("Updating last samples ...")
     draws = 1
     step.stage = 0
-    trans_stage_path = os.path.join(
-        homepath, 'trans_stage_%i' % tmp_stage)
-    logger.info('in %s' % trans_stage_path)
+    trans_stage_path = os.path.join(homepath, "trans_stage_%i" % tmp_stage)
+    logger.info("in %s" % trans_stage_path)
 
     if os.path.exists(trans_stage_path) and rm_flag:
         shutil.rmtree(trans_stage_path)
@@ -620,13 +688,14 @@ def update_last_samples(
     step.resampling_indexes = np.arange(step.n_chains)
 
     sample_args = {
-        'draws': draws,
-        'step': step,
-        'stage_path': trans_stage_path,
-        'progressbar': progressbar,
-        'model': model,
-        'n_jobs': n_jobs,
-        'chains': chains}
+        "draws": draws,
+        "step": step,
+        "stage_path": trans_stage_path,
+        "progressbar": progressbar,
+        "model": model,
+        "n_jobs": n_jobs,
+        "chains": chains,
+    }
 
     mtrace = iter_parallel_chains(**sample_args)
 

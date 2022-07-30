@@ -22,7 +22,7 @@ def slip_colormap(nbins=64, return_numpy=False):
     :class:`matplotlib.colors.LinearSegmentedColormap`
     """
 
-    name = 'slipcolor'
+    name = "slipcolor"
     colors = [
         (1, 1, 1),
         (0.888888888888889, 0.966666666666667, 1),
@@ -87,7 +87,8 @@ def slip_colormap(nbins=64, return_numpy=False):
         (0.666666666666667, 0, 0),
         (0.611111111111111, 0, 0),
         (0.555555555555555, 0, 0),
-        (0.500000000000000, 0, 0)]
+        (0.500000000000000, 0, 0),
+    ]
     if return_numpy:
         return array(colors)
     else:
@@ -115,7 +116,7 @@ def roma_colormap(nbins=64, return_numpy=False):
     www.fabiocrameri.ch/colourmaps
     """
 
-    name = 'roma'
+    name = "roma"
     colors = [
         (0.49684, 0.099626, 0),
         (0.50141, 0.11159, 0.003821),
@@ -372,7 +373,8 @@ def roma_colormap(nbins=64, return_numpy=False):
         (0.11502, 0.21805, 0.60768),
         (0.11142, 0.21209, 0.60511),
         (0.10761, 0.20611, 0.60255),
-        (0.1037, 0.20006, 0.59999)]
+        (0.1037, 0.20006, 0.59999),
+    ]
     if return_numpy:
         return array(colors)
     else:

@@ -14,65 +14,64 @@ from logging import getLogger
 import os
 
 
-logger = getLogger('ffi.laplacian')
+logger = getLogger("ffi.laplacian")
 
-LOG_2PI = num.log(2. * num.pi)
+LOG_2PI = num.log(2.0 * num.pi)
 
 
 __all__ = [
-    'LaplacianDistributerComposite',
-    'get_smoothing_operator_correlated',
-    'get_smoothing_operator_nearest_neighbor']
+    "LaplacianDistributerComposite",
+    "get_smoothing_operator_correlated",
+    "get_smoothing_operator_nearest_neighbor",
+]
 
 
 class LaplacianDistributerComposite(Composite):
-
     def __init__(self, config, project_dir, events, hypers):
 
         super(LaplacianDistributerComposite, self).__init__(events)
 
         self.config = config
-        self._mode = 'ffi'
-        self.name = 'laplacian'
+        self._mode = "ffi"
+        self.name = "laplacian"
 
         # dummy for hyperparam name
         self.hyperparams[bconfig.hyper_name_laplacian] = None
         self.hierarchicals = None
 
-        self.gfpath = os.path.join(
-            project_dir, self._mode, bconfig.linear_gf_dir_name)
+        self.gfpath = os.path.join(project_dir, self._mode, bconfig.linear_gf_dir_name)
 
         self.fault = self.load_fault_geometry()
         self.spatches = shared(self.fault.npatches, borrow=True)
-        self._like_name = 'laplacian_like'
+        self._like_name = "laplacian_like"
 
-        self.smoothing_op = \
-            self.fault.get_smoothing_operator(
-                event=self.event,
-                correlation_function=config.correlation_function).astype(
-                    tconfig.floatX)
+        self.smoothing_op = self.fault.get_smoothing_operator(
+            event=self.event, correlation_function=config.correlation_function
+        ).astype(tconfig.floatX)
 
-        if(0):
+        if 0:
             from matplotlib import pyplot as plt
-            print('Smoothing Op', self.smoothing_op)
+
+            print("Smoothing Op", self.smoothing_op)
             im = plt.matshow(self.smoothing_op)
             plt.colorbar(im)
             plt.show()
 
         self.sdet_shared_smoothing_op = shared(
-            log_determinant(
-                self.smoothing_op.T * self.smoothing_op, inverse=False),
-            borrow=True)
+            log_determinant(self.smoothing_op.T * self.smoothing_op, inverse=False),
+            borrow=True,
+        )
 
         self.shared_smoothing_op = shared(self.smoothing_op, borrow=True)
 
         if hypers:
             self._llks = []
             for varname in bconfig.static_dist_vars:
-                self._llks.append(shared(
-                    num.array([1.]),
-                    name='laplacian_llk_%s' % varname,
-                    borrow=True))
+                self._llks.append(
+                    shared(
+                        num.array([1.0]), name="laplacian_llk_%s" % varname, borrow=True
+                    )
+                )
 
     def load_fault_geometry(self):
         """
@@ -83,8 +82,9 @@ class LaplacianDistributerComposite(Composite):
         :class:`ffi.fault.FaultGeometry`
         """
         try:
-            return load_objects(
-                os.path.join(self.gfpath, bconfig.fault_geometry_name))[0]
+            return load_objects(os.path.join(self.gfpath, bconfig.fault_geometry_name))[
+                0
+            ]
         except Exception:
             raise FaultGeometryNotFoundError()
 
@@ -92,10 +92,11 @@ class LaplacianDistributerComposite(Composite):
         """
         Evaluate model parameter independend part of the smoothness prior.
         """
-        return (-0.5) * \
-            (-self.sdet_shared_smoothing_op +
-             (self.spatches * (LOG_2PI + 2 * hyperparam)) +
-             (1. / tt.exp(hyperparam * 2) * exponent))
+        return (-0.5) * (
+            -self.sdet_shared_smoothing_op
+            + (self.spatches * (LOG_2PI + 2 * hyperparam))
+            + (1.0 / tt.exp(hyperparam * 2) * exponent)
+        )
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
         """
@@ -119,7 +120,7 @@ class LaplacianDistributerComposite(Composite):
         posterior_llk : :class:`theano.tensor.Tensor`
         """
 
-        logger.info('Initialising Laplacian smoothing operator ...')
+        logger.info("Initialising Laplacian smoothing operator ...")
 
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs
@@ -133,8 +134,9 @@ class LaplacianDistributerComposite(Composite):
             exponent = Ls.T.dot(Ls)
 
             logpts = tt.set_subtensor(
-                logpts[l:l + 1],
-                self._eval_prior(hyperparams[hp_name], exponent=exponent))
+                logpts[l : l + 1],
+                self._eval_prior(hyperparams[hp_name], exponent=exponent),
+            )
 
         llk = Deterministic(self._like_name, logpts.sum())
         return llk
@@ -163,8 +165,9 @@ class LaplacianDistributerComposite(Composite):
         logpts = tt.zeros((self.n_t), tconfig.floatX)
         for k in range(self.n_t):
             logpt = self._eval_prior(
-                hyperparams[bconfig.hyper_name_laplacian], self._llks[k])
-            logpts = tt.set_subtensor(logpts[k:k + 1], logpt)
+                hyperparams[bconfig.hyper_name_laplacian], self._llks[k]
+            )
+            logpts = tt.set_subtensor(logpts[k : k + 1], logpt)
 
         llk = Deterministic(self._like_name, logpts)
         return llk.sum()
@@ -202,7 +205,7 @@ def _patch_locations(n_patch_strike, n_patch_dip):
     dmat[0:n_patch_strike, 0] = zeros_strike
     dmat[-n_patch_strike:, 1] = zeros_strike
     dmat[0::n_patch_strike, 2] = zeros_dip
-    dmat[n_patch_strike - 1::n_patch_strike, 3] = zeros_dip
+    dmat[n_patch_strike - 1 :: n_patch_strike, 3] = zeros_dip
     return dmat
 
 
@@ -225,20 +228,21 @@ def distances(points, ref_points):
     ndim_ref = ref_points.shape[1]
     if ndim != ndim_ref:
         raise TypeError(
-            'Coordinates to calculate differences must have the same number '
-            'of dimensions! Given dimensions are {} and {}'.format(
-                ndim, ndim_ref))
+            "Coordinates to calculate differences must have the same number "
+            "of dimensions! Given dimensions are {} and {}".format(ndim, ndim_ref)
+        )
 
     points_rep = num.tile(points, nref_points).reshape(
-        points.shape[0], nref_points, ndim)
+        points.shape[0], nref_points, ndim
+    )
 
-    distances = num.sqrt(num.power(
-        points_rep - ref_points, 2).sum(axis=2))
+    distances = num.sqrt(num.power(points_rep - ref_points, 2).sum(axis=2))
     return distances
 
 
 def get_smoothing_operator_nearest_neighbor(
-        n_patch_strike, n_patch_dip, patch_size_strike, patch_size_dip):
+    n_patch_strike, n_patch_dip, patch_size_strike, patch_size_dip
+):
     """
     Get second order Laplacian smoothing operator between neighboring patches.
 
@@ -263,15 +267,13 @@ def get_smoothing_operator_nearest_neighbor(
     """
     n_patches = n_patch_dip * n_patch_strike
 
-    dmat = _patch_locations(
-        n_patch_strike=n_patch_strike, n_patch_dip=n_patch_dip)
+    dmat = _patch_locations(n_patch_strike=n_patch_strike, n_patch_dip=n_patch_dip)
 
     smooth_op = num.zeros((n_patches, n_patches))
 
-    delta_l_dip = 1. / (patch_size_dip ** 2)
-    delta_l_strike = 1. / (patch_size_strike ** 2)
-    deltas = num.array(
-        [delta_l_dip, delta_l_dip, delta_l_strike, delta_l_strike])
+    delta_l_dip = 1.0 / (patch_size_dip**2)
+    delta_l_strike = 1.0 / (patch_size_strike**2)
+    deltas = num.array([delta_l_dip, delta_l_dip, delta_l_strike, delta_l_strike])
 
     for i in range(n_patches):
         flags = dmat[i, :]
@@ -290,8 +292,7 @@ def get_smoothing_operator_nearest_neighbor(
     return smooth_op
 
 
-def get_smoothing_operator_correlated(
-        patches_coords, correlation_function='gaussian'):
+def get_smoothing_operator_correlated(patches_coords, correlation_function="gaussian"):
     """
     Get second order Laplacian finite-difference smoothing operator.
 
@@ -311,15 +312,16 @@ def get_smoothing_operator_correlated(
 
     inter_patch_distances = distances(patches_coords, patches_coords)
 
-    if correlation_function == 'gaussian':
+    if correlation_function == "gaussian":
         a = 1 / num.power(inter_patch_distances, 2)
 
-    elif correlation_function == 'exponential':
+    elif correlation_function == "exponential":
         a = 1 / num.exp(inter_patch_distances)
     else:
         raise ValueError(
-            'Resolution based discretization does not support '
-            '"nearest_neighbor" correlation function!')
+            "Resolution based discretization does not support "
+            '"nearest_neighbor" correlation function!'
+        )
 
     num.fill_diagonal(a, num.zeros(a.shape[0]))  # remove invalid diag
     norm_distances = a.sum(0)
