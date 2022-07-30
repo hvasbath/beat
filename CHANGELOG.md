@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 
 ## [1.2.0] TBD June 2022
-Contributors: Mahdi Hamidbeygi, Hannes Vasyura-Bathke
+Contributors: Mahdi Hamidbeygi @mahdihamidbeygi, Hannes Vasyura-Bathke @hvasbath
 
 ### Added
 **Polarity**
@@ -20,9 +20,16 @@ Contributors: Mahdi Hamidbeygi, Hannes Vasyura-Bathke
 - added string-choice `domain` to WaveMaps to choose `time` or `frequency` domain for inference
 - plotting: added spectra fits in waveform fits plot
 
-### Changed
-- split plotting module into plotting directory with submodules 
+**Continuous Integration (CI)**
+- adapted installation scheme to fulfill PEP517 through pip and .toml
+- providing beat binary packages on PyPi
+- github actions workflow for code formatting and wheel building
 
+### Changed
+- split plotting module into plotting directory with submodules
+- plotting: stage_posteriors change hist color to grey if only single density is shown
+- plotting: fuzzyBB dashed white and black line instead of red for MAP
+- docs: updated (short) installation instructions to use the package manager pip instead of setup.py
 
 ## [1.1.1] 6th January 2022
 

@@ -1,5 +1,6 @@
 """
 Metropolis algorithm module, wrapping the pymc3 implementation.
+
 Provides the possibility to update the involved covariance matrixes within
 the course of sampling the chain.
 """
@@ -73,7 +74,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
     proposal_dist :
         :class:`pymc3.metropolis.Proposal`
         Type of proposal distribution, see
-        :module:`pymc3.step_methods.metropolis` for options
+        :mod:`pymc3.step_methods.metropolis` for options
     tune : boolean
         Flag for adaptive scaling based on the acceptance rate
     model : :class:`pymc3.Model`

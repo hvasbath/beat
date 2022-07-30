@@ -50,7 +50,7 @@ class SMC(Metropolis):
     proposal_dist :
         :class:`pymc3.metropolis.Proposal`
         Type of proposal distribution, see
-        :module:`pymc3.step_methods.metropolis` for options
+        :mod:`pymc3.step_methods.metropolis` for options
     tune : boolean
         Flag for adaptive scaling based on the acceptance rate
     coef_variation : scalar, float

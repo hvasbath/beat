@@ -92,20 +92,6 @@ The :mod:`models` Module
    :members:
 
 
-The :mod:`psgrn` Module
------------------------
-
-.. automodule:: psgrn
-   :members:
-
-
-The :mod:`pscmp` Module
------------------------
-
-.. automodule:: pscmp
-   :members:
-
-
 The :mod:`interseismic` Module
 ------------------------------
 
