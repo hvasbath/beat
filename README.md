@@ -3,6 +3,8 @@
 
 # Bayesian Earthquake Analysis Tool
 
+If you came looking for the beat package calculating internet time you can find it [here](https://github.com/tonyskapunk/beat).
+
 Based on pyrocko, theano and pymc3
 
 6 January 2022
