@@ -1,6 +1,8 @@
 #!/usr/bin/env python
+from glob import glob
 import os
 from os.path import join as pjoin
+from os.path import basename
 
 # disable internal blas parallelisation as we parallelise over chains
 nthreads = "1"
@@ -903,12 +905,20 @@ def command_clone(args):
 
                 new_datatypes.append(datatype)
 
-                data_path = pjoin(project_dir, datatype + "_data.pkl")
+                if datatype != "polarity":
+                    files = [pjoin(project_dir, datatype + "_data.pkl")]
+                else:
+                    marker_files = [
+                        basename(fname) for fname in glob(pjoin(project_dir, "*.pf"))
+                    ]
+                    files = ["stations.txt"] + marker_files
 
-                if os.path.exists(data_path) and options.copy_data:
-                    logger.info("Cloning %s data ..." % datatype)
-                    cloned_data_path = pjoin(cloned_dir, datatype + "_data.pkl")
-                    shutil.copyfile(data_path, cloned_data_path)
+                for file in files:
+                    data_path = pjoin(project_dir, file)
+                    if os.path.exists(data_path) and options.copy_data:
+                        logger.info("Cloning data ... %s " % data_path)
+                        cloned_data_path = pjoin(cloned_dir, file)
+                        shutil.copyfile(data_path, cloned_data_path)
             else:
                 if datatype in c.problem_config.datatypes:
                     logger.warning(
