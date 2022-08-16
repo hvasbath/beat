@@ -2157,12 +2157,18 @@ def draw_station_map_gmt(problem, po):
     w = h - 5
 
     logger.info("Drawing Station Map ...")
-    sc = problem.composites["seismic"]
+    if "seismic" in problem.config.problem_config.datatypes:
+        sc = problem.composites["seismic"]
+        wmaps = sc.wavemaps
+    elif "polarity" in problem.config.problem_config.datatypes:
+        sc = problem.composites["polarity"]
+        wmaps = sc.polmaps
+
     event = problem.config.event
 
     gmtconfig = get_gmt_config(gmtpy, h=h, w=h)
     gmtconfig["MAP_LABEL_OFFSET"] = "4p"
-    for wmap in sc.wavemaps:
+    for wmap in wmaps:
         outpath = os.path.join(
             problem.outfolder,
             po.figure_dir,
@@ -2170,7 +2176,7 @@ def draw_station_map_gmt(problem, po):
             % (wmap.name, wmap.mapnumber, value_string, po.outformat),
         )
 
-        dist = max(wmap.config.distances)
+        dist = max(wmap.get_distances_deg())
         if not os.path.exists(outpath) or po.force:
 
             if point:

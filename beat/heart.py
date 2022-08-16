@@ -2619,8 +2619,10 @@ def get_phase_taperer(
 
 
 class BaseMapping(object):
-    def __init__(self, stations, targets):
+    def __init__(self, stations, targets, mapnumber=0):
 
+        self.name = "base"
+        self.mapnumber = mapnumber
         self.stations = stations
         self.targets = targets
 
@@ -2630,8 +2632,18 @@ class BaseMapping(object):
         self._prepared_data = None
 
     @property
+    def _mapid(self):
+        if hasattr(self, "mapnumber"):
+            return "_".join((self.name, str(self.mapnumber)))
+        else:
+            return self.name
+
+    @property
     def is_prepared(self):
         return True if self._prepared_data is not None else False
+
+    def get_distances_deg(self):
+        raise NotImplementedError
 
     def _load_phase_markers(self, path):
         from pyrocko.gui.marker import load_markers, PhaseMarker
@@ -2707,9 +2719,9 @@ class BaseMapping(object):
 
 
 class PolarityMapping(BaseMapping):
-    def __init__(self, config, stations, targets):
+    def __init__(self, config, stations, targets, mapnumber=0):
 
-        BaseMapping.__init__(self, stations, targets)
+        BaseMapping.__init__(self, stations, targets, mapnumber)
 
         self.config = config
         self.datasets = None
@@ -2771,8 +2783,6 @@ class PolarityMapping(BaseMapping):
         self._target2index = None
         self._station2index = None
 
-        self.check_consistency()
-
     def prepare_data(self):
         """
         Make stations, targets and dataset consistent by dropping
@@ -2798,10 +2808,13 @@ class PolarityMapping(BaseMapping):
                 stations_new.append(self.stations[sta_idx])
                 station_idxs.append(i)
             else:
-                logger.warning(
-                    'For station "%s" no station meta-data was found, '
-                    "ignoring..." % station_name
-                )
+                if station_name in self.config.blacklist:
+                    logger.info("Station %s was blacklisted", station_name)
+                else:
+                    logger.warning(
+                        'For station "%s" no station meta-data was found, '
+                        "ignoring..." % station_name
+                    )
 
         polarities = self.get_polarities()
         if station_idxs:
@@ -2858,6 +2871,15 @@ class PolarityMapping(BaseMapping):
             self.update_radiation_weights()
         return self._radiation_weights
 
+    def get_distances_deg(self):
+        return num.array(
+            [
+                target.distance * cake.m2d
+                for target in self.targets
+                if target.distance is not None
+            ]
+        )
+
 
 class WaveformMapping(BaseMapping):
     """
@@ -2889,9 +2911,10 @@ class WaveformMapping(BaseMapping):
         datasets=[],
         targets=[],
         deltat=None,
+        mapnumber=0,
     ):
 
-        BaseMapping.__init__(self, stations, targets)
+        BaseMapping.__init__(self, stations, targets, mapnumber)
 
         self.name = name
         self.weights = weights
@@ -2983,13 +3006,6 @@ class WaveformMapping(BaseMapping):
             dtrace.set_wavename(wavename)
 
     @property
-    def _mapid(self):
-        if hasattr(self, "mapnumber"):
-            return "_".join((self.name, str(self.mapnumber)))
-        else:
-            return self.name
-
-    @property
     def time_shifts_id(self):
         return "time_shifts_" + self._mapid
 
@@ -3021,6 +3037,9 @@ class WaveformMapping(BaseMapping):
             arrival_time_dict[nslc_id] = phase_marker.tmin
 
         return arrival_time_dict
+
+    def get_distances_deg(self):
+        return self.config.distances
 
     def prepare_data(self, source, engine, outmode="array", chop_bounds=["b", "c"]):
         """

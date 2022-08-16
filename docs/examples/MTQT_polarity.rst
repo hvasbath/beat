@@ -3,7 +3,7 @@ Example 1: Regional Full Moment Tensor
 Clone project
 ^^^^^^^^^^^^^
 This setup is comprised of 24 seismic stations that are randomly distributed in a distance range of 3 to 162 km with respect to a reference event occurred on 2021-03-11 with the local magnitude, 1.6.
-We will explore the solution space of a Full Moment Tensor with the Tape and Tape 2015 parameterisation, the MTQTSource.
+We will explore the solution space of a Full Moment Tensor with the Tape and Tape 2015 parameterisation, the MTQTSource [TapeTape2015]_.
 To copy the example setup (including the data) to a directory outside of the package source directory, please edit the *model path* (referred to as $beat_models from now on) and execute::
 
     cd /path/to/beat/data/examples/
@@ -395,4 +395,5 @@ the current setup into a new directory.::
 
 References
 ^^^^^^^^^^
+.. [TapeTape2015] A uniform parametrization of moment tensors. Geophysical Journal International, 202(3), 2074–2081. https://doi.org/10.1093/gji/ggv262
 .. [Brillinger] Brillinger, D. R. and Udias, A. and Bolt, B. A., A probability model for regional focal mechanism solutions. Bulletin of the Seismological Society of America 1980: doi: https://doi.org/10.1785/BSSA0700010149

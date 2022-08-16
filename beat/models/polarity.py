@@ -83,8 +83,9 @@ class PolarityComposite(Composite):
             )
 
             pmap = PolarityMapping(
-                config=pmap_config, stations=stations, targets=targets
+                config=pmap_config, stations=stations, targets=targets, mapnumber=i
             )
+
             pmap.prepare_data()
             pmap.update_targets(
                 self.engine, self.sources[pmap.config.event_idx], check=True
