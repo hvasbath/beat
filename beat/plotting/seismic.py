@@ -1521,7 +1521,7 @@ def draw_fuzzy_beachball(problem, po):
 
     if "polarity" in problem.config.problem_config.datatypes:
         composite = problem.composites["polarity"]
-        wavenames = [pmap.config.name for pmap in composite.polmaps]
+        wavenames = [pmap.config.name for pmap in composite.wavemaps]
     else:
         wavenames = ["any_P"]
 
@@ -1576,7 +1576,7 @@ def draw_fuzzy_beachball(problem, po):
                 )
 
             if "polarity" in problem.config.problem_config.datatypes:
-                pmap = composite.polmaps[k_pamp]
+                pmap = composite.wavemaps[k_pamp]
                 draw_ray_piercing_points_bb(
                     axes,
                     pmap.get_takeoff_angles_rad(),
@@ -2157,104 +2157,104 @@ def draw_station_map_gmt(problem, po):
     w = h - 5
 
     logger.info("Drawing Station Map ...")
-    if "seismic" in problem.config.problem_config.datatypes:
-        sc = problem.composites["seismic"]
-        wmaps = sc.wavemaps
-    elif "polarity" in problem.config.problem_config.datatypes:
-        sc = problem.composites["polarity"]
-        wmaps = sc.polmaps
+    for datatype in problem.config.problem_config.datatypes:
+        sc = problem.composites[datatype]
+        if datatype != "geodetic":
+            wmaps = sc.wavemaps
+        else:
+            wmaps = []
 
-    event = problem.config.event
+        event = problem.config.event
 
-    gmtconfig = get_gmt_config(gmtpy, h=h, w=h)
-    gmtconfig["MAP_LABEL_OFFSET"] = "4p"
-    for wmap in wmaps:
-        outpath = os.path.join(
-            problem.outfolder,
-            po.figure_dir,
-            "station_map_%s_%i_%s.%s"
-            % (wmap.name, wmap.mapnumber, value_string, po.outformat),
-        )
+        gmtconfig = get_gmt_config(gmtpy, h=h, w=h)
+        gmtconfig["MAP_LABEL_OFFSET"] = "4p"
+        for wmap in wmaps:
+            outpath = os.path.join(
+                problem.outfolder,
+                po.figure_dir,
+                "station_map_%s_%i_%s.%s"
+                % (wmap.name, wmap.mapnumber, value_string, po.outformat),
+            )
 
-        dist = max(wmap.get_distances_deg())
-        if not os.path.exists(outpath) or po.force:
+            dist = max(wmap.get_distances_deg())
+            if not os.path.exists(outpath) or po.force:
 
-            if point:
-                time_shifts = extract_time_shifts(point, sc.hierarchicals, wmap)
-            else:
-                time_shifts = None
+                if point:
+                    time_shifts = extract_time_shifts(point, sc.hierarchicals, wmap)
+                else:
+                    time_shifts = None
 
-            if dist > 30:
-                logger.info(
-                    "Using equidistant azimuthal projection for"
-                    " teleseismic setup of wavemap %s." % wmap._mapid
-                )
-
-                gmt = gmtpy.GMT(config=gmtconfig)
-                gmt_station_map_azimuthal(
-                    gmt,
-                    wmap.stations,
-                    event,
-                    data=time_shifts,
-                    max_distance=dist,
-                    width=w,
-                    bin_width=bin_width,
-                    fontsize=fontsize,
-                    font=font,
-                )
-
-                gmt.save(outpath, resolution=po.dpi, size=w)
-
-            else:
-                logger.info(
-                    "Using equidistant projection for regional setup "
-                    "of wavemap %s." % wmap._mapid
-                )
-                from pyrocko.automap import Map
-                from pyrocko import orthodrome as otd
-
-                m = Map(
-                    lat=event.lat,
-                    lon=event.lon,
-                    radius=dist * otd.d2m,
-                    width=h,
-                    height=h,
-                    show_grid=True,
-                    show_topo=True,
-                    show_scale=True,
-                    color_dry=(143, 188, 143),  # grey
-                    illuminate=True,
-                    illuminate_factor_ocean=0.15,
-                    # illuminate_factor_land = 0.2,
-                    show_rivers=True,
-                    show_plates=False,
-                    gmt_config=gmtconfig,
-                )
-
-                if time_shifts:
-                    sargs = m.jxyr + ["-St14p"]
-                    draw_data_stations(
-                        m.gmt,
-                        wmap.stations,
-                        time_shifts,
-                        dist,
-                        data_cpt=None,
-                        scale_label="time shifts [s]",
-                        *sargs
+                if dist > 30:
+                    logger.info(
+                        "Using equidistant azimuthal projection for"
+                        " teleseismic setup of wavemap %s." % wmap._mapid
                     )
 
-                    for st in wmap.stations:
-                        text = "{}.{}".format(st.network, st.station)
-                        m.add_label(lat=st.lat, lon=st.lon, text=text)
+                    gmt = gmtpy.GMT(config=gmtconfig)
+                    gmt_station_map_azimuthal(
+                        gmt,
+                        wmap.stations,
+                        event,
+                        data=time_shifts,
+                        max_distance=dist,
+                        width=w,
+                        bin_width=bin_width,
+                        fontsize=fontsize,
+                        font=font,
+                    )
+
+                    gmt.save(outpath, resolution=po.dpi, size=w)
+
                 else:
-                    m.add_stations(wmap.stations, psxy_style=dict(S="t14p", G="red"))
+                    logger.info(
+                        "Using equidistant projection for regional setup "
+                        "of wavemap %s." % wmap._mapid
+                    )
+                    from pyrocko.automap import Map
+                    from pyrocko import orthodrome as otd
 
-                draw_events(m.gmt, [event], *m.jxyr, **dict(G="yellow", S="a14p"))
-                m.save(outpath, resolution=po.dpi, oversample=2.0, size=w)
+                    m = Map(
+                        lat=event.lat,
+                        lon=event.lon,
+                        radius=dist * otd.d2m,
+                        width=h,
+                        height=h,
+                        show_grid=True,
+                        show_topo=True,
+                        show_scale=True,
+                        color_dry=(143, 188, 143),  # grey
+                        illuminate=True,
+                        illuminate_factor_ocean=0.15,
+                        # illuminate_factor_land = 0.2,
+                        show_rivers=True,
+                        show_plates=False,
+                        gmt_config=gmtconfig,
+                    )
 
-            logger.info("saving figure to %s" % outpath)
-        else:
-            logger.info("Plot exists! Use --force to overwrite!")
+                    if time_shifts:
+                        sargs = m.jxyr + ["-St14p"]
+                        draw_data_stations(
+                            m.gmt,
+                            wmap.stations,
+                            time_shifts,
+                            dist,
+                            data_cpt=None,
+                            scale_label="time shifts [s]",
+                            *sargs
+                        )
+
+                        for st in wmap.stations:
+                            text = "{}.{}".format(st.network, st.station)
+                            m.add_label(lat=st.lat, lon=st.lon, text=text)
+                    else:
+                        m.add_stations(wmap.stations, psxy_style=dict(S="t14p", G="red"))
+
+                    draw_events(m.gmt, [event], *m.jxyr, **dict(G="yellow", S="a14p"))
+                    m.save(outpath, resolution=po.dpi, oversample=2.0, size=w)
+
+                logger.info("saving figure to %s" % outpath)
+            else:
+                logger.info("Plot exists! Use --force to overwrite!")
 
 
 def draw_lune_plot(problem, po):

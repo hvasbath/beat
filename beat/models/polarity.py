@@ -52,7 +52,7 @@ class PolarityComposite(Composite):
         self.config = polc
         self.gamma = shared(0.2, name="gamma", borrow=True)
         self.fixed_rvs = {}
-        self.polmaps = []
+        self.wavemaps = []
 
         self.engine = LocalEngine(store_superdirs=[polc.gf_config.store_superdir])
         self.stations_event = OrderedDict()
@@ -91,7 +91,7 @@ class PolarityComposite(Composite):
                 self.engine, self.sources[pmap.config.event_idx], check=True,
                 always_raytrace=self.config.gf_config.always_raytrace
             )
-            self.polmaps.append(pmap)
+            self.wavemaps.append(pmap)
 
     @property
     def is_location_fixed(self):
@@ -117,7 +117,7 @@ class PolarityComposite(Composite):
         hp_names = self.get_hypernames()
 
         logpts = []
-        for i, pmap in enumerate(self.polmaps):
+        for i, pmap in enumerate(self.wavemaps):
             self.synthesizers[i] = PolaritySynthesizer(
                 self.engine,
                 self.sources[pmap.config.event_idx],
@@ -187,7 +187,7 @@ class PolarityComposite(Composite):
         Returns list of station names in the order of polarity maps.
         """
         us = []
-        for pmap in self.polmaps:
+        for pmap in self.wavemaps:
             us.extend(pmap.get_station_names())
 
         return us
@@ -227,7 +227,7 @@ class PolarityComposite(Composite):
         results = []
         pmap_results = []
         res_point = ResultPoint(point=point, post_llk="max")
-        for i, pmap in enumerate(self.polmaps):
+        for i, pmap in enumerate(self.wavemaps):
             source_contribution = synthetic_polarities[i]
             pmap_results.append(
                 PolarityResult(
@@ -257,7 +257,7 @@ class PolarityComposite(Composite):
         synths = []
         obs = []
 
-        for pmap in self.polmaps:
+        for pmap in self.wavemaps:
             source = self.sources[pmap.config.event_idx]
             pmap.update_targets(
                 self.engine, source,
@@ -283,7 +283,7 @@ class PolarityComposite(Composite):
     def targets(self):
         if self._targets is None:
             ts = []
-            for pmap in self.polmaps:
+            for pmap in self.wavemaps:
                 ts.extend(pmap.targets)
 
             self._targets = ts
