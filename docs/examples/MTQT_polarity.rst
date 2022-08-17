@@ -2,19 +2,22 @@ Example 1: Regional Full Moment Tensor
 --------------------------------------
 Clone project
 ^^^^^^^^^^^^^
-This setup is comprised of 24 seismic stations that are randomly distributed in a distance range of 3 to 162 km with respect to a reference event occurred on 2021-03-11 with the local magnitude, 1.6.
-We will explore the solution space of a Full Moment Tensor with the Tape and Tape 2015 parameterisation, the MTQTSource [TapeTape2015]_.
+This setup is comprised of 25 seismic stations in a distance range of 3 to 162 km with respect to a reference event occurred on 2021-03-11 with the local magnitude, 1.6.
+We will explore the solution space of a double couple Moment Tensor with the Tape and Tape 2015 parameterisation, the MTQTSource [TapeTape2015]_.
 To copy the example setup (including the data) to a directory outside of the package source directory, please edit the *model path* (referred to as $beat_models from now on) and execute::
 
     cd /path/to/beat/data/examples/
     beat clone MTQT_polarity /'model path'/MTQT_polarity --copy_data --datatypes=polarity
 
-This will create a BEAT project directory named *MTQT_polarity* with a configuration file *config_geometry.yaml* and a file with information of seismic stations *stations.txt*.
+This will create a BEAT project directory named *MTQT_polarity* with a configuration file *config_geometry.yaml* and a file with information of the seismic stations *stations.txt*.
 This directory is going to be referred to as *$project_directory* in the following.
+
 
 Calculate Greens Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
-The station-event geometry determines the grid of Greens Functions (GFs) that will need to be calculated next.
+For the inference of the moment tensor using polarity data the distances and takeoff-angles of rays from the seismic event towards stations need to be calculated. If the event location is fixed
+this needs to be done only once! BEAT supports the estimation of the location of the event, which requires repeated ray tracing. In order to avoid repeated ray-tracing, we pre-calculate look-up interpolation tables of the tabeoff-angles
+based on a grid of potential source depths and distances towards the stations. These are stored in a database, which we refer to as Green's Functions (GFs) in the following.
 
 Please open $project_directory/config_geometry.yaml with any text editor (e.g. vi) and search for *store_superdir*. Here, it is written for now ./MTQT_polarity, which is an example path to the directory of Greens Functions.
 This path needs to be replaced with the path to where the GFs are supposed to be stored on your computer. This directory is referred to as the $GF_path in the rest of the text. It is strongly recommended to use a separate directory apart from the beat source directory and the $project_directory as the GF databases can become very large, depending on the problem! For real examples, the GF databases may require up to several Gigabyte of free disc space. For our example the database that we are going to create is only around 30 Megabyte.::
@@ -22,7 +25,7 @@ This path needs to be replaced with the path to where the GFs are supposed to be
     cd $beat_models
     beat build_gfs MTQT_polarity --datatypes='polarity'
 
-This will create an empty Greens Function store named PolarityTest_local_10.000Hz_0 in the $GF_path. Under $GF_path/PolarityTest_local_10.000Hz_0/config it is recommended to cross-check again the velocity model and the specifications of the store (open with any texteditor).
+This will create an empty Greens Function store named PolarityTest_local_10.000Hz_0 in the $GF_path. Under $GF_path/polarity_local_10.000Hz_0/config it is recommended to cross-check again the velocity model and the specifications of the store (open with any texteditor).
 Dependend on the case study there are crucial parameters that often need to be changed from the default values: the spatial grid dimensions.
 
 In the $project_path/config_geometry.yaml under polarity config we find the gf_config, which holds the major parameters for GF calculation::
@@ -46,33 +49,49 @@ In the $project_path/config_geometry.yaml under polarity config we find the gf_c
          21.             6.271          3.74           2.781        471.7          210.1
          21.             6.407          3.767          2.822        900.           401.6
          40.             6.407          3.767          2.822        900.           401.6
-    source_depth_min: 0.5
-    source_depth_max: 7.0
+    source_depth_min: 0.1
+    source_depth_max: 7.5
     source_depth_spacing: 0.1
-    source_distance_radius: 222.38
-    source_distance_spacing: 0.5
+    source_distance_radius: 250.0
+    source_distance_spacing: 0.1
     error_depth: 0.1
     error_velocities: 0.1
     depth_limit_variation: 600.0
     reference_location: !beat.heart.ReferenceLocation
-      lat: 55.8921
-      lon: -120.6303
-      depth: 5.0
-      station: KSMMA
+      lat: 55.89310323984567
+      lon: -120.38565188644934
+      depth: 1.65
+      station: polarity
     sample_rate: 10.0
 
-Here we see that instead of a global velocity model a custom velocity model is going to be used for all the stations.
-Below are the grid definitions of the GFs. In this example the source depth grid is limited to one depth (7.0 km) to reduce calculation time. The distance grid is accordingly extending up to 222.38km.
-These grid sampling parameters as well as the sample rate are of major importance for the overall optimization. How to adjust these parameters
-according to individual case studies is described `here <https://pyrocko.org/docs/current/apps/fomosto/tutorial.html#considerations-for-real-world-applications>`__.
+Here we see that instead of a global velocity model a *custom_velocity_model* is going to be used for all the stations.
+Below are the grid definitions of the GFs. The distance grid is accordingly extending up to 250 km.
+These grid sampling parameters are of major importance for the accuracy of interpolated takeoff-angels. For specific event-station setups the *distance_spacing* and *depth_spacing* parameters may not be accurate enough. In this case BEAT will warn the user and will ask the user to
+lower these values.
 
-The *nworkers* variable defines the number of CPUs to use in parallel for the GF calculations. As these calculations may become very expensive and time-consuming it is of advantage to use as many CPUs as available. To be still able to navigate in your Operating System without crashing the system it is good to leave one CPU work-less.
-Please edit the *nworkers* parameter now!
+The *nworkers* variable defines the number of CPUs to use in parallel for the GF calculations, however, in this case only serial calculation is implemented yet.
+For our use-case the grid specifications are fine for now. In this case the takeoff-angles are going to be calculated for the P body waves. 
+Now the store configuration files have to be updated and the . As we created them before we need to overwrite them! We can do this with the --force option; --execute will start the actual calculation.::
 
-For our use-case the grid specifications are fine for now. In this case the GFs are going to be calculated for the P body waves. 
-Now the store configuration files have to be updated. As we created them before we need to overwrite them! We can do this with the --force option.::
+    beat build_gfs MTQT_polarity --datatypes='polarity' --force --execute
 
-    beat build_gfs MTQT_polarity --datatypes='polarity' --force
+Now we can inspect the calculated takeoff-angle table ::
+
+  cd $store_superdir
+  fomosto satview polarity_local_10.000Hz_0 any_P
+
+.. image:: ../_static/example8/takeoff_angles_table.png
+
+The top plot shows depth vs distance and the respective takeoff-angle in color. The black boxes are adaptively calculated based on the gradient of takeoff-angles, where grid points falling into one box have the same takeoff-angles.
+Thus, we see that at close distances we have small boxes i.e. rapidly changing takeoff-angles, which is not the case for larger distances. Just at rays close to velocity model layer changes these become finer again.
+
+The lower plot shows the takeoff-angle at the depth of 3.8km for all the distances, i.e. a horizontal profile through the top plot.
+
+We can also plot the station map with::
+
+  beat plot MTQT_polarity station_map
+
+.. image:: ../_static/example8/station_map_polarity.png
 
 
 Optimization setup (PolarityConfig)
